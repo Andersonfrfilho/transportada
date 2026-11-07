@@ -26,6 +26,7 @@ import {
   WHATSAPP_DRIVER_EVENT,
   type WhatsAppDriverEventPorts,
 } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
+import { placeStops } from '../../whatsapp-commands/infrastructure/whatsapp-stop-place.reader.js'
 import type { GroupReturnFlowPorts } from '../application/whatsapp-group-return-flow.service.js'
 import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
 
@@ -58,13 +59,22 @@ export function createGroupReturnPorts(dependencies: {
 
     async listOpenDocuments(input) {
       const trips = await dependencies.listActiveTrips(input)
-      const stops = trips.filter((trip) => !terminal.has(trip.status)).flatMap((trip) => trip.stops)
-      const arrived = findStopAwaitingSettlement(stops)
+      const activeStops = trips
+        .filter((trip) => !terminal.has(trip.status))
+        .flatMap((trip) => trip.stops)
+      const arrived = findStopAwaitingSettlement(activeStops)
+      const stops = await placeStops(dependencies.database, {
+        companyId: input.companyId,
+        ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+        stops: activeStops,
+      })
       return stops.flatMap((stop) =>
         stop.documents
           .filter((document) => !CLOSED.has(document.separationStatus))
           .map((document) => ({
             atArrivedStop: stop.id === arrived?.id,
+            city: stop.city,
+            clientName: document.recipientDisplayName,
             id: document.id,
             number: document.number,
           })),
@@ -105,7 +115,11 @@ export function createGroupReturnPorts(dependencies: {
       }
       const message = await renderBotSpeechLine({
         companyId: input.companyId,
-        line: describeWhatsAppDriverEventResult(result, { documentNumber, kind: 'group' }),
+        line: describeWhatsAppDriverEventResult(result, {
+          documentNumber,
+          kind: 'group',
+          returnReason: input.reason,
+        }),
         speech,
       })
       return { message, ...routeContinuationOf(result) }

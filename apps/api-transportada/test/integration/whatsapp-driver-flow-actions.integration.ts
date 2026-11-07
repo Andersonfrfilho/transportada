@@ -200,7 +200,7 @@ describe('o motorista entrega pelo WhatsApp (spec 144 T015 AC7)', () => {
       await scenario.receive({
         from: world.phone,
         interactive: {
-          list_reply: { id: 'deliver', title: '📦 Entregar' },
+          list_reply: { id: 'deliver', title: '✅ Entreguei' },
           type: 'list_reply',
         },
         type: 'interactive',

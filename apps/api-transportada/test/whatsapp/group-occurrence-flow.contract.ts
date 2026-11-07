@@ -32,6 +32,8 @@ const AVARIA: GroupOccurrenceType = { id: 'T2', name: 'Avaria' }
 const RECUSA: GroupOccurrenceType = { id: 'T3', name: 'Recusa do cliente' }
 const NF1: GroupDriverDocument = { id: 'D1', number: '17234' }
 const NF2: GroupDriverDocument = { id: 'D2', number: '000899853' }
+const NOTE_NF1 = { clientName: '', documentNumber: '17234' }
+const NOTE_NF2 = { clientName: '', documentNumber: '000899853' }
 
 function setup(
   options: {
@@ -149,7 +151,7 @@ describe('fluxo do grupo: guiado', () => {
     })
     const types = await flow.answer('2')
     expect(types).toMatchObject({
-      replies: [GROUP_OCCURRENCE_TEXT.askType([PRORROGACAO, AVARIA, RECUSA])],
+      replies: [GROUP_OCCURRENCE_TEXT.askType([PRORROGACAO, AVARIA, RECUSA], NOTE_NF2)],
     })
     expect(await flow.answer('prorrogacao do boleto')).toMatchObject({
       replies: [GROUP_OCCURRENCE_TEXT.askNote],
@@ -172,7 +174,6 @@ describe('fluxo do grupo: guiado', () => {
       replies: [
         GROUP_OCCURRENCE_TEXT.registered({
           documentNumber: '000899853',
-          note: 'cliente pediu mais 10 dias',
           typeName: 'Prorrogação do boleto',
         }),
       ],
@@ -360,9 +361,9 @@ describe('fluxo do grupo: o resumo para confirmar', () => {
     const outcome = await flow.locationReceived({ latitude: -21.1775, longitude: -47.8103 })
     expect(outcome.kind).toBe('continue')
     const summary = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
-    expect(summary).toContain('🏠 Endereço da nota: Rua das Flores, 100 - Ribeirão Preto/SP')
+    expect(summary).toContain('> 📍 Rua das Flores, 100 - Ribeirão Preto/SP')
     expect(summary).toContain(
-      '📍 Local da ocorrência: https://maps.google.com/?q=-21.177500,-47.810300',
+      '🗺️ Local da ocorrência: https://maps.google.com/?q=-21.177500,-47.810300',
     )
   })
 
@@ -378,9 +379,11 @@ describe('fluxo do grupo: o resumo para confirmar', () => {
     await flow.answer('quebrou')
     const outcome = await flow.answer('pular')
     const summary = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
-    expect(summary).toContain('🏢 Contratante: DISTRIBUIDORA EXEMPLO LTDA')
-    expect(summary).toContain('👤 Cliente: DEPOSITO 2 IRMAOS')
-    expect(summary).toContain('💰 Valor da nota: *R$ 33.480,00*\n\nPosso confirmar?')
+    expect(summary).toContain('> 🏢 Contratante: DISTRIBUIDORA EXEMPLO LTDA')
+    expect(summary).toContain('> 🧾 NF `17234` · *DEPOSITO 2 IRMAOS*')
+    expect(summary).toContain(
+      '> 💰 Valor da nota: *R$ 33.480,00*\n\n📝 Observação: _quebrou_\n\n*Posso registrar?*',
+    )
   })
 
   test('sem localização (pulou ou "enviei" sem mandar) o resumo não traz a linha do local', async () => {
@@ -389,8 +392,8 @@ describe('fluxo do grupo: o resumo para confirmar', () => {
     await flow.answer('quebrou')
     const outcome = await flow.answer('pular')
     const summary = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
-    expect(summary).toContain('🏠 Endereço da nota:')
-    expect(summary).not.toContain('📍')
+    expect(summary).toContain('> 📍 Rua das Flores')
+    expect(summary).not.toContain('🗺️ Local da ocorrência')
   })
 })
 
@@ -470,7 +473,10 @@ describe('fluxo do grupo: o que não pode', () => {
     await flow.answer('pular')
     await flow.answer('pular')
     expect(await flow.answer('sim')).toMatchObject({
-      replies: ['Este tipo não vale.', GROUP_OCCURRENCE_TEXT.askType([PRORROGACAO, RECUSA])],
+      replies: [
+        'Este tipo não vale.',
+        GROUP_OCCURRENCE_TEXT.askType([PRORROGACAO, RECUSA], NOTE_NF1),
+      ],
       step: GROUP_OCCURRENCE_STEP.type,
     })
   })
@@ -671,35 +677,25 @@ describe('fluxo do grupo: resposta de outra pessoa e observação', () => {
 })
 
 describe('fluxo do grupo: o resumo do registro (pedido do Anderson em 05/11)', () => {
-  test('traz contratante, cliente, endereço, data, local, observação, contato e o valor por último', () => {
+  test('o registro: hora, nota em citação e o aviso da contratante', () => {
     const text = GROUP_OCCURRENCE_TEXT.registered({
-      address: 'Rua A, 10 - Centro, Franca/SP',
       clientName: 'DEPOSITO DE BEBIDAS 2 IRMAOS LTDA',
       contact: '(16) •••••-6772',
-      contractorName: 'DISTRIBUIDORA EXEMPLO LTDA',
       documentNumber: '899884',
-      location: { latitude: -20.5673309, longitude: -47.3604555 },
-      note: 'cliente pediu mais 10 dias',
       registeredAt: '2026-11-05T00:42:00.000Z',
       sentToClient: true,
       series: '2',
-      totalValue: '1234.5',
       typeName: 'Prorrogação do boleto',
     })
-    const lines = text.split('\n')
-    expect(lines).toContain('📄 *NF 899884/2*')
-    expect(lines).toContain('🏢 Contratante: *DISTRIBUIDORA EXEMPLO LTDA*')
-    expect(lines).toContain('👤 Cliente: *DEPOSITO DE BEBIDAS 2 IRMAOS LTDA*')
-    expect(lines).toContain('🏠 Endereço da nota: Rua A, 10 - Centro, Franca/SP')
-    expect(lines).toContain('🕒 Registrada em: 04/11/2026 às 21:42')
-    expect(lines).toContain(
-      '📍 Local da ocorrência: https://maps.google.com/?q=-20.567331,-47.360456',
-    )
-    expect(lines).toContain('📇 Contato do cliente: *(16) •••••-6772*')
-    // O valor é a última linha do resumo, antes do que acontece agora.
-    const value = lines.indexOf('💰 Valor da nota: *R$ 1.234,50*')
-    expect(value).toBeGreaterThan(lines.indexOf('📇 Contato do cliente: *(16) •••••-6772*'))
-    expect(lines[value + 1]).toBe('')
+    expect(text.split('\n')).toEqual([
+      '✅ *Ocorrência registrada* · 21:42',
+      '',
+      '> ⚠️ *Prorrogação do boleto*',
+      '> 🧾 NF `899884/2` · *DEPOSITO DE BEBIDAS 2 IRMAOS LTDA*',
+      '> 📇 Contato: *(16) •••••-6772*',
+      '',
+      '📨 Assim que a contratante responder, o boleto segue para o cliente e eu aviso aqui.',
+    ])
   })
 
   test('sem os dados da nota, as linhas somem', () => {

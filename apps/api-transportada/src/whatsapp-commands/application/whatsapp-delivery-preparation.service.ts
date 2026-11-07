@@ -31,6 +31,7 @@ import {
   DELIVERY_PROOF_ITEM,
   resolveDeliveryProofChecklist,
   type DeliveryProofChecklist,
+  type DeliveryProofQuestion,
 } from '../domain/whatsapp-delivery-proof-checklist.policy.js'
 import {
   describeDeliveryConfirmCollected,
@@ -38,9 +39,11 @@ import {
   type DeliveryConfirmDocument,
 } from '../domain/whatsapp-delivery-confirm-summary.policy.js'
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
+import type { DeliveryProofQuestionView } from '../domain/whatsapp-delivery-proof-question.policy.js'
 import { CANHOTO_TEXT } from '../domain/whatsapp-driver-canhoto.policy.js'
 import { TripCanhotoAlreadyAttachedError } from '../../trips/domain/stop-order.error.js'
 import {
+  describeOutOfOrderNotUnderstood,
   describeOutOfOrderViolation,
   OUT_OF_ORDER_TEXT,
   toOrderStopLabel,
@@ -161,6 +164,8 @@ export type WhatsAppDeliveryPreparationPorts = {
     readonly companyId: string
     readonly documentNumber: string
     readonly result: WhatsAppDriverEventResult
+    /** A parada da nota, lida antes da baixa (depois dela a viagem pode já ter fechado); `undefined` sem a lista. */
+    readonly stopSequence?: number | undefined
   }) => Promise<string>
   /**
    * Spec 294 RF26: o canhoto da empresa com a mesma imagem (hash do conteúdo). Ausente, a foto repetida só é
@@ -354,6 +359,46 @@ export function createWhatsAppDeliveryPreparations(
     }
   }
 
+  async function stopSequenceOf(
+    preparation: WhatsAppDeliveryPreparation,
+  ): Promise<number | undefined> {
+    const stops = await ports
+      .listStops?.({ companyId: preparation.companyId, driverId: preparation.driverId })
+      .catch(() => undefined)
+    return stops?.find((candidate) =>
+      candidate.documents.some((document) => document.id === preparation.documentId),
+    )?.sequence
+  }
+
+  /** O cliente e a cidade da parada da nota, para a pergunta de quem recebeu; melhor esforço. */
+  async function clientOf(
+    preparation: WhatsAppDeliveryPreparation,
+  ): Promise<DeliveryProofQuestionView['client']> {
+    const stops = await ports
+      .listStops?.({ companyId: preparation.companyId, driverId: preparation.driverId })
+      .catch(() => undefined)
+    const stop = stops?.find((candidate) =>
+      candidate.documents.some((document) => document.id === preparation.documentId),
+    )
+    const document = stop?.documents.find((candidate) => candidate.id === preparation.documentId)
+    const name = document?.recipientName?.trim()
+    return name === undefined || name === '' ? undefined : { city: stop?.city, name }
+  }
+
+  async function describeQuestionOf(
+    preparation: WhatsAppDeliveryPreparation,
+    checklist: DeliveryProofChecklist,
+    question: DeliveryProofQuestion,
+  ): Promise<string> {
+    const isPersonQuestion =
+      question.item === DELIVERY_PROOF_ITEM.receivedBy ||
+      question.item === DELIVERY_PROOF_ITEM.receiverName
+    return DELIVERY_PROOF_SPEECH.question(preparation.documentNumber, question, {
+      client: isPersonQuestion ? await clientOf(preparation) : undefined,
+      pendingItems: checklist.pendingItems,
+    })
+  }
+
   /** O próximo passo dito ao motorista, e a pergunta que fica em aberto. */
   async function nextStep(
     preparation: WhatsAppDeliveryPreparation,
@@ -363,13 +408,7 @@ export function createWhatsAppDeliveryPreparations(
     if (checklist.next !== null) {
       return {
         awaiting: checklist.next.item,
-        texts: [
-          ...(checklist.missing.length > 1 ||
-          (checklist.missing.length === 1 && checklist.missing[0]?.item !== checklist.next.item)
-            ? [DELIVERY_PROOF_SPEECH.missing(number, checklist.missing)]
-            : []),
-          DELIVERY_PROOF_SPEECH.question(number, checklist.next),
-        ],
+        texts: [await describeQuestionOf(preparation, checklist, checklist.next)],
       }
     }
     if (checklist.appOnly.length > 0) {
@@ -452,7 +491,10 @@ export function createWhatsAppDeliveryPreparations(
           awaitingText: isTextQuestion(step.awaiting),
           documentNumber: merged.documentNumber,
           finished: false,
-          texts: [...outcome.ack, ...step.texts],
+          texts: [
+            ...(step.awaiting === DELIVERY_PREPARATION_AWAITING_CONFIRM ? [] : outcome.ack),
+            ...step.texts,
+          ],
         }
       }
       ports.logger?.info(LOG.raced, { companyId: merged.companyId, preparationId: merged.id })
@@ -482,7 +524,9 @@ export function createWhatsAppDeliveryPreparations(
     return describeOutOfOrderViolation({
       documentNumber: preparation.documentNumber,
       event: 'deliver',
-      labels: new Map(stops.map((stop) => [stop.id, toOrderStopLabel(stop)] as const)),
+      labels: new Map(
+        stops.map((stop) => [stop.id, toOrderStopLabel(stop, { total: stops.length })] as const),
+      ),
       violation: refusal,
     })
   }
@@ -503,6 +547,7 @@ export function createWhatsAppDeliveryPreparations(
         texts: step.texts,
       }
     }
+    const stopSequence = await stopSequenceOf(preparation)
     const result = await ports.deliver({
       ...actor,
       ...(confirmOutOfOrder ? { confirmOutOfOrder: true } : {}),
@@ -516,6 +561,7 @@ export function createWhatsAppDeliveryPreparations(
         companyId: preparation.companyId,
         documentNumber: preparation.documentNumber,
         result,
+        stopSequence,
       })
     if (
       result.kind === 'refused' &&
@@ -675,7 +721,13 @@ export function createWhatsAppDeliveryPreparations(
           await removePhotos(preparation)
           return finished(preparation, [OUT_OF_ORDER_TEXT.discarded])
         }
-        return refuse(preparation, OUT_OF_ORDER_TEXT.notUnderstood)
+        return refuse(
+          preparation,
+          describeOutOfOrderNotUnderstood({
+            event: 'deliver',
+            requested: await stopSequenceOf(preparation),
+          }),
+        )
       }
       if (preparation.awaiting === DELIVERY_PREPARATION_AWAITING_REPLACE_CANHOTO) {
         const choice = interpretDriverChoice(text)
@@ -713,7 +765,7 @@ export function createWhatsAppDeliveryPreparations(
           return refuse(preparation, DELIVERY_PROOF_SPEECH.receivedByNotUnderstood)
         }
         return mutate(preparation, actor, () => ({
-          ack: [DELIVERY_PROOF_SPEECH.received.receivedBy],
+          ack: [DELIVERY_PROOF_SPEECH.received.receivedBy(option)],
           changes: { receivedBy: option },
         }))
       }
@@ -979,12 +1031,12 @@ export function createWhatsAppDeliveryPreparations(
         return {
           reply: [
             DELIVERY_PROOF_SPEECH.stillMissingName,
-            DELIVERY_PROOF_SPEECH.question(current.documentNumber, question),
+            await describeQuestionOf(current, checklist, question),
           ],
         }
       }
       return {
-        ack: [DELIVERY_PROOF_SPEECH.received.skipped],
+        ack: [DELIVERY_PROOF_SPEECH.received.skipped(question.item)],
         changes: { skipped: [...new Set([...current.skipped, question.item])] },
       }
     })
@@ -1050,6 +1102,7 @@ function summarizeCollected(preparation: WhatsAppDeliveryPreparation): readonly 
     cargoPhotos: preparation.photos.filter((photo) => photo.kind === 'cargo').length,
     location: preparation.location,
     receivedBy: preparation.receivedBy,
+    receiverName: preparation.receiverName,
     skipped: preparation.skipped,
   })
 }

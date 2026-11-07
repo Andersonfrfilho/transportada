@@ -89,7 +89,7 @@ describe('falas do bot como nós do grafo (spec 286 T8)', () => {
     const id = botSpeechNodeId('tripUnavailable')
     const current = graphWith({ [id]: { directMessage: 'Editada.', id, type: 'action' } })
     const next = graphWith(buildBotSpeechNodes())
-    const merged = preserveEditedBotSpeech(current, next)
+    const merged = preserveEditedBotSpeech(current, next, undefined)
     expect(merged.nodes[id]?.directMessage).toBe('Editada.')
     expect(merged.nodes[botSpeechNodeId('operatorNoTrips')]?.directMessage).toBe(
       BOT_SPEECH_DEFAULTS.operatorNoTrips,

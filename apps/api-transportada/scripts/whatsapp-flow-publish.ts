@@ -6,8 +6,12 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { FlowGraphRepository, OptimisticLockError } from '@adatechnology/meta-whatsapp-module'
 
 import { assertOverwriteNodeIds } from '../src/whatsapp-commands/domain/whatsapp-bot-speech.policy.js'
-import { previewWhatsAppFlowGraphPublication } from '../src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.js'
+import {
+  previewWhatsAppFlowGraphPublication,
+  WhatsAppFlowGraphPanelEditedError,
+} from '../src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.js'
 import { WHATSAPP_ROOT_FLOW_GRAPH } from '../src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
+import { createDrizzleWhatsAppFlowGraphHistoryRepository } from '../src/whatsapp-commands/infrastructure/drizzle-whatsapp-flow-graph-history.repository.js'
 import { createDrizzleWhatsAppFlowGraphPublisher } from '../src/whatsapp-commands/infrastructure/whatsapp-flow-graph-publisher.factory.js'
 
 /**
@@ -19,6 +23,10 @@ import { createDrizzleWhatsAppFlowGraphPublisher } from '../src/whatsapp-command
  *   bun run scripts/whatsapp-flow-publish.ts --company <uuid>
  *   bun run scripts/whatsapp-flow-publish.ts --company <uuid> --confirm
  *   bun run scripts/whatsapp-flow-publish.ts --overwrite-nodes fala_a,fala_b   (texto do código nessas chaves)
+ *
+ * `--adopt-live-as-code-baseline`: só na primeira publicação depois da spec 300 T6.1 (ainda não há
+ * referência do que o código publicou) — o grafo vivo vira a referência e os `fala_*` iguais a ele
+ * recebem o padrão novo. Recusada se o histórico da empresa tiver versão `source=panel`.
  */
 async function main(): Promise<void> {
   const options = parseArguments(process.argv.slice(2))
@@ -33,11 +41,18 @@ async function main(): Promise<void> {
     const repository = new FlowGraphRepository(provider.db as never)
 
     const preview = await previewWhatsAppFlowGraphPublication({
+      adoptLiveAsCodeBaseline: options.adoptLiveAsCodeBaseline,
       companyId,
       graph,
+      history: createDrizzleWhatsAppFlowGraphHistoryRepository(provider.db),
       module: repository,
       overwriteNodeIds: options.overwriteNodeIds,
+    }).catch((error: unknown) => {
+      if (!(error instanceof WhatsAppFlowGraphPanelEditedError)) throw error
+      process.stdout.write(`${error.message}\nrode sem --adopt-live-as-code-baseline.\n`)
+      return undefined
     })
+    if (preview === undefined) return
 
     process.stdout.write(formatPreview({ companyId, graph, preview }))
 
@@ -59,6 +74,7 @@ async function main(): Promise<void> {
     const publish = createDrizzleWhatsAppFlowGraphPublisher(provider.db)
     try {
       const outcome = await publish({
+        adoptLiveAsCodeBaseline: options.adoptLiveAsCodeBaseline,
         companyId,
         graph,
         overwriteNodeIds: options.overwriteNodeIds,
@@ -81,6 +97,7 @@ async function main(): Promise<void> {
 }
 
 type Options = Readonly<{
+  adoptLiveAsCodeBaseline: boolean
   companyId: null | string
   confirm: boolean
   overwriteNodeIds: readonly string[]
@@ -98,7 +115,12 @@ function parseArguments(argv: readonly string[]): Options {
     .filter((key) => key !== '')
   assertOverwriteNodeIds(overwriteNodeIds)
 
-  return { companyId: value('company'), confirm: argv.includes('--confirm'), overwriteNodeIds }
+  return {
+    adoptLiveAsCodeBaseline: argv.includes('--adopt-live-as-code-baseline'),
+    companyId: value('company'),
+    confirm: argv.includes('--confirm'),
+    overwriteNodeIds,
+  }
 }
 
 /** Instalação dedicada (ADR-0021): uma empresa é o caso normal, e duas exigem `--company`. */
@@ -144,6 +166,7 @@ function formatPreview(input: {
     lines.push(`nós adicionados  ${preview.diff.addedNodeIds.join(', ') || '(nenhum)'}`)
     lines.push(`nós removidos    ${preview.diff.removedNodeIds.join(', ') || '(nenhum)'}`)
     lines.push(`nós alterados    ${preview.diff.changedNodeIds.join(', ') || '(nenhum)'}`)
+    lines.push(`fala_* regravados ${preview.rewrittenBotSpeechCount}`)
     if (preview.diff.labelChanged) lines.push(`rótulo           "${graph.label}"`)
     if (preview.diff.startNodeIdChanged) lines.push(`nó inicial       "${graph.startNodeId}"`)
   }

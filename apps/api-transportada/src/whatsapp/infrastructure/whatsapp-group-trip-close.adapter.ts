@@ -9,7 +9,7 @@ import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { DriverTrip } from '../../trips/application/find-current-driver-trip.use-case.js'
 import {
-  countOpenTripDocumentsForClose,
+  isTripDocumentOpenForClose,
   type TripCloseDocumentState,
 } from '../../trips/domain/trip-close.policy.js'
 import type { CloseTripInput } from '../../trips/application/trip.use-case.js'
@@ -41,12 +41,20 @@ export function createWhatsAppGroupTripClosePorts(dependencies: {
   readonly readCloseDocuments: (input: {
     readonly companyId: string
     readonly tripId: string
-  }) => Promise<readonly TripCloseDocumentState[]>
+  }) => Promise<readonly (TripCloseDocumentState & { readonly number: string })[]>
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
   readonly resolveSenderRole: ResolveWhatsAppSenderRole
 }): GroupTripCloseFlowPorts {
   const terminal = new Set<string>(TRIP_TERMINAL_STATUSES)
   const clock = dependencies.clock ?? (() => new Date())
+
+  async function readOpenDocumentNumbers(
+    tripId: string,
+    companyId: string,
+  ): Promise<readonly string[]> {
+    const documents = await dependencies.readCloseDocuments({ companyId, tripId })
+    return documents.filter(isTripDocumentOpenForClose).map((document) => document.number)
+  }
 
   return {
     async close({ companyId, phone, tripId }) {
@@ -60,6 +68,7 @@ export function createWhatsAppGroupTripClosePorts(dependencies: {
         return { kind: 'refused', message: CLOSE_FAILED }
       }
       try {
+        const openDocumentNumbers = await readOpenDocumentNumbers(tripId, companyId)
         await close({
           context: resolved.context.scope,
           correlationId: crypto.randomUUID(),
@@ -67,7 +76,7 @@ export function createWhatsAppGroupTripClosePorts(dependencies: {
           reason: WHATSAPP_TRIP_CLOSE_REASON,
           tripId,
         })
-        return { kind: 'closed' }
+        return { kind: 'closed', openDocumentNumbers }
       } catch (error) {
         dependencies.logger?.warn('whatsapp_group_request.trip_close_failed', {
           companyId,
@@ -84,10 +93,8 @@ export function createWhatsAppGroupTripClosePorts(dependencies: {
       const [only] = trips
       if (only === undefined) return { kind: 'none' }
       if (trips.length > 1) return { kind: 'many' }
-      const openDocumentCount = countOpenTripDocumentsForClose(
-        await dependencies.readCloseDocuments({ companyId, tripId: only.id }),
-      )
-      return { kind: 'one', openDocumentCount, tripId: only.id }
+      const openDocumentNumbers = await readOpenDocumentNumbers(only.id, companyId)
+      return { kind: 'one', openDocumentNumbers, tripId: only.id }
     },
 
     resolveSenderRole: dependencies.resolveSenderRole,

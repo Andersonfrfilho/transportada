@@ -32,6 +32,7 @@ import type {
   GroupFlowOutcome,
   GroupRequest,
 } from '../../src/whatsapp/application/whatsapp-group-request.port.js'
+import { createGroupReturnFlow } from '../../src/whatsapp/application/whatsapp-group-return-flow.service.js'
 import { createGroupStopFlow } from '../../src/whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { sameBrazilianPhone } from '../../src/whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
 
@@ -112,6 +113,10 @@ function setupFlow(options: { awaitingText?: boolean; withoutAccess?: boolean } 
       initialStep: 'document',
       start: async () => ({ kind: 'done', replies: ['occ-start'] }),
     },
+    return: createGroupReturnFlow({
+      listOpenDocuments: async () => [],
+      returnDocument: async () => ({ message: 'devolvida' }),
+    }),
     stop: createGroupStopFlow({
       enRouteMessage: async () => 'en-route',
       listStops: async () => [],
@@ -169,7 +174,15 @@ describe('grupo: entreguei abre a entrega em preparo', () => {
       GROUP_DELIVERY_TEXT.askDocument([
         { id: 'DOC1', number: '017234', recipientName: 'Padaria Sol' },
       ]),
-    ).toContain('1. NF 17234 · Padaria Sol')
+    ).toBe(
+      [
+        '✅ *Qual nota você entregou?*',
+        '',
+        '*1* - 🧾 NF `17234` · *Padaria Sol*',
+        '',
+        '_Responda com o número da opção ou da nota._',
+      ].join('\n'),
+    )
     await t.answer('2')
     expect(t.calls[0]).toMatchObject({ input: { documentId: 'DOC2' }, method: 'begin' })
   })
@@ -192,16 +205,19 @@ describe('grupo: entreguei abre a entrega em preparo', () => {
     expect(t.calls).toEqual([])
   })
 
-  test('o menu ganha "Entreguei" como opção 3', async () => {
+  test('o menu é o do desenho da spec 300: "Entreguei" é a 3 e "Não entreguei" a 4', async () => {
     const t = setupFlow()
     expect(await t.start('')).toMatchObject({ replies: [GROUP_DRIVER_TEXT.menu] })
     expect(GROUP_DRIVER_TEXT.menu).toBe(
       [
-        'O que você quer lançar?',
+        '*O que você quer lançar?*',
         '*1* - 🚚 Saí para a entrega',
         '*2* - 📍 Cheguei',
         '*3* - ✅ Entreguei',
-        '*4* - ⚠️ Ocorrência',
+        '*4* - ↩️ Não entreguei',
+        '*5* - ⚠️ Ocorrência',
+        '',
+        '_Responda com o número._',
       ].join('\n'),
     )
     await t.answer('3')
@@ -464,7 +480,7 @@ describe('grupo: foto e localização do motorista', () => {
   test('download que falha pede a foto de novo', async () => {
     const t = intake({ failDownload: true })
     await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
-    expect(t.sent).toEqual([['Não consegui baixar a foto. Mande de novo, por favor.']])
+    expect(t.sent).toEqual([['⚠️ *Não consegui baixar a foto.*\nMande de novo, por favor.']])
   })
 
   test('localização sem pergunta aberta não fica guardada para um "cheguei" depois', async () => {

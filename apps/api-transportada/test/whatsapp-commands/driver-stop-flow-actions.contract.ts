@@ -186,7 +186,7 @@ describe('comando direto do motorista (spec 293 T14)', () => {
     const result = await run(DRIVER_FLOW_ACTION_KIND.depart, WITH_TRIP)
     expect(calls.map((call) => call.kind)).toEqual(['depart'])
     expect(calls[0]?.input).toMatchObject({ driverId: DRIVER_ID, stopId: 's1', tappedAt: NOW })
-    expect(sent).toEqual(['*Saída registrada* 🚚'])
+    expect(sent).toEqual(['🚚 *Saída registrada* · 09:00'])
     expect(result).toMatchObject({ next: DRIVER_FLOW_NODE.tripMenu })
   })
 
@@ -216,7 +216,9 @@ describe('comando direto do motorista (spec 293 T14)', () => {
     ])
     await run(DRIVER_FLOW_ACTION_KIND.depart, WITH_TRIP)
     expect(calls).toEqual([])
-    expect(sent[0]).toContain('A parada 1 já está a caminho')
+    expect(sent[0]).toBe(
+      '⚠️ *Você já está a caminho da parada 1.*\nRegistre a chegada nela antes de sair para outra.',
+    )
   })
 
   test('entreguei com número confirma antes de gravar; Não não grava; Sim grava', async () => {

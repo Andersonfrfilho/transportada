@@ -18,8 +18,8 @@ import {
   describeAlreadyArrived,
   describeAlreadyDeparted,
   describeAlreadySettled,
-  describeArrivalDetails,
-  describeDepartureDetails,
+  describeArrivalReply,
+  describeDepartureReply,
   describeNextRouteOffer,
   describePendingSettlement,
   nextRouteActions,
@@ -70,14 +70,15 @@ const NEXT: StopCard = {
   stopId: 'S3',
 }
 
-const BLOCK = [
-  '*Parada 2 de 5*',
-  '*NF 17234* · R$ 1.234,56',
-  '🏪 *DAIARA DE OLIVEIRA CARDOSO SUPERMERCADO*',
-  '🏢 Contratante: Distribuidora Aurora',
-  '📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
-  '🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000',
-]
+/** O bloco da lista (bairro e cidade) em citação, como o menu e a oferta mostram a parada. */
+const LIST_BLOCK = [
+  '> *PARADA 2 de 5*',
+  '> 🧾 NF `17234` · *DAIARA DE OLIVEIRA CARDOSO SUPERMERCADO*',
+  '> 📍 Ribeirao Preto',
+  '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+].join('\n')
+
+const MENU_QUESTION = '*O que você quer fazer agora?*'
 
 describe('o bloco da parada', () => {
   test('dinheiro é soma de texto decimal em centavos, nunca float', () => {
@@ -101,72 +102,132 @@ describe('o bloco da parada', () => {
     )
   })
 
-  test('a saída: bloco, estrada e próximo passo', () => {
-    const lines = describeDepartureDetails(
-      { card: CARD, eta: { distanceMetres: 12_340, durationSeconds: 1500 } },
-      NOW,
-    )
-    expect(lines).toEqual([
-      ...BLOCK,
-      '📦 3 volumes',
-      '📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~13:30 (25 min)_',
-      '➡️ _Próximo passo:_ quando chegar, mande *cheguei*.',
-    ])
-  })
-
-  test('sem ponto compartilhado não há estrada; endereço sem localização certa avisa', () => {
-    const lines = describeDepartureDetails({ card: { ...CARD, isAddressReliable: false } }, NOW)
-    expect(lines.some((line) => line.includes('km'))).toBe(false)
-    expect(lines.join('\n')).toContain('sem localização certa no mapa')
-  })
-
-  test('a chegada: bloco, volumes para entregar, próximo passo e a prévia da próxima (sem pergunta)', () => {
-    expect(describeArrivalDetails({ card: CARD, next: NEXT })).toEqual([
-      ...BLOCK,
-      '📦 3 volumes para entregar',
-      '➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.',
-      '🔜 _Depois desta:_ *NF 17300* · Mercado Lua – SERTAOZINHO',
-    ])
-  })
-})
-
-describe('o evento repetido oferece o que cabe no estado da parada', () => {
-  test('"cheguei" repetido: já registrada às HH:MM e as quatro ações da parada que chegou', () => {
+  test('a saída: frase, bloco em citação, valor, chegada prevista e próximo passo', () => {
     expect(
-      describeAlreadyArrived({ card: CARD }, { arrivedAt: '2026-11-06T03:28:00.000Z', now: NOW }),
+      describeDepartureReply(
+        '🚚 *Saída registrada* · 13:05',
+        { card: CARD, eta: { distanceMetres: 12_340, durationSeconds: 1500 } },
+        NOW,
+      ),
     ).toBe(
       [
-        '⚠️ *A chegada nesta parada já foi registrada* às 00:28.',
-        ...BLOCK,
-        '📦 3 volumes',
+        '🚚 *Saída registrada* · 13:05',
         '',
-        '*O que você quer fazer agora?*',
-        '*1* - Entreguei _(mande a foto do canhoto)_',
-        '*2* - Não entreguei',
-        '*3* - Abrir ocorrência',
-        '*4* - Nada por enquanto',
+        '> *PARADA 2 de 5*',
+        '> 🧾 NF `17234` · *DAIARA DE OLIVEIRA CARDOSO SUPERMERCADO*',
+        '> 🏢 Contratante: Distribuidora Aurora',
+        '> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
+        '> 📦 3 volumes',
+        '> 📏 *12 km* · ⏱️ _~25 min_',
+        '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+        '> 💰 Valor da nota: *R$ 1.234,56*',
+        '> ⏱️ Chegada prevista: *~13:30*',
+        '',
+        '➡️ _Próximo passo:_ quando chegar, mande *cheguei*.',
       ].join('\n'),
     )
   })
 
-  test('"saí" repetido: a saída já foi registrada; cheguei, ocorrência ou nada', () => {
-    const text = describeAlreadyDeparted(
-      { card: CARD },
-      { departedAt: '2026-11-06T15:00:00.000Z', now: NOW },
+  test('sem ponto compartilhado não há estrada; endereço sem localização certa avisa depois do bloco', () => {
+    const text = describeDepartureReply(
+      '🚚 *Saída registrada* · 13:05',
+      { card: { ...CARD, isAddressReliable: false } },
+      NOW,
     )
-    expect(text.split('\n')[0]).toBe('⚠️ *A saída para esta parada já foi registrada* às 12:00.')
-    expect(text).toEndWith('*1* - Cheguei\n*2* - Abrir ocorrência\n*3* - Nada por enquanto')
+    expect(text).not.toContain('km')
+    expect(text).not.toContain('Chegada prevista')
+    expect(text).toContain(
+      '> 💰 Valor da nota: *R$ 1.234,56*\n\n⚠️ _Este endereço está sem localização certa no mapa. Quando chegar, mande cheguei e compartilhe a localização: eu atualizo o endereço._\n\n➡️',
+    )
+  })
+
+  test('a chegada: a frase, o bloco em citação com o valor, a prévia da próxima (sem pergunta) e o próximo passo', () => {
+    expect(
+      describeArrivalReply('📍 *Chegada registrada* · 13:05', { card: CARD, next: NEXT }),
+    ).toBe(
+      [
+        '📍 *Chegada registrada* · 13:05',
+        '',
+        '> *PARADA 2 de 5*',
+        '> 🧾 NF `17234` · *DAIARA DE OLIVEIRA CARDOSO SUPERMERCADO*',
+        '> 🏢 Contratante: Distribuidora Aurora',
+        '> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
+        '> 📦 3 volumes',
+        '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+        '> 💰 Valor da nota: *R$ 1.234,56*',
+        '',
+        '🔜 *Depois desta:* parada 3 · Mercado Lua – Sertaozinho',
+        '',
+        '➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.',
+      ].join('\n'),
+    )
+  })
+})
+
+describe('o evento repetido oferece o que cabe no estado da parada', () => {
+  test('"cheguei" repetido: já registrada às HH:MM, o bloco e as quatro ações da parada que chegou', () => {
+    expect(
+      describeAlreadyArrived({ card: CARD }, { arrivedAt: '2026-11-06T03:28:00.000Z', now: NOW }),
+    ).toBe(
+      [
+        '⚠️ *A chegada na parada 2 já foi registrada* às 00:28.',
+        '',
+        LIST_BLOCK,
+        '',
+        MENU_QUESTION,
+        '*1* - ✅ Entreguei _(mande a foto do canhoto)_',
+        '*2* - ↩️ Não entreguei',
+        '*3* - ⚠️ Abrir ocorrência',
+        '*4* - 💤 Nada por enquanto',
+      ].join('\n'),
+    )
+  })
+
+  test('"saí" repetido (RF9): a frase do `fala_stop_en_route`, o bloco com a estrada e o menu Cheguei, ocorrência, nada', () => {
+    expect(
+      describeAlreadyDeparted(
+        { card: CARD, eta: { distanceMetres: 3200, durationSeconds: 480 } },
+        '⚠️ *Você já está a caminho da parada 2.*\nRegistre a chegada nela antes de sair para outra.',
+      ),
+    ).toBe(
+      [
+        '⚠️ *Você já está a caminho da parada 2.*',
+        'Registre a chegada nela antes de sair para outra.',
+        '',
+        '> *PARADA 2 de 5*',
+        '> 🧾 NF `17234` · *DAIARA DE OLIVEIRA CARDOSO SUPERMERCADO*',
+        '> 📍 Ribeirao Preto',
+        '> 📏 *3,2 km* · ⏱️ _~8 min_',
+        '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+        '',
+        MENU_QUESTION,
+        '*1* - 📍 Cheguei na *parada 2*',
+        '*2* - ⚠️ Abrir ocorrência',
+        '*3* - 💤 Nada por enquanto',
+      ].join('\n'),
+    )
   })
 
   test('"saí" com a baixa pendente avisa e deixa sair sem a baixa (nunca recusa)', () => {
-    const text = describePendingSettlement(
-      { card: CARD },
-      { arrivedAt: '2026-11-06T15:00:00.000Z', now: NOW },
+    expect(
+      describePendingSettlement(
+        { card: CARD },
+        { arrivedAt: '2026-11-06T15:00:00.000Z', now: NOW },
+      ),
+    ).toBe(
+      [
+        '⚠️ *Falta a baixa da parada 2.*',
+        'Você chegou às 12:00 e ainda não registrou a entrega.',
+        '',
+        LIST_BLOCK,
+        '',
+        MENU_QUESTION,
+        '*1* - ✅ Entreguei _(mande a foto do canhoto)_',
+        '*2* - ↩️ Não entreguei',
+        '*3* - 🚚 Sair para outra parada sem dar a baixa',
+        '*4* - 💤 Nada por enquanto',
+      ].join('\n'),
     )
-    expect(text.split('\n')[0]).toBe(
-      '⚠️ *Falta a baixa desta parada.* Você chegou às 12:00 e ainda não registrou a entrega.',
-    )
-    expect(text).toContain('*3* - Sair para outra parada sem dar a baixa')
   })
 
   test('"entreguei" numa nota já baixada diz quando', () => {
@@ -177,18 +238,18 @@ describe('o evento repetido oferece o que cabe no estado da parada', () => {
         returned: false,
         settledAt: '2026-11-06T15:00:00.000Z',
       }),
-    ).toBe('⚠️ *A entrega da NF 17234 já foi registrada* às 12:00.')
+    ).toBe('⚠️ *A entrega da NF `17234` já foi registrada* às 12:00.\nNada foi gravado de novo.')
   })
 
   test('a oferta da próxima rota: seguir para ela, escolher outra ou nada', () => {
-    expect(describeNextRouteOffer({ card: NEXT }, { asks: true, now: NOW })).toEndWith(
-      '*1* - Seguir para ela 🚚\n*2* - Escolher outra da lista\n*3* - Nada por enquanto',
+    expect(describeNextRouteOffer({ card: NEXT }, { asks: true })).toEndWith(
+      '*1* - 🚚 Seguir para a *parada 3*\n*2* - 📋 Escolher outra da lista\n*3* - 💤 Nada por enquanto',
     )
   })
 
   test.each([
     describeAlreadyArrived({ card: CARD }, { arrivedAt: 'x', now: NOW }),
-    describeNextRouteOffer({ card: NEXT }, { asks: false, now: NOW }),
+    describeNextRouteOffer({ card: NEXT }, { asks: false }),
     describePendingSettlement(
       { card: { ...CARD, recipientName: '*' } },
       { arrivedAt: '', now: NOW },
@@ -200,7 +261,7 @@ describe('o evento repetido oferece o que cabe no estado da parada', () => {
   test('hora que não é data some, em vez de "às NaN"', () => {
     expect(
       describeAlreadyArrived({ card: CARD }, { arrivedAt: 'x', now: NOW }).split('\n')[0],
-    ).toBe('⚠️ *A chegada nesta parada já foi registrada*.')
+    ).toBe('⚠️ *A chegada na parada 2 já foi registrada*.')
   })
 })
 
@@ -231,7 +292,7 @@ describe('a escolha no menu (texto ou áudio)', () => {
     expect(
       readJourneyActions([
         { documentNumber: '1', kind: 'deliver' },
-        { kind: 'depart', stopId: 'S1' },
+        { kind: 'depart', sequence: 4, stopId: 'S1' },
         { kind: 'none' },
         { kind: 'depart' },
         { kind: 'bogus' },
@@ -239,7 +300,7 @@ describe('a escolha no menu (texto ou áudio)', () => {
       ]),
     ).toEqual([
       { documentNumber: '1', kind: 'deliver' },
-      { kind: 'depart', stopId: 'S1' },
+      { kind: 'depart', sequence: 4, stopId: 'S1' },
       { kind: 'none' },
     ])
   })
@@ -345,7 +406,7 @@ describe('o bloco da parada é melhor esforço na conversa individual (revisão 
       location: null,
       stopId: 'S1',
     })
-    expect(result.texts).toEqual(['*Saída registrada* 🚚'])
+    expect(result.texts).toEqual(['🚚 *Saída registrada* · 13:05'])
   })
 })
 

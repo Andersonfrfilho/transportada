@@ -194,9 +194,9 @@ const CANCEL_WORDS = new Set(['cancelar', 'cancela', 'desistir'])
 
 export const OCCURRENCE_DRAFT_TEXT = {
   cancelled: (documentNumber: string) =>
-    `Ocorrência da NF ${documentNumber} cancelada. Nada foi registrado.`,
+    `↩️ *Ocorrência da NF ${documentNumber} cancelada.* Nada foi registrado.`,
   registerFailed:
-    'Não consegui registrar a ocorrência agora. Responda qualquer coisa para tentar de novo, ou "cancelar".',
+    '⚠️ *Não consegui registrar a ocorrência agora.* Responda qualquer coisa para tentar de novo, ou _cancelar_.',
 } as const
 
 export function createWhatsAppOccurrenceDrafts(

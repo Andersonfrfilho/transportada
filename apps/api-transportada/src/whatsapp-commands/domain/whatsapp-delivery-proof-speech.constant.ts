@@ -5,30 +5,38 @@
  * número da nota; o "Confirma a entrega?" traz o resumo completo (nota e o que foi colhido), como o da
  * ocorrência — esconder cliente e endereço no grupo nunca foi decisão do dono (só o log fica sem PII).
  */
-import { RECEIVED_BY_OPTIONS, type ReceivedBy } from '../../database/trip.schema.js'
+import type { ReceivedBy } from '../../database/trip.schema.js'
 import {
   DELIVERY_PROOF_ITEM,
+  type DeliveryProofItem,
   type DeliveryProofQuestion,
-  type MissingDeliveryProof,
 } from './whatsapp-delivery-proof-checklist.policy.js'
+import {
+  describeProofQuestion,
+  type DeliveryProofQuestionView,
+} from './whatsapp-delivery-proof-question.policy.js'
+import {
+  RECEIVED_BY_MESSAGE_OPTIONS,
+  describeReceivedByInSentence,
+} from './whatsapp-delivery-received-by.constant.js'
+import {
+  formatNotUnderstood,
+  formatOptions,
+  type MessageOption,
+} from './whatsapp-message-format.policy.js'
 
-/** A ordem é a do seletor do app (`RECEIVED_BY_OPTIONS`); o número da resposta é a posição. */
-export const RECEIVED_BY_LABELS: Readonly<Record<ReceivedBy, string>> = {
-  child: 'Filho ou filha',
-  doorman: 'Porteiro',
-  employee: 'Funcionário do local',
-  neighbor: 'Vizinho',
-  other: 'Outra pessoa',
-  other_relative: 'Outro parente',
-  parent: 'Pai ou mãe',
-  recipient: 'O próprio destinatário',
-  sibling: 'Irmão ou irmã',
-  spouse: 'Cônjuge',
+const CONFIRM_OPTIONS: readonly MessageOption[] = [
+  { action: 'Sim, confirmar', icon: '✅' },
+  { action: 'Não, cancelar', icon: '❌' },
+]
+
+const SKIPPED_ITEM_WORDS: Readonly<Record<DeliveryProofItem, string>> = {
+  [DELIVERY_PROOF_ITEM.cargo]: 'a foto da mercadoria',
+  [DELIVERY_PROOF_ITEM.location]: 'a localização',
+  [DELIVERY_PROOF_ITEM.photo]: 'a foto do canhoto',
+  [DELIVERY_PROOF_ITEM.receivedBy]: 'quem recebeu',
+  [DELIVERY_PROOF_ITEM.receiverName]: 'o nome',
 }
-
-const SKIP_HINT = '_Se não tiver, responda pular._'
-
-const photos = (count: number) => (count === 1 ? '1 foto' : `${count} fotos`)
 
 export const DELIVERY_PROOF_SPEECH = {
   appOnlySignature: (documentNumber: string) =>
@@ -36,79 +44,52 @@ export const DELIVERY_PROOF_SPEECH = {
   attachFailed:
     'Algumas fotos não entraram no comprovante. Mande de novo pelo aplicativo, por favor.',
   cancelled: (documentNumber: string) =>
-    `Entrega da NF ${documentNumber} cancelada. A nota continua aberta na viagem.`,
-  /** `document` (dados da nota) e `collected` (o que veio) são linhas prontas; bloco vazio some. */
+    `↩️ *Entrega da NF \`${documentNumber}\` cancelada.* A nota continua aberta na viagem.`,
+  /** `document` (dados da nota, já em citação) e `collected` (o que veio) são linhas prontas; bloco vazio some. */
   confirm: (
     documentNumber: string,
     summary: { readonly collected: readonly string[]; readonly document: readonly string[] },
   ) =>
     [
-      `✅ *NF ${documentNumber} pronta para fechar.*`,
-      ...summary.document,
-      ...(summary.collected.length === 0 ? [] : ['', ...summary.collected]),
+      `📋 *Confira a entrega da NF \`${documentNumber}\`*`,
       '',
+      ...(summary.document.length === 0 ? [] : [...summary.document, '']),
+      ...(summary.collected.length === 0 ? [] : [...summary.collected, '']),
       '*Confirma a entrega?*',
-      '*1* - Sim ✅',
-      '*2* - Não ❌',
+      formatOptions(CONFIRM_OPTIONS),
     ].join('\n'),
-  confirmNotUnderstood: 'Responda 1 para confirmar a entrega ou 2 para cancelar.',
-  downloadFailed: 'Não consegui baixar a foto. Mande de novo, por favor.',
-  duplicatePhoto: 'Essa foto já tinha chegado.',
-  missing: (documentNumber: string, missing: readonly MissingDeliveryProof[]) =>
-    `⚠️ *NF ${documentNumber} ainda não fechou.* Falta: ${missing.map(describeMissing).join(', ')}.`,
-  nameNotUnderstood: 'Digite o nome de quem recebeu (ou "pular", se não for obrigatório).',
+  confirmNotUnderstood: formatNotUnderstood({
+    options: CONFIRM_OPTIONS,
+    reason: 'Responda com o número da opção:',
+  }),
+  downloadFailed: '⚠️ *Não consegui baixar a foto.*\nMande de novo, por favor.',
+  duplicatePhoto: '🔁 *Essa foto já tinha chegado.* Nada foi gravado de novo.',
+  nameNotUnderstood: formatNotUnderstood({
+    reason: 'Escreva o nome de quem recebeu, ou responda pular se não for obrigatório.',
+  }),
   noPhotoWanted: (documentNumber: string) =>
     `A NF ${documentNumber} não pede foto, então não guardei esta.`,
   photoLimit: (documentNumber: string) =>
     `A NF ${documentNumber} já tem as fotos da mercadoria que cabem no comprovante.`,
-  question: (documentNumber: string, question: DeliveryProofQuestion) =>
-    describeQuestion(documentNumber, question),
+  question: (
+    documentNumber: string,
+    question: DeliveryProofQuestion,
+    view: DeliveryProofQuestionView,
+  ) => describeProofQuestion(documentNumber, question, view),
   received: {
-    cargo: 'Foto da mercadoria recebida.',
-    location: 'Localização recebida.',
-    photo: 'Foto do canhoto recebida.',
-    receivedBy: 'Anotado quem recebeu.',
-    receiverName: 'Anotado o nome de quem recebeu.',
-    skipped: 'Ok, sem esse item.',
+    cargo: '✅ _Foto da mercadoria recebida._',
+    location: '📍 _Localização recebida._',
+    photo: '✅ _Canhoto recebido._',
+    receivedBy: (receivedBy: ReceivedBy) =>
+      `👍 _Anotado: ${describeReceivedByInSentence(receivedBy)}._`,
+    receiverName: '👍 _Anotado: o nome de quem recebeu._',
+    skipped: (item: DeliveryProofItem) => `👍 _Ok, sem ${SKIPPED_ITEM_WORDS[item]}._`,
   },
   /** "entreguei" sem número com a entrega já aberta: o bot diz qual nota e repete a pergunta pendente. */
-  resumed: (documentNumber: string) => `↩️ *Continuando a entrega da NF ${documentNumber}.*`,
-  receivedByNotUnderstood: 'Responda com o número da lista de quem recebeu.',
+  resumed: (documentNumber: string) => `↩️ *Continuando a entrega da NF \`${documentNumber}\`.*`,
+  receivedByNotUnderstood: formatNotUnderstood({
+    options: RECEIVED_BY_MESSAGE_OPTIONS,
+    reason: 'Responda com o número da opção:',
+  }),
   stillMissingName: 'Esse item é obrigatório para fechar a entrega.',
 } as const
-
-function describeMissing(missing: MissingDeliveryProof): string {
-  switch (missing.item) {
-    case DELIVERY_PROOF_ITEM.photo:
-      return 'foto do canhoto'
-    case DELIVERY_PROOF_ITEM.cargo:
-      return `${photos(missing.remaining)} da mercadoria`
-    case DELIVERY_PROOF_ITEM.receivedBy:
-      return 'quem recebeu'
-    case DELIVERY_PROOF_ITEM.receiverName:
-      return 'nome de quem recebeu'
-  }
-}
-
-function describeQuestion(documentNumber: string, question: DeliveryProofQuestion): string {
-  const tail = question.optional ? ` ${SKIP_HINT}` : ''
-  switch (question.item) {
-    case DELIVERY_PROOF_ITEM.location:
-      return `📍 *NF ${documentNumber}:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização).${tail}`
-    case DELIVERY_PROOF_ITEM.photo:
-      return `📸 *NF ${documentNumber}:* mande a foto do canhoto assinado.${tail}`
-    case DELIVERY_PROOF_ITEM.cargo:
-      return question.optional
-        ? `📦 *NF ${documentNumber}:* mande a foto da mercadoria entregue.${tail}`
-        : `📦 *NF ${documentNumber}:* mande ${photos(question.remaining)} da mercadoria entregue.`
-    case DELIVERY_PROOF_ITEM.receivedBy:
-      return [
-        `👤 *NF ${documentNumber}:* quem recebeu? _Responda com o número._${tail}`,
-        ...RECEIVED_BY_OPTIONS.map(
-          (option, index) => `*${index + 1}* - ${RECEIVED_BY_LABELS[option]}`,
-        ),
-      ].join('\n')
-    case DELIVERY_PROOF_ITEM.receiverName:
-      return `✍️ *NF ${documentNumber}:* qual o nome de quem recebeu?${tail}`
-  }
-}

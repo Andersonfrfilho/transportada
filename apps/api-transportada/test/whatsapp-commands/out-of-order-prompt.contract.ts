@@ -83,9 +83,16 @@ describe('a pergunta do fora de ordem (spec 294 RF25)', () => {
     })
     expect(text).toBe(
       [
-        '⚠️ *Você iniciou a rota para a parada 3 (NF 17234 — Padaria Sol)*, mas esta nota é da parada 5 (NF 17300 — Mercado Estrela).',
-        '*1* - Entreguei a parada 5 mesmo',
-        '*2* - Foi engano, descartar',
+        '⚠️ *Fora da rota sugerida*',
+        'Você está na *parada 3*, e a NF `17300` é da *parada 5*. Se achar melhor, pode registrar.',
+        '',
+        '> ✅ *ENTREGA · PARADA 5*',
+        '> 🧾 NF `17300` · *Mercado Estrela*',
+        '',
+        '*1* - ✅ Entreguei na *parada 5*',
+        '*2* - ↩️ Foi engano, descartar',
+        '',
+        '_A parada 3 continua aberta. Responda 1 ou 2._',
       ].join('\n'),
     )
   })
@@ -96,13 +103,23 @@ describe('a pergunta do fora de ordem (spec 294 RF25)', () => {
       labels: LABELS,
       violation: violation({}),
     })
-    expect(text).toContain('Você iniciou a rota para a parada 3 (NF 17234 — Padaria Sol)')
-    expect(text).toContain('você está chegando na parada 5 (NF 17300 — Mercado Estrela)')
-    expect(text).toContain('*1* - Cheguei na parada 5 mesmo')
-    expect(text).toContain('*2* - Foi engano')
+    expect(text).toBe(
+      [
+        '⚠️ *Fora da rota sugerida*',
+        'Você está a caminho da *parada 3*, e este "cheguei" é da *parada 5*. Se achar melhor, pode registrar.',
+        '',
+        '> 📍 *CHEGADA · PARADA 5*',
+        '> 🧾 NF `17300` · *Mercado Estrela*',
+        '',
+        '*1* - ✅ Cheguei na *parada 5*',
+        '*2* - ↩️ Foi engano, descartar',
+        '',
+        '_A parada 3 continua aberta. Responda 1 ou 2._',
+      ].join('\n'),
+    )
   })
 
-  test('saída que não é a próxima do roteiro: "Sim, a 6 / Não, a 4"', () => {
+  test('saída que não é a próxima do roteiro: seguir para a 6 ou ir para a 4', () => {
     const text = describeOutOfOrderViolation({
       event: 'depart',
       labels: LABELS,
@@ -117,9 +134,20 @@ describe('a pergunta do fora de ordem (spec 294 RF25)', () => {
     })
     expect(text).toBe(
       [
-        '⚠️ *A próxima no roteiro é a parada 4 (NF 17250 — Farmácia Lua).* Quer mesmo iniciar a parada 6?',
-        '*1* - Sim, a 6',
-        '*2* - Não, a 4',
+        '⚠️ *Fora da rota sugerida*',
+        'A rota sugere ir antes para a *parada 4*. Se achar melhor, pode seguir para a 6.',
+        '',
+        '> 🚚 *VOCÊ ESCOLHEU · PARADA 6*',
+        '> 🧾 NF `17400` · *Loja Norte*',
+        '',
+        '> 👉 *PRÓXIMA DA ROTA · PARADA 4*',
+        '> 🧾 NF `17250` · *Farmácia Lua*',
+        '',
+        '*Para onde você vai?*',
+        '*1* - ✅ Seguir para a *parada 6*',
+        '*2* - 👉 Ir para a *parada 4*',
+        '',
+        '_Responda 1 ou 2._',
       ].join('\n'),
     )
   })
@@ -130,7 +158,7 @@ describe('a pergunta do fora de ordem (spec 294 RF25)', () => {
       labels: new Map(),
       violation: violation({}),
     })
-    expect(text).toContain('para a parada 3*, mas você está chegando na parada 5.')
+    expect(text).toContain('> 📍 *CHEGADA · PARADA 5*\n\n*1* - ✅ Cheguei na *parada 5*')
   })
 
   test('o 409 da API vira a recusa com os ids das paradas', () => {
@@ -193,8 +221,10 @@ describe('conversa individual: saída fora do roteiro (RF25)', () => {
   test('a API recusou: a pergunta sai e o pedido fica no contexto, sem gravar nada', async () => {
     const { departures, prompts } = build()
     const result = await record(prompts, 's6')
-    expect(result.texts[0]).toContain('A próxima no roteiro é a parada 4 (NF 17250 — Farmácia Lua)')
-    expect(result.texts[0]).toContain('*1* - Sim, a 6')
+    expect(result.texts[0]).toContain(
+      '> 👉 *PRÓXIMA DA ROTA · PARADA 4*\n> 🧾 NF `17250` · *Farmácia Lua*',
+    )
+    expect(result.texts[0]).toContain('*1* - ✅ Seguir para a *parada 6*')
     expect(result.context[DRIVER_PROMPT_CONTEXT_KEY]).toMatchObject({
       kind: 'out_of_order',
       nextStopId: 's4',
@@ -215,7 +245,7 @@ describe('conversa individual: saída fora do roteiro (RF25)', () => {
         whatsappNumber: PHONE,
       })
       expect(departures.at(-1)).toMatchObject({ confirmOutOfOrder: true, stopId: 's6' })
-      expect(confirmed?.texts).toEqual(['*Saída registrada* 🚚'])
+      expect(confirmed?.texts).toEqual(['🚚 *Saída registrada* · 09:00'])
       expect(confirmed?.context[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
     },
   )
@@ -245,7 +275,12 @@ describe('conversa individual: saída fora do roteiro (RF25)', () => {
       text: 'quero ver o menu',
       whatsappNumber: PHONE,
     })
-    expect(other).toMatchObject({ handled: true, texts: [OUT_OF_ORDER_TEXT.notUnderstood] })
+    expect(other).toMatchObject({
+      handled: true,
+      texts: [
+        '🤔 *Não entendi.* Responda *1* para seguir para a *parada 6* ou *2* para ir para a *parada 4*.',
+      ],
+    })
     expect(other?.context[DRIVER_PROMPT_CONTEXT_KEY]).toBeDefined()
     expect(departures).toHaveLength(1)
   })
@@ -400,9 +435,16 @@ describe('entrega de nota de outra parada (RF25, grupo e individual)', () => {
     expect(asked?.finished).toBe(false)
     expect(asked?.texts[0]).toBe(
       [
-        '⚠️ *Você iniciou a rota para a parada 3 (NF 17234 — Padaria Sol)*, mas esta nota é da parada 5 (NF 17300 — Mercado Estrela).',
-        '*1* - Entreguei a parada 5 mesmo',
-        '*2* - Foi engano, descartar',
+        '⚠️ *Fora da rota sugerida*',
+        'Você está na *parada 3*, e a NF `17300` é da *parada 5*. Se achar melhor, pode registrar.',
+        '',
+        '> ✅ *ENTREGA · PARADA 5*',
+        '> 🧾 NF `17300` · *Mercado Estrela*',
+        '',
+        '*1* - ✅ Entreguei na *parada 5*',
+        '*2* - ↩️ Foi engano, descartar',
+        '',
+        '_A parada 3 continua aberta. Responda 1 ou 2._',
       ].join('\n'),
     )
     expect(t.rows.get('P1')?.status).toBe('open')
@@ -438,7 +480,7 @@ describe('entrega de nota de outra parada (RF25, grupo e individual)', () => {
     const t = setup()
     await reachConfirm(t)
     const again = await t.answer('talvez')
-    expect(again?.texts).toEqual([OUT_OF_ORDER_TEXT.notUnderstood])
+    expect(again?.texts).toEqual(['🤔 *Não entendi.* Responda *1* ou *2*.'])
     expect(t.rows.get('P1')?.status).toBe('open')
   })
 

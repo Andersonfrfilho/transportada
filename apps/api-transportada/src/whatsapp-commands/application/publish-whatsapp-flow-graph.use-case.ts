@@ -3,7 +3,11 @@
  */
 import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 
-import { preserveEditedBotSpeech } from '../domain/whatsapp-bot-speech.policy.js'
+import {
+  buildCodeBaseline,
+  countRewrittenBotSpeech,
+  preserveEditedBotSpeech,
+} from '../domain/whatsapp-bot-speech.policy.js'
 import {
   diffWhatsAppFlowGraphs,
   type WhatsAppFlowGraphDiff,
@@ -13,6 +17,7 @@ import {
   type WhatsAppFlowGraphViolation,
 } from '../domain/whatsapp-menu.policy.js'
 import type {
+  WhatsAppFlowGraphHistoryPort,
   WhatsAppFlowGraphModulePort,
   WhatsAppFlowGraphPublisherRepositories,
 } from './whatsapp-flow-graph-publisher.port.js'
@@ -24,6 +29,15 @@ export class WhatsAppFlowGraphInvalidError extends Error {
     super(`whatsapp flow graph has ${violations.length} violation(s) for the whatsapp channel`)
     this.name = 'WhatsAppFlowGraphInvalidError'
     this.violations = violations
+  }
+}
+
+export class WhatsAppFlowGraphPanelEditedError extends Error {
+  constructor(flowKey: string) {
+    super(
+      `whatsapp flow graph "${flowKey}" has panel edits: adopting the live graph as code baseline would overwrite them`,
+    )
+    this.name = 'WhatsAppFlowGraphPanelEditedError'
   }
 }
 
@@ -56,11 +70,14 @@ export type WhatsAppFlowGraphPublicationRequest = {
   /** `'code'` no comando de republicação; id do usuário quando um dia o painel salvar. */
   readonly publishedBy: string
   readonly source: 'code' | 'panel'
+  /** Só para a primeira publicação com a regra de edição: declara que o grafo vivo ainda é o do código. */
+  readonly adoptLiveAsCodeBaseline?: boolean
 }
 
 export type WhatsAppFlowGraphPublicationPreview = {
   readonly current: FlowGraphData | undefined
   readonly diff: WhatsAppFlowGraphDiff
+  readonly rewrittenBotSpeechCount: number
   readonly overwritten: readonly WhatsAppFlowGraphOverwrittenNode[]
   readonly violations: readonly WhatsAppFlowGraphViolation[]
 }
@@ -79,8 +96,10 @@ export type WhatsAppFlowGraphPublicationOutcome =
  * quem quiser conferir antes de publicar. Nunca grava nada.
  */
 export async function previewWhatsAppFlowGraphPublication(input: {
+  readonly adoptLiveAsCodeBaseline?: boolean
   readonly companyId: string
   readonly graph: FlowGraphData
+  readonly history: Pick<WhatsAppFlowGraphHistoryPort, 'hasPanelEdits' | 'readCodeBaseline'>
   readonly module: Pick<WhatsAppFlowGraphModulePort, 'get'>
   readonly overwriteNodeIds?: readonly string[]
 }): Promise<WhatsAppFlowGraphPublicationPreview> {
@@ -88,17 +107,39 @@ export async function previewWhatsAppFlowGraphPublication(input: {
   assertOverwriteKeysExist(input.graph, overwriteNodeIds)
   const violations = validateFlowGraphForWhatsApp(input.graph)
   const current = await input.module.get(input.companyId, input.graph.key)
+  const baseline = await resolveCodeBaseline({ ...input, current })
   /** O diff mostra o que a publicação faria de fato: as falas editadas no editor ficam como estão. */
-  const merged = preserveEditedBotSpeech(current, input.graph, overwriteNodeIds)
-  const diff = diffWhatsAppFlowGraphs(current, merged)
+  const published = preserveEditedBotSpeech(current, input.graph, baseline, overwriteNodeIds)
   const overwritten = overwriteNodeIds
     .map((nodeId) => ({
       from: current?.nodes[nodeId]?.directMessage,
       nodeId,
-      to: merged.nodes[nodeId]?.directMessage,
+      to: published.nodes[nodeId]?.directMessage,
     }))
     .filter((node) => current !== undefined && node.from !== node.to)
-  return { current, diff, overwritten, violations }
+  return {
+    current,
+    diff: diffWhatsAppFlowGraphs(current, published),
+    overwritten,
+    rewrittenBotSpeechCount: countRewrittenBotSpeech(current, published),
+    violations,
+  }
+}
+
+async function resolveCodeBaseline(input: {
+  readonly adoptLiveAsCodeBaseline?: boolean
+  readonly companyId: string
+  readonly current: FlowGraphData | undefined
+  readonly graph: FlowGraphData
+  readonly history: Pick<WhatsAppFlowGraphHistoryPort, 'hasPanelEdits' | 'readCodeBaseline'>
+}): Promise<FlowGraphData | undefined> {
+  if (input.adoptLiveAsCodeBaseline === true) {
+    if (await input.history.hasPanelEdits(input.companyId, input.graph.key)) {
+      throw new WhatsAppFlowGraphPanelEditedError(input.graph.key)
+    }
+    return input.current
+  }
+  return input.history.readCodeBaseline(input.companyId, input.graph.key)
 }
 
 export type PublishWhatsAppFlowGraph = (
@@ -137,13 +178,33 @@ export function createPublishWhatsAppFlowGraphUseCase(dependencies: {
           nodes: request.graph.nodes,
           startNodeId: request.graph.startNodeId,
         })
+        await history.recordCodeBaseline({
+          companyId: request.companyId,
+          graph: { ...request.graph, version: created.version },
+        })
         return { graph: created, kind: 'created' }
       }
 
-      /** Spec 286 T8: o que o editor mudou nas falas do bot não volta ao padrão do código. */
-      const graph = preserveEditedBotSpeech(current, request.graph, overwriteNodeIds)
+      /** Spec 286 T8 e 300 T6.1: fala editada no painel não volta ao padrão; a igual à do código é regravada. */
+      const baseline = await resolveCodeBaseline({ ...request, current, history })
+      const graph = preserveEditedBotSpeech(current, request.graph, baseline, overwriteNodeIds)
       const diff = diffWhatsAppFlowGraphs(current, graph)
-      if (diff.isEqual) return { graph: current, kind: 'unchanged' }
+      if (diff.isEqual) {
+        if (request.adoptLiveAsCodeBaseline === true) {
+          await history.recordCodeBaseline({
+            companyId: request.companyId,
+            graph: {
+              ...buildCodeBaseline({
+                codeGraph: request.graph,
+                previousBaseline: baseline,
+                published: graph,
+              }),
+              version: current.version,
+            },
+          })
+        }
+        return { graph: current, kind: 'unchanged' }
+      }
 
       /** A versão sobre a mesa (a que `save` está prestes a substituir) fica no histórico. */
       await history.record({
@@ -157,6 +218,17 @@ export function createPublishWhatsAppFlowGraphUseCase(dependencies: {
         { ...graph, version: current.version },
         current.version,
       )
+      await history.recordCodeBaseline({
+        companyId: request.companyId,
+        graph: {
+          ...buildCodeBaseline({
+            codeGraph: request.graph,
+            previousBaseline: baseline,
+            published: graph,
+          }),
+          version: updated.version,
+        },
+      })
       return { diff, graph: updated, kind: 'updated' }
     })
   }

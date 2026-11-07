@@ -74,9 +74,7 @@ describe('a oferta da próxima rota (spec 294 RF8, RF12)', () => {
     expect(text).toContain('Próxima parada: 4 de 6 — Padaria Sol')
     expect(text).toContain('Rua das Flores, 100 - Centro')
     expect(text).toContain('NF 17300, NF 17301')
-    expect(text).toContain(
-      'https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000',
-    )
+    expect(text).toContain('https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81')
     expect(text).toContain('*1* - Seguir para ela 🚚')
     expect(text).toContain('*2* - Escolher outra da lista')
     expect(text).not.toContain('sem localização certa')
@@ -264,6 +262,7 @@ function createHarness(options: HarnessOptions = {}) {
           return { changed: true }
         },
       },
+      routeClosing: async () => ({ driverName: 'ANDERSON MOTORISTA', totalStops: 6 }),
       speech: CATALOG_BOT_SPEECH,
     }),
     graphs: createStaticWhatsAppFlowGraphProvider({ graphs: [GRAPH], rootFlowKey: FLOW_KEY }),
@@ -310,9 +309,10 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
     const harness = createHarness({ continuation: CONTINUES })
     await harness.send('1')
     expect(harness.sent[0]).toBe('*NF 17234 entregue.* Parada concluída. ✅')
-    expect(harness.sent[1]).toContain('*Parada 4 de 6*')
-    expect(harness.sent[1]).toContain('🏪 *Padaria Sol*')
-    expect(harness.sent[1]).toContain('*1* - Seguir para ela 🚚')
+    expect(harness.sent[1]).toContain(
+      '> *PARADA 4 de 6*\n> 🧾 NF `17300`, `17301` · *Padaria Sol*\n> 📍 Rua das Flores, 100 - Centro',
+    )
+    expect(harness.sent[1]).toContain('*1* - 🚚 Seguir para a *parada 4*')
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toMatchObject({
       kind: 'journey_actions',
       stopId: 'stop-4',
@@ -327,7 +327,7 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
       idempotencyKey: `whatsapp-route-offer:stop-4:${NOW.toISOString()}`,
       stopId: 'stop-4',
     })
-    expect(harness.sent.at(-1)).toBe('*Saída registrada* 🚚')
+    expect(harness.sent.at(-1)).toBe('🚚 *Saída registrada* · 09:00')
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
   })
 
@@ -336,7 +336,7 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
     await harness.send('1')
     await harness.send('3')
     expect(harness.departures).toHaveLength(0)
-    expect(harness.sent.at(-1)).toStartWith('Certo, não registrei nada.\n')
+    expect(harness.sent.at(-1)).toStartWith('👍 *Certo, nada foi registrado.*\n')
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
   })
 
@@ -359,11 +359,10 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
     expect(harness.departures).toHaveLength(0)
     expect(harness.sent.at(-1)).toBe(
       [
-        'Não entendi: responda com o número da opção.',
-        '*O que você quer fazer agora?*',
-        '*1* - Seguir para ela 🚚',
-        '*2* - Escolher outra da lista',
-        '*3* - Nada por enquanto',
+        '🤔 *Não entendi.* Responda com o número da opção:',
+        '*1* - 🚚 Seguir para a *parada 4*',
+        '*2* - 📋 Escolher outra da lista',
+        '*3* - 💤 Nada por enquanto',
       ].join('\n'),
     )
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toMatchObject({ stopId: 'stop-4' })
@@ -402,7 +401,7 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
     await harness.send('1')
     expect(harness.sent).toEqual([
       '*NF 17234 entregue.* Parada concluída. ✅',
-      ROUTE_OFFER_TEXT.routeCompleted,
+      '🏁 *Rota concluída!* Todas as 6 paradas estão fechadas.\nBom descanso, Anderson. 🌙',
     ])
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
   })
@@ -531,7 +530,7 @@ describe('áudio esperando confirmação tem prioridade sobre a oferta (RNF1)', 
     await harness.send('1')
     expect(harness.departures).toHaveLength(0)
     // O texto do áudio não responde à oferta: ela é repetida e segue aberta.
-    expect(harness.sent.at(-1)).toContain('*O que você quer fazer agora?*')
+    expect(harness.sent.at(-1)).toContain('🤔 *Não entendi.* Responda com o número da opção:')
   })
 
   test('o "dois" falado descarta o áudio pendente e não responde à oferta', async () => {

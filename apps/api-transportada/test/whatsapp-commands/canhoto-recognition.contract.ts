@@ -41,6 +41,23 @@ const SETTINGS: DeliveryProofFieldSettings = {
 }
 const NOW = new Date('2026-11-05T15:00:00.000Z')
 const BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])
+const CHOOSE_BOTH = [
+  '📸 *De qual nota é este canhoto?*',
+  '',
+  '*1* - 🧾 NF `17234` · *Mercado Sul*',
+  '*2* - 🧾 NF `17300`',
+  '*3* - 🗑️ Descartar a foto',
+  '',
+  '_Responda com o número da opção ou da nota._',
+].join('\n')
+const PHOTO_KIND = [
+  '🤔 *Essa foto não parece um canhoto assinado.*',
+  'O que é?',
+  '',
+  '*1* - 📦 Foto da mercadoria',
+  '*2* - 🧾 É o canhoto, sim',
+  '*3* - 🗑️ Descartar',
+].join('\n')
 
 type Verdict = Awaited<ReturnType<WhatsAppCanhotoReaderPort['read']>>
 const exact = (documentId: string): Verdict => ({
@@ -285,7 +302,7 @@ describe('foto sem entrega em preparo: o canhoto lido liga à nota (spec 294 RF2
   test('número exato e único: abre a nota com o canhoto, pede a localização e baixa', async () => {
     const t = setup()
     const first = await t.photo()
-    expect(first?.texts[0]).toBe('Li o canhoto da NF 17234.')
+    expect(first?.texts[0]).toBe('📸 *Li o canhoto da NF `17234`.*')
     expect(first?.texts.join('\n')).toContain('localização')
     expect(t.rows.get('P1')?.photos.map((p) => p.kind)).toEqual(['photo'])
     expect(t.questionRows.size).toBe(0)
@@ -308,7 +325,7 @@ describe('foto sem entrega em preparo: o canhoto lido liga à nota (spec 294 RF2
     await t.answer('sim')
     next = 'DOC-B'
     const second = await t.photo(ACTOR, 'M2')
-    expect(second?.texts[0]).toBe('Li o canhoto da NF 17300.')
+    expect(second?.texts[0]).toBe('📸 *Li o canhoto da NF `17300`.*')
     expect(t.rows.get('P2')?.documentId).toBe('DOC-B')
   })
 
@@ -324,7 +341,9 @@ describe('foto sem entrega em preparo: o canhoto lido liga à nota (spec 294 RF2
   test('a mesma imagem de antes: diz de qual nota e não lê nem grava', async () => {
     const t = setup({ duplicateOf: 'DOC-A' })
     const reply = await t.photo()
-    expect(reply?.texts).toEqual(['Esse canhoto já tinha chegado: NF 17234, entregue às 11:32.'])
+    expect(reply?.texts).toEqual([
+      '🔁 *Esse canhoto já tinha chegado.*\nNF `17234`, entregue às 11:32. Nada foi gravado de novo.',
+    ])
     expect(t.readCalls()).toBe(0)
     expect(t.rows.size).toBe(0)
   })
@@ -342,7 +361,7 @@ describe('no grupo, o bot só lê o canhoto quando é marcado na foto', () => {
   test('foto marcando o bot: lê como antes', async () => {
     const t = setup()
     const read = await t.photo(ACTOR, 'M1', BYTES, true)
-    expect(read?.texts[0]).toBe('Li o canhoto da NF 17234.')
+    expect(read?.texts[0]).toBe('📸 *Li o canhoto da NF `17234`.*')
   })
 })
 
@@ -355,16 +374,16 @@ describe('o que não é exato pergunta, e nunca baixa por palpite', () => {
     }
     const t = setup({ read: async () => near })
     const asked = await t.photo()
-    expect(asked?.texts[0]).toContain('Este canhoto é da NF 17234?')
+    expect(asked?.texts).toEqual([
+      '📸 *Este canhoto é da NF `17234`?*\n> 🏪 Mercado Sul\n\n*1* - ✅ Sim, é dessa nota\n*2* - 🔄 Não, é de outra',
+    ])
     expect(asked?.awaitingText).toBe(true)
     expect(t.rows.size).toBe(0)
 
     const other = await t.answer('2')
-    expect(other?.texts[0]).toContain('De qual nota é este canhoto?')
-    expect(other?.texts[0]).toContain('NF 17234 · Mercado Sul')
-    expect(other?.texts[0]).toContain('NF 17300')
+    expect(other?.texts[0]).toBe(CHOOSE_BOTH)
     const chosen = await t.answer('17300')
-    expect(chosen?.texts[0]).toBe('Li o canhoto da NF 17300.')
+    expect(chosen?.texts[0]).toBe('📸 *Li o canhoto da NF `17300`.*')
     expect(t.rows.get('P2')?.documentId ?? t.rows.get('P3')?.documentId).toBe('DOC-B')
     expect(t.removed.length).toBeGreaterThan(0)
   })
@@ -378,7 +397,7 @@ describe('o que não é exato pergunta, e nunca baixa por palpite', () => {
     const t = setup({ read: async () => near })
     await t.photo()
     const reply = await t.answer('sim')
-    expect(reply?.texts[0]).toBe('Li o canhoto da NF 17234.')
+    expect(reply?.texts[0]).toBe('📸 *Li o canhoto da NF `17234`.*')
   })
 
   test('ambíguo lista só as notas candidatas, por número da opção', async () => {
@@ -392,26 +411,32 @@ describe('o que não é exato pergunta, e nunca baixa por palpite', () => {
     }
     const t = setup({ read: async () => both })
     const asked = await t.photo()
-    expect(asked?.texts[0]).toContain('*1* - NF 17234')
-    expect(asked?.texts[0]).toContain('*2* - NF 17300')
-    expect(asked?.texts[0]).toContain('*3* - Descartar')
+    expect(asked?.texts).toEqual([
+      [
+        '📸 *De qual nota é este canhoto?*',
+        '',
+        '*1* - 🧾 NF `17234` · *Mercado Sul*',
+        '*2* - 🧾 NF `17300`',
+        '*3* - 🗑️ Descartar a foto',
+        '',
+        '_Responda com o número da opção ou da nota._',
+      ].join('\n'),
+    ])
     const chosen = await t.answer('2')
-    expect(chosen?.texts[0]).toBe('Li o canhoto da NF 17300.')
+    expect(chosen?.texts[0]).toBe('📸 *Li o canhoto da NF `17300`.*')
   })
 
   test('duas marcas e nenhum número legível: pergunta de qual nota com todas as abertas', async () => {
     const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 3 }) })
     const asked = await t.photo()
-    expect(asked?.texts[0]).toContain('De qual nota é este canhoto?')
-    expect(asked?.texts[0]).not.toContain('NF 1\n')
+    expect(asked?.texts[0]).toBe(CHOOSE_BOTH)
   })
 
   test('menos de duas marcas e sem número: "mercadoria / é o canhoto / descartar"', async () => {
     const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 1 }) })
     const asked = await t.photo()
-    expect(asked?.texts[0]).toContain('Essa foto não parece um canhoto assinado')
-    expect(asked?.texts[0]).toContain('*3* - Descartar')
-    expect((await t.answer('2'))?.texts[0]).toContain('De qual nota é este canhoto?')
+    expect(asked?.texts[0]).toBe(PHOTO_KIND)
+    expect((await t.answer('2'))?.texts[0]).toBe(CHOOSE_BOTH)
     expect((await t.answer('descartar'))?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.discarded])
     expect(t.questionRows.size).toBe(1)
     expect([...t.questionRows.values()][0]?.status).toBe('cancelled')
@@ -420,7 +445,14 @@ describe('o que não é exato pergunta, e nunca baixa por palpite', () => {
   test('"1 - mercadoria" anota e descarta a foto; resposta que não entende repete a pergunta', async () => {
     const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 0 }) })
     await t.photo()
-    expect((await t.answer('talvez'))?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.notUnderstood])
+    expect((await t.answer('talvez'))?.texts).toEqual([
+      [
+        '🤔 *Não entendi.* Responda com o número da opção:',
+        '*1* - 📦 Foto da mercadoria',
+        '*2* - 🧾 É o canhoto, sim',
+        '*3* - 🗑️ Descartar',
+      ].join('\n'),
+    ])
     expect((await t.answer('1'))?.texts).toEqual([CANHOTO_RECOGNITION_SPEECH.cargoNoted])
     expect(t.rows.size).toBe(0)
   })
@@ -461,7 +493,7 @@ describe('C2: a resposta só fecha a pergunta depois de a foto ir para a nota', 
     expect(t.removed).toEqual([])
 
     const retried = await t.answer('sim')
-    expect(retried?.texts[0]).toBe('Li o canhoto da NF 17234.')
+    expect(retried?.texts[0]).toBe('📸 *Li o canhoto da NF `17234`.*')
     expect([...t.questionRows.values()][0]?.status).toBe('completed')
     expect(t.removed).toHaveLength(1)
   })
@@ -479,12 +511,21 @@ describe('C2: canhoto lido direto que não consegue ir para a nota', () => {
   test('falha ao guardar: a foto fica numa pergunta "é da NF X?", e o "sim" liga à nota', async () => {
     const t = setup({ failPreparationStores: 1 })
     const asked = await t.photo()
-    expect(asked?.texts[0]).toContain(CANHOTO_RECOGNITION_SPEECH.storeFailedKept)
-    expect(asked?.texts[0]).toContain('Este canhoto é da NF 17234?')
+    expect(asked?.texts).toEqual([
+      [
+        '⚠️ *Não consegui guardar a foto na nota agora.* Ela ficou guardada.',
+        '',
+        '📸 *Este canhoto é da NF `17234`?*',
+        '> 🏪 Mercado Sul',
+        '',
+        '*1* - ✅ Sim, é dessa nota',
+        '*2* - 🔄 Não, é de outra',
+      ].join('\n'),
+    ])
     expect(asked?.awaitingText).toBe(true)
     expect([...t.questionRows.values()][0]?.status).toBe('open')
 
-    expect((await t.answer('sim'))?.texts[0]).toBe('Li o canhoto da NF 17234.')
+    expect((await t.answer('sim'))?.texts[0]).toBe('📸 *Li o canhoto da NF `17234`.*')
     expect([...t.questionRows.values()][0]?.status).toBe('completed')
   })
 
@@ -514,11 +555,10 @@ describe('leitor indisponível, um pedido por vez e prazo (RNF1)', () => {
       },
     })
     const asked = await t.photo()
-    expect(asked?.texts[0]).toContain('De qual nota é este canhoto?')
-    expect(asked?.texts[0]).toContain('NF 17234 · Mercado Sul')
+    expect(asked?.texts[0]).toBe(CHOOSE_BOTH)
     expect(asked?.awaitingText).toBe(true)
     expect(t.rows.size).toBe(0)
-    expect((await t.answer('17234'))?.texts[0]).toBe('Li o canhoto da NF 17234.')
+    expect((await t.answer('17234'))?.texts[0]).toBe('📸 *Li o canhoto da NF `17234`.*')
   })
 
   test('C1: falha do motor, prazo estourado ou rede: avisa e cai na pergunta 1/2/3, nunca calado', async () => {
@@ -529,8 +569,7 @@ describe('leitor indisponível, um pedido por vez e prazo (RNF1)', () => {
         },
       })
       const asked = await t.photo()
-      expect(asked?.texts[0]).toContain(CANHOTO_RECOGNITION_SPEECH.readerUnavailable)
-      expect(asked?.texts[0]).toContain('*1* - Mercadoria')
+      expect(asked?.texts[0]).toBe(`⚠️ *Não consegui ler a foto agora.*\n\n${PHOTO_KIND}`)
       expect(t.rows.size).toBe(0)
     }
   })
@@ -603,7 +642,8 @@ describe('o OCR liga por ambiente (spec 294 T4.8)', () => {
 })
 
 describe('foto sem pergunta aberta: a parada em andamento vem primeiro (nunca baixa por palpite)', () => {
-  const CONFIRM_17300 = 'Este canhoto é da NF 17300?\n*1* - Sim\n*2* - Não, é de outra'
+  const CONFIRM_17300 =
+    '📸 *Este canhoto é da NF `17300`?*\n\n*1* - ✅ Sim, é dessa nota\n*2* - 🔄 Não, é de outra'
 
   test('canhoto sem número legível: pergunta pela nota da parada que chegou, não pela lista da viagem', async () => {
     const t = setup({
@@ -613,7 +653,7 @@ describe('foto sem pergunta aberta: a parada em andamento vem primeiro (nunca ba
     expect((await t.photo())?.texts).toEqual([CONFIRM_17300])
     expect(t.attached).toEqual([])
     const confirmed = await t.answer('1')
-    expect(confirmed?.texts[0]).toBe('Li o canhoto da NF 17300.')
+    expect(confirmed?.texts[0]).toBe('📸 *Li o canhoto da NF `17300`.*')
     expect([...t.rows.values()].map((row) => row.documentId)).toEqual(['DOC-B'])
   })
 
@@ -657,13 +697,11 @@ describe('foto sem pergunta aberta: a parada em andamento vem primeiro (nunca ba
       secondStopArrived: true,
     })
     await t.photo()
-    expect((await t.answer('2'))?.texts[0]).toBe(
-      'De qual nota é este canhoto? Responda com o número da opção ou da nota:\n*1* - NF 17234 · Mercado Sul\n*2* - NF 17300\n*3* - Descartar a foto',
-    )
+    expect((await t.answer('2'))?.texts[0]).toBe(CHOOSE_BOTH)
   })
 
   test('sem parada em andamento, a lista da viagem como antes', async () => {
     const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 3 }) })
-    expect((await t.photo())?.texts[0]).toContain('De qual nota é este canhoto?')
+    expect((await t.photo())?.texts[0]).toBe(CHOOSE_BOTH)
   })
 })

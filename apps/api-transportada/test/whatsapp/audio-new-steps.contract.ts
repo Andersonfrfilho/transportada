@@ -8,10 +8,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { OUT_OF_ORDER_TEXT } from '../../src/whatsapp-commands/domain/whatsapp-driver-order.policy.js'
-import {
-  LOCATION_PROMPT_TEXT,
-  ROUTE_OFFER_TEXT,
-} from '../../src/whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
+import { ROUTE_OFFER_TEXT } from '../../src/whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import { createEvolutionGroupIdentity } from '../../src/whatsapp/application/evolution-group-identity.service.js'
 import {
   createEvolutionGroupInbound,
@@ -236,9 +233,10 @@ describe('cada passo novo do grupo entende a fala curta (RF22)', () => {
 
   test('pedido de localização: fala que não é "pular" repete que o item vai por localização', async () => {
     const t = flowSetup()
-    expect(await t.answerAt('stop.location', LOCATION, 'estou chegando')).toMatchObject({
+    expect(await t.answerAt('stop.location', LOCATION, 'estou chegando')).toEqual({
       kind: 'not_understood',
-      prompt: LOCATION_PROMPT_TEXT.askAgain,
+      prompt: 'Clipe 📎 → Localização → Enviar localização atual, _ou responda pular._',
+      reason: 'Esta resposta vai por localização.',
     })
     expect(t.recorded).toEqual([])
   })
@@ -262,7 +260,7 @@ describe('cada passo novo do grupo entende a fala curta (RF22)', () => {
     const t = flowSetup()
     expect(
       await t.answerAt('stop.confirm_order', ORDER, 'não entendi a palavra sim que você falou'),
-    ).toMatchObject({ kind: 'not_understood', prompt: OUT_OF_ORDER_TEXT.notUnderstood })
+    ).toEqual({ kind: 'not_understood', prompt: '', reason: OUT_OF_ORDER_TEXT.notUnderstood })
     expect(t.recorded).toEqual([])
   })
 })

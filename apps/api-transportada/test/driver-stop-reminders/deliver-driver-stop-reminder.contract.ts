@@ -100,7 +100,7 @@ const STOP_BLOCK = [
   '🏪 *Cliente Bom*',
   '🏢 Contratante: Indústria Alfa',
   '📍 RUA DAS FLORES, 12, SAO CARLOS, SP',
-  '🗺️ https://www.google.com/maps/search/?api=1&query=-21.5,-47.9',
+  '🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.5,-47.9',
   '📦 3 volumes para entregar',
 ].join('\n')
 

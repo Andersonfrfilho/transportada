@@ -291,6 +291,7 @@ import {
 } from './whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { createWhatsAppOfficeStopEvents } from './whatsapp-commands/infrastructure/whatsapp-office-stop-events.adapter.js'
 import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
+import { createWhatsAppRouteClosingReader } from './whatsapp-commands/infrastructure/whatsapp-route-closing.reader.js'
 import { createGroupReturnPorts } from './whatsapp/infrastructure/whatsapp-group-return.adapter.js'
 import {
   createGroupReminderFlow,
@@ -300,7 +301,16 @@ import {
   createGroupReturnFlow,
   type GroupReturnFlowPorts,
 } from './whatsapp/application/whatsapp-group-return-flow.service.js'
-import { createWhatsAppStopCardReader } from './whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
+import {
+  createWhatsAppStopCardReader,
+  readLastSharedPoint,
+} from './whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
+import {
+  createDriverStopListTravel,
+  createWhatsAppStopListTravelReader,
+} from './whatsapp-commands/infrastructure/whatsapp-stop-list-travel.reader.js'
+import { createOsrmRouteDistanceTableGateway } from './trips/infrastructure/osrm-route-distance-table.gateway.js'
+import { placeStops } from './whatsapp-commands/infrastructure/whatsapp-stop-place.reader.js'
 import { createDrizzleWhatsAppGroupRequestRepository } from './whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
 import { createGroupOccurrencePorts } from './whatsapp/infrastructure/whatsapp-group-occurrence.adapter.js'
 import { createDrizzleWhatsAppEvolutionWebhookRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution-webhook.repository.js'
@@ -1638,7 +1648,14 @@ export function bootstrap(): Bun.Server<undefined> {
   const listWhatsAppDriverStops = async (input: {
     readonly companyId: string
     readonly driverId: string
-  }) => (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap((trip) => trip.stops)
+  }) =>
+    placeStops(database.db, {
+      companyId: input.companyId,
+      logger,
+      stops: (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap(
+        (trip) => trip.stops,
+      ),
+    })
   const whatsappPreparationMedia = createWhatsAppDeliveryPreparationMedia({
     bucket: whatsappStorageBucket,
     storage: whatsappStorageGateway,
@@ -1658,12 +1675,13 @@ export function bootstrap(): Bun.Server<undefined> {
       input.attendant === true
         ? whatsappOfficeDelivery.deliver(input)
         : deliverWhatsAppDriverDocument(whatsappDriverEventPorts, input),
-    describeResult: ({ channel, companyId, documentNumber, result }) =>
+    describeResult: ({ channel, companyId, documentNumber, result, stopSequence }) =>
       renderBotSpeechLine({
         companyId,
         line: describeWhatsAppDriverEventResult(result, {
           documentNumber,
           kind: channel === 'group' ? 'group' : 'driver',
+          ...(stopSequence === undefined ? {} : { stopSequence }),
         }),
         speech: whatsappBotSpeech,
       }),
@@ -1771,6 +1789,21 @@ export function bootstrap(): Bun.Server<undefined> {
       ? {}
       : { routing: createOsrmRouteGeometryGateway({ baseUrl: config.routingMatrixUrl }) }),
   })
+  /** Spec 300 RF12: número de paradas e nome do motorista da despedida de "rota concluída" (uma consulta). */
+  const whatsappRouteClosing = createWhatsAppRouteClosingReader({ database: database.db, logger })
+  /** Spec 300 RF4: distância e tempo da lista de paradas, pela estrada (OSRM `table`, uma consulta); só com `ROUTING_MATRIX_URL`. */
+  const whatsappStopListTravel = createDriverStopListTravel({
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    reader: createWhatsAppStopListTravelReader({
+      logger,
+      readOriginPoint: ({ companyId, origin }) =>
+        readLastSharedPoint(database.db, companyId, origin),
+      ...(config.routingMatrixUrl === undefined
+        ? {}
+        : { table: createOsrmRouteDistanceTableGateway({ baseUrl: config.routingMatrixUrl }) }),
+    }),
+  })
   const whatsappGroupDelivery = createGroupDeliveryWiring({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
     database: database.db,
@@ -1830,8 +1863,10 @@ export function bootstrap(): Bun.Server<undefined> {
     }),
     ports: whatsappDriverEventPorts,
     resolveSenderRole: whatsappSenderRole,
+    routeClosing: whatsappRouteClosing,
     speech: whatsappBotSpeech,
     stopCards: whatsappStopCards,
+    stopListTravel: whatsappStopListTravel,
   })
   /** Spec 294: a oferta da próxima rota, o pedido de localização e as conferências da conversa individual. */
   const whatsappDriverPrompts = createWhatsAppDriverPrompts({
@@ -1839,9 +1874,11 @@ export function bootstrap(): Bun.Server<undefined> {
     listStops: listWhatsAppDriverStops,
     logger,
     ports: whatsappDriverEventPorts,
+    routeClosing: whatsappRouteClosing,
     sharedLocations: whatsappSharedLocations,
     speech: whatsappBotSpeech,
     stopCards: whatsappStopCards,
+    stopListTravel: whatsappStopListTravel,
   })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     deliveryPreparations: whatsappDeliveryPreparations,

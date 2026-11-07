@@ -10,10 +10,7 @@ import {
   interpretDriverStopCommand,
   WHATSAPP_DRIVER_STOP_COMMAND,
 } from '../../src/whatsapp-commands/domain/whatsapp-driver-command.policy.js'
-import {
-  createGroupDriverFlow,
-  GROUP_DRIVER_TEXT,
-} from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
+import { createGroupDriverFlow } from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
 import type {
   GroupFlowOutcome,
   GroupRequest,
@@ -41,9 +38,10 @@ const stop = (
   ...extra,
 })
 
-function setup(stops: readonly GroupStopCandidate[]) {
+function setup(stops: readonly GroupStopCandidate[], extraPorts: Partial<GroupStopFlowPorts> = {}) {
   const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
   const ports: GroupStopFlowPorts = {
+    ...extraPorts,
     async enRouteMessage({ sequence }) {
       return `a caminho ${sequence}`
     },
@@ -138,8 +136,19 @@ describe('grupo: saí e cheguei', () => {
     const asked = await t.start('cheguei')
     expect(asked).toMatchObject({ kind: 'continue' })
     const text = asked.kind === 'continue' ? asked.replies.join('\n') : ''
-    expect(text).toContain('*1* - NF 17234 · Padaria Sol')
-    expect(text).toContain('*2* - NF 17235 · Mercado Lua')
+    expect(text).toBe(
+      [
+        '📍 *Em qual parada você chegou?*',
+        '',
+        '> 👉 *PARADA 1 de 2* · _próxima da rota_',
+        '> 🧾 NF `17234` · *Padaria Sol*',
+        '',
+        '*PARADA 2 de 2*',
+        '🧾 NF `17235` · *Mercado Lua*',
+        '',
+        '_Responda com o número da parada ou da nota._',
+      ].join('\n'),
+    )
   })
 
   test('cheguei com uma parada só registra direto', async () => {
@@ -170,19 +179,20 @@ describe('grupo: saí e cheguei', () => {
       kind: 'continue',
       replies: [
         [
-          '⚠️ *A saída para esta parada já foi registrada* às 10:05.',
-          '*Parada 3*',
-          '*NF 1*',
+          'a caminho 3',
+          '',
+          '> *PARADA 3*',
+          '> 🧾 NF `1`',
           '',
           '*O que você quer fazer agora?*',
-          '*1* - Cheguei',
-          '*2* - Abrir ocorrência',
-          '*3* - Nada por enquanto',
+          '*1* - 📍 Cheguei na *parada 3*',
+          '*2* - ⚠️ Abrir ocorrência',
+          '*3* - 💤 Nada por enquanto',
         ].join('\n'),
       ],
       state: {
         journeyActions: [
-          { documentNumber: '1', kind: 'arrive', stopId: 'S1' },
+          { documentNumber: '1', kind: 'arrive', sequence: 3, stopId: 'S1' },
           { documentNumber: '1', kind: 'occurrence' },
           { kind: 'none' },
         ],
@@ -204,15 +214,60 @@ describe('grupo: saí e cheguei', () => {
     const t = setup([stop('S1', 1, ['17234', '17235']), stop('S2', 2, ['900'])])
     const first = await t.start('saí')
     expect(first).toMatchObject({ kind: 'continue', step: 'stop.choose' })
-    expect((first as Extract<GroupFlowOutcome, { kind: 'continue' }>).replies[0]).toContain(
-      '*1* - NF 17234 e mais 1',
-    )
+    expect((first as Extract<GroupFlowOutcome, { kind: 'continue' }>).replies).toEqual([
+      [
+        '🚚 *Para qual parada você saiu?*',
+        '',
+        '> 👉 *PARADA 1 de 2* · _próxima da rota_',
+        '> 🧾 NF `17234`, `17235`',
+        '',
+        '*PARADA 2 de 2*',
+        '🧾 NF `900`',
+        '',
+        '_Responda com o número da parada ou da nota._',
+      ].join('\n'),
+    ])
     expect(await t.answer('2')).toEqual({
       kind: 'done',
       replies: ['Saída registrada.'],
       withoutFarewell: true,
     })
     expect(t.recorded[0]?.stopId).toBe('S2')
+  })
+
+  test('RF5: o número da parada é a opção, não a posição; fora da lista, "não achei a parada"', async () => {
+    const t = setup([stop('S3', 3, ['17234']), stop('S4', 4, ['900'])])
+    await t.start('saí')
+    expect(await t.answer('12')).toEqual({
+      kind: 'not_understood',
+      prompt: '_Responda com o número da parada (3 a 4) ou da nota._',
+      reason: 'Não achei a parada 12 nesta viagem.',
+    })
+    expect(await t.answer('1')).toMatchObject({ kind: 'not_understood' })
+    expect(t.recorded).toEqual([])
+    expect(await t.answer('4')).toMatchObject({ kind: 'done' })
+    expect(t.recorded[0]?.stopId).toBe('S4')
+  })
+
+  test('RF4: a lista leva distância e tempo quando a porta os devolve, e sai sem eles quando não', async () => {
+    const stops = [stop('S1', 1, ['17234']), stop('S2', 2, ['900'])]
+    const withTravel = setup(stops, {
+      readStopListTravel: async () => ({
+        byStopId: new Map([['S1', { distance: '3,2 km', duration: '~8 min' }]]),
+        isLocationMissing: false,
+      }),
+    })
+    const listed = await withTravel.start('saí')
+    expect(listed.kind === 'continue' ? listed.replies[0] : '').toContain(
+      '> 🧾 NF `17234`\n> 📏 *3,2 km* · ⏱️ _~8 min_\n\n*PARADA 2 de 2*\n🧾 NF `900`\n\n_Responda',
+    )
+    const withoutPoint = setup(stops, {
+      readStopListTravel: async () => ({ byStopId: new Map(), isLocationMissing: true }),
+    })
+    const bare = await withoutPoint.start('saí')
+    expect(bare.kind === 'continue' ? bare.replies[0] : '').toEndWith(
+      '_Responda com o número da parada ou da nota._\n📎 _Mande sua localização pelo clipe para ver distância e tempo._',
+    )
   })
 
   test('várias paradas: o número da nota no comando escolhe sozinho', async () => {
@@ -236,7 +291,16 @@ describe('grupo: saí e cheguei', () => {
     const t = setup([stop('S1', 1, ['17234'])])
     expect(await t.start('')).toMatchObject({
       kind: 'continue',
-      replies: [GROUP_DRIVER_TEXT.menuWithoutDelivery],
+      replies: [
+        [
+          '*O que você quer lançar?*',
+          '*1* - 🚚 Saí para a entrega',
+          '*2* - 📍 Cheguei',
+          '*3* - ⚠️ Ocorrência',
+          '',
+          '_Responda com o número._',
+        ].join('\n'),
+      ],
       step: 'menu',
     })
     expect(await t.answer('2')).toEqual({
@@ -268,8 +332,8 @@ describe('grupo: saí e cheguei', () => {
     await t.start('')
     expect(await t.answer('Acabei de chegar já vou fazer aqui')).toEqual({
       kind: 'not_understood',
-      prompt: GROUP_DRIVER_TEXT.menuWithoutDelivery,
-      reason: 'responda com o número da opção',
+      prompt: ['*1* - 🚚 Saí para a entrega', '*2* - 📍 Cheguei', '*3* - ⚠️ Ocorrência'].join('\n'),
+      reason: 'Responda com o número da opção:',
     })
     expect(t.occurrenceCalls).toEqual([])
     expect(await t.answer('2')).toEqual({

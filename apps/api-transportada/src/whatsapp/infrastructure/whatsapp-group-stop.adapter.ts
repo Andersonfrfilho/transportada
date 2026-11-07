@@ -6,6 +6,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { DriverTrip } from '../../trips/application/find-current-driver-trip.use-case.js'
+import { placeStops } from '../../whatsapp-commands/infrastructure/whatsapp-stop-place.reader.js'
 import {
   CATALOG_BOT_SPEECH,
   renderBotSpeechLine,
@@ -32,9 +33,10 @@ import {
 import { WHATSAPP_DRIVER_STOP_COMMAND } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
 import type { GroupStopFlowPorts } from '../application/whatsapp-group-stop-flow.service.js'
 import {
-  describeArrivalDetails,
-  describeDepartureDetails,
+  describeArrivalReply,
+  describeDepartureReply,
 } from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
+import { formatBotClock } from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
 import type { WhatsAppStopCardReader } from '../../whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
 import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
 
@@ -89,8 +91,12 @@ export function createGroupStopPorts(dependencies: {
   }
   readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
   readonly ports: Pick<WhatsAppDriverEventPorts, 'reportArrival' | 'reportDeparture'>
+  /** Spec 300 RF12: número de paradas e nome do motorista da despedida de "rota concluída". */
+  readonly routeClosing?: GroupStopFlowPorts['readRouteClosing']
   readonly resolveSenderRole?: GroupStopFlowPorts['resolveSenderRole']
   readonly speech?: WhatsAppBotSpeechPort
+  /** Spec 300 RF4: distância e tempo da lista de paradas; ausente, a lista sai sem a linha. */
+  readonly stopListTravel?: GroupStopFlowPorts['readStopListTravel']
   /** O bloco da parada nas respostas (saída, chegada, menus); ausente, a resposta é só a frase do registro. */
   readonly stopCards?: WhatsAppStopCardReader
 }): GroupStopFlowPorts {
@@ -108,7 +114,12 @@ export function createGroupStopPorts(dependencies: {
     readonly driverId: string
   }) => {
     const trips = await dependencies.listActiveTrips({ companyId, driverId })
-    return trips.filter((trip) => !terminal.has(trip.status)).flatMap((trip) => trip.stops)
+    const stops = trips.filter((trip) => !terminal.has(trip.status)).flatMap((trip) => trip.stops)
+    return placeStops(dependencies.database, {
+      companyId,
+      ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+      stops,
+    })
   }
 
   const findTripIdOfStop = async (input: {
@@ -140,6 +151,12 @@ export function createGroupStopPorts(dependencies: {
       ? {}
       : { resolveSenderRole: dependencies.resolveSenderRole }),
     ...(dependencies.hasLocation === undefined ? {} : { hasLocation: dependencies.hasLocation }),
+    ...(dependencies.routeClosing === undefined
+      ? {}
+      : { readRouteClosing: dependencies.routeClosing }),
+    ...(dependencies.stopListTravel === undefined
+      ? {}
+      : { readStopListTravel: dependencies.stopListTravel }),
     ...(dependencies.stopCards === undefined
       ? {}
       : { readStopCard: (input) => safeReadStopCard(input) }),
@@ -212,11 +229,31 @@ export function createGroupStopPorts(dependencies: {
         }
       }
       if (result.kind === 'refused' && result.refusal.code === 'stop_out_of_order') {
+        const { refusal } = result
         const stops = await listOpenStops(input)
+        const isDeparture = input.event === WHATSAPP_DRIVER_STOP_COMMAND.depart
+        const asked = stops.filter(
+          (stop) => stop.id === refusal.requestedStopId || stop.id === refusal.nextStopId,
+        )
+        const travel = isDeparture
+          ? await dependencies.stopListTravel?.({
+              companyId: input.companyId,
+              driverId: input.driverId,
+              stops: asked,
+            })
+          : undefined
         return {
           message: describeOutOfOrderViolation({
-            event: input.event === WHATSAPP_DRIVER_STOP_COMMAND.depart ? 'depart' : 'arrive',
-            labels: new Map(stops.map((stop) => [stop.id, toOrderStopLabel(stop)] as const)),
+            event: isDeparture ? 'depart' : 'arrive',
+            labels: new Map(
+              stops.map(
+                (stop) =>
+                  [
+                    stop.id,
+                    toOrderStopLabel(stop, { total: stops.length, travel: travel ?? undefined }),
+                  ] as const,
+              ),
+            ),
             violation: result.refusal,
           }),
           outOfOrder: {
@@ -232,6 +269,7 @@ export function createGroupStopPorts(dependencies: {
         describeWhatsAppDriverEventResult(result, {
           ...(input.documentNumber === undefined ? {} : { documentNumber: input.documentNumber }),
           kind: 'group',
+          time: formatBotClock(input.sentAt ?? clock()),
         }),
       )
       if (result.kind === 'registered' && dependencies.stopCards !== undefined) {
@@ -243,10 +281,11 @@ export function createGroupStopPorts(dependencies: {
           withEta: isDeparture,
         })
         if (view !== null) {
-          const details = isDeparture
-            ? describeDepartureDetails(view, clock())
-            : describeArrivalDetails(view)
-          return { message: [message, ...details].join('\n') }
+          return {
+            message: isDeparture
+              ? describeDepartureReply(message, view, clock())
+              : describeArrivalReply(message, view),
+          }
         }
       }
       const offerLocation =

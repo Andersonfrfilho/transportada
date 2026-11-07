@@ -466,7 +466,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     const [message] = sent
     expect(message?.kind).toBe('list')
     if (message?.kind !== 'list') throw new Error('esperava lista')
-    expect(message.rows).toEqual([{ id: DOCUMENT_ID, title: '1 · Cliente Um' }])
+    expect(message.rows).toEqual([{ id: DOCUMENT_ID, title: 'NF 1 · Cliente Um' }])
     expect(result).toEqual({
       context: WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
       next: DRIVER_FLOW_NODE.documentEntry,
@@ -582,7 +582,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
 
     expect(sent).toEqual([
       {
-        body: 'A viagem ainda não foi despachada — entregar e devolver só depois da saída.',
+        body: '🚫 *A viagem ainda não foi despachada.* Entregar e devolver só depois da saída.',
         kind: 'text',
       },
     ])
@@ -606,7 +606,10 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
 
     expect(sent).toEqual([
-      { body: 'Essa nota não está mais disponível na sua viagem.', kind: 'text' },
+      {
+        body: '🚫 *Essa nota não está mais na viagem do motorista.*\n➡️ _Próximo passo:_ confira com o escritório.',
+        kind: 'text',
+      },
     ])
   })
 
@@ -659,7 +662,12 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
         reason: 'recipient_absent',
       },
     ])
-    expect(sent).toEqual([{ body: '*Não entrega registrada* ↩️', kind: 'text' }])
+    expect(sent).toEqual([
+      {
+        body: '↩️ *NF `1` não entregue* · Destinatário ausente\nA nota volta com você para o armazém.',
+        kind: 'text',
+      },
+    ])
   })
 
   test('catálogo de ocorrência vazio avisa e volta ao menu, sem tipos de outro estágio', async () => {
@@ -770,7 +778,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
 
     expect(sent[0]?.body).toBe(
-      'Este tipo não vale para a contratante desta nota. Escolha outro tipo.',
+      '🚫 *Este tipo não vale para a contratante desta nota.*\n➡️ _Próximo passo:_ escolha outro tipo.',
     )
     expect(result).toEqual({ next: DRIVER_FLOW_NODE.listOccurrenceTypes })
   })
@@ -890,7 +898,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
 
     expect((calls[0] as { note: string }).note).toBe('Cliente recusou por avaria')
-    expect(sent).toEqual([{ body: 'Ocorrência registrada. ⚠️', kind: 'text' }])
+    expect(sent).toEqual([{ body: '✅ *Ocorrência registrada.*', kind: 'text' }])
   })
 })
 

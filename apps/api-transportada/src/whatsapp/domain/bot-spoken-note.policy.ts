@@ -82,13 +82,10 @@ export function describeSpokenNotes(
       lines.push(`⚠️ Não achei a NF *${number}* nas suas viagens em aberto.`)
       continue
     }
-    const amount = formatSpokenNoteAmount(note.totalAmount)
+    const invoice = `🧾 NF \`${withoutLeadingZeros(note.number)}${note.series === '' ? '' : `/${note.series}`}\``
     lines.push(
       [
-        `📄 *NF ${withoutLeadingZeros(note.number)}${note.series === '' ? '' : `/${note.series}`}*`,
-        ...((note.contractor ?? '') === '' ? [] : [`🏢 ${note.contractor ?? ''}`]),
-        ...(note.recipientName === '' ? [] : [`👤 ${note.recipientName}`]),
-        ...(amount === '' ? [] : [`💰 ${amount}`]),
+        note.recipientName === '' ? invoice : `${invoice} · *${note.recipientName}*`,
         ...(note.address === '' ? [] : [`📍 ${note.address}`]),
       ].join('\n'),
     )

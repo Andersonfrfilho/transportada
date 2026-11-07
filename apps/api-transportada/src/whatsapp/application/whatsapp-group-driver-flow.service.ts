@@ -29,7 +29,7 @@ import {
 import { canAskRouteOffer } from '../../whatsapp-commands/domain/driver-open-question.policy.js'
 import { ROUTE_OFFER_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import {
-  describeJourneyQuestion,
+  describeJourneyOptions,
   JOURNEY_ACTION,
   JOURNEY_STEP,
   JOURNEY_TEXT,
@@ -37,6 +37,10 @@ import {
   readJourneyActions,
   type JourneyAction,
 } from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
+import {
+  formatOptions,
+  formatReplyHint,
+} from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
 import { DRIVER_STOP_REMINDER_CHOICE_ACTION as REMINDER_ACTION } from '../../driver-stop-reminders/domain/driver-stop-reminder.constant.js'
 import type { WhatsAppRouteContinuation } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { GROUP_DELIVERY_STEP } from './whatsapp-group-delivery-flow.service.js'
@@ -159,30 +163,38 @@ type MenuItem =
   | {
       readonly kind: 'stop'
       readonly event: WhatsAppDriverStopCommandEvent
-      readonly label: string
+      readonly icon: string
+      readonly action: string
     }
-  | { readonly kind: 'deliver'; readonly label: string }
-  | { readonly kind: 'occurrence'; readonly label: string }
+  | { readonly kind: 'deliver'; readonly icon: string; readonly action: string }
+  | { readonly kind: 'return'; readonly icon: string; readonly action: string }
+  | { readonly kind: 'occurrence'; readonly icon: string; readonly action: string }
 
-/** A ordem do menu. T13 acrescenta "Devolvi". O ícone só enfeita: a escolha é pelo número ou pelo nome. */
+/** A ordem do menu (spec 300 RF8: "Não entreguei" é a 4). O ícone só enfeita: a escolha é pelo número ou pelo nome. */
 export const GROUP_DRIVER_MENU: readonly MenuItem[] = [
-  { event: WHATSAPP_DRIVER_STOP_COMMAND.depart, kind: 'stop', label: '🚚 Saí para a entrega' },
-  { event: WHATSAPP_DRIVER_STOP_COMMAND.arrive, kind: 'stop', label: '📍 Cheguei' },
-  { kind: 'deliver', label: '✅ Entreguei' },
-  { kind: 'occurrence', label: '⚠️ Ocorrência' },
+  {
+    action: 'Saí para a entrega',
+    event: WHATSAPP_DRIVER_STOP_COMMAND.depart,
+    icon: '🚚',
+    kind: 'stop',
+  },
+  { action: 'Cheguei', event: WHATSAPP_DRIVER_STOP_COMMAND.arrive, icon: '📍', kind: 'stop' },
+  { action: 'Entreguei', icon: '✅', kind: 'deliver' },
+  { action: 'Não entreguei', icon: '↩️', kind: 'return' },
+  { action: 'Ocorrência', icon: '⚠️', kind: 'occurrence' },
 ]
 
-const menuOf = (items: readonly MenuItem[]) =>
-  ['O que você quer lançar?', ...items.map((item, index) => `*${index + 1}* - ${item.label}`)].join(
-    '\n',
-  )
+const MENU_TITLE = '*O que você quer lançar?*'
+const MENU_REPLY_HINT = formatReplyHint('Responda com o número.')
+const MENU_NOT_UNDERSTOOD_REASON = 'Responda com o número da opção:'
 
-const MENU_WITHOUT_DELIVERY = GROUP_DRIVER_MENU.filter((item) => item.kind !== 'deliver')
+const menuOf = (items: readonly MenuItem[]) =>
+  [MENU_TITLE, formatOptions(items), '', MENU_REPLY_HINT].join('\n')
 
 export const GROUP_DRIVER_TEXT = {
   menu: menuOf(GROUP_DRIVER_MENU),
-  /** Sem a entrega em preparo montada (ex.: testes da T12), "Entreguei" não aparece. */
-  menuWithoutDelivery: menuOf(MENU_WITHOUT_DELIVERY),
+  /** O "não entendi" do menu repete só as opções (o `prompt`), sem o título nem a instrução. */
+  notUnderstoodReason: MENU_NOT_UNDERSTOOD_REASON,
 } as const
 
 export function createGroupDriverFlow(flows: {
@@ -222,7 +234,10 @@ export function createGroupDriverFlow(flows: {
     const { nextStop, tripCompleted } =
       outcome.routeContinuation satisfies WhatsAppRouteContinuation
     if (tripCompleted) {
-      return { kind: 'done', replies: [...outcome.replies, ROUTE_OFFER_TEXT.routeCompleted] }
+      return {
+        kind: 'done',
+        replies: [...outcome.replies, await flows.stop.routeCompletedText(turn)],
+      }
     }
     if (nextStop === null) return { kind: 'done', replies: outcome.replies, withoutFarewell: true }
     const asks = canAskRouteOffer({
@@ -307,7 +322,7 @@ export function createGroupDriverFlow(flows: {
     if (action === undefined) {
       return {
         kind: 'not_understood',
-        prompt: describeJourneyQuestion(actions),
+        prompt: describeJourneyOptions(actions),
         reason: JOURNEY_TEXT.choiceNotUnderstood,
       }
     }
@@ -364,16 +379,24 @@ export function createGroupDriverFlow(flows: {
     }
   }
 
-  const menu = delivery === undefined ? MENU_WITHOUT_DELIVERY : GROUP_DRIVER_MENU
-  const menuText =
-    delivery === undefined ? GROUP_DRIVER_TEXT.menuWithoutDelivery : GROUP_DRIVER_TEXT.menu
+  /** Sem a entrega ou a devolução montada (ex.: testes), a opção não aparece em vez de cair em ocorrência. */
+  const menu = GROUP_DRIVER_MENU.filter(
+    (item) =>
+      (item.kind !== 'deliver' || delivery !== undefined) &&
+      (item.kind !== 'return' || returnFlow !== undefined),
+  )
+  const menuText = menuOf(menu)
 
   async function choose(turn: GroupFlowTurn, item: MenuItem): Promise<GroupFlowOutcome> {
     if (item.kind === 'occurrence') return flows.occurrence.start({ ...turn, text: '' })
-    if (item.kind === 'deliver') {
-      return delivery === undefined
-        ? flows.occurrence.start({ ...turn, text: '' })
-        : settleDelivery(turn, withDeliveryPrefix(await delivery.begin(turn, [])))
+    if (item.kind === 'return' && returnFlow !== undefined) {
+      return settleDelivery(turn, withReturnPrefix(await returnFlow.begin(turn, { numbers: [] })))
+    }
+    if (item.kind === 'deliver' && delivery !== undefined) {
+      return settleDelivery(turn, withDeliveryPrefix(await delivery.begin(turn, [])))
+    }
+    if (item.kind === 'return' || item.kind === 'deliver') {
+      return flows.occurrence.start({ ...turn, text: '' })
     }
     return withStopPrefix(await flows.stop.begin(turn, item.event, []))
   }
@@ -384,8 +407,8 @@ export function createGroupDriverFlow(flows: {
   })
   const notUnderstoodMenu = (): GroupFlowOutcome => ({
     kind: 'not_understood',
-    prompt: menuText,
-    reason: 'responda com o número da opção',
+    prompt: formatOptions(menu),
+    reason: GROUP_DRIVER_TEXT.notUnderstoodReason,
   })
 
   /**
@@ -543,6 +566,7 @@ function pickMenuItem(menu: readonly MenuItem[], text: string): MenuItem | undef
     return menu.find((item) => item.kind === 'stop' && item.event === command.event)
   }
   if (normalized.startsWith('entreg')) return menu.find((item) => item.kind === 'deliver')
+  if (normalized.startsWith('nao entreg')) return menu.find((item) => item.kind === 'return')
   return isWordOf(normalized, OCCURRENCE_WORDS)
     ? menu.find((item) => item.kind === 'occurrence')
     : undefined

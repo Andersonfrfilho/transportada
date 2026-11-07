@@ -30,10 +30,11 @@ export const DRIVER_PROMPT_KIND = {
   stopChoice: 'stop_choice',
 } as const
 
-/** Uma parada da lista de escolha: só o id e os números das notas. */
+/** Uma parada da lista de escolha: o id, os números das notas e (spec 300 RF5) o número da parada. */
 export type DriverPromptStopOption = {
   readonly id: string
   readonly numbers: readonly string[]
+  readonly sequence?: number | undefined
 }
 
 type PromptBase = {
@@ -130,10 +131,14 @@ function readStopOptions(value: unknown): DriverPromptStopOption[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((entry): DriverPromptStopOption[] => {
     if (typeof entry !== 'object' || entry === null) return []
-    const { id, numbers } = entry as Record<string, unknown>
+    const { id, numbers, sequence } = entry as Record<string, unknown>
     if (typeof id !== 'string' || !Array.isArray(numbers)) return []
     return [
-      { id, numbers: numbers.filter((number): number is string => typeof number === 'string') },
+      {
+        id,
+        numbers: numbers.filter((number): number is string => typeof number === 'string'),
+        ...(typeof sequence === 'number' ? { sequence } : {}),
+      },
     ]
   })
 }
