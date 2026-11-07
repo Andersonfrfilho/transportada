@@ -1787,7 +1787,10 @@
     "title": "Nova viagem",
     "typed": {
       "ambiguous": "Há {{count}} notas livres com este número. Qual delas?",
+      "inAnotherTrip": "Esta nota já está em outra viagem. Solte-a de lá antes de acrescentar.",
+      "notAuthorized": "Esta nota não está autorizada na SEFAZ e não pode entrar na viagem.",
       "notFound": "Nenhuma nota livre com este número ou esta chave nesta empresa.",
+      "notImported": "Esta chave ainda não foi importada para o sistema. Importe a nota (XML ou consulta da chave) e tente de novo.",
       "option": "Nota {{number}}/{{series}} · {{emitter}} para {{recipient}}",
       "pickTitle": "Escolha a nota",
       "unrecognized": "Digite o número da nota ou os 44 caracteres da chave."

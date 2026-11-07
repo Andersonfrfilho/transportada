@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 
+import { getTripClient } from '../hooks/useTripWorkspace.hook'
+import type { ScannedNfeDocument } from '../shared/trip.types'
+
 import { resolveTypedNote, type TypedNoteFeedback } from '../shared/tripNoteLookup.service'
 import styles from '../styles/trip.module.css'
 import { TripTypedNoteFeedback } from './TripTypedNoteFeedback.component'
@@ -15,7 +18,12 @@ import { TripTypedNoteFeedback } from './TripTypedNoteFeedback.component'
 type TripQuickNoteInputProps = Readonly<{
   /** As notas livres que ainda podem ser escolhidas: número e chave são resolvidos só entre elas. */
   documents: readonly NfeDocumentListItem[]
-  onPick: (document: NfeDocumentListItem) => void
+  /**
+   * Chave que não está entre as livres: consulta o cadastro da nota para dizer **por que** — a
+   * nota ainda não foi importada, está em outra viagem ou não está autorizada.
+   */
+  findByAccessKey?: (accessKey: string) => Promise<null | ScannedNfeDocument>
+  onPick: (document: Readonly<{ id: string }>) => void
 }>
 
 /**
@@ -23,7 +31,11 @@ type TripQuickNoteInputProps = Readonly<{
  * Resolve tudo sobre a lista já carregada, a mesma da busca — a nota que a pessoa digita é a nota
  * que ela veria na tabela.
  */
-export function TripQuickNoteInput({ documents, onPick }: TripQuickNoteInputProps) {
+export function TripQuickNoteInput({
+  documents,
+  findByAccessKey = (accessKey) => getTripClient().findNfeDocumentByAccessKey({ accessKey }),
+  onPick,
+}: TripQuickNoteInputProps) {
   const { t } = useTranslation('trip')
   const [text, setText] = useState('')
   const [feedback, setFeedback] = useState<TypedNoteFeedback | undefined>(undefined)
@@ -33,6 +45,19 @@ export function TripQuickNoteInput({ documents, onPick }: TripQuickNoteInputProp
   function pick(document: NfeDocumentListItem): void {
     setFeedback(undefined)
     onPick(document)
+  }
+
+  /** A chave não está entre as notas livres: o cadastro da nota diz o motivo, sem adivinhar. */
+  async function explainMissingKey(accessKey: string): Promise<void> {
+    try {
+      const document = await findByAccessKey(accessKey)
+      if (document === null) setFeedback({ kind: 'notImported' })
+      else if (document.tripId !== null) setFeedback({ kind: 'inAnotherTrip' })
+      else if (document.status !== 'authorized') setFeedback({ kind: 'notAuthorized' })
+      else pick(document)
+    } catch {
+      setFeedback({ kind: 'notFound' })
+    }
   }
 
   function submit(raw: string): void {
@@ -46,6 +71,10 @@ export function TripQuickNoteInput({ documents, onPick }: TripQuickNoteInputProp
       lookup.kind === 'accessKey'
         ? documents.filter((document) => document.accessKey === lookup.accessKey)
         : lookup.matches
+    if (matches.length === 0 && lookup.kind === 'accessKey') {
+      void explainMissingKey(lookup.accessKey)
+      return
+    }
     const [only] = matches
     if (matches.length === 1 && only !== undefined) {
       pick(only)

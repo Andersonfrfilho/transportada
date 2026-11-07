@@ -51,5 +51,8 @@ export function resolveTypedNote(input: {
 /** O que a inserção rápida diz depois de um número que não virou linha. Ausência é "deu certo". */
 export type TypedNoteFeedback =
   | Readonly<{ candidates: readonly NfeDocumentListItem[]; kind: 'ambiguous' }>
+  | Readonly<{ kind: 'inAnotherTrip' }>
+  | Readonly<{ kind: 'notAuthorized' }>
   | Readonly<{ kind: 'notFound' }>
+  | Readonly<{ kind: 'notImported' }>
   | Readonly<{ kind: 'unrecognized' }>
