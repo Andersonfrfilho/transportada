@@ -10,6 +10,7 @@
  * Uma nota por vez: o lote ("entreguei 17234 17235") e o "devolvi" são da T13. A nota é citada pelo número
  * e pelo cliente (spec 294 RF17).
  */
+import { DRIVER_LIST_HEADING } from '../../whatsapp-commands/domain/whatsapp-driver-list-heading.constant.js'
 import type {
   WhatsAppDocumentEventInput,
   WhatsAppDriverEventResult,
@@ -85,7 +86,7 @@ export type GroupDeliveryFlowPorts = {
 
 export const GROUP_DELIVERY_TEXT = {
   askDocument: (documents: readonly GroupDeliveryDocument[]) =>
-    ['✅ *Qual nota você entregou?*', '', describeDocumentChoices(documents)].join('\n'),
+    [DRIVER_LIST_HEADING.deliverDocument, '', describeDocumentChoices(documents)].join('\n'),
   noDocuments: 'Não encontrei nota aberta na viagem do motorista deste grupo.',
   notFound: (number: string) =>
     `Não encontrei a NF ${number} aberta na viagem do motorista deste grupo.`,

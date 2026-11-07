@@ -17,6 +17,7 @@
  *   até a coleta terminar. Assinatura e produtos continuam só no app e voltam com a frase do campo.
  * - Sem valor no texto do grupo: a nota vai pelo número.
  */
+import { DRIVER_LIST_HEADING } from '../../whatsapp-commands/domain/whatsapp-driver-list-heading.constant.js'
 import { formatSpokenNoteAmount } from '../domain/bot-spoken-note.policy.js'
 import { formatBotClock } from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
 import {
@@ -215,7 +216,7 @@ export const GROUP_OCCURRENCE_TEXT = {
     const shown = documents.slice(0, GROUP_DOCUMENT_LIST_LIMIT)
     const overflow = documents.length - shown.length
     return [
-      '⚠️ *Em qual nota é a ocorrência?*',
+      DRIVER_LIST_HEADING.occurrenceDocument,
       '',
       formatOptions(
         shown.map((document) => ({ action: describeNoteOption(document), icon: '🧾' })),
@@ -225,10 +226,9 @@ export const GROUP_OCCURRENCE_TEXT = {
       '_Responda com o número da opção ou da nota._',
     ].join('\n')
   },
-  askNote: [
-    '📝 *Quer acrescentar uma observação?*',
-    'Escreva agora. _Se não, responda pular._',
-  ].join('\n'),
+  askNote: [DRIVER_LIST_HEADING.occurrenceNote, 'Escreva agora. _Se não, responda pular._'].join(
+    '\n',
+  ),
   askLocation: [
     '📍 *Quer enviar a sua localização?* (é opcional)',
     'Compartilhe pelo clipe ➜ *Localização*, ou responda _pular_.',
@@ -238,7 +238,7 @@ export const GROUP_OCCURRENCE_TEXT = {
     document: { readonly clientName: string; readonly documentNumber: string },
   ) =>
     [
-      '⚠️ *Qual ocorrência?*',
+      DRIVER_LIST_HEADING.occurrenceType,
       `> 🧾 NF \`${document.documentNumber}\`${document.clientName === '' ? '' : ` · ${document.clientName}`}`,
       '',
       formatOptions(types.map((type) => ({ action: type.name, icon: '⚠️' }))),

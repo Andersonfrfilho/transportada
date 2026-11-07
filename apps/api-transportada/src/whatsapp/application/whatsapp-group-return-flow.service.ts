@@ -5,6 +5,7 @@
  * motivo da lista fechada (spec 057), depois a baixa pela MESMA função do app (`reportDocumentReturn`, pela camada
  * comum dos eventos). A baixa que fecha a parada segue para a oferta da próxima rota, como a entrega.
  */
+import { DRIVER_LIST_HEADING } from '../../whatsapp-commands/domain/whatsapp-driver-list-heading.constant.js'
 import {
   DRIVER_RETURN_REASONS,
   type DriverReturnReason,
@@ -79,7 +80,7 @@ export const GROUP_RETURN_TEXT = {
       formatReplyHint('Responda com o número do motivo.'),
     ].join('\n'),
   whichDocument: [
-    '↩️ *Qual nota não foi entregue?*',
+    DRIVER_LIST_HEADING.returnDocument,
     'Mande *não entreguei* com o número da nota.',
     '➡️ _Exemplo:_ não entreguei 899836',
   ].join('\n'),

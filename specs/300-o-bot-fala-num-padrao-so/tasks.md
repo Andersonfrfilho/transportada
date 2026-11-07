@@ -77,7 +77,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T6.1** Nós `fala_*` e textos de `register-driver-flow-actions.ts` no padrão, preservando os editados (T0.2).
+- [x] **T6.1** Nós `fala_*` e textos de `register-driver-flow-actions.ts` no padrão, preservando os editados (T0.2).
       Aceite: contrato 286 RF9 verde sem exceção nova; republicação em contrato não toca nó editado.
 - [ ] **T6.2** Gate completo (`make check`), revisão (`code-reviewer`), publicar em staging e conferir no grupo de
       staging as conversas 1–11 contra `conversas.html` (o que o bot mandou, colado em `evidence.md`).

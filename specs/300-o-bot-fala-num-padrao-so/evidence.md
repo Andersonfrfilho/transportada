@@ -435,3 +435,31 @@
   3. Integração: nenhum arquivo de `test/integration` assere o texto do lote (grep por "Baixa registrada", "Canhoto pendente", "Já estavam", "em viagem na rua" vazio). Rodados por precaução
      as duas jornadas do motorista (grupo e individual): 4 pass, 0 fail.
   4. `bunx eslint` e `bunx prettier --write` nos arquivos tocados: limpos. O worker não espelha nenhum arquivo tocado.
+
+## Fase 6
+
+### T6.1 (executor `sonnet`)
+
+- **Regravação segura (parte 1).** `preserveEditedBotSpeech(current, next, baseline)`: o `fala_*` vivo só é regravado com o padrão novo quando é igual ao texto
+  do mesmo nó na **última publicação do código** (`baseline`); diferente, ou sem baseline do nó, fica. Vazio e nó novo recebem o padrão. Vale na publicação
+  (`publish-whatsapp-flow-graph.use-case.ts`) e na prévia (`previewWhatsAppFlowGraphPublication`, agora com `history`).
+- **Por que um baseline novo.** A linha do histórico (`whatsapp_flow_graph_versions`) guarda a versão **substituída**, nunca a que o código acabou de publicar, e o
+  painel não grava histórico: a "última versão `source=code`" não diz o que o código publicou por último (na primeira regravação diria que os 8 nós de staging foram
+  editados). Solução sem migration: a cada `create`/`save` o publicador grava também o grafo que o código mandou, na mesma tabela, com `flow_key = <chave>#code-baseline`
+  (`source=code`, `published_by=code`, versão do grafo resultante); `readCodeBaseline` lê a maior versão. Pacote externo intocado.
+- **Primeira publicação (staging/produção).** Não existe baseline ainda → sem ajuda, todo `fala_*` vivo fica (comportamento seguro). Staging foi medido sem nenhuma
+  edição de painel (Fase 0), então a T6.2 roda **uma vez** com `--adopt-live-as-code-baseline` (o grafo vivo vira a referência e os iguais a ele recebem o padrão novo).
+- Contratos: `publish-flow-graph.contract.ts` (nó editado fica / igual à referência é regravado / vazio e novo recebem o padrão / sem referência o vivo fica / referência
+  nova gravada), `bot-speech.contract.ts`, integração `whatsapp-flow-graph-publish` (2 pass, Postgres).
+- **Conversa individual (parte 2).** Títulos de lista compartilhados com o grupo em `whatsapp-driver-list-heading.constant.ts` (`DRIVER_LIST_HEADING`; o grupo passou a
+  importá-los, textos idênticos). Lista "Qual nota?": corpo `✅ *Qual nota você entregou?*` / `↩️ *Qual nota não foi entregue?*` / `⚠️ *Em qual nota é a ocorrência?*`, linha
+  `NF n · cliente` (zeros à esquerda fora; o corte em 24 com `…` é o de `planChoiceMessage`). Parada: `STOP_LIST_TEXT.arriveTitle/departTitle`. Tipo de ocorrência e observação
+  com os títulos do grupo. Grafo: menu da viagem `*O que você quer lançar?*` com `✅ Entreguei` e `↩️ Não entreguei` (como o menu do grupo), `✅ *Confirma?*`,
+  `↩️ *Por que a nota não foi entregue?*`, observação; `DRIVER_LOCATION_REQUEST_TEXT` em itálico no padrão. Fixtures e integrações das jornadas atualizadas com `toEqual`/texto inteiro.
+- **Catálogo de variáveis (parte 3).** Este repositório não declara catálogo nenhum: o editor de fluxos (`FlowsWorkspace`) vem do pacote e trata `{{nome}}` como texto comum
+  (cabeçalho de `whatsapp-bot-speech.constant.ts`); não há lista de variáveis do `fala_*` em `apps/` para acrescentar `{{sequence}}` e `{{reason}}`. **Pendente fora deste repo**
+  (pacote `adatechnology-packages`, se o editor ganhar catálogo): `{{sequence}}`, `{{reason}}`.
+- Gates: typecheck limpo; eslint limpo; `whatsapp-commands.contract.test.ts` 871 pass; integração `whatsapp-flow-graph-publish`, `whatsapp-driver-flow-actions`,
+  `whatsapp-driver-journey-direct`, `whatsapp-driver-journey-group` verdes. Suíte completa `bun test`: 14401 pass / 0 fail.
+- **Como publicar na T6.2 (não executado):** de `apps/api-transportada`, com `DATABASE_URL` do ambiente:
+  `bun run scripts/whatsapp-flow-publish.ts --company <uuid>` (prévia) e, aprovado, `... --confirm --adopt-live-as-code-baseline` (só a primeira vez; as seguintes sem a flag).

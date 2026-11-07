@@ -466,7 +466,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     const [message] = sent
     expect(message?.kind).toBe('list')
     if (message?.kind !== 'list') throw new Error('esperava lista')
-    expect(message.rows).toEqual([{ id: DOCUMENT_ID, title: '1 · Cliente Um' }])
+    expect(message.rows).toEqual([{ id: DOCUMENT_ID, title: 'NF 1 · Cliente Um' }])
     expect(result).toEqual({
       context: WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
       next: DRIVER_FLOW_NODE.documentEntry,

@@ -17,7 +17,7 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
   return [
     {
       answered: [
-        `Toque na parada em que você vai sair para.
+        `🚚 *Para qual parada você saiu?*
 [ 1ª · NF 17234 · PAD… ]
 [ 2ª · NF 17235 · MER… ]
 [ 3ª · NF 17236 · ACO… ]`,
@@ -30,13 +30,13 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
         `📍 *Mande sua localização* para medir a distância até a parada.
 Clipe 📎 → Localização → Enviar localização atual.
 _Se não puder agora, responda pular._`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: '(toca) NF 17234',
@@ -64,13 +64,13 @@ _Se não puder agora, responda pular._`,
         `📍 *Mande sua localização* para medir a distância até a parada.
 Clipe 📎 → Localização → Enviar localização atual.
 _Se não puder agora, responda pular._`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: 'cheguei',
@@ -107,13 +107,13 @@ _Se não puder agora, responda pular._`,
 *2* - ↩️ Não entreguei
 *3* - ⚠️ Abrir ocorrência
 *4* - 💤 Nada por enquanto`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: 'cheguei',
@@ -133,13 +133,13 @@ Você chegou às ${at} e ainda não registrou a entrega.
 *2* - ↩️ Não entreguei
 *3* - 🚚 Sair para outra parada sem dar a baixa
 *4* - 💤 Nada por enquanto`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: 'saí',
@@ -161,9 +161,9 @@ _Responda com o número ou por áudio (sim ou não)._`,
     {
       answered: [
         `Entregar NF 17234?`,
-        `Confirma?
+        `✅ *Confirma?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ ✅ Sim ]
 [ ❌ Não ]`,
       ],
@@ -174,13 +174,13 @@ _Responda com o número ou por áudio (sim ou não)._`,
         `📍 *NF \`17234\` · localização*
 Se puder, compartilhe a localização da entrega (clipe 📎 → Localização).
 _Falta 1 item. Se não tiver, responda pular._`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: '(toca) ✅ Sim',
@@ -302,13 +302,13 @@ Registre a chegada nela antes de sair para outra.
 *1* - 📍 Cheguei na *parada 3*
 *2* - ⚠️ Abrir ocorrência
 *3* - 💤 Nada por enquanto`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: 'saí',
@@ -325,13 +325,13 @@ Registre a chegada nela antes de sair para outra.
         `📍 *Mande sua localização* para medir a distância até a parada.
 Clipe 📎 → Localização → Enviar localização atual.
 _Se não puder agora, responda pular._`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: 'cheguei',
@@ -369,22 +369,22 @@ Você chegou às ${at} e ainda não registrou a entrega.
 *2* - ↩️ Não entreguei
 *3* - 🚚 Sair para outra parada sem dar a baixa
 *4* - 💤 Nada por enquanto`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: 'saí',
     },
     {
       answered: [
-        `Qual foi o motivo da devolução?
+        `↩️ *Por que a nota não foi entregue?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚪 Destinatário ausente ]
 [ 🙅 Recusou receber ]
 [ 📍 Endereço não achado ]
@@ -410,13 +410,13 @@ A nota volta com você para o armazém.
 *1* - 🚚 Seguir para a *parada 2*
 *2* - 📋 Escolher outra da lista
 *3* - 💤 Nada por enquanto`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: '(toca) 🙅 Recusou receber',
@@ -450,13 +450,13 @@ _Se não puder agora, responda pular._`,
         `📍 *Mande sua localização* para medir a distância até a parada.
 Clipe 📎 → Localização → Enviar localização atual.
 _Se não puder agora, responda pular._`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: 'cheguei',
@@ -480,9 +480,9 @@ _Se não puder agora, responda pular._`,
     {
       answered: [
         `Entregar NF 17235?`,
-        `Confirma?
+        `✅ *Confirma?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ ✅ Sim ]
 [ ❌ Não ]`,
       ],
@@ -493,13 +493,13 @@ _Se não puder agora, responda pular._`,
         `📍 *NF \`17235\` · localização*
 Se puder, compartilhe a localização da entrega (clipe 📎 → Localização).
 _Falta 1 item. Se não tiver, responda pular._`,
-        `O que você quer fazer com esta viagem?
+        `*O que você quer lançar?*
 
-📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.
+📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._
 [ 🚚 Saí para a entrega ]
 [ 📍 Cheguei ]
-[ 📦 Entregar ]
-[ ↩️ Devolver ]
+[ ✅ Entreguei ]
+[ ↩️ Não entreguei ]
 [ ⚠️ Ocorrência ]`,
       ],
       shown: '(toca) ✅ Sim',

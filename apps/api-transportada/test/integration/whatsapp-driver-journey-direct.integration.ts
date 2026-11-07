@@ -543,7 +543,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          'Toque na nota que você quer entregar.\n[ 17234 · PADARIA SOL… ]\n[ 17235 · MERCADO LUA… ]\n[ 17236 · ACOUGUE EST… ]',
+          '✅ *Qual nota você entregou?*\n[ NF 17234 · PADARIA … ]\n[ NF 17235 · MERCADO … ]\n[ NF 17236 · ACOUGUE … ]',
           'Toque numa nota da lista acima.',
         ],
         shown: 'entreguei',
@@ -557,7 +557,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          'Toque na parada em que você vai sair para.\n[ 1ª · NF 17234 · PAD… ]\n[ 2ª · NF 17235 · MER… ]\n[ 3ª · NF 17236 · ACO… ]',
+          '🚚 *Para qual parada você saiu?*\n[ 1ª · NF 17234 · PAD… ]\n[ 2ª · NF 17235 · MER… ]\n[ 3ª · NF 17236 · ACO… ]',
           'Toque numa parada da lista acima.',
         ],
         shown: 'iniciar rota',
@@ -568,7 +568,7 @@ function resumeJourneySteps(
       expected: {
         answered: [
           '📍 *Mande sua localização* para medir a distância até a parada.\nClipe 📎 → Localização → Enviar localização atual.\n_Se não puder agora, responda pular._',
-          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+          '*O que você quer lançar?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ ✅ Entreguei ]\n[ ↩️ Não entreguei ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: `(toca) NF ${first.number}`,
       },
@@ -596,7 +596,7 @@ function resumeJourneySteps(
       expected: {
         answered: [
           '📍 *Mande sua localização* para medir a distância até a parada.\nClipe 📎 → Localização → Enviar localização atual.\n_Se não puder agora, responda pular._',
-          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+          '*O que você quer lançar?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ ✅ Entreguei ]\n[ ↩️ Não entreguei ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: 'cheguei',
       },
@@ -626,7 +626,7 @@ function resumeJourneySteps(
 *2* - ↩️ Não entreguei
 *3* - ⚠️ Abrir ocorrência
 *4* - 💤 Nada por enquanto`,
-          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+          '*O que você quer lançar?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ ✅ Entreguei ]\n[ ↩️ Não entreguei ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: 'cheguei',
       },
@@ -636,7 +636,7 @@ function resumeJourneySteps(
       expected: {
         answered: [
           'Entregar NF 17234?',
-          'Confirma?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ ✅ Sim ]\n[ ❌ Não ]',
+          '✅ *Confirma?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ ✅ Sim ]\n[ ❌ Não ]',
         ],
         shown: '1',
       },
@@ -646,7 +646,7 @@ function resumeJourneySteps(
       expected: {
         answered: [
           `📍 *NF \`17234\` · localização*\nSe puder, compartilhe a localização da entrega (clipe 📎 → Localização).\n_Falta 1 item. Se não tiver, responda pular._`,
-          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+          '*O que você quer lançar?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ ✅ Entreguei ]\n[ ↩️ Não entreguei ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: '(toca) ✅ Sim',
       },
@@ -675,7 +675,7 @@ function resumeJourneySteps(
         answered: [
           // UMA mensagem: o aviso e a pergunta pendente nunca chegam separados.
           '↩️ *Continuando a entrega da NF `17234`.*\n📸 *NF `17234` · foto do canhoto*\nMande a foto do canhoto assinado.\n\n_Falta 1 item._',
-          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+          '*O que você quer lançar?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ ✅ Entreguei ]\n[ ↩️ Não entreguei ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: 'entreguei',
       },
