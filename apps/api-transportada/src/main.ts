@@ -225,6 +225,8 @@ import { DrizzleDriverStopReminderDeliveryRepository } from './driver-stop-remin
 import { createDrizzleDriverReminderChannelResolver } from './driver-stop-reminders/infrastructure/drizzle-driver-reminder-channel.resolver.js'
 import { createGroupReminderPromptOpener } from './driver-stop-reminders/infrastructure/group-reminder-prompt-opener.js'
 import { createGroupStopReminderSender } from './driver-stop-reminders/infrastructure/group-stop-reminder-sender.gateway.js'
+import { DrizzleDriverStopReminderSettingsRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-settings.repository.js'
+import { createDriverStopReminderSettingsRoutes } from './driver-stop-reminders/presentation/driver-stop-reminder-settings.routes.js'
 import { createDriverStopReminderRoutes } from './driver-stop-reminders/presentation/driver-stop-reminders.routes.js'
 import { createDriverOpenQuestionPort } from './whatsapp-commands/infrastructure/driver-open-question.adapter.js'
 import { createEvolutionGroupReplySender } from './whatsapp/infrastructure/evolution-group-reply.gateway.js'
@@ -2426,6 +2428,10 @@ export function bootstrap(): Bun.Server<undefined> {
       }),
       ...createWhatsAppCommandSettlementRoutes({ settle: whatsappSettlement }),
       ...createDriverStopReminderRoutes({ deliverDriverStopReminder }),
+      ...createDriverStopReminderSettingsRoutes({
+        resolveClientIp,
+        settings: new DrizzleDriverStopReminderSettingsRepository(database.db),
+      }),
     ],
     tenantContext,
     userPictureExistence: new DrizzleUserPictureRepository(database.db),

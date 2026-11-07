@@ -98,6 +98,12 @@ export type OperatingHoursRange = {
   readonly end: string
 }
 
+/** O que a empresa configura (RF19): os números da cobrança, o interruptor e o horário de funcionamento. */
+export type StopReminderCompanySettings = StopReminderSettings & {
+  readonly enabled: boolean
+  readonly operatingHours: readonly OperatingHoursRange[]
+}
+
 export type StopReminderGateInput = {
   readonly now: Date
   readonly stage: DriverStopReminderStage
