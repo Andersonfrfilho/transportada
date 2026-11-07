@@ -799,3 +799,9 @@ histórico gravado antes de substituir. Contrato `publish-flow-graph.contract.ts
 typecheck, eslint, prettier limpos; `bun run test` 14464 pass / 0 fail; `bun --env-file=../../.env.test test --timeout 120000`
 0 fail; integração `whatsapp-flow-graph-publish` 2 pass. O wrapper `producao-publicar-falas-do-bot.sh` repassa `$*` sem
 alteração (vírgulas sem espaço passam intactas).
+
+Vermelho dos contratos do `--overwrite-nodes` (implementação de `whatsapp-bot-speech.policy.ts` e do use case revertida ao
+commit anterior, só a classe de erro stubada para o arquivo carregar): `(fail)` "chave listada leva o texto do código…",
+`(fail)` "publica só a chave listada, guarda histórico…", `(fail)` "chave desconhecida é erro…", `(fail)` "sem a flag…"
+(este por `preview.overwritten` ainda não existir; o comportamento sem a flag já era o antigo) — 6 pass / 4 fail. Implementação
+restaurada: 15 pass.
