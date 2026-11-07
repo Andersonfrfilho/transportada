@@ -56,6 +56,31 @@ export function createDrizzleWhatsAppGroupRequestRepository(
       )
   }
 
+  /** Fecha o pedido que o novo substitui; `false` quando outra mensagem o mudou antes. */
+  async function cancel(
+    executor: Pick<Database, 'update'>,
+    input: { companyId: string; now: Date; replaces?: { id: string; version: bigint } | undefined },
+  ): Promise<boolean> {
+    if (input.replaces === undefined) return true
+    const rows = await executor
+      .update(whatsappGroupRequests)
+      .set({
+        closedAt: input.now,
+        status: 'cancelled',
+        version: sql`${whatsappGroupRequests.version} + 1`,
+      })
+      .where(
+        and(
+          eq(whatsappGroupRequests.companyId, input.companyId),
+          eq(whatsappGroupRequests.id, input.replaces.id),
+          eq(whatsappGroupRequests.status, 'open'),
+          eq(whatsappGroupRequests.version, input.replaces.version),
+        ),
+      )
+      .returning({ id: whatsappGroupRequests.id })
+    return rows.length === 1
+  }
+
   return {
     async claimMessage(input) {
       const rows = await database
@@ -113,23 +138,26 @@ export function createDrizzleWhatsAppGroupRequestRepository(
         .limit(1)
       const timeoutSeconds = settings?.timeout ?? WHATSAPP_GROUP_REQUEST_TIMEOUT_RANGE.default
       try {
-        const [row] = await database
-          .insert(whatsappGroupRequests)
-          .values({
-            companyId: input.companyId,
-            driverId: input.driverId,
-            expiresAt: new Date(input.now.getTime() + timeoutSeconds * 1000),
-            groupJid: input.groupJid,
-            lastActivityAt: input.now,
-            openedAt: input.now,
-            ownerNumber: input.ownerNumber,
-            state: { ...input.state },
-            step: input.step,
-            timeoutSeconds,
-          })
-          .returning(COLUMNS)
-        if (row === undefined) throw new Error('whatsapp group request insert returned nothing')
-        return toRequest(row)
+        return await database.transaction(async (transaction) => {
+          if (!(await cancel(transaction, input))) return null
+          const [row] = await transaction
+            .insert(whatsappGroupRequests)
+            .values({
+              companyId: input.companyId,
+              driverId: input.driverId,
+              expiresAt: new Date(input.now.getTime() + timeoutSeconds * 1000),
+              groupJid: input.groupJid,
+              lastActivityAt: input.now,
+              openedAt: input.now,
+              ownerNumber: input.ownerNumber,
+              state: { ...input.state },
+              step: input.step,
+              timeoutSeconds,
+            })
+            .returning(COLUMNS)
+          if (row === undefined) throw new Error('whatsapp group request insert returned nothing')
+          return toRequest(row)
+        })
       } catch (error) {
         if (violatedUniqueConstraint(error) === OPEN_UNIQUE) return null
         throw error

@@ -129,6 +129,26 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
     return { nextDueAt: gate.until, outcome: OUTCOME.DEFERRED } as const
   }
 
+  /** O pedido que este lembrete deixou aberto numa tentativa anterior não é pergunta de outro fluxo. */
+  async function readOpenQuestions(
+    reminder: DeliverableStopReminder,
+    context: StopReminderDeliveryContext,
+    now: Date,
+  ) {
+    const questions = await dependencies.driverOpenQuestions.read({
+      companyId: reminder.companyId,
+      driverId: context.driver.id,
+      now,
+    })
+    if (!questions.hasOpenGroupRequest || context.groupJid === undefined) return questions
+    const isOwnPrompt = await dependencies.promptOpener.hasOwnOpen({
+      companyId: reminder.companyId,
+      groupJid: context.groupJid,
+      reminderId: reminder.id,
+    })
+    return isOwnPrompt ? { ...questions, hasOpenGroupRequest: false } : questions
+  }
+
   async function renderBody(
     reminder: DeliverableStopReminder,
     context: StopReminderDeliveryContext,
@@ -250,11 +270,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       const context = await repository.readContext({ now, reminder })
       if (!context.settings.enabled) return { nextDueAt: reminder.dueAt, outcome: OUTCOME.DEFERRED }
 
-      const questions = await dependencies.driverOpenQuestions.read({
-        companyId,
-        driverId: context.driver.id,
-        now,
-      })
+      const questions = await readOpenQuestions(reminder, context, now)
       const gate = decideStopReminderGate({
         holidayDates: context.holidayDates,
         hasOpenQuestion: hasDriverOpenQuestion(questions),

@@ -70,7 +70,10 @@ const CLOSED_QUESTIONS = {
   hasPendingPrompt: false,
 }
 
-async function build(db: JourneyDatabase, world: JourneyWorld) {
+type BuildOptions = { readonly clock?: () => Date; readonly realOpenQuestions?: boolean }
+
+async function build(db: JourneyDatabase, world: JourneyWorld, options: BuildOptions = {}) {
+  const clock = options.clock ?? (() => new Date())
   await db
     .insert(companyDriverReminderSettings)
     .values({ companyId: world.companyId, enabled: true })
@@ -100,10 +103,18 @@ async function build(db: JourneyDatabase, world: JourneyWorld) {
   const requests = createDrizzleWhatsAppGroupRequestRepository(db)
   const reminderSent: string[] = []
   const deliver = createDeliverDriverStopReminderUseCase({
-    driverOpenQuestions: { read: async () => CLOSED_QUESTIONS },
+    clock,
+    driverOpenQuestions: {
+      read: async ({ companyId, now }) => ({
+        ...CLOSED_QUESTIONS,
+        hasOpenGroupRequest:
+          options.realOpenQuestions === true &&
+          (await requests.findOpen({ companyId, groupJid: GROUP, now })) !== null,
+      }),
+    },
     isEnabled: true,
     promptOpener: createGroupReminderPromptOpener({
-      clock: () => new Date(),
+      clock,
       readDriverNumber: createDriverNumberReader(db),
       repository: requests,
     }),
@@ -313,6 +324,38 @@ describe('passo reminder.stage pelo caminho real do grupo (spec 299 T2.3, Postgr
           status: 'pending',
         })
         expect(await readJourneyEvents(db, world)).not.toContain('parada 1: arrived')
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'sem resposta, a próxima tentativa do mesmo lembrete troca o pedido e envia, sem adiar',
+    async () => {
+      await inDatabase(async (db) => {
+        const start = new Date()
+        let current = start
+        const world = await seedJourneyTrip(db, { driverPhone: '16988887777' })
+        const harness = await build(db, world, { clock: () => current, realOpenQuestions: true })
+        expect(await harness.deliverNow()).toMatchObject({ outcome: 'sent' })
+        const first = await harness.request()
+        await db
+          .update(whatsappGroupRequests)
+          .set({ expiresAt: new Date(start.getTime() + 3 * 60 * 60_000) })
+          .where(eq(whatsappGroupRequests.companyId, world.companyId))
+
+        current = new Date(start.getTime() + 31 * 60_000)
+        const second = await harness.deliverNow()
+
+        expect(second).toMatchObject({ outcome: 'sent' })
+        expect(harness.reminderSent).toHaveLength(2)
+        expect(await harness.reminder()).toMatchObject({ attempts: 2, status: 'pending' })
+        const rows = await db
+          .select()
+          .from(whatsappGroupRequests)
+          .where(eq(whatsappGroupRequests.companyId, world.companyId))
+        expect(rows.filter((row) => row.status === 'open')).toHaveLength(1)
+        expect(rows.find((row) => row.id === first?.id)).toMatchObject({ status: 'cancelled' })
       })
     },
     120_000,

@@ -59,6 +59,38 @@ const request = (overrides: Partial<GroupRequest>): GroupRequest => ({
   ...overrides,
 })
 
+describe('o pedido do próprio lembrete (spec 299, correção pós-T2.3)', () => {
+  test('hasOwnOpen: só o pedido aberto no passo e com o mesmo lembrete é dele', async () => {
+    expect(await build({ open: request({}) }).opener.hasOwnOpen(PARAMS)).toBe(true)
+    expect(await build({}).opener.hasOwnOpen(PARAMS)).toBe(false)
+    expect(
+      await build({
+        open: request({ state: { reminderId: 'reminder-2', stage: 'arrival', tripStopId: 's' } }),
+      }).opener.hasOwnOpen(PARAMS),
+    ).toBe(false)
+    expect(
+      await build({ open: request({ step: 'occurrence.document' }) }).opener.hasOwnOpen(PARAMS),
+    ).toBe(false)
+  })
+
+  test('open com pedido próprio aberto o substitui na mesma gravação', async () => {
+    const world = build({ open: request({ version: 7n }) })
+    await world.opener.open(PARAMS)
+    expect(world.opened).toHaveLength(1)
+    expect(world.opened[0]).toMatchObject({ replaces: { id: 'request-1', version: 7n } })
+    expect(world.updates).toEqual([])
+  })
+
+  test('open com pedido de outro lembrete aberto não o substitui', async () => {
+    const world = build({
+      open: request({ state: { reminderId: 'reminder-2', stage: 'arrival', tripStopId: 's' } }),
+      taken: true,
+    })
+    await expect(world.opener.open(PARAMS)).rejects.toBeInstanceOf(ReminderPromptBusyError)
+    expect(world.opened[0]).not.toHaveProperty('replaces')
+  })
+})
+
 describe('abridor do passo reminder.stage (spec 299 T2.3, RF14)', () => {
   test('abre o pedido do motorista no passo, com o estado do lembrete', async () => {
     const world = build()

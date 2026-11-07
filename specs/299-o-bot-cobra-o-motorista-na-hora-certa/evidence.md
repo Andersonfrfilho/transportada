@@ -563,3 +563,22 @@ entrypoints tocados (os dois acima e `message-text-boundary`), 0 fail.
   (evento → entrada → sessão → roteador → registro): entregue + "1" grava a chegada e fecha o lembrete (`arrived`) e o pedido;
   "4" três vezes (tentativa devolvida, adiamentos 1/2/3, prazo avança) e a quarta conta como sem resposta; "cancelar" fecha o
   passo e o lembrete segue; pedido aberto no meio → não envia e devolve a reserva.
+
+## Correções pós-T2.3 — 2026-11-07
+
+**Defeito (risco aberto da T2.3):** o pedido de grupo do próprio lembrete (`reminder.stage`) ficava aberto até
+`group_request_timeout_seconds`; a tentativa seguinte do mesmo lembrete lia "pedido aberto" e adiava 5 min repetidamente.
+
+**Vermelho antes** (testes escritos primeiro): integração `driver-stop-reminder-group-step` (novo caso: tentativa 1 enviada, sem
+resposta, relógio +31 min) → `outcome: 'deferred'` em vez de `sent`; contratos do abridor e da entrega → 3 fail
+(`hasOwnOpen`/`replaces` ausentes).
+
+**Correção:** `ReminderPromptOpener.hasOwnOpen` reconhece o pedido aberto no passo `reminder.stage` com o mesmo `reminderId`; a
+entrega o desconta de `hasOpenGroupRequest` (as outras perguntas abertas e o pedido de outro fluxo/lembrete seguem adiando). O
+`open` do abridor passa `replaces: {id, version}` e o repositório do grupo fecha o antigo (`cancelled`) e abre o novo **numa
+transação** (versão mudou → `null` → `ReminderPromptBusyError`, nada enviado).
+
+**Verde:** `driver-stop-reminder-group-step` 5 pass (um só pedido aberto depois da 2ª tentativa; o antigo `cancelled`), contrato do
+reminder 151 pass, `driver-stop-reminder-delivery` 9, `driver-stop-reminders` 23, `whatsapp-evolution-webhook` 3,
+`whatsapp-group-request-repository` 5, `whatsapp-driver-journey-group` 2; typecheck, eslint e prettier limpos nos arquivos tocados.
+Gate completo (`bun run test` e o contrato com `--env-file`) fechado ao fim, na seção T2.5.

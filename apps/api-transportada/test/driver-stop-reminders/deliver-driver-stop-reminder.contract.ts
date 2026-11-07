@@ -74,6 +74,7 @@ const CONTEXT: StopReminderDeliveryContext = {
 type Overrides = {
   readonly context?: Partial<StopReminderDeliveryContext>
   readonly isEnabled?: boolean
+  readonly ownPromptOpen?: boolean
   readonly questions?: Partial<DriverOpenQuestions>
   readonly reminder?: Partial<DeliverableStopReminder> | undefined
   readonly reserve?: boolean
@@ -104,6 +105,7 @@ function build(overrides: Overrides = {}) {
     isEnabled: overrides.isEnabled ?? true,
     promptOpener: {
       discard: async () => undefined,
+      hasOwnOpen: async () => overrides.ownPromptOpen ?? false,
       open: async (params) => void opened.push(params),
     },
     repository,
@@ -248,6 +250,23 @@ describe('adia sem consumir tentativa (spec 299 T2.2, RF8)', () => {
 
   test('pergunta aberta do motorista adia 5 minutos', async () => {
     const world = build({ questions: { hasOpenGroupRequest: true } })
+    const result = await world.useCase.execute({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
+    expect(result).toEqual({ nextDueAt: new Date(NOW.getTime() + 5 * MINUTE), outcome: 'deferred' })
+    expect(world.sent).toEqual([])
+  })
+
+  test('o pedido aberto que é do próprio lembrete não conta como pergunta aberta: a nova tentativa envia', async () => {
+    const world = build({ ownPromptOpen: true, questions: { hasOpenGroupRequest: true } })
+    const result = await world.useCase.execute({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
+    expect(result.outcome).toBe('sent')
+    expect(world.opened).toHaveLength(1)
+  })
+
+  test('o pedido do próprio lembrete não libera as outras perguntas abertas', async () => {
+    const world = build({
+      ownPromptOpen: true,
+      questions: { hasOpenCollection: true, hasOpenGroupRequest: true },
+    })
     const result = await world.useCase.execute({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
     expect(result).toEqual({ nextDueAt: new Date(NOW.getTime() + 5 * MINUTE), outcome: 'deferred' })
     expect(world.sent).toEqual([])

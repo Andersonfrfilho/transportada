@@ -111,7 +111,11 @@ function build(world: World, options: { questions?: Partial<DriverOpenQuestions>
     clock: () => NOW,
     driverOpenQuestions: { read: async () => ({ ...FREE, ...options.questions }) },
     isEnabled: true,
-    promptOpener: { discard: async () => undefined, open: async () => undefined },
+    promptOpener: {
+      discard: async () => undefined,
+      hasOwnOpen: async () => false,
+      open: async () => undefined,
+    },
     repository: new DrizzleDriverStopReminderDeliveryRepository(world.database.db),
     sender: createGroupStopReminderSender({
       readCurrentDriverNumber: createCurrentDriverNumberReader(world.database.db),

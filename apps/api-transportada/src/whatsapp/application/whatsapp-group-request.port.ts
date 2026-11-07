@@ -55,6 +55,11 @@ export type GroupRequestRepositoryPort = {
     readonly groupJid: string
     readonly now: Date
     readonly ownerNumber: string
+    /**
+     * O pedido aberto (na versão lida) que o novo substitui: fecha como `cancelled` e abre na mesma transação.
+     * `null` quando ele já mudou ou fechou.
+     */
+    readonly replaces?: { readonly id: string; readonly version: bigint }
     /** O estado inicial do passo (ex.: o lembrete que a pergunta cobra); ausente, vazio. */
     readonly state?: Readonly<Record<string, unknown>>
     readonly step: string

@@ -22,10 +22,29 @@ export function createGroupReminderPromptOpener(dependencies: {
   readonly repository: GroupRequestRepositoryPort
 }): ReminderPromptOpener {
   const { repository } = dependencies
+
+  async function findOwnOpen(input: {
+    readonly companyId: string
+    readonly groupJid: string
+    readonly reminderId: string
+  }) {
+    const open = await repository.findOpen({
+      companyId: input.companyId,
+      groupJid: input.groupJid,
+      now: dependencies.clock(),
+    })
+    const isOwn = open?.step === REMINDER_STAGE_STEP && open.state.reminderId === input.reminderId
+    return isOwn ? open : null
+  }
+
   return {
+    async hasOwnOpen(input) {
+      return (await findOwnOpen(input)) !== null
+    },
+
     async discard({ companyId, groupJid, reminderId }) {
-      const open = await repository.findOpen({ companyId, groupJid, now: dependencies.clock() })
-      if (open?.step !== REMINDER_STAGE_STEP || open.state.reminderId !== reminderId) return
+      const open = await findOwnOpen({ companyId, groupJid, reminderId })
+      if (open === null) return
       await repository.update({
         attempts: open.attempts,
         close: 'cancelled',
@@ -40,12 +59,14 @@ export function createGroupReminderPromptOpener(dependencies: {
 
     async open({ companyId, driverId, groupJid, reminderId, stage, tripStopId }) {
       const ownerNumber = await dependencies.readDriverNumber({ companyId, driverId })
+      const previous = await findOwnOpen({ companyId, groupJid, reminderId })
       const request = await repository.open({
         companyId,
         driverId,
         groupJid,
         now: dependencies.clock(),
         ownerNumber: ownerNumber ?? '',
+        ...(previous === null ? {} : { replaces: { id: previous.id, version: previous.version } }),
         state: { reminderId, stage, tripStopId },
         step: REMINDER_STAGE_STEP,
       })
