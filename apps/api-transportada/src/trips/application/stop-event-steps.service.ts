@@ -7,7 +7,7 @@ import {
   assertInformedTimeWithinWindow,
   FIELD_INFORMED_TIME,
 } from '../domain/field-delivery-timing.policy.js'
-import { resolveRecordedEventClock } from '../domain/occurred-at.policy.js'
+import { resolveRecordedEventClock, type CorrectedClock } from '../domain/occurred-at.policy.js'
 import { TripHasStopEnRouteError, TripStopNotReachableError } from '../domain/trip.error.js'
 import { toFieldTripTarget } from './field-trip-target.types.js'
 import type {
@@ -123,6 +123,13 @@ export async function applyStopDeparture(
     stopId: input.stopId,
     tappedAt: resolvedTappedAt,
   })
+  await transaction.onStopEvent({
+    channel: authorship.channel,
+    companyId: input.companyId,
+    kind: 'departed',
+    occurredAt: resolvedTappedAt ?? input.now,
+    target: { stopId: input.stopId },
+  })
 
   return { changed: true, id: event.id }
 }
@@ -191,25 +198,37 @@ export async function applyStopArrival(
   })
   if (audit !== undefined) await transaction.recordOfficeAudit(audit)
 
-  return transaction.recordEvent({
+  const clock = isOffice
+    ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
+    : (recordedTogether?.clock ??
+      resolveRecordedEventClock({
+        clockOffsetMs: input.clockOffsetMs,
+        hasLocation: input.location !== null,
+        receivedAt: input.now,
+        tappedAt: input.tappedAt,
+      }))
+  const event = await transaction.recordEvent({
     actorUserId: input.actorUserId,
     authorship,
     companyId: input.companyId,
     documentId: null,
     kind: 'arrived',
     location: input.location,
-    ...(isOffice
-      ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
-      : (recordedTogether?.clock ??
-        resolveRecordedEventClock({
-          clockOffsetMs: input.clockOffsetMs,
-          hasLocation: input.location !== null,
-          receivedAt: input.now,
-          tappedAt: input.tappedAt,
-        }))),
+    ...clock,
     ...(recordedTogether === undefined ? {} : { recordedTogether: true }),
     stopId: input.stopId,
   })
+  if (stop.arrivedAt === null) {
+    await transaction.onStopEvent({
+      channel: authorship.channel,
+      companyId: input.companyId,
+      kind: 'arrived',
+      occurredAt: resolveEventOccurredAt({ clock, now: input.now }),
+      recordedTogether: recordedTogether !== undefined,
+      target: { stopId: input.stopId },
+    })
+  }
+  return event
 }
 
 /** ADR-0067 §3, spec 156 T15 A1: a mesma janela de "Entregue em", com os códigos da chegada. */
@@ -245,4 +264,14 @@ async function shiftPendingStopsByDelay(params: ApplyStopArrivalParams): Promise
     shiftMilliseconds,
     tripId: params.stop.tripId,
   })
+}
+
+/** A hora do evento como ele foi gravado: a corrigida do relógio quando aceita, senão a do servidor. */
+function resolveEventOccurredAt(params: {
+  readonly clock: { readonly occurredAt: Date } | { readonly correctedClock?: CorrectedClock }
+  readonly now: Date
+}): Date {
+  const { clock, now } = params
+  if ('occurredAt' in clock) return clock.occurredAt
+  return clock.correctedClock?.occurredAt ?? now
 }

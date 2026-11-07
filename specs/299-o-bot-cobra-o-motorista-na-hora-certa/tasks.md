@@ -16,12 +16,12 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 
 > 🤖 Modelo: `sonnet` (T0.1 é 🧠 — `opus`)
 
-- [ ] **T0.1 🧠** Conferir no código as premissas que o `plan.md` deixou para a T0.1: onde fica gravada a origem
+- [x] **T0.1 🧠** Conferir no código as premissas que o `plan.md` deixou para a T0.1: onde fica gravada a origem
       grupo × individual do evento (último canal, D5), nomes das permissões de leitura e gestão de viagens para a
       pendência e a dispensa, aba das Configurações (`automations` ou nova), e o desenho da extração do portão "pergunta
       aberta" (`RouteOfferGate` → `DriverOpenQuestionPort`) sem mudar a oferta da próxima rota. Aceite: `plan.md`
       atualizado com arquivo:símbolo; decisões em `evidence.md`.
-- [ ] **T0.2** Contratos vermelhos das políticas puras, com relógio injetado:
+- [x] **T0.2** Contratos vermelhos das políticas puras, com relógio injetado:
       `test/driver-stop-reminders/stop-reminder-{schedule,origin,transition,gate,message}.contract.ts` e o entrypoint
       `test/driver-stop-reminders.contract.test.ts` no `package.json`. Aceite: vermelhos pelo motivo certo (módulo ausente).
 
@@ -29,13 +29,13 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 
 > 🤖 Modelo: `sonnet` (T1.1 → `haiku`)
 
-- [ ] **T1.1** Chave global `DRIVER_REMINDERS_ENABLED` (padrão `false`) no schema de env da API e do worker, no
+- [x] **T1.1** Chave global `DRIVER_REMINDERS_ENABLED` (padrão `false`) no schema de env da API e do worker, no
       `.env.example` e no `make config`, no molde de `MDFE_AUTO_ISSUE_ENABLED`. Aceite: contrato do schema; `make config`.
-- [ ] **T1.2** Migration A aditiva: `driver_stop_reminders`, `company_driver_reminder_settings` e a linha de
+- [x] **T1.2** Migration A aditiva: `driver_stop_reminders`, `company_driver_reminder_settings` e a linha de
       `job_schedules` da rotina com os `CHECK` reescritos (plan.md § Dados e § Worker).
       Aceite: `make migration-test`; `db:generate` → `no_changes`.
-- [ ] **T1.3** Políticas puras (T0.2 verde): schedule, origin, transition, message.
-- [ ] **T1.4** `driver-stop-reminder.service.ts` (`onStopEvent`) ligado a saída, chegada, baixa, ocorrência,
+- [x] **T1.3** Políticas puras (T0.2 verde): schedule, origin, transition, message.
+- [x] **T1.4** `driver-stop-reminder.service.ts` (`onStopEvent`) ligado a saída, chegada, baixa, ocorrência,
       cancelamento de saída e encerramento da viagem, na transação do evento; OSRM depois do commit por `id`+`version`;
       chave global desligada → nada grava. Integração: saída abre `arrival` com reserva e depois com OSRM; OSRM fora →
       `origin_kind='fallback'`; chegada fecha e abre `settlement`; chegada marcada junto com a baixa não abre; baixa,

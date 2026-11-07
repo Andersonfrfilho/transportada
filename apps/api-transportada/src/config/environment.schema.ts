@@ -237,6 +237,10 @@ const environmentSchema = z.object({
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.enum(['true', 'false']).default('false'),
   ),
+  DRIVER_REMINDERS_ENABLED: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.enum(['true', 'false']).default('false'),
+  ),
   /**
    * ADR-0047, emenda 2026-11-05: o papel de realm sozinho não faz um service account — o `azp` do
    * token precisa estar nesta lista. Não é segredo: o padrão são os dois clients do worker.
@@ -519,6 +523,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     driverTripLockEnabled: parsed.DRIVER_TRIP_LOCK_ENABLED === 'true',
     driverTripLockMinScore: parsed.DRIVER_TRIP_LOCK_MIN_SCORE,
     mdfeAutoIssueEnabled: parsed.MDFE_AUTO_ISSUE_ENABLED === 'true',
+    driverRemindersEnabled: parsed.DRIVER_REMINDERS_ENABLED === 'true',
     serviceClientIds: parsed.SERVICE_CLIENT_IDS,
     nfseProviderApiVersion: parsed.NFSE_PROVIDER_API_VERSION,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,

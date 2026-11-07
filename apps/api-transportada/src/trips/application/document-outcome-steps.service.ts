@@ -236,6 +236,14 @@ export async function closeStopAndTrip(input: {
   const tripCompleted = stopCompleted
     ? await context.transaction.completeTripIfSettled(tripChange)
     : false
+  await context.transaction.onStopEvent({
+    channel: context.authorship.channel,
+    companyId: report.companyId,
+    kind: context.params.kind,
+    occurredAt: report.now,
+    stopClosed: stopCompleted,
+    target: { stopId: document.stopId },
+  })
   if (!input.alreadySettled && !tripCompleted) {
     await context.transaction.advanceTripFromSettledDocuments(tripChange)
   }

@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { OnStopEventParams } from '../../driver-stop-reminders/application/driver-stop-reminder.port.js'
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type {
@@ -87,7 +88,11 @@ export type FieldReportClaim = {
  * um `insert` com unique, e o reenvio concorrente fica bloqueado nele até o primeiro confirmar — em
  * vez de os dois lerem "não existe" e executarem o efeito duas vezes.
  */
+/** Spec 299: o lembrete do motorista abre e fecha na transação do evento; sem a chave global, é um no-op. */
+export type StopReminderEventRecorder = (input: OnStopEventParams) => Promise<void>
+
 export type DriverFieldReportTransactionPort = {
+  onStopEvent: StopReminderEventRecorder
   claim(input: {
     readonly actorUserId: string
     /** ADR-0067 §2: gravada mesmo na reserva da chave — a linha de idempotência também é registro de campo. */

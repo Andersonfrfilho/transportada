@@ -73,6 +73,13 @@ export async function performBatch(context: BatchContext): Promise<BatchOutcome>
 
   const attachmentObjectId = await persistBatchAttachment(context)
   const items = await recordItems({ attachmentObjectId, context, occurrenceType })
+  await context.transaction.onStopEvent({
+    channel: context.authorship.channel,
+    companyId: context.companyId,
+    kind: 'occurrence',
+    occurredAt: new Date(),
+    target: { documentIds: context.documentIds },
+  })
   await context.transaction.recordOfficeAudit({
     ...context.officeAudit,
     actorUserId: context.actorUserId,

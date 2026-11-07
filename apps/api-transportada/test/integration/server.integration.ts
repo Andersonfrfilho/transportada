@@ -68,6 +68,7 @@ const server = startApiServer({
     driverTripLockEnabled: false,
     driverTripLockMinScore: 70,
     mdfeAutoIssueEnabled: false,
+    driverRemindersEnabled: false,
     serviceClientIds: ['transportada-worker'],
     appEnv: 'test',
     bootstrapToken: undefined,
