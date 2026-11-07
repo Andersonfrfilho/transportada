@@ -30,7 +30,7 @@ const NOTE = '17234'
 type PostponeOutcome = 'closed' | 'no_answer' | 'postponed'
 
 function request(
-  stage: 'arrival' | 'settlement',
+  stage: 'arrival' | 'idle' | 'settlement',
   state: Record<string, unknown> = {},
 ): GroupRequest {
   return {
@@ -90,6 +90,8 @@ function setup(options: { postpone?: PostponeOutcome; note?: string | undefined 
     stop: {
       answer: spy('stop.answer'),
       begin: spy('stop.begin'),
+      chooseDeparture: spy('stop.chooseDeparture'),
+      departStop: spy('stop.departStop'),
       nextStepText: async () => 'proximo',
       settledDocument: async () => null,
     } as never,
@@ -206,7 +208,11 @@ describe('resposta que não cabe, comando digitado e cancelar', () => {
       expect(await flow.answer(turnOf(text, request('arrival')))).toEqual({
         kind: 'not_understood',
         prompt: '',
-        reason: await say('lembreteOpcaoInvalida'),
+        reason: await CATALOG_BOT_SPEECH.text({
+          companyId: COMPANY_ID,
+          key: 'lembreteOpcaoInvalida',
+          params: { ultimaOpcao: '4' },
+        }),
       })
       expect(calls).toEqual([])
       expect(postponed).toEqual([])
@@ -244,5 +250,85 @@ describe('resposta que não cabe, comando digitado e cancelar', () => {
     const { calls, flow } = setup({ note: undefined })
     await flow.answer(turnOf('2', request('arrival')))
     expect(calls.filter((call) => call.startsWith('delivery.begin'))).toEqual([])
+  })
+})
+
+describe('etapa idle (T2.7, RF23, RF24): o mesmo passo, cardápio por variante', () => {
+  const start = (state: Record<string, unknown> = {}) =>
+    request('idle', { idleVariant: 'start', ...state })
+  const route = () => request('idle', { idleVariant: 'route' })
+
+  test('A1 inicia a rota pela parada suposta (o mesmo caminho do "saí")', async () => {
+    const { calls, flow } = setup()
+    const outcome = await flow.answer(turnOf('1', start()))
+    expect(calls).toEqual([`stop.departStop:[{"documentNumber":"${NOTE}","stopId":"S1"}]`])
+    expect(outcome).toMatchObject({ kind: 'continue', step: 'stop.inner' })
+  })
+
+  test('A2 vai à escolha de parada (com a confirmação fora de ordem da 294)', async () => {
+    const { calls, flow } = setup()
+    await flow.answer(turnOf('2', start()))
+    expect(calls).toEqual(['stop.chooseDeparture:[]'])
+  })
+
+  test('A3 adia sem consumir tentativa e fecha o pedido', async () => {
+    const { calls, flow, postponed } = setup({ postpone: 'postponed' })
+    expect(await flow.answer(turnOf('3', start()))).toEqual({
+      kind: 'done',
+      replies: [await say('lembreteAdiado')],
+      withoutFarewell: true,
+    })
+    expect(postponed).toEqual([{ companyId: COMPANY_ID, reminderId: 'REM1' }])
+    expect(calls).toEqual([])
+  })
+
+  test('A4 não existe na variante A', async () => {
+    const { calls, flow } = setup()
+    expect(await flow.answer(turnOf('4', start()))).toMatchObject({ kind: 'not_understood' })
+    expect(calls).toEqual([])
+  })
+
+  test('B1 saída · B2 chegada · B3 entreguei · B4 ocorrência · B5 adia', async () => {
+    const one = setup()
+    await one.flow.answer(turnOf('1', route()))
+    expect(one.calls).toEqual([`stop.departStop:[{"documentNumber":"${NOTE}","stopId":"S1"}]`])
+
+    const two = setup()
+    await two.flow.answer(turnOf('2', route()))
+    expect(two.calls).toEqual([`stop.begin:["arrive",["${NOTE}"]]`])
+
+    const three = setup()
+    await three.flow.answer(turnOf('3', route()))
+    expect(three.calls).toEqual([`delivery.begin:[["${NOTE}"]]`])
+
+    const four = setup()
+    await four.flow.answer(turnOf('4', route()))
+    expect(four.calls).toEqual([`occurrence.start:["${NOTE}"]`])
+
+    const five = setup({ postpone: 'postponed' })
+    expect(await five.flow.answer(turnOf('5', route()))).toMatchObject({ kind: 'done' })
+    expect(five.postponed).toHaveLength(1)
+  })
+
+  test('comando digitado escapa do passo idle como nos outros', async () => {
+    const { calls, flow, postponed } = setup()
+    await flow.answer(turnOf('cheguei', route()))
+    expect(calls).toEqual(['stop.begin:["arrive",[]]'])
+    expect(postponed).toEqual([])
+  })
+})
+
+describe('a fala de opção inválida diz a última opção da etapa/variante (T2.7)', () => {
+  test.each([
+    ['arrival', {}, 'de 1 a 4'],
+    ['settlement', {}, 'de 1 a 4'],
+    ['idle', { idleVariant: 'start' }, 'de 1 a 3'],
+    ['idle', { idleVariant: 'route' }, 'de 1 a 5'],
+  ] as const)('%s %j → "%s"', async (stage, state, expected) => {
+    const { flow } = setup()
+    const outcome = await flow.answer(turnOf('9', request(stage, state)))
+    expect(outcome).toMatchObject({ kind: 'not_understood' })
+    expect((outcome as { reason: string }).reason).toContain(expected)
+    expect((outcome as { reason: string }).reason).not.toContain('{{')
   })
 })

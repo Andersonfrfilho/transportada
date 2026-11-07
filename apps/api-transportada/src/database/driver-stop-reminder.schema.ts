@@ -105,6 +105,12 @@ export const driverStopReminders = pgTable(
       .on(table.tripStopId, table.stage)
       .where(sql`${table.status} = 'pending'`),
     index('driver_stop_reminders_status_due_idx').on(table.status, table.dueAt),
+    index('driver_stop_reminders_cycle_probe_idx').on(
+      table.companyId,
+      table.tripStopId,
+      table.stage,
+      table.createdAt,
+    ),
     check(
       'driver_stop_reminders_stage_check',
       sql`${table.stage} in (${sql.raw(inList(DRIVER_STOP_REMINDER_STAGES))})`,

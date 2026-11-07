@@ -20,6 +20,10 @@ export function computeStopReminderSchedule(
   params: ComputeStopReminderScheduleParams,
 ): StopReminderSchedule {
   const { stage, anchorAt, travelSeconds, settings } = params
+  if (stage === DRIVER_STOP_REMINDER_STAGE.IDLE) {
+    const dueAt = new Date(anchorAt.getTime() + settings.idleMinutes * MILLISECONDS_PER_MINUTE)
+    return { expectedAt: anchorAt, dueAt }
+  }
   if (stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT) {
     const dueAt = new Date(anchorAt.getTime() + settings.dwellMinutes * MILLISECONDS_PER_MINUTE)
     return { expectedAt: anchorAt, dueAt }

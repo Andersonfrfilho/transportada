@@ -1,0 +1,4 @@
+ALTER TABLE "company_driver_reminder_settings" ADD COLUMN "idle_minutes" integer DEFAULT 30 NOT NULL;--> statement-breakpoint
+CREATE INDEX "driver_stop_reminders_cycle_probe_idx" ON "driver_stop_reminders" ("company_id","trip_stop_id","stage","created_at");--> statement-breakpoint
+ALTER TABLE "company_driver_reminder_settings" ADD CONSTRAINT "company_driver_reminder_settings_idle_check" CHECK ("idle_minutes" between 10 and 240);--> statement-breakpoint
+ALTER TABLE "driver_stop_reminders" DROP CONSTRAINT "driver_stop_reminders_stage_check", ADD CONSTRAINT "driver_stop_reminders_stage_check" CHECK ("stage" in ('arrival', 'settlement', 'idle'));

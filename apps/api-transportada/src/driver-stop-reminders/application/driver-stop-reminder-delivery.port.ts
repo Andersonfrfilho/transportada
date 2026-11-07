@@ -8,6 +8,7 @@ import type {
   DriverStopReminderStage,
 } from '../../shared/driver-stop-reminder.constant.js'
 import type {
+  DriverStopReminderIdleVariant,
   OperatingHoursRange,
   StopReminderSettings,
 } from '../domain/driver-stop-reminder.types.js'
@@ -38,6 +39,7 @@ export type StopReminderDeliveryContext = {
   readonly holidayDates: readonly string[]
   readonly stop: {
     readonly hasArrived: boolean
+    readonly hasDeparted: boolean
     readonly isClosed: boolean
     readonly firstNoteNumber: string
     readonly noteCount: number
@@ -46,6 +48,8 @@ export type StopReminderDeliveryContext = {
   /** O motorista **atual** da viagem (a troca de tripulação não reatribui o lembrete). */
   readonly driver: { readonly id: string; readonly name: string }
   readonly groupJid: string | undefined
+  /** Só a etapa `idle` lê: a variante da mensagem (viagem sem nenhum evento × rota em andamento). */
+  readonly idleVariant: DriverStopReminderIdleVariant
   /** A próxima vaga de envio do Evolution (289), lida sem reservar. */
   readonly sendSlotAt: Date | undefined
 }

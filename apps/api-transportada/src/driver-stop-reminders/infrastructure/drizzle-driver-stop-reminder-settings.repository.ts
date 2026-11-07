@@ -61,6 +61,7 @@ export class DrizzleDriverStopReminderSettingsRepository implements DriverStopRe
         enabled: params.enabled,
         graceMinMinutes: params.graceMinMinutes,
         gracePercent: params.gracePercent,
+        idleMinutes: params.idleMinutes,
         intervalMinutes: params.intervalMinutes,
         maxAttempts: params.maxAttempts,
         operatingHours: params.operatingHours,
@@ -97,6 +98,7 @@ function toSnapshot(settings: StopReminderCompanySettings): StopReminderCompanyS
     enabled: settings.enabled,
     graceMinMinutes: settings.graceMinMinutes,
     gracePercent: settings.gracePercent,
+    idleMinutes: settings.idleMinutes,
     intervalMinutes: settings.intervalMinutes,
     maxAttempts: settings.maxAttempts,
     operatingHours: settings.operatingHours.map((range) => ({

@@ -208,3 +208,34 @@ describe('4. vaga de envio do Evolution (289)', () => {
     })
   })
 })
+
+describe('etapa idle (T2.7, RF22)', () => {
+  const idle = { stage: 'idle' as const }
+
+  test('parada ainda parada e sem evento → envia', () => {
+    expect(
+      gate({ ...idle, stop: { hasArrived: false, hasDeparted: false, isClosed: false } }),
+    ).toEqual({
+      decision: 'send',
+    })
+  })
+
+  test.each([
+    { hasArrived: false, hasDeparted: true, isClosed: false },
+    { hasArrived: true, hasDeparted: false, isClosed: false },
+    { hasArrived: true, hasDeparted: false, isClosed: true },
+  ])('a parada já saiu, chegou ou fechou → fecha', (stop) => {
+    expect(gate({ ...idle, stop })).toEqual({ decision: 'close' })
+  })
+
+  test('fora do horário e com pergunta aberta o idle espera como as outras etapas', () => {
+    expect(gate({ ...idle, hasOpenQuestion: true })).toMatchObject({
+      decision: 'defer',
+      reason: 'open_question',
+    })
+    expect(gate({ ...idle, now: new Date('2026-11-09T03:00:00.000Z') })).toMatchObject({
+      decision: 'defer',
+      reason: 'outside_operating_hours',
+    })
+  })
+})

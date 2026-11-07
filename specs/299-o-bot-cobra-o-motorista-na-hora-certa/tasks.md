@@ -61,6 +61,11 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
       e gateway para a API; registrada só com a chave global. Aceite: contrato da rotina e da paridade do catálogo.
 - [x] **T2.5** Escolha do canal (D5): último canal de WhatsApp do motorista, grupo por padrão. Aceite: contrato.
 - [x] ~~T2.6~~ Não se aplica: a API não tem OpenAPI (contrato = arquivo de rotas + schema Zod).
+- [ ] **T2.7** Etapa `idle` ("sem evento", dono 2026-11-07; spec.md D10, RF21–RF25): migration aditiva (`idle_minutes` com
+      padrão 30 e `CHECK` de `stage` reescrito), `idleMinutes` nas configurações (API, PUT, schema), política de
+      transição/prazo/mensagem, varredura da parada suposta, portão, passo `reminder.stage` por variante e os nós
+      `fala_lembrete_sem_evento_{inicio,rota}` no grafo raiz. Aceite: contratos vermelhos antes; integração da varredura e da
+      entrega com os dois textos; matrizes de isolamento verdes; `make migration-test`; `db:generate` → `no_changes`.
 
 ## Fase 3 — Conversa individual e template da Meta
 

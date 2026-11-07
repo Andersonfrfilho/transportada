@@ -98,6 +98,9 @@ function isWithinOperatingHours(input: StopReminderGateInput, local: LocalMoment
 
 function isStageComplete(input: StopReminderGateInput): boolean {
   if (input.stop.isClosed) return true
+  if (input.stage === DRIVER_STOP_REMINDER_STAGE.IDLE) {
+    return input.stop.hasArrived || input.stop.hasDeparted === true
+  }
   return input.stage === DRIVER_STOP_REMINDER_STAGE.ARRIVAL && input.stop.hasArrived
 }
 

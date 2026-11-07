@@ -5,6 +5,7 @@ import type {
   DRIVER_STOP_REMINDER_CHOICE_ACTION,
   DRIVER_STOP_REMINDER_DEFER_REASON,
   DRIVER_STOP_REMINDER_DUE_ACTION,
+  DRIVER_STOP_REMINDER_IDLE_VARIANT,
   DRIVER_STOP_REMINDER_POSTPONEMENT_OUTCOME,
 } from './driver-stop-reminder.constant.js'
 import type {
@@ -13,12 +14,16 @@ import type {
   DriverStopReminderStage,
 } from '../../shared/driver-stop-reminder.constant.js'
 
+export type DriverStopReminderIdleVariant =
+  (typeof DRIVER_STOP_REMINDER_IDLE_VARIANT)[keyof typeof DRIVER_STOP_REMINDER_IDLE_VARIANT]
+
 export type StopReminderSettings = {
   readonly maxAttempts: number
   readonly intervalMinutes: number
   readonly graceMinMinutes: number
   readonly gracePercent: number
   readonly dwellMinutes: number
+  readonly idleMinutes: number
 }
 
 export type ComputeStopReminderScheduleParams = {
@@ -107,7 +112,12 @@ export type StopReminderCompanySettings = StopReminderSettings & {
 export type StopReminderGateInput = {
   readonly now: Date
   readonly stage: DriverStopReminderStage
-  readonly stop: { readonly hasArrived: boolean; readonly isClosed: boolean }
+  readonly stop: {
+    readonly hasArrived: boolean
+    /** Só o `idle` lê: a parada suposta já saiu. */
+    readonly hasDeparted?: boolean
+    readonly isClosed: boolean
+  }
   readonly operatingHours: readonly OperatingHoursRange[]
   readonly holidayDates: readonly string[]
   readonly timeZone: string
@@ -133,6 +143,8 @@ export type StopReminderMessageInput = {
   readonly expectedAt?: Date | undefined
   readonly arrivedAt?: Date | undefined
   readonly isSharedPoint: boolean
+  /** Só a etapa `idle` lê; ausente vale `start`. */
+  readonly idleVariant?: DriverStopReminderIdleVariant | undefined
   /** O instante da cobrança: decide se a saída/chegada foi hoje, ontem ou antes, no dia local da empresa. */
   readonly now: Date
   readonly timeZone: string

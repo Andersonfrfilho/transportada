@@ -38,6 +38,7 @@ const CHANGED = {
   enabled: true,
   graceMinMinutes: 15,
   gracePercent: 40,
+  idleMinutes: 60,
   intervalMinutes: 45,
   maxAttempts: 2,
   operatingHours: [

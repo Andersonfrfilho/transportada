@@ -4,11 +4,13 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
+import type { ApiLogger } from '../../shared/api.types.js'
 import type {
   CurrentStopReminderStage,
   OpenCurrentStopReminderParams,
   DriverStopReminderReconciliationRepository,
 } from '../application/driver-stop-reminder-reconciliation.port.js'
+import { readPostgresSqlState } from './drizzle-driver-stop-reminder.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -68,7 +70,10 @@ function missingCurrentStagesSql(companyId: string) {
 export class DrizzleDriverStopReminderReconciliationRepository
   implements DriverStopReminderReconciliationRepository
 {
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly logger?: ApiLogger,
+  ) {}
 
   public async listMissingCurrentStages(params: {
     readonly companyId: string
@@ -90,6 +95,26 @@ export class DrizzleDriverStopReminderReconciliationRepository
   }
 
   public async openIfStillCurrent(
+    params: OpenCurrentStopReminderParams,
+  ): Promise<{ readonly id: string } | undefined> {
+    try {
+      return await this.insertIfStillCurrent(params)
+    } catch (error) {
+      // Um INSERT recusado pelo banco não pode abortar o lote nem fazer passar fome o item atrás dele.
+      const sqlState = readPostgresSqlState(error)
+      if (sqlState === undefined) throw error
+      this.logger?.warn('driver_stop_reminder_reconciliation_open_failed', {
+        companyId: params.companyId,
+        reason: error instanceof Error ? error.name : 'unknown',
+        sqlState,
+        stage: params.stage,
+        tripStopId: params.stopId,
+      })
+      return undefined
+    }
+  }
+
+  private async insertIfStillCurrent(
     params: OpenCurrentStopReminderParams,
   ): Promise<{ readonly id: string } | undefined> {
     const rows = (await this.database.execute(sql`

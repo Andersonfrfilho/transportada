@@ -3,6 +3,7 @@
  */
 import {
   DRIVER_STOP_REMINDER_CHOICE_ACTION as ACTION,
+  DRIVER_STOP_REMINDER_IDLE_VARIANT,
   DRIVER_STOP_REMINDER_MAX_POSTPONEMENTS,
   DRIVER_STOP_REMINDER_POSTPONEMENT_OUTCOME,
   DRIVER_STOP_REMINDER_SPEECH_NODE,
@@ -11,6 +12,7 @@ import {
 import type { DriverStopReminderStage } from '../../shared/driver-stop-reminder.constant.js'
 import type {
   DecideStopReminderPostponementParams,
+  DriverStopReminderIdleVariant,
   StopReminderChoiceAction,
   StopReminderMessage,
   StopReminderMessageInput,
@@ -28,6 +30,27 @@ const SETTLEMENT_ACTIONS = [
   ACTION.OCCURRENCE,
   ACTION.POSTPONE,
 ]
+
+const IDLE_START_ACTIONS = [ACTION.DEPARTED, ACTION.CHOOSE_STOP, ACTION.POSTPONE]
+const IDLE_ROUTE_ACTIONS = [
+  ACTION.DEPARTED,
+  ACTION.ARRIVED,
+  ACTION.DELIVERED,
+  ACTION.OCCURRENCE,
+  ACTION.POSTPONE,
+]
+
+function pickActions(
+  stage: DriverStopReminderStage,
+  idleVariant: DriverStopReminderIdleVariant | undefined,
+): readonly StopReminderChoiceAction[] {
+  if (stage === DRIVER_STOP_REMINDER_STAGE.IDLE) {
+    return idleVariant === DRIVER_STOP_REMINDER_IDLE_VARIANT.ROUTE
+      ? IDLE_ROUTE_ACTIONS
+      : IDLE_START_ACTIONS
+  }
+  return stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT ? SETTLEMENT_ACTIONS : ARRIVAL_ACTIONS
+}
 
 function formatLocalTime(moment: Date | undefined, timeZone: string): string {
   if (!moment) return ''
@@ -81,11 +104,10 @@ function buildOptions(
 /** A ação da opção numerada (1–4) daquela etapa; `undefined` fora do cardápio da mensagem. */
 export function resolveStopReminderChoice(params: {
   readonly stage: DriverStopReminderStage
+  readonly idleVariant?: DriverStopReminderIdleVariant | undefined
   readonly choice: number
 }): StopReminderChoiceAction | undefined {
-  const actions =
-    params.stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT ? SETTLEMENT_ACTIONS : ARRIVAL_ACTIONS
-  return actions[params.choice - 1]
+  return pickActions(params.stage, params.idleVariant)[params.choice - 1]
 }
 
 const WHATSAPP_MARKUP_CHARACTERS = ['*', '_', '~']
@@ -103,6 +125,14 @@ function cutBalanced(text: string, maxUnits: number): string {
     kept = `${kept.slice(0, last)}${kept.slice(last + 1)}`
   }
   return kept.trimEnd()
+}
+
+/** Quantas opções numeradas o cardápio daquela etapa (e variante) tem. */
+export function countStopReminderChoices(params: {
+  readonly stage: DriverStopReminderStage
+  readonly idleVariant?: DriverStopReminderIdleVariant | undefined
+}): number {
+  return pickActions(params.stage, params.idleVariant).length
 }
 
 /** Tira `excess` caracteres da linha mais longa do bloco (a das NFs) e marca o corte com "…"; as demais linhas ficam. */
@@ -132,6 +162,16 @@ export function capStopReminderBody(params: {
 
 export function buildStopReminderMessage(input: StopReminderMessageInput): StopReminderMessage {
   const base = { nome: input.driverName, blocoParada: input.stopBlock }
+  if (input.stage === DRIVER_STOP_REMINDER_STAGE.IDLE) {
+    const isRoute = input.idleVariant === DRIVER_STOP_REMINDER_IDLE_VARIANT.ROUTE
+    return {
+      nodeKey: isRoute
+        ? DRIVER_STOP_REMINDER_SPEECH_NODE.idleRoute
+        : DRIVER_STOP_REMINDER_SPEECH_NODE.idleStart,
+      variables: base,
+      options: buildOptions(pickActions(input.stage, input.idleVariant)),
+    }
+  }
   if (input.stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT) {
     return {
       nodeKey: DRIVER_STOP_REMINDER_SPEECH_NODE.settlement,
