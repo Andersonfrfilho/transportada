@@ -132,35 +132,35 @@ error: Cannot find module '../../src/driver-stop-reminders/domain/driver-stop-re
 ### Contrato de API que a T1.3 deve cumprir (assinaturas)
 
 - `constant`: `DRIVER_STOP_REMINDER_DEFAULT_SETTINGS = { maxAttempts: 3, intervalMinutes: 30, graceMinMinutes: 30,
-  gracePercent: 50, dwellMinutes: 30 }`; `DRIVER_STOP_REMINDER_FALLBACK_TRAVEL_SECONDS = 2700`;
+gracePercent: 50, dwellMinutes: 30 }`; `DRIVER_STOP_REMINDER_FALLBACK_TRAVEL_SECONDS = 2700`;
   `DRIVER_STOP_REMINDER_SPEECH_NODE`. Constantes a criar também (valores testados como literais): adiamentos máx. 3,
   espera por pedido aberto 5 min, espera máx. da vaga 120 s.
 - schedule: `computeStopReminderSchedule({ stage, anchorAt, travelSeconds | undefined, settings }) → { expectedAt, dueAt }`
   (`expectedAt` só tem sentido no `arrival`); `computeNextStopReminderDueAt({ lastSentAt, settings })`;
   `decideStopReminderDueAction({ attempts, maxAttempts }) → 'send' | 'escalate'`.
 - origin: `resolveStopReminderOrigin({ sharedPoint?, previousStopPoint?, companyPoint? }) → { kind:
-  'shared_point'|'previous_stop'|'company'|'fallback', point?, isSharedPoint }` (valores do `origin_kind` do plano).
+'shared_point'|'previous_stop'|'company'|'fallback', point?, isSharedPoint }` (valores do `origin_kind` do plano).
 - transition: `decideStopReminderTransition({ event, openReminders }) → readonly ({ type:'open', stopId, stage } |
-  { type:'close', reminderId, reason })[]`. `event = { kind: departed|departure_cancelled|arrived|delivered|returned|
-  occurrence|trip_closed|trip_cancelled, stopId, authorship: crew|office, recordedTogether, stopClosed }`;
+{ type:'close', reminderId, reason })[]`. `event = { kind: departed|departure_cancelled|arrived|delivered|returned|
+occurrence|trip_closed|trip_cancelled, stopId, authorship: crew|office, recordedTogether, stopClosed }`;
   `closed` reasons: `arrived | occurrence | stop_closed | departure_cancelled | trip_closed | trip_cancelled | superseded`.
   Lista vazia = "none". Idempotência (RNF2) sai de `openReminders`.
 - gate: `decideStopReminderGate({ now, stage, stop: { hasArrived, isClosed }, operatingHours: { weekday(0=dom), start
-  'HH:MM', end }[], holidayDates: 'YYYY-MM-DD'[], timeZone, hasOpenQuestion, sendSlotAt? }) → { decision:'send' } |
-  { decision:'close' } | { decision:'defer', reason: outside_operating_hours|open_question|no_send_slot, until }`.
+'HH:MM', end }[], holidayDates: 'YYYY-MM-DD'[], timeZone, hasOpenQuestion, sendSlotAt? }) → { decision:'send' } |
+{ decision:'close' } | { decision:'defer', reason: outside_operating_hours|open_question|no_send_slot, until }`.
   Início da faixa inclusivo, fim exclusivo. As duas chaves (env + empresa) **não** estão no portão: a consulta da rotina
   (RF7) só devolve empresa ligada com a global ligada.
 - message: `buildStopReminderMessage({ stage, driverName, stop: { firstNoteNumber, noteCount, clientName }, departedAt?,
-  expectedAt?, arrivedAt?, isSharedPoint, timeZone }) → { nodeKey, variables, options: { choice, action }[] }`;
+expectedAt?, arrivedAt?, isSharedPoint, timeZone }) → { nodeKey, variables, options: { choice, action }[] }`;
   `decideStopReminderPostponement({ postponements }) → { outcome: 'postponed'|'no_answer', postponements, consumesAttempt }`.
 
 ### Chaves dos nós de fala escolhidas (T1.3/T2.3 reusam)
 
-| Nó | Quando | Variáveis |
-| --- | --- | --- |
-| `fala_lembrete_chegada` | etapa `arrival`, `isSharedPoint` | `nome`, `parada`, `saida`, `previsao` |
-| `fala_lembrete_chegada_sem_previsao` | etapa `arrival`, sem ponto compartilhado (RF6) | `nome`, `parada`, `saida` |
-| `fala_lembrete_entrega` | etapa `settlement` | `nome`, `parada`, `chegada` |
+| Nó                                   | Quando                                         | Variáveis                             |
+| ------------------------------------ | ---------------------------------------------- | ------------------------------------- |
+| `fala_lembrete_chegada`              | etapa `arrival`, `isSharedPoint`               | `nome`, `parada`, `saida`, `previsao` |
+| `fala_lembrete_chegada_sem_previsao` | etapa `arrival`, sem ponto compartilhado (RF6) | `nome`, `parada`, `saida`             |
+| `fala_lembrete_entrega`              | etapa `settlement`                             | `nome`, `parada`, `chegada`           |
 
 `parada` = `NF <primeira> · <cliente>`, com ` +N` depois do número quando há mais notas (`NF 17234 +2 · Cliente`).
 Horas `HH:MM` no fuso da empresa. A marcação `@<telefone>` é do suporte de menção do grupo, não do nó. Ações das opções:
@@ -179,17 +179,20 @@ Chave global `DRIVER_REMINDERS_ENABLED` (padrão `false`), espelho de `MDFE_AUTO
 (as tasks seguintes a usam). Contrato antes da implementação.
 
 **Vermelho antes** (`bun test` nos dois contratos, sem implementação):
+
 - API `test/authentication.contract.test.ts`: `Expected: false / Received: undefined` em `driverRemindersEnabled`
   (teste novo `DRIVER_REMINDERS_ENABLED: ausente ou vazio é desligado, true liga, outro valor derruba o boot`).
 - Worker `test/environment.contract.test.ts`: 3 falhas no describe novo `o interruptor dos lembretes do motorista`
   (ausente/vazio → `undefined`; `true` → `undefined`; `yes` não derruba o boot).
 
 **Verde depois:**
+
 - API `test/authentication.contract.test.ts`: 19 pass, 0 fail.
 - Worker `test/environment.contract.test.ts`: 47 pass, 0 fail (o teste `parses the autonomous Bun worker configuration`
   ganhou `driverRemindersEnabled: false` no `toEqual`, senão ficava vermelho pela chave nova).
 
 **Arquivos:**
+
 - `apps/api-transportada/src/config/environment.schema.ts`: chave com `preprocess` (vazio = ausente) e mapeamento
   `driverRemindersEnabled`.
 - `apps/api-transportada/src/shared/api.types.ts`: campo `driverRemindersEnabled` em `ApiEnvironment`.
@@ -207,6 +210,7 @@ Chave global `DRIVER_REMINDERS_ENABLED` (padrão `false`), espelho de `MDFE_AUTO
 a validação do `make config` cobre a chave da API, e a do worker fica no contrato do worker.
 
 **Gates:**
+
 - API `bun run typecheck`: só os erros esperados da T0.2 (`test/driver-stop-reminders/*`, TS2307/TS7006, 8 linhas).
   Zero erro novo.
 - API eslint (`--max-warnings=0`) e prettier nos arquivos tocados: limpos.
@@ -226,6 +230,7 @@ Migration A aditiva `20261106232509_driver_stop_reminders` (`migration.sql`, `ro
 `paused_origin='system'`, molde da 248 T4.10) até a T2.4 registrar a rotina no worker.
 
 **Vermelho antes** (contratos de catálogo estendidos primeiro, sem o catálogo):
+
 - API `test/job-catalog.contract.test.ts`: 2 falhas (`names every routine…`, `accepts every interval the migration already seeded`).
 - Worker `test/job-catalog.contract.test.ts`: 2 falhas (paridade com a API; vocabulário de falhas por rotina).
 
@@ -233,15 +238,17 @@ Migration A aditiva `20261106232509_driver_stop_reminders` (`migration.sql`, `ro
 `failureOutcomes: ['api_unreachable']`); sem rotina em `main.ts` e sem reclamação de rotina ausente nos testes do worker.
 
 **Achados no caminho (exigidos por contratos existentes):**
+
 - `static-migration.contract.ts`: lista de pastas de migration ganhou a nova.
 - `make migration-test` quebrou primeiro no rollback encadeado (a CHECK antiga recusava a linha do relógio):
   novo `test/database-migration/driver-stop-reminders-rollback.assertion.ts`, chamado no começo do helper da 248 T4.10.
 - `deploy/staging-refresh/prune-source.sql`: política obrigatória por tabela (contrato spec 291): settings `keep`,
   lembretes `empty` (não levar fila de cobrança para staging).
 - Vocabulário de `closed_reason` (T0.2 não o fixa): `arrived, stop_closed, occurrence, superseded, departure_cancelled,
-  trip_closed, trip_cancelled, dismissed`, em `src/shared/driver-stop-reminder.constant.ts`.
+trip_closed, trip_cancelled, dismissed`, em `src/shared/driver-stop-reminder.constant.ts`.
 
 **Gates:**
+
 - `make migration-test` (raiz): 231 pass, 0 fail.
 - `db:generate` depois: `{"status":"no_changes"}`.
 - API `bun run typecheck`: só os 8 erros esperados da T0.2 (`test/driver-stop-reminders/*`). eslint (`--max-warnings=0`) e
@@ -259,10 +266,12 @@ reexportados de `src/shared/driver-stop-reminder.constant.ts`, chaves de nó, ad
 de fala nunca literal: a política devolve chave de nó e variáveis. Contratos da T0.2 não foram alterados.
 
 **Vermelho (T0.2) → verde agora:**
+
 - Antes: `test/driver-stop-reminders.contract.test.ts` — 0 pass, 1 fail, 1 error (`Cannot find module .../domain/*`).
 - Agora: 79 pass, 0 fail, 94 expect().
 
 **Gates (de `apps/api-transportada`):**
+
 - `bun run typecheck`: limpo (0 erros).
 - `bunx eslint src/driver-stop-reminders test/driver-stop-reminders --max-warnings=0`: limpo.
 - `bunx prettier --check` nos mesmos caminhos: limpo.
@@ -286,6 +295,7 @@ por `id` + `version` (versão +1). OSRM fora, sem geocódigo ou sem origem: fica
 `drizzle-driver-stop-reminder-refinement.repository.ts` entrou em `EVENT_LOCATION_READERS` (lê lat/lng do `departed`).
 
 **Vermelho → verde:**
+
 - Antes (teste escrito primeiro): `test/integration/driver-stop-reminders.integration.ts` — 0 pass, 1 fail, 1 error
   (`Cannot find module .../driver-stop-reminder.runtime.js`: o runtime não existia).
 - Agora: 15 pass, 0 fail (saída com reserva e depois OSRM; reserva visível antes do OSRM responder; OSRM fora; chegada fecha e
@@ -294,6 +304,7 @@ por `id` + `version` (versão +1). OSRM fora, sem geocódigo ou sem origem: fica
 - Contrato com dublês: `test/driver-stop-reminders/driver-stop-reminder-service.contract.ts` (5 casos).
 
 **Gates (de `apps/api-transportada`):**
+
 - `bun run typecheck`: limpo. eslint e prettier nos arquivos tocados: limpos.
 - `bun run test`: 14272 pass, 35 skip, 0 fail.
 - `bun --env-file=../../.env.test test --timeout 120000`: 14281 pass, 26 skip, 0 fail.
@@ -308,15 +319,15 @@ por `id` + `version` (versão +1). OSRM fora, sem geocódigo ou sem origem: fica
 
 Achados da revisão do código dos Fases 0–1. Cada correção de comportamento nasceu de um teste vermelho.
 
-| # | Achado | Correção |
-|---|---|---|
-| 1 | O refino do OSRM reescrevia o prazo da `settlement` | A entrada do refino carrega `stage`; o refinador só toca `arrival` (a entrega vence `arrived_at + permanência`, RF2) |
-| 2 | Sem `companyId` em leituras/escritas do refino e no `close()` | `companyId` em todo `WHERE` do repositório de refino (lembrete, `trip_stops`, `trip_stop_events`, paradas anteriores, `applyRefinement`) e no `close()`; `geocoded_addresses` segue cache compartilhado; `refineAfterCommit` recebe `{ companyId, reminderId }` |
-| 3 | Âncora usava `input.now`, o evento grava a hora do toque | Saída ancora em `resolvedTappedAt ?? now`; chegada na hora do evento como gravada (relógio corrigido quando aceito, senão `now`) |
-| 4 | Falha do sink derrubava o evento do motorista | `open()` roda num SAVEPOINT (`executor.transaction`): erro desfaz só a inserção, loga `companyId`/`tripStopId`/`stage`/nome do erro e o evento confirma. `close()` segue na transação, sem guarda (RF4) |
-| 5 | RF3 "parada removida" | Ver nota abaixo: nenhuma mudança de código |
-| 6 | Baixa que não fecha a parada deixava `arrival` aberta | Escritório não marca chegada junto: a baixa parcial dele não chamava o sink. Agora toda baixa chama `onStopEvent` (`stopClosed: stopCompleted`) e a política fecha a `arrival` da parada com `arrived` quando a parada não fecha |
-| 7 | Resíduos | `authorship` fora do serviço (opcional no tipo, que a política ignora); perda da corrida de versão no refino é logada sem PII (`driver_stop_reminder_refinement_lost_race`); `;` sobrando após `--> statement-breakpoint` do `rollback.sql`; o laço do `applyForStop` segue sequencial (fechar antes de abrir, o parcial é único por parada e etapa) e agora diz isso |
+| #   | Achado                                                        | Correção                                                                                                                                                                                                                                                                                                                                                              |
+| --- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | O refino do OSRM reescrevia o prazo da `settlement`           | A entrada do refino carrega `stage`; o refinador só toca `arrival` (a entrega vence `arrived_at + permanência`, RF2)                                                                                                                                                                                                                                                  |
+| 2   | Sem `companyId` em leituras/escritas do refino e no `close()` | `companyId` em todo `WHERE` do repositório de refino (lembrete, `trip_stops`, `trip_stop_events`, paradas anteriores, `applyRefinement`) e no `close()`; `geocoded_addresses` segue cache compartilhado; `refineAfterCommit` recebe `{ companyId, reminderId }`                                                                                                       |
+| 3   | Âncora usava `input.now`, o evento grava a hora do toque      | Saída ancora em `resolvedTappedAt ?? now`; chegada na hora do evento como gravada (relógio corrigido quando aceito, senão `now`)                                                                                                                                                                                                                                      |
+| 4   | Falha do sink derrubava o evento do motorista                 | `open()` roda num SAVEPOINT (`executor.transaction`): erro desfaz só a inserção, loga `companyId`/`tripStopId`/`stage`/nome do erro e o evento confirma. `close()` segue na transação, sem guarda (RF4)                                                                                                                                                               |
+| 5   | RF3 "parada removida"                                         | Ver nota abaixo: nenhuma mudança de código                                                                                                                                                                                                                                                                                                                            |
+| 6   | Baixa que não fecha a parada deixava `arrival` aberta         | Escritório não marca chegada junto: a baixa parcial dele não chamava o sink. Agora toda baixa chama `onStopEvent` (`stopClosed: stopCompleted`) e a política fecha a `arrival` da parada com `arrived` quando a parada não fecha                                                                                                                                      |
+| 7   | Resíduos                                                      | `authorship` fora do serviço (opcional no tipo, que a política ignora); perda da corrida de versão no refino é logada sem PII (`driver_stop_reminder_refinement_lost_race`); `;` sobrando após `--> statement-breakpoint` do `rollback.sql`; o laço do `applyForStop` segue sequencial (fechar antes de abrir, o parcial é único por parada e etapa) e agora diz isso |
 
 **Achado 5 (decisão):** a única coisa que apaga uma parada é `DELETE FROM trip_stops` (`deleteStop` da reconciliação e
 `releaseUnloadedDocuments`), e `driver_stop_reminders_company_trip_stop_fk` é `ON DELETE CASCADE`: o lembrete some junto, na
@@ -334,6 +345,7 @@ Consequência para a Fase 2: o histórico de um lembrete se perde com a parada; 
 ### Vermelho → verde
 
 Vermelho (testes escritos antes do código, `driver-stop-reminders.integration.ts`, 14 pass / 8 fail):
+
 - `a chegada fecha a chegada e abre a entrega a partir dela` (agora com saída de ponto compartilhado): `toMatchObject` falhou — a
   entrega foi refinada (`originKind` ≠ `fallback`).
 - `o refino do OSRM não reescreve o prazo da entrega`: `Expected: 1793963400000 / Received: 1793964600000`.
