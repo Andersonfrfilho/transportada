@@ -1765,7 +1765,6 @@
     "movesFromTrip": "Esta nota está em outra viagem. Ao acrescentar, ela sai de lá e vem para esta, e a troca fica registrada no histórico das duas.",
     "refusal": {
       "alreadyOnTrip": "Já está em outra viagem",
-      "notAuthorized": "Não está autorizada na SEFAZ"
     },
     "remove": "Retirar esta nota",
     "scan": "Ler com a câmera",
@@ -1788,10 +1787,7 @@
     "title": "Nova viagem",
     "typed": {
       "ambiguous": "Há {{count}} notas livres com este número. Qual delas?",
-      "inAnotherTrip": "Esta nota já está em outra viagem. Solte-a de lá antes de acrescentar.",
-      "notAuthorized": "Esta nota não está autorizada na SEFAZ e não pode entrar na viagem.",
       "notFound": "Nenhuma nota livre com este número ou esta chave nesta empresa.",
-      "notImported": "Esta chave ainda não foi importada para o sistema. Importe a nota (XML ou consulta da chave) e tente de novo.",
       "option": "Nota {{number}}/{{series}} · {{emitter}} para {{recipient}}",
       "pickTitle": "Escolha a nota",
       "unrecognized": "Digite o número da nota ou os 44 caracteres da chave."
@@ -1804,7 +1800,6 @@
       "field": "XML da nota",
       "placeholder": "Nenhum XML escolhido",
       "failed": "Não foi possível enviar o XML. Tente de novo.",
-      "notImported": "O XML foi enviado, mas a nota ainda não entrou no cadastro."
     }
   },
   "readiness": {

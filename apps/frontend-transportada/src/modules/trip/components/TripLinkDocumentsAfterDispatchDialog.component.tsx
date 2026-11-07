@@ -72,10 +72,6 @@ export function TripLinkDocumentsAfterDispatchDialog({
 
   if (!isOpen) return null
 
-  const pickableDocuments = (documentsQuery.data ?? []).filter(
-    (document) => !dialog.nfeDocumentIds.includes(document.id),
-  )
-
   return createPortal(
     <div className={styles.mdfeGateOverlay} onKeyDown={handleKeyDown} role="presentation">
       <div
