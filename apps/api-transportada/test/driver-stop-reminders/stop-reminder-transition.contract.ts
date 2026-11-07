@@ -160,6 +160,18 @@ describe('baixa, ocorrência e fim da viagem (RF3)', () => {
     },
   )
 
+  test.each(['delivered', 'returned'] as const)(
+    '%s que NÃO fecha a parada já não deixa a chegada aberta: quem baixa não está a caminho',
+    (kind) => {
+      expect(
+        decideStopReminderTransition({
+          event: event({ kind, stopClosed: false }),
+          openReminders: [openArrivalA, openSettlementA, openArrivalB],
+        }),
+      ).toEqual([{ type: 'close', reminderId: 'rem-arrival-a', reason: 'arrived' }])
+    },
+  )
+
   test('ocorrência na parada (ou numa nota dela) fecha com closed_by occurrence', () => {
     expect(
       decideStopReminderTransition({

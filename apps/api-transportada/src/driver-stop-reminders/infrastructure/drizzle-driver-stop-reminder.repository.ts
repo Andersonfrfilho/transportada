@@ -6,6 +6,7 @@ import { and, asc, eq, inArray } from 'drizzle-orm'
 import { companyDriverReminderSettings } from '../../database/company-driver-reminder-settings.schema.js'
 import { driverStopReminders } from '../../database/driver-stop-reminder.schema.js'
 import { tripDocuments, tripDrivers, tripStops } from '../../database/trip.schema.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 import type {
   CloseStopReminderParams,
@@ -17,7 +18,10 @@ import { DRIVER_STOP_REMINDER_DEFAULT_SETTINGS } from '../domain/driver-stop-rem
 import { resolveStopReminderClosedStatus } from './stop-reminder-closed-status.mapper.js'
 
 export class DrizzleDriverStopReminderRepository implements DriverStopReminderRepository {
-  public constructor(private readonly executor: TripQueryable) {}
+  public constructor(
+    private readonly executor: TripQueryable,
+    private readonly logger?: ApiLogger,
+  ) {}
 
   public async readStopContexts(params: {
     readonly companyId: string
@@ -79,23 +83,37 @@ export class DrizzleDriverStopReminderRepository implements DriverStopReminderRe
   public async open(params: OpenStopReminderParams): Promise<{ readonly id: string } | undefined> {
     const { context } = params
     if (context.driverId === undefined) return undefined
-    const [created] = await this.executor
-      .insert(driverStopReminders)
-      .values({
-        anchorAt: params.anchorAt,
+    const { driverId } = context
+    try {
+      // Savepoint: o lembrete que falha desfaz só a própria inserção e o evento do motorista confirma.
+      return await this.executor.transaction(async (savepoint) => {
+        const [created] = await savepoint
+          .insert(driverStopReminders)
+          .values({
+            anchorAt: params.anchorAt,
+            companyId: params.companyId,
+            driverId,
+            dueAt: params.dueAt,
+            expectedAt: params.expectedAt,
+            originKind: 'fallback',
+            stage: params.stage,
+            status: 'pending',
+            tripId: context.tripId,
+            tripStopId: context.stopId,
+          })
+          .onConflictDoNothing()
+          .returning({ id: driverStopReminders.id })
+        return created
+      })
+    } catch (error) {
+      this.logger?.warn('driver_stop_reminder_open_failed', {
         companyId: params.companyId,
-        driverId: context.driverId,
-        dueAt: params.dueAt,
-        expectedAt: params.expectedAt,
-        originKind: 'fallback',
+        reason: error instanceof Error ? error.name : 'unknown',
         stage: params.stage,
-        status: 'pending',
-        tripId: context.tripId,
         tripStopId: context.stopId,
       })
-      .onConflictDoNothing()
-      .returning({ id: driverStopReminders.id })
-    return created
+      return undefined
+    }
   }
 
   public async close(params: CloseStopReminderParams): Promise<void> {
@@ -109,6 +127,7 @@ export class DrizzleDriverStopReminderRepository implements DriverStopReminderRe
       })
       .where(
         and(
+          eq(driverStopReminders.companyId, params.companyId),
           eq(driverStopReminders.id, params.reminderId),
           eq(driverStopReminders.status, 'pending'),
         ),

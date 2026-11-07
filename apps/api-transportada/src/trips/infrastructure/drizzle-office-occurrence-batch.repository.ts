@@ -50,7 +50,7 @@ export class DrizzleOfficeOccurrenceBatchUnitOfWork implements OfficeOccurrenceB
         transaction,
         this.bucket,
         undefined,
-        { openedReminderIds: [], sink: this.reminders?.createEventSink(transaction) },
+        { openedReminders: [], sink: this.reminders?.createEventSink(transaction) },
       )
       return operation({
         claim: (input) => fieldReports.claim(input),

@@ -5,12 +5,14 @@
  * o OSRM só refina depois do commit, por `id` + `version`, e nunca derruba o evento.
  */
 import { describe, expect } from 'bun:test'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 
+import { DrizzleDriverStopReminderRefinementRepository } from '../../src/driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-refinement.repository.js'
+import { DrizzleDriverStopReminderRepository } from '../../src/driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder.repository.js'
 import { createDriverStopReminderRuntime } from '../../src/driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
 import { geocodedAddresses } from '../../src/database/geocoding.schema.js'
 import { driverStopReminders } from '../../src/database/driver-stop-reminder.schema.js'
-import { tripStops } from '../../src/database/trip.schema.js'
+import { tripDocuments, tripStopEvents, tripStops } from '../../src/database/trip.schema.js'
 import { cancelTrip } from '../../src/trips/application/cancel-trip.use-case.js'
 import type { ReportedLocation } from '../../src/trips/application/driver-field-report.port.js'
 import { cancelStopDeparture } from '../../src/trips/application/cancel-stop-departure.use-case.js'
@@ -26,11 +28,13 @@ import type { RouteGeometryPort } from '../../src/trips/application/route-geomet
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
 import { DrizzleFieldTripTargetRepository } from '../../src/trips/infrastructure/drizzle-field-trip-target.repository.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
+import { createTripStopReconciliationPort } from '../../src/trips/infrastructure/drizzle-trip-stop-reconciliation.support.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import {
   linkDriverMembership,
   seedCompany,
+  seedExtraDocument,
   seedTrip,
   testWithPostgres,
   withDisposableDatabase,
@@ -111,6 +115,7 @@ function depart(
   unitOfWork: Uow,
   now: Date,
   location: ReportedLocation | null = null,
+  tappedAt: Date = now,
 ) {
   return reportStopDeparture({
     actorUserId: world.driverUserId,
@@ -120,7 +125,7 @@ function depart(
     location,
     now,
     stopId: world.trip.stopId,
-    tappedAt: now,
+    tappedAt,
     unitOfWork,
   })
 }
@@ -268,7 +273,7 @@ describe('o lembrete abre e fecha com os eventos da parada (spec 299 T1.4)', () 
       const { runtime, unitOfWork } = enabledUnitOfWork(world)
       const arrivedAt = new Date('2026-11-06T10:40:00.000Z')
 
-      await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'))
+      await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'), SHARED_POINT)
       await arrive(world, unitOfWork, arrivedAt)
       await runtime.idle()
       const rows = await readReminders(world)
@@ -279,6 +284,8 @@ describe('o lembrete abre e fecha com os eventos da parada (spec 299 T1.4)', () 
       expect(settlement).toMatchObject({ status: 'pending', originKind: 'fallback' })
       expect(settlement?.anchorAt.toISOString()).toBe(arrivedAt.toISOString())
       expect(settlement?.dueAt.getTime()).toBe(arrivedAt.getTime() + 30 * 60_000)
+      expect(settlement?.travelSeconds).toBeNull()
+      expect(settlement?.version).toBe(1n)
     })
   })
 
@@ -509,6 +516,190 @@ describe('o lembrete abre e fecha com os eventos da parada (spec 299 T1.4)', () 
       await arrive(world, unitOfWork, new Date('2026-11-06T10:40:00.000Z'))
 
       expect(await readReminders(world)).toHaveLength(0)
+    })
+  })
+})
+
+describe('correções da revisão do PR 566 (spec 299)', () => {
+  testWithPostgres('o refino do OSRM não reescreve o prazo da entrega', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      const { runtime, unitOfWork } = enabledUnitOfWork(world)
+      const arrivedAt = new Date('2026-11-06T10:40:00.000Z')
+
+      await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'), SHARED_POINT)
+      await runtime.idle()
+      await arrive(world, unitOfWork, arrivedAt)
+      await runtime.idle()
+      const settlement = (await readReminders(world)).find((row) => row.stage === 'settlement')
+
+      expect(settlement?.dueAt.getTime()).toBe(arrivedAt.getTime() + 30 * 60_000)
+      expect(settlement?.originKind).toBe('fallback')
+      expect(settlement?.travelSeconds).toBeNull()
+      expect(settlement?.version).toBe(1n)
+    })
+  })
+
+  testWithPostgres('o refino e o fechamento de outra empresa não alcançam o lembrete', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      const otherCompany = await seedCompany(database)
+      const { runtime, unitOfWork } = enabledUnitOfWork(world)
+      await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'), SHARED_POINT)
+      await runtime.idle()
+      const reminder = await readOnlyReminder(world)
+      const refinement = new DrizzleDriverStopReminderRefinementRepository(world.database.db)
+      const repository = new DrizzleDriverStopReminderRepository(world.database.db)
+
+      const input = await refinement.readRefinementInput({
+        companyId: otherCompany.companyId,
+        reminderId: reminder.id,
+      })
+      const applied = await refinement.applyRefinement({
+        companyId: otherCompany.companyId,
+        dueAt: new Date(),
+        expectedAt: new Date(),
+        originKind: 'company',
+        reminderId: reminder.id,
+        travelSeconds: 1,
+        version: reminder.version,
+      })
+      await repository.close({
+        closedAt: new Date(),
+        companyId: otherCompany.companyId,
+        reason: 'dismissed',
+        reminderId: reminder.id,
+      })
+
+      expect(input).toBeUndefined()
+      expect(applied).toBe(false)
+      expect(await readOnlyReminder(world)).toMatchObject({
+        status: 'pending',
+        version: reminder.version,
+      })
+    })
+  })
+
+  testWithPostgres('a saída tocada offline ancora o prazo na hora do toque', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      const runtime = buildRuntime(world, buildRouting(null))
+      const receivedAt = new Date('2026-11-06T10:40:00.000Z')
+      const tappedAt = new Date('2026-11-06T10:00:00.000Z')
+
+      await depart(world, unitOfWorkFor(world, runtime), receivedAt, null, tappedAt)
+      const row = await readOnlyReminder(world)
+
+      expect(row.anchorAt.toISOString()).toBe(tappedAt.toISOString())
+      expect(row.dueAt.getTime()).toBe(tappedAt.getTime() + FALLBACK_TRAVEL_MS + FALLBACK_GRACE_MS)
+    })
+  })
+
+  testWithPostgres('a chegada tocada offline ancora a entrega na hora corrigida', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      const { unitOfWork } = enabledUnitOfWork(world)
+      const receivedAt = new Date('2026-11-06T10:40:00.000Z')
+      const tappedAt = new Date('2026-11-06T10:10:00.000Z')
+
+      await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'))
+      await reportStopArrival({
+        actorUserId: world.driverUserId,
+        clockOffsetMs: 0,
+        companyId: world.company.companyId,
+        driverId: world.company.firstDriverId,
+        idempotencyKey: crypto.randomUUID(),
+        location: { ...SHARED_POINT, capturedAt: tappedAt.toISOString() },
+        now: receivedAt,
+        stopId: world.trip.stopId,
+        tappedAt,
+        unitOfWork,
+      })
+      const settlement = (await readReminders(world)).find((row) => row.stage === 'settlement')
+
+      expect(settlement?.anchorAt.toISOString()).toBe(tappedAt.toISOString())
+      expect(settlement?.dueAt.getTime()).toBe(tappedAt.getTime() + 30 * 60_000)
+    })
+  })
+
+  testWithPostgres('falha ao abrir o lembrete não derruba o evento do motorista', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      await world.database.db.execute(sql`
+        create function fail_reminder_insert() returns trigger language plpgsql as
+        $$ begin raise exception 'reminder sink down'; end $$`)
+      await world.database.db.execute(sql`
+        create trigger fail_reminder_insert before insert on driver_stop_reminders
+        for each row execute function fail_reminder_insert()`)
+      const { unitOfWork } = enabledUnitOfWork(world)
+
+      const result = await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'))
+
+      expect(result.changed).toBe(true)
+      expect(await readReminders(world)).toHaveLength(0)
+      const events = await world.database.db
+        .select({ id: tripStopEvents.id })
+        .from(tripStopEvents)
+        .where(
+          and(eq(tripStopEvents.stopId, world.trip.stopId), eq(tripStopEvents.kind, 'departed')),
+        )
+      expect(events).toHaveLength(1)
+    })
+  })
+
+  testWithPostgres('remover a parada (cascata da FK) não deixa lembrete pendente', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      const { unitOfWork } = enabledUnitOfWork(world)
+      await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'))
+      expect(await readReminders(world)).toHaveLength(1)
+
+      await world.database.db
+        .update(tripDocuments)
+        .set({ stopId: null })
+        .where(eq(tripDocuments.id, world.trip.documentId))
+      await world.database.db.transaction((transaction) =>
+        createTripStopReconciliationPort(transaction).deleteStop({
+          companyId: world.company.companyId,
+          stopId: world.trip.stopId,
+        }),
+      )
+
+      expect(await readReminders(world)).toHaveLength(0)
+    })
+  })
+
+  testWithPostgres('a baixa do escritório que não fecha a parada fecha a chegada', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      await seedExtraDocument(database, world.company, world.trip, {
+        separationStatus: 'loaded',
+        stopId: world.trip.stopId,
+      })
+      const { unitOfWork } = enabledUnitOfWork(world)
+      await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'))
+      const target = await resolveFieldTripTarget({
+        companyId: world.company.companyId,
+        repository: new DrizzleFieldTripTargetRepository(world.database.db),
+        target: { kind: 'trip', tripId: world.trip.tripId },
+      })
+
+      await reportDocumentDelivery({
+        actorUserId: world.company.userId,
+        companyId: world.company.companyId,
+        documentId: world.trip.documentId,
+        idempotencyKey: crypto.randomUUID(),
+        location: null,
+        now: new Date(Date.now() - 60_000),
+        target,
+        unitOfWork,
+      })
+
+      expect(await readOnlyReminder(world)).toMatchObject({
+        closedReason: 'arrived',
+        stage: 'arrival',
+        status: 'closed',
+      })
     })
   })
 })

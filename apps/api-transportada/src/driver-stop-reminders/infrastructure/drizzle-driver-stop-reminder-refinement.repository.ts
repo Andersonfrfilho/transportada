@@ -29,6 +29,7 @@ export class DrizzleDriverStopReminderRefinementRepository
   public constructor(private readonly database: TripDatabase) {}
 
   public async readRefinementInput(params: {
+    readonly companyId: string
     readonly reminderId: string
   }): Promise<StopReminderRefinementInput | undefined> {
     const [reminder] = await this.database
@@ -36,6 +37,7 @@ export class DrizzleDriverStopReminderRefinementRepository
       .from(driverStopReminders)
       .where(
         and(
+          eq(driverStopReminders.companyId, params.companyId),
           eq(driverStopReminders.id, params.reminderId),
           eq(driverStopReminders.status, 'pending'),
         ),
@@ -46,15 +48,21 @@ export class DrizzleDriverStopReminderRefinementRepository
     const [stop] = await this.database
       .select({ addressKey: tripStops.addressKey, sequence: tripStops.sequence })
       .from(tripStops)
-      .where(eq(tripStops.id, reminder.tripStopId))
+      .where(
+        and(eq(tripStops.companyId, reminder.companyId), eq(tripStops.id, reminder.tripStopId)),
+      )
       .limit(1)
     if (stop === undefined) return undefined
 
     const [settings, sharedPoint, destination, previousStopPoint] = await Promise.all([
       this.readSettings(reminder.companyId),
-      this.readSharedPoint(reminder.tripStopId),
+      this.readSharedPoint({ companyId: reminder.companyId, stopId: reminder.tripStopId }),
       this.readGeocode(stop.addressKey),
-      this.readPreviousStopPoint({ sequence: stop.sequence, tripId: reminder.tripId }),
+      this.readPreviousStopPoint({
+        companyId: reminder.companyId,
+        sequence: stop.sequence,
+        tripId: reminder.tripId,
+      }),
     ])
     return {
       anchorAt: reminder.anchorAt,
@@ -63,6 +71,7 @@ export class DrizzleDriverStopReminderRefinementRepository
       previousStopPoint,
       reminderId: reminder.id,
       settings,
+      stage: reminder.stage,
       sharedPoint,
       tripStopId: reminder.tripStopId,
       version: reminder.version,
@@ -82,6 +91,7 @@ export class DrizzleDriverStopReminderRefinementRepository
       })
       .where(
         and(
+          eq(driverStopReminders.companyId, params.companyId),
           eq(driverStopReminders.id, params.reminderId),
           eq(driverStopReminders.version, params.version),
           eq(driverStopReminders.status, 'pending'),
@@ -106,13 +116,17 @@ export class DrizzleDriverStopReminderRefinementRepository
     return row ?? DRIVER_STOP_REMINDER_DEFAULT_SETTINGS
   }
 
-  private async readSharedPoint(stopId: string): Promise<GeoPoint | undefined> {
+  private async readSharedPoint(params: {
+    readonly companyId: string
+    readonly stopId: string
+  }): Promise<GeoPoint | undefined> {
     const [event] = await this.database
       .select({ latitude: tripStopEvents.latitude, longitude: tripStopEvents.longitude })
       .from(tripStopEvents)
       .where(
         and(
-          eq(tripStopEvents.stopId, stopId),
+          eq(tripStopEvents.companyId, params.companyId),
+          eq(tripStopEvents.stopId, params.stopId),
           eq(tripStopEvents.kind, 'departed'),
           isNotNull(tripStopEvents.latitude),
           isNotNull(tripStopEvents.longitude),
@@ -134,13 +148,20 @@ export class DrizzleDriverStopReminderRefinementRepository
   }
 
   private async readPreviousStopPoint(params: {
+    readonly companyId: string
     readonly sequence: bigint
     readonly tripId: string
   }): Promise<GeoPoint | undefined> {
     const [previous] = await this.database
       .select({ addressKey: tripStops.addressKey })
       .from(tripStops)
-      .where(and(eq(tripStops.tripId, params.tripId), lt(tripStops.sequence, params.sequence)))
+      .where(
+        and(
+          eq(tripStops.companyId, params.companyId),
+          eq(tripStops.tripId, params.tripId),
+          lt(tripStops.sequence, params.sequence),
+        ),
+      )
       .orderBy(desc(tripStops.sequence))
       .limit(1)
     return previous === undefined ? undefined : this.readGeocode(previous.addressKey)

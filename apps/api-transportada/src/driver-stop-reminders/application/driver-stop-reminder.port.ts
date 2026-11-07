@@ -31,6 +31,7 @@ export type OpenStopReminderParams = {
 }
 
 export type CloseStopReminderParams = {
+  readonly companyId: string
   readonly reminderId: string
   readonly reason: DriverStopReminderClosedReason
   readonly closedAt: Date
@@ -69,6 +70,9 @@ export type OnStopEventParams = {
 
 export type OnStopEventResult = { readonly openedReminderIds: readonly string[] }
 
+/** O que o refino depois do commit precisa para achar o lembrete sem atravessar empresas. */
+export type OpenedStopReminder = { readonly companyId: string; readonly reminderId: string }
+
 /** O que o use case enxerga: um método, dentro da sua transação. */
 export type DriverStopReminderEventSink = {
   onStopEvent(params: OnStopEventParams): Promise<OnStopEventResult>
@@ -79,6 +83,7 @@ export type StopReminderRefinementInput = {
   readonly version: bigint
   readonly companyId: string
   readonly tripStopId: string
+  readonly stage: DriverStopReminderStage
   readonly anchorAt: Date
   readonly settings: StopReminderSettings
   readonly sharedPoint: GeoPoint | undefined
@@ -87,6 +92,7 @@ export type StopReminderRefinementInput = {
 }
 
 export type ApplyStopReminderRefinementParams = {
+  readonly companyId: string
   readonly reminderId: string
   readonly version: bigint
   readonly originKind: DriverStopReminderOriginKind
@@ -98,6 +104,7 @@ export type ApplyStopReminderRefinementParams = {
 /** Leituras e escrita do refinamento, **fora** de qualquer transação de evento. */
 export type DriverStopReminderRefinementRepository = {
   readRefinementInput(params: {
+    readonly companyId: string
     readonly reminderId: string
   }): Promise<StopReminderRefinementInput | undefined>
   /** `false` quando o lembrete mudou (ou fechou) desde a leitura: a previsão velha não se grava. */

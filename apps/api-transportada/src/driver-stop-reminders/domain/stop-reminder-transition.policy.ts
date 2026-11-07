@@ -66,7 +66,11 @@ export function decideStopReminderTransition(
       return decideArrival(params)
     case 'delivered':
     case 'returned':
-      return event.stopClosed ? closeAll(ofStop, 'stop_closed') : []
+      if (event.stopClosed) return closeAll(ofStop, 'stop_closed')
+      return closeAll(
+        ofStop.filter((reminder) => reminder.stage === DRIVER_STOP_REMINDER_STAGE.ARRIVAL),
+        'arrived',
+      )
     case 'occurrence':
       return closeAll(ofStop, 'occurrence')
     case 'trip_closed':

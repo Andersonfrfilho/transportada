@@ -1,7 +1,6 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { TripFieldChannel } from '../../trips/domain/trip-field-channel.constant.js'
 import { decideStopReminderTransition } from '../domain/stop-reminder-transition.policy.js'
 import { computeStopReminderSchedule } from '../domain/stop-reminder-schedule.policy.js'
 import type { StopReminderEvent } from '../domain/driver-stop-reminder.types.js'
@@ -13,8 +12,6 @@ import type {
   StopReminderStopContext,
 } from './driver-stop-reminder.port.js'
 
-const OFFICE_CHANNELS: ReadonlySet<TripFieldChannel> = new Set(['office', 'backoffice'])
-
 export function createDriverStopReminderService(dependencies: {
   readonly repository: DriverStopReminderRepository
 }): DriverStopReminderEventSink {
@@ -25,7 +22,6 @@ export function createDriverStopReminderService(dependencies: {
     context: StopReminderStopContext,
   ): Promise<readonly string[]> {
     const event: StopReminderEvent = {
-      authorship: OFFICE_CHANNELS.has(params.channel) ? 'office' : 'crew',
       kind: params.kind,
       recordedTogether: params.recordedTogether ?? false,
       stopClosed: params.stopClosed ?? false,
@@ -39,10 +35,12 @@ export function createDriverStopReminderService(dependencies: {
     const settings = await repository.readSettings({ companyId: params.companyId })
     const openedReminderIds: string[] = []
 
+    // Em sequência de propósito: fechar a etapa velha antes de abrir a nova, que dividem o único parcial.
     for (const action of actions) {
       if (action.type === 'close') {
         await repository.close({
           closedAt: params.occurredAt,
+          companyId: params.companyId,
           reason: action.reason,
           reminderId: action.reminderId,
         })

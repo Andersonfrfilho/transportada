@@ -68,7 +68,7 @@ export type StopReminderEvent = {
     | 'trip_closed'
     | 'trip_cancelled'
   readonly stopId: string
-  readonly authorship: 'crew' | 'office'
+  readonly authorship?: 'crew' | 'office'
   readonly recordedTogether: boolean
   readonly stopClosed: boolean
 }

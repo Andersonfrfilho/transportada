@@ -58,7 +58,12 @@ describe('DriverStopReminderService (spec 299 T1.4)', () => {
     })
 
     expect(fake.closed).toEqual([
-      { closedAt: OCCURRED_AT, reason: 'arrived', reminderId: 'reminder-open' },
+      {
+        closedAt: OCCURRED_AT,
+        companyId: COMPANY_ID,
+        reason: 'arrived',
+        reminderId: 'reminder-open',
+      },
     ])
     expect(fake.opened).toHaveLength(1)
     expect(fake.opened[0]).toMatchObject({ anchorAt: OCCURRED_AT, stage: 'settlement' })
@@ -107,6 +112,7 @@ describe('refinador do lembrete (spec 299 T1.4)', () => {
     reminderId: 'reminder-1',
     settings: DRIVER_STOP_REMINDER_DEFAULT_SETTINGS,
     sharedPoint: { latitude: -23.55, longitude: -46.63 },
+    stage: 'arrival',
     tripStopId: 'stop-1',
     version: 1n,
   }
@@ -143,7 +149,7 @@ describe('refinador do lembrete (spec 299 T1.4)', () => {
   test('grava a estrada com a versão lida', async () => {
     const { applied, refiner } = buildRefiner({ seconds: 600 })
 
-    await refiner.refine({ reminderId: 'reminder-1' })
+    await refiner.refine({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
 
     expect(applied).toHaveLength(1)
     expect(applied[0]).toMatchObject({
@@ -153,14 +159,25 @@ describe('refinador do lembrete (spec 299 T1.4)', () => {
     })
   })
 
+  test('a entrega (settlement) nunca é refinada pela estrada', async () => {
+    const { applied, refiner } = buildRefiner({
+      input: { ...INPUT, stage: 'settlement' },
+      seconds: 600,
+    })
+
+    await refiner.refine({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
+
+    expect(applied).toHaveLength(0)
+  })
+
   test('OSRM sem resposta, destino sem geocódigo ou origem ausente não gravam', async () => {
     const down = buildRefiner({ seconds: null })
     const noDestination = buildRefiner({ input: { ...INPUT, destination: undefined } })
     const noOrigin = buildRefiner({ input: { ...INPUT, sharedPoint: undefined } })
 
-    await down.refiner.refine({ reminderId: 'reminder-1' })
-    await noDestination.refiner.refine({ reminderId: 'reminder-1' })
-    await noOrigin.refiner.refine({ reminderId: 'reminder-1' })
+    await down.refiner.refine({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
+    await noDestination.refiner.refine({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
+    await noOrigin.refiner.refine({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
 
     expect(down.applied).toHaveLength(0)
     expect(noDestination.applied).toHaveLength(0)

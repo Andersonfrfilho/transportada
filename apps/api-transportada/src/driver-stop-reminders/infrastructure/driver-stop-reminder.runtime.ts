@@ -5,7 +5,10 @@ import type { ApiLogger } from '../../shared/api.types.js'
 import type { RouteGeometryPort } from '../../trips/application/route-geometry.port.js'
 import type { RouteDepot } from '../../trips/domain/route-depot.policy.js'
 import type { TripDatabase, TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
-import type { DriverStopReminderEventSink } from '../application/driver-stop-reminder.port.js'
+import type {
+  DriverStopReminderEventSink,
+  OpenedStopReminder,
+} from '../application/driver-stop-reminder.port.js'
 import { createDriverStopReminderService } from '../application/driver-stop-reminder.service.js'
 import { createDriverStopReminderRefiner } from '../application/refine-driver-stop-reminder-schedule.service.js'
 import { DrizzleDriverStopReminderRefinementRepository } from './drizzle-driver-stop-reminder-refinement.repository.js'
@@ -15,7 +18,7 @@ import { DrizzleDriverStopReminderRepository } from './drizzle-driver-stop-remin
 export type DriverStopReminderRuntime = {
   createEventSink(executor: TripQueryable): DriverStopReminderEventSink
   /** Dispara o refinamento (OSRM) depois do commit; nunca lança. */
-  refineAfterCommit(reminderIds: readonly string[]): void
+  refineAfterCommit(reminders: readonly OpenedStopReminder[]): void
   /** Espera os refinamentos em andamento — testes e desligamento. */
   idle(): Promise<void>
 }
@@ -27,6 +30,7 @@ export function createDriverStopReminderRuntime(dependencies: {
   readonly routing?: RouteGeometryPort | undefined
 }): DriverStopReminderRuntime {
   const refiner = createDriverStopReminderRefiner({
+    logger: dependencies.logger,
     readDepot: dependencies.readDepot,
     repository: new DrizzleDriverStopReminderRefinementRepository(dependencies.database),
     routing: dependencies.routing,
@@ -36,14 +40,14 @@ export function createDriverStopReminderRuntime(dependencies: {
   return {
     createEventSink: (executor) =>
       createDriverStopReminderService({
-        repository: new DrizzleDriverStopReminderRepository(executor),
+        repository: new DrizzleDriverStopReminderRepository(executor, dependencies.logger),
       }),
     idle: async () => {
       await Promise.all([...inFlight])
     },
-    refineAfterCommit(reminderIds) {
-      for (const reminderId of reminderIds) {
-        const task = refiner.refine({ reminderId }).catch((error: unknown) => {
+    refineAfterCommit(reminders) {
+      for (const { companyId, reminderId } of reminders) {
+        const task = refiner.refine({ companyId, reminderId }).catch((error: unknown) => {
           dependencies.logger?.warn('driver_stop_reminder_refinement_failed', {
             reason: error instanceof Error ? error.name : 'unknown',
             reminderId,

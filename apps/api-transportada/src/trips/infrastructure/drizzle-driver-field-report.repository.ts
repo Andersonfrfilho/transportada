@@ -47,6 +47,7 @@ import type { ApiLogger } from '../../shared/api.types.js'
 import type {
   DriverStopReminderEventSink,
   OnStopEventParams,
+  OpenedStopReminder,
 } from '../../driver-stop-reminders/application/driver-stop-reminder.port.js'
 import type { DriverStopReminderRuntime } from '../../driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
 import { correctAddressFromArrival } from './arrival-address-correction.support.js'
@@ -112,22 +113,22 @@ export class DrizzleDriverFieldReportUnitOfWork implements DriverFieldReportUnit
   public async execute<TResult>(
     operation: (transaction: DriverFieldReportTransactionPort) => Promise<TResult>,
   ): Promise<TResult> {
-    const openedReminderIds: string[] = []
+    const openedReminders: OpenedStopReminder[] = []
     const result = await this.database.transaction((transaction) =>
       operation(
         new DrizzleDriverFieldReportTransaction(transaction, this.bucket, this.logger, {
-          openedReminderIds,
+          openedReminders,
           sink: this.reminders?.createEventSink(transaction),
         }),
       ),
     )
-    this.reminders?.refineAfterCommit(openedReminderIds)
+    this.reminders?.refineAfterCommit(openedReminders)
     return result
   }
 }
 
 type StopReminderHook = {
-  readonly openedReminderIds: string[]
+  readonly openedReminders: OpenedStopReminder[]
   readonly sink: DriverStopReminderEventSink | undefined
 }
 
@@ -142,7 +143,9 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   public async onStopEvent(input: OnStopEventParams): Promise<void> {
     if (this.stopReminders?.sink === undefined) return
     const { openedReminderIds } = await this.stopReminders.sink.onStopEvent(input)
-    this.stopReminders.openedReminderIds.push(...openedReminderIds)
+    this.stopReminders.openedReminders.push(
+      ...openedReminderIds.map((reminderId) => ({ companyId: input.companyId, reminderId })),
+    )
   }
 
   public correctAddressFromArrival(
