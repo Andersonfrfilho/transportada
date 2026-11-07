@@ -11,9 +11,13 @@
 import {
   DRIVER_STOP_REMINDER_DELIVERY_LOG,
   DRIVER_STOP_REMINDER_DISPATCH_RESERVATION_MINUTES,
+  DRIVER_STOP_REMINDER_DEFER_REASON,
   DRIVER_STOP_REMINDER_DUE_ACTION,
   DRIVER_STOP_REMINDER_GATE_DECISION,
+  DRIVER_STOP_REMINDER_OPEN_QUESTION_WAIT_MINUTES,
   DRIVER_STOP_REMINDER_OUTCOME,
+  DRIVER_STOP_REMINDER_RECORD_SENT_MAX_ATTEMPTS,
+  DRIVER_STOP_REMINDER_RECORD_SENT_RETRY_DELAY_MS,
   DRIVER_STOP_REMINDER_SEND_FAILURE_RETRY_MINUTES,
   DRIVER_STOP_REMINDER_SPEECH_NODE,
   DRIVER_STOP_REMINDER_STAGE,
@@ -39,6 +43,7 @@ import type { GroupStopReminderSenderPort } from './group-stop-reminder-sender.p
 import type {
   DeliverableStopReminder,
   DriverStopReminderDeliveryRepository,
+  RecordStopReminderSentParams,
   StopReminderDeliveryContext,
 } from './driver-stop-reminder-delivery.port.js'
 import type { ReminderPromptOpener } from './reminder-prompt-opener.port.js'
@@ -93,10 +98,14 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
   readonly promptOpener: ReminderPromptOpener
   readonly repository: DriverStopReminderDeliveryRepository
   readonly sender: GroupStopReminderSenderPort
+  readonly sleep?: (milliseconds: number) => Promise<void>
   readonly speech: WhatsAppBotSpeechPort
 }): DeliverDriverStopReminderUseCase {
   const { repository } = dependencies
   const clock = dependencies.clock ?? (() => new Date())
+  const sleep =
+    dependencies.sleep ??
+    ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
 
   function log(reminder: DeliverableStopReminder, outcome: string, reason?: string): void {
     dependencies.logger?.info(DRIVER_STOP_REMINDER_DELIVERY_LOG.DELIVERED, {
@@ -124,6 +133,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       companyId: reminder.companyId,
       reason,
       reminderId: reminder.id,
+      version: reminder.version,
     })
     log(reminder, OUTCOME.CLOSED, reason)
     return { nextDueAt: null, outcome: OUTCOME.CLOSED } as const
@@ -137,6 +147,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       companyId: reminder.companyId,
       dueAt: gate.until,
       reminderId: reminder.id,
+      version: reminder.version,
     })
     log(reminder, OUTCOME.DEFERRED, gate.reason)
     return { nextDueAt: gate.until, outcome: OUTCOME.DEFERRED } as const
@@ -191,6 +202,21 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
     })
   }
 
+  async function recordWithRetry(
+    params: RecordStopReminderSentParams,
+    attempt: number,
+  ): Promise<boolean> {
+    try {
+      await repository.recordSent(params)
+      return true
+    } catch {
+      if (attempt >= DRIVER_STOP_REMINDER_RECORD_SENT_MAX_ATTEMPTS) return false
+      await sleep(DRIVER_STOP_REMINDER_RECORD_SENT_RETRY_DELAY_MS * attempt)
+      return recordWithRetry(params, attempt + 1)
+    }
+  }
+
+  /** O envio já saiu: nada daqui pode provocar um segundo envio rápido. */
   async function recordSent(
     reminder: DeliverableStopReminder,
     context: StopReminderDeliveryContext,
@@ -204,16 +230,34 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       lastSentAt: sent.now,
       settings: context.settings,
     })
-    await repository.recordSent({
-      channel: sent.channel,
+    const isRecorded = await recordWithRetry(
+      {
+        channel: sent.channel,
+        companyId: reminder.companyId,
+        nextDueAt,
+        providerMessageId: sent.providerMessageId,
+        reminderId: reminder.id,
+        sentAt: sent.now,
+        version: reminder.version,
+      },
+      1,
+    )
+    if (isRecorded) {
+      log({ ...reminder, attempts: reminder.attempts + 1 }, OUTCOME.SENT)
+      return { nextDueAt, outcome: OUTCOME.SENT } as const
+    }
+    dependencies.logger?.error(DRIVER_STOP_REMINDER_DELIVERY_LOG.RECORD_FAILED, {
       companyId: reminder.companyId,
-      nextDueAt,
-      providerMessageId: sent.providerMessageId,
       reminderId: reminder.id,
-      sentAt: sent.now,
+      stage: reminder.stage,
     })
-    log({ ...reminder, attempts: reminder.attempts + 1 }, OUTCOME.SENT)
-    return { nextDueAt, outcome: OUTCOME.SENT } as const
+    await repository.release({
+      companyId: reminder.companyId,
+      dueAt: nextDueAt,
+      reminderId: reminder.id,
+      version: reminder.version,
+    })
+    return { nextDueAt, outcome: OUTCOME.DEFERRED } as const
   }
 
   async function sendToGroup(
@@ -223,6 +267,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
     now: Date,
   ) {
     let isPromptOpen = false
+    let providerMessageId: string | null
     try {
       await dependencies.promptOpener.open({
         companyId: reminder.companyId,
@@ -234,13 +279,13 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       })
       isPromptOpen = true
       const body = await renderBody(reminder, context)
-      const { providerMessageId } = await dependencies.sender.send({
+      const response = await dependencies.sender.send({
         body,
         companyId: reminder.companyId,
         groupJid,
         tripId: reminder.tripId,
       })
-      return await recordSent(reminder, context, { channel: 'group', now, providerMessageId })
+      providerMessageId = response.providerMessageId
     } catch (error) {
       if (isPromptOpen) {
         await dependencies.promptOpener.discard({
@@ -251,6 +296,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       }
       return releaseAfterFailure(reminder, now, error)
     }
+    return recordSent(reminder, context, { channel: 'group', now, providerMessageId })
   }
 
   async function releaseAfterFailure(reminder: DeliverableStopReminder, now: Date, error: unknown) {
@@ -259,6 +305,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       companyId: reminder.companyId,
       dueAt: retryAt,
       reminderId: reminder.id,
+      version: reminder.version,
     })
     if (error instanceof ReminderPromptBusyError) {
       log(reminder, OUTCOME.DEFERRED, DRIVER_STOP_REMINDER_PROMPT_BUSY_REASON)
@@ -302,27 +349,36 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
     channel: DriverReminderChannelKind,
     now: Date,
   ) {
-    const reserved = await repository.reserveAttempt({
+    const reservedVersion = await repository.reserveAttempt({
       companyId: reminder.companyId,
       dispatchingUntil: addMinutes(now, DRIVER_STOP_REMINDER_DISPATCH_RESERVATION_MINUTES),
       now,
       reminderId: reminder.id,
       version: reminder.version,
     })
-    if (!reserved) {
+    if (reservedVersion === undefined) {
       log(reminder, OUTCOME.DEFERRED, 'already_reserved')
       return { nextDueAt: reminder.dueAt, outcome: OUTCOME.DEFERRED } as const
     }
+    const reserved = { ...reminder, version: reservedVersion }
+    // Outro fluxo pode ter aberto uma pergunta entre a leitura do portão e a reserva (RF8.3).
+    const questions = await readOpenQuestions(reserved, context, now)
+    if (hasDriverOpenQuestion(questions)) {
+      return defer(reserved, {
+        reason: DRIVER_STOP_REMINDER_DEFER_REASON.OPEN_QUESTION,
+        until: addMinutes(now, DRIVER_STOP_REMINDER_OPEN_QUESTION_WAIT_MINUTES),
+      })
+    }
     if (channel === 'direct') {
       try {
-        const direct = await sendDirect(reminder, context, now)
+        const direct = await sendDirect(reserved, context, now)
         if (direct !== undefined) return direct
       } catch (error) {
-        return releaseAfterFailure(reminder, now, error)
+        return releaseAfterFailure(reserved, now, error)
       }
     }
-    if (context.groupJid !== undefined) return sendToGroup(reminder, context, context.groupJid, now)
-    return releaseAfterFailure(reminder, now, new Error(DRIVER_STOP_REMINDER_NO_GROUP_REASON))
+    if (context.groupJid !== undefined) return sendToGroup(reserved, context, context.groupJid, now)
+    return releaseAfterFailure(reserved, now, new Error(DRIVER_STOP_REMINDER_NO_GROUP_REASON))
   }
 
   return {

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 
 import { companyDriverReminderSettings } from '../../database/company-driver-reminder-settings.schema.js'
 import { driverStopReminders } from '../../database/driver-stop-reminder.schema.js'
@@ -66,6 +66,10 @@ export class DrizzleDriverStopReminderPostponementRepository
           eq(driverStopReminders.id, params.reminderId),
           eq(driverStopReminders.status, PENDING),
           eq(driverStopReminders.postponements, params.postponements),
+          or(
+            isNull(driverStopReminders.dispatchingUntil),
+            lte(driverStopReminders.dispatchingUntil, params.now),
+          ),
         ),
       )
       .returning({ id: driverStopReminders.id })

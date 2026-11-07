@@ -17,6 +17,7 @@ import { whatsappEvolutionSettings } from '../../src/database/whatsapp-evolution
 import { createDeliverDriverStopReminderUseCase } from '../../src/driver-stop-reminders/application/deliver-driver-stop-reminder.use-case.js'
 import { DriverStopReminderNotFoundError } from '../../src/driver-stop-reminders/domain/driver-stop-reminder.error.js'
 import { createCurrentDriverNumberReader } from '../../src/driver-stop-reminders/infrastructure/current-trip-driver.query.js'
+import { DrizzleDriverStopReminderPostponementRepository } from '../../src/driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-postponement.repository.js'
 import { DrizzleDriverStopReminderDeliveryRepository } from '../../src/driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-delivery.repository.js'
 import { createGroupStopReminderSender } from '../../src/driver-stop-reminders/infrastructure/group-stop-reminder-sender.gateway.js'
 import { createDriverStopReminderRuntime } from '../../src/driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
@@ -395,6 +396,94 @@ describe('a entrega do lembrete contra o Postgres (spec 299 T2.2)', () => {
             and(eq(driverStopReminders.id, reminder.id), eq(driverStopReminders.status, 'pending')),
           ),
       ).toHaveLength(1)
+    })
+  })
+
+  testWithPostgres(
+    'a reserva devolve a nova versão e quem escreve com versão velha não grava nada (L1)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const repository = new DrizzleDriverStopReminderDeliveryRepository(database.db)
+        const reminder = await readReminder(world)
+        const key = { companyId: world.company.companyId, reminderId: reminder.id }
+
+        const reservedVersion = await repository.reserveAttempt({
+          ...key,
+          dispatchingUntil: new Date(NOW.getTime() + 120_000),
+          now: NOW,
+          version: reminder.version,
+        })
+        expect(reservedVersion).toBe(reminder.version + 1n)
+        const staleVersion = reminder.version
+
+        await repository.recordSent({
+          ...key,
+          channel: 'group',
+          nextDueAt: new Date(NOW.getTime() + 60_000),
+          providerMessageId: 'stale',
+          sentAt: NOW,
+          version: staleVersion,
+        })
+        await repository.release({
+          ...key,
+          dueAt: new Date(NOW.getTime() + 60_000),
+          version: staleVersion,
+        })
+        await repository.close({
+          ...key,
+          closedAt: NOW,
+          reason: 'stop_closed',
+          version: staleVersion,
+        })
+        expect(await readReminder(world)).toMatchObject({
+          attempts: 0,
+          lastSentAt: null,
+          status: 'pending',
+          version: reservedVersion,
+        })
+        expect((await readReminder(world)).dispatchingUntil).not.toBeNull()
+
+        await repository.release({
+          ...key,
+          dueAt: new Date(NOW.getTime() + 60_000),
+          version: reservedVersion ?? 0n,
+        })
+        expect((await readReminder(world)).dispatchingUntil).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres('o adiamento não apaga uma reserva em andamento (L2)', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database)
+      const repository = new DrizzleDriverStopReminderDeliveryRepository(database.db)
+      const postponements = new DrizzleDriverStopReminderPostponementRepository(database.db)
+      const reminder = await readReminder(world)
+      const key = { companyId: world.company.companyId, reminderId: reminder.id }
+      await repository.reserveAttempt({
+        ...key,
+        dispatchingUntil: new Date(NOW.getTime() + 120_000),
+        now: NOW,
+        version: reminder.version,
+      })
+      const applyParams = {
+        ...key,
+        dueAt: new Date(NOW.getTime() + 600_000),
+        now: NOW,
+        postponements: reminder.postponements,
+      }
+
+      expect(await postponements.applyPostponement(applyParams)).toBe(false)
+      const reserved = await readReminder(world)
+      expect(reserved.dispatchingUntil).not.toBeNull()
+      expect(reserved.postponements).toBe(reminder.postponements)
+
+      const afterReservation = new Date(NOW.getTime() + 180_000)
+      expect(await postponements.applyPostponement({ ...applyParams, now: afterReservation })).toBe(
+        true,
+      )
+      expect((await readReminder(world)).dispatchingUntil).toBeNull()
     })
   })
 })

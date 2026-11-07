@@ -21,6 +21,7 @@ const COMPANY_ID = 'company-1'
 const OTHER_COMPANY_ID = 'company-2'
 const NOW = new Date('2026-11-07T17:00:00.000Z')
 const MINUTE = 60_000
+const RESERVED_VERSION = 4n
 const GROUP = '120363000000000000@g.us'
 const FREE: DriverOpenQuestions = {
   hasOpenCollection: false,
@@ -76,6 +77,9 @@ type Overrides = {
   readonly isEnabled?: boolean
   readonly ownPromptOpen?: boolean
   readonly questions?: Partial<DriverOpenQuestions>
+  /** A leitura de número N (base 0) devolve estas perguntas em vez de `questions`. */
+  readonly questionsByRead?: readonly Partial<DriverOpenQuestions>[]
+  readonly recordSentFailures?: number
   readonly reminder?: Partial<DeliverableStopReminder> | undefined
   readonly reserve?: boolean
   readonly sendError?: Error
@@ -86,21 +90,28 @@ function build(overrides: Overrides = {}) {
   const sent: Array<{ body: string; companyId: string; groupJid: string; tripId: string }> = []
   const opened: unknown[] = []
   const reminder = { ...REMINDER, ...overrides.reminder }
+  let questionReads = 0
+  let recordSentCalls = 0
+  const discards: unknown[] = []
   const repository: DriverStopReminderDeliveryRepository = {
     close: async (params) => void writes.push({ kind: 'close', ...params }),
     escalate: async (params) => void writes.push({ kind: 'escalate', ...params }),
     findReminder: async ({ companyId }) =>
       companyId === reminder.companyId ? reminder : undefined,
     readContext: async () => ({ ...CONTEXT, ...overrides.context }),
-    recordSent: async (params) => void writes.push({ kind: 'sent', ...params }),
+    recordSent: async (params) => {
+      recordSentCalls += 1
+      if (recordSentCalls <= (overrides.recordSentFailures ?? 0)) throw new Error('db down')
+      writes.push({ kind: 'sent', ...params })
+    },
     release: async (params) => void writes.push({ kind: 'release', ...params }),
     reserveAttempt: async (params) => {
       writes.push({ kind: 'reserve', ...params })
-      return overrides.reserve ?? true
+      return overrides.reserve === false ? undefined : RESERVED_VERSION
     },
   }
   const promptOpener = {
-    discard: async () => undefined,
+    discard: async (params: unknown) => void discards.push(params),
     hasOwnOpen: async () => overrides.ownPromptOpen ?? false,
     open: async (params: unknown) => void opened.push(params),
   }
@@ -113,14 +124,21 @@ function build(overrides: Overrides = {}) {
   }
   const useCase = createDeliverDriverStopReminderUseCase({
     clock: () => NOW,
-    driverOpenQuestions: { read: async () => ({ ...FREE, ...overrides.questions }) },
+    driverOpenQuestions: {
+      read: async () => {
+        const index = questionReads
+        questionReads += 1
+        return { ...FREE, ...(overrides.questionsByRead?.[index] ?? overrides.questions) }
+      },
+    },
     isEnabled: overrides.isEnabled ?? true,
     promptOpener,
     repository,
     sender,
+    sleep: async () => undefined,
     speech: CATALOG_BOT_SPEECH,
   })
-  return { opened, promptOpener, repository, sender, sent, useCase, writes }
+  return { discards, opened, promptOpener, repository, sender, sent, useCase, writes }
 }
 
 const run = (overrides?: Overrides, companyId = COMPANY_ID) =>
@@ -343,6 +361,7 @@ describe('fecha quando a parada andou e respeita a empresa (spec 299 T2.2, RF8.1
         kind: 'close',
         reason: 'arrived',
         reminderId: 'reminder-1',
+        version: 3n,
       },
     ])
     expect(world.sent).toEqual([])
@@ -491,3 +510,103 @@ describe('canal do lembrete (spec 299 T2.5, D5)', () => {
     expect(world.writes.map((write) => write.kind)).toEqual(['reserve', 'release'])
   })
 })
+
+describe('a pergunta que abre entre a leitura e a reserva segura o envio (spec 299 T2.2, RF8.3)', () => {
+  test('pergunta aberta só na segunda leitura: devolve a reserva, adia 5 minutos e não envia', async () => {
+    const world = build({ questionsByRead: [{}, { hasPendingAudio: true }] })
+    const result = await world.useCase.execute({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
+    expect(result).toEqual({ nextDueAt: new Date(NOW.getTime() + 5 * MINUTE), outcome: 'deferred' })
+    expect(world.sent).toEqual([])
+    expect(world.opened).toEqual([])
+    expect(world.writes.map((write) => write.kind)).toEqual(['reserve', 'release'])
+    expect(world.writes[1]).toMatchObject({ version: RESERVED_VERSION })
+    expect(world.writes.some((write) => write.kind === 'sent')).toBe(false)
+  })
+
+  test('o pedido do próprio lembrete na segunda leitura não segura o envio', async () => {
+    const world = build({
+      ownPromptOpen: true,
+      questionsByRead: [{}, { hasOpenGroupRequest: true }],
+    })
+    expect((await run_(world)).outcome).toBe('sent')
+  })
+
+  test('canal direto: a segunda leitura também é obrigatória antes do envio individual', async () => {
+    const world = build({ questionsByRead: [{}, { hasOpenStopChoice: true }] })
+    const directCalls: unknown[] = []
+    const useCase = createDeliverDriverStopReminderUseCase({
+      channelResolver: { resolve: async () => 'direct' },
+      clock: () => NOW,
+      directSender: {
+        send: async (input) => {
+          directCalls.push(input)
+          return { channel: 'direct_text', providerMessageId: 'direct-1', status: 'sent' }
+        },
+      },
+      driverOpenQuestions: {
+        read: (() => {
+          let reads = 0
+          return async () => ({ ...FREE, hasOpenStopChoice: (reads += 1) > 1 })
+        })(),
+      },
+      isEnabled: true,
+      promptOpener: world.promptOpener,
+      repository: world.repository,
+      sender: world.sender,
+      speech: CATALOG_BOT_SPEECH,
+    })
+    const result = await useCase.execute({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
+    expect(result).toEqual({ nextDueAt: new Date(NOW.getTime() + 5 * MINUTE), outcome: 'deferred' })
+    expect(directCalls).toEqual([])
+    expect(world.sent).toEqual([])
+    expect(world.writes.map((write) => write.kind)).toEqual(['reserve', 'release'])
+  })
+})
+
+describe('o registro do envio não duplica o lembrete (spec 299 T2.2, M2)', () => {
+  test('envio ok e o registro falha uma vez: grava na nova tentativa, com um único envio', async () => {
+    const world = build({ recordSentFailures: 1 })
+    const result = await run_(world)
+    expect(result).toEqual({ nextDueAt: new Date(NOW.getTime() + 30 * MINUTE), outcome: 'sent' })
+    expect(world.sent).toHaveLength(1)
+    expect(world.writes.filter((write) => write.kind === 'sent')).toHaveLength(1)
+    expect(world.discards).toEqual([])
+  })
+
+  test('registro sempre falha: um envio, pedido mantido e próximo prazo é o intervalo', async () => {
+    const world = build({ recordSentFailures: 99 })
+    const result = await run_(world)
+    expect(result).toEqual({
+      nextDueAt: new Date(NOW.getTime() + 30 * MINUTE),
+      outcome: 'deferred',
+    })
+    expect(world.sent).toHaveLength(1)
+    expect(world.discards).toEqual([])
+    const release = world.writes.find((write) => write.kind === 'release')
+    expect(release).toMatchObject({
+      dueAt: new Date(NOW.getTime() + 30 * MINUTE),
+      version: RESERVED_VERSION,
+    })
+  })
+
+  test('falha do provedor segue devolvendo a tentativa e descartando o pedido', async () => {
+    const world = build({ sendError: new Error('provider down') })
+    await run_(world)
+    expect(world.discards).toHaveLength(1)
+    expect(world.writes.find((write) => write.kind === 'release')).toMatchObject({
+      dueAt: new Date(NOW.getTime() + 5 * MINUTE),
+      version: RESERVED_VERSION,
+    })
+  })
+})
+
+function run_(world: {
+  useCase: {
+    execute: (p: {
+      companyId: string
+      reminderId: string
+    }) => Promise<{ outcome: string; nextDueAt: Date | null }>
+  }
+}) {
+  return world.useCase.execute({ companyId: COMPANY_ID, reminderId: 'reminder-1' })
+}

@@ -90,7 +90,9 @@ export class DrizzleDriverStopReminderDeliveryRepository
     }
   }
 
-  public async reserveAttempt(params: ReserveStopReminderAttemptParams): Promise<boolean> {
+  public async reserveAttempt(
+    params: ReserveStopReminderAttemptParams,
+  ): Promise<bigint | undefined> {
     const rows = await this.executor
       .update(driverStopReminders)
       .set({
@@ -110,8 +112,8 @@ export class DrizzleDriverStopReminderDeliveryRepository
           ),
         ),
       )
-      .returning({ id: driverStopReminders.id })
-    return rows.length > 0
+      .returning({ version: driverStopReminders.version })
+    return rows[0]?.version
   }
 
   public async recordSent(params: RecordStopReminderSentParams): Promise<void> {
@@ -127,7 +129,7 @@ export class DrizzleDriverStopReminderDeliveryRepository
         updatedAt: params.sentAt,
         version: sql`${driverStopReminders.version} + 1`,
       })
-      .where(this.pendingReminder(params))
+      .where(this.versionedReminder(params))
   }
 
   public async release(params: ReleaseStopReminderParams): Promise<void> {
@@ -139,7 +141,7 @@ export class DrizzleDriverStopReminderDeliveryRepository
         updatedAt: new Date(),
         version: sql`${driverStopReminders.version} + 1`,
       })
-      .where(this.pendingReminder(params))
+      .where(this.versionedReminder(params))
   }
 
   public async close(params: CloseDeliveredStopReminderParams): Promise<void> {
@@ -152,7 +154,7 @@ export class DrizzleDriverStopReminderDeliveryRepository
         status: resolveStopReminderClosedStatus(params.reason),
         updatedAt: params.closedAt,
       })
-      .where(this.pendingReminder(params))
+      .where(this.versionedReminder(params))
   }
 
   public async escalate(params: EscalateStopReminderParams): Promise<void> {
@@ -173,6 +175,14 @@ export class DrizzleDriverStopReminderDeliveryRepository
       eq(driverStopReminders.id, params.reminderId),
       eq(driverStopReminders.status, PENDING),
     )
+  }
+
+  private versionedReminder(params: {
+    readonly companyId: string
+    readonly reminderId: string
+    readonly version: bigint
+  }) {
+    return and(this.pendingReminder(params), eq(driverStopReminders.version, params.version))
   }
 
   private async readSettings(companyId: string): Promise<StopReminderDeliveryContext['settings']> {

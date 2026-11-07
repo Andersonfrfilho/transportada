@@ -74,6 +74,8 @@ export const MINUTES_PER_DAY = 1440
 
 export const DRIVER_STOP_REMINDER_SEND_FAILURE_RETRY_MINUTES = 5
 export const DRIVER_STOP_REMINDER_DISPATCH_RESERVATION_MINUTES = 2
+export const DRIVER_STOP_REMINDER_RECORD_SENT_MAX_ATTEMPTS = 3
+export const DRIVER_STOP_REMINDER_RECORD_SENT_RETRY_DELAY_MS = 200
 
 export const DRIVER_STOP_REMINDER_OUTCOME = {
   SENT: 'sent',
@@ -88,6 +90,7 @@ export const DRIVER_STOP_REMINDER_STATUS = {
 } as const
 
 export const DRIVER_STOP_REMINDER_DELIVERY_LOG = {
+  RECORD_FAILED: 'driver_stop_reminder_record_failed',
   SEND_FAILED: 'driver_stop_reminder_send_failed',
   DELIVERED: 'driver_stop_reminder_delivery',
 } as const

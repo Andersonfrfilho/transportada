@@ -61,6 +61,8 @@ export type ReserveStopReminderAttemptParams = {
 export type RecordStopReminderSentParams = {
   readonly companyId: string
   readonly reminderId: string
+  /** A versão da reserva: escritor com versão velha não grava nada. */
+  readonly version: bigint
   readonly sentAt: Date
   readonly nextDueAt: Date
   readonly channel: DriverStopReminderChannel
@@ -70,6 +72,7 @@ export type RecordStopReminderSentParams = {
 export type CloseDeliveredStopReminderParams = {
   readonly companyId: string
   readonly reminderId: string
+  readonly version: bigint
   readonly reason: DriverStopReminderClosedReason
   readonly closedAt: Date
 }
@@ -77,6 +80,7 @@ export type CloseDeliveredStopReminderParams = {
 export type ReleaseStopReminderParams = {
   readonly companyId: string
   readonly reminderId: string
+  readonly version: bigint
   readonly dueAt: Date
 }
 
@@ -96,8 +100,8 @@ export type DriverStopReminderDeliveryRepository = {
     readonly reminder: DeliverableStopReminder
     readonly now: Date
   }): Promise<StopReminderDeliveryContext>
-  /** `UPDATE … WHERE id AND version AND status='pending'`: `false` quando outra entrega chegou primeiro. */
-  reserveAttempt(params: ReserveStopReminderAttemptParams): Promise<boolean>
+  /** `UPDATE … WHERE id AND version AND status='pending'`: a nova versão, ou `undefined` quando outra entrega chegou primeiro. */
+  reserveAttempt(params: ReserveStopReminderAttemptParams): Promise<bigint | undefined>
   recordSent(params: RecordStopReminderSentParams): Promise<void>
   /** Devolve a reserva sem consumir tentativa e marca o próximo vencimento. */
   release(params: ReleaseStopReminderParams): Promise<void>
