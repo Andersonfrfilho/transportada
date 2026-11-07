@@ -595,3 +595,9 @@ sexta 2026-12-25, horário seg–sex 08–18) → `sent` em vez de `deferred`.
 `DrizzleDriverStopReminderDeliveryRepository`. **Verde:** contrato 155 pass; integração: feriado nacional adia para segunda
 2026-12-28 08:00 (-03), feriado só municipal (`municipal_holidays` na sexta 2026-11-13) envia; `driver-stop-reminder-delivery` 11 pass.
 `spec.md` RF8.2 e `plan.md` (§ horário) reescritos para "feriado nacional (dono, 2026-11-07)".
+
+## T2.6 — não se aplica
+
+A T2.6 (OpenAPI gerado e teste "toda rota aparece") parte de uma premissa errada: `apps/api-transportada` não tem OpenAPI
+("Sem OpenAPI nesta API" em `apps/api-transportada/CLAUDE.md`), não há documento gerado nem teste de "toda rota aparece"; o
+contrato da rota é o arquivo de rotas mais o schema Zod. Conferido pelo coordenador em 2026-11-07.
