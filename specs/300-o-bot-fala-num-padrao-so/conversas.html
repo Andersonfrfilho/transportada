@@ -1,0 +1,688 @@
+<title>Conversas do bot no WhatsApp</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: índice dos fluxos no topo; cada fluxo é uma seção com conversas de WhatsApp lado a lado. */
+:root {
+  --page: #efeae2;
+  --chat: #e5ddd5;
+  --bubble-in: #ffffff;
+  --bubble-out: #d9fdd3;
+  --ink: #111b21;
+  --muted: #667781;
+  --bot: #128c7e;
+  --link: #027eb5;
+  --quote-bar: #25d366;
+  --warn-bar: #e9a23b;
+  --mono-bg: rgb(0 0 0 / .05);
+  --header: #075e54;
+  --header-ink: #ffffff;
+  --chip: #ffffff;
+  --font-body: 'Segoe UI', Helvetica, Arial, system-ui, sans-serif;
+  --font-mono: 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0b141a; --chat: #0b141a; --bubble-in: #202c33; --bubble-out: #005c4b;
+    --ink: #e9edef; --muted: #8696a0; --bot: #53bdeb; --link: #53bdeb; --quote-bar: #06cf9c; --warn-bar: #e9a23b;
+    --mono-bg: rgb(255 255 255 / .07); --header: #202c33; --header-ink: #e9edef; --chip: #202c33;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0b141a; --chat: #0b141a; --bubble-in: #202c33; --bubble-out: #005c4b;
+  --ink: #e9edef; --muted: #8696a0; --bot: #53bdeb; --link: #53bdeb; --quote-bar: #06cf9c; --warn-bar: #e9a23b;
+  --mono-bg: rgb(255 255 255 / .07); --header: #202c33; --header-ink: #e9edef; --chip: #202c33;
+}
+body {
+  background: var(--page); color: var(--ink); font-family: var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+.wrap { max-width: 1220px; margin: 0 auto; display: grid; gap: 28px; }
+header { display: grid; gap: 8px; }
+h1 { margin: 0; font-size: 1.6rem; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 78ch; line-height: 1.5; }
+nav { display: flex; flex-wrap: wrap; gap: 6px; }
+nav a { background: var(--chip); color: var(--ink); text-decoration: none; padding: 5px 10px; border-radius: 999px; font-size: .82rem; box-shadow: 0 1px 0.5px rgb(0 0 0 / .13); }
+nav a:focus-visible, nav a:hover { outline: 2px solid var(--bot); }
+.rules { background: var(--chip); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; line-height: 1.5; font-size: .9rem; }
+.rules h2 { margin: 0; font-size: 1rem; }
+.rules ul { margin: 0; padding-left: 1.2em; display: grid; gap: 3px; }
+section.flow { display: grid; gap: 12px; scroll-margin-top: 12px; }
+section.flow > h2 { margin: 0; font-size: 1.15rem; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+section.flow > h2 span { color: var(--muted); font-weight: 400; font-size: .85rem; }
+.chats { display: flex; flex-wrap: wrap; gap: 18px; align-items: start; }
+figure { margin: 0; display: grid; gap: 6px; width: 370px; max-width: 100%; }
+figcaption { font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.chat { background: var(--chat); border-radius: 10px; overflow: hidden; display: grid; }
+.top { background: var(--header); color: var(--header-ink); padding: 9px 14px; font-weight: 600; font-size: .88rem; }
+.msgs { padding: 10px 10px 12px; display: grid; gap: 6px; font-size: .88rem; line-height: 1.4; }
+.b { max-width: 94%; padding: 6px 9px 4px; border-radius: 8px; box-shadow: 0 1px 0.5px rgb(0 0 0 / .13); overflow-wrap: anywhere; min-width: 0; }
+.in { background: var(--bubble-in); justify-self: start; }
+.out { background: var(--bubble-out); justify-self: end; }
+.who { color: var(--bot); font-weight: 600; font-size: .78rem; display: block; }
+.t { color: var(--muted); font-size: .66rem; display: block; text-align: right; margin-top: 2px; }
+.l { display: block; min-height: 1.4em; }
+.q { display: block; border-left: 4px solid var(--quote-bar); padding-left: 8px; margin: 1px 0; }
+.q.warn { border-left-color: var(--warn-bar); }
+.sep { text-align: center; color: var(--muted); font-size: .7rem; margin: 2px 0; }
+code { font-family: var(--font-mono); font-size: .86em; background: var(--mono-bg); padding: 0 3px; border-radius: 3px; }
+a.u { color: var(--link); text-decoration: none; }
+.mention { color: var(--bot); }
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Conversas do bot no WhatsApp</h1>
+  <p>Todos os fluxos do motorista e do atendente no grupo, redesenhados no mesmo padrão. Dados da viagem de staging de 06/11 (paradas 3 a 7). Distância, tempo e coordenadas são de exemplo. A conversa individual usa os mesmos textos, com os botões e listas da Meta no lugar dos números.</p>
+  <nav id="index"></nav>
+</header>
+
+<div class="rules">
+  <h2>O padrão</h2>
+  <ul>
+    <li>Primeira linha: ícone e <b>título em negrito</b>, que diz do que se trata.</li>
+    <li>Parada sempre no mesmo bloco: <b>PARADA N de M</b>, nota em <code>monoespaçado</code>, cliente em negrito, bairro e cidade, distância e tempo, e 🗺️ <b>Como chegar</b> com o link que abre a rota no Maps.</li>
+    <li>Barra verde destaca a parada certa (próxima da rota, a atual). Barra laranja marca a que está fora da ordem.</li>
+    <li>Opções dizem a ação inteira ("Seguir para a parada 7", não "Sim, a 7"), sempre <b>*N* - ícone ação</b>.</li>
+    <li>Instrução de resposta no fim, em itálico. Quando não entende: 🤔 <b>Não entendi.</b>, o motivo e as opções de novo.</li>
+    <li>Próximo passo sempre na última linha: ➡️ <i>Próximo passo:</i> …</li>
+  </ul>
+</div>
+
+<main id="flows"></main>
+</div>
+
+<script>
+const MAP = (lat, lng) => `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+const STOPS = {
+  3: { nf: '899839', client: 'RETA ALIMENTOS LTDA', place: 'Centro, Guaira', km: '108 km', time: '~1 h 25 min', eta: '23:23', map: MAP(-20.3186, -48.3108), contractor: 'COMERCIAL ZARAGOZA IMP EXP LTDA', street: 'R. 18, 1240 – Centro, Guaira/SP', value: 'R$ 4.812,30', vol: '12 volumes' },
+  4: { nf: '899836', client: 'RETA ALIMENTOS LTDA', place: 'Centro, Sao Joaquim da Barra', km: '56 km', time: '~45 min', map: MAP(-20.5812, -47.8547) },
+  5: { nf: '899862', client: 'SUPERMERCADO SAO PAULO LTDA', place: 'Cidade Nova, Franca', km: '3,2 km', time: '~8 min', map: MAP(-20.5280, -47.4120) },
+  6: { nf: '899859', client: 'ROSEMARY DA SILVA MINI MERCADO LTDA', place: 'Jd. Luiza II, Franca', km: '6,1 km', time: '~14 min', map: MAP(-20.5602, -47.3851) },
+  7: { nf: '899857', client: 'BRANDINELI COMERCIO ATACADISTA DE MERCAD', place: 'City Petropolis, Franca', km: '4,8 km', time: '~12 min', map: MAP(-20.5139, -47.3890), contractor: 'COMERCIAL ZARAGOZA IMP EXP LTDA', street: 'Av. Brasil, 3410 – City Petropolis, Franca/SP', value: 'R$ 2.390,00', vol: '5 volumes' },
+};
+const TOTAL = 9;
+
+/* Bloco de parada. prefix: '' (normal), '> ' (verde), '>! ' (laranja). */
+function stop(sequence, options = {}) {
+  const s = STOPS[sequence];
+  const p = options.prefix ?? '';
+  const head = options.head ?? `*PARADA ${sequence} de ${TOTAL}*`;
+  const lines = [
+    head,
+    `🧾 NF \`${s.nf}\` · *${s.client}*`,
+    options.full && s.contractor ? `🏢 Contratante: ${s.contractor}` : null,
+    `📍 ${options.full && s.street ? s.street : s.place}`,
+    options.full && s.vol ? `📦 ${s.vol}` : null,
+    options.noDistance ? null : `📏 *${s.km}* · ⏱️ _${s.time}_`,
+    `🗺️ *Como chegar:* ${s.map}`,
+  ].filter(Boolean);
+  return lines.map((line) => p + line).join('\n');
+}
+
+const flows = [
+  {
+    id: 'menu', title: '1. Saudação e menu', note: 'o motorista marca o bot no grupo',
+    chats: [
+      { caption: 'Menu', msgs: [
+        { me: '@Fernandes Transportadora STG' },
+        { bot: `@Anderson Fernandes Boa noite, Anderson! 👋
+
+*O que você quer lançar?*
+*1* - 🚚 Saí para a entrega
+*2* - 📍 Cheguei
+*3* - ✅ Entreguei
+*4* - ↩️ Não entreguei
+*5* - ⚠️ Ocorrência
+
+_Responda com o número._` },
+        { me: 'saida' },
+        { bot: `🤔 *Não entendi.* Responda com o número da opção:
+*1* - 🚚 Saí para a entrega
+*2* - 📍 Cheguei
+*3* - ✅ Entreguei
+*4* - ↩️ Não entreguei
+*5* - ⚠️ Ocorrência` },
+      ] },
+      { caption: 'Pedido ocupado e cancelar', msgs: [
+        { me: '@Fernandes Transportadora STG entreguei' },
+        { bot: `⏳ *Já tem um pedido aberto neste grupo.*
+Termine o pedido de cima ou responda *cancelar*.` },
+        { me: 'cancelar' },
+        { bot: `↩️ *Pedido cancelado.* Nada foi registrado.
+➡️ _Próximo passo:_ quando quiser, marque o bot de novo.` },
+      ] },
+    ],
+  },
+  {
+    id: 'sai', title: '2. Saí para a entrega', note: 'lista, localização, registro e fora da ordem',
+    chats: [
+      { caption: 'Lista de paradas', msgs: [
+        { me: '1' },
+        { bot: `🚚 *Para qual parada você saiu?*
+
+${stop(3, { prefix: '> ', head: '👉 *PARADA 3 de 9* · _próxima da rota_' })}
+
+${stop(4)}
+
+${stop(5)}
+
+${stop(6)}
+
+${stop(7)}
+
+_Responda com o número da parada ou da nota._` },
+        { me: '12' },
+        { bot: `🤔 *Não entendi.* Não achei a parada 12 nesta viagem.
+_Responda com o número da parada (3 a 7) ou da nota._` },
+      ] },
+      { caption: 'Localização e saída registrada', msgs: [
+        { me: '3' },
+        { bot: `📍 *Mande sua localização* para medir a distância até a parada.
+Clipe 📎 → Localização → Enviar localização atual.
+_Se não puder agora, responda pular._` },
+        { me: 'ok' },
+        { bot: `🤔 *Não entendi.* Esta resposta vai por localização.
+Clipe 📎 → Localização → Enviar localização atual, _ou responda pular._` },
+        { me: '📍 Localização atual' },
+        { bot: `🚚 *Saída registrada* · 21:58
+
+${stop(3, { prefix: '> ', full: true })}
+> 💰 Valor da nota: *R$ 4.812,30*
+> ⏱️ Chegada prevista: *~23:23*
+
+➡️ _Próximo passo:_ quando chegar, mande *cheguei*.` },
+      ] },
+      { caption: 'Já está a caminho e saí repetido', msgs: [
+        { me: 'sai 5' },
+        { bot: `⚠️ *Você já está a caminho da parada 3.*
+Registre a chegada nela antes de sair para outra.
+
+${stop(3, { prefix: '> ', noDistance: false })}
+
+*O que você quer fazer agora?*
+*1* - 📍 Cheguei na *parada 3*
+*2* - ⚠️ Abrir ocorrência
+*3* - 💤 Nada por enquanto` },
+      ] },
+      { caption: 'Saí com a baixa pendente', msgs: [
+        { me: 'sai' },
+        { bot: `⚠️ *Falta a baixa da parada 3.*
+Você chegou às 23:20 e ainda não registrou a entrega.
+
+${stop(3, { prefix: '> ', noDistance: true })}
+
+*O que você quer fazer agora?*
+*1* - ✅ Entreguei _(mande a foto do canhoto)_
+*2* - ↩️ Não entreguei
+*3* - 🚚 Sair para outra parada sem dar a baixa
+*4* - 💤 Nada por enquanto` },
+      ] },
+      { caption: 'Saída fora da rota', msgs: [
+        { me: '7' },
+        { bot: `⚠️ *Fora da rota sugerida*
+A rota sugere ir antes para a *parada 3*. Se achar melhor, pode seguir para a 7.
+
+${stop(7, { prefix: '>! ', head: '🚚 *VOCÊ ESCOLHEU · PARADA 7*' })}
+
+${stop(3, { prefix: '> ', head: '👉 *PRÓXIMA DA ROTA · PARADA 3*' })}
+
+*Para onde você vai?*
+*1* - ✅ Seguir para a *parada 7*
+*2* - 👉 Ir para a *parada 3*
+
+_Responda 1 ou 2._` },
+        { me: 'ok' },
+        { bot: `🤔 *Não entendi.* Responda *1* para seguir para a *parada 7* ou *2* para ir para a *parada 3*.` },
+      ] },
+    ],
+  },
+  {
+    id: 'cheguei', title: '3. Cheguei', note: 'registro, endereço corrigido e repetido',
+    chats: [
+      { caption: 'Endereço sem localização certa', msgs: [
+        { me: 'cheguei' },
+        { bot: `📍 *Este endereço está sem localização certa no mapa.*
+Mande sua localização que eu corrijo o endereço.
+Clipe 📎 → Localização → Enviar localização atual.
+_Se não puder agora, responda pular._` },
+        { me: '📍 Localização atual' },
+        { bot: `📍 *Chegada registrada* · 23:20
+✅ _Endereço corrigido pela sua localização._
+
+${stop(3, { prefix: '> ', full: true, noDistance: true })}
+> 💰 Valor da nota: *R$ 4.812,30*
+
+🔜 *Depois desta:* parada 4 · RETA ALIMENTOS LTDA – Sao Joaquim da Barra
+
+➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.` },
+      ] },
+      { caption: 'Cheguei repetido', msgs: [
+        { me: 'cheguei' },
+        { bot: `⚠️ *A chegada na parada 3 já foi registrada* às 23:20.
+
+${stop(3, { prefix: '> ', noDistance: true })}
+
+*O que você quer fazer agora?*
+*1* - ✅ Entreguei _(mande a foto do canhoto)_
+*2* - ↩️ Não entreguei
+*3* - ⚠️ Abrir ocorrência
+*4* - 💤 Nada por enquanto` },
+        { me: '4' },
+        { bot: `👍 *Certo, nada foi registrado.*
+➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.` },
+      ] },
+      { caption: 'Chegada fora da rota', msgs: [
+        { me: 'cheguei 7' },
+        { bot: `⚠️ *Fora da rota sugerida*
+Você está a caminho da *parada 3*, e este "cheguei" é da *parada 7*. Se achar melhor, pode registrar.
+
+${stop(7, { prefix: '>! ', head: '📍 *CHEGADA · PARADA 7*', noDistance: true })}
+
+*1* - ✅ Cheguei na *parada 7*
+*2* - ↩️ Foi engano, descartar
+
+_A parada 3 continua aberta. Responda 1 ou 2._` },
+        { me: '2' },
+        { bot: `↩️ *Descartado.* Nada foi registrado.` },
+      ] },
+    ],
+  },
+  {
+    id: 'proxima', title: '4. Próxima parada', note: 'depois que uma parada fecha',
+    chats: [
+      { caption: 'Oferta da próxima', msgs: [
+        { bot: `➡️ *Próxima parada*
+
+${stop(4, { prefix: '> ' })}
+
+*O que você quer fazer agora?*
+*1* - 🚚 Seguir para a *parada 4*
+*2* - 📋 Escolher outra da lista
+*3* - 💤 Nada por enquanto` },
+        { me: '3' },
+        { bot: `👍 *Certo, nada foi registrado.*
+➡️ _Próximo passo:_ quando for sair, mande *saí*.` },
+      ] },
+      { caption: 'Rota concluída', msgs: [
+        { bot: `✅ *NF \`899857\` entregue.* Parada 7 concluída.
+
+🏁 *Rota concluída!* Todas as 9 paradas estão fechadas.
+Bom descanso, Anderson. 🌙` },
+      ] },
+    ],
+  },
+  {
+    id: 'entreguei', title: '5. Entreguei', note: 'nota, comprovante, confirmação e canhoto',
+    chats: [
+      { caption: 'Qual nota e comprovante', msgs: [
+        { me: 'entreguei' },
+        { bot: `✅ *Qual nota você entregou?*
+
+*1* - 🧾 NF \`899839\` · *RETA ALIMENTOS LTDA* · Guaira
+*2* - 🧾 NF \`899836\` · *RETA ALIMENTOS LTDA* · Sao Joaquim da Barra
+
+_Responda com o número da opção ou da nota._` },
+        { me: '1' },
+        { bot: `📸 *NF \`899839\` · foto do canhoto*
+Mande a foto do canhoto assinado.
+
+_Faltam 3 itens: canhoto, foto da mercadoria e quem recebeu._` },
+        { me: '🖼️ foto' },
+        { bot: `✅ _Canhoto recebido._
+
+📦 *NF \`899839\` · foto da mercadoria*
+Mande 1 foto da mercadoria entregue.
+_Se não tiver, responda pular._` },
+        { me: 'pular' },
+        { bot: `👍 _Ok, sem a foto da mercadoria._
+
+👤 *Quem recebeu a NF \`899839\`?*
+> 🏪 *RETA ALIMENTOS LTDA* · Guaira
+
+*1* - 🙋 O próprio destinatário
+*2* - 💍 Cônjuge
+*3* - 🧒 Filho ou filha
+*4* - 🧓 Pai ou mãe
+*5* - 🧑‍🤝‍🧑 Irmão ou irmã
+*6* - 👪 Outro parente
+*7* - 🏘️ Vizinho
+*8* - 🛎️ Porteiro
+*9* - 🧑‍💼 Funcionário do local
+*10* - 👤 Outra pessoa
+
+_Faltam 2 itens: quem recebeu e o nome._
+_Responda com o número._` },
+        { me: '9' },
+        { bot: `👍 _Anotado: funcionário do local._
+
+✍️ *Qual o nome de quem recebeu a NF \`899839\`?*
+> 🏪 *RETA ALIMENTOS LTDA* · Guaira
+
+Escreva o nome.
+_Falta 1 item. Se não tiver, responda pular._` },
+      ] },
+      { caption: 'Confirmação e registro', msgs: [
+        { me: 'João Pereira' },
+        { bot: `📋 *Confira a entrega da NF \`899839\`*
+
+> 🏢 Contratante: COMERCIAL ZARAGOZA IMP EXP LTDA
+> 🏪 Cliente: *RETA ALIMENTOS LTDA*
+> 📍 R. 18, 1240 – Centro, Guaira/SP
+> 💰 Valor da nota: *R$ 4.812,30*
+
+🧾 Canhoto: foto recebida ✅
+📦 Mercadoria: sem foto
+🙋 Recebido por: *João Pereira* (funcionário do local)
+📍 Localização: enviada ✅
+
+*Confirma a entrega?*
+*1* - ✅ Sim, confirmar
+*2* - ❌ Não, cancelar` },
+        { me: '1' },
+        { bot: `✅ *NF \`899839\` entregue.* Parada 3 concluída.
+_Marquei a chegada junto com a entrega._
+
+➡️ *Próxima parada*
+
+${stop(4, { prefix: '> ' })}
+
+*1* - 🚚 Seguir para a *parada 4*
+*2* - 📋 Escolher outra da lista
+*3* - 💤 Nada por enquanto` },
+      ] },
+      { caption: 'Canhoto: leitura, repetido e troca', msgs: [
+        { me: '🖼️ foto' },
+        { bot: `📸 *Este canhoto é da NF \`899836\`?*
+> 🏪 RETA ALIMENTOS LTDA · Sao Joaquim da Barra
+
+*1* - ✅ Sim, é dessa nota
+*2* - 🔄 Não, é de outra` },
+        { me: '🖼️ foto' },
+        { bot: `🔁 *Esse canhoto já tinha chegado.*
+NF \`899839\`, entregue às 23:41. Nada foi gravado de novo.` },
+        { me: '🖼️ outra foto' },
+        { bot: `⚠️ *A NF \`899839\` já tem um canhoto diferente deste.*
+
+*1* - 🔄 Trocar o canhoto _(vai para conferência do escritório)_
+*2* - 🗑️ Descartar esta foto` },
+        { me: '1' },
+        { bot: `🔄 *Canhoto da NF \`899839\` trocado.* O escritório vai conferir.` },
+      ] },
+      { caption: 'Foto que não parece canhoto', msgs: [
+        { me: '🖼️ foto' },
+        { bot: `🤔 *Essa foto não parece um canhoto assinado.*
+O que é?
+
+*1* - 📦 Foto da mercadoria
+*2* - 🧾 É o canhoto, sim
+*3* - 🗑️ Descartar` },
+        { me: '1' },
+        { bot: `📦 *Anotei como foto da mercadoria.*
+➡️ _Próximo passo:_ ela entra quando você mandar *entreguei* da nota.` },
+      ] },
+      { caption: 'Entrega fora da rota e nota já baixada', msgs: [
+        { me: 'entreguei 899857' },
+        { bot: `⚠️ *Fora da rota sugerida*
+Você está na *parada 3*, e a NF \`899857\` é da *parada 7*. Se achar melhor, pode registrar.
+
+${stop(7, { prefix: '>! ', head: '✅ *ENTREGA · PARADA 7*', noDistance: true })}
+
+*1* - ✅ Entreguei na *parada 7*
+*2* - ↩️ Foi engano, descartar
+
+_A parada 3 continua aberta. Responda 1 ou 2._` },
+        { me: 'entreguei 899839' },
+        { bot: `⚠️ *A entrega da NF \`899839\` já foi registrada* às 23:41.
+Nada foi gravado de novo.` },
+      ] },
+    ],
+  },
+  {
+    id: 'naoentreguei', title: '6. Não entreguei', note: 'motivo e registro',
+    chats: [
+      { caption: 'Motivo e registro', msgs: [
+        { me: 'nao entreguei 899836' },
+        { bot: `↩️ *Por que a NF \`899836\` não foi entregue?*
+> 🏪 RETA ALIMENTOS LTDA · Sao Joaquim da Barra
+
+*1* - 🚪 Destinatário ausente
+*2* - 🙅 Recusou receber
+*3* - 📍 Endereço não achado
+*4* - 📦 Carga avariada
+*5* - 🔒 Local fechado
+
+_Responda com o número do motivo._` },
+        { me: '5' },
+        { bot: `↩️ *NF \`899836\` não entregue* · Local fechado
+A nota volta com você para o armazém.
+
+➡️ *Próxima parada*
+
+${stop(5, { prefix: '> ' })}
+
+*1* - 🚚 Seguir para a *parada 5*
+*2* - 📋 Escolher outra da lista
+*3* - 💤 Nada por enquanto` },
+      ] },
+      { caption: 'Sem a nota', msgs: [
+        { me: 'nao entreguei' },
+        { bot: `↩️ *Qual nota não foi entregue?*
+Mande *não entreguei* com o número da nota.
+➡️ _Exemplo:_ não entreguei 899836` },
+      ] },
+    ],
+  },
+  {
+    id: 'ocorrencia', title: '7. Ocorrência', note: 'nota, tipo, contato, observação e registro',
+    chats: [
+      { caption: 'Perguntas', msgs: [
+        { me: '5' },
+        { bot: `⚠️ *Em qual nota é a ocorrência?*
+
+*1* - 🧾 NF \`899839\` · *RETA ALIMENTOS LTDA*
+*2* - 🧾 NF \`899836\` · *RETA ALIMENTOS LTDA*
+*3* - 🧾 NF \`899862\` · *SUPERMERCADO SAO PAULO LTDA*
+
+_Responda com o número da opção ou da nota._` },
+        { me: '1' },
+        { bot: `⚠️ *Qual ocorrência?*
+> 🧾 NF \`899839\` · RETA ALIMENTOS LTDA
+
+*1* - 💸 Prorrogação do boleto
+*2* - 📦 Avaria parcial
+*3* - ⏰ Cliente pediu outro dia
+
+_Responda com o número ou o nome._` },
+        { me: '1' },
+        { bot: `📇 *Contato do cliente para o boleto*
+O cliente já tem este contato:
+> 📱 *(16) ****-4821*
+
+*1* - ✅ Usar este contato
+Ou escreva outro telefone com DDD ou e-mail.
+_Sem contato agora? Responda continuar e o boleto volta aqui pelo grupo._` },
+        { me: '1' },
+        { bot: `📝 *Quer acrescentar uma observação?*
+Escreva agora. _Se não, responda pular._` },
+      ] },
+      { caption: 'Confirmação e registro', msgs: [
+        { me: 'cliente pediu 10 dias' },
+        { bot: `📋 *Confira a ocorrência*
+
+> ⚠️ *Prorrogação do boleto*
+> 🧾 NF \`899839\` · *RETA ALIMENTOS LTDA*
+> 🏢 Contratante: COMERCIAL ZARAGOZA IMP EXP LTDA
+> 📍 R. 18, 1240 – Centro, Guaira/SP
+> 💰 Valor da nota: *R$ 4.812,30*
+
+📝 Observação: _cliente pediu 10 dias_
+📇 Contato: *(16) ****-4821*
+
+*Posso registrar?*
+*1* - ✅ Sim, registrar
+*2* - ❌ Não, cancelar` },
+        { me: '1' },
+        { bot: `✅ *Ocorrência registrada* · 23:52
+
+> ⚠️ *Prorrogação do boleto*
+> 🧾 NF \`899839\` · *RETA ALIMENTOS LTDA*
+> 📇 Contato: *(16) ****-4821*
+
+📨 Assim que a contratante responder, o boleto segue para o cliente e eu aviso aqui.` },
+      ] },
+      { caption: 'Quando só o app consegue', msgs: [
+        { me: '2' },
+        { bot: `📱 *Esta ocorrência é registrada pelo aplicativo.*
+_Avaria parcial_ pede para apontar os produtos da nota, e isso o WhatsApp não faz.
+➡️ _Próximo passo:_ abra o app, na parada 3, e toque em *Ocorrência*.` },
+      ] },
+    ],
+  },
+  {
+    id: 'boleto', title: '8. Boleto', note: 'retorno da contratante e pedir de novo',
+    chats: [
+      { caption: 'Boleto chegou', msgs: [
+        { bot: `📄 *Boleto atualizado · NF \`899839\`*
+> 🏪 RETA ALIMENTOS LTDA
+> ⚠️ Prorrogação do boleto
+
+📨 A contratante respondeu e o boleto já foi enviado ao cliente: *(16) ****-4821*.
+
+✅ *Antes de pagar, o cliente confere:*
+💰 o valor · 📅 o vencimento · 🏦 o beneficiário
+
+🏁 *Ocorrência concluída.*` },
+      ] },
+      { caption: 'Ainda não chegou e pedir de novo', msgs: [
+        { bot: `⏳ *NF \`899839\` · o boleto ainda não chegou*
+A contratante não respondeu no prazo, e o escritório já foi avisado.
+
+➡️ _Para pedir de novo:_ me marque e escreva *pedir boleto de novo 899839*` },
+        { me: '@Fernandes Transportadora STG pedir boleto de novo 899839' },
+        { bot: `📨 *Pedi de novo o boleto da NF \`899839\`.*
+Assim que a contratante responder, ele vem para cá.` },
+      ] },
+    ],
+  },
+  {
+    id: 'fechar', title: '9. Encerrar a rota', note: 'atendente no grupo',
+    chats: [
+      { caption: 'Com nota em aberto', msgs: [
+        { me: '@Fernandes Transportadora STG encerrar rota' },
+        { bot: `🏁 *Encerrar a rota?*
+⚠️ Ainda há *2 notas em aberto*: NF \`899862\` e NF \`899857\`.
+
+*1* - ✅ Sim, encerrar
+*2* - ↩️ Não, deixar aberta` },
+        { me: '1' },
+        { bot: `🏁 *Rota encerrada.* As notas em aberto voltam para o escritório tratar.` },
+      ] },
+    ],
+  },
+  {
+    id: 'erros', title: '10. Tempo, áudio e erros', note: 'o que o bot diz quando algo não dá certo',
+    chats: [
+      { caption: 'Pedido sem resposta', msgs: [
+        { bot: `⏳ *Ainda espero sua resposta.*
+Se ninguém responder nos próximos minutos, eu encerro este pedido.` },
+        { bot: `⏰ *Pedido encerrado sem resposta.* Nada foi registrado.
+➡️ _Próximo passo:_ para recomeçar, é só me marcar de novo.` },
+        { bot: `🙋 *Não consegui entender depois de 3 tentativas* e encerrei o pedido.
+O escritório vai acompanhar por aqui.` },
+      ] },
+      { caption: 'Áudio', msgs: [
+        { me: '🎙️ 0:06' },
+        { bot: `🎙️ _Escutando seu áudio, só um momento._` },
+        { bot: `🎙️ *Entendi assim:*
+> 💬 _"entreguei a nota oito nove nove oito três nove"_
+
+🧾 NF \`899839\` · *RETA ALIMENTOS LTDA* · Guaira
+
+*Está certo?*
+*1* - ✅ Sim, pode seguir
+*2* - ❌ Não, descartar
+
+_Responda com o número ou por áudio (sim ou não)._` },
+      ] },
+      { caption: 'Recusas', msgs: [
+        { bot: `🚫 *Essa nota não está mais na viagem do motorista.*
+➡️ _Próximo passo:_ confira com o escritório.` },
+        { bot: `🔒 *O motorista deste grupo ainda não tem acesso ao aplicativo.*
+O registro precisa ficar no nome dele.
+➡️ _Próximo passo:_ peça ao escritório para liberar o acesso, ou registre pelo painel.` },
+        { bot: `⚠️ *Não consegui registrar agora.*
+➡️ _Próximo passo:_ tente de novo em instantes, ou registre pelo aplicativo.` },
+      ] },
+    ],
+  },
+  {
+    id: 'atendente', title: '11. Atendente', note: 'baixa de várias notas pelo escritório',
+    chats: [
+      { caption: 'Baixa em lote', msgs: [
+        { me: '@Fernandes Transportadora STG entreguei 899862 899859 899857 899839' },
+        { bot: `📋 *Baixa pelo escritório*
+
+✅ *Baixadas:* NF \`899862\`, NF \`899859\`
+🧾 *Canhoto pendente:* NF \`899857\`
+🔁 *Já estavam baixadas:* NF \`899839\`
+
+➡️ _Próximo passo:_ o canhoto pendente pode ser mandado aqui por foto.` },
+      ] },
+    ],
+  },
+];
+
+/* ——— renderização das mensagens no estilo do WhatsApp ——— */
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function inline(text) {
+  let html = escapeHtml(text);
+  html = html.replace(/(https?:\/\/[^\s]+)/g, (url) => `<a class="u" href="${url}" target="_blank" rel="noopener">${url}</a>`);
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/(^|[\s(>])\*([^*\n]+)\*/g, '$1<b>$2</b>');
+  html = html.replace(/(^|[\s(>])_([^_\n]+)_/g, '$1<i>$2</i>');
+  html = html.replace(/@(Anderson Fernandes|Fernandes Transportadora STG)/g, '<span class="mention">@$1</span>');
+  return html;
+}
+function renderText(text) {
+  const lines = text.split('\n');
+  let html = '';
+  let quote = null;
+  const closeQuote = () => { if (quote) { html += `<span class="q${quote.warn ? ' warn' : ''}">${quote.html}</span>`; quote = null; } };
+  for (const line of lines) {
+    const warn = line.startsWith('>! ');
+    const plain = line.startsWith('> ');
+    if (warn || plain) {
+      const body = line.slice(warn ? 3 : 2);
+      if (!quote || quote.warn !== warn) { closeQuote(); quote = { warn, html: '' }; }
+      quote.html += `<span class="l">${inline(body)}</span>`;
+      continue;
+    }
+    closeQuote();
+    html += `<span class="l">${line === '' ? '' : inline(line)}</span>`;
+  }
+  closeQuote();
+  return html;
+}
+function renderChat(chat) {
+  let time = 21 * 60 + 58;
+  const bubbles = chat.msgs.map((message) => {
+    const clock = `${String(Math.floor(time / 60) % 24).padStart(2, '0')}:${String(time % 60).padStart(2, '0')}`;
+    time += 1;
+    if (message.me) return `<div class="b out">${renderText(message.me)}<span class="t">${clock} ✓✓</span></div>`;
+    return `<div class="b in"><span class="who">Fernandes Transportadora STG</span>${renderText(message.bot)}<span class="t">${clock}</span></div>`;
+  }).join('');
+  return `<figure><figcaption>${escapeHtml(chat.caption)}</figcaption><div class="chat"><div class="top">Fernandes · Anderson (grupo)</div><div class="msgs">${bubbles}</div></div></figure>`;
+}
+document.getElementById('index').innerHTML = flows.map((flow) => `<a href="#${flow.id}">${escapeHtml(flow.title)}</a>`).join('');
+document.getElementById('flows').innerHTML = flows.map((flow) => `
+  <section class="flow" id="${flow.id}">
+    <h2>${escapeHtml(flow.title)} <span>${escapeHtml(flow.note)}</span></h2>
+    <div class="chats">${flow.chats.map(renderChat).join('')}</div>
+  </section>`).join('');
+</script>
