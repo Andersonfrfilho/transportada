@@ -299,8 +299,8 @@ Migration A aditiva (`db:generate` → `no_changes` depois; `make migration-test
 - **`company_driver_reminder_settings`** (uma linha por empresa; sem linha = desligado e padrões):
   `enabled bool default false`, `max_attempts`, `interval_minutes`, `grace_min_minutes`, `grace_percent`,
   `dwell_minutes`, `operating_hours jsonb` (`[{ weekday, start, end }]`, fuso da empresa). Horário de funcionamento não existe
-  hoje (levantamento); sem linha ou faixa vazia = sempre aberto. Feriado do calendário de dias úteis
-  (`company_business_calendar_settings` + feriados) conta como fechado.
+  hoje (levantamento); sem linha ou faixa vazia = sempre aberto. Feriado **nacional** (dono, 2026-11-07;
+  `listNationalHolidays`, no código) conta como fechado; estadual e municipal não.
 - Rollback: as duas tabelas são novas; derrubar = `DROP` em migration B com aprovação — não previsto.
 
 ## Contratos / API

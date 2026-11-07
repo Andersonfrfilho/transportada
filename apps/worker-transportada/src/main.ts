@@ -132,6 +132,9 @@ import { createDrizzleAggregateAttachmentWriteBackRepository } from './aggregate
 import { createThreadedCnhFaceGateway } from './cnh-face/infrastructure/threaded-cnh-face.gateway.js'
 import { createCnhPictureApiGateway } from './cnh-face/infrastructure/cnh-picture-api.gateway.js'
 import { createStorageAttachmentReaderGateway } from './aggregate-attachment/infrastructure/storage-attachment-reader.gateway.js'
+import { createDriverStopReminderRoutine } from './driver-stop-reminders/application/driver-stop-reminder.routine.js'
+import { createDriverStopReminderApiGateway } from './driver-stop-reminders/infrastructure/driver-stop-reminder-api.gateway.js'
+import { createDrizzleDriverStopReminderQueue } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-queue.repository.js'
 import { createCanhotoImageReader } from './canhoto-read/application/canhoto-image-reader.service.js'
 import { createCanhotoReadRoutine } from './canhoto-read/application/canhoto-read.routine.js'
 import { createCanhotoReviewApiGateway } from './canhoto-read/infrastructure/canhoto-review-api.gateway.js'
@@ -1781,6 +1784,22 @@ export async function startWorkerRuntime(
                     database.db as ReturnType<typeof createDrizzleProvider>['db'],
                   ),
                   reviewApi: createCanhotoReviewApiGateway({ configuration: config.mdfeAutoIssue }),
+                }),
+                /**
+                 * Spec 299 T2.4: registrada sempre que o crachá existe (como a leitura do canhoto); com
+                 * `DRIVER_REMINDERS_ENABLED=false` o ciclo fecha `succeeded` sem ler nada.
+                 */
+                ['driver.stop-reminder.dispatch' as const]: createDriverStopReminderRoutine({
+                  enabled: config.driverRemindersEnabled,
+                  errorTracker,
+                  logger,
+                  now: () => new Date(),
+                  queue: createDrizzleDriverStopReminderQueue(
+                    database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                  ),
+                  reminderApi: createDriverStopReminderApiGateway({
+                    configuration: config.mdfeAutoIssue,
+                  }),
                 }),
                 ['occurrence.automatic-mail.sweep' as const]:
                   createOccurrenceAutomaticMailSweepRoutine({

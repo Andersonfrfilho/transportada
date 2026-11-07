@@ -77,6 +77,8 @@ describe('authorization contract', () => {
       'whatsapp.settle',
       // Spec 222 / ADR-0092 §2: a leitura automática do canhoto, do serviço e de uma rota só
       'trip.canhoto-auto-review',
+      // Spec 299: a entrega do lembrete ao motorista, do serviço e de uma rota só
+      'trip.stop-reminder-dispatch',
       // Spec 248 T4.4b: o aviso automático da ocorrência, do serviço e de uma rota só
       'occurrence.automatic-mail',
       'driver.cnh-picture',
@@ -211,6 +213,7 @@ describe('authorization contract', () => {
         'mdfe.auto-issue',
         'whatsapp.settle',
         'trip.canhoto-auto-review',
+        'trip.stop-reminder-dispatch',
         'occurrence.automatic-mail',
       ],
       'cnh-picture-service': ['driver.cnh-picture'],
@@ -459,6 +462,7 @@ describe('authorization contract', () => {
         permission !== 'mdfe.auto-issue' &&
         permission !== 'whatsapp.settle' &&
         permission !== 'trip.canhoto-auto-review' &&
+        permission !== 'trip.stop-reminder-dispatch' &&
         permission !== 'occurrence.automatic-mail' &&
         permission !== 'driver.cnh-picture' &&
         permission !== 'deliveries.track' &&
@@ -782,6 +786,7 @@ describe('permissão de serviço (spec 144 T014b)', () => {
       'mdfe.auto-issue',
       'whatsapp.settle',
       'trip.canhoto-auto-review',
+      'trip.stop-reminder-dispatch',
       'occurrence.automatic-mail',
       'driver.cnh-picture',
     ])
@@ -847,6 +852,7 @@ describe('permissão de serviço (spec 144 T014b)', () => {
       'mdfe.auto-issue',
       'whatsapp.settle',
       'trip.canhoto-auto-review',
+      'trip.stop-reminder-dispatch',
       'occurrence.automatic-mail',
     ])
   })

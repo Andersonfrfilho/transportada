@@ -11,6 +11,8 @@ import {
   createGroupDriverFlow,
   GROUP_STEP_REGISTRY,
 } from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
+import { createGroupReminderFlow } from '../../src/whatsapp/application/whatsapp-group-reminder-flow.service.js'
+import { CATALOG_BOT_SPEECH } from '../../src/whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import { GROUP_OCCURRENCE_STEP } from '../../src/whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 import type {
   GroupFlowOutcome,
@@ -27,6 +29,7 @@ type Owner =
   | 'stop'
   | 'driver'
   | 'journey'
+  | 'reminder'
   | 'return'
 type Calls = Record<'close' | 'delivery' | 'occurrence' | 'return', string[]>
 
@@ -70,6 +73,11 @@ function setup() {
           : null,
       start: async () => spy('occurrence', 'start'),
     },
+    reminder: createGroupReminderFlow({
+      postpone: async () => ({ outcome: 'postponed' }),
+      readNoteNumber: async () => '1',
+      speech: CATALOG_BOT_SPEECH,
+    }),
     return: {
       answer: async (turn: GroupFlowTurn) => spy('return', turn.request.step),
       begin: async () => spy('return', 'begin'),
@@ -98,6 +106,11 @@ const TARGET = { documentNumber: '1', event: 'depart', stopId: 'S1' }
 /** O menu das ações: o "1" e o "2" ficam no fluxo das paradas (nada a registrar, lista de saída). */
 const JOURNEY_ACTIONS = [{ kind: 'none' }, { kind: 'choose_departure' }]
 
+const REMINDER_STATE = {
+  arrival: { reminderId: 'REM1', stage: 'arrival', tripStopId: 'S1' },
+  settlement: { reminderId: 'REM1', stage: 'settlement', tripStopId: 'S1' },
+} as const
+
 const PENDING: readonly {
   readonly owner: Owner
   readonly state: Record<string, unknown>
@@ -110,6 +123,8 @@ const PENDING: readonly {
   { owner: 'close', state: {}, step: 'close.confirm' },
   { owner: 'delivery', state: {}, step: 'delivery.collect' },
   { owner: 'driver', state: {}, step: 'menu' },
+  { owner: 'reminder', state: REMINDER_STATE.arrival, step: 'reminder.stage' },
+  { owner: 'reminder', state: REMINDER_STATE.settlement, step: 'reminder.stage' },
   { owner: 'journey', state: { journeyActions: JOURNEY_ACTIONS }, step: 'journey.actions' },
   {
     owner: 'return',
@@ -129,16 +144,27 @@ const OWNED_CALLS: Record<Owner, keyof Calls | undefined> = {
   driver: undefined,
   journey: undefined,
   occurrence: 'occurrence',
+  reminder: undefined,
   return: 'return',
   route: undefined,
   stop: undefined,
+}
+
+/** O lembrete só abre os fluxos que já existem (`begin`/`start`); nunca responde por eles (`answer`). */
+const REMINDER_DELEGATIONS: Partial<Record<keyof Calls, string[]>> = {
+  delivery: ['begin'],
+  occurrence: ['start'],
+  return: ['begin'],
 }
 
 function expectOnlyOwnerCalled(calls: Calls, owner: Owner): void {
   for (const name of ['close', 'delivery', 'occurrence', 'return'] as const) {
     if (OWNED_CALLS[owner] === name) continue
     // O menu abre a ocorrência quando o motorista escreve a frase inteira (spec 292): só o `start`.
-    const allowed = owner === 'driver' && name === 'occurrence' ? ['start'] : []
+    const allowed =
+      (owner === 'driver' && name === 'occurrence') || owner === 'reminder'
+        ? (REMINDER_DELEGATIONS[name] ?? [])
+        : []
     expect(calls[name].filter((call) => !allowed.includes(call))).toEqual([])
   }
 }

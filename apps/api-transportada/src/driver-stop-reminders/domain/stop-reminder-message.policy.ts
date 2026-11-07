@@ -8,6 +8,7 @@ import {
   DRIVER_STOP_REMINDER_SPEECH_NODE,
   DRIVER_STOP_REMINDER_STAGE,
 } from './driver-stop-reminder.constant.js'
+import type { DriverStopReminderStage } from '../../shared/driver-stop-reminder.constant.js'
 import type {
   DecideStopReminderPostponementParams,
   StopReminderChoiceAction,
@@ -46,6 +47,16 @@ function buildOptions(
   actions: readonly StopReminderChoiceAction[],
 ): StopReminderMessage['options'] {
   return actions.map((action, index) => ({ choice: String(index + 1), action }))
+}
+
+/** A ação da opção numerada (1–4) daquela etapa; `undefined` fora do cardápio da mensagem. */
+export function resolveStopReminderChoice(params: {
+  readonly stage: DriverStopReminderStage
+  readonly choice: number
+}): StopReminderChoiceAction | undefined {
+  const actions =
+    params.stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT ? SETTLEMENT_ACTIONS : ARRIVAL_ACTIONS
+  return actions[params.choice - 1]
 }
 
 export function buildStopReminderMessage(input: StopReminderMessageInput): StopReminderMessage {

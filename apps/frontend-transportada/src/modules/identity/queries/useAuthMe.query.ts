@@ -79,6 +79,8 @@ export const COMPANY_PERMISSIONS = [
   'whatsapp.settle',
   /** Spec 222 / ADR-0092: também de máquina — a leitura automática do canhoto, sem tela. */
   'trip.canhoto-auto-review',
+  /** Spec 299: também de máquina — a entrega do lembrete vencido ao motorista, sem tela. */
+  'trip.stop-reminder-dispatch',
   /** Spec 248 T4.4b: também de máquina — o aviso automático da ocorrência à contratante, sem tela. */
   'occurrence.automatic-mail',
   'driver.cnh-picture',

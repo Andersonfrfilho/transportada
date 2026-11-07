@@ -13,6 +13,8 @@ import { createDriverStopReminderRuntime } from '../../src/driver-stop-reminders
 import { geocodedAddresses } from '../../src/database/geocoding.schema.js'
 import { driverStopReminders } from '../../src/database/driver-stop-reminder.schema.js'
 import { tripDocuments, tripStopEvents, tripStops } from '../../src/database/trip.schema.js'
+import { reconcileStopOnUnlink } from '../../src/trips/application/reconcile-trip-stops.use-case.js'
+import type { ApiLogger } from '../../src/shared/api.types.js'
 import { cancelTrip } from '../../src/trips/application/cancel-trip.use-case.js'
 import type { ReportedLocation } from '../../src/trips/application/driver-field-report.port.js'
 import { cancelStopDeparture } from '../../src/trips/application/cancel-stop-departure.use-case.js'
@@ -317,21 +319,51 @@ describe('o lembrete abre e fecha com os eventos da parada (spec 299 T1.4)', () 
     })
   })
 
-  testWithPostgres('a chegada marcada junto com a baixa não abre a entrega', async () => {
-    await withDisposableDatabase(async (database) => {
-      const world = await seedWorld(database)
-      const { runtime, unitOfWork } = enabledUnitOfWork(world)
+  testWithPostgres(
+    'a chegada marcada junto com a baixa que fecha a parada deixa a entrega fechada',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const { runtime, unitOfWork } = enabledUnitOfWork(world)
 
-      await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'))
-      await settle(world, unitOfWork, new Date(), 'delivery')
-      await runtime.idle()
-      const rows = await readReminders(world)
+        await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'))
+        await settle(world, unitOfWork, new Date(), 'delivery')
+        await runtime.idle()
+        const rows = await readReminders(world)
 
-      expect(rows).toHaveLength(1)
-      expect(rows[0]).toMatchObject({ stage: 'arrival', status: 'closed' })
-      expect(rows.some((row) => row.stage === 'settlement')).toBe(false)
-    })
-  })
+        expect(rows).toHaveLength(2)
+        expect(rows.find((row) => row.stage === 'arrival')).toMatchObject({ status: 'closed' })
+        expect(rows.find((row) => row.stage === 'settlement')).toMatchObject({
+          closedReason: 'stop_closed',
+          status: 'closed',
+        })
+      })
+    },
+  )
+
+  testWithPostgres(
+    'a chegada marcada junto com a baixa que não fecha a parada abre a entrega',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        await seedExtraDocument(database, world.company, world.trip, {
+          separationStatus: 'loaded',
+          stopId: world.trip.stopId,
+        })
+        const { runtime, unitOfWork } = enabledUnitOfWork(world)
+
+        await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'))
+        await settle(world, unitOfWork, new Date(), 'delivery')
+        await runtime.idle()
+        const rows = await readReminders(world)
+
+        expect(rows.find((row) => row.stage === 'arrival')).toMatchObject({ status: 'closed' })
+        expect(rows.find((row) => row.stage === 'settlement')).toMatchObject({
+          status: 'pending',
+        })
+      })
+    },
+  )
 
   for (const outcome of ['delivery', 'return'] as const) {
     testWithPostgres(`a baixa por ${outcome} que fecha a parada fecha a entrega`, async () => {
@@ -647,27 +679,51 @@ describe('correções da revisão do PR 566 (spec 299)', () => {
     })
   })
 
-  testWithPostgres('remover a parada (cascata da FK) não deixa lembrete pendente', async () => {
-    await withDisposableDatabase(async (database) => {
-      const world = await seedWorld(database)
-      const { unitOfWork } = enabledUnitOfWork(world)
-      await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'))
-      expect(await readReminders(world)).toHaveLength(1)
+  testWithPostgres(
+    'remover a parada pelo desvínculo registra no log o lembrete que a cascata apaga',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedWorld(database)
+        const { unitOfWork } = enabledUnitOfWork(world)
+        await depart(world, unitOfWork, new Date('2026-11-06T10:00:00.000Z'))
+        const [pending] = await readReminders(world)
+        expect(pending).toBeDefined()
+        const logged: { message: string; metadata: Record<string, unknown> | undefined }[] = []
+        const logger: ApiLogger = {
+          error: () => undefined,
+          info: (message, metadata) => void logged.push({ message, metadata }),
+          warn: () => undefined,
+        }
 
-      await world.database.db
-        .update(tripDocuments)
-        .set({ stopId: null })
-        .where(eq(tripDocuments.id, world.trip.documentId))
-      await world.database.db.transaction((transaction) =>
-        createTripStopReconciliationPort(transaction).deleteStop({
-          companyId: world.company.companyId,
-          stopId: world.trip.stopId,
-        }),
-      )
+        await world.database.db
+          .update(tripDocuments)
+          .set({ stopId: null })
+          .where(eq(tripDocuments.id, world.trip.documentId))
+        const result = await world.database.db.transaction((transaction) =>
+          reconcileStopOnUnlink({
+            companyId: world.company.companyId,
+            repository: createTripStopReconciliationPort(transaction, logger),
+            stopId: world.trip.stopId,
+          }),
+        )
 
-      expect(await readReminders(world)).toHaveLength(0)
-    })
-  })
+        expect(result.deleted).toBe(true)
+        expect(await readReminders(world)).toHaveLength(0)
+        expect(logged).toEqual([
+          {
+            message: 'driver_stop_reminder_discarded_with_stop',
+            metadata: {
+              companyId: world.company.companyId,
+              reason: 'stop_removed',
+              reminderId: pending?.id,
+              stage: 'arrival',
+              tripStopId: world.trip.stopId,
+            },
+          },
+        ])
+      })
+    },
+  )
 
   testWithPostgres('a baixa do escritório que não fecha a parada fecha a chegada', async () => {
     await withDisposableDatabase(async (database) => {
