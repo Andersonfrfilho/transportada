@@ -27,3 +27,19 @@
 - **Consequência para a T6.1:** trocar o padrão e republicar não leva o texto novo a nenhum nó já semeado. Proposta
   (decisão pendente, registrada em `plan.md`): a publicação regrava só o nó cujo texto vivo é igual ao da última
   versão `source=code`; nó com texto diferente disso (editado no painel) fica. Rodar em staging/produção pede aprovação.
+
+## Fase 1
+
+### T1.1 / T1.2 (executor `sonnet`)
+
+- Contrato: `test/whatsapp-commands/whatsapp-message-format.contract.ts` (13 testes, texto inteiro com `toBe`), ligado em
+  `test/whatsapp-commands.contract.test.ts`. Vermelho pelo motivo certo: `Cannot find module ...whatsapp-message-format.policy.js`
+  (commit `df9f59317`).
+- Módulo: `src/whatsapp-commands/domain/whatsapp-message-format.policy.ts` (~125 linhas). Citação `right` e `off-route` usam o
+  mesmo prefixo `> ` (o `>!` laranja do desenho não existe no WhatsApp).
+- Gates: o contrato novo 13 pass / 0 fail · `bun run typecheck` limpo · `bun test --timeout 120000` 14313 pass / 26 skip /
+  0 fail (224 arquivos) · eslint e prettier limpos nos arquivos tocados.
+- `test:integration`: **não concluído** (interrompido). Carga da máquina em ~32 (outras sessões pesadas): cada arquivo
+  espera mais de 10 s só no `migrate` do banco descartável e o comando não passou do 2º arquivo em ~6 min (duas tentativas,
+  a primeira morta pelo `timeout 580`). A mudança é um módulo puro novo e não toca banco nem `test/integration/**`; rodar a
+  integração completa na T2.1 (que mexe na consulta) com a máquina livre.

@@ -27,10 +27,10 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T1.1** Contratos vermelhos de `whatsapp-message-format.policy.ts` (RF1–RF3c, RF7b): bloco nas duas variantes,
+- [x] **T1.1** Contratos vermelhos de `whatsapp-message-format.policy.ts` (RF1–RF3c, RF7b): bloco nas duas variantes,
       cabeçalhos, citação certa/fora da rota, linha que some sem dado, link `dir`, "não entendi" com opções por extenso.
       Aceite: contrato vermelho pelo motivo certo.
-- [ ] **T1.2** Implementar o módulo. Aceite: T1.1 verde, typecheck.
+- [x] **T1.2** Implementar o módulo. Aceite: T1.1 verde, typecheck.
 
 ## Fase 2 — Dados novos da lista
 
