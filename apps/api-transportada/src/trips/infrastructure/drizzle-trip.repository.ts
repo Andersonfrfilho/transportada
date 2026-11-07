@@ -181,6 +181,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   private readonly cargoLayoutLeaseMs: number
   private readonly packageBoxLookup: PendingMeasurementBoxLookupPort
   private readonly deliveryDeadlineContext: DeliveryDeadlineReadContext | undefined
+  private readonly logger: ApiLogger | undefined
 
   public constructor(
     private readonly database: TripDatabase,
@@ -195,6 +196,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
     this.cargoLayoutLeaseMs = options.cargoLayoutLeaseMs
     this.packageBoxLookup = dependencies.packageBoxLookup ?? noPendingMeasurementBoxLookup
+    this.logger = dependencies.logger
     this.deliveryDeadlineContext =
       dependencies.clock === undefined
         ? undefined
@@ -1159,7 +1161,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     if (previousStopId !== null) {
       await reconcileStopOnUnlink({
         companyId: input.companyId,
-        repository: createTripStopReconciliationPort(transaction),
+        repository: createTripStopReconciliationPort(transaction, this.logger),
         stopId: previousStopId,
       })
     }

@@ -384,3 +384,59 @@ Verde: `driver-stop-reminders.integration.ts` 22 pass, 0 fail; `stop-reminder-tr
   do `startDemoApi` (`conversation-smoke.helper.ts:52`) com o processo em `stdio: 'ignore'`; o log não traz erro do processo.
   Os outros 64 passaram, inclusive os que usam a mesma API de demo. Hipótese: partida lenta de `bun run` no runner carregado.
   Não reproduzido localmente; se repetir no re-run, aumentar `DEMO_BOOT_TIMEOUT_MS` ou deixar o stderr do filho visível.
+
+## Revisão PR 566 — médios
+
+Três itens médios da revisão do PR 566. Cada um nasceu de um teste vermelho.
+
+| #   | Item                                                           | Correção                                                                                                                                                                                                                                                                                                     |
+| --- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A1  | Remover a parada apaga o lembrete pendente sem trilha de fecho | Fechar antes do `DELETE` seria um `UPDATE` apagado pela cascata (`driver_stop_reminders_company_trip_stop_fk ON DELETE CASCADE`), então o rastro vai ao log estruturado: `driver_stop_reminder_discarded_with_stop` com `companyId`, `reminderId`, `stage`, `tripStopId`, `reason: 'stop_removed'` (sem PII) |
+| A2  | Chegada marcada junto com baixa que não fecha a parada         | A chegada marcada junto agora abre `settlement`; a baixa que fecha a parada a fecha com `stop_closed` na mesma transação (fica uma linha `closed`, é o histórico). Ver suposição abaixo                                                                                                                      |
+| A3  | `open()` engolia qualquer erro e logava só o nome              | Só falha do banco (SQLSTATE em `errno`, no erro ou no `cause`) é engolida, e o log ganha `sqlState`; qualquer outro erro propaga                                                                                                                                                                             |
+
+**A1, o que foi plugado:** `createTripStopReconciliationPort(transaction, logger?)` chama `logStopRemindersRemovedWithStop` antes do
+`DELETE`. O logger chega por `DrizzleTripRepository` (`releaseDocumentWithin`, o desvínculo em viagem despachada). Os outros
+chamadores do porto (`drizzle-delivery-address-override`, `trip-document-review-link`) não têm logger hoje e seguem sem log —
+sem regressão, mas sem rastro; plugar quando um deles passar a atuar em viagem com lembrete. O `DELETE` de
+`releaseUnloadedDocuments` (`drizzle-trip-route.repository.ts`) roda dentro da própria transição para despachada, antes de
+qualquer saída, e portanto antes de existir lembrete: não ganhou log.
+
+**Suposição (reversível):** chegada marcada junto com uma baixa que **não** fecha a parada abre `settlement` (o motorista segue na
+parada com documentos pendentes); só não fica aberta quando a baixa fecha a parada (RF2). Reverter é voltar a condição
+`event.recordedTogether ||` em `decideArrival`.
+
+### Vermelho → verde
+
+- A1: `remover a parada pelo desvínculo registra no log o lembrete que a cascata apaga` (por `reconcileStopOnUnlink`, viagem
+  despachada com `arrival` pendente): `Expected` 1 entrada de log, `Received` `[]`. Verde: 22 pass.
+- A2: contrato `arrived marcada junto com a baixa fecha arrival e abre settlement`: 23 pass / 1 fail; integração
+  `...baixa que não fecha a parada abre a entrega` e `...que fecha a parada deixa a entrega fechada`: 2 fail. Verde:
+  contrato 24 pass; integração 23 pass.
+- A3: contrato `driver-stop-reminder-open-failure.contract.ts`: log sem `sqlState` e `Received promise that resolved` para o erro
+  de programação. Verde: 2 pass.
+
+## T2.1 — 2026-11-07
+
+**Pré-requisito conferido:** o suporte de menção do grupo (PR #564 `work/group-mention`, merge `00920a499`) está na base deste
+branch e em `origin/staging`. Nada foi reimplementado.
+
+- `withGroupMention` extraída (função pura) em `src/whatsapp/application/whatsapp-group-mention.service.ts`; o
+  `evolution-group-reply.gateway.ts` passou a usá-la, sem mudar comportamento (`one-reply-one-message` e
+  `group-request-session` seguem verdes).
+- `createGroupStopReminderSender` (porta `group-stop-reminder-sender.port.ts` + adaptador
+  `group-stop-reminder-sender.gateway.ts`): lê o número do motorista **atual** da viagem na hora do envio
+  (`readCurrentDriverNumber`, implementação real fica para a T2.2), aplica `withGroupMention` e chama
+  `createEvolutionDocumentSender().sendText({ mentionNumber })`, que devolve o id do provedor e lança se falhar. Fora de qualquer
+  turno, então nunca é fundido em outra resposta.
+- Contrato `group-stop-reminder-sender.contract.ts`: pede a menção do motorista atual e o corpo traz `@<número>`; troca de
+  tripulação marca o atual; sem telefone válido sai sem marca; falha sobe. Vermelho: `Cannot find module` (0 pass / 1 fail).
+
+### Gates (de `apps/api-transportada`)
+
+- `bun run typecheck`: limpo. eslint e prettier nos 14 arquivos tocados (A e B): limpos.
+- `bun run test`: 14299 pass, 35 skip, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000`: 14308 pass, 26 skip, 0 fail.
+- Integração (cada arquivo isolado, `--env-file=../../.env.test`): driver-stop-reminders 23, trip-lifecycle 6, trip-repository 5,
+  stop-event-sequence 10; todos 0 fail. Os mesmos gates valem para a seção "Revisão PR 566 — médios" (rodados uma vez, sobre as
+  duas mudanças).
