@@ -710,3 +710,16 @@ Saída às *12:00*
 *3* - Tive um problema (abrir ocorrência)
 *4* - Ainda estou a caminho
 ```
+
+## Hotfix — catálogo do cron (2026-11-07)
+
+**Causa.** O catálogo do cron (`apps/cron-transportada/src/shared/job-catalog.constant.ts`) não tinha `driver.stop-reminder.dispatch`, que existe no worker, na API e no painel. Em `publishDueJob`, `schedules.start()` abre a linha em `job_executions` e só depois `jobRunEnvelopeV1Schema.parse` (job: `z.enum` do catálogo do cron) lançava `ZodError` **fora** do `try/catch` que fecha a execução com `publish_failure`. A linha ficava aberta (tudo NULL), bloqueava a rotina até a varredura de abandono de 900 s e o ciclo se repetia.
+
+**Evidência em staging.** Execução `902dfcc5…` aberta desde 12:55:32 UTC; `cron_tick_job_still_running` às 13:02:31.
+
+**Correção.** (1) o `parse` do envelope entrou no `try/catch`, e a execução é fechada com `unexpected_error` (`JOB_TICK_PUBLISH_FAILURE_OUTCOME`) e contada em `failedCount`; (2) entrada copiada do catálogo do worker (ordem, piso, vocabulário); (3) contrato entre apps `test/job-catalog-parity.contract.test.ts` (raiz, ligado ao job `format` do `ci.yml`) compara as quatro cópias entrada a entrada.
+
+**Vermelho → verde.**
+
+- `apps/cron-transportada/test/tick/parse-failure.contract.ts`: vermelho com a linha da execução aberta (`finishedAt: undefined`, `outcome: undefined`); verde depois de mover o `parse`.
+- `test/job-catalog-parity.contract.test.ts`: vermelho com `summarize(cron)` sem a entrada `driver.stop-reminder.dispatch` (`Expected - 7`); verde depois de acrescentá-la.
