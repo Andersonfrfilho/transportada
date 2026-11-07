@@ -263,15 +263,26 @@ describe('entrega em preparo pelo WhatsApp', () => {
     ])
     expect(afterPhoto?.awaitingText).toBe(true)
     const afterName = await t.answer('Maria Souza')
-    expect(afterName?.texts.join('\n')).not.toContain('Maria')
-    expect(afterName?.texts.join('\n')).toContain('Confirma a entrega?')
+    expect(afterName?.texts).toEqual([
+      [
+        '📋 *Confira a entrega da NF `17234`*',
+        '',
+        '🧾 Canhoto: foto recebida ✅',
+        '🙋 Recebido por: *Maria Souza*',
+        '📍 Localização: não enviada',
+        '',
+        '*Confirma a entrega?*',
+        '*1* - ✅ Sim, confirmar',
+        '*2* - ❌ Não, cancelar',
+      ].join('\n'),
+    ])
     await t.answer('sim')
     expect(t.delivered).toHaveLength(1)
     expect(t.attached).toEqual([{ kind: 'photo', receivedBy: null, receiverName: 'Maria Souza' }])
     expect(t.objects.size).toBe(0)
   })
 
-  test('o "Confirma a entrega?" traz a nota e o que foi colhido, sem o nome de quem recebeu', async () => {
+  test('o "Confirma a entrega?" traz a nota e o que foi colhido', async () => {
     const t = setup({ ...OFF, photo: 'required', receivedBy: 'required' }, undefined, ACTOR, {
       describeDocument: async () => ({
         address: 'AV MONTE SERENO, 935, PRADOPOLIS, SP',
@@ -286,19 +297,20 @@ describe('entrega em preparo pelo WhatsApp', () => {
     const confirm = await t.answer('8')
     expect(confirm?.texts.at(-1)).toBe(
       [
-        '✅ *NF 17234 pronta para fechar.*',
-        '🏢 Contratante: COMERCIAL ZARAGOZA IMP EXP LTDA',
-        '👤 Cliente: AUTO POSTO MONTE SERENO LTDA',
-        '🏠 Endereço: AV MONTE SERENO, 935, PRADOPOLIS, SP',
-        '💰 Valor da nota: *R$ 801,46*',
+        '📋 *Confira a entrega da NF `17234`*',
         '',
-        '🧾 Canhoto: foto recebida',
-        '🙋 Recebido por: Porteiro',
+        '> 🏢 Contratante: COMERCIAL ZARAGOZA IMP EXP LTDA',
+        '> 🏪 Cliente: *AUTO POSTO MONTE SERENO LTDA*',
+        '> 📍 AV MONTE SERENO, 935, PRADOPOLIS, SP',
+        '> 💰 Valor da nota: *R$ 801,46*',
+        '',
+        '🧾 Canhoto: foto recebida ✅',
+        '🙋 Recebido por: *Porteiro*',
         '📍 Localização: não enviada',
         '',
         '*Confirma a entrega?*',
-        '*1* - Sim ✅',
-        '*2* - Não ❌',
+        '*1* - ✅ Sim, confirmar',
+        '*2* - ❌ Não, cancelar',
       ].join('\n'),
     )
   })
@@ -313,13 +325,13 @@ describe('entrega em preparo pelo WhatsApp', () => {
     const confirm = await t.answer('pular')
     expect(confirm?.texts.at(-1)).toBe(
       [
-        '✅ *NF 17234 pronta para fechar.*',
+        '📋 *Confira a entrega da NF `17234`*',
         '',
         '📍 Localização: não enviada',
         '',
         '*Confirma a entrega?*',
-        '*1* - Sim ✅',
-        '*2* - Não ❌',
+        '*1* - ✅ Sim, confirmar',
+        '*2* - ❌ Não, cancelar',
       ].join('\n'),
     )
     await t.answer('1')
@@ -399,7 +411,7 @@ describe('entrega em preparo pelo WhatsApp', () => {
     })
     // A confirmação já mostra a localização: o desfecho curto não vem antes dela.
     expect(reply?.texts).toHaveLength(1)
-    expect(reply?.texts[0]?.startsWith('✅ *NF 17234 pronta para fechar.*')).toBe(true)
+    expect(reply?.texts[0]?.startsWith('📋 *Confira a entrega da NF `17234`*')).toBe(true)
     await t.answer('1')
     expect(t.delivered[0]?.location?.latitude).toBe('-21.1')
   })
@@ -418,7 +430,7 @@ describe('entrega em preparo pelo WhatsApp', () => {
     await t.begin()
     await t.answer('pular')
     expect((await t.answer('2'))?.texts).toEqual([
-      'Entrega da NF 17234 cancelada. A nota continua aberta na viagem.',
+      '↩️ *Entrega da NF `17234` cancelada.* A nota continua aberta na viagem.',
     ])
     expect(t.delivered).toEqual([])
     expect(t.status()).toEqual(['cancelled'])
@@ -636,7 +648,7 @@ describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" enc
       awaitingText: false,
       documentNumber: '17234',
       finished: true,
-      texts: ['Entrega da NF 17234 cancelada. A nota continua aberta na viagem.'],
+      texts: ['↩️ *Entrega da NF `17234` cancelada.* A nota continua aberta na viagem.'],
     })
     expect(t.status()).toEqual(['cancelled'])
     expect(t.delivered).toEqual([])
@@ -648,7 +660,7 @@ describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" enc
     await t.answer('pular')
     await t.photo('M1')
     expect((await t.answer('cancelar', true))?.texts).toEqual([
-      'Entrega da NF 17234 cancelada. A nota continua aberta na viagem.',
+      '↩️ *Entrega da NF `17234` cancelada.* A nota continua aberta na viagem.',
     ])
     expect(t.status()).toEqual(['cancelled'])
   })

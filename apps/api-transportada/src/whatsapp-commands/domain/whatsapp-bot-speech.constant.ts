@@ -90,9 +90,11 @@ export const BOT_SPEECH_DEFAULTS = {
     '⚠️ *Você já está a caminho da parada {{sequence}}.*\nRegistre a chegada nela antes de sair para outra.',
   stopNotReachable: 'Essa parada não está mais disponível na viagem.',
   groupAlreadyRegistered: 'NF {{documentNumber}} já estava registrada.',
-  groupDeliveryRegistered: '*NF {{documentNumber}} entregue* ✅',
-  groupDeliveryStopCompleted: '*NF {{documentNumber}} entregue.* Parada concluída. ✅',
-  groupDeliveryTripCompleted: '*NF {{documentNumber}} entregue.* Viagem concluída. 🏁',
+  groupDeliveryRegistered: '✅ *NF `{{documentNumber}}` entregue.*',
+  groupDeliveryStopCompleted:
+    '✅ *NF `{{documentNumber}}` entregue.* Parada {{sequence}} concluída.',
+  groupDeliveryTripCompleted:
+    '✅ *NF `{{documentNumber}}` entregue.* Parada {{sequence}} concluída.',
   groupDocumentNotReachable: 'Essa nota não está mais disponível na viagem do motorista.',
   groupDriverWithoutAccess:
     'O motorista deste grupo ainda não tem acesso ao aplicativo, e o registro precisa ficar no nome dele. Cadastre o acesso ou registre pelo painel.',

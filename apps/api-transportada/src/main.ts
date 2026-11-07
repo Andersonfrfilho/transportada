@@ -1643,12 +1643,13 @@ export function bootstrap(): Bun.Server<undefined> {
       input.attendant === true
         ? whatsappOfficeDelivery.deliver(input)
         : deliverWhatsAppDriverDocument(whatsappDriverEventPorts, input),
-    describeResult: ({ channel, companyId, documentNumber, result }) =>
+    describeResult: ({ channel, companyId, documentNumber, result, stopSequence }) =>
       renderBotSpeechLine({
         companyId,
         line: describeWhatsAppDriverEventResult(result, {
           documentNumber,
           kind: channel === 'group' ? 'group' : 'driver',
+          ...(stopSequence === undefined ? {} : { stopSequence }),
         }),
         speech: whatsappBotSpeech,
       }),

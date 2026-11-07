@@ -14,6 +14,13 @@ import {
   type CollectedDeliveryProof,
 } from '../../src/whatsapp-commands/domain/whatsapp-delivery-proof-checklist.policy.js'
 import { DELIVERY_PROOF_SPEECH } from '../../src/whatsapp-commands/domain/whatsapp-delivery-proof-speech.constant.js'
+import {
+  describeDeliveryConfirmCollected,
+  describeDeliveryConfirmDocument,
+} from '../../src/whatsapp-commands/domain/whatsapp-delivery-confirm-summary.policy.js'
+import { describeWhatsAppDriverEventResult } from '../../src/whatsapp-commands/application/whatsapp-driver-event-speech.service.js'
+import { BOT_SPEECH_DEFAULTS } from '../../src/whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
+import { interpolateBotSpeech } from '../../src/whatsapp-commands/domain/whatsapp-bot-speech.policy.js'
 import { DEFAULT_DELIVERY_PROOF_SETTINGS } from '../../src/trips/domain/delivery-proof-settings.policy.js'
 
 const CLIENT = { city: 'Guaira', name: 'RETA ALIMENTOS LTDA' }
@@ -155,5 +162,86 @@ describe('spec 300 T4.1 — fluxo 5 Entreguei: escolha da nota e comprovante', (
       '*1* - 🙋 O próprio destinatário',
       '*2* - 💍 Cônjuge',
     ])
+  })
+
+  test('confirmação da entrega: nota em citação, o que foi colhido e as opções', () => {
+    expect(
+      DELIVERY_PROOF_SPEECH.confirm('899839', {
+        collected: describeDeliveryConfirmCollected({
+          canhotoPhotos: 1,
+          cargoPhotos: 0,
+          location: {
+            accuracyMeters: null,
+            capturedAt: '2026-11-07T00:00:00.000Z',
+            latitude: '-20.3',
+            longitude: '-48.3',
+          },
+          receivedBy: 'employee',
+          receiverName: 'João Pereira',
+          skipped: ['cargo'],
+        }),
+        document: describeDeliveryConfirmDocument({
+          address: 'R. 18, 1240 – Centro, Guaira/SP',
+          amount: '4812.30',
+          client: 'RETA ALIMENTOS LTDA',
+          contractor: 'COMERCIAL ZARAGOZA IMP EXP LTDA',
+        }),
+      }),
+    ).toBe(
+      [
+        '📋 *Confira a entrega da NF `899839`*',
+        '',
+        '> 🏢 Contratante: COMERCIAL ZARAGOZA IMP EXP LTDA',
+        '> 🏪 Cliente: *RETA ALIMENTOS LTDA*',
+        '> 📍 R. 18, 1240 – Centro, Guaira/SP',
+        '> 💰 Valor da nota: *R$ 4.812,30*',
+        '',
+        '🧾 Canhoto: foto recebida ✅',
+        '📦 Mercadoria: sem foto',
+        '🙋 Recebido por: *João Pereira* (funcionário do local)',
+        '📍 Localização: enviada ✅',
+        '',
+        '*Confirma a entrega?*',
+        '*1* - ✅ Sim, confirmar',
+        '*2* - ❌ Não, cancelar',
+      ].join('\n'),
+    )
+  })
+
+  test('"não entendi" da confirmação repete as opções', () => {
+    expect(DELIVERY_PROOF_SPEECH.confirmNotUnderstood).toBe(
+      [
+        '🤔 *Não entendi.* Responda com o número da opção:',
+        '*1* - ✅ Sim, confirmar',
+        '*2* - ❌ Não, cancelar',
+      ].join('\n'),
+    )
+  })
+
+  test('entrega registrada: nota e parada concluída, igual no grupo e na individual', () => {
+    const result = {
+      event: 'deliver',
+      kind: 'registered',
+      details: { proofPending: false, stopCompleted: true, tripCompleted: false },
+      recordedTogether: ['arrived'],
+    } as const
+    const render = (kind: 'driver' | 'group') => {
+      const line = describeWhatsAppDriverEventResult(result as never, {
+        documentNumber: '899839',
+        kind,
+        stopSequence: 3,
+      })
+      if (!('key' in line)) throw new Error('expected a catalog line')
+      return [
+        interpolateBotSpeech(BOT_SPEECH_DEFAULTS[line.key], line.params ?? {}),
+        ...(line.after ?? []),
+      ].join('\n')
+    }
+    const expected = [
+      '✅ *NF `899839` entregue.* Parada 3 concluída.',
+      '_Marquei a chegada junto com a entrega._',
+    ].join('\n')
+    expect(render('group')).toBe(expected)
+    expect(render('driver')).toBe(expected)
   })
 })

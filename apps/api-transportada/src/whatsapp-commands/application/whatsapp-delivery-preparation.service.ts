@@ -163,6 +163,8 @@ export type WhatsAppDeliveryPreparationPorts = {
     readonly companyId: string
     readonly documentNumber: string
     readonly result: WhatsAppDriverEventResult
+    /** A parada da nota, lida antes da baixa (depois dela a viagem pode já ter fechado); `undefined` sem a lista. */
+    readonly stopSequence?: number | undefined
   }) => Promise<string>
   /**
    * Spec 294 RF26: o canhoto da empresa com a mesma imagem (hash do conteúdo). Ausente, a foto repetida só é
@@ -356,6 +358,17 @@ export function createWhatsAppDeliveryPreparations(
     }
   }
 
+  async function stopSequenceOf(
+    preparation: WhatsAppDeliveryPreparation,
+  ): Promise<number | undefined> {
+    const stops = await ports
+      .listStops?.({ companyId: preparation.companyId, driverId: preparation.driverId })
+      .catch(() => undefined)
+    return stops?.find((candidate) =>
+      candidate.documents.some((document) => document.id === preparation.documentId),
+    )?.sequence
+  }
+
   /** O cliente e a cidade da parada da nota, para a pergunta de quem recebeu; melhor esforço. */
   async function clientOf(
     preparation: WhatsAppDeliveryPreparation,
@@ -531,6 +544,7 @@ export function createWhatsAppDeliveryPreparations(
         texts: step.texts,
       }
     }
+    const stopSequence = await stopSequenceOf(preparation)
     const result = await ports.deliver({
       ...actor,
       ...(confirmOutOfOrder ? { confirmOutOfOrder: true } : {}),
@@ -544,6 +558,7 @@ export function createWhatsAppDeliveryPreparations(
         companyId: preparation.companyId,
         documentNumber: preparation.documentNumber,
         result,
+        stopSequence,
       })
     if (
       result.kind === 'refused' &&
@@ -1078,6 +1093,7 @@ function summarizeCollected(preparation: WhatsAppDeliveryPreparation): readonly 
     cargoPhotos: preparation.photos.filter((photo) => photo.kind === 'cargo').length,
     location: preparation.location,
     receivedBy: preparation.receivedBy,
+    receiverName: preparation.receiverName,
     skipped: preparation.skipped,
   })
 }

@@ -206,12 +206,13 @@ async function buildDirectJourney(
     },
     deliver: (input) => deliverWhatsAppDriverDocument(ports, input),
     describeDocument: createDeliveryConfirmNoteReader({ database: db, listActiveTrips }),
-    describeResult: ({ channel, companyId, documentNumber, result }) =>
+    describeResult: ({ channel, companyId, documentNumber, result, stopSequence }) =>
       renderBotSpeechLine({
         companyId,
         line: describeWhatsAppDriverEventResult(result, {
           documentNumber,
           kind: channel === 'group' ? 'group' : 'driver',
+          ...(stopSequence === undefined ? {} : { stopSequence }),
         }),
         speech: CATALOG_BOT_SPEECH,
       }),

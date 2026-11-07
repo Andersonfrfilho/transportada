@@ -196,23 +196,25 @@ _Falta 1 item. Se não tiver, responda pular._`,
     },
     {
       answered: [
-        `✅ *NF 17234 pronta para fechar.*
-🏢 Contratante: Distribuidora Aurora
-👤 Cliente: PADARIA SOL NASCENTE
-🏠 Endereço: RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
-💰 Valor da nota: *R$ 1.234,56*
+        `📋 *Confira a entrega da NF \`17234\`*
 
+> 🏢 Contratante: Distribuidora Aurora
+> 🏪 Cliente: *PADARIA SOL NASCENTE*
+> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
+> 💰 Valor da nota: *R$ 1.234,56*
+
+🧾 Canhoto: sem foto
 📍 Localização: não enviada
 
 *Confirma a entrega?*
-*1* - Sim ✅
-*2* - Não ❌`,
+*1* - ✅ Sim, confirmar
+*2* - ❌ Não, cancelar`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `*Entrega registrada* ✅
+        `✅ *NF \`17234\` entregue.* Parada 1 concluída.
 
 ➡️ *Próxima parada*
 
@@ -512,23 +514,25 @@ _Falta 1 item. Se não tiver, responda pular._`,
     },
     {
       answered: [
-        `✅ *NF 17235 pronta para fechar.*
-🏢 Contratante: Distribuidora Aurora
-👤 Cliente: MERCADO LUA CHEIA
-🏠 Endereço: AVENIDA BRASIL, 2500, SERTAOZINHO, SP
-💰 Valor da nota: *R$ 99,90*
+        `📋 *Confira a entrega da NF \`17235\`*
 
+> 🏢 Contratante: Distribuidora Aurora
+> 🏪 Cliente: *MERCADO LUA CHEIA*
+> 📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
+> 💰 Valor da nota: *R$ 99,90*
+
+🧾 Canhoto: sem foto
 📍 Localização: não enviada
 
 *Confirma a entrega?*
-*1* - Sim ✅
-*2* - Não ❌`,
+*1* - ✅ Sim, confirmar
+*2* - ❌ Não, cancelar`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `*Entrega registrada* ✅
+        `✅ *NF \`17235\` entregue.* Parada 2 concluída.
 
 🏁 *Rota concluída!* Todas as 3 paradas estão fechadas.
 Bom descanso, Motorista. 🌙`,

@@ -49,14 +49,14 @@ describe('a frase do "marquei junto" (spec 294 RF5)', () => {
   test('uma etapa, duas etapas e nenhuma', () => {
     expect(
       describeRecordedTogether({ documentNumber: '17234', event: 'deliver', steps: ['arrived'] }),
-    ).toBe('Marquei a chegada junto com a entrega da NF 17234.')
+    ).toBe('_Marquei a chegada junto com a entrega._')
     expect(
       describeRecordedTogether({
         documentNumber: '17234',
         event: 'deliver',
         steps: ['departed', 'arrived'],
       }),
-    ).toBe('Marquei a saída e a chegada junto com a entrega da NF 17234.')
+    ).toBe('_Marquei a saída e a chegada junto com a entrega._')
     expect(
       describeRecordedTogether({ documentNumber: '17234', event: 'return', steps: ['arrived'] }),
     ).toBe('Marquei a chegada junto com a devolução da NF 17234.')
@@ -64,7 +64,7 @@ describe('a frase do "marquei junto" (spec 294 RF5)', () => {
       describeRecordedTogether({ documentNumber: '17234', event: 'arrive', steps: ['departed'] }),
     ).toBe('Marquei a saída junto com a chegada da NF 17234.')
     expect(describeRecordedTogether({ event: 'deliver', steps: ['arrived'] })).toBe(
-      'Marquei a chegada junto com a entrega.',
+      '_Marquei a chegada junto com a entrega._',
     )
     expect(describeRecordedTogether({ event: 'deliver', steps: [] })).toBeUndefined()
   })
@@ -98,9 +98,7 @@ describe('a frase do "marquei junto" (spec 294 RF5)', () => {
       await render(
         describeWhatsAppDriverEventResult(delivered, { documentNumber: '17234', kind: 'group' }),
       ),
-    ).toBe(
-      '*NF 17234 entregue.* Parada concluída. ✅\nMarquei a saída e a chegada junto com a entrega da NF 17234.',
-    )
+    ).toBe('✅ *NF `17234` entregue.*\n_Marquei a saída e a chegada junto com a entrega._')
     const returned = await returnWhatsAppDriverDocument(ports, {
       ...actor,
       documentId: 'd',

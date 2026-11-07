@@ -26,9 +26,19 @@ import {
 } from './whatsapp-driver-events.service.js'
 
 export type WhatsAppDriverEventAudience =
-  | { readonly documentNumber?: string; readonly kind: 'driver'; readonly time?: string }
+  | {
+      readonly documentNumber?: string
+      readonly kind: 'driver'
+      readonly stopSequence?: number
+      readonly time?: string
+    }
   /** `documentNumber` é o número da NF (o único dado da nota que aparece no grupo). */
-  | { readonly documentNumber?: string; readonly kind: 'group'; readonly time?: string }
+  | {
+      readonly documentNumber?: string
+      readonly kind: 'group'
+      readonly stopSequence?: number
+      readonly time?: string
+    }
 
 const USE_THE_APP = 'Registre pelo aplicativo.'
 
@@ -88,6 +98,10 @@ export function describeRecordedTogether(input: {
 }): string | undefined {
   if (input.steps.length === 0) return undefined
   const marked = input.steps.map((step) => STEP_WORDS[step]).join(' e ')
+  // A entrega já diz a nota na primeira linha: a frase de apoio vai em itálico e sem repeti-la (spec 300, fluxo 5).
+  if (input.event === WHATSAPP_DRIVER_EVENT.deliver) {
+    return `_Marquei ${marked} junto com ${COMPANION_WORDS[input.event]}._`
+  }
   const note = input.documentNumber === undefined ? '' : ` da NF ${input.documentNumber}`
   return `Marquei ${marked} junto com ${COMPANION_WORDS[input.event]}${note}.`
 }
@@ -118,6 +132,8 @@ function describeMainLine(
   audience: WhatsAppDriverEventAudience,
 ): BotSpeechLine {
   if (result.kind === 'refused') return describeWhatsAppDriverEventRefusal(result.refusal, audience)
+  const delivered = describeDeliveredLine(result, audience)
+  if (delivered !== undefined) return delivered
   const documentNumber = audience.kind === 'group' ? audience.documentNumber : undefined
   // Saí/cheguei não citam nota; sem número da nota, o grupo ouve a frase do motorista (sem dado).
   if (documentNumber === undefined || STOP_EVENTS.has(result.event)) {
@@ -129,16 +145,32 @@ function describeMainLine(
   const params = { documentNumber }
   if (result.kind === 'already_registered') return { key: 'groupAlreadyRegistered', params }
   if (result.event === WHATSAPP_DRIVER_EVENT.deliver) {
-    if (result.details?.tripCompleted === true) {
-      return { key: 'groupDeliveryTripCompleted', params }
-    }
-    if (result.details?.stopCompleted === true) {
-      return { key: 'groupDeliveryStopCompleted', params }
-    }
     return { key: 'groupDeliveryRegistered', params }
   }
   if (result.event === WHATSAPP_DRIVER_EVENT.return) return { key: 'groupReturnRegistered', params }
   return { key: 'groupOccurrenceRegistered', params }
+}
+
+/** Spec 300 (RF1): a entrega registrada diz a nota e a parada, igual nos dois canais; sem nota, a fala de antes. */
+function describeDeliveredLine(
+  result: WhatsAppDriverEventResult,
+  audience: WhatsAppDriverEventAudience,
+): BotSpeechLine | undefined {
+  const { documentNumber, stopSequence } = audience
+  if (result.kind !== 'registered' || result.event !== WHATSAPP_DRIVER_EVENT.deliver) {
+    return undefined
+  }
+  if (documentNumber === undefined) return undefined
+  const isStopClosed =
+    result.details?.stopCompleted === true || result.details?.tripCompleted === true
+  if (!isStopClosed || stopSequence === undefined) {
+    return { key: 'groupDeliveryRegistered', params: { documentNumber } }
+  }
+  const key =
+    result.details?.tripCompleted === true
+      ? 'groupDeliveryTripCompleted'
+      : 'groupDeliveryStopCompleted'
+  return { key, params: { documentNumber, sequence: stopSequence } }
 }
 
 export function describeWhatsAppDriverEventRefusal(

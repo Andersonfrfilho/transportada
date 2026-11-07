@@ -169,17 +169,19 @@ async function buildGroupJourney(db: JourneyDatabase, world: JourneyWorld, now: 
     },
     deliver: (input) => deliverWhatsAppDriverDocument(ports, input),
     describeDocument: createDeliveryConfirmNoteReader({ database: db, listActiveTrips }),
-    describeResult: ({ channel, companyId, documentNumber, result }) =>
+    describeResult: ({ channel, companyId, documentNumber, result, stopSequence }) =>
       renderBotSpeechLine({
         companyId,
         line: describeWhatsAppDriverEventResult(result, {
           documentNumber,
           kind: channel === 'group' ? 'group' : 'driver',
+          ...(stopSequence === undefined ? {} : { stopSequence }),
         }),
         speech: CATALOG_BOT_SPEECH,
       }),
     logger,
     media: { read: async () => new Uint8Array(), write: async () => 'key' } as never,
+    listStops: async (input) => (await listActiveTrips(input)).flatMap((trip) => trip.stops),
     repository: createDrizzleWhatsAppDeliveryPreparationRepository(db),
     resolveSettings: (query) => proofs.resolveProofFieldSettings(query),
   })

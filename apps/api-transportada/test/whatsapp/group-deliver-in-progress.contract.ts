@@ -235,7 +235,7 @@ describe('grupo: "cancelar" fecha a pergunta da entrega, nunca vira resposta', (
     await t.preparations.answer('pular')
     expect(await t.flow.cancel?.(t.turn('cancelar', 'delivery.answer'))).toEqual({
       kind: 'done',
-      replies: ['Entrega da NF 899840 cancelada. A nota continua aberta na viagem.'],
+      replies: ['↩️ *Entrega da NF `899840` cancelada.* A nota continua aberta na viagem.'],
     })
     expect(t.preparations.status()).toEqual(['cancelled'])
     expect(t.preparations.delivered).toEqual([])

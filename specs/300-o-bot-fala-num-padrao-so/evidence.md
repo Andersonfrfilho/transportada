@@ -235,3 +235,22 @@
   e as fixtures/integrações das jornadas (grupo e individual). Nenhum `toContain` novo.
 - Gates: typecheck limpo · `bun test --timeout 120000` 14361 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção nova) · eslint e prettier limpos · integração:
   `whatsapp-driver-journey-group` 2 pass, `whatsapp-driver-journey-direct` 2 pass, `whatsapp-driver-flow-actions` 4 pass, `whatsapp-command-driver` 5 pass. Suíte completa na T6.2.
+
+### T4.2 (executor `sonnet`)
+
+- Confirmação (`whatsapp-delivery-confirm-summary.policy.ts`, `DELIVERY_PROOF_SPEECH.confirm`): `📋 *Confira a entrega da NF \`n\`*`, a nota em citação (`🏢 Contratante`, `🏪 Cliente: *…*`,
+  `📍 endereço`, `💰 Valor da nota`), o colhido (`🧾 Canhoto: foto recebida ✅` / `sem foto`, `📦 Mercadoria: … ✅` / `sem foto`, `🙋 Recebido por: *nome* (vínculo)`,
+  `📍 Localização: enviada ✅` / `não enviada`) e `*Confirma a entrega?*` com `✅ Sim, confirmar` / `❌ Não, cancelar` (`formatOptions`). "Não entendi" da confirmação e "cancelada"
+  (`↩️ *Entrega da NF \`n\` cancelada.* …`) no padrão. `DeliveryConfirmCollected` ganhou `receiverName`.
+- Registro: `groupDeliveryRegistered` = `✅ *NF \`n\` entregue.*`, `groupDeliveryStopCompleted`/`groupDeliveryTripCompleted` = `✅ *NF \`n\` entregue.* Parada N concluída.` (a rota concluída é a
+  mensagem seguinte, T3.5). Valem para grupo e individual (`describeDeliveredLine`: com número da nota, os dois canais usam as mesmas chaves; sem número, a fala `deliveryRegistered` de
+  antes). O número da parada é lido antes da baixa (`stopSequenceOf`, via `ports.listStops`) e vai a `describeResult` como `stopSequence` (ligado no `main.ts`); sem a lista, a frase diz
+  só `✅ *NF \`n\` entregue.*`, sem inventar o número. `_Marquei a chegada junto com a entrega._` em itálico e sem repetir a nota (só para a entrega; chegada/devolução ficam como estão).
+- Divergências: (1) o desenho tem "Recebido por: *João Pereira* (funcionário do local)": o nome volta na confirmação (a regra 9 da 293, "o nome não é repetido", vale só para log).
+  (2) O desenho da entrega de parada com a última nota usa o mesmo `Parada N concluída.` da rota concluída, então `Viagem concluída. 🏁` saiu. (3) A linha `➡️ *Próxima parada*` e
+  a linha da entrega seguem como mensagens separadas que o envio junta com linha em branco (mesmo resultado visual do desenho). (4) Mensagens vivas no grafo (`fala_group_delivery_*`,
+  `fala_delivery_registered`) mantêm o texto antigo até a regravação da T6.1; a nova chave usa `{{sequence}}` e deve entrar no catálogo de variáveis então.
+- Contratos: `whatsapp-delivery-flow-design.contract.ts` ganhou confirmação, "não entendi" e entrega registrada (grupo e individual iguais, `toBe`); atualizados delivery-preparation,
+  driver-events, recorded-together-speech, group-deliver-in-progress e as fixtures/integrações das jornadas (que agora ligam `listStops` e `stopSequence` como o `main.ts`).
+- Gates: typecheck limpo · `bun test --timeout 120000` 14364 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção nova) · eslint e prettier limpos · integração:
+  `whatsapp-driver-journey-group` 2 pass, `whatsapp-driver-journey-direct` 2 pass, `whatsapp-driver-flow-actions` 4 pass, `whatsapp-command-driver` 5 pass. Suíte completa na T6.2.

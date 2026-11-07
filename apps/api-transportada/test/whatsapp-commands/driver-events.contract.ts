@@ -314,7 +314,16 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
     const details = { proofPending: false, stopCompleted: false, tripCompleted: false }
     expect(
       await render(describeWhatsAppDriverEventResult(registered('deliver', details), GROUP)),
-    ).toBe('*NF 17234 entregue* ✅')
+    ).toBe('✅ *NF `17234` entregue.*')
+    expect(
+      await render(
+        describeWhatsAppDriverEventResult(
+          registered('deliver', { ...details, stopCompleted: true }),
+          { ...GROUP, stopSequence: 3 },
+        ),
+      ),
+    ).toBe('✅ *NF `17234` entregue.* Parada 3 concluída.')
+    // Sem a parada conhecida, a frase não inventa o número.
     expect(
       await render(
         describeWhatsAppDriverEventResult(
@@ -322,15 +331,15 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
           GROUP,
         ),
       ),
-    ).toBe('*NF 17234 entregue.* Parada concluída. ✅')
+    ).toBe('✅ *NF `17234` entregue.*')
     expect(
       await render(
         describeWhatsAppDriverEventResult(
           registered('deliver', { ...details, stopCompleted: true, tripCompleted: true }),
-          GROUP,
+          { ...GROUP, stopSequence: 9 },
         ),
       ),
-    ).toBe('*NF 17234 entregue.* Viagem concluída. 🏁')
+    ).toBe('✅ *NF `17234` entregue.* Parada 9 concluída.')
     expect(await render(describeWhatsAppDriverEventResult(registered('return'), GROUP))).toBe(
       '*NF 17234 não entregue* ↩️',
     )

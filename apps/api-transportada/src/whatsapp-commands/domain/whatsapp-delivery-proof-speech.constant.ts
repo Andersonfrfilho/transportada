@@ -19,7 +19,16 @@ import {
   RECEIVED_BY_MESSAGE_OPTIONS,
   describeReceivedByInSentence,
 } from './whatsapp-delivery-received-by.constant.js'
-import { formatNotUnderstood } from './whatsapp-message-format.policy.js'
+import {
+  formatNotUnderstood,
+  formatOptions,
+  type MessageOption,
+} from './whatsapp-message-format.policy.js'
+
+const CONFIRM_OPTIONS: readonly MessageOption[] = [
+  { action: 'Sim, confirmar', icon: '✅' },
+  { action: 'Não, cancelar', icon: '❌' },
+]
 
 const SKIPPED_ITEM_WORDS: Readonly<Record<DeliveryProofItem, string>> = {
   [DELIVERY_PROOF_ITEM.cargo]: 'a foto da mercadoria',
@@ -35,22 +44,24 @@ export const DELIVERY_PROOF_SPEECH = {
   attachFailed:
     'Algumas fotos não entraram no comprovante. Mande de novo pelo aplicativo, por favor.',
   cancelled: (documentNumber: string) =>
-    `Entrega da NF ${documentNumber} cancelada. A nota continua aberta na viagem.`,
-  /** `document` (dados da nota) e `collected` (o que veio) são linhas prontas; bloco vazio some. */
+    `↩️ *Entrega da NF \`${documentNumber}\` cancelada.* A nota continua aberta na viagem.`,
+  /** `document` (dados da nota, já em citação) e `collected` (o que veio) são linhas prontas; bloco vazio some. */
   confirm: (
     documentNumber: string,
     summary: { readonly collected: readonly string[]; readonly document: readonly string[] },
   ) =>
     [
-      `✅ *NF ${documentNumber} pronta para fechar.*`,
-      ...summary.document,
-      ...(summary.collected.length === 0 ? [] : ['', ...summary.collected]),
+      `📋 *Confira a entrega da NF \`${documentNumber}\`*`,
       '',
+      ...(summary.document.length === 0 ? [] : [...summary.document, '']),
+      ...(summary.collected.length === 0 ? [] : [...summary.collected, '']),
       '*Confirma a entrega?*',
-      '*1* - Sim ✅',
-      '*2* - Não ❌',
+      formatOptions(CONFIRM_OPTIONS),
     ].join('\n'),
-  confirmNotUnderstood: 'Responda 1 para confirmar a entrega ou 2 para cancelar.',
+  confirmNotUnderstood: formatNotUnderstood({
+    options: CONFIRM_OPTIONS,
+    reason: 'Responda com o número da opção:',
+  }),
   downloadFailed: 'Não consegui baixar a foto. Mande de novo, por favor.',
   duplicatePhoto: 'Essa foto já tinha chegado.',
   nameNotUnderstood: formatNotUnderstood({
