@@ -20,7 +20,10 @@ import {
   DRIVER_STOP_REMINDER_STATUS,
   MILLISECONDS_PER_MINUTE,
 } from '../domain/driver-stop-reminder.constant.js'
-import { DriverStopReminderNotFoundError } from '../domain/driver-stop-reminder.error.js'
+import {
+  DriverStopReminderNotFoundError,
+  ReminderPromptBusyError,
+} from '../domain/driver-stop-reminder.error.js'
 import { decideStopReminderGate } from '../domain/stop-reminder-gate.policy.js'
 import { buildStopReminderMessage } from '../domain/stop-reminder-message.policy.js'
 import {
@@ -63,6 +66,7 @@ const SPEECH_KEY_BY_NODE: Readonly<Record<string, BotSpeechKey>> = {
 
 const OUTCOME = DRIVER_STOP_REMINDER_OUTCOME
 const DRIVER_STOP_REMINDER_NO_GROUP_REASON = 'no_group'
+const DRIVER_STOP_REMINDER_PROMPT_BUSY_REASON = 'prompt_busy'
 
 function addMinutes(moment: Date, minutes: number): Date {
   return new Date(moment.getTime() + minutes * MILLISECONDS_PER_MINUTE)
@@ -171,6 +175,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       log(reminder, OUTCOME.DEFERRED, 'already_reserved')
       return { nextDueAt: reminder.dueAt, outcome: OUTCOME.DEFERRED } as const
     }
+    let isPromptOpen = false
     try {
       await dependencies.promptOpener.open({
         companyId: reminder.companyId,
@@ -180,6 +185,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
         stage: reminder.stage,
         tripStopId: reminder.tripStopId,
       })
+      isPromptOpen = true
       const body = await renderBody(reminder, context)
       const { providerMessageId } = await dependencies.sender.send({
         body,
@@ -203,11 +209,22 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       return { nextDueAt, outcome: OUTCOME.SENT } as const
     } catch (error) {
       const retryAt = addMinutes(now, DRIVER_STOP_REMINDER_SEND_FAILURE_RETRY_MINUTES)
+      if (isPromptOpen) {
+        await dependencies.promptOpener.discard({
+          companyId: reminder.companyId,
+          groupJid,
+          reminderId: reminder.id,
+        })
+      }
       await repository.release({
         companyId: reminder.companyId,
         dueAt: retryAt,
         reminderId: reminder.id,
       })
+      if (error instanceof ReminderPromptBusyError) {
+        log(reminder, OUTCOME.DEFERRED, DRIVER_STOP_REMINDER_PROMPT_BUSY_REASON)
+        return { nextDueAt: retryAt, outcome: OUTCOME.DEFERRED } as const
+      }
       dependencies.logger?.warn(DRIVER_STOP_REMINDER_DELIVERY_LOG.SEND_FAILED, {
         companyId: reminder.companyId,
         errorName: error instanceof Error ? error.name : typeof error,

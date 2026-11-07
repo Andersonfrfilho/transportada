@@ -53,7 +53,7 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
       `POST /driver-stop-reminders/:id/delivery` (permissão própria só no papel `automation`), com a vaga da 289 e a
       reserva por `version`. Integração: envia, adia por horário, por pedido aberto e por vaga; fecha se a parada andou;
       concorrência envia uma vez; 404 de outra empresa.
-- [ ] **T2.3** Passo `reminder.stage` no `GROUP_STEP_REGISTRY`: 1–4 delegam a cheguei/entreguei/não entreguei/
+- [x] **T2.3** Passo `reminder.stage` no `GROUP_STEP_REGISTRY`: 1–4 delegam a cheguei/entreguei/não entreguei/
       ocorrência; "4" adia sem consumir tentativa, até 3 adiamentos por etapa (RF13); "cancelar" fecha o passo e não o lembrete; comando digitado escapa.
       Falas como nós `fala_lembrete_*`. Aceite: matrizes `group-{flow,inbound}-isolation` verdes com o passo novo;
       `literal-message-text` verde.

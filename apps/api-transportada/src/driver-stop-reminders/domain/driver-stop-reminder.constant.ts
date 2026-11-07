@@ -60,6 +60,12 @@ export const DRIVER_STOP_REMINDER_POSTPONEMENT_OUTCOME = {
   NO_ANSWER: 'no_answer',
 } as const
 
+/** O que a opção 4 resolve: adiou, esgotou os adiamentos ou o lembrete já não está pendente. */
+export const DRIVER_STOP_REMINDER_POSTPONE_OUTCOME = {
+  ...DRIVER_STOP_REMINDER_POSTPONEMENT_OUTCOME,
+  CLOSED: 'closed',
+} as const
+
 export const DRIVER_STOP_REMINDER_STAGE = { ARRIVAL: 'arrival', SETTLEMENT: 'settlement' } as const
 
 export const MILLISECONDS_PER_MINUTE = 60_000

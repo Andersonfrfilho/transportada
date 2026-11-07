@@ -102,7 +102,10 @@ function build(overrides: Overrides = {}) {
     clock: () => NOW,
     driverOpenQuestions: { read: async () => ({ ...FREE, ...overrides.questions }) },
     isEnabled: overrides.isEnabled ?? true,
-    promptOpener: { open: async (params) => void opened.push(params) },
+    promptOpener: {
+      discard: async () => undefined,
+      open: async (params) => void opened.push(params),
+    },
     repository,
     sender: {
       send: async (params) => {

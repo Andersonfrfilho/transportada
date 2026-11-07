@@ -123,6 +123,7 @@ export function createDrizzleWhatsAppGroupRequestRepository(
             lastActivityAt: input.now,
             openedAt: input.now,
             ownerNumber: input.ownerNumber,
+            state: { ...input.state },
             step: input.step,
             timeoutSeconds,
           })

@@ -55,6 +55,8 @@ export type GroupRequestRepositoryPort = {
     readonly groupJid: string
     readonly now: Date
     readonly ownerNumber: string
+    /** O estado inicial do passo (ex.: o lembrete que a pergunta cobra); ausente, vazio. */
+    readonly state?: Readonly<Record<string, unknown>>
     readonly step: string
   }): Promise<GroupRequest | null>
   /**

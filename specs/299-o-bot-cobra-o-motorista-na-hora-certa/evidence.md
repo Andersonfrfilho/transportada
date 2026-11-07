@@ -512,3 +512,54 @@ pontos que montam o portão da oferta ficam como estavam. Contratos da 294 (`rou
 - Deploy de staging `42325897310`: todos os serviços com `success`.
 - `DRIVER_REMINDERS_ENABLED=true` ligado em staging no `api` e no `worker` (`railway variables --set`). Os dois redeploys terminaram em `SUCCESS`, e o log mostra `api_started`/`worker_started` sem erro.
 - A chave da empresa segue desligada e o envio é da Fase 2, então nenhuma mensagem sai.
+
+## T2.3 — 2026-11-07
+
+Passo `reminder.stage` no `GROUP_STEP_REGISTRY` (dono `reminder`, prefixo `reminder.`), abridor real do grupo e adiamento.
+Arquivos novos em `apps/api-transportada/src/`: `whatsapp/application/whatsapp-group-reminder-flow.service.ts`;
+`driver-stop-reminders/{application/{driver-stop-reminder-postponement.port,postpone-driver-stop-reminder.use-case},infrastructure/{drizzle-driver-stop-reminder-postponement.repository,stop-note-number.query}}.ts`.
+
+**Vermelho antes** (testes escritos primeiro): `bun test ./test/driver-stop-reminders.contract.test.ts ./test/whatsapp.contract.test.ts`
+→ `Cannot find module '.../whatsapp-group-reminder-flow.service.js'`, 0 pass / 2 fail / 2 errors. Depois: 1071 pass nos três
+entrypoints tocados (os dois acima e `message-text-boundary`), 0 fail.
+
+**Decisões da execução:**
+
+- **Delegação sem regra nova:** as opções 1–3 chamam `runJourneyAction` (o mesmo que o menu de ações): 1 de chegada →
+  `stop.begin(arrive)` (com o pedido de localização da RF24), entregou → `delivery.begin`, não entregou → `return.begin`, 3 →
+  `occurrence.start`. A nota é a primeira ainda aberta da parada lida na hora da resposta (`stop-note-number.query.ts`), não
+  guardada no estado; parada sem nota aberta cai no "nada a registrar" do menu. O estado do pedido é só
+  `{reminderId, stage, tripStopId}`.
+- **Opção numerada** vem de `resolveStopReminderChoice` (a mesma lista de ações que monta a mensagem) e do `spokenOptionNumber`
+  ("2", "opção dois", áudio confirmado). Fora de 1–4: `not_understood` com a fala `lembreteOpcaoInvalida` (conta tentativa do
+  pedido, 3 e encerra, como todo passo).
+- **"4":** `postpone-driver-stop-reminder.use-case.ts` usa `decideStopReminderPostponement` (T1.3). Adia: `attempts = max(attempts-1, 0)`,
+  `postponements + 1`, `due_at = agora + intervalo da empresa`, `WHERE status='pending' AND postponements = <lido>`. Esgotado (3):
+  nada é gravado, o prazo já era o do envio e o lembrete segue até a escalada. Lembrete que já não está pendente: fala
+  "já foi encerrado". Em todos os casos o pedido fecha (`done`, sem despedida).
+- **Falas** (`BOT_SPEECH_DEFAULTS`, nós `fala_lembrete_*`): `lembreteAdiado`, `lembreteAdiamentoEsgotado`, `lembreteEncerrado`,
+  `lembreteOpcaoInvalida`. Nenhum texto literal no código.
+- **"cancelar"** não tem cancelamento próprio: a sessão fecha o pedido como `cancelled` ("não registrei nada"), o lembrete segue
+  pendente com o mesmo prazo (integração). **Comando digitado** ("cheguei", "entreguei 17234") escapa para `flow.start`, como o
+  menu de ações.
+- **Abridor** (`group-reminder-prompt-opener.ts`): abre o pedido pelo índice único parcial do grupo, com `state` (o repositório
+  ganhou `state` opcional em `open`), dono = telefone do motorista atual (sem telefone válido, dono vazio: só quem marca o bot
+  responde). Grupo ocupado → `ReminderPromptBusyError`: a entrega devolve a reserva (`release` +5 min, tentativa não consumida)
+  e **não envia**. Envio que falha depois de aberto → `discard` fecha o pedido que este lembrete abriu.
+- **Matrizes:** `group-flow-isolation` e `group-inbound-isolation` enumeram `PENDING` à mão; o passo foi acrescentado (chegada e
+  entrega) e o dono `reminder` pode abrir só `begin`/`start` dos outros fluxos, nunca `answer`. As partes que iteram o registro
+  (`cancelar`) pegam o passo sozinhas. `bun test ./test/whatsapp.contract.test.ts -t "reminder.stage"`: 34 pass.
+- **Risco já conhecido:** o pedido do lembrete vive o tempo do `group_request_timeout_seconds`; sem resposta, a próxima tentativa
+  vê "pedido aberto" e adia 5 min até ele vencer (a escalada não passa pelo portão). Não alterei o prazo do pedido.
+
+**Gates (de `apps/api-transportada`):**
+
+- `bun run typecheck`: limpo. `eslint --max-warnings=0` e `prettier --check` nos 27 arquivos tocados: limpos.
+- `bun run test`: 14405 pass, 35 skip, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000`: 14414 pass, 26 skip, 0 fail.
+- Integração, cada arquivo isolado: `driver-stop-reminder-group-step` 4 pass (novo, na lista do `test:integration`),
+  `driver-stop-reminder-delivery` 9, `driver-stop-reminders` 23, `whatsapp-evolution-webhook` 3,
+  `whatsapp-driver-journey-group` 2, `whatsapp-driver-journey-direct` 2; todos 0 fail. O novo cobre, pela entrada real do grupo
+  (evento → entrada → sessão → roteador → registro): entregue + "1" grava a chegada e fecha o lembrete (`arrived`) e o pedido;
+  "4" três vezes (tentativa devolvida, adiamentos 1/2/3, prazo avança) e a quarta conta como sem resposta; "cancelar" fecha o
+  passo e o lembrete segue; pedido aberto no meio → não envia e devolve a reserva.

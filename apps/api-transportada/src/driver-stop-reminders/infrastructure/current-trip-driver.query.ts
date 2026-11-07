@@ -51,3 +51,20 @@ export function createCurrentDriverNumberReader(executor: TripQueryable) {
     return driver === undefined ? undefined : toWhatsAppPhone(driver.phone)
   }
 }
+
+/** O número (WhatsApp) do motorista pelo cadastro: o dono do pedido que o lembrete abre no grupo, ou nenhum. */
+export function createDriverNumberReader(executor: TripQueryable) {
+  return async (params: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<string | undefined> => {
+    const [row] = await executor
+      .select({ phone: fleetDrivers.phone })
+      .from(fleetDrivers)
+      .where(
+        and(eq(fleetDrivers.companyId, params.companyId), eq(fleetDrivers.id, params.driverId)),
+      )
+      .limit(1)
+    return row === undefined ? undefined : toWhatsAppPhone(row.phone)
+  }
+}

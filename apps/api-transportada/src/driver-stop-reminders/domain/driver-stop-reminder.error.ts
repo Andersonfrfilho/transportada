@@ -13,3 +13,11 @@ export class DriverStopReminderNotFoundError extends ApiError {
     })
   }
 }
+
+/** O grupo já tem outro pedido aberto: o lembrete não pode abrir o passo da resposta e, por isso, não é enviado. */
+export class ReminderPromptBusyError extends Error {
+  public constructor() {
+    super('The group already has an open request, so the reminder prompt cannot be opened.')
+    this.name = 'ReminderPromptBusyError'
+  }
+}

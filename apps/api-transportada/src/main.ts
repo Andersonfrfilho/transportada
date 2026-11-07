@@ -214,7 +214,13 @@ import {
   type WhatsAppTurnReplies,
 } from './whatsapp-commands/application/whatsapp-turn-replies.service.js'
 import { createDeliverDriverStopReminderUseCase } from './driver-stop-reminders/application/deliver-driver-stop-reminder.use-case.js'
-import { createCurrentDriverNumberReader } from './driver-stop-reminders/infrastructure/current-trip-driver.query.js'
+import { createPostponeDriverStopReminderUseCase } from './driver-stop-reminders/application/postpone-driver-stop-reminder.use-case.js'
+import {
+  createCurrentDriverNumberReader,
+  createDriverNumberReader,
+} from './driver-stop-reminders/infrastructure/current-trip-driver.query.js'
+import { DrizzleDriverStopReminderPostponementRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-postponement.repository.js'
+import { createStopNoteNumberReader } from './driver-stop-reminders/infrastructure/stop-note-number.query.js'
 import { DrizzleDriverStopReminderDeliveryRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-delivery.repository.js'
 import { createGroupReminderPromptOpener } from './driver-stop-reminders/infrastructure/group-reminder-prompt-opener.js'
 import { createGroupStopReminderSender } from './driver-stop-reminders/infrastructure/group-stop-reminder-sender.gateway.js'
@@ -275,6 +281,10 @@ import {
 import { createWhatsAppOfficeStopEvents } from './whatsapp-commands/infrastructure/whatsapp-office-stop-events.adapter.js'
 import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
 import { createGroupReturnPorts } from './whatsapp/infrastructure/whatsapp-group-return.adapter.js'
+import {
+  createGroupReminderFlow,
+  type GroupReminderFlow,
+} from './whatsapp/application/whatsapp-group-reminder-flow.service.js'
 import {
   createGroupReturnFlow,
   type GroupReturnFlowPorts,
@@ -2261,7 +2271,11 @@ export function bootstrap(): Bun.Server<undefined> {
     }),
     isEnabled: config.driverRemindersEnabled,
     logger,
-    promptOpener: createGroupReminderPromptOpener(),
+    promptOpener: createGroupReminderPromptOpener({
+      clock: () => new Date(),
+      readDriverNumber: createDriverNumberReader(database.db),
+      repository: createDrizzleWhatsAppGroupRequestRepository(database.db),
+    }),
     repository: new DrizzleDriverStopReminderDeliveryRepository(database.db),
     sender: createGroupStopReminderSender({
       readCurrentDriverNumber: createCurrentDriverNumberReader(database.db),
@@ -2279,6 +2293,15 @@ export function bootstrap(): Bun.Server<undefined> {
     }),
     speech: whatsappBotSpeech,
   })
+  /** Spec 299 T2.3: o passo `reminder.stage` do grupo (a opção 4 adia pelo mesmo cadastro de lembretes). */
+  const whatsappGroupReminder = createGroupReminderFlow({
+    postpone: (input) =>
+      createPostponeDriverStopReminderUseCase({
+        repository: new DrizzleDriverStopReminderPostponementRepository(database.db),
+      }).execute(input),
+    readNoteNumber: createStopNoteNumberReader(database.db),
+    speech: whatsappBotSpeech,
+  })
   // ADR-0076 §6: um resolvedor só, do ambiente, para o limitador anônimo e para toda trilha com IP.
   const resolveClientIp = createClientIpResolver(config.clientIpPolicy)
   const router = createRouter({
@@ -2293,6 +2316,7 @@ export function bootstrap(): Bun.Server<undefined> {
       whatsappGroupBoletoResend,
       whatsappGroupDelivery,
       whatsappGroupOccurrence,
+      whatsappGroupReminder,
       whatsappGroupReturn,
       whatsappGroupStop,
       whatsappGroupTripClose,
@@ -2452,6 +2476,8 @@ type CreateAnonymousRoutesParams = {
   /** Spec 292 T5: o fluxo do pedido no grupo do motorista (só a entrega anônima do Evolution o usa). */
   readonly whatsappGroupOccurrence: GroupOccurrenceFlowPorts
   readonly whatsappGroupStop: GroupStopFlowPorts
+  /** Spec 299 T2.3: o passo do lembrete da parada no grupo. */
+  readonly whatsappGroupReminder: GroupReminderFlow
   /** "Não entreguei" no grupo do motorista. */
   readonly whatsappGroupReturn: GroupReturnFlowPorts
   /** Spec 294 RF21: "encerrar a rota" do atendente no grupo. */
@@ -2485,6 +2511,8 @@ function createEvolutionWebhook(input: {
   readonly groupOccurrence?: GroupOccurrenceFlowPorts
   /** Spec 293 T12: o "saí"/"cheguei" do grupo; ausente, só a ocorrência atende. */
   readonly groupStop?: GroupStopFlowPorts
+  /** Spec 299 T2.3: o passo do lembrete da parada; ausente, a resposta a ele não é atendida. */
+  readonly groupReminder?: GroupReminderFlow
   /** "Não entreguei" no grupo; ausente, o texto segue para a ocorrência. */
   readonly groupReturn?: GroupReturnFlowPorts
   /** Spec 294 RF21: "encerrar a rota" do atendente; ausente, o texto segue como antes. */
@@ -2550,6 +2578,7 @@ function createEvolutionWebhook(input: {
                     ? {}
                     : { delivery: createGroupDeliveryFlow(input.groupDelivery.flow) }),
                   occurrence: createGroupOccurrenceFlow(input.groupOccurrence),
+                  ...(input.groupReminder === undefined ? {} : { reminder: input.groupReminder }),
                   ...(input.groupReturn === undefined
                     ? {}
                     : { return: createGroupReturnFlow(input.groupReturn) }),
@@ -2684,6 +2713,7 @@ function createAnonymousRoutes({
   whatsappGroupBoletoResend,
   whatsappGroupDelivery,
   whatsappGroupOccurrence,
+  whatsappGroupReminder,
   whatsappGroupReturn,
   whatsappGroupAudio,
   whatsappGroupStop,
@@ -2780,6 +2810,7 @@ function createAnonymousRoutes({
       groupDelivery: whatsappGroupDelivery,
       groupBoletoResend: whatsappGroupBoletoResend,
       groupOccurrence: whatsappGroupOccurrence,
+      groupReminder: whatsappGroupReminder,
       groupReturn: whatsappGroupReturn,
       groupStop: whatsappGroupStop,
       groupTripClose: whatsappGroupTripClose,
