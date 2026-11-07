@@ -176,7 +176,7 @@
   `after` (endereço corrigido/sugestão) + bloco `card` em citação com `💰 Valor da nota` + `🔜 *Depois desta:* parada N · cliente – cidade` + próximo passo
   (`*foto do canhoto*`). Mesma função no grupo (`whatsapp-group-stop.adapter.ts`) e na individual (`whatsapp-driver-prompts.service.ts:recordStop`).
 - `whatsapp-driver-event-speech.service.ts`: `ADDRESS_CORRECTION_TEXT.applied` = `✅ _Endereço corrigido pela sua localização._`, `.suggested` = `📬 _Enviei para o
-  escritório conferir o endereço._` (a sugestão não está no desenho: mesma voz da correção).
+escritório conferir o endereço._` (a sugestão não está no desenho: mesma voz da correção).
 - Leitor do bloco (`whatsapp-stop-card.reader.ts`): passa pelo mesmo `placeStops` da lista (uma consulta, melhor esforço) e o `StopCard` ganha `district` e a cidade do
   endereço do destinatário (a do rótulo é o recuo): o menu e a prévia mostram "Centro, Guaira" como a lista. `describeStopShort`/`describeArrivalDetails` saíram (sem uso).
 - Já feitos na T3.3 (mesmo código): endereço sem localização certa, cheguei repetido (`A chegada na parada N já foi registrada`), "nada por enquanto" e chegada fora da rota.
@@ -190,12 +190,12 @@
 
 - Oferta da próxima (`describeNextRouteOffer(view, { asks })`, sem relógio): `➡️ *Próxima parada*` + bloco `list` em citação (bairro e cidade, `📏`/`⏱️` da estrada
   quando há ponto, `🗺️ *Como chegar:* <dir>`) + aviso de endereço sem localização certa + `*O que você quer fazer agora?*` e `Seguir para a *parada N*` / `Escolher outra da
-  lista` / `Nada por enquanto` (ou só o próximo passo, sem pergunta). Sem o leitor (bloco mínimo da oferta da API), a linha do lugar traz o endereço da parada em vez de sumir.
+lista` / `Nada por enquanto` (ou só o próximo passo, sem pergunta). Sem o leitor (bloco mínimo da oferta da API), a linha do lugar traz o endereço da parada em vez de sumir.
   RF7b: o link `dir` já estava em todo bloco desde a T3.3 (`buildRouteOfferMapUrl` e `formatDirectionsUrl`).
 - Recuo: `ROUTE_OFFER_TEXT.declined` e `JOURNEY_TEXT.nothingRecorded` = `👍 *Certo, nada foi registrado.*` + `➡️ _Próximo passo:_ quando for sair, mande *saí*.`
   (contrato do desenho). A pergunta legada 1/2 do passo `route.offer` (pedido aberto antes do menu de ações) segue com o texto antigo das opções.
 - Rota concluída (RF12): `describeRouteCompleted({ totalStops, driverName })` = `🏁 *Rota concluída!* Todas as N paradas estão fechadas.` e, com nome, `Bom descanso,
-  <primeiro nome>. 🌙` (nome em iniciais maiúsculas, sem marcador do WhatsApp; sem nome, sem a frase; sem número ou com 1 parada, `Todas as paradas estão fechadas.`).
+<primeiro nome>. 🌙` (nome em iniciais maiúsculas, sem marcador do WhatsApp; sem nome, sem a frase; sem número ou com 1 parada, `Todas as paradas estão fechadas.`).
   **De onde vem o nome:** a última baixa conclui a viagem e ela sai de `listActiveTrips`, e a baixa da API não devolve nome nem total quando a viagem fecha; foi preciso UMA
   consulta, só na rota concluída: `whatsapp-commands/infrastructure/whatsapp-route-closing.reader.ts` (`trip_drivers.driver_name` do motorista na viagem `completed` mais
   recente + `count(trip_stops)`), melhor esforço (falha → mensagem sem número e sem nome, log só com empresa e erro). Porta `readRouteClosing?` no grupo
@@ -214,10 +214,10 @@
 
 ### T4.1 (executor `sonnet`)
 
-- Escolha da nota (grupo): `GROUP_DELIVERY_TEXT.askDocument` = `✅ *Qual nota você entregou?*` + opções `🧾 NF \`n\` · *cliente* · cidade` (`formatOptions`) +
-  `_Responda com o número da opção ou da nota._`; o "não entendi" repete só as opções (prompt) sob o motivo `Não achei essa nota na lista.`. A cidade vem de
-  `placeStops` (mesmo leitor da lista de paradas), ligado em `whatsapp-group-delivery.adapter.ts` (`listOpenDocuments` e `findStopInProgress`);
-  `GroupDeliveryDocument` e `WhatsAppStopInProgress.documents` ganharam `city`.
+- Escolha da nota (grupo): `GROUP_DELIVERY_TEXT.askDocument` = `✅ *Qual nota você entregou?*` + opções `🧾 NF \`n\` · _cliente_ · cidade` (`formatOptions`) +
+`_Responda com o número da opção ou da nota._`; o "não entendi" repete só as opções (prompt) sob o motivo `Não achei essa nota na lista.`. A cidade vem de
+`placeStops`(mesmo leitor da lista de paradas), ligado em`whatsapp-group-delivery.adapter.ts` (`listOpenDocuments`e`findStopInProgress`);
+`GroupDeliveryDocument`e`WhatsAppStopInProgress.documents`ganharam`city`.
 - Comprovante: novo `whatsapp-delivery-proof-question.policy.ts` (título em negrito por item, cliente em citação na pergunta de quem recebeu e do nome, contador RF10) e
   `whatsapp-delivery-received-by.constant.ts` (rótulos + ícones por opção, RF13; `RECEIVED_BY_LABELS` saiu do arquivo de falas). `DeliveryProofChecklist` ganhou
   `pendingItems` (tudo o que falta, sem a localização). O aviso separado `⚠️ NF X ainda não fechou. Falta: …` saiu: o contador, no rodapé de toda pergunta, o substitui.
@@ -238,15 +238,15 @@
 
 ### T4.2 (executor `sonnet`)
 
-- Confirmação (`whatsapp-delivery-confirm-summary.policy.ts`, `DELIVERY_PROOF_SPEECH.confirm`): `📋 *Confira a entrega da NF \`n\`*`, a nota em citação (`🏢 Contratante`, `🏪 Cliente: *…*`,
-  `📍 endereço`, `💰 Valor da nota`), o colhido (`🧾 Canhoto: foto recebida ✅` / `sem foto`, `📦 Mercadoria: … ✅` / `sem foto`, `🙋 Recebido por: *nome* (vínculo)`,
-  `📍 Localização: enviada ✅` / `não enviada`) e `*Confirma a entrega?*` com `✅ Sim, confirmar` / `❌ Não, cancelar` (`formatOptions`). "Não entendi" da confirmação e "cancelada"
-  (`↩️ *Entrega da NF \`n\` cancelada.* …`) no padrão. `DeliveryConfirmCollected` ganhou `receiverName`.
-- Registro: `groupDeliveryRegistered` = `✅ *NF \`n\` entregue.*`, `groupDeliveryStopCompleted`/`groupDeliveryTripCompleted` = `✅ *NF \`n\` entregue.* Parada N concluída.` (a rota concluída é a
-  mensagem seguinte, T3.5). Valem para grupo e individual (`describeDeliveredLine`: com número da nota, os dois canais usam as mesmas chaves; sem número, a fala `deliveryRegistered` de
-  antes). O número da parada é lido antes da baixa (`stopSequenceOf`, via `ports.listStops`) e vai a `describeResult` como `stopSequence` (ligado no `main.ts`); sem a lista, a frase diz
-  só `✅ *NF \`n\` entregue.*`, sem inventar o número. `_Marquei a chegada junto com a entrega._` em itálico e sem repetir a nota (só para a entrega; chegada/devolução ficam como estão).
-- Divergências: (1) o desenho tem "Recebido por: *João Pereira* (funcionário do local)": o nome volta na confirmação (a regra 9 da 293, "o nome não é repetido", vale só para log).
+- Confirmação (`whatsapp-delivery-confirm-summary.policy.ts`, `DELIVERY_PROOF_SPEECH.confirm`): `📋 *Confira a entrega da NF \`n\`_`, a nota em citação (`🏢 Contratante`, `🏪 Cliente: _…*`,
+`📍 endereço`, `💰 Valor da nota`), o colhido (`🧾 Canhoto: foto recebida ✅`/`sem foto`, `📦 Mercadoria: … ✅`/`sem foto`, `🙋 Recebido por: *nome* (vínculo)`,
+`📍 Localização: enviada ✅`/`não enviada`) e `*Confirma a entrega?*`com`✅ Sim, confirmar`/`❌ Não, cancelar` (`formatOptions`). "Não entendi" da confirmação e "cancelada"
+(`↩️ *Entrega da NF \`n\` cancelada.\* …`) no padrão. `DeliveryConfirmCollected`ganhou`receiverName`.
+- Registro: `groupDeliveryRegistered` = `✅ *NF \`n\` entregue.*`, `groupDeliveryStopCompleted`/`groupDeliveryTripCompleted`=`✅ *NF \`n\` entregue.* Parada N concluída.` (a rota concluída é a
+mensagem seguinte, T3.5). Valem para grupo e individual (`describeDeliveredLine`: com número da nota, os dois canais usam as mesmas chaves; sem número, a fala `deliveryRegistered` de
+antes). O número da parada é lido antes da baixa (`stopSequenceOf`, via `ports.listStops`) e vai a `describeResult`como`stopSequence`(ligado no`main.ts`); sem a lista, a frase diz
+só `✅ *NF \`n\` entregue.\*`, sem inventar o número. `_Marquei a chegada junto com a entrega._` em itálico e sem repetir a nota (só para a entrega; chegada/devolução ficam como estão).
+- Divergências: (1) o desenho tem "Recebido por: _João Pereira_ (funcionário do local)": o nome volta na confirmação (a regra 9 da 293, "o nome não é repetido", vale só para log).
   (2) O desenho da entrega de parada com a última nota usa o mesmo `Parada N concluída.` da rota concluída, então `Viagem concluída. 🏁` saiu. (3) A linha `➡️ *Próxima parada*` e
   a linha da entrega seguem como mensagens separadas que o envio junta com linha em branco (mesmo resultado visual do desenho). (4) Mensagens vivas no grafo (`fala_group_delivery_*`,
   `fala_delivery_registered`) mantêm o texto antigo até a regravação da T6.1; a nova chave usa `{{sequence}}` e deve entrar no catálogo de variáveis então.
@@ -257,10 +257,9 @@
 
 ### T4.3 (executor `sonnet`)
 
-- Canhoto no padrão, igual no grupo e na individual (mesmas constantes): `whatsapp-canhoto-recognition-speech.constant.ts` (`confirmNote` = `📸 *Este canhoto é da NF \`n\`?*` + cliente e cidade em citação +
-  `formatOptions`; `chooseNote`, `photoKind`, `cargoNoted` com `formatNextStep`, `discarded` = `DISCARDED_TEXT`, falhas com `⚠️ *…*`; o "não entendi" agora repete as opções da pergunta aberta, por tipo
-  `notUnderstood[kind]`), `whatsapp-driver-canhoto.policy.ts` (repetido `🔁 *Esse canhoto já tinha chegado.*` + `NF \`n\`, entregue às HH:MM. Nada foi gravado de novo.`, troca com opções, `trocado`, `mantido`, `Li o canhoto`)
-  e `GROUP_PROOF_TEXT`/`DELIVERY_PROOF_SPEECH.downloadFailed`/`duplicatePhoto` (foto que não entra: `⚠️`/`🔁` + próximo passo).
+- Canhoto no padrão, igual no grupo e na individual (mesmas constantes): `whatsapp-canhoto-recognition-speech.constant.ts` (`confirmNote` = `📸 *Este canhoto é da NF \`n\`?_`+ cliente e cidade em citação +`formatOptions`; `chooseNote`, `photoKind`, `cargoNoted`com`formatNextStep`, `discarded`=`DISCARDED_TEXT`, falhas com `⚠️ _…*`; o "não entendi" agora repete as opções da pergunta aberta, por tipo
+`notUnderstood[kind]`), `whatsapp-driver-canhoto.policy.ts`(repetido`🔁 *Esse canhoto já tinha chegado.\*`+`NF \`n\`, entregue às HH:MM. Nada foi gravado de novo.`, troca com opções, `trocado`, `mantido`, `Li o canhoto`)
+e `GROUP_PROOF_TEXT`/`DELIVERY_PROOF_SPEECH.downloadFailed`/`duplicatePhoto`(foto que não entra:`⚠️`/`🔁` + próximo passo).
 - `OpenNote` e o candidato da pergunta (jsonb, sem migration) ganharam `clientName?` e `city?` (a cidade vem da parada, a mesma de `placeStops`); pergunta antiga sem esses campos sai sem a citação.
 - Divergências/decisões: (1) o desenho não mostra a lista "De qual nota é este canhoto?" nem os "não entendi" do canhoto: seguem o padrão (título `📸`, opções `🧾 NF … · *cliente* · cidade`, `🗑️ Descartar a foto`,
   instrução em itálico, como a lista de notas da T4.1). (2) `Li o canhoto da NF` e `Não consegui ler/guardar a foto` não estão no desenho: título em negrito com ícone (RF1). (3) A citação do cliente aqui é sem negrito (`> 🏪 RETA ALIMENTOS LTDA · cidade`), como no desenho.
@@ -271,11 +270,11 @@
 
 ### T4.4 (executor `sonnet`)
 
-- Entrega fora da rota (`whatsapp-driver-order.policy.ts`, `OUT_OF_ORDER_TEXT.question.deliver`): `⚠️ *Fora da rota sugerida*` + `Você está na *parada 3*, e a NF \`n\` é da *parada 7*. Se achar melhor, pode registrar.` + o bloco da
-  parada da nota em citação (`✅ *ENTREGA · PARADA 7*`, sem distância) + `Entreguei na *parada 7*` / `Foi engano, descartar` + `_A parada 3 continua aberta. Responda 1 ou 2._`. Reaproveita `describeOrderBlock`/`toOrderStopLabel` da T3.3 (a
-  preparação agora passa `{ total }` para o bloco levar bairro, cidade e mapa); `stopWord`/`nameOf` saíram (sem uso). O "não entendi" da entrega repete as opções por extenso (`registrar a entrega na *parada N*` / `descartar`), pela
-  mesma `describeOutOfOrderNotUnderstood` da saída/chegada (a parada vem de `stopSequenceOf`); descartar usa `DISCARDED_TEXT`.
-- Nota já baixada (`describeAlreadySettled`): `⚠️ *A entrega da NF \`n\` já foi registrada* às HH:MM.` / `⚠️ *A NF \`n\` já foi baixada como não entregue* às HH:MM.` + `Nada foi gravado de novo.` O que vem depois (menu da parada que chegou,
+- Entrega fora da rota (`whatsapp-driver-order.policy.ts`, `OUT_OF_ORDER_TEXT.question.deliver`): `⚠️ *Fora da rota sugerida*` + `Você está na *parada 3*, e a NF \`n\` é da _parada 7_. Se achar melhor, pode registrar.` + o bloco da
+parada da nota em citação (`✅ _ENTREGA · PARADA 7_`, sem distância) + `Entreguei na _parada 7_`/`Foi engano, descartar`+`_A parada 3 continua aberta. Responda 1 ou 2._`. Reaproveita `describeOrderBlock`/`toOrderStopLabel`da T3.3 (a
+preparação agora passa`{ total }`para o bloco levar bairro, cidade e mapa);`stopWord`/`nameOf` saíram (sem uso). O "não entendi" da entrega repete as opções por extenso (`registrar a entrega na _parada N_`/`descartar`), pela
+mesma `describeOutOfOrderNotUnderstood`da saída/chegada (a parada vem de`stopSequenceOf`); descartar usa `DISCARDED_TEXT`.
+- Nota já baixada (`describeAlreadySettled`): `⚠️ *A entrega da NF \`n\` já foi registrada* às HH:MM.`/`⚠️ *A NF \`n\` já foi baixada como não entregue\* às HH:MM.`+`Nada foi gravado de novo.` O que vem depois (menu da parada que chegou,
   oferta da próxima ou rota concluída) segue como já era.
 - Divergência spec × desenho: o pedido fala em "dois blocos em citação" na entrega fora da rota; o desenho (`conversas.html`, fluxo 5) tem **um** bloco (a parada da nota). Segui o desenho. O desenho mostra só as duas linhas da nota já baixada,
   e o fluxo continua oferecendo o que cabe depois (regra do fluxo não muda).
@@ -286,12 +285,12 @@
 
 ### T4.5 (executor `sonnet`)
 
-- Motivo (`whatsapp-group-return-flow.service.ts`): `↩️ *Por que a NF \`n\` não foi entregue?*` + cliente e cidade em citação (`> 🏪 CLIENTE · cidade`, sem negrito, como no desenho) + motivos como opções com ícone + `_Responda com o número do motivo._`.
-  O cliente e a cidade vêm de `placeStops` (mesmo leitor da lista e da T4.1), ligado em `whatsapp-group-return.adapter.ts` (`listOpenDocuments`; `GroupReturnDocument` ganhou `clientName?` e `city?`). O "não entendi" é o padrão do pedido
-  (`🤔 *Não entendi.* Responda com o número do motivo:` + as opções). As opções saem de `describeReturnReasonOption` (`whatsapp-driver-flow.constant.ts`), que parte o rótulo com ícone de `DRIVER_RETURN_REASON_LABELS` (a lista da Meta da
+- Motivo (`whatsapp-group-return-flow.service.ts`): `↩️ *Por que a NF \`n\` não foi entregue?*` + cliente e cidade em citação (`> 🏪 CLIENTE · cidade`, sem negrito, como no desenho) + motivos como opções com ícone + `*Responda com o número do motivo.*`.
+O cliente e a cidade vêm de `placeStops`(mesmo leitor da lista e da T4.1), ligado em`whatsapp-group-return.adapter.ts` (`listOpenDocuments`; `GroupReturnDocument`ganhou`clientName?`e`city?`). O "não entendi" é o padrão do pedido
+(`🤔 *Não entendi.\* Responda com o número do motivo:`+ as opções). As opções saem de`describeReturnReasonOption` (`whatsapp-driver-flow.constant.ts`), que parte o rótulo com ícone de `DRIVER_RETURN_REASON_LABELS` (a lista da Meta da
   conversa individual continua usando o rótulo inteiro, sem mudança).
-- Registro: `groupReturnRegistered` = `↩️ *NF \`{{documentNumber}}\` não entregue* · {{reason}}\nA nota volta com você para o armazém.` O motivo entra por `returnReason` na plateia (`describeReturnedLine`, mesmo padrão da entrega): grupo e individual
-  (`returnReasonRouter` busca o número da nota antes da baixa) dizem o mesmo texto. Sem número ou sem motivo cai em `returnRegistered` (`↩️ *Não entrega registrada*`), sem `{{reason}}` solto. A oferta da próxima parada segue a da T3.5 (mensagem seguinte).
+- Registro: `groupReturnRegistered` = `↩️ *NF \`{{documentNumber}}\` não entregue* · {{reason}}\nA nota volta com você para o armazém.`O motivo entra por`returnReason` na plateia (`describeReturnedLine`, mesmo padrão da entrega): grupo e individual
+(`returnReasonRouter`busca o número da nota antes da baixa) dizem o mesmo texto. Sem número ou sem motivo cai em`returnRegistered` (`↩️ *Não entrega registrada\*`), sem `{{reason}}` solto. A oferta da próxima parada segue a da T3.5 (mensagem seguinte).
 - Sem a nota: `↩️ *Qual nota não foi entregue?*` + `Mande *não entreguei* com o número da nota.` + `➡️ _Exemplo:_ não entreguei 899836`. `attendantUsesOffice` no mesmo padrão (`↩️` + próximo passo).
 - Variável nova para o catálogo do editor (T6.1): `{{reason}}` em `fala_group_return_registered` (e `{{sequence}}` já anotada na T4.2). A T4.3 e a T4.4 não criaram variável nova.
 - Armadilha: o contrato CA03 (`type-name-wall`) reprova literal igual a nome de tipo do catálogo de ocorrência ("Carga avariada", "Endereço não achado"...): por isso a opção deriva do rótulo com ícone em vez de declarar `{ icon, action }` à parte.
@@ -305,11 +304,11 @@
 
 ### T5.1 (executor `haiku`, revisado por quem fecha a fase) — ocorrência, grupo e individual, e "só pelo aplicativo"
 
-- Grupo (`whatsapp-group-occurrence-flow.service.ts`, `GROUP_OCCURRENCE_TEXT`): nota (`⚠️ *Em qual nota é a ocorrência?*`, opções com `🧾 NF \`n\` · *cliente*`),
-  tipo (`⚠️ *Qual ocorrência?*` com a nota em citação; `askType` ganhou o 2º parâmetro `{ clientName, documentNumber }`, lido de `state`), contato
-  (`📇 *Contato do cliente para o boleto*`, cadastrado em citação `> 📱 *(16) ****-4821*`), observação, localização, confirmação (`📋 *Confira a ocorrência*`,
-  citação com tipo, nota, contratante, endereço e valor; `*Posso registrar?*`) e registro (`✅ *Ocorrência registrada* · HH:MM`, citação com tipo e nota,
-  contato, `📨` do aviso). `registered` deixou de receber `address`, `location`, `contractorName`, `note` e `totalValue` (o desenho não os mostra).
+- Grupo (`whatsapp-group-occurrence-flow.service.ts`, `GROUP_OCCURRENCE_TEXT`): nota (`⚠️ *Em qual nota é a ocorrência?*`, opções com `🧾 NF \`n\` · _cliente_`),
+tipo (`⚠️ _Qual ocorrência?_`com a nota em citação;`askType`ganhou o 2º parâmetro`{ clientName, documentNumber }`, lido de `state`), contato
+(`📇 _Contato do cliente para o boleto_`, cadastrado em citação `> 📱 _(16) \*\*\*\*-4821_`), observação, localização, confirmação (`📋 _Confira a ocorrência_`,
+citação com tipo, nota, contratante, endereço e valor; `_Posso registrar?_`) e registro (`✅ _Ocorrência registrada_ · HH:MM`, citação com tipo e nota,
+contato, `📨`do aviso).`registered`deixou de receber`address`, `location`, `contractorName`, `note`e`totalValue` (o desenho não os mostra).
 - Individual: a pergunta e os desfechos de foto, número e valor são os de `OCCURRENCE_DRAFT_SPEECH` (`whatsapp-occurrence-draft-speech.constant.ts`), que o
   grupo e a individual usam. Padrão: título em negrito com ícone, pergunta, `_Se não tiver, responda pular._`, desfecho curto (`✅ _…_`, `👍 _…_`),
   "não entendi" por `formatNotUnderstood`. `whatsapp-occurrence-draft.service.ts`: cancelamento (`↩️ *…cancelada.* Nada foi registrado.`) e falha (`⚠️ *…*`).
@@ -337,10 +336,9 @@
 
 - Retorno ao grupo (`occurrence-conversation/infrastructure/whatsapp-group-boleto-return.support.ts`, `GROUP_BOLETO_RETURN_TEXT`): título
   `📄 *Boleto atualizado · NF \`n\`*` com a nota em citação (`> 🏪 cliente`, `> ⚠️ tipo`); conferência em uma linha
-  (`✅ *Antes de pagar, o cliente confere:*` + `💰 o valor · 📅 o vencimento · 🏦 o beneficiário`); conclusão `🏁 *Ocorrência concluída.*`.
-  Ainda não chegou: `⏳ *NF \`n\` · o boleto ainda não chegou*` + `➡️ _Para pedir de novo:_ me marque e escreva *pedir boleto de novo n*`.
-- Pedir de novo (`whatsapp/application/whatsapp-group-boleto-resend.service.ts`, `GROUP_BOLETO_RESEND_TEXT`): `📨 *Pedi de novo o boleto da NF \`n\`.*` +
-  `Assim que a contratante responder, ele vem para cá.`. Os demais avisos (sem nota, falha, já reenviado) ganharam título em negrito; mesma regra.
+(`✅ *Antes de pagar, o cliente confere:*`+`💰 o valor · 📅 o vencimento · 🏦 o beneficiário`); conclusão `🏁 *Ocorrência concluída.*`.
+Ainda não chegou: `⏳ *NF \`n\` · o boleto ainda não chegou*`+`➡️ *Para pedir de novo:* me marque e escreva *pedir boleto de novo n\*`.
+- Pedir de novo (`whatsapp/application/whatsapp-group-boleto-resend.service.ts`, `GROUP_BOLETO_RESEND_TEXT`): `📨 *Pedi de novo o boleto da NF \`n\`.\*`+`Assim que a contratante responder, ele vem para cá.`. Os demais avisos (sem nota, falha, já reenviado) ganharam título em negrito; mesma regra.
 - Paridade: o arquivo do retorno é espelhado byte a byte no worker (`contractor-reply-parity.contract.ts`, spec 248 CA03). Copiado para
   `apps/worker-transportada/src/occurrence-conversation/infrastructure/whatsapp-group-boleto-return.support.ts`. O deploy do worker sai junto com a API.
 - Divergências spec × desenho:
@@ -359,9 +357,7 @@
 ### T5.3 (executor `sonnet`) — encerrar a rota diz quais notas ficam sem baixa (RF11)
 
 - Textos em `whatsapp-message-format.policy.ts` (`formatOpenDocumentsLine`, `formatTripClosed`), usados pelo grupo (`GROUP_TRIP_CLOSE_TEXT.confirm/closed`) e pela
-  individual (`ATTENDANT_TEXT.confirm/closed`). Pergunta do grupo: `🏁 *Encerrar a rota?*` + `⚠️ Ainda há *2 notas em aberto*: NF \`a\` e NF \`b\`.` + opções
-  `*1* - ✅ Sim, encerrar` / `*2* - ↩️ Não, deixar aberta`; sem nota aberta: `✅ Todas as notas já estão fechadas.`. Desfecho: `🏁 *Rota encerrada.* Ficaram sem baixa: NF \`a\` e NF \`b\`.`
-  (sem nota aberta, só `🏁 *Rota encerrada.*`). O que o encerramento faz não mudou (`trip.use-case.ts close`, motivo obrigatório).
+  individual (`ATTENDANT_TEXT.confirm/closed`). Pergunta do grupo: `🏁 *Encerrar a rota?*` + `⚠️ Ainda há *2 notas em aberto*: NF \`a\` e NF \`b\`.`+ opções`_1_ - ✅ Sim, encerrar`/`_2_ - ↩️ Não, deixar aberta`; sem nota aberta: `✅ Todas as notas já estão fechadas.`. Desfecho: `🏁 _Rota encerrada._ Ficaram sem baixa: NF \`a\` e NF \`b\`.`(sem nota aberta, só`🏁 _Rota encerrada._`). O que o encerramento faz não mudou (`trip.use-case.ts close`, motivo obrigatório).
 - Números: o fluxo já lia as notas da viagem para contar; `listTripCloseDocuments` passou a devolver também o número (`nfe_documents.number`, mesmo join do
   `listAttendantRoadTrips`, uma consulta, sem N+1) e `findActiveTrip` devolve `openDocumentNumbers` no lugar de `openDocumentCount`. Os números ficam no estado do
   fluxo (grupo: `state.openDocumentNumbers`; individual: contexto `attendantCloseOpenNumbers`, só números de nota, sem PII) e o desfecho os usa: são as notas
@@ -384,8 +380,8 @@
 - Áudio (`whatsapp/application/whatsapp-bot-audio.service.ts`): `BOT_AUDIO_SPEECH.received` = `🎙️ _Escutando seu áudio, só um momento._`. `botAudioConfirmationText`
   monta o "Entendi assim" no desenho: título, `> 💬 _"fala"_` (aspas retas, como no desenho), linhas da nota, `*Está certo?*`, opções por `formatOptions`
   e `formatReplyHint` (módulo de formatação, sem montagem própria).
-- Nota falada (`whatsapp/domain/bot-spoken-note.policy.ts`, `describeSpokenNotes`): `🧾 NF \`n\` · *cliente*` e, em linha própria, `📍 endereço` (RF2).
-  Sem valor e sem contratante, como no desenho (mesma decisão da T5.1). `formatSpokenNoteAmount` segue exportada (usada em outros fluxos).
+- Nota falada (`whatsapp/domain/bot-spoken-note.policy.ts`, `describeSpokenNotes`): `🧾 NF \`n\` · _cliente_`e, em linha própria,`📍 endereço`(RF2).
+Sem valor e sem contratante, como no desenho (mesma decisão da T5.1).`formatSpokenNoteAmount` segue exportada (usada em outros fluxos).
 - Recusas (`whatsapp-commands/domain/whatsapp-bot-speech.constant.ts`): `DOCUMENT_NOT_REACHABLE_TEXT` (nota fora da viagem + `➡️ _Próximo passo:_ confira com o escritório.`)
   serve `groupDocumentNotReachable` e `driverDocumentNotReachable`; `groupDriverWithoutAccess` (🔒, registro no nome dele, próximo passo); `REGISTER_FAILED_TEXT`
   (em `whatsapp-message-format.policy.ts`) serve `groupRegisterFailed` **e** `WHATSAPP_COMMAND_FAILURE_REPLY` (`whatsapp-command.constant.ts`), que era a
