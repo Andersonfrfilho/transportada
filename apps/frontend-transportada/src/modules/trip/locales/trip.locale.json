@@ -1762,6 +1762,7 @@
       "idle": "Clique aqui para voltar a ler",
       "ready": "Leitor pronto"
     },
+    "movesFromTrip": "Esta nota está em outra viagem. Ao acrescentar, ela sai de lá e vem para esta, e a troca fica registrada no histórico das duas.",
     "refusal": {
       "alreadyOnTrip": "Já está em outra viagem",
       "notAuthorized": "Não está autorizada na SEFAZ"

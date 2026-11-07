@@ -1762,6 +1762,7 @@
       "idle": "Click here to read again",
       "ready": "Reader ready"
     },
+    "movesFromTrip": "This note is on another trip. Adding it takes it off that trip and onto this one, and the change is recorded in both trips' history.",
     "refusal": {
       "alreadyOnTrip": "Already on another trip",
       "notAuthorized": "Not authorised at SEFAZ"

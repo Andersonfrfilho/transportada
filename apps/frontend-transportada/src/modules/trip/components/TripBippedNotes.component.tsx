@@ -103,6 +103,11 @@ export function TripBippedNotes({ bipped, readerRef }: TripBippedNotesProps) {
                     })}
               >
                 <Badge variant="secondary">{t('quickCreate.bipped')}</Badge>
+                {note.movesFromTrip === true ? (
+                  <p className={styles.hint} role="status">
+                    {t('quickCreate.movesFromTrip')}
+                  </p>
+                ) : null}
                 {note.blocker === undefined ? null : (
                   <p className={styles.alert} role="alert">
                     {t(`quickCreate.refusal.${note.blocker}`)}
