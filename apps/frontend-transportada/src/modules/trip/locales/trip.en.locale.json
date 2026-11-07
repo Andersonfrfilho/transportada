@@ -1787,7 +1787,10 @@
     "title": "New trip",
     "typed": {
       "ambiguous": "{{count}} free notes share this number. Which one?",
+      "inAnotherTrip": "This note is already on another trip. Release it there before adding it.",
+      "notAuthorized": "This note is not authorized at SEFAZ and cannot join the trip.",
       "notFound": "No free note with this number or key in this company.",
+      "notImported": "This key has not been imported yet. Import the note (XML or key lookup) and try again.",
       "option": "Note {{number}}/{{series}} · {{emitter}} to {{recipient}}",
       "pickTitle": "Choose the note",
       "unrecognized": "Type the note number or the 44 characters of the key."
