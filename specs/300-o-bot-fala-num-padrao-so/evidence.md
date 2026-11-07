@@ -332,3 +332,26 @@
   14409 testes: 14383 pass, 26 skip (os mesmos de antes), 0 fail (`literal-message-text` verde, sem exceção nova) · eslint e prettier limpos nos arquivos tocados.
   Integração (`whatsapp-driver-journey-direct`, `whatsapp-driver-journey-group`, `whatsapp-group-boleto-return`, `whatsapp-occurrence-draft-repository`):
   19 pass, 0 fail, rodada na árvore com T5.1 e T5.2 juntos (o `boleto-return` compara o texto com a própria função).
+
+### T5.2 (executor `haiku`) — boleto: retorno e pedir de novo
+
+- Retorno ao grupo (`occurrence-conversation/infrastructure/whatsapp-group-boleto-return.support.ts`, `GROUP_BOLETO_RETURN_TEXT`): título
+  `📄 *Boleto atualizado · NF \`n\`*` com a nota em citação (`> 🏪 cliente`, `> ⚠️ tipo`); conferência em uma linha
+  (`✅ *Antes de pagar, o cliente confere:*` + `💰 o valor · 📅 o vencimento · 🏦 o beneficiário`); conclusão `🏁 *Ocorrência concluída.*`.
+  Ainda não chegou: `⏳ *NF \`n\` · o boleto ainda não chegou*` + `➡️ _Para pedir de novo:_ me marque e escreva *pedir boleto de novo n*`.
+- Pedir de novo (`whatsapp/application/whatsapp-group-boleto-resend.service.ts`, `GROUP_BOLETO_RESEND_TEXT`): `📨 *Pedi de novo o boleto da NF \`n\`.*` +
+  `Assim que a contratante responder, ele vem para cá.`. Os demais avisos (sem nota, falha, já reenviado) ganharam título em negrito; mesma regra.
+- Paridade: o arquivo do retorno é espelhado byte a byte no worker (`contractor-reply-parity.contract.ts`, spec 248 CA03). Copiado para
+  `apps/worker-transportada/src/occurrence-conversation/infrastructure/whatsapp-group-boleto-return.support.ts`. O deploy do worker sai junto com a API.
+- Divergências spec × desenho:
+  1. "Boleto atualizado" do desenho não tem a linha "📱 Ele também está no chat da ocorrência no aplicativo.": foi retirada.
+  2. A conclusão do desenho não tem "Precisando de mais alguma coisa…": só na variante "o escritório conclui" (sem desenho), que segue com a frase.
+  3. O "ainda não chegou" do desenho não traz cliente nem tipo: não traz (`summaryLines` fica fora dele).
+  4. Pedido de novo: o desenho diz "Pedi de novo o boleto", não "Pedi de novo à contratante o boleto": segui o desenho.
+  5. `➡️ _Para pedir de novo:_` usa o rótulo do desenho, não `formatNextStep` (que escreve "Próximo passo:"): texto literal no `GROUP_BOLETO_RETURN_TEXT`, não em `sendText`.
+- Contratos: `test/whatsapp-commands/whatsapp-boleto-flow-design.contract.ts` (fluxo 8: boleto atualizado, ainda não chegou, pedir de novo; `toBe` inteiro),
+  ligado em `whatsapp-commands.contract.test.ts`. Nenhum contrato antigo de boleto quebrou (o `group-boleto-resend` e o integration comparam pela própria função).
+- Gates: typecheck `bun run typecheck` limpo · `bun --env-file=../../.env.test test --timeout 120000` na árvore final (T5.1 + T5.2): 14412 testes,
+  14386 pass, 26 skip (os mesmos de antes), 0 fail · eslint e prettier limpos nos arquivos tocados · integração: `whatsapp-driver-journey-direct`,
+  `whatsapp-driver-journey-group`, `whatsapp-group-boleto-return`, `whatsapp-occurrence-draft-repository` 19 pass, 0 fail · worker: `contractor-reply-parity`
+  15 pass, `occurrence-conversation` 136 pass, 0 fail.

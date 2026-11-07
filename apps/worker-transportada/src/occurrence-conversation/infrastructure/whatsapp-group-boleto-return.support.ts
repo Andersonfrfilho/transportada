@@ -88,36 +88,32 @@ export type GroupBoletoReturnSummary = {
   readonly typeName: string
 }
 
-/** "NF 899884/2", ou "NF 899884" sem série. */
+/** "NF `899884/2`", ou "NF `899884`" sem série. */
 function noteLabel(summary: GroupBoletoReturnSummary): string {
   return summary.series === ''
-    ? `NF ${summary.documentNumber}`
-    : `NF ${summary.documentNumber}/${summary.series}`
+    ? `NF \`${summary.documentNumber}\``
+    : `NF \`${summary.documentNumber}/${summary.series}\``
 }
 
 function summaryLines(summary: GroupBoletoReturnSummary): readonly string[] {
   return [
-    ...(summary.clientName === '' ? [] : [`👤 Cliente: *${summary.clientName}*`]),
-    ...(summary.typeName === '' ? [] : [`⚠️ Ocorrência: ${summary.typeName}`]),
+    ...(summary.clientName === '' ? [] : [`> 🏪 ${summary.clientName}`]),
+    ...(summary.typeName === '' ? [] : [`> ⚠️ ${summary.typeName}`]),
   ]
 }
 
 const CHECK_BEFORE_PAYING = [
-  '✅ Antes de pagar, o cliente deve conferir:',
-  '- 💰 o valor',
-  '- 📅 a data de vencimento',
-  '- 🏦 o beneficiário',
+  '✅ *Antes de pagar, o cliente confere:*',
+  '💰 o valor · 📅 o vencimento · 🏦 o beneficiário',
 ] as const
 
 export const GROUP_BOLETO_RETURN_TEXT = {
   clientSent: (summary: GroupBoletoReturnSummary, contacts: readonly string[], resolved = false) =>
     [
-      `📄 *Boleto atualizado — ${noteLabel(summary)}*`,
-      '',
+      `📄 *Boleto atualizado · ${noteLabel(summary)}*`,
       ...summaryLines(summary),
       '',
       `📨 A contratante respondeu e o boleto já foi enviado ao cliente: ${contacts.map((contact) => `*${contact}*`).join(', ')}.`,
-      '📱 Ele também está no chat da ocorrência no aplicativo.',
       '',
       ...CHECK_BEFORE_PAYING,
       '',
@@ -125,8 +121,7 @@ export const GROUP_BOLETO_RETURN_TEXT = {
     ].join('\n'),
   document: (summary: GroupBoletoReturnSummary, resolved = false) =>
     [
-      `📄 *Boleto atualizado — ${noteLabel(summary)}*`,
-      '',
+      `📄 *Boleto atualizado · ${noteLabel(summary)}*`,
       ...summaryLines(summary),
       '',
       '📎 A contratante respondeu. Segue em anexo o boleto atualizado para repassar ao cliente.',
@@ -137,7 +132,7 @@ export const GROUP_BOLETO_RETURN_TEXT = {
     ].join('\n'),
   office: (summary: GroupBoletoReturnSummary) =>
     [
-      `🔎 *${noteLabel(summary)}: a contratante respondeu*`,
+      `🔎 *${noteLabel(summary)} · a contratante respondeu*`,
       '',
       ...summaryLines(summary),
       '',
@@ -145,20 +140,18 @@ export const GROUP_BOLETO_RETURN_TEXT = {
     ].join('\n'),
   overdue: (summary: GroupBoletoReturnSummary) =>
     [
-      `⏳ *${noteLabel(summary)}: o boleto ainda não chegou*`,
+      `⏳ *${noteLabel(summary)} · o boleto ainda não chegou*`,
+      'A contratante não respondeu no prazo, e o escritório já foi avisado.',
       '',
-      ...summaryLines(summary),
-      '',
-      'A contratante não respondeu no prazo e o escritório já foi avisado.',
-      `Para pedir de novo à contratante, me marque e escreva: *pedir boleto de novo ${summary.documentNumber}*`,
+      `➡️ _Para pedir de novo:_ me marque e escreva *pedir boleto de novo ${summary.documentNumber}*`,
     ].join('\n'),
 } as const
 
 /** A última linha do aviso do boleto entregue: a ocorrência concluída, ou quem conclui. */
 function closingLine(resolved: boolean): string {
   return resolved
-    ? '🏁 *Ocorrência concluída.* Precisando de mais alguma coisa, é só me marcar. 🙂'
-    : '📋 O escritório conclui a ocorrência. Precisando de mais alguma coisa, é só me marcar. 🙂'
+    ? '🏁 *Ocorrência concluída.*'
+    : '📋 *O escritório conclui a ocorrência.* Precisando de mais alguma coisa, é só me marcar. 🙂'
 }
 
 type Row = Record<string, unknown>
