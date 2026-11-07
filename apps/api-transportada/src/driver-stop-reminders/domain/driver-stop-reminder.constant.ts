@@ -65,3 +65,23 @@ export const DRIVER_STOP_REMINDER_STAGE = { ARRIVAL: 'arrival', SETTLEMENT: 'set
 export const MILLISECONDS_PER_MINUTE = 60_000
 export const MILLISECONDS_PER_SECOND = 1000
 export const MINUTES_PER_DAY = 1440
+
+export const DRIVER_STOP_REMINDER_SEND_FAILURE_RETRY_MINUTES = 5
+export const DRIVER_STOP_REMINDER_DISPATCH_RESERVATION_MINUTES = 2
+
+export const DRIVER_STOP_REMINDER_OUTCOME = {
+  SENT: 'sent',
+  DEFERRED: 'deferred',
+  CLOSED: 'closed',
+  ESCALATED: 'escalated',
+} as const
+
+export const DRIVER_STOP_REMINDER_STATUS = {
+  PENDING: 'pending',
+  ESCALATED: 'escalated',
+} as const
+
+export const DRIVER_STOP_REMINDER_DELIVERY_LOG = {
+  SEND_FAILED: 'driver_stop_reminder_send_failed',
+  DELIVERED: 'driver_stop_reminder_delivery',
+} as const

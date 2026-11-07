@@ -48,7 +48,7 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 - [x] **T2.1** Conferir que o suporte de menção do grupo (pré-requisito, D8) está em `origin/staging`; o envio do
       lembrete no grupo pede a menção do motorista da viagem por ele. Sem o suporte → **parar e perguntar** (não
       reimplementar). Aceite: contrato do lembrete com a menção pedida.
-- [ ] **T2.2** Extrair o portão "pergunta aberta" para `DriverOpenQuestionPort` sem mudar a oferta da próxima rota
+- [x] **T2.2** Extrair o portão "pergunta aberta" para `DriverOpenQuestionPort` sem mudar a oferta da próxima rota
       (diff de movimentação; contratos da 294 verdes). Política do portão (RF8) verde e `deliver-driver-stop-reminder.use-case.ts` + rota de robô
       `POST /driver-stop-reminders/:id/delivery` (permissão própria só no papel `automation`), com a vaga da 289 e a
       reserva por `version`. Integração: envia, adia por horário, por pedido aberto e por vaga; fecha se a parada andou;

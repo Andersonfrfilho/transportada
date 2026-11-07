@@ -39,8 +39,8 @@ import {
   DRIVER_PROMPT_CONTEXT_KEY,
   DRIVER_PROMPT_TEXT,
 } from '../../src/whatsapp-commands/domain/whatsapp-driver-prompt.policy.js'
+import { canAskRouteOffer } from '../../src/whatsapp-commands/domain/driver-open-question.policy.js'
 import {
-  canAskRouteOffer,
   describeRouteOffer,
   ROUTE_OFFER_TEXT,
   type RouteOfferStop,

@@ -440,3 +440,68 @@ branch e em `origin/staging`. Nada foi reimplementado.
 - Integração (cada arquivo isolado, `--env-file=../../.env.test`): driver-stop-reminders 23, trip-lifecycle 6, trip-repository 5,
   stop-event-sequence 10; todos 0 fail. Os mesmos gates valem para a seção "Revisão PR 566 — médios" (rodados uma vez, sobre as
   duas mudanças).
+
+## T2.2 — 2026-11-07
+
+Portão "pergunta aberta" extraído, entrega do lembrete e rota do robô. Arquivos novos em `apps/api-transportada/src/`:
+`whatsapp-commands/{domain/driver-open-question.policy,application/driver-open-question.port,infrastructure/driver-open-question.adapter}.ts`,
+`driver-stop-reminders/{application/{deliver-driver-stop-reminder.use-case,driver-stop-reminder-delivery.port,reminder-prompt-opener.port},domain/driver-stop-reminder.error,infrastructure/{drizzle-driver-stop-reminder-delivery.repository,current-trip-driver.query,group-reminder-prompt-opener},presentation/driver-stop-reminders.routes}.ts`.
+
+**Movimentação (pure move):** `RouteOfferGate` e `canAskRouteOffer` saíram de `whatsapp-driver-route-offer.policy.ts` (20 linhas
+removidas, nada mais mudou ali) para `driver-open-question.policy.ts` com o mesmo corpo; `whatsapp-driver-prompts.service.ts`,
+`whatsapp-group-driver-flow.service.ts` e `test/whatsapp-commands/route-offer.contract.ts` só trocaram o caminho do import. Os três
+pontos que montam o portão da oferta ficam como estavam. Contratos da 294 (`route-offer`) verdes sem alteração de asserção.
+
+**Vermelho antes** (testes escritos primeiro; a implementação já existia no disco, então o vermelho foi medido tirando do lugar
+`deliver-driver-stop-reminder.use-case.ts` e `driver-stop-reminders.routes.ts`): `bun test ./test/driver-stop-reminders.contract.test.ts`
+→ `Cannot find module '.../presentation/driver-stop-reminders.routes.js'`, 0 pass / 1 fail / 1 error. Com os arquivos de volta: 133 pass.
+
+**Decisões da execução:**
+
+- **Chave desligada** (global ou da empresa): `deferred` com o `dueAt` atual e **nenhuma escrita** (a consulta do worker, T2.4, só traz
+  empresa ligada; a corrida é rara e não precisa de reagendar).
+- **Escalada não passa pelo portão de horário/pergunta/vaga**: ela não manda nada ao motorista. A ordem é: fechar se a parada andou →
+  escalar se `attempts >= maxAttempts` → adiar (horário, pergunta, vaga) → enviar. `escalated` só grava `status` e `escalated_at`.
+- **Sem grupo vinculado** ao motorista atual: adia pelo intervalo (`reason: no_group`), sem reservar. Individual/template e "só escala"
+  são T3.2. O grupo é o do motorista **atual** da viagem (a troca de tripulação leva junto o grupo e a marca).
+- **Motorista atual** = primeiro da tripulação com papel `driver` por `position` (`current-trip-driver.query.ts`); é o que a marca do
+  grupo e o nome da mensagem usam. `readCurrentDriverNumber` agora é real (`toWhatsAppPhone` da ficha).
+- **Reserva**: `UPDATE … SET version = version + 1, dispatching_until WHERE id AND company_id AND version AND status='pending' AND
+(dispatching_until IS NULL OR <= now)`. Quem perde devolve `deferred` sem enviar. Gravar a tentativa (`attempts + 1`, `last_*`,
+  próximo prazo) e devolver/fechar/escalar usam `WHERE id AND company_id AND status='pending'` (não repetem a versão: o refino do OSRM
+  pode ter bumpado a versão no meio). Falha do provedor: `release` com `due_at = agora + 5 min`, tentativa não consumida.
+- **Mensagem**: nós `fala_lembrete_chegada`, `_chegada_sem_previsao`, `_entrega` em `BOT_SPEECH_DEFAULTS` (chaves `lembreteChegada`,
+  `lembreteChegadaSemPrevisao`, `lembreteEntrega`), publicados pelo `buildBotSpeechNodes` (o mesmo que o
+  `whatsapp-flow-publish.ts` já usa; nada publicado em nenhum ambiente). Nome e parada passam por `plainText` (RF34). A marca
+  `@<telefone>` do grupo é o prefixo do suporte de menção (`withGroupMention`, T2.1): o texto sai `@5516… 👋 Oi, Fulano! …`, e não
+  `Oi, @… Fulano` como o desenho do RF9; mudar isso é mudar o suporte de menção. A linha "Saída às …" usa negrito (`*14:05*`) nos dois
+  modelos: o `_14:05_` do RF9 na versão sem previsão é o `prettier` reescrevendo `*` em prosa no `spec.md`.
+- **`ReminderPromptOpener`**: porta + abridor do grupo que não grava nada (`group-reminder-prompt-opener.ts`); a T2.3 o liga ao
+  `GROUP_STEP_REGISTRY`. A porta é chamada **depois** da reserva e **antes** do envio.
+- **Composição** (`main.ts`): `whatsappBotAudio`, `whatsappGroupTurns` e `whatsappGroupAudio` nascem em `bootstrap()` e vão por
+  parâmetro a `createAnonymousRoutes` → `createEvolutionWebhook` (mesmos objetos, nenhuma cópia de estado); o envio do lembrete passa
+  por `whatsappGroupTurns.send` (nunca ultrapassa o que um turno aberto guardou). O leitor da pergunta aberta usa `SessionRepository`
+  do módulo da Meta (`getContext`, com as duas formas do número) e `hasPendingInConversation` do áudio (individual e `group:<jid>`).
+- **Permissão** `trip.stop-reminder-dispatch` em `TRANSPORTADA_PERMISSIONS`, `COMPANY_ROLE_PERMISSIONS.automation`,
+  `SERVICE_ONLY_PERMISSIONS`, `useAuthMe.query.ts`, `identity{,.en}.locale.json` e nos quatro contratos de permissão
+  (`authorization`, `tenant-context`, `role-permissions`, `permission-matrix` do painel).
+- **Feriado como dia fechado (RF8.2) NÃO ligado**: o calendário de feriados é por cidade (IBGE) e a empresa não tem cidade no
+  cadastro; o repositório recebe um `readHolidayDates` injetável que hoje devolve `[]`. Decisão pendente do dono (qual cidade vale:
+  a do endereço da empresa ou a da parada).
+- **Risco já registrado** (T0.1): o áudio pendente é por processo; com mais de uma réplica da API o portão só enxerga o da réplica
+  que atendeu.
+
+**Gates (de `apps/api-transportada`):**
+
+- `bun run typecheck`: limpo. `eslint --max-warnings=0` e `prettier --check` nos arquivos tocados: limpos.
+- `bun run test`: 14337 pass, 35 skip, 0 fail.
+- `bun --env-file=../../.env.test test --timeout 120000`: 14346 pass, 26 skip, 0 fail.
+- Integração, cada arquivo isolado (`--env-file=../../.env.test`): `driver-stop-reminder-delivery` 9 pass (novo, na lista do
+  `test:integration`), `driver-stop-reminders` 23, `next-stop-offer` 7, `whatsapp-driver-journey-group` 2,
+  `whatsapp-driver-journey-direct` 2, `whatsapp-evolution-webhook` 3, `whatsapp-driver-flow-actions` 4; todos 0 fail.
+  Cobrem: envia (corpo exato e marca do motorista atual, inclusive depois da troca de tripulação), adia por horário, por pedido
+  aberto e por vaga, fecha se a parada andou, duas entregas enviam uma vez, escalada, 404 de outra empresa.
+  O 403 para `trip.manage` está no contrato `driver-stop-reminder-routes.contract.ts` (a rota exige token de serviço).
+- Matrizes `group-{flow,inbound}-isolation` e `literal-message-text` fazem parte do `bun run test` (verdes).
+- `apps/frontend-transportada` (espelhos de permissão): `bun run typecheck` limpo, `eslint` nos arquivos tocados limpo,
+  `bun run test` 1493 pass, 0 fail.

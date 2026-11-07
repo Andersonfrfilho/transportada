@@ -26,10 +26,8 @@ import {
   interpretDriverChoice,
   DRIVER_CHOICE,
 } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
-import {
-  canAskRouteOffer,
-  ROUTE_OFFER_TEXT,
-} from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
+import { canAskRouteOffer } from '../../whatsapp-commands/domain/driver-open-question.policy.js'
+import { ROUTE_OFFER_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import {
   describeJourneyQuestion,
   JOURNEY_ACTION,

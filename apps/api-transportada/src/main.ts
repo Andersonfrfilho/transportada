@@ -190,6 +190,7 @@ import {
 import {
   type BotAudioTranscriberPort,
   createWhatsAppBotAudio,
+  type WhatsAppBotAudio,
 } from './whatsapp/application/whatsapp-bot-audio.service.js'
 import {
   describeSpokenNotes,
@@ -208,7 +209,17 @@ import {
 } from './whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 import type { GroupQuestionAsked } from './whatsapp/application/whatsapp-group-request.port.js'
 import { createWhatsAppGroupRequestSessions } from './whatsapp/application/whatsapp-group-request.service.js'
-import { createWhatsAppTurnReplies } from './whatsapp-commands/application/whatsapp-turn-replies.service.js'
+import {
+  createWhatsAppTurnReplies,
+  type WhatsAppTurnReplies,
+} from './whatsapp-commands/application/whatsapp-turn-replies.service.js'
+import { createDeliverDriverStopReminderUseCase } from './driver-stop-reminders/application/deliver-driver-stop-reminder.use-case.js'
+import { createCurrentDriverNumberReader } from './driver-stop-reminders/infrastructure/current-trip-driver.query.js'
+import { DrizzleDriverStopReminderDeliveryRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-delivery.repository.js'
+import { createGroupReminderPromptOpener } from './driver-stop-reminders/infrastructure/group-reminder-prompt-opener.js'
+import { createGroupStopReminderSender } from './driver-stop-reminders/infrastructure/group-stop-reminder-sender.gateway.js'
+import { createDriverStopReminderRoutes } from './driver-stop-reminders/presentation/driver-stop-reminders.routes.js'
+import { createDriverOpenQuestionPort } from './whatsapp-commands/infrastructure/driver-open-question.adapter.js'
 import { createEvolutionGroupReplySender } from './whatsapp/infrastructure/evolution-group-reply.gateway.js'
 import { startGroupRequestExpiryWatcher } from './whatsapp/infrastructure/whatsapp-group-request-expiry.watcher.js'
 import {
@@ -327,7 +338,7 @@ import { type ClientIpResolver, createClientIpResolver } from './http/client-ip.
 import { createRateLimiter } from './http/rate-limiter.service.js'
 import { createRateLimitSubjectService } from './http/rate-limit-subject.service.js'
 import { DrizzleRateLimiterRepository } from './http/drizzle-rate-limiter.repository.js'
-import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
+import { FlowGraphRepository, SessionRepository } from '@adatechnology/meta-whatsapp-module'
 import {
   createDriverWhatsAppFlowActions,
   type DriverFlowActionDependencies,
@@ -2164,6 +2175,17 @@ export function bootstrap(): Bun.Server<undefined> {
    * Spec 144 T006 — o despachante das mensagens recebidas. O teto por número é um só para a
    * instalação: a instância do módulo é refeita quando o token muda, e o teto não pode zerar junto.
    */
+  /** Spec 299: o áudio nasce na composição para o lembrete da parada também enxergar a confirmação pendente. */
+  const whatsappBotAudio = createWhatsAppBotAudio<null>({
+    logger,
+    transcriber: whatsappBotAudioTranscriber(),
+  })
+  /** Spec 299: o turno e o áudio do grupo nascem aqui (e não dentro do webhook) para o lembrete os alcançar. */
+  const whatsappGroupTurns = createWhatsAppTurnReplies({ logger })
+  const whatsappGroupAudio = createWhatsAppBotAudio<GroupAudioContext>({
+    logger,
+    transcriber: whatsappBotAudioTranscriber(),
+  })
   const whatsappCommandHook = createWhatsAppCommandHookFactory({
     authorization: new AuthorizationService(),
     clock: () => new Date(),
@@ -2186,7 +2208,7 @@ export function bootstrap(): Bun.Server<undefined> {
     rateLimiter: createRateLimiter(),
     sharedLocations: whatsappSharedLocations,
     /** Spec 292 T9: o áudio da conversa individual é transcrito pelo worker e confirmado. */
-    botAudio: createWhatsAppBotAudio<null>({ logger, transcriber: whatsappBotAudioTranscriber() }),
+    botAudio: whatsappBotAudio,
     /** Spec 293 T15: foto, localização e respostas da entrega em preparo na conversa individual. */
     deliveryProofs: {
       preparations: whatsappDriverCollections,
@@ -2213,6 +2235,50 @@ export function bootstrap(): Bun.Server<undefined> {
           companyId: config.companyId,
           db: database.db,
         })
+  /**
+   * Spec 299 T2.2: a entrega do lembrete vencido. O envio no grupo sai pelo Evolution da empresa, no mesmo ritmo do
+   * número (289), e passa pelo turno do grupo para nunca ultrapassar o que um turno aberto já guardou.
+   */
+  const reminderEvolutionSecrets = createWhatsAppEvolutionSecretService({
+    envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+  })
+  const reminderDocumentSender = createEvolutionDocumentSender({
+    pacer: createEvolutionSendPacer({
+      claimSlot: createDrizzleEvolutionSendSlotClaimer(database.db),
+      maxWaitMs: 20_000,
+    }),
+    repository: new DrizzleWhatsAppEvolutionRepository(database.db),
+    secrets: reminderEvolutionSecrets,
+  })
+  const deliverDriverStopReminder = createDeliverDriverStopReminderUseCase({
+    driverOpenQuestions: createDriverOpenQuestionPort({
+      collections: whatsappDriverCollections,
+      database: database.db,
+      groupAudio: whatsappGroupAudio,
+      groupRequests: createDrizzleWhatsAppGroupRequestRepository(database.db),
+      individualAudio: whatsappBotAudio,
+      sessions: new SessionRepository(database.db as never) as never,
+    }),
+    isEnabled: config.driverRemindersEnabled,
+    logger,
+    promptOpener: createGroupReminderPromptOpener(),
+    repository: new DrizzleDriverStopReminderDeliveryRepository(database.db),
+    sender: createGroupStopReminderSender({
+      readCurrentDriverNumber: createCurrentDriverNumberReader(database.db),
+      sendText: async (input) => {
+        let providerMessageId: null | string = null
+        await whatsappGroupTurns.send({
+          body: input.body,
+          deliver: async (body) => {
+            ;({ providerMessageId } = await reminderDocumentSender.sendText({ ...input, body }))
+          },
+          key: `${input.companyId}|${input.number}`,
+        })
+        return { providerMessageId }
+      },
+    }),
+    speech: whatsappBotSpeech,
+  })
   // ADR-0076 §6: um resolvedor só, do ambiente, para o limitador anônimo e para toda trilha com IP.
   const resolveClientIp = createClientIpResolver(config.clientIpPolicy)
   const router = createRouter({
@@ -2223,12 +2289,14 @@ export function bootstrap(): Bun.Server<undefined> {
       resolveClientIp,
       userModule,
       whatsappCommandHook,
+      whatsappGroupAudio,
       whatsappGroupBoletoResend,
       whatsappGroupDelivery,
       whatsappGroupOccurrence,
       whatsappGroupReturn,
       whatsappGroupStop,
       whatsappGroupTripClose,
+      whatsappGroupTurns,
     }),
     authentication,
     authorization: new AuthorizationService(),
@@ -2326,6 +2394,7 @@ export function bootstrap(): Bun.Server<undefined> {
         vehicleCatalog: config.vehicleCatalog,
       }),
       ...createWhatsAppCommandSettlementRoutes({ settle: whatsappSettlement }),
+      ...createDriverStopReminderRoutes({ deliverDriverStopReminder }),
     ],
     tenantContext,
     userPictureExistence: new DrizzleUserPictureRepository(database.db),
@@ -2387,6 +2456,8 @@ type CreateAnonymousRoutesParams = {
   readonly whatsappGroupReturn: GroupReturnFlowPorts
   /** Spec 294 RF21: "encerrar a rota" do atendente no grupo. */
   readonly whatsappGroupTripClose: GroupTripCloseFlowPorts
+  readonly whatsappGroupAudio: WhatsAppBotAudio<GroupAudioContext>
+  readonly whatsappGroupTurns: WhatsAppTurnReplies
   /** Spec 293 T15: a entrega em preparo no grupo; ausente, "entreguei" e as fotos não são atendidos. */
   readonly whatsappGroupDelivery: GroupDeliveryWiring
   /** Spec 292 T7: "pedir boleto de novo" no grupo. */
@@ -2422,6 +2493,10 @@ function createEvolutionWebhook(input: {
   readonly groupDelivery?: GroupDeliveryWiring
   /** Spec 292 T7: "pedir boleto de novo" no grupo; ausente, o texto segue para a ocorrência. */
   readonly groupBoletoResend?: GroupBoletoResendPorts
+  /** Spec 299: o áudio do grupo, criado na composição; usado só pela instância que atende o grupo. */
+  readonly groupAudio?: WhatsAppBotAudio<GroupAudioContext>
+  /** Spec 299: o turno do grupo, criado na composição; ausente, a instância cria o próprio. */
+  readonly groupTurns?: WhatsAppTurnReplies
   readonly logger: ApiLogger
 }) {
   const { database, envelopeProvider, logger } = input
@@ -2433,7 +2508,7 @@ function createEvolutionWebhook(input: {
    * número (spec 289), fora do webhook.
    */
   /** Uma resposta por turno é uma mensagem: o remetente e a entrada do grupo dividem o mesmo turno. */
-  const groupTurns = createWhatsAppTurnReplies({ logger })
+  const groupTurns = input.groupTurns ?? createWhatsAppTurnReplies({ logger })
   const groupReplies = createEvolutionGroupReplySender({
     logger,
     turnReplies: groupTurns,
@@ -2510,13 +2585,7 @@ function createEvolutionWebhook(input: {
           replies: groupReplies,
         })
   /** Spec 292 T9: o áudio no grupo é transcrito pelo worker e confirmado antes de seguir o fluxo. */
-  const groupAudio =
-    groupSessions === undefined
-      ? undefined
-      : createWhatsAppBotAudio<GroupAudioContext>({
-          logger,
-          transcriber: whatsappBotAudioTranscriber(),
-        })
+  const groupAudio = groupSessions === undefined ? undefined : input.groupAudio
   if (groupAudio !== undefined) groupQuestionAsked = createGroupQuestionAskedHandler(groupAudio)
   return createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets,
@@ -2616,8 +2685,10 @@ function createAnonymousRoutes({
   whatsappGroupDelivery,
   whatsappGroupOccurrence,
   whatsappGroupReturn,
+  whatsappGroupAudio,
   whatsappGroupStop,
   whatsappGroupTripClose,
+  whatsappGroupTurns,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
   /**
@@ -2712,6 +2783,8 @@ function createAnonymousRoutes({
       groupReturn: whatsappGroupReturn,
       groupStop: whatsappGroupStop,
       groupTripClose: whatsappGroupTripClose,
+      groupAudio: whatsappGroupAudio,
+      groupTurns: whatsappGroupTurns,
       logger,
     }),
   })

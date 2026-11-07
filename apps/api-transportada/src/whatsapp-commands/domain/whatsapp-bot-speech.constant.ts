@@ -100,6 +100,16 @@ export const BOT_SPEECH_DEFAULTS = {
   groupRegisterFailed:
     'Não consegui registrar agora. Tente de novo em instantes ou registre pelo aplicativo.',
   groupReturnRegistered: '*NF {{documentNumber}} não entregue* ↩️',
+  /**
+   * Spec 299 RF9/RF10: o lembrete da parada. A marca `@<telefone>` do grupo é posta pelo suporte de menção, na frente
+   * do texto. `{{parada}}` e `{{nome}}` já chegam sem os marcadores do WhatsApp (dado de terceiro).
+   */
+  lembreteChegada:
+    '👋 Oi, {{nome}}! Já chegou na *{{parada}}*?\nSaída às *{{saida}}* · chegada prevista *~{{previsao}}*\n*1* - Cheguei\n*2* - Já entreguei (mande a foto do canhoto)\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou a caminho',
+  lembreteChegadaSemPrevisao:
+    '👋 Oi, {{nome}}! Já chegou na *{{parada}}*?\nSaída às *{{saida}}*\n*1* - Cheguei\n*2* - Já entreguei (mande a foto do canhoto)\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou a caminho',
+  lembreteEntrega:
+    '👋 Oi, {{nome}}! Já entregou na *{{parada}}*?\nChegada às *{{chegada}}*\n*1* - Entreguei (mande a foto do canhoto)\n*2* - Não entreguei\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou descarregando',
 } as const
 
 export type BotSpeechKey = keyof typeof BOT_SPEECH_DEFAULTS

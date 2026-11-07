@@ -432,6 +432,10 @@
         "label": "Automatic proof-of-delivery review",
         "where": "Service only: the robot that reads the delivery receipt, no screen. No person receives it."
       },
+      "trip.stop-reminder-dispatch": {
+        "label": "Driver reminder delivery",
+        "where": "Service only: the robot that reminds the driver at the right time, no screen. No person receives it."
+      },
       "occurrence.automatic-mail": {
         "label": "Automatic occurrence notice",
         "where": "Service only: the robot that sends the notice to the contractor, no screen. No person receives it."
