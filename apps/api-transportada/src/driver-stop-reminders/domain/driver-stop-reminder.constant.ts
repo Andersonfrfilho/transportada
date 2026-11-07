@@ -126,3 +126,6 @@ export const DRIVER_STOP_REMINDER_DELIVERY_LOG = {
   SEND_FAILED: 'driver_stop_reminder_send_failed',
   DELIVERED: 'driver_stop_reminder_delivery',
 } as const
+
+/** Teto de etapas abertas por ciclo da varredura; o que passar disso espera o próximo ciclo. */
+export const DRIVER_STOP_REMINDER_RECONCILIATION_BATCH_LIMIT = 200

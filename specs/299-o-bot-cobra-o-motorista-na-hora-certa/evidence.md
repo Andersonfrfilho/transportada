@@ -805,3 +805,13 @@ commit anterior, só a classe de erro stubada para o arquivo carregar): `(fail)`
 `(fail)` "publica só a chave listada, guarda histórico…", `(fail)` "chave desconhecida é erro…", `(fail)` "sem a flag…"
 (este por `preview.overwritten` ainda não existir; o comportamento sem a flag já era o antigo) — 6 pass / 4 fail. Implementação
 restaurada: 15 pass.
+
+## Revisão PR 570 — correções
+
+- **Red** (antes do código): `stop-reminder-message`/`bot-speech` falharam por `Export named 'capStopReminderBody' / 'assertOverwriteNodeIds' not found`; integração da reconciliação: 2 fail (`chegada offline ... não reabre settlement`, `saída offline ... não reabre arrival`).
+- **H1**: a chave de dedupe é o CICLO (última `departed`/`arrived` em `trip_stop_events.recorded_at`; lembrete criado a partir dela, em qualquer status, fecha a etapa; só evento mais novo reabre; folga de 1 min; sem evento cai na âncora exata). Evento e varredura deixam de depender de âncoras iguais.
+- **M1**: `openIfStillCurrent` é um `INSERT … SELECT` com os mesmos predicados da listagem (teste: parada que chegou entre leitura e abertura não gera `arrival`). RF8.1 (gate fecha lembrete cuja etapa andou): `deliver-driver-stop-reminder.contract.ts` § "fecha quando a parada andou".
+- **M2**: corte por pontos de código, marcação `*_~` sem par removida, teto final `capStopReminderBody` no envio.
+- **L1**: teto de 200 etapas por ciclo (`DRIVER_STOP_REMINDER_RECONCILIATION_BATCH_LIMIT`); o resto espera o próximo ciclo.
+- **L2**: `assertOverwriteNodeIds` rejeita chave sem prefixo `fala_`. **L3**: `daysAgo <= 0` é hoje.
+- **Gates** (apps/api-transportada): typecheck ok; eslint e prettier ok; `bun run test` 14472 pass/0 fail; contrato `--env-file` 14481 pass/0 fail; integração reconciliação 10/0, delivery 13/0, reminders 23/0, settings 5/0. Worker não tocado.

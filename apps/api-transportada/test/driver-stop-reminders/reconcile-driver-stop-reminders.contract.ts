@@ -40,20 +40,30 @@ function build(input: {
   readonly alreadyPending?: readonly string[]
 }) {
   const reads: string[] = []
-  const opens: Parameters<DriverStopReminderRepository['open']>[0][] = []
+  const opens: (Parameters<DriverStopReminderReconciliationRepository['openIfStillCurrent']>[0] & {
+    context: { stopId: string }
+    anchorAt: Date
+  })[] = []
+  const limits: number[] = []
   const afterOpen: unknown[] = []
   const reconciliation: DriverStopReminderReconciliationRepository = {
-    listMissingCurrentStages: async ({ companyId }) => {
+    listMissingCurrentStages: async ({ companyId, limit }) => {
       reads.push(companyId)
+      limits.push(limit)
       return input.stages
     },
-  }
-  const reminders: Pick<DriverStopReminderRepository, 'open' | 'readSettings'> = {
-    open: async (params) => {
-      opens.push(params)
-      if (input.alreadyPending?.includes(params.context.stopId) === true) return undefined
-      return { id: `reminder-${params.context.stopId}` }
+    openIfStillCurrent: async (params) => {
+      const stage = input.stages.find((item) => item.stopId === params.stopId)
+      opens.push({
+        ...params,
+        anchorAt: stage?.anchorAt ?? new Date(0),
+        context: { stopId: params.stopId },
+      })
+      if (input.alreadyPending?.includes(params.stopId) === true) return undefined
+      return { id: `reminder-${params.stopId}` }
     },
+  }
+  const reminders: Pick<DriverStopReminderRepository, 'readSettings'> = {
     readSettings: async () => DRIVER_STOP_REMINDER_DEFAULT_SETTINGS,
   }
   const useCase = createReconcileDriverStopRemindersUseCase({
@@ -62,7 +72,7 @@ function build(input: {
     reconciliation,
     reminders,
   })
-  return { afterOpen, opens, reads, useCase }
+  return { afterOpen, limits, opens, reads, useCase }
 }
 
 describe('a varredura garante o lembrete da etapa atual (spec 299, dono 2026-11-07)', () => {
@@ -78,11 +88,6 @@ describe('a varredura garante o lembrete da etapa atual (spec 299, dono 2026-11-
     expect(world.opens[1]?.dueAt).toEqual(
       new Date(ARRIVAL.getTime() + DRIVER_STOP_REMINDER_DEFAULT_SETTINGS.dwellMinutes * MINUTE),
     )
-    expect(world.opens[0]?.context).toEqual({
-      driverId: 'driver-1',
-      stopId: 'stop-1',
-      tripId: 'trip-1',
-    })
     expect(world.afterOpen).toEqual([
       { companyId: COMPANY_ID, reminderId: 'reminder-stop-1' },
       { companyId: COMPANY_ID, reminderId: 'reminder-stop-2' },
@@ -93,6 +98,12 @@ describe('a varredura garante o lembrete da etapa atual (spec 299, dono 2026-11-
     const world = build({ alreadyPending: ['stop-1'], stages: [ARRIVAL_STAGE, SETTLEMENT_STAGE] })
     expect(await world.useCase.execute({ companyId: COMPANY_ID })).toEqual({ openedCount: 1 })
     expect(world.afterOpen).toEqual([{ companyId: COMPANY_ID, reminderId: 'reminder-stop-2' }])
+  })
+
+  test('lê no máximo o teto por ciclo (L1)', async () => {
+    const world = build({ stages: [ARRIVAL_STAGE] })
+    await world.useCase.execute({ companyId: COMPANY_ID })
+    expect(world.limits).toEqual([200])
   })
 
   test('sem nada faltando não abre nada', async () => {
