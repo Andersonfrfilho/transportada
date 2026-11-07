@@ -323,7 +323,18 @@ export function createGroupDriverFlow(flows: {
     const action = flows.reminder.pickAction(target, turn.text)
     if (action === undefined) return flows.reminder.notUnderstood(turn)
     if (action === REMINDER_ACTION.POSTPONE) return flows.reminder.postpone(turn, target)
+    // A escolha de outra parada não depende da nota da parada suposta.
+    if (action === REMINDER_ACTION.CHOOSE_STOP) {
+      return runJourneyAction(turn, { kind: JOURNEY_ACTION.chooseDeparture })
+    }
     const documentNumber = await flows.reminder.readNoteNumber(turn, target)
+    if (action === REMINDER_ACTION.DEPARTED) {
+      return runJourneyAction(turn, {
+        kind: JOURNEY_ACTION.depart,
+        stopId: target.tripStopId,
+        ...(documentNumber === undefined ? {} : { documentNumber }),
+      })
+    }
     if (action === REMINDER_ACTION.ARRIVED) {
       return runJourneyAction(turn, {
         kind: JOURNEY_ACTION.arrive,

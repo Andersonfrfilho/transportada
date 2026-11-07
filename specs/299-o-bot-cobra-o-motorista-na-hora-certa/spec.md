@@ -201,6 +201,7 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 
   1 → início da viagem e saída para a parada (o mesmo caminho do "Iniciar rota"/"saí"); 2 → a escolha de parada da 294 com a
   confirmação de saída fora de ordem; 3 → adia (RF13: não consome tentativa, no máximo 3, depois conta como sem resposta).
+
 - **RF24** — Mensagem `idle`, variante **B** (rota em andamento, já houve baixa), nó `fala_lembrete_sem_evento_rota`:
 
   ```text
@@ -219,6 +220,7 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 
   1 → saída; 2 → chegada (a 294 RF1 marca a saída junto); 3 → entreguei (marca as etapas anteriores junto); 4 → ocorrência;
   5 → adia (RF13).
+
 - **RF25** — O `idle` espera pergunta aberta (RF8.3), em especial a oferta da próxima rota depois da baixa (294 RF31); mesmas
   tentativas e escalada; mesmo horário de funcionamento; mesmas duas chaves. Passo `reminder.stage` do grupo estendido
   pela etapa (cardápio por variante), sem passo novo.

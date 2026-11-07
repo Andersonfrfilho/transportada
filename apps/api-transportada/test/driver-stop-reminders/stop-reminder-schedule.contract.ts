@@ -27,10 +27,11 @@ const settings = {
   graceMinMinutes: 30,
   gracePercent: 50,
   dwellMinutes: 30,
+  idleMinutes: 30,
 }
 
 describe('defaults da empresa (D3, D4, RF19)', () => {
-  test('3 cobranças, 30 min entre elas, folga 30 min / 50%, permanência 30 min', () => {
+  test('3 cobranças, 30 min entre elas, folga 30 min / 50%, permanência 30 min, sem evento 30 min', () => {
     expect(DRIVER_STOP_REMINDER_DEFAULT_SETTINGS).toEqual(settings)
   })
 
@@ -158,5 +159,28 @@ describe('próximo prazo e fim das tentativas (RF12, D4)', () => {
     expect(decideStopReminderDueAction({ attempts: 2, maxAttempts: 3 })).toBe('send')
     expect(decideStopReminderDueAction({ attempts: 3, maxAttempts: 3 })).toBe('escalate')
     expect(decideStopReminderDueAction({ attempts: 1, maxAttempts: 1 })).toBe('escalate')
+  })
+})
+
+describe('etapa idle: âncora + idleMinutes (T2.7, D10)', () => {
+  test('vence 30 min depois da âncora, sem previsão de viagem', () => {
+    const schedule = computeStopReminderSchedule({
+      stage: 'idle',
+      anchorAt: DEPARTED_AT,
+      travelSeconds: 35 * 60,
+      settings,
+    })
+    expect(schedule.dueAt).toEqual(plusMinutes(DEPARTED_AT, 30))
+    expect(schedule.expectedAt).toEqual(DEPARTED_AT)
+  })
+
+  test('respeita o idleMinutes da empresa', () => {
+    const schedule = computeStopReminderSchedule({
+      stage: 'idle',
+      anchorAt: DEPARTED_AT,
+      travelSeconds: undefined,
+      settings: { ...settings, idleMinutes: 90 },
+    })
+    expect(schedule.dueAt).toEqual(plusMinutes(DEPARTED_AT, 90))
   })
 })

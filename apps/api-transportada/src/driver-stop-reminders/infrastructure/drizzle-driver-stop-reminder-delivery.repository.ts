@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 
 import { companyDriverReminderSettings } from '../../database/company-driver-reminder-settings.schema.js'
 import { driverStopReminders } from '../../database/driver-stop-reminder.schema.js'
@@ -23,8 +23,15 @@ import type {
   ReserveStopReminderAttemptParams,
   StopReminderDeliveryContext,
 } from '../application/driver-stop-reminder-delivery.port.js'
-import { DRIVER_STOP_REMINDER_DEFAULT_COMPANY_SETTINGS } from '../domain/driver-stop-reminder.constant.js'
-import type { OperatingHoursRange } from '../domain/driver-stop-reminder.types.js'
+import {
+  DRIVER_STOP_REMINDER_DEFAULT_COMPANY_SETTINGS,
+  DRIVER_STOP_REMINDER_IDLE_VARIANT,
+  DRIVER_STOP_REMINDER_STAGE,
+} from '../domain/driver-stop-reminder.constant.js'
+import type {
+  DriverStopReminderIdleVariant,
+  OperatingHoursRange,
+} from '../domain/driver-stop-reminder.types.js'
 import { readCurrentTripDriver } from './current-trip-driver.query.js'
 import { readNationalHolidayDates } from './national-holiday-dates.reader.js'
 import { resolveStopReminderClosedStatus } from './stop-reminder-closed-status.mapper.js'
@@ -83,6 +90,7 @@ export class DrizzleDriverStopReminderDeliveryRepository
       driver: { id: driver.id, name: driver.name },
       groupJid,
       holidayDates: await this.readHolidayDates({ companyId, now, timeZone }),
+      idleVariant: await this.readIdleVariant(reminder),
       sendSlotAt: slot,
       settings,
       stop: { ...stop, ...notes },
@@ -192,6 +200,7 @@ export class DrizzleDriverStopReminderDeliveryRepository
         enabled: companyDriverReminderSettings.enabled,
         graceMinMinutes: companyDriverReminderSettings.graceMinMinutes,
         gracePercent: companyDriverReminderSettings.gracePercent,
+        idleMinutes: companyDriverReminderSettings.idleMinutes,
         intervalMinutes: companyDriverReminderSettings.intervalMinutes,
         maxAttempts: companyDriverReminderSettings.maxAttempts,
         operatingHours: companyDriverReminderSettings.operatingHours,
@@ -216,13 +225,43 @@ export class DrizzleDriverStopReminderDeliveryRepository
 
   private async readStop(reminder: DeliverableStopReminder) {
     const [row] = await this.executor
-      .select({ arrivedAt: tripStops.arrivedAt, completedAt: tripStops.completedAt })
+      .select({
+        arrivedAt: tripStops.arrivedAt,
+        completedAt: tripStops.completedAt,
+        enRouteSince: tripStops.enRouteSince,
+      })
       .from(tripStops)
       .where(
         and(eq(tripStops.companyId, reminder.companyId), eq(tripStops.id, reminder.tripStopId)),
       )
       .limit(1)
-    return { hasArrived: row?.arrivedAt != null, isClosed: row?.completedAt != null }
+    return {
+      hasArrived: row?.arrivedAt != null,
+      hasDeparted: row?.enRouteSince != null,
+      isClosed: row?.completedAt != null,
+    }
+  }
+
+  /** `route` quando a viagem já teve baixa; `start` quando ainda não houve nenhum evento (spec 299 T2.7). */
+  private async readIdleVariant(
+    reminder: DeliverableStopReminder,
+  ): Promise<DriverStopReminderIdleVariant> {
+    if (reminder.stage !== DRIVER_STOP_REMINDER_STAGE.IDLE)
+      return DRIVER_STOP_REMINDER_IDLE_VARIANT.START
+    const [row] = await this.executor
+      .select({ id: tripStops.id })
+      .from(tripStops)
+      .where(
+        and(
+          eq(tripStops.companyId, reminder.companyId),
+          eq(tripStops.tripId, reminder.tripId),
+          isNotNull(tripStops.completedAt),
+        ),
+      )
+      .limit(1)
+    return row === undefined
+      ? DRIVER_STOP_REMINDER_IDLE_VARIANT.START
+      : DRIVER_STOP_REMINDER_IDLE_VARIANT.ROUTE
   }
 
   /** As notas ainda abertas da parada mandam na frase; sem nenhuma aberta, vale todas. */

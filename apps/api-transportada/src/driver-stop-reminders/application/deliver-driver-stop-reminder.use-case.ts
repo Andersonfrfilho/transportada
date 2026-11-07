@@ -83,11 +83,23 @@ const SPEECH_KEY_BY_NODE: Readonly<Record<string, BotSpeechKey>> = {
   [DRIVER_STOP_REMINDER_SPEECH_NODE.arrival]: 'lembreteChegada',
   [DRIVER_STOP_REMINDER_SPEECH_NODE.arrivalWithoutEstimate]: 'lembreteChegadaSemPrevisao',
   [DRIVER_STOP_REMINDER_SPEECH_NODE.settlement]: 'lembreteEntrega',
+  [DRIVER_STOP_REMINDER_SPEECH_NODE.idleStart]: 'lembreteSemEventoInicio',
+  [DRIVER_STOP_REMINDER_SPEECH_NODE.idleRoute]: 'lembreteSemEventoRota',
 }
 
 const OUTCOME = DRIVER_STOP_REMINDER_OUTCOME
 const DRIVER_STOP_REMINDER_NO_GROUP_REASON = 'no_group'
 const DRIVER_STOP_REMINDER_PROMPT_BUSY_REASON = 'prompt_busy'
+
+function resolveCloseReason(
+  reminder: DeliverableStopReminder,
+  context: StopReminderDeliveryContext,
+) {
+  if (reminder.stage === DRIVER_STOP_REMINDER_STAGE.IDLE) return 'superseded'
+  return reminder.stage === DRIVER_STOP_REMINDER_STAGE.ARRIVAL && !context.stop.isClosed
+    ? 'arrived'
+    : 'stop_closed'
+}
 
 function addMinutes(moment: Date, minutes: number): Date {
   return new Date(moment.getTime() + minutes * MILLISECONDS_PER_MINUTE)
@@ -136,10 +148,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
     context: StopReminderDeliveryContext,
     now: Date,
   ) {
-    const reason =
-      reminder.stage === DRIVER_STOP_REMINDER_STAGE.ARRIVAL && !context.stop.isClosed
-        ? 'arrived'
-        : 'stop_closed'
+    const reason = resolveCloseReason(reminder, context)
     await repository.close({
       closedAt: now,
       companyId: reminder.companyId,
@@ -217,6 +226,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
           reminder.stage === DRIVER_STOP_REMINDER_STAGE.ARRIVAL ? reminder.anchorAt : undefined,
         driverName: plainText(context.driver.name),
         expectedAt: reminder.expectedAt ?? undefined,
+        idleVariant: context.idleVariant,
         isSharedPoint: reminder.originKind === 'shared_point',
         now,
         stage: reminder.stage,
@@ -310,6 +320,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
         companyId: reminder.companyId,
         driverId: context.driver.id,
         groupJid,
+        idleVariant: context.idleVariant,
         reminderId: reminder.id,
         stage: reminder.stage,
         tripStopId: reminder.tripStopId,

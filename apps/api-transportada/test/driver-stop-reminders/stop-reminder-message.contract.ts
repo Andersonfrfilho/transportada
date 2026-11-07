@@ -12,6 +12,7 @@ import {
   capStopReminderBody,
   decideStopReminderPostponement,
   shortenStopBlock,
+  resolveStopReminderChoice,
   type StopReminderMessageInput,
 } from '../../src/driver-stop-reminders/domain/stop-reminder-message.policy.js'
 
@@ -43,6 +44,8 @@ describe('nós de fala (chaves, nunca texto)', () => {
       arrival: 'fala_lembrete_chegada',
       arrivalWithoutEstimate: 'fala_lembrete_chegada_sem_previsao',
       settlement: 'fala_lembrete_entrega',
+      idleStart: 'fala_lembrete_sem_evento_inicio',
+      idleRoute: 'fala_lembrete_sem_evento_rota',
     })
   })
 })
@@ -249,5 +252,43 @@ describe('instante no futuro por desvio de relógio (spec 299, revisão PR 570 L
       input({ departedAt: new Date(NOW.getTime() + 2 * 86_400_000) }),
     )
     expect(message.variables.saidaQuando).toMatch(/^às \*\d{2}:\d{2}\*$/u)
+  })
+})
+
+describe('etapa idle (T2.7, RF23, RF24)', () => {
+  test('variante A (viagem sem evento): nó de início, nome e bloco, três opções', () => {
+    const message = buildStopReminderMessage(input({ stage: 'idle', idleVariant: 'start' }))
+    expect(message.nodeKey).toBe('fala_lembrete_sem_evento_inicio')
+    expect(message.variables).toEqual({ nome: 'Carlos', blocoParada: STOP_BLOCK })
+    expect(message.options).toEqual([
+      { choice: '1', action: 'departed' },
+      { choice: '2', action: 'choose_stop' },
+      { choice: '3', action: 'postpone' },
+    ])
+  })
+
+  test('variante B (rota em andamento): nó da rota, cinco opções', () => {
+    const message = buildStopReminderMessage(input({ stage: 'idle', idleVariant: 'route' }))
+    expect(message.nodeKey).toBe('fala_lembrete_sem_evento_rota')
+    expect(message.variables).toEqual({ nome: 'Carlos', blocoParada: STOP_BLOCK })
+    expect(message.options).toEqual([
+      { choice: '1', action: 'departed' },
+      { choice: '2', action: 'arrived' },
+      { choice: '3', action: 'delivered' },
+      { choice: '4', action: 'occurrence' },
+      { choice: '5', action: 'postpone' },
+    ])
+  })
+
+  test('a opção numerada resolve pela variante, e fora do cardápio é indefinida', () => {
+    expect(resolveStopReminderChoice({ stage: 'idle', idleVariant: 'start', choice: 2 })).toBe(
+      'choose_stop',
+    )
+    expect(
+      resolveStopReminderChoice({ stage: 'idle', idleVariant: 'start', choice: 4 }),
+    ).toBeUndefined()
+    expect(resolveStopReminderChoice({ stage: 'idle', idleVariant: 'route', choice: 5 })).toBe(
+      'postpone',
+    )
   })
 })

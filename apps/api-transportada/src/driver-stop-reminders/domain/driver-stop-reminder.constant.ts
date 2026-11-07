@@ -5,6 +5,7 @@ import {
   DRIVER_REMINDER_DEFAULT_DWELL_MINUTES,
   DRIVER_REMINDER_DEFAULT_GRACE_MIN_MINUTES,
   DRIVER_REMINDER_DEFAULT_GRACE_PERCENT,
+  DRIVER_REMINDER_DEFAULT_IDLE_MINUTES,
   DRIVER_REMINDER_DEFAULT_INTERVAL_MINUTES,
   DRIVER_REMINDER_DEFAULT_MAX_ATTEMPTS,
 } from '../../shared/driver-stop-reminder.constant.js'
@@ -19,6 +20,7 @@ export const DRIVER_STOP_REMINDER_DEFAULT_SETTINGS: StopReminderSettings = {
   graceMinMinutes: DRIVER_REMINDER_DEFAULT_GRACE_MIN_MINUTES,
   gracePercent: DRIVER_REMINDER_DEFAULT_GRACE_PERCENT,
   dwellMinutes: DRIVER_REMINDER_DEFAULT_DWELL_MINUTES,
+  idleMinutes: DRIVER_REMINDER_DEFAULT_IDLE_MINUTES,
 }
 
 /** Sem linha da empresa: desligada, com os padrões e sempre aberta. A entrega e a tela leem esta mesma constante. */
@@ -33,6 +35,7 @@ export const DRIVER_STOP_REMINDER_SETTINGS_RANGE = {
   DWELL_MINUTES: { max: 240, min: 5 },
   GRACE_MIN_MINUTES: { max: 240, min: 5 },
   GRACE_PERCENT: { max: 100, min: 0 },
+  IDLE_MINUTES: { max: 240, min: 10 },
   INTERVAL_MINUTES: { max: 120, min: 10 },
   MAX_ATTEMPTS: { max: 5, min: 1 },
   MAX_OPERATING_RANGES_PER_WEEKDAY: 3,
@@ -61,10 +64,14 @@ export const DRIVER_STOP_REMINDER_SPEECH_NODE = {
   arrival: 'fala_lembrete_chegada',
   arrivalWithoutEstimate: 'fala_lembrete_chegada_sem_previsao',
   settlement: 'fala_lembrete_entrega',
+  idleStart: 'fala_lembrete_sem_evento_inicio',
+  idleRoute: 'fala_lembrete_sem_evento_rota',
 } as const
 
 export const DRIVER_STOP_REMINDER_CHOICE_ACTION = {
   ARRIVED: 'arrived',
+  CHOOSE_STOP: 'choose_stop',
+  DEPARTED: 'departed',
   DELIVERED: 'delivered',
   NOT_DELIVERED: 'not_delivered',
   OCCURRENCE: 'occurrence',
@@ -98,7 +105,14 @@ export const DRIVER_STOP_REMINDER_POSTPONE_OUTCOME = {
   CLOSED: 'closed',
 } as const
 
-export const DRIVER_STOP_REMINDER_STAGE = { ARRIVAL: 'arrival', SETTLEMENT: 'settlement' } as const
+export const DRIVER_STOP_REMINDER_STAGE = {
+  ARRIVAL: 'arrival',
+  IDLE: 'idle',
+  SETTLEMENT: 'settlement',
+} as const
+
+/** `start`: a viagem não teve nenhum evento; `route`: a rota já andou (houve baixa). */
+export const DRIVER_STOP_REMINDER_IDLE_VARIANT = { ROUTE: 'route', START: 'start' } as const
 
 export const MILLISECONDS_PER_MINUTE = 60_000
 export const MILLISECONDS_PER_SECOND = 1000

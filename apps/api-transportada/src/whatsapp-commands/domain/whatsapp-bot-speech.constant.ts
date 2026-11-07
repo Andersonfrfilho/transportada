@@ -112,6 +112,11 @@ export const BOT_SPEECH_DEFAULTS = {
     '👋 Oi, {{nome}}! Já chegou na parada?\nSaída {{saidaQuando}}\n\n{{blocoParada}}\n\n*1* - Cheguei\n*2* - Já entreguei (mande a foto do canhoto)\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou a caminho',
   lembreteEntrega:
     '👋 Oi, {{nome}}! Já entregou na parada?\nChegada {{chegadaQuando}}\n\n{{blocoParada}}\n\n*1* - Entreguei (mande a foto do canhoto)\n*2* - Não entreguei\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou descarregando',
+  /** Spec 299 T2.7 (RF23, RF24): o lembrete da viagem sem evento, as duas variantes. `{{blocoParada}}` é o mesmo bloco da parada. */
+  lembreteSemEventoInicio:
+    '👋 E aí, {{nome}}, como estamos? Vamos iniciar a rota?\nPelo roteiro, a primeira é esta parada:\n\n{{blocoParada}}\n\n*1* - Iniciar a rota por esta parada\n*2* - Vou começar por outra parada\n*3* - Ainda não vou sair',
+  lembreteSemEventoRota:
+    '👋 E aí, {{nome}}, como estamos?\nPelo roteiro, a próxima é esta parada:\n\n{{blocoParada}}\n\nQuer registrar um evento?\n*1* - Saí para esta parada\n*2* - Já cheguei\n*3* - Já entreguei (mande a foto do canhoto)\n*4* - Tive um problema (abrir ocorrência)\n*5* - Ainda não saí',
   /** Spec 299 RF13/RF14: as respostas do passo do lembrete (adiou, não adia mais, opção inválida, já encerrado). */
   lembreteAdiado: 'Certo, volto a perguntar daqui a pouco. 👍',
   lembreteAdiamentoEsgotado:

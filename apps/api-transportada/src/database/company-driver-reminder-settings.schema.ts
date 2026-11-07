@@ -8,6 +8,7 @@ import {
   DRIVER_REMINDER_DEFAULT_DWELL_MINUTES,
   DRIVER_REMINDER_DEFAULT_GRACE_MIN_MINUTES,
   DRIVER_REMINDER_DEFAULT_GRACE_PERCENT,
+  DRIVER_REMINDER_DEFAULT_IDLE_MINUTES,
   DRIVER_REMINDER_DEFAULT_INTERVAL_MINUTES,
   DRIVER_REMINDER_DEFAULT_MAX_ATTEMPTS,
 } from '../shared/driver-stop-reminder.constant.js'
@@ -36,6 +37,7 @@ export const companyDriverReminderSettings = pgTable(
       .default(DRIVER_REMINDER_DEFAULT_GRACE_MIN_MINUTES),
     gracePercent: integer('grace_percent').notNull().default(DRIVER_REMINDER_DEFAULT_GRACE_PERCENT),
     dwellMinutes: integer('dwell_minutes').notNull().default(DRIVER_REMINDER_DEFAULT_DWELL_MINUTES),
+    idleMinutes: integer('idle_minutes').notNull().default(DRIVER_REMINDER_DEFAULT_IDLE_MINUTES),
     operatingHours: jsonb('operating_hours')
       .notNull()
       .default(sql`'[]'::jsonb`),
@@ -56,6 +58,10 @@ export const companyDriverReminderSettings = pgTable(
       sql`${table.graceMinMinutes} >= 0 and ${table.gracePercent} between 0 and 100`,
     ),
     check('company_driver_reminder_settings_dwell_check', sql`${table.dwellMinutes} >= 0`),
+    check(
+      'company_driver_reminder_settings_idle_check',
+      sql`${table.idleMinutes} between 10 and 240`,
+    ),
     check(
       'company_driver_reminder_settings_operating_hours_check',
       sql`jsonb_typeof(${table.operatingHours}) = 'array'`,

@@ -75,6 +75,7 @@ export const driverStopReminderSettingsSchema = z
     enabled: z.boolean(),
     graceMinMinutes: boundedInteger(RANGE.GRACE_MIN_MINUTES),
     gracePercent: boundedInteger(RANGE.GRACE_PERCENT),
+    idleMinutes: boundedInteger(RANGE.IDLE_MINUTES),
     intervalMinutes: boundedInteger(RANGE.INTERVAL_MINUTES),
     maxAttempts: boundedInteger(RANGE.MAX_ATTEMPTS),
     operatingHours: operatingHoursSchema,

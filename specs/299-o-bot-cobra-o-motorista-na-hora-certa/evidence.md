@@ -815,3 +815,14 @@ restaurada: 15 pass.
 - **L1**: teto de 200 etapas por ciclo (`DRIVER_STOP_REMINDER_RECONCILIATION_BATCH_LIMIT`); o resto espera o próximo ciclo.
 - **L2**: `assertOverwriteNodeIds` rejeita chave sem prefixo `fala_`. **L3**: `daysAgo <= 0` é hoje.
 - **Gates** (apps/api-transportada): typecheck ok; eslint e prettier ok; `bun run test` 14472 pass/0 fail; contrato `--env-file` 14481 pass/0 fail; integração reconciliação 10/0, delivery 13/0, reminders 23/0, settings 5/0. Worker não tocado.
+
+## T2.7 — 2026-11-07
+
+Etapa `idle` ("sem evento"; spec.md D10, RF21–RF25).
+
+- Vermelho registrado antes do código: `bun test ./test/driver-stop-reminders.contract.test.ts ./test/whatsapp/group-reminder-flow.contract.ts` → 23 pass, 6 fail, 1 error (módulos `reconcile-idle-*` ausentes; `idle` fora de `StopReminderStage`, das opções e dos nós).
+- Decisões: `idle` é varredura própria (`reconcile-idle-driver-stop-reminders.use-case.ts`, repositório e porta próprios, `combineStopReminderReconciliations` na rota); âncora = maior `completed_at` das paradas da viagem ou, sem baixa, `trip_dispatch_snapshots.dispatched_at` (fallback `trips.created_at`); ciclo deduplicado por `anchor_at >= início do ciclo` (não por âncora exata); variante A/B lida no envio (`route` se a viagem já tem parada baixada) e gravada no estado do pedido do grupo (`idleVariant`); mesmo passo `reminder.stage`, cardápio por variante (`resolveStopReminderChoice`); qualquer saída/chegada/baixa/ocorrência fecha o `idle` da viagem (`superseded`/`occurrence`).
+- Migration aditiva `20261107144829_driver_stop_reminder_idle_stage` (`idle_minutes` padrão 30 + CHECK 10–240, CHECK de `stage` com `idle`; rollback ligado à cadeia do `db:test`). `db:generate` → `no_changes`.
+- Nós novos no grafo raiz (chaves novas, nenhuma existente alterada): `fala_lembrete_sem_evento_inicio`, `fala_lembrete_sem_evento_rota`.
+- Gates (apps/api-transportada): `tsc --noEmit` limpo · `bun run lint` limpo · `bun run test` 14491 pass / 0 fail · contrato 14500 pass / 0 fail · integração `driver-stop-reminder-delivery` 13 pass · `-group-step` 5 pass · `driver-stop-reminders` 23 pass · `-reconciliation` 7 pass · `-settings` 5 pass · `-idle` (novo) 7 pass · `db:test` 206 pass / 0 fail · raiz `format:check` limpo. Worker não tocado.
+- Pendente para o rebase na 570: isolamento de erro por item na varredura, índice `(company_id, trip_stop_id, stage, created_at)` com EXPLAIN, caso +30 s de saída cancelada e refeita (pedidos do coordenador de 2026-11-07).

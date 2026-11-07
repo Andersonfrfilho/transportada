@@ -261,3 +261,58 @@ describe('autoria (RF5, Q2)', () => {
     ).toEqual([{ type: 'close', reminderId: 'rem-settlement-a', reason: 'stop_closed' }])
   })
 })
+
+describe('etapa idle ("sem evento", T2.7, RF22)', () => {
+  const openIdleB: StopReminderOpen = { id: 'rem-idle-b', stopId: STOP_B, stage: 'idle' }
+
+  test.each([
+    ['departed', 'superseded'],
+    ['arrived', 'superseded'],
+    ['delivered', 'superseded'],
+    ['returned', 'superseded'],
+    ['occurrence', 'occurrence'],
+  ] as const)('%s fecha o idle da viagem, mesmo de outra parada (%s)', (kind, reason) => {
+    const actions = decideStopReminderTransition({
+      event: event({ kind, stopClosed: false }),
+      openReminders: [openIdleB],
+    })
+    expect(actions).toContainEqual({ type: 'close', reminderId: 'rem-idle-b', reason })
+    expect(actions.filter((action) => action.type === 'close')).toHaveLength(1)
+  })
+
+  test('a saída fecha o idle e abre o arrival normalmente', () => {
+    expect(
+      decideStopReminderTransition({
+        event: event({ kind: 'departed' }),
+        openReminders: [openIdleB],
+      }),
+    ).toEqual([
+      { type: 'close', reminderId: 'rem-idle-b', reason: 'superseded' },
+      { type: 'open', stopId: STOP_A, stage: 'arrival' },
+    ])
+  })
+
+  test('viagem encerrada ou cancelada fecha o idle com o motivo da viagem, uma vez só', () => {
+    expect(
+      decideStopReminderTransition({
+        event: event({ kind: 'trip_closed' }),
+        openReminders: [openIdleB],
+      }),
+    ).toEqual([{ type: 'close', reminderId: 'rem-idle-b', reason: 'trip_closed' }])
+    expect(
+      decideStopReminderTransition({
+        event: event({ kind: 'trip_cancelled' }),
+        openReminders: [openIdleB],
+      }),
+    ).toEqual([{ type: 'close', reminderId: 'rem-idle-b', reason: 'trip_cancelled' }])
+  })
+
+  test('saída cancelada não mexe no idle', () => {
+    expect(
+      decideStopReminderTransition({
+        event: event({ kind: 'departure_cancelled' }),
+        openReminders: [openIdleB],
+      }),
+    ).toEqual([])
+  })
+})
