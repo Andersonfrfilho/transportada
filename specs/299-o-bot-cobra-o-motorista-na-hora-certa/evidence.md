@@ -680,3 +680,10 @@ Teste primeiro, vermelho registrado, depois a correção.
 - **L4:** o dono vazio não casa na política de mensagem (rejeita `unknown_sender` e `not_addressed`), mas `handleLocation` (vermelho: avançava o pedido com remetente vazio) e `isOwner` aceitavam `'' === ''`; ambos agora tratam dono vazio como sem dono. `as never` em `SessionRepository` removido do `main.ts`: o tipo já bate, uma instância única `reminderSessions` serve aos dois consumidores.
 
 Gates (de `apps/api-transportada`): `tsc --noEmit` sem erros; eslint e prettier nos arquivos tocados sem achados; `bun run test` 14434 pass / 0 fail; `bun --env-file=../../.env.test test --timeout 120000` 14443 pass / 0 fail; integração `driver-stop-reminder-delivery` 13/0, `driver-stop-reminder-group-step` 5/0, `driver-stop-reminders` 23/0, `driver-reminder-channel-resolver` 5/0, `whatsapp-evolution-webhook` 3/0, `whatsapp-driver-journey-group` 2/0. Observação honesta: os testes de integração L1/L2 foram escritos junto da correção (a integração leva ~2 min), então o vermelho registrado é o dos contratos M1, M2 e L4.
+
+Vermelho de L1 e L2 (correção revertida só na hora do teste, depois restaurada por `git checkout`):
+
+- L1, sem `version` no WHERE de `recordSent`/`release`/`close`: `expect(received).toMatchObject(expected)` falha (`Expected - 4 / Received + 25`: a linha foi gravada pelo escritor com versão velha). `(fail) ... (L1)`.
+- L2, sem a guarda `dispatching_until` em `applyPostponement`: `expect(received).toBe(expected)`, `Expected: false`, `Received: true`. `(fail) ... (L2)`.
+
+Os dois testes verdes de novo com a correção restaurada; nenhum dos dois é trivial.
