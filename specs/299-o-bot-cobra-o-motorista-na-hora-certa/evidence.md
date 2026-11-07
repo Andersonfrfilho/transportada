@@ -505,3 +505,10 @@ pontos que montam o portão da oferta ficam como estavam. Contratos da 294 (`rou
 - Matrizes `group-{flow,inbound}-isolation` e `literal-message-text` fazem parte do `bun run test` (verdes).
 - `apps/frontend-transportada` (espelhos de permissão): `bun run typecheck` limpo, `eslint` nos arquivos tocados limpo,
   `bun run test` 1493 pass, 0 fail.
+
+## Publicação — Fases 0 e 1 em staging (2026-11-07)
+
+- PR #566 com merge em `staging` (`a7c300dd2`), feito com CI todo verde (21 checks, inclusive `integration-api` 1–8) e a revisão independente aprovando. Dono autorizou "pode seguir para staging com isso ligado".
+- Deploy de staging `42325897310`: todos os serviços com `success`.
+- `DRIVER_REMINDERS_ENABLED=true` ligado em staging no `api` e no `worker` (`railway variables --set`). Os dois redeploys terminaram em `SUCCESS`, e o log mostra `api_started`/`worker_started` sem erro.
+- A chave da empresa segue desligada e o envio é da Fase 2, então nenhuma mensagem sai.
