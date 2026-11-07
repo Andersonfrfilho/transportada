@@ -22,6 +22,10 @@ import {
 } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { WhatsAppStopInProgress } from '../../whatsapp-commands/application/whatsapp-stop-in-progress.service.js'
+import {
+  formatOptions,
+  formatReplyHint,
+} from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 import {
   SENDER_NOT_ALLOWED_TEXT,
@@ -31,6 +35,7 @@ import {
 export const GROUP_DELIVERY_STEP = { answer: 'answer', choose: 'choose' } as const
 
 export type GroupDeliveryDocument = {
+  readonly city?: string | undefined
   readonly id: string
   readonly number: string
   readonly recipientName?: string | undefined
@@ -79,12 +84,7 @@ export type GroupDeliveryFlowPorts = {
 
 export const GROUP_DELIVERY_TEXT = {
   askDocument: (documents: readonly GroupDeliveryDocument[]) =>
-    [
-      'Qual nota você entregou? Responda com o número da nota:',
-      ...documents
-        .slice(0, 8)
-        .map((document, index) => `${index + 1}. ${describeDocument(document)}`),
-    ].join('\n'),
+    ['✅ *Qual nota você entregou?*', '', describeDocumentChoices(documents)].join('\n'),
   noDocuments: 'Não encontrei nota aberta na viagem do motorista deste grupo.',
   notFound: (number: string) =>
     `Não encontrei a NF ${number} aberta na viagem do motorista deste grupo.`,
@@ -120,6 +120,8 @@ export function describeAttendantBatch(outcomes: {
     .join('\n')
 }
 
+const DOCUMENT_REPLY_HINT = 'Responda com o número da opção ou da nota.'
+
 const REASON = {
   answer: 'mande a foto pedida, ou responda "pular" se o item não for obrigatório',
   document: 'não achei essa nota na lista',
@@ -131,7 +133,18 @@ const strip = (value: string) => value.replace(/^0+(?=\d)/u, '')
 
 function describeDocument(document: GroupDeliveryDocument): string {
   const name = document.recipientName?.trim()
-  return name ? `NF ${strip(document.number)} · ${name}` : `NF ${strip(document.number)}`
+  const city = document.city?.trim()
+  return [`NF \`${strip(document.number)}\``, name ? `*${name}*` : '', city ?? '']
+    .filter((part) => part !== '')
+    .join(' · ')
+}
+
+/** RF1: as notas como opções (ícone + nota + cliente + cidade) e a instrução em itálico. */
+function describeDocumentChoices(documents: readonly GroupDeliveryDocument[]): string {
+  const options = documents
+    .slice(0, BATCH_LIMIT)
+    .map((document) => ({ action: describeDocument(document), icon: '🧾' }))
+  return [formatOptions(options), '', formatReplyHint(DOCUMENT_REPLY_HINT)].join('\n')
 }
 
 export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
@@ -312,7 +325,7 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
         if (picked === undefined) {
           return {
             kind: 'not_understood',
-            prompt: GROUP_DELIVERY_TEXT.askDocument(documents),
+            prompt: describeDocumentChoices(documents),
             reason: REASON.document,
           }
         }

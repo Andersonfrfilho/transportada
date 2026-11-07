@@ -17,6 +17,7 @@ import type { WhatsAppStopCardReader } from '../infrastructure/whatsapp-stop-car
 
 export type WhatsAppStopInProgress = {
   readonly documents: readonly {
+    readonly city?: string | undefined
     readonly id: string
     readonly number: string
     readonly recipientName?: string | undefined
@@ -43,7 +44,14 @@ export async function readWhatsAppStopInProgress(input: {
   const documents = stop.documents.flatMap((document) =>
     document.id === undefined || CLOSED_DOCUMENT.has(document.separationStatus)
       ? []
-      : [{ id: document.id, number: document.number, recipientName: document.recipientName }],
+      : [
+          {
+            city: stop.city,
+            id: document.id,
+            number: document.number,
+            recipientName: document.recipientName,
+          },
+        ],
   )
   if (documents.length === 0) return null
   if (documents.length > 1) return { documents, header: null, stopId: stop.id }

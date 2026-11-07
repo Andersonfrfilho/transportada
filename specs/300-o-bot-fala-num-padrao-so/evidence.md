@@ -209,3 +209,29 @@
 - Gates: typecheck limpo · `bun test --timeout 120000` 14355 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção nova) · eslint e prettier limpos · integração:
   `whatsapp-driver-journey-group` 2 pass, `whatsapp-driver-journey-direct` 2 pass, `whatsapp-driver-flow-actions` 4 pass, `whatsapp-command-driver` 5 pass. Suíte
   `test:integration` completa fica para a T6.2.
+
+## Fase 4
+
+### T4.1 (executor `sonnet`)
+
+- Escolha da nota (grupo): `GROUP_DELIVERY_TEXT.askDocument` = `✅ *Qual nota você entregou?*` + opções `🧾 NF \`n\` · *cliente* · cidade` (`formatOptions`) +
+  `_Responda com o número da opção ou da nota._`; o "não entendi" repete só as opções (prompt) sob o motivo `Não achei essa nota na lista.`. A cidade vem de
+  `placeStops` (mesmo leitor da lista de paradas), ligado em `whatsapp-group-delivery.adapter.ts` (`listOpenDocuments` e `findStopInProgress`);
+  `GroupDeliveryDocument` e `WhatsAppStopInProgress.documents` ganharam `city`.
+- Comprovante: novo `whatsapp-delivery-proof-question.policy.ts` (título em negrito por item, cliente em citação na pergunta de quem recebeu e do nome, contador RF10) e
+  `whatsapp-delivery-received-by.constant.ts` (rótulos + ícones por opção, RF13; `RECEIVED_BY_LABELS` saiu do arquivo de falas). `DeliveryProofChecklist` ganhou
+  `pendingItems` (tudo o que falta, sem a localização). O aviso separado `⚠️ NF X ainda não fechou. Falta: …` saiu: o contador, no rodapé de toda pergunta, o substitui.
+  Desfechos RF3c: `✅ _Canhoto recebido._`, `✅ _Foto da mercadoria recebida._`, `📍 _Localização recebida._`, `👍 _Ok, sem <item>._` (por item), `👍 _Anotado: <vínculo>._`.
+  "Não entendi" do quem recebeu e do nome no padrão (`formatNotUnderstood` + opções). `resumed` com a nota em crase. O cliente da pergunta vem de `ports.listStops` (melhor esforço).
+- Texto da conversa individual: a pergunta e os desfechos são os mesmos (mesma `DELIVERY_PROOF_SPEECH`). A lista "Qual nota?" do individual é a lista interativa da Meta (título
+  de 24 caracteres, corpo do grafo `driver_*`): fica como está, o corpo é regravado na T6.1.
+- Divergências spec × desenho (segui o desenho onde ele é coerente, e registro o resto): (1) o desenho conta 3 itens na primeira pergunta (sem o nome) e não mostra contador na
+  da mercadoria, mas conta 2 em "quem recebeu e o nome": incoerente. O contador aqui é um só, em toda pergunta, e conta tudo o que falta (opcional inclusive, localização fora): a
+  primeira lista 4 itens e a da mercadoria também traz o contador, junto do "Se não tiver, responda pular." na mesma linha (como no nome do desenho). (2) O desfecho curto some quando
+  a confirmação vem logo depois (o desenho vai direto de "João Pereira" ao "Confira a entrega": a confirmação já mostra o que foi colhido). (3) O envio já junta as falas de uma
+  resposta numa mensagem só (`one-reply-one-message`), então o desfecho e a pergunta continuam elementos separados no retorno do serviço.
+- Contratos: `test/whatsapp-commands/whatsapp-delivery-flow-design.contract.ts` (fluxo 5: lista de notas, canhoto, mercadoria, quem recebeu com citação, nome, "não entendi"; `toBe`
+  inteiro), ligado em `whatsapp-commands.contract.test.ts`; atualizados delivery-preparation, canhoto-duplicate-prompt, audio-new-steps, group-delivery-flow, group-deliver-in-progress
+  e as fixtures/integrações das jornadas (grupo e individual). Nenhum `toContain` novo.
+- Gates: typecheck limpo · `bun test --timeout 120000` 14361 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção nova) · eslint e prettier limpos · integração:
+  `whatsapp-driver-journey-group` 2 pass, `whatsapp-driver-journey-direct` 2 pass, `whatsapp-driver-flow-actions` 4 pass, `whatsapp-command-driver` 5 pass. Suíte completa na T6.2.

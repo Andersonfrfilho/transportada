@@ -314,7 +314,13 @@ describe('pediu foto e veio áudio (RF22, conversa individual)', () => {
     await harness.speak('já mandei a foto do canhoto')
     await harness.send('1')
     expect(harness.sent).toContain(MEDIA_REQUEST_TEXT.photo)
-    expect(harness.sent.join('\n')).toContain('Falta: foto do canhoto')
+    expect(harness.sent.at(-1)).toBe(
+      [
+        '📍 *NF `17234` · localização*',
+        'Se puder, compartilhe a localização da entrega (clipe 📎 → Localização).',
+        '_Falta 1 item. Se não tiver, responda pular._',
+      ].join('\n'),
+    )
   })
 
   test('pediu a localização e veio áudio: o pedido diz que o item vai por localização', async () => {

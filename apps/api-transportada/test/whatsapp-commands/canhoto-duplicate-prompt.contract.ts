@@ -170,7 +170,7 @@ describe('a mesma imagem já era canhoto (spec 294 RF26)', () => {
     const t = setup({ duplicateOf: null })
     await t.begin()
     const reply = await t.photo('M1')
-    expect(reply?.texts[0]).toBe('Foto do canhoto recebida.')
+    expect(reply?.texts[0]).toBe('✅ _Canhoto recebido._')
     expect(t.rows.get('P1')?.photos).toHaveLength(1)
   })
 })

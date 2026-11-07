@@ -644,7 +644,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          `⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.\n\n📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._`,
+          `📍 *NF \`17234\` · localização*\nSe puder, compartilhe a localização da entrega (clipe 📎 → Localização).\n_Falta 1 item. Se não tiver, responda pular._`,
           'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: '(toca) ✅ Sim',
@@ -659,7 +659,9 @@ function resumeJourneySteps(
     },
     {
       expected: {
-        answered: [`Localização recebida.\n\n📸 *NF 17234:* mande a foto do canhoto assinado.`],
+        answered: [
+          '📍 _Localização recebida._\n\n📸 *NF `17234` · foto do canhoto*\nMande a foto do canhoto assinado.\n\n_Falta 1 item._',
+        ],
         shown: '📍 (localização)',
       },
       send: {
@@ -671,7 +673,7 @@ function resumeJourneySteps(
       expected: {
         answered: [
           // UMA mensagem: o aviso e a pergunta pendente nunca chegam separados.
-          '↩️ *Continuando a entrega da NF 17234.*\n📸 *NF 17234:* mande a foto do canhoto assinado.',
+          '↩️ *Continuando a entrega da NF `17234`.*\n📸 *NF `17234` · foto do canhoto*\nMande a foto do canhoto assinado.\n\n_Falta 1 item._',
           'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: 'entreguei',

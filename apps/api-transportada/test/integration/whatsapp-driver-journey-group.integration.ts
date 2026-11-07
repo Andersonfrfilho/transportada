@@ -495,7 +495,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
       // Nada em andamento: a lista da viagem inteira, como antes.
       expected: {
         answered: [
-          `${greeting}\n\nQual nota você entregou? Responda com o número da nota:\n1. NF 17234 · PADARIA SOL NASCENTE\n2. NF 17235 · MERCADO LUA CHEIA\n3. NF 17236 · ACOUGUE ESTRELA`,
+          `${greeting}\n\n✅ *Qual nota você entregou?*\n\n*1* - 🧾 NF \`17234\` · *PADARIA SOL NASCENTE* · Ribeirao Preto\n*2* - 🧾 NF \`17235\` · *MERCADO LUA CHEIA* · Ribeirao Preto\n*3* - 🧾 NF \`17236\` · *ACOUGUE ESTRELA* · Ribeirao Preto\n\n_Responda com o número da opção ou da nota._`,
         ],
         shown: '@bot entreguei',
       },
@@ -598,7 +598,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
     {
       expected: {
         answered: [
-          '⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.\n\n📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+          '📍 *NF `17234` · localização*\nSe puder, compartilhe a localização da entrega (clipe 📎 → Localização).\n_Falta 1 item. Se não tiver, responda pular._',
         ],
         shown: '1',
       },
@@ -606,7 +606,9 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
     },
     {
       expected: {
-        answered: [`Localização recebida.\n\n📸 *NF 17234:* mande a foto do canhoto assinado.`],
+        answered: [
+          '📍 _Localização recebida._\n\n📸 *NF `17234` · foto do canhoto*\nMande a foto do canhoto assinado.\n\n_Falta 1 item._',
+        ],
         shown: '📍 (localização)',
       },
       send: { media: LOCATION_S1, shown: '📍 (localização)' },
@@ -616,7 +618,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
       expected: {
         answered: [
           // UMA mensagem: o aviso e a pergunta pendente (o defeito de staging mandava a pergunta só no turno seguinte).
-          `${greeting}\n\n↩️ *Continuando a entrega da NF 17234.*\n📸 *NF 17234:* mande a foto do canhoto assinado.`,
+          `${greeting}\n\n↩️ *Continuando a entrega da NF \`17234\`.*\n📸 *NF \`17234\` · foto do canhoto*\nMande a foto do canhoto assinado.\n\n_Falta 1 item._`,
         ],
         shown: '@bot entreguei',
       },

@@ -169,7 +169,15 @@ describe('grupo: entreguei abre a entrega em preparo', () => {
       GROUP_DELIVERY_TEXT.askDocument([
         { id: 'DOC1', number: '017234', recipientName: 'Padaria Sol' },
       ]),
-    ).toContain('1. NF 17234 · Padaria Sol')
+    ).toBe(
+      [
+        '✅ *Qual nota você entregou?*',
+        '',
+        '*1* - 🧾 NF `17234` · *Padaria Sol*',
+        '',
+        '_Responda com o número da opção ou da nota._',
+      ].join('\n'),
+    )
     await t.answer('2')
     expect(t.calls[0]).toMatchObject({ input: { documentId: 'DOC2' }, method: 'begin' })
   })

@@ -18,6 +18,7 @@ import type {
   WhatsAppDriverEventResult,
 } from '../../src/whatsapp-commands/application/whatsapp-driver-events.service.js'
 import { resolveDeliveryProofChecklist } from '../../src/whatsapp-commands/domain/whatsapp-delivery-proof-checklist.policy.js'
+import { DELIVERY_PROOF_SPEECH } from '../../src/whatsapp-commands/domain/whatsapp-delivery-proof-speech.constant.js'
 import {
   DEFAULT_DELIVERY_PROOF_SETTINGS,
   resolveProofSettingsForRecipient,
@@ -236,17 +237,30 @@ describe('entrega em preparo pelo WhatsApp', () => {
     const t = setup({ ...OFF, photo: 'required', receiverName: 'required' })
     await t.begin()
     const afterSkip = await t.answer('pular')
-    expect(afterSkip?.texts.join('\n')).toContain(
-      '*NF 17234 ainda não fechou.* Falta: foto do canhoto, nome de quem recebeu.',
-    )
+    expect(afterSkip?.texts).toEqual([
+      '👍 _Ok, sem a localização._',
+      [
+        '📸 *NF `17234` · foto do canhoto*',
+        'Mande a foto do canhoto assinado.',
+        '',
+        '_Faltam 2 itens: canhoto e o nome._',
+      ].join('\n'),
+    ])
     // "pular" no canhoto obrigatório não pula.
     const refused = await t.answer('pular')
     expect(refused?.texts.join('\n')).toContain('obrigatório')
     expect(t.delivered).toEqual([])
 
     const afterPhoto = await t.photo('M1')
-    expect(afterPhoto?.texts[0]).toBe('Foto do canhoto recebida.')
-    expect(afterPhoto?.texts.join('\n')).toContain('qual o nome de quem recebeu?')
+    expect(afterPhoto?.texts).toEqual([
+      '✅ _Canhoto recebido._',
+      [
+        '✍️ *Qual o nome de quem recebeu a NF `17234`?*',
+        'Escreva o nome.',
+        '',
+        '_Falta 1 item._',
+      ].join('\n'),
+    ])
     expect(afterPhoto?.awaitingText).toBe(true)
     const afterName = await t.answer('Maria Souza')
     expect(afterName?.texts.join('\n')).not.toContain('Maria')
@@ -318,7 +332,7 @@ describe('entrega em preparo pelo WhatsApp', () => {
     await t.answer('pular')
     await t.photo('M1')
     expect((await t.answer('talvez'))?.texts).toEqual([
-      'Responda com o número da lista de quem recebeu.',
+      DELIVERY_PROOF_SPEECH.receivedByNotUnderstood,
     ])
     expect(await t.answer('talvez', true)).toBeNull()
     await t.answer('8')
@@ -331,7 +345,15 @@ describe('entrega em preparo pelo WhatsApp', () => {
     await t.begin()
     await t.answer('pular')
     const first = await t.photo('M1')
-    expect(first?.texts.join('\n')).toContain('mande 1 foto da mercadoria')
+    expect(first?.texts).toEqual([
+      '✅ _Foto da mercadoria recebida._',
+      [
+        '📦 *NF `17234` · foto da mercadoria*',
+        'Mande 1 foto da mercadoria entregue.',
+        '',
+        '_Falta 1 item._',
+      ].join('\n'),
+    ])
     expect((await t.photo('M1'))?.texts).toEqual(['Essa foto já tinha chegado.'])
     const second = await t.photo('M2')
     expect(second?.texts.join('\n')).toContain('Confirma a entrega?')
@@ -375,7 +397,9 @@ describe('entrega em preparo pelo WhatsApp', () => {
         longitude: '-47.8',
       },
     })
-    expect(reply?.texts[0]).toBe('Localização recebida.')
+    // A confirmação já mostra a localização: o desfecho curto não vem antes dela.
+    expect(reply?.texts).toHaveLength(1)
+    expect(reply?.texts[0]?.startsWith('✅ *NF 17234 pronta para fechar.*')).toBe(true)
     await t.answer('1')
     expect(t.delivered[0]?.location?.latitude).toBe('-21.1')
   })
@@ -499,7 +523,13 @@ describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" enc
       finished: false,
       // Uma mensagem só: no grupo o Evolution espaça as mensagens, e a pergunta separada chegava depois da resposta seguinte.
       texts: [
-        '↩️ *Continuando a entrega da NF 17234.*\n📸 *NF 17234:* mande a foto do canhoto assinado.',
+        [
+          '↩️ *Continuando a entrega da NF `17234`.*',
+          '📸 *NF `17234` · foto do canhoto*',
+          'Mande a foto do canhoto assinado.',
+          '',
+          '_Falta 1 item._',
+        ].join('\n'),
       ],
     })
     expect(t.delivered).toEqual([])
@@ -511,7 +541,7 @@ describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" enc
     latitude: '-21.1',
     longitude: '-47.8',
   }
-  const HEADER = '↩️ *Continuando a entrega da NF 17234.*'
+  const HEADER = '↩️ *Continuando a entrega da NF `17234`.*'
   const RESUME_CASES: readonly {
     readonly expected: string
     readonly item: string
@@ -521,8 +551,9 @@ describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" enc
     {
       expected: [
         HEADER,
-        '⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.',
-        '📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+        '📍 *NF `17234` · localização*',
+        'Se puder, compartilhe a localização da entrega (clipe 📎 → Localização).',
+        '_Falta 1 item. Se não tiver, responda pular._',
       ].join('\n'),
       item: 'localização',
       settings: { ...OFF, photo: 'required' },
@@ -531,20 +562,34 @@ describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" enc
     {
       expected: [
         HEADER,
-        '📸 *NF 17234:* mande a foto do canhoto assinado. _Se não tiver, responda pular._',
+        '📸 *NF `17234` · foto do canhoto*',
+        'Mande a foto do canhoto assinado.',
+        '_Falta 1 item. Se não tiver, responda pular._',
       ].join('\n'),
       item: 'foto do canhoto (opcional)',
       settings: { ...OFF, photo: 'optional' },
       steps: ['location'],
     },
     {
-      expected: [HEADER, '📦 *NF 17234:* mande 1 foto da mercadoria entregue.'].join('\n'),
+      expected: [
+        HEADER,
+        '📦 *NF `17234` · foto da mercadoria*',
+        'Mande 1 foto da mercadoria entregue.',
+        '',
+        '_Falta 1 item._',
+      ].join('\n'),
       item: 'foto da mercadoria',
       settings: { ...OFF, cargo: 'required', cargoMinimumCount: 1 },
       steps: ['location'],
     },
     {
-      expected: [HEADER, '✍️ *NF 17234:* qual o nome de quem recebeu?'].join('\n'),
+      expected: [
+        HEADER,
+        '✍️ *Qual o nome de quem recebeu a NF `17234`?*',
+        'Escreva o nome.',
+        '',
+        '_Falta 1 item._',
+      ].join('\n'),
       item: 'nome de quem recebeu',
       settings: { ...OFF, photo: 'optional', receiverName: 'required' },
       steps: ['location', 'photo'],
@@ -573,7 +618,7 @@ describe('a entrega em andamento: "entreguei" sem número retoma, "cancelar" enc
     expect(texts).toHaveLength(1)
     expect(
       texts[0]?.startsWith(
-        `${HEADER}\n👤 *NF 17234:* quem recebeu? _Responda com o número._\n*1* - O próprio destinatário`,
+        `${HEADER}\n👤 *Quem recebeu a NF \`17234\`?*\n*1* - 🙋 O próprio destinatário`,
       ),
     ).toBe(true)
   })

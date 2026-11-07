@@ -8,7 +8,7 @@
 import type { ReceivedBy } from '../../database/trip.schema.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import { formatSpokenNoteAmount } from '../../whatsapp/domain/bot-spoken-note.policy.js'
-import { RECEIVED_BY_LABELS } from './whatsapp-delivery-proof-speech.constant.js'
+import { RECEIVED_BY_LABELS } from './whatsapp-delivery-received-by.constant.js'
 import { DELIVERY_PROOF_ITEM } from './whatsapp-delivery-proof-checklist.policy.js'
 
 /** Os dados da nota; cada um só aparece quando existe. */

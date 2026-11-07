@@ -181,23 +181,25 @@ Você chegou às ${at} e ainda não registrou a entrega.
     },
     {
       answered: [
-        `📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._`,
+        `📍 *NF \`17234\` · localização*
+Se puder, compartilhe a localização da entrega (clipe 📎 → Localização).
+_Falta 1 item. Se não tiver, responda pular._`,
       ],
       shown: '1',
     },
     {
       answered: [
-        `Ok, sem esse item.
+        `👍 _Ok, sem a localização._
 
-📸 *NF 17234:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
+📸 *NF \`17234\` · foto do canhoto*
+Mande a foto do canhoto assinado.
+_Falta 1 item. Se não tiver, responda pular._`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `Ok, sem esse item.
-
-✅ *NF 17234 pronta para fechar.*
+        `✅ *NF 17234 pronta para fechar.*
 🏢 Contratante: Distribuidora Aurora
 👤 Cliente: PADARIA SOL NASCENTE
 🏠 Endereço: RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
@@ -500,23 +502,25 @@ _Se não puder agora, responda pular._`,
       answered: [
         `${greeting}
 
-📍 *NF 17235:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._`,
+📍 *NF \`17235\` · localização*
+Se puder, compartilhe a localização da entrega (clipe 📎 → Localização).
+_Falta 1 item. Se não tiver, responda pular._`,
       ],
       shown: '@bot entreguei 17235',
     },
     {
       answered: [
-        `Ok, sem esse item.
+        `👍 _Ok, sem a localização._
 
-📸 *NF 17235:* mande a foto do canhoto assinado. _Se não tiver, responda pular._`,
+📸 *NF \`17235\` · foto do canhoto*
+Mande a foto do canhoto assinado.
+_Falta 1 item. Se não tiver, responda pular._`,
       ],
       shown: 'pular',
     },
     {
       answered: [
-        `Ok, sem esse item.
-
-✅ *NF 17235 pronta para fechar.*
+        `✅ *NF 17235 pronta para fechar.*
 🏢 Contratante: Distribuidora Aurora
 👤 Cliente: MERCADO LUA CHEIA
 🏠 Endereço: AVENIDA BRASIL, 2500, SERTAOZINHO, SP
