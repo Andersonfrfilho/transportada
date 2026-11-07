@@ -51,6 +51,12 @@ function createFixture(permissions: CompanyContext['permissions'], serviceAccoun
       migrationStatus: appliedMigrations(),
     }),
     routes: createDriverStopReminderRoutes({
+      reconcileDriverStopReminders: {
+        execute: async (params) => {
+          calls.push({ reconcile: params })
+          return { openedCount: 2 }
+        },
+      },
       deliverDriverStopReminder: {
         execute: async (params) => {
           calls.push(params)
@@ -108,6 +114,25 @@ describe('a rota do robô de lembretes é de uma permissão só (spec 299 T2.2)'
     )
     expect(response.status).toBeGreaterThanOrEqual(400)
     expect(response.status).toBeLessThan(500)
+    expect(fixture.calls).toEqual([])
+  })
+})
+
+describe('a varredura do robô é da mesma permissão (spec 299, dono 2026-11-07)', () => {
+  const reconcile = (fixture: ReturnType<typeof createFixture>) =>
+    fixture.handle(jsonRequest({ method: 'POST', path: '/driver-stop-reminders/reconciliation' }))
+
+  test('o token da automação varre a empresa do contexto', async () => {
+    const fixture = createFixture(new Set(['trip.stop-reminder-dispatch']), true)
+    const response = await reconcile(fixture)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { openedCount: 2 } })
+    expect(fixture.calls).toEqual([{ reconcile: { companyId: COMPANY_CONTEXT.companyId } }])
+  })
+
+  test('quem tem `trip.manage` e não tem a permissão do robô recebe 403', async () => {
+    const fixture = createFixture(new Set(['trip.manage', 'fleet.read']), false)
+    expect((await reconcile(fixture)).status).toBe(403)
     expect(fixture.calls).toEqual([])
   })
 })

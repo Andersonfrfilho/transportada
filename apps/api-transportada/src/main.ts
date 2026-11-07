@@ -225,6 +225,9 @@ import { DrizzleDriverStopReminderDeliveryRepository } from './driver-stop-remin
 import { createDrizzleDriverReminderChannelResolver } from './driver-stop-reminders/infrastructure/drizzle-driver-reminder-channel.resolver.js'
 import { createGroupReminderPromptOpener } from './driver-stop-reminders/infrastructure/group-reminder-prompt-opener.js'
 import { createGroupStopReminderSender } from './driver-stop-reminders/infrastructure/group-stop-reminder-sender.gateway.js'
+import { createReconcileDriverStopRemindersUseCase } from './driver-stop-reminders/application/reconcile-driver-stop-reminders.use-case.js'
+import { DrizzleDriverStopReminderReconciliationRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-reconciliation.repository.js'
+import { DrizzleDriverStopReminderRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder.repository.js'
 import { DrizzleDriverStopReminderSettingsRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-settings.repository.js'
 import { createDriverStopReminderSettingsRoutes } from './driver-stop-reminders/presentation/driver-stop-reminder-settings.routes.js'
 import { createDriverStopReminderRoutes } from './driver-stop-reminders/presentation/driver-stop-reminders.routes.js'
@@ -2427,7 +2430,17 @@ export function bootstrap(): Bun.Server<undefined> {
         vehicleCatalog: config.vehicleCatalog,
       }),
       ...createWhatsAppCommandSettlementRoutes({ settle: whatsappSettlement }),
-      ...createDriverStopReminderRoutes({ deliverDriverStopReminder }),
+      ...createDriverStopReminderRoutes({
+        deliverDriverStopReminder,
+        reconcileDriverStopReminders: createReconcileDriverStopRemindersUseCase({
+          ...(driverStopReminders === undefined
+            ? {}
+            : { afterOpen: (reminders) => driverStopReminders.refineAfterCommit(reminders) }),
+          isEnabled: config.driverRemindersEnabled,
+          reconciliation: new DrizzleDriverStopReminderReconciliationRepository(database.db),
+          reminders: new DrizzleDriverStopReminderRepository(database.db, logger),
+        }),
+      }),
       ...createDriverStopReminderSettingsRoutes({
         resolveClientIp,
         settings: new DrizzleDriverStopReminderSettingsRepository(database.db),

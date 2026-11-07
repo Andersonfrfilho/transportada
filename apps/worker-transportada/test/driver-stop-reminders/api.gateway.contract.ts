@@ -155,4 +155,32 @@ describe('occurrence automatic mail api gateway', () => {
     expect(String(error)).not.toContain(CONFIGURATION.clientSecret)
     expect(String(error)).toContain('400')
   })
+
+  test('reconcile posts the reconciliation route with the tenant and reads the opened count', async () => {
+    const { calls, gateway } = buildGateway({ apiBody: { data: { openedCount: 3 } } })
+
+    expect(await gateway.reconcile({ companyId: COMPANY_ID })).toEqual({ openedCount: 3 })
+
+    const call = calls.at(-1)
+    expect(call?.method).toBe('POST')
+    expect(call?.url).toBe('https://api.example.test/driver-stop-reminders/reconciliation')
+    expect(call?.headers.get('authorization')).toBe('Bearer token-de-mentira')
+    expect(call?.headers.get('x-company-id')).toBe(COMPANY_ID)
+  })
+
+  test('reconcile maps statuses like delivery and rejects a body without a count', async () => {
+    const forbidden = buildGateway({ apiStatus: 403 })
+    const down = buildGateway({ apiStatus: 503 })
+    const malformed = buildGateway({ apiBody: { data: {} } })
+
+    expect(await outcomeOf(forbidden.gateway.reconcile({ companyId: COMPANY_ID }))).toBe(
+      'api_unauthorized',
+    )
+    expect(await outcomeOf(down.gateway.reconcile({ companyId: COMPANY_ID }))).toBe(
+      'api_unreachable',
+    )
+    expect(await outcomeOf(malformed.gateway.reconcile({ companyId: COMPANY_ID }))).toBe(
+      'api_unreachable',
+    )
+  })
 })

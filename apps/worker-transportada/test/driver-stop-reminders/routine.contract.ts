@@ -32,24 +32,38 @@ function buildReminder(index: number): DueDriverStopReminder {
 type DeliverResult = Awaited<ReturnType<DriverStopReminderApiPort['deliver']>>
 
 function buildHarness(input: {
+  readonly companyIds?: readonly string[]
   readonly deliver?: (reminder: DueDriverStopReminder) => DeliverResult
   readonly enabled?: boolean
+  readonly reconcile?: (companyId: string) => { openedCount: number }
   readonly reminders: readonly DueDriverStopReminder[]
   readonly stopAfterDeliveries?: number
 }) {
   const listCalls: ListDueDriverStopRemindersParams[] = []
+  const events: string[] = []
+  const reconciled: string[] = []
   const delivered: DueDriverStopReminder[] = []
   const captured: unknown[] = []
   const logs: { message: string; metadata: unknown }[] = []
 
   const queue: DriverStopReminderQueuePort = {
+    async listReconcilableCompanyIds() {
+      events.push('listCompanies')
+      return input.companyIds ?? []
+    },
     async listDue(params) {
+      events.push('listDue')
       listCalls.push(params)
       const excluded = new Set(params.excludeReminderIds)
       return input.reminders.filter((item) => !excluded.has(item.reminderId)).slice(0, params.limit)
     },
   }
   const reminderApi: DriverStopReminderApiPort = {
+    async reconcile({ companyId }) {
+      events.push(`reconcile:${companyId}`)
+      reconciled.push(companyId)
+      return input.reconcile?.(companyId) ?? { openedCount: 0 }
+    },
     async deliver(params) {
       delivered.push(params)
       return input.deliver?.(params) ?? { nextDueAt: null, outcome: 'sent' }
@@ -75,7 +89,15 @@ function buildHarness(input: {
     job: DRIVER_STOP_REMINDER_DISPATCH_JOB,
     origin: 'schedule',
   } as const
-  return { captured, delivered, listCalls, logs, run: () => routine.run(context) }
+  return {
+    captured,
+    delivered,
+    events,
+    listCalls,
+    logs,
+    reconciled,
+    run: () => routine.run(context),
+  }
 }
 
 describe('driver stop reminder routine', () => {
@@ -233,5 +255,63 @@ describe('driver stop reminder routine', () => {
     )?.metadata as Record<string, unknown>
     expect(metadata).toMatchObject({ correlationId: 'correlation-1', sent: 1 })
     expect(JSON.stringify(metadata)).not.toContain('reminder-000')
+  })
+
+  test('with the global key off nothing is reconciled either', async () => {
+    const harness = buildHarness({ companyIds: ['company-a'], enabled: false, reminders: [] })
+
+    await harness.run()
+
+    expect(harness.events).toEqual([])
+  })
+
+  test('reconciles each company with the key on before it lists what is due', async () => {
+    const harness = buildHarness({
+      companyIds: ['company-a', 'company-b'],
+      reconcile: (companyId) => ({ openedCount: companyId === 'company-a' ? 2 : 1 }),
+      reminders: [buildReminder(0)],
+    })
+
+    const result = await harness.run()
+
+    expect(harness.events).toEqual([
+      'listCompanies',
+      'reconcile:company-a',
+      'reconcile:company-b',
+      'listDue',
+    ])
+    expect(result.outcome).toBe('succeeded')
+    expect(result.counters).toMatchObject({ reconciliationFailures: 0, remindersReconciled: 3 })
+  })
+
+  test('a failed reconciliation is counted and reported but never blocks the delivery', async () => {
+    const harness = buildHarness({
+      companyIds: ['company-a', 'company-b'],
+      reconcile: (companyId) => {
+        if (companyId === 'company-a') throw new DriverStopReminderApiError('api_unreachable', 503)
+        return { openedCount: 1 }
+      },
+      reminders: [buildReminder(0)],
+    })
+
+    const result = await harness.run()
+
+    expect(harness.reconciled).toEqual(['company-a', 'company-b'])
+    expect(harness.delivered).toHaveLength(1)
+    expect(result.outcome).toBe('succeeded')
+    expect(result.counters).toMatchObject({ reconciliationFailures: 1, remindersReconciled: 1 })
+    expect(harness.captured).toHaveLength(1)
+  })
+
+  test('a stop request ends the reconciliation at the company boundary', async () => {
+    const harness = buildHarness({
+      companyIds: ['company-a', 'company-b', 'company-c'],
+      reminders: [],
+      stopAfterDeliveries: 0,
+    })
+
+    await harness.run()
+
+    expect(harness.reconciled).toEqual([])
   })
 })

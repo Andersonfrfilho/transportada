@@ -202,6 +202,7 @@ export const API_FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
 /** Spec 147 D2/RF9: o que o cadastro ainda deve. Genérica — hoje só a carroceria de `fleet.read`. */
 export const API_PENDING_ITEMS_PATH = '/pending-items'
 export const API_DRIVER_STOP_REMINDERS_PATH = '/driver-stop-reminders'
+export const API_DRIVER_STOP_REMINDERS_RECONCILIATION_PATH = `${API_DRIVER_STOP_REMINDERS_PATH}/reconciliation`
 /** Spec 299 T4.2 (RF19): a configuração da cobrança do motorista, por empresa. */
 export const API_DRIVER_STOP_REMINDER_SETTINGS_PATH = '/settings/driver-stop-reminders'
 /** Não é rota de frota: os três formulários com campo de CEP — motorista, empresa e MDF-e — a usam. */

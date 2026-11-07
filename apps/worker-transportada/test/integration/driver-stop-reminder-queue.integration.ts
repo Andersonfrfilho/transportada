@@ -126,6 +126,18 @@ describeDatabase('fila dos lembretes ao motorista (integration)', () => {
     expect(await dueIds(missing)).toEqual([])
   })
 
+  test('lists for reconciliation only companies with the setting on', async () => {
+    const enabled = await createTenant(true)
+    const disabled = await createTenant(false)
+    const missing = await createTenant(undefined)
+
+    const ids = await queue.listReconcilableCompanyIds()
+
+    expect(ids).toContain(enabled.companyId)
+    expect(ids).not.toContain(disabled.companyId)
+    expect(ids).not.toContain(missing.companyId)
+  })
+
   test('skips a reminder reserved by the API and takes it back once the reservation expires', async () => {
     const tenant = await createTenant(true)
     await seedReminder(tenant, { dispatchingUntil: minutesFromNow(1), dueAt: minutesFromNow(-5) })

@@ -22,6 +22,15 @@ export function createDrizzleDriverStopReminderQueue(
   database: DriverStopReminderDatabase,
 ): DriverStopReminderQueuePort {
   return {
+    async listReconcilableCompanyIds() {
+      const rows = (await database.execute(sql`
+        select s."company_id" as company_id
+        from company_driver_reminder_settings s
+        where s."enabled" = true
+        order by s."company_id"
+      `)) as unknown as readonly { company_id: string }[]
+      return rows.map((row) => row.company_id)
+    },
     async listDue(params: ListDueDriverStopRemindersParams) {
       const exclusion =
         params.excludeReminderIds.length === 0

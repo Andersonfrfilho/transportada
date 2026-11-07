@@ -11,5 +11,7 @@ export type ListDueDriverStopRemindersParams = Readonly<{
 }>
 
 export type DriverStopReminderQueuePort = Readonly<{
+  /** Empresas com a chave da cobrança ligada: só elas têm viagem ativa a reconciliar. */
+  listReconcilableCompanyIds: () => Promise<readonly string[]>
   listDue: (params: ListDueDriverStopRemindersParams) => Promise<readonly DueDriverStopReminder[]>
 }>
