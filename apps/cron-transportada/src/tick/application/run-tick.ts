@@ -123,19 +123,18 @@ async function publishDueJob(
     return false
   }
 
-  const envelope = jobRunEnvelopeV1Schema.parse({
-    correlationId: dependencies.correlationId,
-    eventId: dependencies.newEventId(),
-    occurredAt: dependencies.now.toISOString(),
-    payload: { executionId: started.executionId, job: schedule.job, origin: 'schedule' },
-    type: JOB_RUN_EVENT_TYPE,
-    version: 1,
-  })
-
   try {
+    const envelope = jobRunEnvelopeV1Schema.parse({
+      correlationId: dependencies.correlationId,
+      eventId: dependencies.newEventId(),
+      occurredAt: dependencies.now.toISOString(),
+      payload: { executionId: started.executionId, job: schedule.job, origin: 'schedule' },
+      type: JOB_RUN_EVENT_TYPE,
+      version: 1,
+    })
     await dependencies.publisher.publish({ envelope })
   } catch (error) {
-    // A linha aberta é fechada aqui mesmo: sem isso, a rotina ficaria travada até a varredura de
+    // A linha aberta é fechada aqui mesmo, também quando o envelope é recusado: sem isso, a rotina ficaria travada até a varredura de
     // lease, e o botão recusaria com 409 sem que nada estivesse correndo.
     await dependencies.schedules.finish({
       executionId: started.executionId,
