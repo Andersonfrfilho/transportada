@@ -49,16 +49,33 @@ export function createDrizzleWhatsAppFlowGraphHistoryRepository(
       }
     },
     async recordCodeBaseline({ companyId, graph }: { companyId: string; graph: FlowGraphData }) {
-      await db.insert(whatsappFlowGraphVersions).values({
-        companyId,
-        flowKey: `${graph.key}${CODE_BASELINE_FLOW_KEY_SUFFIX}`,
-        label: graph.label,
-        nodes: graph.nodes,
-        publishedBy: CODE_BASELINE_PUBLISHED_BY,
-        source: 'code',
-        startNodeId: graph.startNodeId,
-        version: graph.version,
-      })
+      await db
+        .insert(whatsappFlowGraphVersions)
+        .values({
+          companyId,
+          flowKey: `${graph.key}${CODE_BASELINE_FLOW_KEY_SUFFIX}`,
+          label: graph.label,
+          nodes: graph.nodes,
+          publishedBy: CODE_BASELINE_PUBLISHED_BY,
+          source: 'code',
+          startNodeId: graph.startNodeId,
+          version: graph.version,
+        })
+        .onConflictDoNothing()
+    },
+    async hasPanelEdits(companyId: string, flowKey: string) {
+      const [row] = await db
+        .select({ id: whatsappFlowGraphVersions.id })
+        .from(whatsappFlowGraphVersions)
+        .where(
+          and(
+            eq(whatsappFlowGraphVersions.companyId, companyId),
+            eq(whatsappFlowGraphVersions.flowKey, flowKey),
+            eq(whatsappFlowGraphVersions.source, 'panel'),
+          ),
+        )
+        .limit(1)
+      return row !== undefined
     },
     async record({ companyId, graph, publishedBy, source }: WhatsAppFlowGraphHistorySnapshot) {
       await db.insert(whatsappFlowGraphVersions).values({

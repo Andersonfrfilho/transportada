@@ -66,3 +66,37 @@ export function preserveEditedBotSpeech(
   }
   return { ...next, nodes }
 }
+
+/**
+ * O que o código publicou DE FATO em cada nó: o nó regravado leva o texto novo; o `fala_*` preservado mantém a
+ * entrada do baseline anterior (ou fica sem entrada), para o padrão novo nunca passar por "editado".
+ */
+export function buildCodeBaseline(input: {
+  readonly codeGraph: FlowGraphData
+  readonly previousBaseline: FlowGraphData | undefined
+  readonly published: FlowGraphData
+}): FlowGraphData {
+  const nodes = { ...input.codeGraph.nodes }
+  for (const id of Object.keys(input.codeGraph.nodes)) {
+    if (!id.startsWith(BOT_SPEECH_NODE_PREFIX)) continue
+    const wasWritten =
+      input.published.nodes[id]?.directMessage === input.codeGraph.nodes[id]?.directMessage
+    if (wasWritten) continue
+    const previous = input.previousBaseline?.nodes[id]
+    if (previous === undefined) delete nodes[id]
+    else nodes[id] = previous
+  }
+  return { ...input.codeGraph, nodes }
+}
+
+/** Quantos `fala_*` a publicação mudaria no grafo vivo. */
+export function countRewrittenBotSpeech(
+  current: FlowGraphData | undefined,
+  published: FlowGraphData,
+): number {
+  return Object.entries(published.nodes).filter(
+    ([id, node]) =>
+      id.startsWith(BOT_SPEECH_NODE_PREFIX) &&
+      current?.nodes[id]?.directMessage !== node.directMessage,
+  ).length
+}

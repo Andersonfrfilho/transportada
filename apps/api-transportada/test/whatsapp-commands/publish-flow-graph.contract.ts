@@ -16,6 +16,7 @@ import {
   createPublishWhatsAppFlowGraphUseCase,
   previewWhatsAppFlowGraphPublication,
   WhatsAppFlowGraphInvalidError,
+  WhatsAppFlowGraphPanelEditedError,
 } from '../../src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.js'
 import type {
   WhatsAppFlowGraphHistoryPort,
@@ -72,10 +73,11 @@ function createFakeModule(seed?: FlowGraphData) {
   return { module, stored }
 }
 
-function createFakeHistory(initialBaseline?: FlowGraphData) {
+function createFakeHistory(initialBaseline?: FlowGraphData, hasPanelEdits = false) {
   const recorded: WhatsAppFlowGraphHistorySnapshot[] = []
   const baselines: FlowGraphData[] = initialBaseline === undefined ? [] : [initialBaseline]
   const history: WhatsAppFlowGraphHistoryPort = {
+    hasPanelEdits: async () => hasPanelEdits,
     readCodeBaseline: async () => baselines.at(-1),
     record: async (snapshot: WhatsAppFlowGraphHistorySnapshot) => void recorded.push(snapshot),
     recordCodeBaseline: async ({ graph }) => void baselines.push(graph),
@@ -283,7 +285,8 @@ describe('republicação das falas do bot (spec 300 T6.1)', () => {
       [EMPTY_ID]: 'Padrão novo.',
       [botSpeechNodeId('operatorNoTrips') + '_extra']: 'Nó novo.',
     })
-    expect(baselines.at(-1)?.nodes[EDITED_ID]?.directMessage).toBe('Padrão novo.')
+    expect(baselines.at(-1)?.nodes[EDITED_ID]?.directMessage).toBe('Padrão antigo.')
+    expect(baselines.at(-1)?.nodes[UNEDITED_ID]?.directMessage).toBe('Padrão novo.')
   })
 
   test('sem referência do código, o texto vivo fica — nunca se adivinha que ninguém editou', async () => {
@@ -293,5 +296,114 @@ describe('republicação das falas do bot (spec 300 T6.1)', () => {
     const { outcome } = await republish({ live, next })
 
     expect(outcome.graph.nodes[UNEDITED_ID]?.directMessage).toBe('Texto vivo.')
+  })
+})
+
+describe('baseline do que o código publicou de fato (spec 300 review)', () => {
+  const FIRST_ID = botSpeechNodeId('tripUnavailable')
+  const SECOND_ID = botSpeechNodeId('operatorNoTrips')
+
+  function speechGraph(texts: Record<string, string>, version: number): FlowGraphData {
+    const nodes: FlowGraphData['nodes'] = {}
+    for (const [id, directMessage] of Object.entries(texts)) {
+      nodes[id] = { directMessage, id, type: 'action' }
+    }
+    return { ...GRAPH_V1, nodes, version }
+  }
+
+  function textsOf(graph: FlowGraphData | undefined) {
+    return Object.fromEntries(
+      Object.entries(graph?.nodes ?? {}).map(([id, node]) => [id, node.directMessage]),
+    )
+  }
+
+  function createPublisher(live: FlowGraphData, baseline?: FlowGraphData, hasPanelEdits = false) {
+    const { module, stored } = createFakeModule(live)
+    const { baselines, history } = createFakeHistory(baseline, hasPanelEdits)
+    const publish = createPublishWhatsAppFlowGraphUseCase({
+      runInTransaction: (work) => work({ history, module }),
+    })
+    return { baselines, publish, stored }
+  }
+
+  const request = (graph: FlowGraphData, adoptLiveAsCodeBaseline = false) => ({
+    adoptLiveAsCodeBaseline,
+    companyId: COMPANY_ID,
+    graph,
+    publishedBy: 'code',
+    source: 'code' as const,
+  })
+
+  test('sem referência, o nó preservado não ganha entrada no baseline e o padrão novo não vira "editado"', async () => {
+    const live = speechGraph({ [FIRST_ID]: 'Texto vivo antigo.' }, 2)
+    const nextOne = speechGraph({ [FIRST_ID]: 'Padrão novo.', [SECOND_ID]: 'Outro novo.' }, 1)
+    const { baselines, publish, stored } = createPublisher(live)
+
+    await publish(request(nextOne))
+
+    expect(textsOf(stored.value)).toEqual({
+      [FIRST_ID]: 'Texto vivo antigo.',
+      [SECOND_ID]: 'Outro novo.',
+    })
+    expect(textsOf(baselines.at(-1))).toEqual({ [SECOND_ID]: 'Outro novo.' })
+
+    const nextTwo = speechGraph({ [FIRST_ID]: 'Padrão novo.', [SECOND_ID]: 'Outro mais novo.' }, 1)
+    await publish(request(nextTwo))
+
+    expect(textsOf(stored.value)).toEqual({
+      [FIRST_ID]: 'Texto vivo antigo.',
+      [SECOND_ID]: 'Outro mais novo.',
+    })
+  })
+
+  test('nó editado e preservado mantém a entrada do baseline anterior e continua preservado', async () => {
+    const baseline = speechGraph({ [FIRST_ID]: 'Padrão antigo.' }, 2)
+    const live = speechGraph({ [FIRST_ID]: 'Editada.' }, 2)
+    const { baselines, publish, stored } = createPublisher(live, baseline)
+
+    await publish(request(speechGraph({ [FIRST_ID]: 'Padrão novo.', [SECOND_ID]: 'A.' }, 1)))
+    expect(textsOf(baselines.at(-1))).toEqual({ [FIRST_ID]: 'Padrão antigo.', [SECOND_ID]: 'A.' })
+
+    await publish(request(speechGraph({ [FIRST_ID]: 'Padrão novo.', [SECOND_ID]: 'B.' }, 1)))
+    expect(textsOf(stored.value)).toEqual({ [FIRST_ID]: 'Editada.', [SECOND_ID]: 'B.' })
+  })
+
+  test('adotar o vivo recusa quando o histórico tem edição do painel', async () => {
+    const live = speechGraph({ [FIRST_ID]: 'Editada.' }, 2)
+    const { publish, stored } = createPublisher(live, undefined, true)
+
+    const failure = await publish(
+      request(speechGraph({ [FIRST_ID]: 'Padrão novo.' }, 1), true),
+    ).catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(WhatsAppFlowGraphPanelEditedError)
+    expect((failure as Error).message).toBe(
+      'whatsapp flow graph "root" has panel edits: adopting the live graph as code baseline would overwrite them',
+    )
+    expect(textsOf(stored.value)).toEqual({ [FIRST_ID]: 'Editada.' })
+  })
+
+  test('a prévia mostra quantos fala_* seriam regravados e recusa a adoção com edição do painel', async () => {
+    const live = speechGraph({ [FIRST_ID]: 'Antiga.', [SECOND_ID]: 'Outra antiga.' }, 2)
+    const next = speechGraph({ [FIRST_ID]: 'Nova.', [SECOND_ID]: 'Outra antiga.' }, 1)
+    const { module } = createFakeModule(live)
+
+    const preview = await previewWhatsAppFlowGraphPublication({
+      adoptLiveAsCodeBaseline: true,
+      companyId: COMPANY_ID,
+      graph: next,
+      history: createFakeHistory().history,
+      module,
+    })
+    expect(preview.rewrittenBotSpeechCount).toBe(1)
+
+    const failure = await previewWhatsAppFlowGraphPublication({
+      adoptLiveAsCodeBaseline: true,
+      companyId: COMPANY_ID,
+      graph: next,
+      history: createFakeHistory(undefined, true).history,
+      module,
+    }).catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(WhatsAppFlowGraphPanelEditedError)
   })
 })

@@ -3,7 +3,11 @@
  */
 import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 
-import { preserveEditedBotSpeech } from '../domain/whatsapp-bot-speech.policy.js'
+import {
+  buildCodeBaseline,
+  countRewrittenBotSpeech,
+  preserveEditedBotSpeech,
+} from '../domain/whatsapp-bot-speech.policy.js'
 import {
   diffWhatsAppFlowGraphs,
   type WhatsAppFlowGraphDiff,
@@ -28,6 +32,15 @@ export class WhatsAppFlowGraphInvalidError extends Error {
   }
 }
 
+export class WhatsAppFlowGraphPanelEditedError extends Error {
+  constructor(flowKey: string) {
+    super(
+      `whatsapp flow graph "${flowKey}" has panel edits: adopting the live graph as code baseline would overwrite them`,
+    )
+    this.name = 'WhatsAppFlowGraphPanelEditedError'
+  }
+}
+
 export type WhatsAppFlowGraphPublicationRequest = {
   readonly companyId: string
   readonly graph: FlowGraphData
@@ -41,6 +54,7 @@ export type WhatsAppFlowGraphPublicationRequest = {
 export type WhatsAppFlowGraphPublicationPreview = {
   readonly current: FlowGraphData | undefined
   readonly diff: WhatsAppFlowGraphDiff
+  readonly rewrittenBotSpeechCount: number
   readonly violations: readonly WhatsAppFlowGraphViolation[]
 }
 
@@ -61,18 +75,20 @@ export async function previewWhatsAppFlowGraphPublication(input: {
   readonly adoptLiveAsCodeBaseline?: boolean
   readonly companyId: string
   readonly graph: FlowGraphData
-  readonly history: Pick<WhatsAppFlowGraphHistoryPort, 'readCodeBaseline'>
+  readonly history: Pick<WhatsAppFlowGraphHistoryPort, 'hasPanelEdits' | 'readCodeBaseline'>
   readonly module: Pick<WhatsAppFlowGraphModulePort, 'get'>
 }): Promise<WhatsAppFlowGraphPublicationPreview> {
   const violations = validateFlowGraphForWhatsApp(input.graph)
   const current = await input.module.get(input.companyId, input.graph.key)
   const baseline = await resolveCodeBaseline({ ...input, current })
   /** O diff mostra o que a publicação faria de fato: as falas editadas no editor ficam como estão. */
-  const diff = diffWhatsAppFlowGraphs(
+  const published = preserveEditedBotSpeech(current, input.graph, baseline)
+  return {
     current,
-    preserveEditedBotSpeech(current, input.graph, baseline),
-  )
-  return { current, diff, violations }
+    diff: diffWhatsAppFlowGraphs(current, published),
+    rewrittenBotSpeechCount: countRewrittenBotSpeech(current, published),
+    violations,
+  }
 }
 
 async function resolveCodeBaseline(input: {
@@ -80,9 +96,14 @@ async function resolveCodeBaseline(input: {
   readonly companyId: string
   readonly current: FlowGraphData | undefined
   readonly graph: FlowGraphData
-  readonly history: Pick<WhatsAppFlowGraphHistoryPort, 'readCodeBaseline'>
+  readonly history: Pick<WhatsAppFlowGraphHistoryPort, 'hasPanelEdits' | 'readCodeBaseline'>
 }): Promise<FlowGraphData | undefined> {
-  if (input.adoptLiveAsCodeBaseline === true) return input.current
+  if (input.adoptLiveAsCodeBaseline === true) {
+    if (await input.history.hasPanelEdits(input.companyId, input.graph.key)) {
+      throw new WhatsAppFlowGraphPanelEditedError(input.graph.key)
+    }
+    return input.current
+  }
   return input.history.readCodeBaseline(input.companyId, input.graph.key)
 }
 
@@ -135,7 +156,14 @@ export function createPublishWhatsAppFlowGraphUseCase(dependencies: {
         if (request.adoptLiveAsCodeBaseline === true) {
           await history.recordCodeBaseline({
             companyId: request.companyId,
-            graph: { ...request.graph, version: current.version },
+            graph: {
+              ...buildCodeBaseline({
+                codeGraph: request.graph,
+                previousBaseline: baseline,
+                published: graph,
+              }),
+              version: current.version,
+            },
           })
         }
         return { graph: current, kind: 'unchanged' }
@@ -155,7 +183,14 @@ export function createPublishWhatsAppFlowGraphUseCase(dependencies: {
       )
       await history.recordCodeBaseline({
         companyId: request.companyId,
-        graph: { ...request.graph, version: updated.version },
+        graph: {
+          ...buildCodeBaseline({
+            codeGraph: request.graph,
+            previousBaseline: baseline,
+            published: graph,
+          }),
+          version: updated.version,
+        },
       })
       return { diff, graph: updated, kind: 'updated' }
     })

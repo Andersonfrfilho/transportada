@@ -34,6 +34,8 @@ export type WhatsAppFlowGraphHistorySnapshot = {
 /** Append-only por trigger (drizzle/…/whatsapp_flow_graph_versions): só `record`, nunca update. */
 export type WhatsAppFlowGraphHistoryPort = {
   record(snapshot: WhatsAppFlowGraphHistorySnapshot): Promise<void>
+  /** O histórico da empresa tem versão gravada pelo painel (`source=panel`) deste fluxo? */
+  hasPanelEdits(companyId: string, flowKey: string): Promise<boolean>
   /** O que o código publicou por último (sem as edições do painel): referência para saber o que foi editado. */
   readCodeBaseline(companyId: string, flowKey: string): Promise<FlowGraphData | undefined>
   recordCodeBaseline(snapshot: {

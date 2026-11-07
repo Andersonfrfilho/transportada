@@ -140,6 +140,56 @@ describe('publicador do grafo do WhatsApp (Postgres)', () => {
   )
 })
 
+describe('adoção do grafo vivo como referência do código (Postgres)', () => {
+  testWithPostgres('repetir a adoção com o grafo igual é idempotente', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const publish = createDrizzleWhatsAppFlowGraphPublisher(db)
+      const request = {
+        adoptLiveAsCodeBaseline: true,
+        companyId,
+        graph: GRAPH,
+        publishedBy: 'code',
+        source: 'code' as const,
+      }
+      await publish(request)
+
+      const first = await publish(request)
+      const second = await publish(request)
+
+      expect(first).toEqual({ graph: { ...GRAPH, version: 1 }, kind: 'unchanged' })
+      expect(second).toEqual({ graph: { ...GRAPH, version: 1 }, kind: 'unchanged' })
+    })
+  })
+
+  testWithPostgres('recusa a adoção quando o histórico tem versão do painel', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const publish = createDrizzleWhatsAppFlowGraphPublisher(db)
+      await publish({ companyId, graph: GRAPH, publishedBy: 'code', source: 'code' })
+      const history = createDrizzleWhatsAppFlowGraphHistoryRepository(db)
+      expect(await history.hasPanelEdits(companyId, GRAPH.key)).toBeFalse()
+      await history.record({
+        companyId,
+        graph: GRAPH,
+        publishedBy: 'user-1',
+        source: 'panel',
+      })
+      expect(await history.hasPanelEdits(companyId, GRAPH.key)).toBeTrue()
+
+      const failure = await publish({
+        adoptLiveAsCodeBaseline: true,
+        companyId,
+        graph: { ...GRAPH, label: 'Menu novo' },
+        publishedBy: 'code',
+        source: 'code',
+      }).catch((error: unknown) => error)
+
+      expect((failure as Error).name).toBe('WhatsAppFlowGraphPanelEditedError')
+    })
+  })
+})
+
 async function historyRows(
   db: TestDatabase['db'],
   companyId: string,
