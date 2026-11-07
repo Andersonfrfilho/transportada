@@ -42,7 +42,7 @@ export function TripQuickNoteInput({
   const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [canScan] = useState(() => isCameraCapable(globalThis.navigator))
 
-  function pick(document: NfeDocumentListItem): void {
+  function pick(document: Readonly<{ id: string }>): void {
     setFeedback(undefined)
     onPick(document)
   }
