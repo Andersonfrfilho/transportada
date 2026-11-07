@@ -52,11 +52,13 @@ export function resolveBotSpeechTemplate(
 export function preserveEditedBotSpeech(
   current: FlowGraphData | undefined,
   next: FlowGraphData,
+  overwriteNodeIds: readonly string[] = [],
 ): FlowGraphData {
   if (current === undefined) return next
   const nodes = { ...next.nodes }
   for (const [id, node] of Object.entries(next.nodes)) {
     if (!id.startsWith(BOT_SPEECH_NODE_PREFIX)) continue
+    if (overwriteNodeIds.includes(id)) continue
     const live = current.nodes[id]
     if (live?.directMessage === undefined || live.directMessage.trim() === '') continue
     nodes[id] = { ...node, directMessage: live.directMessage }

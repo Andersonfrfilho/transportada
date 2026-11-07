@@ -792,3 +792,10 @@ variável foi feita de forma compatível justamente para o texto antigo não que
 Worker: typecheck, eslint, prettier limpos; `bun run test` 3063 pass / 0 fail e, com banco migrado (mesmo passo do
 `make worker-integration`, sem subir a stack), 3070 pass incluindo `driver-stop-reminder-queue.integration.ts`. Raiz:
 `bun run format:check` limpo depois do prettier no `spec.md`.
+
+Publicação das falas com `--overwrite-nodes <chaves>` (opt-in; sem a flag nada muda): chave listada leva o texto do código e o
+preview lista "nós sobrescritos (texto do código)" com antes/depois antes do `--confirm`; chave inexistente aborta sem publicar;
+histórico gravado antes de substituir. Contrato `publish-flow-graph.contract.ts` 4 testes novos (15 pass com `bot-speech`);
+typecheck, eslint, prettier limpos; `bun run test` 14464 pass / 0 fail; `bun --env-file=../../.env.test test --timeout 120000`
+0 fail; integração `whatsapp-flow-graph-publish` 2 pass. O wrapper `producao-publicar-falas-do-bot.sh` repassa `$*` sem
+alteração (vírgulas sem espaço passam intactas).

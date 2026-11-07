@@ -17,6 +17,7 @@ import { createDrizzleWhatsAppFlowGraphPublisher } from '../src/whatsapp-command
  *
  *   bun run scripts/whatsapp-flow-publish.ts --company <uuid>
  *   bun run scripts/whatsapp-flow-publish.ts --company <uuid> --confirm
+ *   bun run scripts/whatsapp-flow-publish.ts --overwrite-nodes fala_a,fala_b   (texto do código nessas chaves)
  */
 async function main(): Promise<void> {
   const options = parseArguments(process.argv.slice(2))
@@ -34,6 +35,7 @@ async function main(): Promise<void> {
       companyId,
       graph,
       module: repository,
+      overwriteNodeIds: options.overwriteNodeIds,
     })
 
     process.stdout.write(formatPreview({ companyId, graph, preview }))
@@ -58,6 +60,7 @@ async function main(): Promise<void> {
       const outcome = await publish({
         companyId,
         graph,
+        overwriteNodeIds: options.overwriteNodeIds,
         publishedBy: 'code',
         source: 'code',
       })
@@ -76,7 +79,11 @@ async function main(): Promise<void> {
   }
 }
 
-type Options = Readonly<{ companyId: null | string; confirm: boolean }>
+type Options = Readonly<{
+  companyId: null | string
+  confirm: boolean
+  overwriteNodeIds: readonly string[]
+}>
 
 function parseArguments(argv: readonly string[]): Options {
   const value = (name: string): null | string => {
@@ -84,7 +91,12 @@ function parseArguments(argv: readonly string[]): Options {
     return index === -1 ? null : (argv[index + 1] ?? null)
   }
 
-  return { companyId: value('company'), confirm: argv.includes('--confirm') }
+  const overwriteNodeIds = (value('overwrite-nodes') ?? '')
+    .split(',')
+    .map((key) => key.trim())
+    .filter((key) => key !== '')
+
+  return { companyId: value('company'), confirm: argv.includes('--confirm'), overwriteNodeIds }
 }
 
 /** Instalação dedicada (ADR-0021): uma empresa é o caso normal, e duas exigem `--company`. */
@@ -132,6 +144,17 @@ function formatPreview(input: {
     lines.push(`nós alterados    ${preview.diff.changedNodeIds.join(', ') || '(nenhum)'}`)
     if (preview.diff.labelChanged) lines.push(`rótulo           "${graph.label}"`)
     if (preview.diff.startNodeIdChanged) lines.push(`nó inicial       "${graph.startNodeId}"`)
+  }
+
+  if (preview.overwritten.length > 0) {
+    lines.push('nós sobrescritos (texto do código):')
+    for (const node of preview.overwritten) {
+      lines.push(
+        `  - ${node.nodeId}`,
+        `      antes:  ${node.from ?? '(vazio)'}`,
+        `      depois: ${node.to ?? '(vazio)'}`,
+      )
+    }
   }
 
   return `${lines.join('\n')}\n\n`
