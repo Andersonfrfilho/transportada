@@ -2443,7 +2443,10 @@ export function bootstrap(): Bun.Server<undefined> {
               ? {}
               : { afterOpen: (reminders) => driverStopReminders.refineAfterCommit(reminders) }),
             isEnabled: config.driverRemindersEnabled,
-            reconciliation: new DrizzleDriverStopReminderReconciliationRepository(database.db),
+            reconciliation: new DrizzleDriverStopReminderReconciliationRepository(
+              database.db,
+              logger,
+            ),
             reminders: new DrizzleDriverStopReminderRepository(database.db, logger),
           }),
           createReconcileIdleDriverStopRemindersUseCase({

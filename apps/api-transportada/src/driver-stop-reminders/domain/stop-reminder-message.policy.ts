@@ -127,6 +127,14 @@ function cutBalanced(text: string, maxUnits: number): string {
   return kept.trimEnd()
 }
 
+/** Quantas opções numeradas o cardápio daquela etapa (e variante) tem. */
+export function countStopReminderChoices(params: {
+  readonly stage: DriverStopReminderStage
+  readonly idleVariant?: DriverStopReminderIdleVariant | undefined
+}): number {
+  return pickActions(params.stage, params.idleVariant).length
+}
+
 /** Tira `excess` caracteres da linha mais longa do bloco (a das NFs) e marca o corte com "…"; as demais linhas ficam. */
 export function shortenStopBlock(params: {
   readonly stopBlock: string

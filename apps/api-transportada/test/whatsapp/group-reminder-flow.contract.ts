@@ -208,7 +208,11 @@ describe('resposta que não cabe, comando digitado e cancelar', () => {
       expect(await flow.answer(turnOf(text, request('arrival')))).toEqual({
         kind: 'not_understood',
         prompt: '',
-        reason: await say('lembreteOpcaoInvalida'),
+        reason: await CATALOG_BOT_SPEECH.text({
+          companyId: COMPANY_ID,
+          key: 'lembreteOpcaoInvalida',
+          params: { ultimaOpcao: '4' },
+        }),
       })
       expect(calls).toEqual([])
       expect(postponed).toEqual([])
@@ -311,5 +315,20 @@ describe('etapa idle (T2.7, RF23, RF24): o mesmo passo, cardápio por variante',
     await flow.answer(turnOf('cheguei', route()))
     expect(calls).toEqual(['stop.begin:["arrive",[]]'])
     expect(postponed).toEqual([])
+  })
+})
+
+describe('a fala de opção inválida diz a última opção da etapa/variante (T2.7)', () => {
+  test.each([
+    ['arrival', {}, 'de 1 a 4'],
+    ['settlement', {}, 'de 1 a 4'],
+    ['idle', { idleVariant: 'start' }, 'de 1 a 3'],
+    ['idle', { idleVariant: 'route' }, 'de 1 a 5'],
+  ] as const)('%s %j → "%s"', async (stage, state, expected) => {
+    const { flow } = setup()
+    const outcome = await flow.answer(turnOf('9', request(stage, state)))
+    expect(outcome).toMatchObject({ kind: 'not_understood' })
+    expect((outcome as { reason: string }).reason).toContain(expected)
+    expect((outcome as { reason: string }).reason).not.toContain('{{')
   })
 })

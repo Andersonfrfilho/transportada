@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "de66eb18-d933-4249-bb20-42ad0ce5380b",
+  "id": "906c93a5-901f-4229-ac9f-4e3dfcc02167",
   "prevIds": [
     "5368347a-be7c-488c-a2a6-0d24a340154e"
   ],
@@ -47368,6 +47368,48 @@
       "method": "btree",
       "concurrently": false,
       "name": "driver_stop_reminders_status_due_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "trip_stop_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "stage",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "driver_stop_reminders_cycle_probe_idx",
       "entityType": "indexes",
       "schema": "public",
       "table": "driver_stop_reminders"

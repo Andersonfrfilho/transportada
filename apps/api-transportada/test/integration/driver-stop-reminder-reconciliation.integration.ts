@@ -292,4 +292,89 @@ describe('reconciliação do lembrete com a viagem ativa (spec 299, dono 2026-11
       })
     },
   )
+
+  testWithPostgres(
+    'L2: um INSERT que falha não aborta nem faminta o lote; os outros itens abrem',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const first = await seedWorld(database)
+        const company = first.company
+        const secondTrip = await seedTrip(database, company, 'on_delivery_route')
+        await setStop(database, first.trip.stopId, { enRouteSince: DEPARTURE })
+        await setStop(database, secondTrip.stopId, {
+          enRouteSince: new Date(DEPARTURE.getTime() + 60_000),
+        })
+
+        let calls = 0
+        const failing = new Proxy(database.db, {
+          get(target, property, receiver) {
+            if (property !== 'execute') return Reflect.get(target, property, receiver)
+            return (query: Parameters<typeof target.execute>[0]) => {
+              calls += 1
+              // 1ª chamada lista; 2ª é o INSERT do item mais antigo, que falha com violação de FK.
+              if (calls === 2)
+                return Promise.reject(Object.assign(new Error('boom'), { errno: '23503' }))
+              return target.execute(query)
+            }
+          },
+        })
+        const result = await createReconcileDriverStopRemindersUseCase({
+          isEnabled: true,
+          reconciliation: new DrizzleDriverStopReminderReconciliationRepository(failing),
+          reminders: new DrizzleDriverStopReminderRepository(database.db),
+        }).execute({ companyId: company.companyId })
+
+        expect(result).toEqual({ openedCount: 1 })
+        const rows = await readReminders(database, company.companyId)
+        expect(rows.map((row) => row.tripStopId)).toEqual([secondTrip.stopId])
+      })
+    },
+  )
+
+  testWithPostgres(
+    'folga de 1 minuto: saída cancelada e refeita 30 s depois NÃO reabre pela varredura (limite documentado); 2 min depois, sim',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { company, trip } = await seedWorld(database)
+        await setStop(database, trip.stopId, { enRouteSince: DEPARTURE })
+        await seedStopEvent(database, {
+          company,
+          createdAt: new Date(Date.now() - 120_000),
+          kind: 'departed',
+          trip,
+        })
+        await database.db.insert(driverStopReminders).values({
+          anchorAt: DEPARTURE,
+          closedAt: new Date(),
+          closedReason: 'departure_cancelled',
+          companyId: company.companyId,
+          createdAt: new Date(Date.now() - 100_000),
+          driverId: company.firstDriverId,
+          dueAt: DEPARTURE,
+          originKind: 'fallback',
+          stage: 'arrival',
+          status: 'cancelled',
+          tripId: trip.tripId,
+          tripStopId: trip.stopId,
+        })
+        // Nova saída 30 s depois do lembrete cancelado: dentro da folga, a varredura a lê como o mesmo ciclo
+        // (o caminho do evento abre o lembrete novo na hora; a varredura é só a rede de segurança).
+        await seedStopEvent(database, {
+          company,
+          createdAt: new Date(Date.now() - 70_000),
+          kind: 'departed',
+          trip,
+        })
+        expect(await reconcile(database, company.companyId)).toEqual({ openedCount: 0 })
+
+        await seedStopEvent(database, {
+          company,
+          createdAt: new Date(Date.now() - 1_000),
+          kind: 'departed',
+          trip,
+        })
+        expect(await reconcile(database, company.companyId)).toEqual({ openedCount: 1 })
+      })
+    },
+  )
 })

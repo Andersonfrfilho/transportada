@@ -11,7 +11,10 @@ import {
   DRIVER_STOP_REMINDER_POSTPONE_OUTCOME,
 } from '../../driver-stop-reminders/domain/driver-stop-reminder.constant.js'
 import type { DriverStopReminderIdleVariant } from '../../driver-stop-reminders/domain/driver-stop-reminder.types.js'
-import { resolveStopReminderChoice } from '../../driver-stop-reminders/domain/stop-reminder-message.policy.js'
+import {
+  countStopReminderChoices,
+  resolveStopReminderChoice,
+} from '../../driver-stop-reminders/domain/stop-reminder-message.policy.js'
 import type { PostponeDriverStopReminderResult } from '../../driver-stop-reminders/application/postpone-driver-stop-reminder.use-case.js'
 import {
   DRIVER_STOP_REMINDER_STAGES,
@@ -102,10 +105,14 @@ export function createGroupReminderFlow(ports: GroupReminderFlowPorts) {
       return { kind: 'done', replies: [text], withoutFarewell: true }
     },
 
-    async notUnderstood(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
+    async notUnderstood(
+      turn: GroupFlowTurn,
+      target: GroupReminderTarget,
+    ): Promise<GroupFlowOutcome> {
       const reason = await ports.speech.text({
         companyId: turn.request.companyId,
         key: 'lembreteOpcaoInvalida',
+        params: { ultimaOpcao: countStopReminderChoices(target) },
       })
       return { kind: 'not_understood', prompt: '', reason }
     },

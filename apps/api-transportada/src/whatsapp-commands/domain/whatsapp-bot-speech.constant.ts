@@ -122,7 +122,7 @@ export const BOT_SPEECH_DEFAULTS = {
   lembreteAdiamentoEsgotado:
     'Já adiei o máximo de vezes, então não dá para adiar de novo. Assim que chegar ou entregar, é só me avisar.',
   lembreteEncerrado: 'Esse lembrete já foi encerrado, não precisa responder. 👍',
-  lembreteOpcaoInvalida: 'responda com o número da opção do lembrete, de 1 a 4',
+  lembreteOpcaoInvalida: 'responda com o número da opção do lembrete, de 1 a {{ultimaOpcao}}',
 } as const
 
 export type BotSpeechKey = keyof typeof BOT_SPEECH_DEFAULTS
