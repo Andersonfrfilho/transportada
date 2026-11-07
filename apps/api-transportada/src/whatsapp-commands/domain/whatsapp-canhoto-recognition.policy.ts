@@ -18,6 +18,9 @@ export type CanhotoReadVerdict = {
 export const CANHOTO_MIN_MARKERS = 2
 
 export type OpenNote = {
+  /** Spec 300: o cliente e a cidade da nota, para o desenho da pergunta (ausentes em pergunta antiga). */
+  readonly city?: string | undefined
+  readonly clientName?: string | undefined
   readonly documentId: string
   readonly documentNumber: string
   readonly label: string

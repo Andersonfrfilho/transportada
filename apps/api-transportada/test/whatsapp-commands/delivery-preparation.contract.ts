@@ -366,7 +366,9 @@ describe('entrega em preparo pelo WhatsApp', () => {
         '_Falta 1 item._',
       ].join('\n'),
     ])
-    expect((await t.photo('M1'))?.texts).toEqual(['Essa foto já tinha chegado.'])
+    expect((await t.photo('M1'))?.texts).toEqual([
+      '🔁 *Essa foto já tinha chegado.* Nada foi gravado de novo.',
+    ])
     const second = await t.photo('M2')
     expect(second?.texts.join('\n')).toContain('Confirma a entrega?')
     await t.answer('1')

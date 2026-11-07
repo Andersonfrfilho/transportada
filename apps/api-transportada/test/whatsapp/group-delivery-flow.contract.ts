@@ -475,7 +475,7 @@ describe('grupo: foto e localização do motorista', () => {
   test('download que falha pede a foto de novo', async () => {
     const t = intake({ failDownload: true })
     await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
-    expect(t.sent).toEqual([['Não consegui baixar a foto. Mande de novo, por favor.']])
+    expect(t.sent).toEqual([['⚠️ *Não consegui baixar a foto.*\nMande de novo, por favor.']])
   })
 
   test('localização sem pergunta aberta não fica guardada para um "cheguei" depois', async () => {

@@ -254,3 +254,17 @@
   driver-events, recorded-together-speech, group-deliver-in-progress e as fixtures/integrações das jornadas (que agora ligam `listStops` e `stopSequence` como o `main.ts`).
 - Gates: typecheck limpo · `bun test --timeout 120000` 14364 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção nova) · eslint e prettier limpos · integração:
   `whatsapp-driver-journey-group` 2 pass, `whatsapp-driver-journey-direct` 2 pass, `whatsapp-driver-flow-actions` 4 pass, `whatsapp-command-driver` 5 pass. Suíte completa na T6.2.
+
+### T4.3 (executor `sonnet`)
+
+- Canhoto no padrão, igual no grupo e na individual (mesmas constantes): `whatsapp-canhoto-recognition-speech.constant.ts` (`confirmNote` = `📸 *Este canhoto é da NF \`n\`?*` + cliente e cidade em citação +
+  `formatOptions`; `chooseNote`, `photoKind`, `cargoNoted` com `formatNextStep`, `discarded` = `DISCARDED_TEXT`, falhas com `⚠️ *…*`; o "não entendi" agora repete as opções da pergunta aberta, por tipo
+  `notUnderstood[kind]`), `whatsapp-driver-canhoto.policy.ts` (repetido `🔁 *Esse canhoto já tinha chegado.*` + `NF \`n\`, entregue às HH:MM. Nada foi gravado de novo.`, troca com opções, `trocado`, `mantido`, `Li o canhoto`)
+  e `GROUP_PROOF_TEXT`/`DELIVERY_PROOF_SPEECH.downloadFailed`/`duplicatePhoto` (foto que não entra: `⚠️`/`🔁` + próximo passo).
+- `OpenNote` e o candidato da pergunta (jsonb, sem migration) ganharam `clientName?` e `city?` (a cidade vem da parada, a mesma de `placeStops`); pergunta antiga sem esses campos sai sem a citação.
+- Divergências/decisões: (1) o desenho não mostra a lista "De qual nota é este canhoto?" nem os "não entendi" do canhoto: seguem o padrão (título `📸`, opções `🧾 NF … · *cliente* · cidade`, `🗑️ Descartar a foto`,
+  instrução em itálico, como a lista de notas da T4.1). (2) `Li o canhoto da NF` e `Não consegui ler/guardar a foto` não estão no desenho: título em negrito com ícone (RF1). (3) A citação do cliente aqui é sem negrito (`> 🏪 RETA ALIMENTOS LTDA · cidade`), como no desenho.
+- Contratos: `test/whatsapp-commands/whatsapp-canhoto-flow-design.contract.ts` (texto do desenho, `toBe` inteiro), ligado em `whatsapp-commands.contract.test.ts`; atualizados canhoto-recognition,
+  canhoto-duplicate-prompt, delivery-preparation e group-delivery-flow (sem `toContain` de mensagem inteira).
+- Gates: typecheck limpo · `bun test --timeout 120000` 14369 pass / 0 fail (`literal-message-text` verde, sem exceção nova) · eslint e prettier limpos · integração: `whatsapp-driver-journey-group` 2, `whatsapp-driver-journey-direct` 2,
+  `whatsapp-driver-flow-actions` 4, `whatsapp-command-driver` 5, `whatsapp-canhoto-question-repository` pass / 0 fail. Suíte completa na T6.2.

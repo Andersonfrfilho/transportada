@@ -62,8 +62,8 @@ export const DELIVERY_PROOF_SPEECH = {
     options: CONFIRM_OPTIONS,
     reason: 'Responda com o número da opção:',
   }),
-  downloadFailed: 'Não consegui baixar a foto. Mande de novo, por favor.',
-  duplicatePhoto: 'Essa foto já tinha chegado.',
+  downloadFailed: '⚠️ *Não consegui baixar a foto.*\nMande de novo, por favor.',
+  duplicatePhoto: '🔁 *Essa foto já tinha chegado.* Nada foi gravado de novo.',
   nameNotUnderstood: formatNotUnderstood({
     reason: 'Escreva o nome de quem recebeu, ou responda pular se não for obrigatório.',
   }),
