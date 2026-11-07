@@ -29,7 +29,10 @@ import {
   ReminderPromptBusyError,
 } from '../domain/driver-stop-reminder.error.js'
 import { decideStopReminderGate } from '../domain/stop-reminder-gate.policy.js'
-import { buildStopReminderMessage } from '../domain/stop-reminder-message.policy.js'
+import {
+  buildStopReminderMessage,
+  shortenStopBlock,
+} from '../domain/stop-reminder-message.policy.js'
 import {
   computeNextStopReminderDueAt,
   decideStopReminderDueAction,
@@ -49,11 +52,13 @@ import type {
 import type { ReminderPromptOpener } from './reminder-prompt-opener.port.js'
 import type { DriverOpenQuestionPort } from '../../whatsapp-commands/application/driver-open-question.port.js'
 import type { BotSpeechKey } from '../../whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
+import { WHATSAPP_TURN_MESSAGE_LIMIT } from '../../whatsapp-commands/application/whatsapp-turn-replies.service.js'
 import type { WhatsAppBotSpeechPort } from '../../whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import { hasDriverOpenQuestion } from '../../whatsapp-commands/domain/driver-open-question.policy.js'
 import {
   describeStopCard,
   plainText,
+  STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX,
 } from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
 import type { WhatsAppStopCardReader } from '../../whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
 import type { ApiLogger } from '../../shared/api.types.js'
@@ -192,33 +197,41 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
       .catch(() => null)
     return view === null || view === undefined
       ? ''
-      : describeStopCard(view.card, { volumesSuffix: ' para entregar' }).join('\n')
+      : describeStopCard(view.card, { volumesSuffix: STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX }).join(
+          '\n',
+        )
   }
 
   async function renderBody(
     reminder: DeliverableStopReminder,
     context: StopReminderDeliveryContext,
   ) {
-    const message = buildStopReminderMessage({
-      arrivedAt:
-        reminder.stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT ? reminder.anchorAt : undefined,
-      departedAt:
-        reminder.stage === DRIVER_STOP_REMINDER_STAGE.ARRIVAL ? reminder.anchorAt : undefined,
-      driverName: plainText(context.driver.name),
-      expectedAt: reminder.expectedAt ?? undefined,
-      isSharedPoint: reminder.originKind === 'shared_point',
-      stage: reminder.stage,
-      stopBlock: await readStopBlock(reminder, context),
-      timeZone: context.timeZone,
-    })
-    const key = SPEECH_KEY_BY_NODE[message.nodeKey]
-    if (key === undefined) throw new Error('DRIVER_STOP_REMINDER_SPEECH_KEY_UNKNOWN')
-    const text = await dependencies.speech.text({
-      companyId: reminder.companyId,
-      key,
-      params: message.variables,
-    })
-    return text.replace(/\n{3,}/gu, '\n\n')
+    const stopBlock = await readStopBlock(reminder, context)
+    const render = async (block: string) => {
+      const message = buildStopReminderMessage({
+        arrivedAt:
+          reminder.stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT ? reminder.anchorAt : undefined,
+        departedAt:
+          reminder.stage === DRIVER_STOP_REMINDER_STAGE.ARRIVAL ? reminder.anchorAt : undefined,
+        driverName: plainText(context.driver.name),
+        expectedAt: reminder.expectedAt ?? undefined,
+        isSharedPoint: reminder.originKind === 'shared_point',
+        stage: reminder.stage,
+        stopBlock: block,
+        timeZone: context.timeZone,
+      })
+      const key = SPEECH_KEY_BY_NODE[message.nodeKey]
+      if (key === undefined) throw new Error('DRIVER_STOP_REMINDER_SPEECH_KEY_UNKNOWN')
+      const text = await dependencies.speech.text({
+        companyId: reminder.companyId,
+        key,
+        params: message.variables,
+      })
+      return text.replace(/\n{3,}/gu, '\n\n')
+    }
+    const body = await render(stopBlock)
+    const excess = body.length - WHATSAPP_TURN_MESSAGE_LIMIT
+    return excess > 0 ? render(shortenStopBlock({ excess, stopBlock })) : body
   }
 
   async function recordWithRetry(

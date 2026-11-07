@@ -19,6 +19,7 @@ import type {
 
 export type { StopReminderMessageInput } from './driver-stop-reminder.types.js'
 
+const TRUNCATION_MARK = '…'
 const ARRIVAL_ACTIONS = [ACTION.ARRIVED, ACTION.DELIVERED, ACTION.OCCURRENCE, ACTION.POSTPONE]
 const SETTLEMENT_ACTIONS = [
   ACTION.DELIVERED,
@@ -51,6 +52,22 @@ export function resolveStopReminderChoice(params: {
   const actions =
     params.stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT ? SETTLEMENT_ACTIONS : ARRIVAL_ACTIONS
   return actions[params.choice - 1]
+}
+
+/** Tira `excess` caracteres da linha mais longa do bloco (a das NFs) e marca o corte com "…"; as demais linhas ficam. */
+export function shortenStopBlock(params: {
+  readonly stopBlock: string
+  readonly excess: number
+}): string {
+  const lines = params.stopBlock.split('\n')
+  const longest = lines.reduce(
+    (best, line, index) => (line.length > (lines[best]?.length ?? 0) ? index : best),
+    0,
+  )
+  const line = lines[longest] ?? ''
+  const keep = Math.max(0, line.length - params.excess - TRUNCATION_MARK.length)
+  lines[longest] = `${line.slice(0, keep).trimEnd()}${TRUNCATION_MARK}`
+  return lines.join('\n')
 }
 
 export function buildStopReminderMessage(input: StopReminderMessageInput): StopReminderMessage {

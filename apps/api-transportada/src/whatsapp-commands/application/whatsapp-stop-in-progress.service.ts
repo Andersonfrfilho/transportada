@@ -12,7 +12,10 @@ import {
   type WhatsAppStopCandidate,
 } from '../../trips/domain/driver-stop-resolution.policy.js'
 import { cardFromStopCandidate } from '../domain/whatsapp-driver-journey.policy.js'
-import { describeStopCard } from '../domain/whatsapp-stop-card.policy.js'
+import {
+  describeStopCard,
+  STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX,
+} from '../domain/whatsapp-stop-card.policy.js'
 import type { WhatsAppStopCardReader } from '../infrastructure/whatsapp-stop-card.reader.js'
 
 export type WhatsAppStopInProgress = {
@@ -54,7 +57,9 @@ export async function readWhatsAppStopInProgress(input: {
   const card = view?.card ?? cardFromStopCandidate(stop)
   return {
     documents,
-    header: describeStopCard(card, { volumesSuffix: ' para entregar' }).join('\n'),
+    header: describeStopCard(card, { volumesSuffix: STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX }).join(
+      '\n',
+    ),
     stopId: stop.id,
   }
 }

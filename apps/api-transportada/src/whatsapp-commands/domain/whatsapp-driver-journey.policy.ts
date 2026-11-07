@@ -16,6 +16,7 @@ import {
   describeStopCard,
   describeStopShort,
   formatBotClock,
+  STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX,
   stripLeadingZeros,
   type StopCard,
   type StopCardEta,
@@ -161,7 +162,7 @@ export function describeDepartureDetails(view: StopCardView, now: Date): string[
 /** A chegada registrada: o bloco, o próximo passo e a prévia da próxima parada (sem pergunta). */
 export function describeArrivalDetails(view: StopCardView): string[] {
   return [
-    ...describeStopCard(view.card, { volumesSuffix: ' para entregar' }),
+    ...describeStopCard(view.card, { volumesSuffix: STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX }),
     JOURNEY_TEXT.nextSettle,
     ...(view.next === undefined ? [] : [`🔜 _Depois desta:_ ${describeStopShort(view.next)}`]),
   ]
