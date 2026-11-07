@@ -31,6 +31,7 @@ import {
 import { decideStopReminderGate } from '../domain/stop-reminder-gate.policy.js'
 import {
   buildStopReminderMessage,
+  capStopReminderBody,
   shortenStopBlock,
 } from '../domain/stop-reminder-message.policy.js'
 import {
@@ -233,7 +234,9 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
     }
     const body = await render(stopBlock)
     const excess = body.length - WHATSAPP_TURN_MESSAGE_LIMIT
-    return excess > 0 ? render(shortenStopBlock({ excess, stopBlock })) : body
+    if (excess <= 0) return body
+    const shortened = await render(shortenStopBlock({ excess, stopBlock }))
+    return capStopReminderBody({ body: shortened, limit: WHATSAPP_TURN_MESSAGE_LIMIT })
   }
 
   async function recordWithRetry(

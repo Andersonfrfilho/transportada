@@ -9,7 +9,9 @@ import { describe, expect, test } from 'bun:test'
 import { DRIVER_STOP_REMINDER_SPEECH_NODE } from '../../src/driver-stop-reminders/domain/driver-stop-reminder.constant.js'
 import {
   buildStopReminderMessage,
+  capStopReminderBody,
   decideStopReminderPostponement,
+  shortenStopBlock,
   type StopReminderMessageInput,
 } from '../../src/driver-stop-reminders/domain/stop-reminder-message.policy.js'
 
@@ -199,5 +201,53 @@ describe('opção 4 adia sem consumir tentativa, até 3 por etapa (RF13)', () =>
       consumesAttempt: true,
     })
     expect(decideStopReminderPostponement({ postponements: 5 }).outcome).toBe('no_answer')
+  })
+})
+
+function hasBalancedMarkup(text: string): boolean {
+  return ['*', '_', '~'].every((marker) => text.split(marker).length % 2 === 1)
+}
+
+describe('corte do limite de 4000 (spec 299, revisão PR 570 M2)', () => {
+  test('o corte cai no meio de um emoji: nunca deixa meio par substituto', () => {
+    const block = `*Parada 1*\n${'😀'.repeat(20)}`
+    const shortened = shortenStopBlock({ excess: 5, stopBlock: block })
+    expect(shortened.isWellFormed()).toBe(true)
+    expect(shortened.endsWith('…')).toBe(true)
+  })
+
+  test('o corte cai dentro de uma marcação: não sobra `*`, `_` ou `~` aberto', () => {
+    const block = '*Parada 2 de 5*\n*NF 1 · NF 2 · NF 3 · NF 4*'
+    for (let excess = 1; excess < 24; excess += 1) {
+      const shortened = shortenStopBlock({ excess, stopBlock: block })
+      expect(hasBalancedMarkup(shortened)).toBe(true)
+    }
+    expect(
+      hasBalancedMarkup(shortenStopBlock({ excess: 6, stopBlock: '_nota longa demais_' })),
+    ).toBe(true)
+  })
+
+  test('o excesso maior que a linha mais longa ainda devolve texto bem formado', () => {
+    const shortened = shortenStopBlock({ excess: 500, stopBlock: '*Parada*\n*NF 1*' })
+    expect(shortened.isWellFormed()).toBe(true)
+    expect(shortened.length).toBeLessThanOrEqual('*Parada*\n*NF 1*'.length)
+  })
+
+  test('o teto final garante o corpo dentro do limite, por pontos de código e com marcação fechada', () => {
+    const body = `*Oi*\n${'😀'.repeat(3000)}*fim*`
+    const capped = capStopReminderBody({ body, limit: 4000 })
+    expect(capped.length).toBeLessThanOrEqual(4000)
+    expect(capped.isWellFormed()).toBe(true)
+    expect(hasBalancedMarkup(capped)).toBe(true)
+    expect(capStopReminderBody({ body: 'curto', limit: 4000 })).toBe('curto')
+  })
+})
+
+describe('instante no futuro por desvio de relógio (spec 299, revisão PR 570 L3)', () => {
+  test('saída marcada à frente do servidor conta como hoje, nunca "em dd/mm"', () => {
+    const message = buildStopReminderMessage(
+      input({ departedAt: new Date(NOW.getTime() + 2 * 86_400_000) }),
+    )
+    expect(message.variables.saidaQuando).toMatch(/^às \*\d{2}:\d{2}\*$/u)
   })
 })

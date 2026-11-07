@@ -66,7 +66,7 @@ function describeLocalMoment(params: {
   if (!moment) return ''
   const time = `às *${formatLocalTime(moment, timeZone)}*`
   const daysAgo = localDayNumber(now, timeZone) - localDayNumber(moment, timeZone)
-  if (daysAgo === 0) return time
+  if (daysAgo <= 0) return time
   if (daysAgo === 1) return `*ontem* ${time}`
   const [, month = '', day = ''] = formatLocalDay(moment, timeZone).split('-')
   return `em *${day}/${month}* ${time}`
@@ -88,6 +88,23 @@ export function resolveStopReminderChoice(params: {
   return actions[params.choice - 1]
 }
 
+const WHATSAPP_MARKUP_CHARACTERS = ['*', '_', '~']
+
+/** Corta por pontos de código (nunca no meio de um emoji) e tira a marcação do WhatsApp que ficou sem par. */
+function cutBalanced(text: string, maxUnits: number): string {
+  let kept = ''
+  for (const character of Array.from(text)) {
+    if (kept.length + character.length > maxUnits) break
+    kept += character
+  }
+  for (const marker of WHATSAPP_MARKUP_CHARACTERS) {
+    if (kept.split(marker).length % 2 === 1) continue
+    const last = kept.lastIndexOf(marker)
+    kept = `${kept.slice(0, last)}${kept.slice(last + 1)}`
+  }
+  return kept.trimEnd()
+}
+
 /** Tira `excess` caracteres da linha mais longa do bloco (a das NFs) e marca o corte com "…"; as demais linhas ficam. */
 export function shortenStopBlock(params: {
   readonly stopBlock: string
@@ -100,8 +117,17 @@ export function shortenStopBlock(params: {
   )
   const line = lines[longest] ?? ''
   const keep = Math.max(0, line.length - params.excess - TRUNCATION_MARK.length)
-  lines[longest] = `${line.slice(0, keep).trimEnd()}${TRUNCATION_MARK}`
+  lines[longest] = `${cutBalanced(line, keep)}${TRUNCATION_MARK}`
   return lines.join('\n')
+}
+
+/** Teto final: quando encurtar o bloco não bastou, corta o corpo inteiro, ainda por pontos de código. */
+export function capStopReminderBody(params: {
+  readonly body: string
+  readonly limit: number
+}): string {
+  if (params.body.length <= params.limit) return params.body
+  return `${cutBalanced(params.body, params.limit - TRUNCATION_MARK.length)}${TRUNCATION_MARK}`
 }
 
 export function buildStopReminderMessage(input: StopReminderMessageInput): StopReminderMessage {

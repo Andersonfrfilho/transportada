@@ -5,6 +5,7 @@ import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { FlowGraphRepository, OptimisticLockError } from '@adatechnology/meta-whatsapp-module'
 
+import { assertOverwriteNodeIds } from '../src/whatsapp-commands/domain/whatsapp-bot-speech.policy.js'
 import { previewWhatsAppFlowGraphPublication } from '../src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.js'
 import { WHATSAPP_ROOT_FLOW_GRAPH } from '../src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
 import { createDrizzleWhatsAppFlowGraphPublisher } from '../src/whatsapp-commands/infrastructure/whatsapp-flow-graph-publisher.factory.js'
@@ -95,6 +96,7 @@ function parseArguments(argv: readonly string[]): Options {
     .split(',')
     .map((key) => key.trim())
     .filter((key) => key !== '')
+  assertOverwriteNodeIds(overwriteNodeIds)
 
   return { companyId: value('company'), confirm: argv.includes('--confirm'), overwriteNodeIds }
 }

@@ -65,3 +65,13 @@ export function preserveEditedBotSpeech(
   }
   return { ...next, nodes }
 }
+
+/** Só nó de fala pode ser sobrescrito pelo código; qualquer outra chave apagaria edição de fluxo alheio. */
+export function assertOverwriteNodeIds(overwriteNodeIds: readonly string[]): void {
+  const invalid = overwriteNodeIds.filter((id) => !id.startsWith(BOT_SPEECH_NODE_PREFIX))
+  if (invalid.length > 0) {
+    throw new Error(
+      `--overwrite-nodes aceita só chaves ${BOT_SPEECH_NODE_PREFIX}*: ${invalid.join(', ')}`,
+    )
+  }
+}
