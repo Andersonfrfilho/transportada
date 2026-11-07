@@ -83,9 +83,16 @@ describe('a pergunta do fora de ordem (spec 294 RF25)', () => {
     })
     expect(text).toBe(
       [
-        '⚠️ *Você iniciou a rota para a parada 3 (NF 17234 — Padaria Sol)*, mas esta nota é da parada 5 (NF 17300 — Mercado Estrela).',
-        '*1* - Entreguei a parada 5 mesmo',
-        '*2* - Foi engano, descartar',
+        '⚠️ *Fora da rota sugerida*',
+        'Você está na *parada 3*, e a NF `17300` é da *parada 5*. Se achar melhor, pode registrar.',
+        '',
+        '> ✅ *ENTREGA · PARADA 5*',
+        '> 🧾 NF `17300` · *Mercado Estrela*',
+        '',
+        '*1* - ✅ Entreguei na *parada 5*',
+        '*2* - ↩️ Foi engano, descartar',
+        '',
+        '_A parada 3 continua aberta. Responda 1 ou 2._',
       ].join('\n'),
     )
   })
@@ -428,9 +435,16 @@ describe('entrega de nota de outra parada (RF25, grupo e individual)', () => {
     expect(asked?.finished).toBe(false)
     expect(asked?.texts[0]).toBe(
       [
-        '⚠️ *Você iniciou a rota para a parada 3 (NF 17234 — Padaria Sol)*, mas esta nota é da parada 5 (NF 17300 — Mercado Estrela).',
-        '*1* - Entreguei a parada 5 mesmo',
-        '*2* - Foi engano, descartar',
+        '⚠️ *Fora da rota sugerida*',
+        'Você está na *parada 3*, e a NF `17300` é da *parada 5*. Se achar melhor, pode registrar.',
+        '',
+        '> ✅ *ENTREGA · PARADA 5*',
+        '> 🧾 NF `17300` · *Mercado Estrela*',
+        '',
+        '*1* - ✅ Entreguei na *parada 5*',
+        '*2* - ↩️ Foi engano, descartar',
+        '',
+        '_A parada 3 continua aberta. Responda 1 ou 2._',
       ].join('\n'),
     )
     expect(t.rows.get('P1')?.status).toBe('open')
@@ -466,7 +480,7 @@ describe('entrega de nota de outra parada (RF25, grupo e individual)', () => {
     const t = setup()
     await reachConfirm(t)
     const again = await t.answer('talvez')
-    expect(again?.texts).toEqual([OUT_OF_ORDER_TEXT.notUnderstood])
+    expect(again?.texts).toEqual(['🤔 *Não entendi.* Responda *1* ou *2*.'])
     expect(t.rows.get('P1')?.status).toBe('open')
   })
 

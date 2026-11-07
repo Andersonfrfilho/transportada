@@ -238,7 +238,7 @@ describe('o evento repetido oferece o que cabe no estado da parada', () => {
         returned: false,
         settledAt: '2026-11-06T15:00:00.000Z',
       }),
-    ).toBe('⚠️ *A entrega da NF 17234 já foi registrada* às 12:00.')
+    ).toBe('⚠️ *A entrega da NF `17234` já foi registrada* às 12:00.\nNada foi gravado de novo.')
   })
 
   test('a oferta da próxima rota: seguir para ela, escolher outra ou nada', () => {

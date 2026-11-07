@@ -60,18 +60,6 @@ export function toOrderStopLabel(
   }
 }
 
-/** "NF 17234 — Padaria Sol"; sem cliente, só a nota; sem nota, só a parada. */
-function nameOf(stop: OrderStopLabel, number: string = stop.number): string {
-  const note = number === '' ? '' : `NF ${number}`
-  if (note === '') return stop.client
-  return stop.client === '' ? note : `${note} — ${stop.client}`
-}
-
-const stopWord = (stop: OrderStopLabel, number?: string) => {
-  const name = nameOf(stop, number)
-  return name === '' ? `parada ${stop.sequence}` : `parada ${stop.sequence} (${name})`
-}
-
 const OFF_ROUTE_TITLE = '⚠️ *Fora da rota sugerida*'
 
 function describeOrderBlock(stop: OrderStopLabel, header: string): string {
@@ -124,16 +112,24 @@ export const OUT_OF_ORDER_TEXT = {
         '',
         formatReplyHint(`A parada ${input.current.sequence} continua aberta. Responda 1 ou 2.`),
       ].join('\n'),
-    /** Entrega de nota de outra parada que não a iniciada (a ser padronizada na T4.4). */
+    /** Entrega de nota de outra parada que não a iniciada (spec 300, fluxo 5). */
     deliver: (input: {
       readonly current: OrderStopLabel
       readonly documentNumber?: string
       readonly requested: OrderStopLabel
     }) =>
       [
-        `⚠️ *Você iniciou a rota para a ${stopWord(input.current)}*, mas esta nota é da ${stopWord(input.requested, input.documentNumber)}.`,
-        `*1* - Entreguei a parada ${input.requested.sequence} mesmo`,
-        '*2* - Foi engano, descartar',
+        OFF_ROUTE_TITLE,
+        `Você está na *parada ${input.current.sequence}*, e a NF \`${input.documentNumber ?? input.requested.number}\` é da *parada ${input.requested.sequence}*. Se achar melhor, pode registrar.`,
+        '',
+        describeOrderBlock(input.requested, `✅ *ENTREGA · PARADA ${input.requested.sequence}*`),
+        '',
+        formatOptions([
+          { action: `Entreguei na *parada ${input.requested.sequence}*`, icon: '✅' },
+          { action: 'Foi engano, descartar', icon: '↩️' },
+        ]),
+        '',
+        formatReplyHint(`A parada ${input.current.sequence} continua aberta. Responda 1 ou 2.`),
       ].join('\n'),
   },
 } as const
@@ -154,10 +150,11 @@ export function describeOutOfOrderChoices(input: {
       { action: `ir para a *parada ${other}*` },
     ])
   }
-  return formatSpokenChoices([
-    { action: `registrar a chegada na *parada ${requested}*` },
-    { action: 'descartar' },
-  ])
+  const action =
+    event === OUT_OF_ORDER_EVENT.deliver
+      ? `registrar a entrega na *parada ${requested}*`
+      : `registrar a chegada na *parada ${requested}*`
+  return formatSpokenChoices([{ action }, { action: 'descartar' }])
 }
 
 /** O "não entendi" completo da conversa individual (o grupo junta o motivo pelo pedido). */

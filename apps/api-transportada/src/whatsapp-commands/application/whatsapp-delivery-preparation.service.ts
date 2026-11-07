@@ -43,6 +43,7 @@ import type { DeliveryProofQuestionView } from '../domain/whatsapp-delivery-proo
 import { CANHOTO_TEXT } from '../domain/whatsapp-driver-canhoto.policy.js'
 import { TripCanhotoAlreadyAttachedError } from '../../trips/domain/stop-order.error.js'
 import {
+  describeOutOfOrderNotUnderstood,
   describeOutOfOrderViolation,
   OUT_OF_ORDER_TEXT,
   toOrderStopLabel,
@@ -523,7 +524,9 @@ export function createWhatsAppDeliveryPreparations(
     return describeOutOfOrderViolation({
       documentNumber: preparation.documentNumber,
       event: 'deliver',
-      labels: new Map(stops.map((stop) => [stop.id, toOrderStopLabel(stop)] as const)),
+      labels: new Map(
+        stops.map((stop) => [stop.id, toOrderStopLabel(stop, { total: stops.length })] as const),
+      ),
       violation: refusal,
     })
   }
@@ -718,7 +721,13 @@ export function createWhatsAppDeliveryPreparations(
           await removePhotos(preparation)
           return finished(preparation, [OUT_OF_ORDER_TEXT.discarded])
         }
-        return refuse(preparation, OUT_OF_ORDER_TEXT.notUnderstood)
+        return refuse(
+          preparation,
+          describeOutOfOrderNotUnderstood({
+            event: 'deliver',
+            requested: await stopSequenceOf(preparation),
+          }),
+        )
       }
       if (preparation.awaiting === DELIVERY_PREPARATION_AWAITING_REPLACE_CANHOTO) {
         const choice = interpretDriverChoice(text)

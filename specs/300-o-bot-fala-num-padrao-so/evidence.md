@@ -268,3 +268,18 @@
   canhoto-duplicate-prompt, delivery-preparation e group-delivery-flow (sem `toContain` de mensagem inteira).
 - Gates: typecheck limpo · `bun test --timeout 120000` 14369 pass / 0 fail (`literal-message-text` verde, sem exceção nova) · eslint e prettier limpos · integração: `whatsapp-driver-journey-group` 2, `whatsapp-driver-journey-direct` 2,
   `whatsapp-driver-flow-actions` 4, `whatsapp-command-driver` 5, `whatsapp-canhoto-question-repository` pass / 0 fail. Suíte completa na T6.2.
+
+### T4.4 (executor `sonnet`)
+
+- Entrega fora da rota (`whatsapp-driver-order.policy.ts`, `OUT_OF_ORDER_TEXT.question.deliver`): `⚠️ *Fora da rota sugerida*` + `Você está na *parada 3*, e a NF \`n\` é da *parada 7*. Se achar melhor, pode registrar.` + o bloco da
+  parada da nota em citação (`✅ *ENTREGA · PARADA 7*`, sem distância) + `Entreguei na *parada 7*` / `Foi engano, descartar` + `_A parada 3 continua aberta. Responda 1 ou 2._`. Reaproveita `describeOrderBlock`/`toOrderStopLabel` da T3.3 (a
+  preparação agora passa `{ total }` para o bloco levar bairro, cidade e mapa); `stopWord`/`nameOf` saíram (sem uso). O "não entendi" da entrega repete as opções por extenso (`registrar a entrega na *parada N*` / `descartar`), pela
+  mesma `describeOutOfOrderNotUnderstood` da saída/chegada (a parada vem de `stopSequenceOf`); descartar usa `DISCARDED_TEXT`.
+- Nota já baixada (`describeAlreadySettled`): `⚠️ *A entrega da NF \`n\` já foi registrada* às HH:MM.` / `⚠️ *A NF \`n\` já foi baixada como não entregue* às HH:MM.` + `Nada foi gravado de novo.` O que vem depois (menu da parada que chegou,
+  oferta da próxima ou rota concluída) segue como já era.
+- Divergência spec × desenho: o pedido fala em "dois blocos em citação" na entrega fora da rota; o desenho (`conversas.html`, fluxo 5) tem **um** bloco (a parada da nota). Segui o desenho. O desenho mostra só as duas linhas da nota já baixada,
+  e o fluxo continua oferecendo o que cabe depois (regra do fluxo não muda).
+- Contratos: `test/whatsapp-commands/whatsapp-delivery-route-flow-design.contract.ts` (texto do desenho, `toBe` inteiro, fixture das paradas 3 e 7), ligado em `whatsapp-commands.contract.test.ts`; atualizados out-of-order-prompt, driver-journey
+  e a fixture `driver-journey-group.expected.ts`.
+- Gates: typecheck limpo · `bun test --timeout 120000` 14372 pass / 0 fail (`literal-message-text` verde) · eslint e prettier limpos · integração: `whatsapp-driver-journey-group` 2, `whatsapp-driver-journey-direct` 2,
+  `whatsapp-driver-flow-actions` 4, `whatsapp-command-driver` 5 pass / 0 fail. Suíte completa na T6.2.

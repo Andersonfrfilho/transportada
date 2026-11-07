@@ -245,7 +245,8 @@ _Falta 1 item. Se não tiver, responda pular._`,
       answered: [
         `${greeting}
 
-⚠️ *A entrega da NF 17234 já foi registrada* às ${at}.
+⚠️ *A entrega da NF \`17234\` já foi registrada* às ${at}.
+Nada foi gravado de novo.
 
 ➡️ *Próxima parada*
 

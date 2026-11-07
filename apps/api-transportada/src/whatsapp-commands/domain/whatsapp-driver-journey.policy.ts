@@ -30,6 +30,8 @@ import {
 import { describeStopBlock, describeStopDetails } from './whatsapp-stop-block.policy.js'
 import { formatPlaceName } from './whatsapp-stop-place.policy.js'
 
+const NOTHING_RECORDED_AGAIN_TEXT = 'Nada foi gravado de novo.'
+
 export const JOURNEY_TEXT = {
   /** Termina em ":" — as opções vêm em seguida (o motivo do "não entendi" de menu). */
   choiceNotUnderstood: 'Responda com o número da opção:',
@@ -350,8 +352,8 @@ export function describeAlreadySettled(input: {
   const number = stripLeadingZeros(input.documentNumber)
   const when = input.settledAt === null ? '' : atClock(input.settledAt)
   return input.returned
-    ? `⚠️ *A NF ${number} já foi baixada como não entregue*${when}.`
-    : `⚠️ *A entrega da NF ${number} já foi registrada*${when}.`
+    ? `⚠️ *A NF \`${number}\` já foi baixada como não entregue*${when}.\n${NOTHING_RECORDED_AGAIN_TEXT}`
+    : `⚠️ *A entrega da NF \`${number}\` já foi registrada*${when}.\n${NOTHING_RECORDED_AGAIN_TEXT}`
 }
 
 /** A oferta da próxima rota: o bloco da próxima parada em citação (com a estrada, se houver ponto) e a pergunta ou o próximo passo. */

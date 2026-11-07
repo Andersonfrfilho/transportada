@@ -60,7 +60,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 - [x] **T4.1** Escolha da nota e comprovante com contador desde a primeira pergunta (RF10) e "quem recebeu" (RF13).
 - [x] **T4.2** Confirmação da entrega e registro.
 - [x] **T4.3** Canhoto: leitura, repetido, troca, foto que não parece canhoto.
-- [ ] **T4.4** Entrega fora da rota e nota já baixada.
+- [x] **T4.4** Entrega fora da rota e nota já baixada.
 - [ ] **T4.5** Não entreguei: motivo, registro, sem nota.
 
 ## Fase 5 — Ocorrência, boleto, encerrar, erros, atendente (fluxos 7–11)
