@@ -1321,6 +1321,28 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     return event ?? null
   }
 
+  public async findLatestEventForStop(input: {
+    readonly companyId: string
+    readonly kind: TripStopEventKind
+    readonly stopId: string
+  }) {
+    const [event] = await this.transaction
+      .select({ id: tripStopEvents.id })
+      .from(tripStopEvents)
+      .where(
+        and(
+          eq(tripStopEvents.companyId, input.companyId),
+          eq(tripStopEvents.stopId, input.stopId),
+          isNull(tripStopEvents.tripDocumentId),
+          eq(tripStopEvents.kind, input.kind),
+        ),
+      )
+      .orderBy(desc(tripStopEvents.createdAt), desc(tripStopEvents.id))
+      .limit(1)
+
+    return event ?? null
+  }
+
   public async findOccurrenceById(input: {
     readonly companyId: string
     readonly occurrenceId: string
