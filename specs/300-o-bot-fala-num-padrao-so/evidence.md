@@ -82,3 +82,26 @@
 - Gates: typecheck limpo · `bun test --timeout 120000` 14321 pass / 26 skip / 0 fail · eslint e prettier limpos.
   `test:integration` não rodou (carga ~30); a T2.2 não toca banco além da extração de `readLastSharedPoint`, sem integração
   que a cubra diretamente. Suíte completa fica para a T6.2.
+
+## Fase 3
+
+### T3.1 (executor `sonnet`)
+
+- Menu do grupo (`whatsapp-group-driver-flow.service.ts`): itens com `icon` + `action`, montados por `formatOptions`; título em
+  negrito, instrução `_Responda com o número._`; `↩️ Não entreguei` é a opção 4 e Ocorrência a 5 (RF8). A opção 4 (ou o nome
+  "não entreguei") chama `returnFlow.begin(turn, { numbers: [] })`, o mesmo `begin` do comando escrito (que também passa
+  `numbers` vazio quando não há nota); sem o fluxo de devolução montado cai na ocorrência, como as outras opções.
+  `menuWithoutDelivery` continua sem "Entreguei" (agora: Saí, Cheguei, Não entreguei, Ocorrência).
+- "Não entendi" padrão (`whatsapp-group-request.service.ts`, `GROUP_REQUEST_TEXT.notUnderstood`): `🤔 *Não entendi.* <Motivo>` +
+  `prompt`; o motivo ganha inicial maiúscula e ponto (o que termina em `:` fica). No menu: motivo `Responda com o número da opção:` e
+  prompt só com as opções. Ocupado e cancelar com o texto do desenho (`⏳ *Já tem um pedido aberto neste grupo.*…`,
+  `↩️ *Pedido cancelado.* Nada foi registrado.` + próximo passo). `bot-greeting.policy.ts` não muda: "Boa noite, Anderson! 👋"
+  já é o do desenho (a menção `@nome` é do envio).
+- Fora da T3.1 (ficam para as tasks do fluxo): `Não entendi:` da conversa individual (`whatsapp-driver-prompts.service.ts:640,720`),
+  `gaveUp` (T5.4), reasons dos outros fluxos de grupo (hoje só ganham o prefixo e a inicial maiúscula).
+- Contratos: novo `test/whatsapp/group-driver-menu.contract.ts` (menu e "não entendi" do desenho com `toEqual`/`toBe`, opção 4 igual
+  ao comando escrito) em `whatsapp.contract.test.ts`; atualizados `group-delivery-flow`, `group-stop-flow`, `group-request-session`,
+  fixture `driver-journey-group.expected.ts` e a integração `whatsapp-driver-journey-group` para o texto novo (nenhum `toContain`).
+- Gates: typecheck limpo · `bun test --timeout 120000` 14325 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção
+  nova) · eslint e prettier limpos · integração `whatsapp-driver-journey-group` 2 pass / 0 fail. Suíte `test:integration` completa
+  fica para a T6.2 (máquina carregada).

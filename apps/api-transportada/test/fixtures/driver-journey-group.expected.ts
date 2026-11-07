@@ -206,7 +206,7 @@ ${farewell}`,
     },
     {
       answered: [
-        `Pedido cancelado, não registrei nada.
+        `↩️ *Pedido cancelado.* Nada foi registrado.
 ➡️ _Próximo passo:_ quando quiser, marque o bot de novo.`,
       ],
       shown: 'cancelar',

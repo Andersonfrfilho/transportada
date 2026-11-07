@@ -45,7 +45,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T3.1** Menu e desfechos gerais (fluxo 1 + RF8: "Não entreguei" no menu). Contratos com o texto de
+- [x] **T3.1** Menu e desfechos gerais (fluxo 1 + RF8: "Não entreguei" no menu). Contratos com o texto de
       `conversas.html`. Aceite: contratos verdes.
 - [ ] **T3.2** Lista de paradas (RF4–RF7b) no grupo e na individual. Aceite: texto igual ao desenho com a fixture das
       paradas 3–7.

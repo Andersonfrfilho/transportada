@@ -472,7 +472,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
   const { at, greeting } = input
   const text = (value: string) => ({ shown: value, text: value })
   const cancelled =
-    'Pedido cancelado, não registrei nada.\n➡️ _Próximo passo:_ quando quiser, marque o bot de novo.'
+    '↩️ *Pedido cancelado.* Nada foi registrado.\n➡️ _Próximo passo:_ quando quiser, marque o bot de novo.'
   return [
     {
       // Nada em andamento: a lista da viagem inteira, como antes.

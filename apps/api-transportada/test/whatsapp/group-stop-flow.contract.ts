@@ -268,8 +268,13 @@ describe('grupo: saí e cheguei', () => {
     await t.start('')
     expect(await t.answer('Acabei de chegar já vou fazer aqui')).toEqual({
       kind: 'not_understood',
-      prompt: GROUP_DRIVER_TEXT.menuWithoutDelivery,
-      reason: 'responda com o número da opção',
+      prompt: [
+        '*1* - 🚚 Saí para a entrega',
+        '*2* - 📍 Cheguei',
+        '*3* - ↩️ Não entreguei',
+        '*4* - ⚠️ Ocorrência',
+      ].join('\n'),
+      reason: 'Responda com o número da opção:',
     })
     expect(t.occurrenceCalls).toEqual([])
     expect(await t.answer('2')).toEqual({

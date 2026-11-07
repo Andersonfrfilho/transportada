@@ -192,16 +192,19 @@ describe('grupo: entreguei abre a entrega em preparo', () => {
     expect(t.calls).toEqual([])
   })
 
-  test('o menu ganha "Entreguei" como opção 3', async () => {
+  test('o menu é o do desenho da spec 300: "Entreguei" é a 3 e "Não entreguei" a 4', async () => {
     const t = setupFlow()
     expect(await t.start('')).toMatchObject({ replies: [GROUP_DRIVER_TEXT.menu] })
     expect(GROUP_DRIVER_TEXT.menu).toBe(
       [
-        'O que você quer lançar?',
+        '*O que você quer lançar?*',
         '*1* - 🚚 Saí para a entrega',
         '*2* - 📍 Cheguei',
         '*3* - ✅ Entreguei',
-        '*4* - ⚠️ Ocorrência',
+        '*4* - ↩️ Não entreguei',
+        '*5* - ⚠️ Ocorrência',
+        '',
+        '_Responda com o número._',
       ].join('\n'),
     )
     await t.answer('3')
