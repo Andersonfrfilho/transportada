@@ -10,10 +10,12 @@ import {
   formatDirectionsUrl,
   formatNextStep,
   formatNotUnderstood,
+  formatOpenDocumentsLine,
   formatOptions,
   formatReplyHint,
   formatSpokenChoices,
   formatStopBlock,
+  formatTripClosed,
   type MessageStop,
 } from '../../src/whatsapp-commands/domain/whatsapp-message-format.policy.js'
 
@@ -223,5 +225,21 @@ describe('formatNextStep e formatReplyHint (RF1)', () => {
     expect(formatReplyHint('Responda com o número da parada ou da nota.')).toBe(
       '_Responda com o número da parada ou da nota._',
     )
+  })
+})
+
+describe('notas abertas sem número (spec 300, revisão)', () => {
+  test('a linha da pergunta conta todas e lista só as que têm número', () => {
+    expect(formatOpenDocumentsLine(['17234', ''])).toBe(
+      '⚠️ Ainda há *2 notas em aberto*: NF `17234`.',
+    )
+    expect(formatOpenDocumentsLine([''])).toBe('⚠️ Ainda há *1 nota em aberto*.')
+  })
+
+  test('o desfecho lista só as que têm número', () => {
+    expect(formatTripClosed(['17234', ''])).toBe(
+      '🏁 *Rota encerrada.* Ficaram sem baixa: NF `17234`.',
+    )
+    expect(formatTripClosed([''])).toBe('🏁 *Rota encerrada.* Ficou nota sem baixa.')
   })
 })

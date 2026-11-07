@@ -142,7 +142,9 @@ export function pickStopFromList<Option extends StopListOption>(
   options: readonly Option[],
   text: string,
 ): StopListPick<Option> {
-  const digits = text.replace(/\D/gu, '').replace(/^0+/u, '')
+  const digitBlocks = text.match(/\d+/gu) ?? []
+  if (digitBlocks.length > 1) return { kind: 'not_found', reason: STOP_LIST_TEXT.notFoundText }
+  const digits = (digitBlocks[0] ?? '').replace(/^0+/u, '')
   const wanted =
     digits !== '' && digits.length <= SEQUENCE_MAX_DIGITS
       ? Number(digits)

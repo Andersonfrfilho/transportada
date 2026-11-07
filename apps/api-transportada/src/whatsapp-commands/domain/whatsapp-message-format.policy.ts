@@ -151,14 +151,18 @@ function formatDocumentNumbers(numbers: readonly string[]): string {
 export function formatOpenDocumentsLine(numbers: readonly string[]): string {
   if (numbers.length === 0) return '✅ Todas as notas já estão fechadas.'
   const count = numbers.length === 1 ? '*1 nota em aberto*' : `*${numbers.length} notas em aberto*`
-  return `⚠️ Ainda há ${count}: ${formatDocumentNumbers(numbers)}.`
+  const named = numbers.filter((number) => number !== '')
+  if (named.length === 0) return `⚠️ Ainda há ${count}.`
+  return `⚠️ Ainda há ${count}: ${formatDocumentNumbers(named)}.`
 }
 
 /** RF11: o desfecho de encerrar a rota; a nota em aberto fica sem baixa, nunca "volta ao escritório". */
 export function formatTripClosed(openNumbers: readonly string[]): string {
   const head = '🏁 *Rota encerrada.*'
   if (openNumbers.length === 0) return head
-  return `${head} Ficaram sem baixa: ${formatDocumentNumbers(openNumbers)}.`
+  const named = openNumbers.filter((number) => number !== '')
+  if (named.length === 0) return `${head} Ficou nota sem baixa.`
+  return `${head} Ficaram sem baixa: ${formatDocumentNumbers(named)}.`
 }
 
 export type AttendantBatchOutcomes = {

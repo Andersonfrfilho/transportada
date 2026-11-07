@@ -35,7 +35,10 @@ export const WHATSAPP_STOP_LIST_TRAVEL_LOG = {
 } as const
 
 export function createWhatsAppStopListTravelReader(dependencies: {
-  readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
+  readonly logger?: {
+    debug?(message: string, fields?: Record<string, unknown>): void
+    warn(message: string, fields?: Record<string, unknown>): void
+  }
   readonly readOriginPoint: (input: {
     readonly companyId: string
     readonly origin: EtaOrigin
@@ -71,10 +74,13 @@ export function createWhatsAppStopListTravelReader(dependencies: {
                 located.map((stop) => stop.coordinate),
               )
         if (cells === null) {
-          dependencies.logger?.warn(WHATSAPP_STOP_LIST_TRAVEL_LOG.unavailable, {
-            companyId,
-            reason: 'routing_unavailable',
-          })
+          const fields = { companyId, reason: 'routing_unavailable' }
+          /** Sem `ROUTING_MATRIX_URL` é configuração, não falha: warn a cada lista só faz ruído. */
+          if (dependencies.table === undefined) {
+            dependencies.logger?.debug?.(WHATSAPP_STOP_LIST_TRAVEL_LOG.unavailable, fields)
+          } else {
+            dependencies.logger?.warn(WHATSAPP_STOP_LIST_TRAVEL_LOG.unavailable, fields)
+          }
           return noTravel(false)
         }
         const byStopId = new Map<string, { distance: string; duration: string }>()
@@ -104,7 +110,10 @@ export function createDriverStopListTravel(dependencies: {
     readonly companyId: string
     readonly driverId: string
   }) => Promise<readonly DriverTrip[]>
-  readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
+  readonly logger?: {
+    debug?(message: string, fields?: Record<string, unknown>): void
+    warn(message: string, fields?: Record<string, unknown>): void
+  }
   readonly reader: WhatsAppStopListTravelReader
 }) {
   return async (input: {

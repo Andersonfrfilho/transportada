@@ -111,14 +111,27 @@ describe('a distância e o tempo da lista de paradas (spec 300 T2.2)', () => {
     expect([...travel.byStopId]).toEqual([['stop-4', { distance: '56 km', duration: '~45 min' }]])
   })
 
-  it('sem o serviço configurado: nenhuma linha, sem exceção', async () => {
+  it('sem o serviço configurado: nenhuma linha, sem exceção e sem warn a cada lista', async () => {
+    const warnings: unknown[] = []
+    const debugs: unknown[] = []
     const reader = createWhatsAppStopListTravelReader({
+      logger: {
+        debug: (message, fields) => debugs.push([message, fields]),
+        warn: (message, fields) => warnings.push([message, fields]),
+      },
       readOriginPoint: () => Promise.resolve(ORIGIN_POINT),
     })
 
     const travel = await reader.read({ companyId: COMPANY_ID, stops: STOPS, trip: TRIP })
 
     expect(travel).toEqual({ byStopId: new Map(), isLocationMissing: false })
+    expect(warnings).toEqual([])
+    expect(debugs).toEqual([
+      [
+        'whatsapp_stop_list_travel.unavailable',
+        { companyId: COMPANY_ID, reason: 'routing_unavailable' },
+      ],
+    ])
   })
 
   it('formata como o desenho: inteiro a partir de 10 km, minutos e horas', () => {

@@ -12,7 +12,7 @@ import type {
   RouteDistanceTablePort,
 } from '../application/route-distance-table.port.js'
 
-const DEFAULT_TIMEOUT_MILLISECONDS = 5_000
+const DEFAULT_TIMEOUT_MILLISECONDS = 2_000
 const ORIGIN_SOURCE_INDEX = 0
 
 const tableResponseSchema = z.object({

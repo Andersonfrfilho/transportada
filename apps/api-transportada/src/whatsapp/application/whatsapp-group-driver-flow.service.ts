@@ -175,12 +175,8 @@ const MENU_NOT_UNDERSTOOD_REASON = 'Responda com o número da opção:'
 const menuOf = (items: readonly MenuItem[]) =>
   [MENU_TITLE, formatOptions(items), '', MENU_REPLY_HINT].join('\n')
 
-const MENU_WITHOUT_DELIVERY = GROUP_DRIVER_MENU.filter((item) => item.kind !== 'deliver')
-
 export const GROUP_DRIVER_TEXT = {
   menu: menuOf(GROUP_DRIVER_MENU),
-  /** Sem a entrega em preparo montada (ex.: testes da T12), "Entreguei" não aparece. */
-  menuWithoutDelivery: menuOf(MENU_WITHOUT_DELIVERY),
   /** O "não entendi" do menu repete só as opções (o `prompt`), sem o título nem a instrução. */
   notUnderstoodReason: MENU_NOT_UNDERSTOOD_REASON,
 } as const
@@ -332,21 +328,24 @@ export function createGroupDriverFlow(flows: {
     }
   }
 
-  const menu = delivery === undefined ? MENU_WITHOUT_DELIVERY : GROUP_DRIVER_MENU
-  const menuText =
-    delivery === undefined ? GROUP_DRIVER_TEXT.menuWithoutDelivery : GROUP_DRIVER_TEXT.menu
+  /** Sem a entrega ou a devolução montada (ex.: testes), a opção não aparece em vez de cair em ocorrência. */
+  const menu = GROUP_DRIVER_MENU.filter(
+    (item) =>
+      (item.kind !== 'deliver' || delivery !== undefined) &&
+      (item.kind !== 'return' || returnFlow !== undefined),
+  )
+  const menuText = menuOf(menu)
 
   async function choose(turn: GroupFlowTurn, item: MenuItem): Promise<GroupFlowOutcome> {
     if (item.kind === 'occurrence') return flows.occurrence.start({ ...turn, text: '' })
-    if (item.kind === 'return') {
-      return returnFlow === undefined
-        ? flows.occurrence.start({ ...turn, text: '' })
-        : settleDelivery(turn, withReturnPrefix(await returnFlow.begin(turn, { numbers: [] })))
+    if (item.kind === 'return' && returnFlow !== undefined) {
+      return settleDelivery(turn, withReturnPrefix(await returnFlow.begin(turn, { numbers: [] })))
     }
-    if (item.kind === 'deliver') {
-      return delivery === undefined
-        ? flows.occurrence.start({ ...turn, text: '' })
-        : settleDelivery(turn, withDeliveryPrefix(await delivery.begin(turn, [])))
+    if (item.kind === 'deliver' && delivery !== undefined) {
+      return settleDelivery(turn, withDeliveryPrefix(await delivery.begin(turn, [])))
+    }
+    if (item.kind === 'return' || item.kind === 'deliver') {
+      return flows.occurrence.start({ ...turn, text: '' })
     }
     return withStopPrefix(await flows.stop.begin(turn, item.event, []))
   }

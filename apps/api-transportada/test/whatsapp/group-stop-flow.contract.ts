@@ -10,10 +10,7 @@ import {
   interpretDriverStopCommand,
   WHATSAPP_DRIVER_STOP_COMMAND,
 } from '../../src/whatsapp-commands/domain/whatsapp-driver-command.policy.js'
-import {
-  createGroupDriverFlow,
-  GROUP_DRIVER_TEXT,
-} from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
+import { createGroupDriverFlow } from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
 import type {
   GroupFlowOutcome,
   GroupRequest,
@@ -294,7 +291,16 @@ describe('grupo: saí e cheguei', () => {
     const t = setup([stop('S1', 1, ['17234'])])
     expect(await t.start('')).toMatchObject({
       kind: 'continue',
-      replies: [GROUP_DRIVER_TEXT.menuWithoutDelivery],
+      replies: [
+        [
+          '*O que você quer lançar?*',
+          '*1* - 🚚 Saí para a entrega',
+          '*2* - 📍 Cheguei',
+          '*3* - ⚠️ Ocorrência',
+          '',
+          '_Responda com o número._',
+        ].join('\n'),
+      ],
       step: 'menu',
     })
     expect(await t.answer('2')).toEqual({
@@ -326,12 +332,7 @@ describe('grupo: saí e cheguei', () => {
     await t.start('')
     expect(await t.answer('Acabei de chegar já vou fazer aqui')).toEqual({
       kind: 'not_understood',
-      prompt: [
-        '*1* - 🚚 Saí para a entrega',
-        '*2* - 📍 Cheguei',
-        '*3* - ↩️ Não entreguei',
-        '*4* - ⚠️ Ocorrência',
-      ].join('\n'),
+      prompt: ['*1* - 🚚 Saí para a entrega', '*2* - 📍 Cheguei', '*3* - ⚠️ Ocorrência'].join('\n'),
       reason: 'Responda com o número da opção:',
     })
     expect(t.occurrenceCalls).toEqual([])

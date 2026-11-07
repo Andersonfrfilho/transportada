@@ -47,7 +47,7 @@ function request(step: string, state: Record<string, unknown> = {}): GroupReques
   }
 }
 
-function setup() {
+function setup(options: { withReturn?: boolean } = {}) {
   const returned: string[] = []
   const flow = createGroupDriverFlow({
     delivery: createGroupDeliveryFlow({
@@ -62,13 +62,17 @@ function setup() {
       initialStep: 'document',
       start: async () => ({ kind: 'done', replies: ['occ-start'] }),
     },
-    return: createGroupReturnFlow({
-      listOpenDocuments: async () => [{ atArrivedStop: true, id: 'DOC1', number: '017234' }],
-      returnDocument: async (input) => {
-        returned.push(input.documentNumber)
-        return { message: 'devolvida' }
-      },
-    }),
+    ...(options.withReturn === false
+      ? {}
+      : {
+          return: createGroupReturnFlow({
+            listOpenDocuments: async () => [{ atArrivedStop: true, id: 'DOC1', number: '017234' }],
+            returnDocument: async (input) => {
+              returned.push(input.documentNumber)
+              return { message: 'devolvida' }
+            },
+          }),
+        }),
     stop: createGroupStopFlow({
       enRouteMessage: async () => 'en-route',
       listStops: async () => [],
@@ -125,6 +129,27 @@ describe('o menu do grupo (spec 300, fluxo 1)', () => {
     expect(byMenu).toMatchObject({ kind: 'continue', step: 'return.reason' })
     expect(await t.answer('1')).toMatchObject({ kind: 'done' })
     expect(t.returned).toEqual(['017234'])
+  })
+
+  test('sem o fluxo de devolução, "Não entreguei" não aparece e a ocorrência passa a 4', async () => {
+    const t = setup({ withReturn: false })
+    expect(await t.start('')).toEqual({
+      kind: 'continue',
+      replies: [
+        [
+          '*O que você quer lançar?*',
+          '*1* - 🚚 Saí para a entrega',
+          '*2* - 📍 Cheguei',
+          '*3* - ✅ Entreguei',
+          '*4* - ⚠️ Ocorrência',
+          '',
+          '_Responda com o número._',
+        ].join('\n'),
+      ],
+      state: {},
+      step: 'menu',
+    })
+    expect(await t.answer('4')).toEqual({ kind: 'done', replies: ['occ-start'] })
   })
 
   test('RF8: o nome "não entreguei" também escolhe a opção', async () => {

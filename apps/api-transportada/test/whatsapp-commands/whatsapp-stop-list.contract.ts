@@ -212,8 +212,37 @@ describe('formatStopList (RF4–RF7b, paradas 3–7 do desenho)', () => {
         isLocationMissing: false,
       },
     })
-    expect(text).toContain(
-      '> 📍 Centro, Guaira\n\n*PARADA 4 de 9*\n🧾 NF `899836` · *RETA ALIMENTOS LTDA*\n📍 Centro, Sao Joaquim da Barra\n📏 *56 km* · ⏱️ _~45 min_',
+    expect(text).toBe(
+      [
+        '🚚 *Para qual parada você saiu?*',
+        '',
+        '> 👉 *PARADA 3 de 9* · _próxima da rota_',
+        '> 🧾 NF `899839` · *RETA ALIMENTOS LTDA*',
+        '> 📍 Centro, Guaira',
+        '',
+        '*PARADA 4 de 9*',
+        '🧾 NF `899836` · *RETA ALIMENTOS LTDA*',
+        '📍 Centro, Sao Joaquim da Barra',
+        '📏 *56 km* · ⏱️ _~45 min_',
+        '🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-20.5812,-47.8547',
+        '',
+        '*PARADA 5 de 9*',
+        '🧾 NF `899862` · *SUPERMERCADO SAO PAULO LTDA*',
+        '📍 Cidade Nova, Franca',
+        '🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-20.528,-47.412',
+        '',
+        '*PARADA 6 de 9*',
+        '🧾 NF `899859` · *ROSEMARY DA SILVA MINI MERCADO LTDA*',
+        '📍 Jd. Luiza II, Franca',
+        '🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-20.5602,-47.3851',
+        '',
+        '*PARADA 7 de 9*',
+        '🧾 NF `899857` · *BRANDINELI COMERCIO ATACADISTA DE MERCAD*',
+        '📍 City Petropolis, Franca',
+        '🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-20.5139,-47.389',
+        '',
+        '_Responda com o número da parada ou da nota._',
+      ].join('\n'),
     )
   })
 
@@ -234,13 +263,24 @@ describe('formatStopList (RF4–RF7b, paradas 3–7 do desenho)', () => {
       title: STOP_LIST_TEXT.departTitle,
       totalStops: 13,
     })
-    expect(text.split('\n\n').length).toBe(1 + 10 + 1)
-    expect(
-      text.endsWith(
-        '\n\n_E mais 3 paradas (11 a 13): responda com o número da parada ou da nota._',
-      ),
-    ).toBe(true)
-    expect(text).not.toContain('*PARADA 11 de 13*')
+    const blocks = Array.from({ length: 10 }, (_, index) => {
+      const heading =
+        index === 0 ? '> 👉 *PARADA 1 de 13* · _próxima da rota_' : `*PARADA ${index + 1} de 13*`
+      const quote = index === 0 ? '> ' : ''
+      return [
+        heading,
+        `${quote}🧾 NF \`${1000 + index}\` · *CLIENTE ${index + 1}*`,
+        `${quote}📍 Centro, Franca`,
+        `${quote}🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-20.5,-47.4`,
+      ].join('\n')
+    })
+    expect(text).toBe(
+      [
+        '🚚 *Para qual parada você saiu?*',
+        ...blocks,
+        '_E mais 3 paradas (11 a 13): responda com o número da parada ou da nota._',
+      ].join('\n\n'),
+    )
   })
 })
 
@@ -270,6 +310,17 @@ describe('pickStopFromList (RF5)', () => {
     expect(pickStopFromList(options, 'NF 0899862')).toMatchObject({
       kind: 'picked',
       option: { id: 'stop-5' },
+    })
+  })
+
+  test('mais de um bloco de números não é adivinhado: "5 e 7" não vira 57', () => {
+    expect(pickStopFromList(options, '5 e 7')).toEqual({
+      kind: 'not_found',
+      reason: 'Não achei essa parada na lista.',
+    })
+    expect(pickStopFromList(options, 'parada 5 nf 899862')).toEqual({
+      kind: 'not_found',
+      reason: 'Não achei essa parada na lista.',
     })
   })
 
