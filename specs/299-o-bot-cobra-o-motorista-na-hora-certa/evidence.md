@@ -668,3 +668,15 @@ devolve a pausa do sistema. `db:generate` → `no_changes`. Entrou na lista de `
 - `make migration-test`: 230 pass / 1 fail — o teste "applies, constrains, rolls back, and reapplies" estoura o **timeout fixo de 30 s** (linha 659)
   nesta máquina, também sem a migration nova (medido: mesmo vermelho tirando a pasta). Com o timeout elevado a 600 s só nesta medição (revertido):
   192 pass / 0 fail, incluindo o rollback e a reaplicação da nova.
+
+## Revisão PR 567 — correções
+
+Teste primeiro, vermelho registrado, depois a correção.
+
+- **M1 (pergunta aberta entre portão e envio, RF8.3):** vermelho na entrega (`deliver-driver-stop-reminder.contract.ts`, 6 falhas antes da correção, entre elas "pergunta aberta só na segunda leitura"). Correção: depois da reserva, `driverOpenQuestions.read` é lida de novo (ignorando o pedido do próprio lembrete) e, com algo aberto, `release` com a espera de 5 min e `deferred` sem enviar. A releitura fica antes da bifurcação de canal, então vale também para `sendDirect`. Teste do canal direto incluído.
+- **M2 (envio ok, registro falha):** o envio e o registro foram separados. Falha do provedor segue como antes (devolve a tentativa, descarta o pedido, 5 min). Depois do envio, `recordSent` tem até 3 tentativas com espera de 200 ms x tentativa; na falha final o pedido fica aberto, a reserva é devolvida com o intervalo normal e há log `driver_stop_reminder_record_failed` (só ids). Janela que sobra: o processo morrer depois de o provedor aceitar e antes de qualquer gravação deixa a reserva expirar em 2 min e o lembrete vence de novo, com um segundo envio; não há como fechar isso sem idempotência no provedor. Na falha final de registro a tentativa também não é contada (um envio a mais é possível no limite de `maxAttempts`).
+- **L1 (versão):** `reserveAttempt` devolve a nova versão; `recordSent`, `release` e `close` gravam só com `version` igual. Antes da reserva (fechar/adiar do portão) vale a versão lida. Integração: escritor com versão velha não grava nada.
+- **L2:** `applyPostponement` só age com `dispatching_until` nulo ou vencido. Integração cobre as duas situações.
+- **L4:** o dono vazio não casa na política de mensagem (rejeita `unknown_sender` e `not_addressed`), mas `handleLocation` (vermelho: avançava o pedido com remetente vazio) e `isOwner` aceitavam `'' === ''`; ambos agora tratam dono vazio como sem dono. `as never` em `SessionRepository` removido do `main.ts`: o tipo já bate, uma instância única `reminderSessions` serve aos dois consumidores.
+
+Gates (de `apps/api-transportada`): `tsc --noEmit` sem erros; eslint e prettier nos arquivos tocados sem achados; `bun run test` 14434 pass / 0 fail; `bun --env-file=../../.env.test test --timeout 120000` 14443 pass / 0 fail; integração `driver-stop-reminder-delivery` 13/0, `driver-stop-reminder-group-step` 5/0, `driver-stop-reminders` 23/0, `driver-reminder-channel-resolver` 5/0, `whatsapp-evolution-webhook` 3/0, `whatsapp-driver-journey-group` 2/0. Observação honesta: os testes de integração L1/L2 foram escritos junto da correção (a integração leva ~2 min), então o vermelho registrado é o dos contratos M1, M2 e L4.
