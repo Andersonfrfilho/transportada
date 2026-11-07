@@ -46,20 +46,23 @@ export function resolveBotSpeechTemplate(
 }
 
 /**
- * Republicar pelo código não pode desfazer o que o editor mudou: nó de fala que já existe no grafo
- * vivo mantém a `directMessage` de lá; só fala nova entra com o padrão do código.
+ * Republicar pelo código não pode desfazer o que o editor mudou: o nó de fala só é regravado quando
+ * o texto vivo é igual ao da última publicação do código (`baseline`) — ou seja, ninguém o editou.
+ * Sem baseline do nó não há como provar isso, então o texto vivo fica. Nó novo ou vazio recebe o padrão.
  */
 export function preserveEditedBotSpeech(
   current: FlowGraphData | undefined,
   next: FlowGraphData,
+  baseline: FlowGraphData | undefined,
 ): FlowGraphData {
   if (current === undefined) return next
   const nodes = { ...next.nodes }
   for (const [id, node] of Object.entries(next.nodes)) {
     if (!id.startsWith(BOT_SPEECH_NODE_PREFIX)) continue
-    const live = current.nodes[id]
-    if (live?.directMessage === undefined || live.directMessage.trim() === '') continue
-    nodes[id] = { ...node, directMessage: live.directMessage }
+    const live = current.nodes[id]?.directMessage
+    if (live === undefined || live.trim() === '') continue
+    if (live === baseline?.nodes[id]?.directMessage) continue
+    nodes[id] = { ...node, directMessage: live }
   }
   return { ...next, nodes }
 }

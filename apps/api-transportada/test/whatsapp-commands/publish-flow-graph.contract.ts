@@ -11,12 +11,14 @@ import { describe, expect, test } from 'bun:test'
 import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 import { OptimisticLockError } from '@adatechnology/meta-whatsapp-module'
 
+import { botSpeechNodeId } from '../../src/whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
 import {
   createPublishWhatsAppFlowGraphUseCase,
   previewWhatsAppFlowGraphPublication,
   WhatsAppFlowGraphInvalidError,
 } from '../../src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.js'
 import type {
+  WhatsAppFlowGraphHistoryPort,
   WhatsAppFlowGraphHistorySnapshot,
   WhatsAppFlowGraphModulePort,
 } from '../../src/whatsapp-commands/application/whatsapp-flow-graph-publisher.port.js'
@@ -70,14 +72,15 @@ function createFakeModule(seed?: FlowGraphData) {
   return { module, stored }
 }
 
-function createFakeHistory() {
+function createFakeHistory(initialBaseline?: FlowGraphData) {
   const recorded: WhatsAppFlowGraphHistorySnapshot[] = []
-  return {
-    history: {
-      record: async (snapshot: WhatsAppFlowGraphHistorySnapshot) => void recorded.push(snapshot),
-    },
-    recorded,
+  const baselines: FlowGraphData[] = initialBaseline === undefined ? [] : [initialBaseline]
+  const history: WhatsAppFlowGraphHistoryPort = {
+    readCodeBaseline: async () => baselines.at(-1),
+    record: async (snapshot: WhatsAppFlowGraphHistorySnapshot) => void recorded.push(snapshot),
+    recordCodeBaseline: async ({ graph }) => void baselines.push(graph),
   }
+  return { baselines, history, recorded }
 }
 
 describe('publishWhatsAppFlowGraph', () => {
@@ -149,7 +152,7 @@ describe('publishWhatsAppFlowGraph', () => {
       runInTransaction: (work) => {
         opened = true
         return work({
-          history: { record: async () => undefined },
+          history: createFakeHistory().history,
           module: createFakeModule().module,
         })
       },
@@ -207,6 +210,7 @@ describe('previewWhatsAppFlowGraphPublication', () => {
     const preview = await previewWhatsAppFlowGraphPublication({
       companyId: COMPANY_ID,
       graph: GRAPH_V1,
+      history: createFakeHistory().history,
       module,
     })
 
@@ -214,5 +218,80 @@ describe('previewWhatsAppFlowGraphPublication', () => {
     expect(preview.current).toEqual(current)
     expect(preview.diff.labelChanged).toBeTrue()
     expect(preview.diff.isEqual).toBeFalse()
+  })
+})
+
+describe('republicação das falas do bot (spec 300 T6.1)', () => {
+  const EDITED_ID = botSpeechNodeId('tripUnavailable')
+  const UNEDITED_ID = botSpeechNodeId('operatorNoTrips')
+  const EMPTY_ID = botSpeechNodeId('groupRegisterFailed')
+
+  function speechGraph(texts: Record<string, string>, version: number): FlowGraphData {
+    const nodes: FlowGraphData['nodes'] = {}
+    for (const [id, directMessage] of Object.entries(texts)) {
+      nodes[id] = { directMessage, id, type: 'action' }
+    }
+    return { ...GRAPH_V1, nodes, version }
+  }
+
+  async function republish(input: {
+    baseline?: FlowGraphData
+    live: FlowGraphData
+    next: FlowGraphData
+  }) {
+    const { module } = createFakeModule(input.live)
+    const { baselines, history } = createFakeHistory(input.baseline)
+    const publish = createPublishWhatsAppFlowGraphUseCase({
+      runInTransaction: (work) => work({ history, module }),
+    })
+    const outcome = await publish({
+      companyId: COMPANY_ID,
+      graph: input.next,
+      publishedBy: 'code',
+      source: 'code',
+    })
+    return { baselines, outcome }
+  }
+
+  test('nó editado fica, nó igual ao último publicado pelo código é regravado, nó vazio e novo recebem o padrão', async () => {
+    const baseline = speechGraph(
+      { [EDITED_ID]: 'Padrão antigo.', [UNEDITED_ID]: 'Padrão antigo.' },
+      2,
+    )
+    const live = speechGraph(
+      { [EDITED_ID]: 'Editada pela empresa.', [UNEDITED_ID]: 'Padrão antigo.', [EMPTY_ID]: '  ' },
+      2,
+    )
+    const next = speechGraph(
+      {
+        [EDITED_ID]: 'Padrão novo.',
+        [UNEDITED_ID]: 'Padrão novo.',
+        [EMPTY_ID]: 'Padrão novo.',
+        [botSpeechNodeId('operatorNoTrips') + '_extra']: 'Nó novo.',
+      },
+      1,
+    )
+
+    const { baselines, outcome } = await republish({ baseline, live, next })
+
+    const texts = Object.fromEntries(
+      Object.entries(outcome.graph.nodes).map(([id, node]) => [id, node.directMessage]),
+    )
+    expect(texts).toEqual({
+      [EDITED_ID]: 'Editada pela empresa.',
+      [UNEDITED_ID]: 'Padrão novo.',
+      [EMPTY_ID]: 'Padrão novo.',
+      [botSpeechNodeId('operatorNoTrips') + '_extra']: 'Nó novo.',
+    })
+    expect(baselines.at(-1)?.nodes[EDITED_ID]?.directMessage).toBe('Padrão novo.')
+  })
+
+  test('sem referência do código, o texto vivo fica — nunca se adivinha que ninguém editou', async () => {
+    const live = speechGraph({ [UNEDITED_ID]: 'Texto vivo.' }, 2)
+    const next = speechGraph({ [UNEDITED_ID]: 'Padrão novo.' }, 1)
+
+    const { outcome } = await republish({ live, next })
+
+    expect(outcome.graph.nodes[UNEDITED_ID]?.directMessage).toBe('Texto vivo.')
   })
 })

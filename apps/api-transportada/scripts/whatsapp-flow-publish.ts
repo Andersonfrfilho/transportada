@@ -7,6 +7,7 @@ import { FlowGraphRepository, OptimisticLockError } from '@adatechnology/meta-wh
 
 import { previewWhatsAppFlowGraphPublication } from '../src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.js'
 import { WHATSAPP_ROOT_FLOW_GRAPH } from '../src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
+import { createDrizzleWhatsAppFlowGraphHistoryRepository } from '../src/whatsapp-commands/infrastructure/drizzle-whatsapp-flow-graph-history.repository.js'
 import { createDrizzleWhatsAppFlowGraphPublisher } from '../src/whatsapp-commands/infrastructure/whatsapp-flow-graph-publisher.factory.js'
 
 /**
@@ -17,6 +18,10 @@ import { createDrizzleWhatsAppFlowGraphPublisher } from '../src/whatsapp-command
  *
  *   bun run scripts/whatsapp-flow-publish.ts --company <uuid>
  *   bun run scripts/whatsapp-flow-publish.ts --company <uuid> --confirm
+ *
+ * `--adopt-live-as-code-baseline`: só na primeira publicação depois da spec 300 T6.1 (ainda não há
+ * referência do que o código publicou) e só se ninguém editou as falas no painel — o grafo vivo vira
+ * a referência e os `fala_*` iguais a ele recebem o padrão novo.
  */
 async function main(): Promise<void> {
   const options = parseArguments(process.argv.slice(2))
@@ -31,8 +36,10 @@ async function main(): Promise<void> {
     const repository = new FlowGraphRepository(provider.db as never)
 
     const preview = await previewWhatsAppFlowGraphPublication({
+      adoptLiveAsCodeBaseline: options.adoptLiveAsCodeBaseline,
       companyId,
       graph,
+      history: createDrizzleWhatsAppFlowGraphHistoryRepository(provider.db),
       module: repository,
     })
 
@@ -56,6 +63,7 @@ async function main(): Promise<void> {
     const publish = createDrizzleWhatsAppFlowGraphPublisher(provider.db)
     try {
       const outcome = await publish({
+        adoptLiveAsCodeBaseline: options.adoptLiveAsCodeBaseline,
         companyId,
         graph,
         publishedBy: 'code',
@@ -76,7 +84,11 @@ async function main(): Promise<void> {
   }
 }
 
-type Options = Readonly<{ companyId: null | string; confirm: boolean }>
+type Options = Readonly<{
+  adoptLiveAsCodeBaseline: boolean
+  companyId: null | string
+  confirm: boolean
+}>
 
 function parseArguments(argv: readonly string[]): Options {
   const value = (name: string): null | string => {
@@ -84,7 +96,11 @@ function parseArguments(argv: readonly string[]): Options {
     return index === -1 ? null : (argv[index + 1] ?? null)
   }
 
-  return { companyId: value('company'), confirm: argv.includes('--confirm') }
+  return {
+    adoptLiveAsCodeBaseline: argv.includes('--adopt-live-as-code-baseline'),
+    companyId: value('company'),
+    confirm: argv.includes('--confirm'),
+  }
 }
 
 /** Instalação dedicada (ADR-0021): uma empresa é o caso normal, e duas exigem `--company`. */

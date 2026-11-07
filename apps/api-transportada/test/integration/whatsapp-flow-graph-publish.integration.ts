@@ -9,12 +9,13 @@ import { describe, expect, test } from 'bun:test'
 import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq, notLike } from 'drizzle-orm'
 
 import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { runAllDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { companies, whatsappFlowGraphVersions } from '../../src/database/database.schema.js'
 import { previewWhatsAppFlowGraphPublication } from '../../src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.js'
+import { createDrizzleWhatsAppFlowGraphHistoryRepository } from '../../src/whatsapp-commands/infrastructure/drizzle-whatsapp-flow-graph-history.repository.js'
 import { createDrizzleWhatsAppFlowGraphPublisher } from '../../src/whatsapp-commands/infrastructure/whatsapp-flow-graph-publisher.factory.js'
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
@@ -97,6 +98,7 @@ describe('publicador do grafo do WhatsApp (Postgres)', () => {
       const preview = await previewWhatsAppFlowGraphPublication({
         companyId,
         graph: changed,
+        history: createDrizzleWhatsAppFlowGraphHistoryRepository(db),
         module: repository,
       })
       expect(preview.diff.isEqual).toBeTrue()
@@ -159,7 +161,12 @@ async function historyRows(
       version: whatsappFlowGraphVersions.version,
     })
     .from(whatsappFlowGraphVersions)
-    .where(eq(whatsappFlowGraphVersions.companyId, companyId))
+    .where(
+      and(
+        eq(whatsappFlowGraphVersions.companyId, companyId),
+        notLike(whatsappFlowGraphVersions.flowKey, '%#code-baseline'),
+      ),
+    )
     .orderBy(asc(whatsappFlowGraphVersions.version))
   return rows
 }
