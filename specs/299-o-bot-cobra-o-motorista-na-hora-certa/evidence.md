@@ -723,3 +723,95 @@ Saída às *12:00*
 
 - `apps/cron-transportada/test/tick/parse-failure.contract.ts`: vermelho com a linha da execução aberta (`finishedAt: undefined`, `outcome: undefined`); verde depois de mover o `parse`.
 - `test/job-catalog-parity.contract.test.ts`: vermelho com `summarize(cron)` sem a entrada `driver.stop-reminder.dispatch` (`Expected - 7`); verde depois de acrescentá-la.
+
+## Staging — cobrança ligada (2026-11-07)
+
+- PR #568 (bloco da parada) e #569 (hotfix do catálogo do cron) mergeados e implantados.
+- Grafo publicado na versão 3: só os 7 nós `fala_lembrete_*` entraram; nenhum foi removido nem alterado.
+- Empresa `ce523659…`: linha inserida direto como ponte até a tela de configuração — ligada, padrões, seg–sex 07:00–18:00,
+  sáb 07:00–15:00, fuso padrão `America/Sao_Paulo`.
+- Rotina `succeeded` às 13:50 UTC com zero lembretes; nenhum lembrete pendente na hora de ligar.
+
+## T4.2 — 2026-11-07
+
+**API.** `GET`/`PUT /settings/driver-stop-reminders` (`settings.manage`, nas duas). Corpo `.strict()`, todos os erros de uma
+vez (`error.details[].field`). Faixas: `maxAttempts` 1–5, `intervalMinutes` 10–120, `graceMinMinutes` 5–240,
+`gracePercent` 0–100 (a CHECK da tabela já era 0–100), `dwellMinutes` 5–240; `operatingHours` até 3 faixas por dia, `weekday`
+0–6, `HH:MM`, início antes do fim, sem sobreposição no mesmo dia (encostar vale). Sem linha, `GET` devolve
+`DRIVER_STOP_REMINDER_DEFAULT_COMPANY_SETTINGS` (a mesma constante que a entrega lê). `PUT` faz upsert por empresa do
+contexto e grava `audit_logs` (`driver-stop-reminder-settings.saved`, antes/depois, IP) na mesma transação; mesmo valor não
+audita nem mexe em `updated_at`.
+
+**Vermelho → verde.** Contrato `driver-stop-reminder-settings.contract.ts`: vermelho com `Cannot find module …settings.routes.js`;
+verde depois (um ajuste: o refinamento roda mesmo com a faixa já inválida, então ordem/sobreposição só avaliam faixas com
+`HH:MM` válido). Integração `driver-stop-reminder-settings.integration.ts` (5 testes): padrão sem linha, upsert + auditoria,
+mesmo valor sem auditoria, isolamento entre empresas, duas escritas concorrentes.
+
+## Revisão PR 568 — pendências
+
+- (MEDIUM) Corpo da cobrança acima de `WHATSAPP_TURN_MESSAGE_LIMIT`: contrato com 900 NFs vermelho (`Received: 8523`); a linha
+  mais longa do bloco (a das NFs) é encurtada com "…" até caber. Verde.
+- (LOW) `' para entregar'` estava em três lugares (política da jornada, `whatsapp-stop-in-progress.service.ts`, entrega): agora
+  `STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX`.
+
+## O lembrete segue a viagem ativa (dono, 2026-11-07)
+
+**Decisão de lugar.** Na API (`POST /driver-stop-reminders/reconciliation`, permissão `trip.stop-reminder-dispatch`, empresa
+pelo cabeçalho `x-company-id`, como a entrega). O token do robô é único por instalação e a empresa vai por requisição; o worker
+só descobre as empresas com a chave ligada (`listReconcilableCompanyIds`, mesma tabela que a fila lê) e chama a API por
+empresa **antes** de listar os vencidos. Isso mantém a decisão na API (plano) e reaproveita `open` e o refino de previsão.
+Falha na varredura é contada (`reconciliationFailures`), vai ao tracker e nunca segura a entrega.
+
+**Regra.** Viagem `on_delivery_route`, empresa com a chave ligada, parada sem baixa: a caminho (`en_route_since`) → `arrival`
+ancorado em `en_route_tapped_at ?? en_route_since`; com chegada → `settlement` ancorado em `arrived_at`. Só insere se não
+existe lembrete para `(parada, etapa, anchor_at)` em nenhum status (e o único parcial cobre o pendente com outra âncora).
+Prazo vencido é aceito: o portão envia no próximo ciclo.
+
+**Vermelho → verde.** Contratos `reconcile-driver-stop-reminders.contract.ts` e rota (403 para `trip.manage`), worker
+`routine.contract.ts`/`api.gateway.contract.ts` (vermelho: 4 falhas) e integração
+`driver-stop-reminder-reconciliation.integration.ts` (7 testes: a caminho com âncora do toque, âncora da saída sem toque,
+chegada sem baixa, baixada/sem saída, escalado não reabre e nova âncora reabre, chave desligada e viagem `dispatched`,
+isolamento) e `driver-stop-reminder-queue.integration.ts` do worker (worker 3070 pass com o banco migrado).
+
+## Quando foi a saída/chegada (dono, 2026-11-07)
+
+Variáveis novas `saidaQuando`/`chegadaQuando`, montadas pela política no dia local da empresa: mesmo dia `às *19:01*`,
+anterior `*ontem* às *19:01*`, antes `em *06/11* às *19:01*`. Contratos nas viradas de meia-noite de São Paulo (`02:59:59Z`
+é ainda o mesmo dia; `03:00:00Z` já é o seguinte). Os textos dos três nós viram `Saída {{saidaQuando}}` e
+`Chegada {{chegadaQuando}}`; `saida`/`chegada` continuam só com a hora.
+
+⚠️ **Não chega ao staging republicando.** `preserveEditedBotSpeech` mantém a `directMessage` viva de **todo** nó `fala_*`
+que já existe no grafo (não distingue editado de não editado), e o script só mostra `nós alterados` depois dessa
+preservação — então o diff nem aparece. O texto antigo (`Saída às *{{saida}}*`) segue valendo lá, sem data. Para chegar:
+sobrescrita marcada (flag explícita no script) ou chaves de nó novas; decisão do dono, nada foi contornado. A troca de
+variável foi feita de forma compatível justamente para o texto antigo não quebrar (`{{saida}}` continua só a hora).
+
+**Gates (2026-11-07, `work/spec-299-settings`).** API: `bun run typecheck` limpo; eslint + prettier nos arquivos tocados limpos;
+`bun run test` 0 fail (14495 testes); `bun --env-file=../../.env.test test --timeout 120000` 0 fail; integração
+`driver-stop-reminder-settings` 5 pass, `driver-stop-reminder-reconciliation` 7 pass, `driver-stop-reminder-delivery` 13 pass.
+Worker: typecheck, eslint, prettier limpos; `bun run test` 3063 pass / 0 fail e, com banco migrado (mesmo passo do
+`make worker-integration`, sem subir a stack), 3070 pass incluindo `driver-stop-reminder-queue.integration.ts`. Raiz:
+`bun run format:check` limpo depois do prettier no `spec.md`.
+
+Publicação das falas com `--overwrite-nodes <chaves>` (opt-in; sem a flag nada muda): chave listada leva o texto do código e o
+preview lista "nós sobrescritos (texto do código)" com antes/depois antes do `--confirm`; chave inexistente aborta sem publicar;
+histórico gravado antes de substituir. Contrato `publish-flow-graph.contract.ts` 4 testes novos (15 pass com `bot-speech`);
+typecheck, eslint, prettier limpos; `bun run test` 14464 pass / 0 fail; `bun --env-file=../../.env.test test --timeout 120000`
+0 fail; integração `whatsapp-flow-graph-publish` 2 pass. O wrapper `producao-publicar-falas-do-bot.sh` repassa `$*` sem
+alteração (vírgulas sem espaço passam intactas).
+
+Vermelho dos contratos do `--overwrite-nodes` (implementação de `whatsapp-bot-speech.policy.ts` e do use case revertida ao
+commit anterior, só a classe de erro stubada para o arquivo carregar): `(fail)` "chave listada leva o texto do código…",
+`(fail)` "publica só a chave listada, guarda histórico…", `(fail)` "chave desconhecida é erro…", `(fail)` "sem a flag…"
+(este por `preview.overwritten` ainda não existir; o comportamento sem a flag já era o antigo) — 6 pass / 4 fail. Implementação
+restaurada: 15 pass.
+
+## Revisão PR 570 — correções
+
+- **Red** (antes do código): `stop-reminder-message`/`bot-speech` falharam por `Export named 'capStopReminderBody' / 'assertOverwriteNodeIds' not found`; integração da reconciliação: 2 fail (`chegada offline ... não reabre settlement`, `saída offline ... não reabre arrival`).
+- **H1**: a chave de dedupe é o CICLO (última `departed`/`arrived` em `trip_stop_events.recorded_at`; lembrete criado a partir dela, em qualquer status, fecha a etapa; só evento mais novo reabre; folga de 1 min; sem evento cai na âncora exata). Evento e varredura deixam de depender de âncoras iguais.
+- **M1**: `openIfStillCurrent` é um `INSERT … SELECT` com os mesmos predicados da listagem (teste: parada que chegou entre leitura e abertura não gera `arrival`). RF8.1 (gate fecha lembrete cuja etapa andou): `deliver-driver-stop-reminder.contract.ts` § "fecha quando a parada andou".
+- **M2**: corte por pontos de código, marcação `*_~` sem par removida, teto final `capStopReminderBody` no envio.
+- **L1**: teto de 200 etapas por ciclo (`DRIVER_STOP_REMINDER_RECONCILIATION_BATCH_LIMIT`); o resto espera o próximo ciclo.
+- **L2**: `assertOverwriteNodeIds` rejeita chave sem prefixo `fala_`. **L3**: `daysAgo <= 0` é hoje.
+- **Gates** (apps/api-transportada): typecheck ok; eslint e prettier ok; `bun run test` 14472 pass/0 fail; contrato `--env-file` 14481 pass/0 fail; integração reconciliação 10/0, delivery 13/0, reminders 23/0, settings 5/0. Worker não tocado.

@@ -36,6 +36,8 @@ type Counters = Record<
   | 'closed'
   | 'deferred'
   | 'escalated'
+  | 'reconciliationFailures'
+  | 'remindersReconciled'
   | 'remindersSeen'
   | 'requestRejected'
   | 'sent'
@@ -52,6 +54,8 @@ function createCounters(): Counters {
     closed: 0,
     deferred: 0,
     escalated: 0,
+    reconciliationFailures: 0,
+    remindersReconciled: 0,
     remindersSeen: 0,
     requestRejected: 0,
     sent: 0,
@@ -74,6 +78,8 @@ async function runCycle(input: {
   const counters = createCounters()
   const seenReminderIds: string[] = []
   let outcome: CycleOutcome = 'succeeded'
+
+  if (dependencies.enabled) await reconcileActiveTrips({ context, counters, dependencies })
 
   while (
     dependencies.enabled &&
@@ -118,6 +124,34 @@ async function runCycle(input: {
   })
 
   return { counters, outcome }
+}
+
+/**
+ * O lembrete segue a viagem ativa (dono, 2026-11-07): antes de entregar, cada empresa com a chave ligada pede à API
+ * que garanta a etapa atual. Falha aqui nunca segura a entrega do que já venceu.
+ */
+async function reconcileActiveTrips(input: {
+  readonly context: JobRoutineContext
+  readonly counters: Counters
+  readonly dependencies: DriverStopReminderRoutineDependencies
+}): Promise<void> {
+  const { context, counters, dependencies } = input
+  try {
+    const companyIds = await dependencies.queue.listReconcilableCompanyIds()
+    for (const companyId of companyIds) {
+      if (context.isStopRequested()) return
+      try {
+        const { openedCount } = await dependencies.reminderApi.reconcile({ companyId })
+        counters.remindersReconciled += openedCount
+      } catch (error) {
+        counters.reconciliationFailures += 1
+        dependencies.errorTracker.captureException(error)
+      }
+    }
+  } catch (error) {
+    counters.reconciliationFailures += 1
+    dependencies.errorTracker.captureException(error)
+  }
 }
 
 async function deliverOne(input: {

@@ -65,25 +65,38 @@ export function createDriverStopReminderApiGateway(
     return body.access_token
   }
 
-  return {
-    async deliver({ companyId, reminderId }) {
-      const response = await send(
-        `${input.configuration.apiBaseUrl.replace(/\/$/, '')}/driver-stop-reminders/${reminderId}/delivery`,
-        {
-          body: '{}',
-          headers: {
-            authorization: `Bearer ${await accessToken()}`,
-            'content-type': 'application/json',
-            'x-company-id': companyId,
-          },
-          method: 'POST',
-        },
-      )
-      if (!response.ok) {
-        if (response.status === 401) cached = null
-        throw toApiError(response.status)
-      }
+  async function postRobotRoute(path: string, companyId: string): Promise<Response> {
+    const response = await send(`${input.configuration.apiBaseUrl.replace(/\/$/, '')}${path}`, {
+      body: '{}',
+      headers: {
+        authorization: `Bearer ${await accessToken()}`,
+        'content-type': 'application/json',
+        'x-company-id': companyId,
+      },
+      method: 'POST',
+    })
+    if (!response.ok) {
+      if (response.status === 401) cached = null
+      throw toApiError(response.status)
+    }
+    return response
+  }
 
+  return {
+    async reconcile({ companyId }) {
+      const response = await postRobotRoute('/driver-stop-reminders/reconciliation', companyId)
+      const body = (await response.json()) as { data?: { openedCount?: unknown } }
+      const openedCount = body.data?.openedCount
+      if (typeof openedCount !== 'number') {
+        throw new DriverStopReminderApiError('api_unreachable', response.status)
+      }
+      return { openedCount }
+    },
+    async deliver({ companyId, reminderId }) {
+      const response = await postRobotRoute(
+        `/driver-stop-reminders/${reminderId}/delivery`,
+        companyId,
+      )
       const body = (await response.json()) as {
         data?: { nextDueAt?: unknown; outcome?: unknown }
       }

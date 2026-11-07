@@ -27,9 +27,32 @@ export class WhatsAppFlowGraphInvalidError extends Error {
   }
 }
 
+export class WhatsAppFlowGraphUnknownOverwriteKeyError extends Error {
+  public readonly unknownKeys: readonly string[]
+
+  constructor(unknownKeys: readonly string[]) {
+    super(`overwrite keys not found in the code graph: ${unknownKeys.join(', ')}`)
+    this.name = 'WhatsAppFlowGraphUnknownOverwriteKeyError'
+    this.unknownKeys = unknownKeys
+  }
+}
+
+function assertOverwriteKeysExist(graph: FlowGraphData, overwriteNodeIds: readonly string[]): void {
+  const unknownKeys = overwriteNodeIds.filter((id) => graph.nodes[id] === undefined)
+  if (unknownKeys.length > 0) throw new WhatsAppFlowGraphUnknownOverwriteKeyError(unknownKeys)
+}
+
+export type WhatsAppFlowGraphOverwrittenNode = {
+  readonly from: string | undefined
+  readonly nodeId: string
+  readonly to: string | undefined
+}
+
 export type WhatsAppFlowGraphPublicationRequest = {
   readonly companyId: string
   readonly graph: FlowGraphData
+  /** Chaves de nós `fala_*` que levam o texto do código em vez do texto vivo (opt-in explícito). */
+  readonly overwriteNodeIds?: readonly string[]
   /** `'code'` no comando de republicação; id do usuário quando um dia o painel salvar. */
   readonly publishedBy: string
   readonly source: 'code' | 'panel'
@@ -38,6 +61,7 @@ export type WhatsAppFlowGraphPublicationRequest = {
 export type WhatsAppFlowGraphPublicationPreview = {
   readonly current: FlowGraphData | undefined
   readonly diff: WhatsAppFlowGraphDiff
+  readonly overwritten: readonly WhatsAppFlowGraphOverwrittenNode[]
   readonly violations: readonly WhatsAppFlowGraphViolation[]
 }
 
@@ -58,12 +82,23 @@ export async function previewWhatsAppFlowGraphPublication(input: {
   readonly companyId: string
   readonly graph: FlowGraphData
   readonly module: Pick<WhatsAppFlowGraphModulePort, 'get'>
+  readonly overwriteNodeIds?: readonly string[]
 }): Promise<WhatsAppFlowGraphPublicationPreview> {
+  const overwriteNodeIds = input.overwriteNodeIds ?? []
+  assertOverwriteKeysExist(input.graph, overwriteNodeIds)
   const violations = validateFlowGraphForWhatsApp(input.graph)
   const current = await input.module.get(input.companyId, input.graph.key)
   /** O diff mostra o que a publicação faria de fato: as falas editadas no editor ficam como estão. */
-  const diff = diffWhatsAppFlowGraphs(current, preserveEditedBotSpeech(current, input.graph))
-  return { current, diff, violations }
+  const merged = preserveEditedBotSpeech(current, input.graph, overwriteNodeIds)
+  const diff = diffWhatsAppFlowGraphs(current, merged)
+  const overwritten = overwriteNodeIds
+    .map((nodeId) => ({
+      from: current?.nodes[nodeId]?.directMessage,
+      nodeId,
+      to: merged.nodes[nodeId]?.directMessage,
+    }))
+    .filter((node) => current !== undefined && node.from !== node.to)
+  return { current, diff, overwritten, violations }
 }
 
 export type PublishWhatsAppFlowGraph = (
@@ -86,6 +121,8 @@ export function createPublishWhatsAppFlowGraphUseCase(dependencies: {
   ) => Promise<T>
 }): PublishWhatsAppFlowGraph {
   return async function publishWhatsAppFlowGraph(request) {
+    const overwriteNodeIds = request.overwriteNodeIds ?? []
+    assertOverwriteKeysExist(request.graph, overwriteNodeIds)
     const violations = validateFlowGraphForWhatsApp(request.graph)
     if (violations.length > 0) throw new WhatsAppFlowGraphInvalidError(violations)
 
@@ -104,7 +141,7 @@ export function createPublishWhatsAppFlowGraphUseCase(dependencies: {
       }
 
       /** Spec 286 T8: o que o editor mudou nas falas do bot não volta ao padrão do código. */
-      const graph = preserveEditedBotSpeech(current, request.graph)
+      const graph = preserveEditedBotSpeech(current, request.graph, overwriteNodeIds)
       const diff = diffWhatsAppFlowGraphs(current, graph)
       if (diff.isEqual) return { graph: current, kind: 'unchanged' }
 

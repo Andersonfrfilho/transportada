@@ -119,6 +119,9 @@ export function describeStopEta(eta: StopCardEta, now: Date): string {
   return `📏 *${kilometres} km* do seu último ponto · ⏱️ _chegada prevista ~${arrival} (${minutes} min)_`
 }
 
+/** O sufixo de "volumes" na chegada e na cobrança: "3 volumes para entregar". */
+export const STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX = ' para entregar'
+
 export type StopCardOptions = {
   /** Presente só quando o motorista compartilhou um ponto nesta viagem e a estrada respondeu. */
   readonly eta?: { readonly now: Date; readonly value: StopCardEta } | undefined

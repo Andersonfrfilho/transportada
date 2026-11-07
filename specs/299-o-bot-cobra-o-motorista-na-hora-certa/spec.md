@@ -39,6 +39,10 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 ## Decisões
 
 - **D1 — O relógio é por etapa da parada e recomeça a cada evento** (dono, 2026-11-06).
+  - **O lembrete segue a viagem ativa** (dono, 2026-11-07): a varredura garante a etapa atual de toda parada de viagem na
+    rua (a caminho → `arrival` na saída; chegada sem baixa → `settlement` na chegada), sem reabrir etapa que já teve
+    lembrete, em qualquer status, para a mesma âncora. A parada que já estava a caminho quando a chave foi ligada
+    entra assim; o prazo vencido sai no próximo ciclo, respeitando horário e pergunta aberta.
   - **Etapa `arrival`** (aberta pela saída, "Iniciar rota"/"saí", qualquer canal): pergunta "já chegou?".
     Vence em `departed_at + tempo de viagem + folga`.
   - **Etapa `settlement`** (aberta pela chegada, "Cheguei", qualquer canal): pergunta "já entregou?".
@@ -89,7 +93,10 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 ### O envio
 
 - **RF7** — Rotina agendada no worker, a cada 5 min (padrão `trip.canhoto.read`), busca lembretes `pending` com
-  `due_at <= agora`, por empresa com as duas chaves ligadas (D6).
+  `due_at <= agora`, por empresa com as duas chaves ligadas (D6). **Antes de listar**, o ciclo pede à API a varredura
+  da etapa atual por empresa (`POST /driver-stop-reminders/reconciliation`, mesma permissão do robô, empresa no
+  cabeçalho; dono, 2026-11-07, D1): a decisão mora na API, e falha na varredura é contada e reportada sem segurar a
+  entrega do que já venceu.
 - **RF8** — Antes de enviar, confere, nesta ordem, e adia sem consumir tentativa quando alguma falha:
   1. a parada ainda está na etapa (sem chegada para `arrival`; não fechada para `settlement`) — senão fecha;
   2. dentro do horário de funcionamento da empresa (configuração nova; feriado nacional conta como fechado (dono, 2026-11-07); faixa
@@ -120,7 +127,10 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
   *4* - Ainda estou a caminho
   ```
 
-  A linha da previsão some sem ponto compartilhado (RF6), ficando "Saída às _14:05_". As várias notas aparecem no
+  A linha da previsão some sem ponto compartilhado (RF6), ficando "Saída às _14:05_". **Quando** (dono, 2026-11-07, no
+  fuso da empresa): no mesmo dia, "Saída às _14:05_"; no dia anterior, "Saída _ontem_ às _14:05_"; antes disso,
+  "Saída em _06/11_ às _14:05_" (a hora da chegada, no RF10, segue a mesma regra). O texto do nó usa
+  `{{saidaQuando}}`/`{{chegadaQuando}}`, montadas pelo sistema; `{{saida}}`/`{{chegada}}` seguem só com a hora. As várias notas aparecem no
   bloco (`*NFs 17234, 17235*`).
 
 - **RF10** — Mensagem da etapa `settlement` (mesmo bloco completo da parada, dono 2026-11-07):

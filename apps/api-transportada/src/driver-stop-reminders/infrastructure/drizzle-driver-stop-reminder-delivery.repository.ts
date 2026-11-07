@@ -23,7 +23,7 @@ import type {
   ReserveStopReminderAttemptParams,
   StopReminderDeliveryContext,
 } from '../application/driver-stop-reminder-delivery.port.js'
-import { DRIVER_STOP_REMINDER_DEFAULT_SETTINGS } from '../domain/driver-stop-reminder.constant.js'
+import { DRIVER_STOP_REMINDER_DEFAULT_COMPANY_SETTINGS } from '../domain/driver-stop-reminder.constant.js'
 import type { OperatingHoursRange } from '../domain/driver-stop-reminder.types.js'
 import { readCurrentTripDriver } from './current-trip-driver.query.js'
 import { readNationalHolidayDates } from './national-holiday-dates.reader.js'
@@ -200,7 +200,7 @@ export class DrizzleDriverStopReminderDeliveryRepository
       .where(eq(companyDriverReminderSettings.companyId, companyId))
       .limit(1)
     if (row === undefined) {
-      return { ...DRIVER_STOP_REMINDER_DEFAULT_SETTINGS, enabled: false, operatingHours: [] }
+      return DRIVER_STOP_REMINDER_DEFAULT_COMPANY_SETTINGS
     }
     return { ...row, operatingHours: row.operatingHours as readonly OperatingHoursRange[] }
   }

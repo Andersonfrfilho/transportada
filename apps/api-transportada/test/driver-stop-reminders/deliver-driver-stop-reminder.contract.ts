@@ -12,6 +12,7 @@ import type {
 } from '../../src/driver-stop-reminders/application/driver-stop-reminder-delivery.port.js'
 import { createDeliverDriverStopReminderUseCase } from '../../src/driver-stop-reminders/application/deliver-driver-stop-reminder.use-case.js'
 import { DriverStopReminderNotFoundError } from '../../src/driver-stop-reminders/domain/driver-stop-reminder.error.js'
+import { WHATSAPP_TURN_MESSAGE_LIMIT } from '../../src/whatsapp-commands/application/whatsapp-turn-replies.service.js'
 import { CATALOG_BOT_SPEECH } from '../../src/whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import { botSpeechNodeId } from '../../src/whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
 import { DRIVER_STOP_REMINDER_SPEECH_NODE } from '../../src/driver-stop-reminders/domain/driver-stop-reminder.constant.js'
@@ -269,6 +270,21 @@ describe('envia o lembrete no grupo (spec 299 T2.2, RF9, RF10, RF12)', () => {
     )
   })
 
+  test('saída de ontem e chegada de dias atrás levam o dia no texto', async () => {
+    const yesterday = build({
+      reminder: { anchorAt: new Date('2026-11-06T22:01:00.000Z'), originKind: 'fallback' },
+    })
+    await yesterday.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
+    expect(yesterday.sent[0]?.body.split('\n')[1]).toBe('Saída *ontem* às *19:01*')
+
+    const older = build({
+      reminder: { anchorAt: new Date('2026-11-04T14:41:00.000Z'), stage: 'settlement' },
+      context: { stop: { ...CONTEXT.stop, hasArrived: true } },
+    })
+    await older.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
+    expect(older.sent[0]?.body.split('\n')[1]).toBe('Chegada em *04/11* às *11:41*')
+  })
+
   test('a última tentativa deixa o próximo prazo, e a seguinte escala em vez de enviar', async () => {
     const last = build({ reminder: { attempts: 2 } })
     expect(
@@ -406,6 +422,29 @@ describe('adia sem consumir tentativa (spec 299 T2.2, RF8)', () => {
 })
 
 describe('o bloco da parada na cobrança (spec 299, dono 2026-11-07)', () => {
+  test('parada com muitas NFs: o corpo nunca passa do teto de uma mensagem do WhatsApp', async () => {
+    const documentNumbers = Array.from({ length: 900 }, (_, index) => String(1_000_000 + index))
+    const world = build({
+      stopCardRead: async () => ({ card: { ...STOP_VIEW.card, documentNumbers } }),
+    })
+    const result = await world.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
+    const body = world.sent[0]?.body ?? ''
+
+    expect(result.outcome).toBe('sent')
+    expect(body.length).toBeLessThanOrEqual(WHATSAPP_TURN_MESSAGE_LIMIT)
+    expect(body).toContain('*Parada 2 de 5*')
+    expect(body).toContain('📦 3 volumes para entregar')
+    expect(body).toContain('*4* - Ainda estou a caminho')
+    expect(body).toContain('…')
+  })
+
+  test('parada comum: o corpo não é alterado', async () => {
+    const world = build()
+    await world.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
+    expect(world.sent[0]?.body).toContain(STOP_BLOCK)
+    expect(world.sent[0]?.body).not.toContain('…')
+  })
+
   test('lê o bloco da empresa e do motorista atual da parada do lembrete', async () => {
     const world = build()
     await world.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
