@@ -16,10 +16,10 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 > 🤖 Modelo: `sonnet` (T0.1 é 🧠 — `opus`)
 
-- [ ] **T0.1 🧠** Decidir a origem de distância/tempo da lista (OSRM `table` × `RouteGeometryPort` por parada com
+- [x] **T0.1 🧠** Decidir a origem de distância/tempo da lista (OSRM `table` × `RouteGeometryPort` por parada com
       `allSettled`), o corte por tamanho (4096 caracteres, medir com 15 paradas e mapa) e a forma da lista na conversa
       individual (limites da Meta). Aceite: decisões com arquivo:símbolo em `plan.md` e `evidence.md`.
-- [ ] **T0.2** Medir em staging (leitura) quais nós `fala_*` a empresa editou e confirmar que a publicação do grafo
+- [x] **T0.2** Medir em staging (leitura) quais nós `fala_*` a empresa editou e confirmar que a publicação do grafo
       preserva o editado (`whatsapp-flow-graph-diff.policy.ts`). Aceite: lista em `evidence.md`; se a publicação
       sobrescreve, parar e perguntar.
 
