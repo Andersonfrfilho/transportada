@@ -404,18 +404,23 @@ ${farewell}`,
     },
     {
       answered: [
-        `*Por que a NF 17236 não foi entregue?*
+        `↩️ *Por que a NF \`17236\` não foi entregue?*
+> 🏪 ACOUGUE ESTRELA · Ribeirao Preto
+
 *1* - 🚪 Destinatário ausente
 *2* - 🙅 Recusou receber
 *3* - 📍 Endereço não achado
 *4* - 📦 Carga avariada
-*5* - 🔒 Local fechado`,
+*5* - 🔒 Local fechado
+
+_Responda com o número do motivo._`,
       ],
       shown: 'não entreguei 17236',
     },
     {
       answered: [
-        `*NF 17236 não entregue* ↩️
+        `↩️ *NF \`17236\` não entregue* · Recusou receber
+A nota volta com você para o armazém.
 
 ➡️ *Próxima parada*
 

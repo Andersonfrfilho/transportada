@@ -76,7 +76,7 @@ export const BOT_SPEECH_DEFAULTS = {
   operatorSeparationRegistered: 'Separação registrado. ✅',
   operatorTripNoMoreActions: 'Esta viagem não aceita mais ações por aqui.',
   operatorUnscheduledStops: 'Há paradas sem agendamento — despache pelo painel.',
-  returnRegistered: '*Não entrega registrada* ↩️',
+  returnRegistered: '↩️ *Não entrega registrada*',
   driverDocumentNotReachable: 'Essa nota não está mais disponível na sua viagem.',
   tripUnavailable: 'Esta viagem não está mais disponível.',
   /**
@@ -101,7 +101,8 @@ export const BOT_SPEECH_DEFAULTS = {
   groupOccurrenceRegistered: 'Ocorrência registrada na NF {{documentNumber}}. ⚠️',
   groupRegisterFailed:
     'Não consegui registrar agora. Tente de novo em instantes ou registre pelo aplicativo.',
-  groupReturnRegistered: '*NF {{documentNumber}} não entregue* ↩️',
+  groupReturnRegistered:
+    '↩️ *NF `{{documentNumber}}` não entregue* · {{reason}}\nA nota volta com você para o armazém.',
 } as const
 
 export type BotSpeechKey = keyof typeof BOT_SPEECH_DEFAULTS

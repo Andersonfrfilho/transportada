@@ -10,7 +10,12 @@ import {
   type DriverReturnReason,
 } from '../../trips/domain/driver-return-reason.policy.js'
 import { normalizeDriverCommandText } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
-import { DRIVER_RETURN_REASON_LABELS } from '../../whatsapp-commands/domain/whatsapp-driver-flow.constant.js'
+import { describeReturnReasonOption } from '../../whatsapp-commands/domain/whatsapp-driver-flow.constant.js'
+import {
+  formatNextStep,
+  formatOptions,
+  formatReplyHint,
+} from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
 import type { WhatsAppRouteContinuation } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 import {
@@ -21,6 +26,9 @@ import {
 export const GROUP_RETURN_STEP = { reason: 'reason' } as const
 
 export type GroupReturnDocument = {
+  /** Spec 300: a cidade e o cliente da nota, para a citação da pergunta (melhor esforço). */
+  readonly city?: string | undefined
+  readonly clientName?: string | undefined
   readonly id: string
   readonly number: string
 }
@@ -49,18 +57,36 @@ export type GroupReturnFlowPorts = {
 
 const stripZeros = (value: string) => value.replace(/^0+(?=\d)/u, '')
 
+/** O desenho (spec 300, fluxo 6): as opções são só os motivos; o "não entendi" do pedido as repete. */
+export const GROUP_RETURN_REASON_OPTIONS = formatOptions(
+  DRIVER_RETURN_REASONS.map(describeReturnReasonOption),
+)
+
+function describeReturnClient(document: GroupReturnDocument): string[] {
+  if (document.clientName === undefined || document.clientName === '') return []
+  const city = document.city === undefined || document.city === '' ? '' : ` · ${document.city}`
+  return [`> 🏪 ${document.clientName}${city}`]
+}
+
 export const GROUP_RETURN_TEXT = {
-  askReason: (documentNumber: string) =>
+  askReason: (document: GroupReturnDocument) =>
     [
-      `*Por que a NF ${stripZeros(documentNumber)} não foi entregue?*`,
-      ...DRIVER_RETURN_REASONS.map(
-        (reason, index) => `*${index + 1}* - ${DRIVER_RETURN_REASON_LABELS[reason] ?? reason}`,
-      ),
+      `↩️ *Por que a NF \`${stripZeros(document.number)}\` não foi entregue?*`,
+      ...describeReturnClient(document),
+      '',
+      GROUP_RETURN_REASON_OPTIONS,
+      '',
+      formatReplyHint('Responda com o número do motivo.'),
     ].join('\n'),
-  whichDocument:
-    'Qual nota não foi entregue? Mande *não entreguei* com o número da nota.\n➡️ _Exemplo:_ não entreguei 17234',
-  attendantUsesOffice:
-    'A devolução pelo atendente é feita no painel.\n➡️ _Próximo passo:_ registre a devolução em Viagens.',
+  whichDocument: [
+    '↩️ *Qual nota não foi entregue?*',
+    'Mande *não entreguei* com o número da nota.',
+    '➡️ _Exemplo:_ não entreguei 899836',
+  ].join('\n'),
+  attendantUsesOffice: [
+    '↩️ *A devolução pelo atendente é feita no painel.*',
+    formatNextStep('registre a devolução em Viagens.'),
+  ].join('\n'),
 } as const
 
 type ReturnState = {
@@ -163,7 +189,7 @@ export function createGroupReturnFlow(ports: GroupReturnFlowPorts) {
       const state: ReturnState = { returnFor: target }
       return {
         kind: 'continue',
-        replies: [GROUP_RETURN_TEXT.askReason(document.number)],
+        replies: [GROUP_RETURN_TEXT.askReason(document)],
         state,
         step: GROUP_RETURN_STEP.reason,
       }
@@ -179,8 +205,8 @@ export function createGroupReturnFlow(ports: GroupReturnFlowPorts) {
       if (reason === undefined) {
         return {
           kind: 'not_understood',
-          prompt: GROUP_RETURN_TEXT.askReason(target.documentNumber),
-          reason: 'responda com o número do motivo',
+          prompt: GROUP_RETURN_REASON_OPTIONS,
+          reason: 'responda com o número do motivo:',
         }
       }
       return register(turn, target, reason)

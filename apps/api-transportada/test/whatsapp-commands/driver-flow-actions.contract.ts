@@ -659,7 +659,12 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
         reason: 'recipient_absent',
       },
     ])
-    expect(sent).toEqual([{ body: '*Não entrega registrada* ↩️', kind: 'text' }])
+    expect(sent).toEqual([
+      {
+        body: '↩️ *NF `1` não entregue* · Destinatário ausente\nA nota volta com você para o armazém.',
+        kind: 'text',
+      },
+    ])
   })
 
   test('catálogo de ocorrência vazio avisa e volta ao menu, sem tipos de outro estágio', async () => {

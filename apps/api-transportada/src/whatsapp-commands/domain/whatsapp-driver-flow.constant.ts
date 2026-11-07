@@ -9,7 +9,9 @@
  * de passo (`deliver`/`return`/`occurrence`, motivo, página) — nunca nome de destinatário nem
  * qualquer outro dado que precise ser lido de novo a cada renderização (D8).
  */
+import type { DriverReturnReason } from '../../trips/domain/driver-return-reason.policy.js'
 import type { TripTransitionBlock } from '../../trips/domain/trip-state.policy.js'
+import type { MessageOption } from './whatsapp-message-format.policy.js'
 
 export const DRIVER_FLOW_ACTION_KIND = {
   arrive: 'driver.arrive',
@@ -103,6 +105,12 @@ export const DRIVER_RETURN_REASON_LABELS: Readonly<Record<string, string>> = {
   establishment_closed: '🔒 Local fechado',
   recipient_absent: '🚪 Destinatário ausente',
   recipient_refused: '🙅 Recusou receber',
+}
+
+/** Spec 300 (RF1): o motivo como opção numerada (ícone e ação), a partir do rótulo — a lista da Meta usa o rótulo inteiro. */
+export function describeReturnReasonOption(reason: DriverReturnReason): MessageOption {
+  const [icon = '', ...action] = (DRIVER_RETURN_REASON_LABELS[reason] ?? reason).split(' ')
+  return { action: action.join(' '), icon }
 }
 
 /** pt-BR do `TRIP_TRANSITION_BLOCK` (`trip-state.policy.ts`) — o motorista nunca lê código em inglês. */

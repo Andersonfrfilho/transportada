@@ -15,7 +15,11 @@
 import type { StopEventStep } from '../../trips/domain/stop-event-sequence.policy.js'
 import type { BotSpeechKey } from '../domain/whatsapp-bot-speech.constant.js'
 import { formatBotClock } from '../domain/whatsapp-stop-card.policy.js'
-import { DRIVER_TRANSITION_BLOCK_MESSAGES } from '../domain/whatsapp-driver-flow.constant.js'
+import type { DriverReturnReason } from '../../trips/domain/driver-return-reason.policy.js'
+import {
+  describeReturnReasonOption,
+  DRIVER_TRANSITION_BLOCK_MESSAGES,
+} from '../domain/whatsapp-driver-flow.constant.js'
 import type { BotSpeechLine } from './whatsapp-bot-speech.service.js'
 import {
   WHATSAPP_DRIVER_EVENT,
@@ -29,6 +33,8 @@ export type WhatsAppDriverEventAudience =
   | {
       readonly documentNumber?: string
       readonly kind: 'driver'
+      /** O motivo da devolução, para a frase "NF … não entregue · <motivo>". */
+      readonly returnReason?: DriverReturnReason
       readonly stopSequence?: number
       readonly time?: string
     }
@@ -36,6 +42,7 @@ export type WhatsAppDriverEventAudience =
   | {
       readonly documentNumber?: string
       readonly kind: 'group'
+      readonly returnReason?: DriverReturnReason
       readonly stopSequence?: number
       readonly time?: string
     }
@@ -134,6 +141,8 @@ function describeMainLine(
   if (result.kind === 'refused') return describeWhatsAppDriverEventRefusal(result.refusal, audience)
   const delivered = describeDeliveredLine(result, audience)
   if (delivered !== undefined) return delivered
+  const returned = describeReturnedLine(result, audience)
+  if (returned !== undefined) return returned
   const documentNumber = audience.kind === 'group' ? audience.documentNumber : undefined
   // Saí/cheguei não citam nota; sem número da nota, o grupo ouve a frase do motorista (sem dado).
   if (documentNumber === undefined || STOP_EVENTS.has(result.event)) {
@@ -147,7 +156,8 @@ function describeMainLine(
   if (result.event === WHATSAPP_DRIVER_EVENT.deliver) {
     return { key: 'groupDeliveryRegistered', params }
   }
-  if (result.event === WHATSAPP_DRIVER_EVENT.return) return { key: 'groupReturnRegistered', params }
+  // Devolução sem o motivo conhecido: a fala curta, sem inventar a frase do motivo.
+  if (result.event === WHATSAPP_DRIVER_EVENT.return) return { key: 'returnRegistered' }
   return { key: 'groupOccurrenceRegistered', params }
 }
 
@@ -171,6 +181,22 @@ function describeDeliveredLine(
       ? 'groupDeliveryTripCompleted'
       : 'groupDeliveryStopCompleted'
   return { key, params: { documentNumber, sequence: stopSequence } }
+}
+
+/** Spec 300 (RF1): a devolução registrada diz a nota e o motivo, igual nos dois canais; sem os dois, a fala de antes. */
+function describeReturnedLine(
+  result: WhatsAppDriverEventResult,
+  audience: WhatsAppDriverEventAudience,
+): BotSpeechLine | undefined {
+  const { documentNumber, returnReason } = audience
+  if (result.kind !== 'registered' || result.event !== WHATSAPP_DRIVER_EVENT.return) {
+    return undefined
+  }
+  if (documentNumber === undefined || returnReason === undefined) return undefined
+  return {
+    key: 'groupReturnRegistered',
+    params: { documentNumber, reason: describeReturnReasonOption(returnReason).action },
+  }
 }
 
 export function describeWhatsAppDriverEventRefusal(

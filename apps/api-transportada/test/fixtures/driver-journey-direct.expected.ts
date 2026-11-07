@@ -394,7 +394,8 @@ Você chegou às ${at} e ainda não registrou a entrega.
     },
     {
       answered: [
-        `*Não entrega registrada* ↩️
+        `↩️ *NF \`17236\` não entregue* · Recusou receber
+A nota volta com você para o armazém.
 
 ➡️ *Próxima parada*
 

@@ -255,7 +255,19 @@ describe('grupo: comando digitado com o menu aberto vai ao comando, não à nota
     const outcome = await t.answer('não entreguei 90003')
     expect(outcome).toMatchObject({ kind: 'continue', step: 'return.reason' })
     const text = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
-    expect(text).toContain('NF 90003')
+    expect(text).toBe(
+      [
+        '↩️ *Por que a NF `90003` não foi entregue?*',
+        '',
+        '*1* - 🚪 Destinatário ausente',
+        '*2* - 🙅 Recusou receber',
+        '*3* - 📍 Endereço não achado',
+        '*4* - 📦 Carga avariada',
+        '*5* - 🔒 Local fechado',
+        '',
+        '_Responda com o número do motivo._',
+      ].join('\n'),
+    )
   })
 
   test('"saí" digitado no menu sem a opção de sair segue como comando (avisa a baixa), sem gastar tentativa', async () => {

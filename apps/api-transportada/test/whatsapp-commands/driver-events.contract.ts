@@ -340,8 +340,17 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
         ),
       ),
     ).toBe('✅ *NF `17234` entregue.* Parada 9 concluída.')
+    expect(
+      await render(
+        describeWhatsAppDriverEventResult(registered('return'), {
+          ...GROUP,
+          returnReason: 'establishment_closed',
+        }),
+      ),
+    ).toBe('↩️ *NF `17234` não entregue* · Local fechado\nA nota volta com você para o armazém.')
+    // Sem o motivo conhecido, a fala curta (sem inventar a frase do motivo).
     expect(await render(describeWhatsAppDriverEventResult(registered('return'), GROUP))).toBe(
-      '*NF 17234 não entregue* ↩️',
+      '↩️ *Não entrega registrada*',
     )
     expect(
       await render(

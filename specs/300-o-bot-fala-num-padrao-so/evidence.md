@@ -283,3 +283,20 @@
   e a fixture `driver-journey-group.expected.ts`.
 - Gates: typecheck limpo · `bun test --timeout 120000` 14372 pass / 0 fail (`literal-message-text` verde) · eslint e prettier limpos · integração: `whatsapp-driver-journey-group` 2, `whatsapp-driver-journey-direct` 2,
   `whatsapp-driver-flow-actions` 4, `whatsapp-command-driver` 5 pass / 0 fail. Suíte completa na T6.2.
+
+### T4.5 (executor `sonnet`)
+
+- Motivo (`whatsapp-group-return-flow.service.ts`): `↩️ *Por que a NF \`n\` não foi entregue?*` + cliente e cidade em citação (`> 🏪 CLIENTE · cidade`, sem negrito, como no desenho) + motivos como opções com ícone + `_Responda com o número do motivo._`.
+  O cliente e a cidade vêm de `placeStops` (mesmo leitor da lista e da T4.1), ligado em `whatsapp-group-return.adapter.ts` (`listOpenDocuments`; `GroupReturnDocument` ganhou `clientName?` e `city?`). O "não entendi" é o padrão do pedido
+  (`🤔 *Não entendi.* Responda com o número do motivo:` + as opções). As opções saem de `describeReturnReasonOption` (`whatsapp-driver-flow.constant.ts`), que parte o rótulo com ícone de `DRIVER_RETURN_REASON_LABELS` (a lista da Meta da
+  conversa individual continua usando o rótulo inteiro, sem mudança).
+- Registro: `groupReturnRegistered` = `↩️ *NF \`{{documentNumber}}\` não entregue* · {{reason}}\nA nota volta com você para o armazém.` O motivo entra por `returnReason` na plateia (`describeReturnedLine`, mesmo padrão da entrega): grupo e individual
+  (`returnReasonRouter` busca o número da nota antes da baixa) dizem o mesmo texto. Sem número ou sem motivo cai em `returnRegistered` (`↩️ *Não entrega registrada*`), sem `{{reason}}` solto. A oferta da próxima parada segue a da T3.5 (mensagem seguinte).
+- Sem a nota: `↩️ *Qual nota não foi entregue?*` + `Mande *não entreguei* com o número da nota.` + `➡️ _Exemplo:_ não entreguei 899836`. `attendantUsesOffice` no mesmo padrão (`↩️` + próximo passo).
+- Variável nova para o catálogo do editor (T6.1): `{{reason}}` em `fala_group_return_registered` (e `{{sequence}}` já anotada na T4.2). A T4.3 e a T4.4 não criaram variável nova.
+- Armadilha: o contrato CA03 (`type-name-wall`) reprova literal igual a nome de tipo do catálogo de ocorrência ("Carga avariada", "Endereço não achado"...): por isso a opção deriva do rótulo com ícone em vez de declarar `{ icon, action }` à parte.
+- Divergência: nenhuma do desenho. A conversa individual do "não entreguei" por lista da Meta (motivo) não muda de forma (título 24 caracteres); só o registro é o mesmo texto.
+- Contratos: `test/whatsapp-commands/whatsapp-return-flow-design.contract.ts` (pergunta com citação, opções, registro igual nos dois canais, sem a nota; `toBe` inteiro), ligado em `whatsapp-commands.contract.test.ts`; atualizados
+  group-driver-journey, driver-flow-actions, driver-events e as fixtures `driver-journey-{group,direct}.expected.ts`.
+- Gates: typecheck limpo · `bun test --timeout 120000` 14376 pass / 0 fail (`literal-message-text` e CA03 verdes, sem exceção nova) · eslint e prettier limpos · integração: `whatsapp-driver-journey-group` 2, `whatsapp-driver-journey-direct` 2,
+  `whatsapp-driver-flow-actions` 4, `whatsapp-command-driver` 5 pass / 0 fail. Suíte completa na T6.2.

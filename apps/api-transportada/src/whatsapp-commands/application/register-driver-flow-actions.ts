@@ -555,6 +555,7 @@ export function createDriverWhatsAppFlowActions(
       return { next: 'menu' }
     }
 
+    const documentNumber = await findDocumentNumber(actor, documentId)
     const result = await returnWhatsAppDriverDocument(deps, {
       actorUserId: actor.scope.userId,
       companyId: actor.scope.companyId,
@@ -564,7 +565,14 @@ export function createDriverWhatsAppFlowActions(
       location: consumeLocation({ actor, session }),
       reason,
     })
-    await say({ actor, channel, session }, describeWhatsAppDriverEventResult(result, DRIVER))
+    await say(
+      { actor, channel, session },
+      describeWhatsAppDriverEventResult(result, {
+        ...(documentNumber === undefined ? {} : { documentNumber }),
+        kind: 'driver',
+        returnReason: reason,
+      }),
+    )
     const offered = await offerNextRoute({
       actor,
       channel,
