@@ -455,15 +455,6 @@ describe('"@bot entreguei" sem número segue a entrega em andamento (defeito de 
   )
 })
 
-const STOP_1_CARD = [
-  '*Parada 1 de 3*',
-  '*NF 17234* · R$ 1.234,56',
-  '🏪 *PADARIA SOL NASCENTE*',
-  '🏢 Contratante: Distribuidora Aurora',
-  '📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
-  '🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
-]
-
 const LOCATION_ASK =
   '📍 *Mande sua localização* para medir a distância até a parada.\nClipe 📎 → Localização → Enviar localização atual.\n_Se não puder agora, responda pular._'
 
@@ -559,11 +550,19 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
       expected: {
         answered: [
           [
-            '*Chegada registrada* 📍',
-            ...STOP_1_CARD,
-            '📦 3 volumes para entregar',
+            `📍 *Chegada registrada* · ${at}`,
+            '',
+            '> *PARADA 1 de 3*',
+            '> 🧾 NF `17234` · *PADARIA SOL NASCENTE*',
+            '> 🏢 Contratante: Distribuidora Aurora',
+            '> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
+            '> 📦 3 volumes',
+            '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+            '> 💰 Valor da nota: *R$ 1.234,56*',
+            '',
+            '🔜 *Depois desta:* parada 2 · MERCADO LUA CHEIA – Ribeirao Preto',
+            '',
             '➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.',
-            '🔜 _Depois desta:_ *NF 17235* · MERCADO LUA CHEIA – SERTAOZINHO',
           ].join('\n'),
         ],
         shown: 'pular',

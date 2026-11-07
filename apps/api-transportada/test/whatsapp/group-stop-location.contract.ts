@@ -216,7 +216,7 @@ describe('grupo: "cheguei" em parada sem localização certa corrige o endereço
     expect(t.recorded).toHaveLength(1)
   })
 
-  test('a resposta do registro leva "Endereço atualizado" ou "Enviei para o escritório conferir"', async () => {
+  test('a resposta do registro leva o endereço corrigido ou a sugestão ao escritório', async () => {
     const speech = await import(
       '../../src/whatsapp-commands/application/whatsapp-driver-event-speech.service.js'
     )
@@ -228,12 +228,16 @@ describe('grupo: "cheguei" em parada sem localização certa corrige o endereço
         companyId: 'C1',
         line: speech.describeWhatsAppDriverEventResult(
           { addressCorrection, event: 'arrive', kind: 'registered' },
-          { documentNumber: '17234', kind: 'group' },
+          { documentNumber: '17234', kind: 'group', time: '23:20' },
         ),
         speech: CATALOG_BOT_SPEECH,
       })
-    expect(await render('applied')).toBe('*Chegada registrada* 📍\nEndereço atualizado. ✅')
-    expect(await render('suggested')).toContain('Enviei para o escritório conferir')
+    expect(await render('applied')).toBe(
+      '📍 *Chegada registrada* · 23:20\n✅ _Endereço corrigido pela sua localização._',
+    )
+    expect(await render('suggested')).toBe(
+      '📍 *Chegada registrada* · 23:20\n📬 _Enviei para o escritório conferir o endereço._',
+    )
   })
 })
 

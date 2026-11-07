@@ -124,9 +124,9 @@ describe('a frase do "marquei junto" (spec 294 RF5)', () => {
       sentAt: NOW,
       stopId: 's',
     })
-    expect(await render(describeWhatsAppDriverEventResult(arrived, { kind: 'driver' }))).toBe(
-      '*Chegada registrada* 📍',
-    )
+    expect(
+      await render(describeWhatsAppDriverEventResult(arrived, { kind: 'driver', time: '23:20' })),
+    ).toBe('📍 *Chegada registrada* · 23:20')
   })
 })
 
@@ -229,7 +229,7 @@ describe('conversa individual: "cheguei" avisa a saída marcada junto', () => {
       } as unknown as ConversationSession,
     })
     expect(sent).toEqual([
-      '*Chegada registrada* 📍\nMarquei a saída junto com a chegada da NF 17234.',
+      '📍 *Chegada registrada* · 09:00\nMarquei a saída junto com a chegada da NF 17234.',
     ])
   })
 })

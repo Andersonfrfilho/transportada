@@ -18,7 +18,7 @@ import {
   describeAlreadyArrived,
   describeAlreadyDeparted,
   describeAlreadySettled,
-  describeArrivalDetails,
+  describeArrivalReply,
   describeDepartureReply,
   describeNextRouteOffer,
   describePendingSettlement,
@@ -69,15 +69,6 @@ const NEXT: StopCard = {
   sequence: 3,
   stopId: 'S3',
 }
-
-const BLOCK = [
-  '*Parada 2 de 5*',
-  '*NF 17234* · R$ 1.234,56',
-  '🏪 *DAIARA DE OLIVEIRA CARDOSO SUPERMERCADO*',
-  '🏢 Contratante: Distribuidora Aurora',
-  '📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
-  '🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
-]
 
 /** O bloco da lista (bairro e cidade) em citação, como o menu e a oferta mostram a parada. */
 const LIST_BLOCK = [
@@ -150,13 +141,26 @@ describe('o bloco da parada', () => {
     )
   })
 
-  test('a chegada: bloco, volumes para entregar, próximo passo e a prévia da próxima (sem pergunta)', () => {
-    expect(describeArrivalDetails({ card: CARD, next: NEXT })).toEqual([
-      ...BLOCK,
-      '📦 3 volumes para entregar',
-      '➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.',
-      '🔜 _Depois desta:_ *NF 17300* · Mercado Lua – SERTAOZINHO',
-    ])
+  test('a chegada: a frase, o bloco em citação com o valor, a prévia da próxima (sem pergunta) e o próximo passo', () => {
+    expect(
+      describeArrivalReply('📍 *Chegada registrada* · 13:05', { card: CARD, next: NEXT }),
+    ).toBe(
+      [
+        '📍 *Chegada registrada* · 13:05',
+        '',
+        '> *PARADA 2 de 5*',
+        '> 🧾 NF `17234` · *DAIARA DE OLIVEIRA CARDOSO SUPERMERCADO*',
+        '> 🏢 Contratante: Distribuidora Aurora',
+        '> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
+        '> 📦 3 volumes',
+        '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+        '> 💰 Valor da nota: *R$ 1.234,56*',
+        '',
+        '🔜 *Depois desta:* parada 3 · Mercado Lua – Sertaozinho',
+        '',
+        '➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.',
+      ].join('\n'),
+    )
   })
 })
 

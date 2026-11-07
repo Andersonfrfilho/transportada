@@ -52,7 +52,7 @@ import {
   describeAlreadyArrived,
   describeAlreadyDeparted,
   describeAlreadySettled,
-  describeArrivalDetails,
+  describeArrivalReply,
   describeDepartureReply,
   describeJourneyNotUnderstood,
   describeNextRouteOffer,
@@ -577,7 +577,7 @@ export function createWhatsAppDriverPrompts(dependencies: {
     if (view === null) return said
     return event === 'depart'
       ? describeDepartureReply(said, view, clock())
-      : [said, ...describeArrivalDetails(view)].join('\n')
+      : describeArrivalReply(said, view)
   }
 
   const promptKey = (prompt: DriverPrompt) =>

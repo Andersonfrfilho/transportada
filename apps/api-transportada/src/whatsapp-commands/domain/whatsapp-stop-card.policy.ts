@@ -97,21 +97,6 @@ export function describeStopNotes(numbers: readonly string[]): string {
   return clean.length === 1 ? `*NF ${clean[0]}*` : `*NFs ${clean.join(', ')}*`
 }
 
-/** "*NF 17234* · Padaria Sol – Ribeirão Preto": a parada numa linha (a prévia da próxima e as listas). */
-export function describeStopShort(
-  card: Pick<StopCard, 'city' | 'documentNumbers' | 'recipientName'>,
-): string {
-  const client = plainText(card.recipientName)
-  const city = plainText(card.city)
-  return [
-    describeStopNotes(card.documentNumbers),
-    client === '' ? '' : ` · ${client}`,
-    city === '' ? '' : ` – ${city}`,
-  ]
-    .join('')
-    .trim()
-}
-
 const roundMinutes = (durationSeconds: number): number =>
   Math.max(1, Math.round(durationSeconds / 60))
 

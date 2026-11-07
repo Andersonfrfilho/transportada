@@ -66,8 +66,8 @@ const STOP_EVENTS: ReadonlySet<WhatsAppDriverEvent> = new Set([
 
 /** Spec 294 RF14: a chegada com ponto atualiza o endereço ou manda a sugestão ao escritório. */
 export const ADDRESS_CORRECTION_TEXT = {
-  applied: 'Endereço atualizado. ✅',
-  suggested: 'Enviei para o escritório conferir o endereço. 📬',
+  applied: '✅ _Endereço corrigido pela sua localização._',
+  suggested: '📬 _Enviei para o escritório conferir o endereço._',
 } as const
 
 const STEP_WORDS = { arrived: 'a chegada', departed: 'a saída' } as const

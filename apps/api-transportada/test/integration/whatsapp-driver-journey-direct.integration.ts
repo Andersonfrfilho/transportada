@@ -602,7 +602,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '*Chegada registrada* 📍\n*Parada 1 de 3*\n*NF 17234* · R$ 1.234,56\n🏪 *PADARIA SOL NASCENTE*\n🏢 Contratante: Distribuidora Aurora\n📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81\n📦 3 volumes para entregar\n➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.\n🔜 _Depois desta:_ *NF 17235* · MERCADO LUA CHEIA – SERTAOZINHO',
+          `📍 *Chegada registrada* · ${at}\n\n> *PARADA 1 de 3*\n> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*\n> 🏢 Contratante: Distribuidora Aurora\n> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n> 📦 3 volumes\n> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81\n> 💰 Valor da nota: *R$ 1.234,56*\n\n🔜 *Depois desta:* parada 2 · MERCADO LUA CHEIA – Ribeirao Preto\n\n➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.`,
         ],
         shown: 'pular',
       },

@@ -18,6 +18,7 @@ import type {
   DriverTripStop,
 } from '../../trips/application/find-current-driver-trip.use-case.js'
 import { findNextPendingStop } from '../../trips/domain/driver-stop-resolution.policy.js'
+import { placeStops } from './whatsapp-stop-place.reader.js'
 import type { StopCardView } from '../domain/whatsapp-driver-journey.policy.js'
 import {
   cityOfStopLabel,
@@ -117,13 +118,20 @@ function volumesOf(documents: DriverTripStop['documents']): number | null {
   return total > 0 ? Math.round(total) : null
 }
 
-function cardOf(trip: DriverTrip, stop: DriverTripStop, contractorName: string): StopCard {
+type StopPlace = { readonly city?: string | undefined; readonly district?: string | undefined }
+
+function cardOf(
+  trip: DriverTrip,
+  stop: DriverTripStop,
+  extras: { readonly contractorName: string; readonly place?: StopPlace | undefined },
+): StopCard {
   const documents = shownDocuments(stop)
   const [first] = documents
   return {
     address: stop.label,
-    city: cityOfStopLabel(stop.label),
-    contractorName,
+    city: extras.place?.city ?? cityOfStopLabel(stop.label),
+    contractorName: extras.contractorName,
+    district: extras.place?.district,
     coordinate:
       stop.latitude === null || stop.longitude === null
         ? null
@@ -219,13 +227,25 @@ export function createWhatsAppStopCardReader(dependencies: {
     const trip = trips.find((candidate) => candidate.stops.some((stop) => stop.id === stopId))
     const stop = trip?.stops.find((candidate) => candidate.id === stopId)
     if (trip === undefined || stop === undefined) return null
-    const card = cardOf(trip, stop, await contractorNameOf(companyId, shownDocuments(stop)[0]?.id))
     const nextStop = findNextPendingStop(trip.stops.filter((candidate) => candidate.id !== stopId))
+    const placed = await placeStops(database, {
+      companyId,
+      ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+      stops: nextStop === undefined ? [stop] : [stop, nextStop],
+    })
+    const placeOf = (stopOfCard: DriverTripStop) =>
+      placed.find((candidate) => candidate.id === stopOfCard.id)
+    const card = cardOf(trip, stop, {
+      contractorName: await contractorNameOf(companyId, shownDocuments(stop)[0]?.id),
+      place: placeOf(stop),
+    })
     const eta = withEta === true ? await etaOf({ card, companyId, trip }) : undefined
     return {
       card,
       ...(eta === undefined ? {} : { eta }),
-      ...(nextStop === undefined ? {} : { next: cardOf(trip, nextStop, '') }),
+      ...(nextStop === undefined
+        ? {}
+        : { next: cardOf(trip, nextStop, { contractorName: '', place: placeOf(nextStop) }) }),
     }
   }
 }

@@ -169,3 +169,19 @@
 - Gates: typecheck limpo · `bun test --timeout 120000` 14351 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção nova) · eslint e prettier limpos ·
   integração (máquina carregada, um arquivo por vez): `whatsapp-driver-journey-group` 2 pass, `whatsapp-driver-journey-direct` 2 pass, `whatsapp-driver-flow-actions` 4 pass,
   `whatsapp-command-driver` 5 pass, `whatsapp-stop-place` 1 pass. Suíte `test:integration` completa fica para a T6.2.
+
+### T3.4 (executor `sonnet`)
+
+- Chegada registrada: fala `arrivalRegistered` = `📍 *Chegada registrada* · {{time}}` (a hora do WhatsApp da mensagem); `describeArrivalReply` = fala + linhas do
+  `after` (endereço corrigido/sugestão) + bloco `card` em citação com `💰 Valor da nota` + `🔜 *Depois desta:* parada N · cliente – cidade` + próximo passo
+  (`*foto do canhoto*`). Mesma função no grupo (`whatsapp-group-stop.adapter.ts`) e na individual (`whatsapp-driver-prompts.service.ts:recordStop`).
+- `whatsapp-driver-event-speech.service.ts`: `ADDRESS_CORRECTION_TEXT.applied` = `✅ _Endereço corrigido pela sua localização._`, `.suggested` = `📬 _Enviei para o
+  escritório conferir o endereço._` (a sugestão não está no desenho: mesma voz da correção).
+- Leitor do bloco (`whatsapp-stop-card.reader.ts`): passa pelo mesmo `placeStops` da lista (uma consulta, melhor esforço) e o `StopCard` ganha `district` e a cidade do
+  endereço do destinatário (a do rótulo é o recuo): o menu e a prévia mostram "Centro, Guaira" como a lista. `describeStopShort`/`describeArrivalDetails` saíram (sem uso).
+- Já feitos na T3.3 (mesmo código): endereço sem localização certa, cheguei repetido (`A chegada na parada N já foi registrada`), "nada por enquanto" e chegada fora da rota.
+- Divergência: nas fixtures das jornadas a cidade vem do endereço da nota do destinatário (todas "Ribeirao Preto" nos dados semeados), não do rótulo da parada.
+- Contratos: `whatsapp-stop-flow-design.contract.ts` ganhou a chegada com endereço corrigido (texto do desenho, `toBe`); atualizados driver-journey, recorded-together-speech,
+  stop-location-prompt, group-stop-location, group-out-of-order e as fixtures/integrações das jornadas (regravadas com `JOURNEY_RECORD=1` e conferidas contra o desenho).
+- Gates: typecheck limpo · `bun test --timeout 120000` 14352 pass / 26 skip / 0 fail · eslint e prettier limpos · integração: `whatsapp-driver-journey-group` 2 pass,
+  `whatsapp-driver-journey-direct` 2 pass, `whatsapp-driver-flow-actions` 4 pass, `whatsapp-command-driver` 5 pass. Suíte completa na T6.2.

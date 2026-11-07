@@ -224,7 +224,7 @@ describe('grupo: o registro devolve a pergunta quando a API recusa (adaptador)',
     const received: Record<string, unknown>[] = []
     const result = await build(received).record({ ...input, confirmOutOfOrder: true })
     expect(received[0]?.confirmOutOfOrder).toBe(true)
-    expect(result.message).toBe('*Chegada registrada* 📍')
+    expect(result.message).toBe('📍 *Chegada registrada* · 09:00')
     expect(result.outOfOrder).toBeUndefined()
   })
 })

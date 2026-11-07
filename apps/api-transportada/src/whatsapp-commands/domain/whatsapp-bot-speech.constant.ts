@@ -84,7 +84,7 @@ export const BOT_SPEECH_DEFAULTS = {
    * `group*` são a versão do grupo do motorista: o número da nota (e o cliente nas listas de
    * escolha, spec 294 RF17), sem documento nem valor (spec 292).
    */
-  arrivalRegistered: '*Chegada registrada* 📍',
+  arrivalRegistered: '📍 *Chegada registrada* · {{time}}',
   departureRegistered: '🚚 *Saída registrada* · {{time}}',
   stopEnRoute:
     '⚠️ *Você já está a caminho da parada {{sequence}}.*\nRegistre a chegada nela antes de sair para outra.',

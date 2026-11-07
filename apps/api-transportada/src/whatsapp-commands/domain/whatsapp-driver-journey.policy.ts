@@ -21,14 +21,15 @@ import {
 } from './whatsapp-message-format.policy.js'
 import {
   describeStopCard,
-  describeStopShort,
   formatBotClock,
+  plainText,
   STOP_CARD_TEXT,
   stripLeadingZeros,
   type StopCard,
   type StopCardEta,
 } from './whatsapp-stop-card.policy.js'
 import { describeStopBlock, describeStopDetails } from './whatsapp-stop-block.policy.js'
+import { formatPlaceName } from './whatsapp-stop-place.policy.js'
 
 export const JOURNEY_TEXT = {
   /** Termina em ":" — as opções vêm em seguida (o motivo do "não entendi" de menu). */
@@ -198,13 +199,25 @@ export function describeDepartureReply(headline: string, view: StopCardView, now
   ].join('\n')
 }
 
-/** A chegada registrada: o bloco, o próximo passo e a prévia da próxima parada (sem pergunta). */
-export function describeArrivalDetails(view: StopCardView): string[] {
+/** "parada 4 · RETA ALIMENTOS LTDA – Sao Joaquim da Barra": a próxima parada numa linha (a prévia da chegada). */
+function describeNextStopPreview(card: StopCard): string {
+  const client = plainText(card.recipientName)
+  const city = formatPlaceName(plainText(card.city))
+  return `parada ${card.sequence}${client === '' ? '' : ` · ${client}`}${city === undefined ? '' : ` – ${city}`}`
+}
+
+/** A chegada registrada: a frase, o bloco em citação, a prévia da próxima parada (sem pergunta) e o próximo passo. */
+export function describeArrivalReply(headline: string, view: StopCardView): string {
   return [
-    ...describeStopCard(view.card, { volumesSuffix: ' para entregar' }),
+    headline,
+    '',
+    describeStopDetails({ card: view.card }),
+    ...(view.next === undefined
+      ? []
+      : ['', `🔜 *Depois desta:* ${describeNextStopPreview(view.next)}`]),
+    '',
     JOURNEY_TEXT.nextSettle,
-    ...(view.next === undefined ? [] : [`🔜 _Depois desta:_ ${describeStopShort(view.next)}`]),
-  ]
+  ].join('\n')
 }
 
 /** O menu: a frase de cima, o bloco da parada, a pergunta e as opções. */

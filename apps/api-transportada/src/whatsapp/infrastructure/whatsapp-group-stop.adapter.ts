@@ -33,7 +33,7 @@ import {
 import { WHATSAPP_DRIVER_STOP_COMMAND } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
 import type { GroupStopFlowPorts } from '../application/whatsapp-group-stop-flow.service.js'
 import {
-  describeArrivalDetails,
+  describeArrivalReply,
   describeDepartureReply,
 } from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
 import { formatBotClock } from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
@@ -279,7 +279,7 @@ export function createGroupStopPorts(dependencies: {
           return {
             message: isDeparture
               ? describeDepartureReply(message, view, clock())
-              : [message, ...describeArrivalDetails(view)].join('\n'),
+              : describeArrivalReply(message, view),
           }
         }
       }

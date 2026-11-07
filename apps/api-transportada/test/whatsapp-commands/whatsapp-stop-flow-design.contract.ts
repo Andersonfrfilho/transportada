@@ -7,12 +7,14 @@
 import { describe, expect, test } from 'bun:test'
 
 import type { WhatsAppStopCandidate } from '../../src/trips/domain/driver-stop-resolution.policy.js'
+import { ADDRESS_CORRECTION_TEXT } from '../../src/whatsapp-commands/application/whatsapp-driver-event-speech.service.js'
 import { BOT_SPEECH_DEFAULTS } from '../../src/whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
 import { interpolateBotSpeech } from '../../src/whatsapp-commands/domain/whatsapp-bot-speech.policy.js'
 import {
   arrivedStopActions,
   describeAlreadyArrived,
   describeAlreadyDeparted,
+  describeArrivalReply,
   describeDepartureReply,
   describeJourneyNotUnderstood,
   describePendingSettlement,
@@ -243,7 +245,41 @@ describe('fluxo 2 · Saí', () => {
   })
 })
 
+const STOP_4: StopCard = {
+  ...STOP_3,
+  city: 'Sao Joaquim da Barra',
+  district: 'Centro',
+  documentNumbers: ['899836'],
+  sequence: 4,
+  stopId: 'stop-4',
+}
+
 describe('fluxo 3 · Cheguei', () => {
+  test('chegada registrada com o endereço corrigido: a fala com a hora, o bloco, a prévia da próxima e o próximo passo', () => {
+    const headline = [
+      interpolateBotSpeech(BOT_SPEECH_DEFAULTS.arrivalRegistered, { time: '23:20' }),
+      ADDRESS_CORRECTION_TEXT.applied,
+    ].join('\n')
+    expect(describeArrivalReply(headline, { card: STOP_3, next: STOP_4 })).toBe(
+      [
+        '📍 *Chegada registrada* · 23:20',
+        '✅ _Endereço corrigido pela sua localização._',
+        '',
+        '> *PARADA 3 de 9*',
+        '> 🧾 NF `899839` · *RETA ALIMENTOS LTDA*',
+        '> 🏢 Contratante: COMERCIAL ZARAGOZA IMP EXP LTDA',
+        '> 📍 R. 18, 1240 – Centro, Guaira/SP',
+        '> 📦 12 volumes',
+        STOP_3_MAP,
+        '> 💰 Valor da nota: *R$ 4.812,30*',
+        '',
+        '🔜 *Depois desta:* parada 4 · RETA ALIMENTOS LTDA – Sao Joaquim da Barra',
+        '',
+        '➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.',
+      ].join('\n'),
+    )
+  })
+
   test('endereço sem localização certa', () => {
     expect(describeLocationPrompt({ event: 'arrive', isAddressReliable: false })).toBe(
       [
