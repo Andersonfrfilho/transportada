@@ -81,6 +81,7 @@
     "attachments_other": "{{count}} attachments",
     "back": "Back",
     "cause": {
+      "canhotoAlreadyAttached": "this invoice already has a delivery receipt; on the trip screen, choose to replace it or keep the one already there",
       "declaredAmountRequired": "the amount paid is required by this occurrence type",
       "itemDeclaredAmountRequired": "the amount paid for each product is required by this occurrence type",
       "itemQuantityAboveNote": "the quantity returned is above the quantity on the invoice",
@@ -136,7 +137,7 @@
     "sendNow": "Send now",
     "sending": "Sending…",
     "status": {
-      "attachmentRejected": "Attachment rejected by the server: {{cause}}. The event was already accepted.",
+      "attachmentRejected": "The attachment was not accepted: {{cause}}. The delivery is still recorded.",
       "failed_one": "Failed {{count}} time — no network on the last attempt",
       "failed_other": "Failed {{count}} times — no network on the last attempt",
       "queued": "Queued",
