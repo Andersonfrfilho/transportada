@@ -66,6 +66,7 @@ import { createWhatsAppTurnReplies } from '../../src/whatsapp-commands/applicati
 import { createGroupDeliveryWiring } from '../../src/whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
 import { createGroupReturnPorts } from '../../src/whatsapp/infrastructure/whatsapp-group-return.adapter.js'
 import { createGroupStopPorts } from '../../src/whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
+import { createWhatsAppRouteClosingReader } from '../../src/whatsapp-commands/infrastructure/whatsapp-route-closing.reader.js'
 import { botFarewell, botGreeting } from '../../src/whatsapp/domain/bot-greeting.policy.js'
 import { formatBotClock } from '../../src/whatsapp-commands/domain/whatsapp-stop-card.policy.js'
 import { withDisposableDatabase } from '../fixtures/disposable-database.fixture.js'
@@ -227,6 +228,7 @@ async function buildGroupJourney(db: JourneyDatabase, world: JourneyWorld, now: 
         logger,
         ports,
         resolveSenderRole: crew,
+        routeClosing: createWhatsAppRouteClosingReader({ database: db, logger }),
         stopCards,
       }),
     ),

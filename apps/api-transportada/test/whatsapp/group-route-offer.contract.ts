@@ -115,6 +115,7 @@ function setup(options: {
     },
     stop: createGroupStopFlow({
       enRouteMessage: async () => 'en-route',
+      readRouteClosing: async () => ({ driverName: 'ANDERSON MOTORISTA', totalStops: 6 }),
       listStops: async () => [
         {
           arrivedAt: null,
@@ -168,11 +169,11 @@ describe('grupo: a baixa que fecha a parada oferece a próxima rota', () => {
     expect(replies[1]).toBe(
       [
         '➡️ *Próxima parada*',
-        '*Parada 4 de 6*',
-        '*NF 17300*',
-        '🏪 *Padaria Sol*',
-        '📍 Rua das Flores, 100 - Centro',
-        '🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+        '',
+        '> *PARADA 4 de 6*',
+        '> 🧾 NF `17300` · *Padaria Sol*',
+        '> 📍 Rua das Flores, 100 - Centro',
+        '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
         '',
         '*O que você quer fazer agora?*',
         '*1* - 🚚 Seguir para a *parada 4*',
@@ -253,7 +254,10 @@ describe('grupo: a baixa que fecha a parada oferece a próxima rota', () => {
     const t = setup({ continuation: { nextStop: null, tripCompleted: true } })
     expect(await t.answer('1')).toEqual({
       kind: 'done',
-      replies: ['*NF 17234 entregue.* Parada concluída. ✅', ROUTE_OFFER_TEXT.routeCompleted],
+      replies: [
+        '*NF 17234 entregue.* Parada concluída. ✅',
+        '🏁 *Rota concluída!* Todas as 6 paradas estão fechadas.\nBom descanso, Anderson. 🌙',
+      ],
     })
   })
 

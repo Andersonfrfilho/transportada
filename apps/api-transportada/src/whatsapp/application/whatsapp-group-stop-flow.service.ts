@@ -40,6 +40,7 @@ import {
   describeLocationPrompt,
   LOCATION_PROMPT_TEXT,
 } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
+import type { WhatsAppRouteClosingReader } from '../../whatsapp-commands/infrastructure/whatsapp-route-closing.reader.js'
 import {
   arrivedStopActions,
   describeAlreadyArrived,
@@ -47,6 +48,7 @@ import {
   describeAlreadySettled,
   describeNextRouteOffer,
   describePendingSettlement,
+  describeRouteCompleted,
   enRouteStopActions,
   JOURNEY_STEP,
   JOURNEY_TEXT,
@@ -57,10 +59,7 @@ import {
   type JourneyAction,
   type StopCardView,
 } from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
-import {
-  ROUTE_OFFER_TEXT,
-  type RouteOfferStop,
-} from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
+import type { RouteOfferStop } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import {
   describeStopListHint,
   formatStopList,
@@ -149,6 +148,8 @@ export type GroupStopFlowPorts = {
     readonly driverId: string
     readonly stops: readonly GroupStopCandidate[]
   }): Promise<StopListTravelView | null>
+  /** Spec 300 RF12: o número de paradas e o nome do motorista da despedida de "rota concluída"; ausente, a frase sai sem eles. */
+  readRouteClosing?: WhatsAppRouteClosingReader
   /** Spec 294 RF19: quem escreveu. Ausente, todo remetente é tratado como a tripulação (como antes da 294). */
   resolveSenderRole?: ResolveWhatsAppSenderRole
   /** A frase de "já está a caminho da parada N" e afins, na plateia do grupo. */
@@ -336,6 +337,18 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
   }
 
   const clock = ports.clock ?? (() => new Date())
+
+  /** RF12: a despedida da rota concluída, com o número de paradas e o primeiro nome do motorista da viagem. */
+  async function routeCompleted(turn: GroupFlowTurn): Promise<string> {
+    const closing = await ports.readRouteClosing?.({
+      companyId: turn.request.companyId,
+      driverId: turn.request.driverId,
+    })
+    return describeRouteCompleted({
+      driverName: closing?.driverName,
+      totalStops: closing?.totalStops,
+    })
+  }
 
   /** O bloco da parada pela porta; sem ela, só o que a lista de paradas já traz. */
   async function viewOf(
@@ -604,9 +617,12 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       if (findStopEnRoute(stops) !== undefined) return JOURNEY_TEXT.nextArrive
       if (findStopAwaitingSettlement(stops) !== undefined) return JOURNEY_TEXT.nextSettle
       return findNextPendingStop(stops) === undefined
-        ? ROUTE_OFFER_TEXT.routeCompleted
+        ? routeCompleted(turn)
         : JOURNEY_TEXT.nextDepart
     },
+
+    /** RF12: a despedida de "rota concluída" (a última baixa fechou a viagem). */
+    routeCompletedText: routeCompleted,
 
     /** A oferta da próxima rota depois da baixa que fechou a parada (com a estrada, se houver ponto). */
     async nextRouteOffer(
@@ -617,7 +633,7 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       const view = read ?? { card: cardFromRouteOfferStop(input.stop) }
       return {
         actions: input.asks ? nextRouteActions(view.card) : [],
-        text: describeNextRouteOffer(view, { asks: input.asks, now: clock() }),
+        text: describeNextRouteOffer(view, { asks: input.asks }),
       }
     },
 
@@ -658,11 +674,11 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       }
       const next = findNextPendingStop(stops)
       if (next === undefined) {
-        return { kind: 'done', replies: [`${headline}\n${ROUTE_OFFER_TEXT.routeCompleted}`] }
+        return { kind: 'done', replies: [`${headline}\n${await routeCompleted(turn)}`] }
       }
       const view = await viewOf(turn, next, true)
       return menu(
-        `${headline}\n\n${describeNextRouteOffer(view, { asks: true, now: clock() })}`,
+        `${headline}\n\n${describeNextRouteOffer(view, { asks: true })}`,
         nextRouteActions(view.card),
       )
     },

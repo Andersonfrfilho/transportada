@@ -51,7 +51,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
       paradas 3–7.
 - [x] **T3.3** Saída: localização, registrada, já a caminho com menu (RF9), repetida, baixa pendente, fora da rota.
 - [x] **T3.4** Chegada: endereço sem localização, registrada, repetida, fora da rota.
-- [ ] **T3.5** Próxima parada e rota concluída com o nome (RF12).
+- [x] **T3.5** Próxima parada e rota concluída com o nome (RF12).
 
 ## Fase 4 — Entreguei e não entreguei (fluxos 5–6)
 

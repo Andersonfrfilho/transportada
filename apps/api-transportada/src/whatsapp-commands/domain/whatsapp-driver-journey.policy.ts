@@ -20,7 +20,6 @@ import {
   type MessageOption,
 } from './whatsapp-message-format.policy.js'
 import {
-  describeStopCard,
   formatBotClock,
   plainText,
   STOP_CARD_TEXT,
@@ -42,6 +41,31 @@ export const JOURNEY_TEXT = {
   sendCanhoto: (documentNumber: string) =>
     `📸 *Mande a foto do canhoto da NF ${stripLeadingZeros(documentNumber)}* aqui.\n_Se não entregou, mande_ *não entreguei*.`,
 } as const
+
+/** O primeiro nome do motorista como se lê ("ANDERSON MOTORISTA" → "Anderson"); vazio quando não há nome legível. */
+function firstNameOf(fullName: string | undefined): string {
+  const [first = ''] = plainText(fullName ?? '').split(' ')
+  return formatPlaceName(first) ?? ''
+}
+
+export type RouteCompletedParams = {
+  /** O nome do motorista da viagem; sem nome, sem a despedida (RF12). */
+  readonly driverName?: string | undefined
+  /** Quantas paradas a viagem tinha; desconhecido, a frase não diz o número. */
+  readonly totalStops?: number | undefined
+}
+
+/** RF12: "🏁 *Rota concluída!* Todas as N paradas estão fechadas." e, com o nome, "Bom descanso, Nome. 🌙". */
+export function describeRouteCompleted(params: RouteCompletedParams = {}): string {
+  const { totalStops } = params
+  const stops =
+    totalStops === undefined || totalStops < 2 ? 'as paradas' : `as ${totalStops} paradas`
+  const firstName = firstNameOf(params.driverName)
+  return [
+    `🏁 *Rota concluída!* Todas ${stops} estão fechadas.`,
+    ...(firstName === '' ? [] : [`Bom descanso, ${firstName}. 🌙`]),
+  ].join('\n')
+}
 
 export const JOURNEY_ACTION = {
   arrive: 'arrive',
@@ -330,17 +354,16 @@ export function describeAlreadySettled(input: {
     : `⚠️ *A entrega da NF ${number} já foi registrada*${when}.`
 }
 
-/** A oferta da próxima rota: o bloco da próxima parada e a pergunta (ou só o próximo passo). */
+/** A oferta da próxima rota: o bloco da próxima parada em citação (com a estrada, se houver ponto) e a pergunta ou o próximo passo. */
 export function describeNextRouteOffer(
   view: StopCardView,
-  input: { readonly asks: boolean; readonly now: Date },
+  input: { readonly asks: boolean },
 ): string {
   return [
     '➡️ *Próxima parada*',
-    ...describeStopCard(view.card, {
-      eta: view.eta === undefined ? undefined : { now: input.now, value: view.eta },
-      warnsUnreliableAddress: true,
-    }),
+    '',
+    describeStopBlock({ card: view.card, detail: 'list', eta: view.eta, quote: 'right' }),
+    ...unreliableWarning(view.card),
     '',
     ...(input.asks
       ? [JOURNEY_TEXT.question, describeJourneyOptions(nextRouteActions(view.card))]

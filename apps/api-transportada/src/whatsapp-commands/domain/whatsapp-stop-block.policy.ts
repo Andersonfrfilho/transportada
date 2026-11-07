@@ -64,9 +64,15 @@ export type DescribeStopBlockParams = {
 export function describeStopBlock(params: DescribeStopBlockParams): string {
   const { card } = params
   const header = params.header ?? (card.totalStops > 0 ? undefined : `*PARADA ${card.sequence}*`)
+  const stop = toMessageStop(card, params.eta)
+  // Sem bairro nem cidade (bloco mínimo, sem o leitor), o endereço que a parada traz ocupa a linha do lugar.
+  const hasPlace = stop.district !== undefined || stop.city !== undefined
   return formatStopBlock({
     detail: params.detail,
-    stop: toMessageStop(card, params.eta),
+    stop:
+      params.detail === 'list' && !hasPlace && stop.address
+        ? { ...stop, city: stop.address }
+        : stop,
     ...(header === undefined ? {} : { header }),
     ...(params.quote === undefined ? {} : { quote: params.quote }),
   })

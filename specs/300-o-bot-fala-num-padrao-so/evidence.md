@@ -185,3 +185,27 @@
   stop-location-prompt, group-stop-location, group-out-of-order e as fixtures/integrações das jornadas (regravadas com `JOURNEY_RECORD=1` e conferidas contra o desenho).
 - Gates: typecheck limpo · `bun test --timeout 120000` 14352 pass / 26 skip / 0 fail · eslint e prettier limpos · integração: `whatsapp-driver-journey-group` 2 pass,
   `whatsapp-driver-journey-direct` 2 pass, `whatsapp-driver-flow-actions` 4 pass, `whatsapp-command-driver` 5 pass. Suíte completa na T6.2.
+
+### T3.5 (executor `sonnet`)
+
+- Oferta da próxima (`describeNextRouteOffer(view, { asks })`, sem relógio): `➡️ *Próxima parada*` + bloco `list` em citação (bairro e cidade, `📏`/`⏱️` da estrada
+  quando há ponto, `🗺️ *Como chegar:* <dir>`) + aviso de endereço sem localização certa + `*O que você quer fazer agora?*` e `Seguir para a *parada N*` / `Escolher outra da
+  lista` / `Nada por enquanto` (ou só o próximo passo, sem pergunta). Sem o leitor (bloco mínimo da oferta da API), a linha do lugar traz o endereço da parada em vez de sumir.
+  RF7b: o link `dir` já estava em todo bloco desde a T3.3 (`buildRouteOfferMapUrl` e `formatDirectionsUrl`).
+- Recuo: `ROUTE_OFFER_TEXT.declined` e `JOURNEY_TEXT.nothingRecorded` = `👍 *Certo, nada foi registrado.*` + `➡️ _Próximo passo:_ quando for sair, mande *saí*.`
+  (contrato do desenho). A pergunta legada 1/2 do passo `route.offer` (pedido aberto antes do menu de ações) segue com o texto antigo das opções.
+- Rota concluída (RF12): `describeRouteCompleted({ totalStops, driverName })` = `🏁 *Rota concluída!* Todas as N paradas estão fechadas.` e, com nome, `Bom descanso,
+  <primeiro nome>. 🌙` (nome em iniciais maiúsculas, sem marcador do WhatsApp; sem nome, sem a frase; sem número ou com 1 parada, `Todas as paradas estão fechadas.`).
+  **De onde vem o nome:** a última baixa conclui a viagem e ela sai de `listActiveTrips`, e a baixa da API não devolve nome nem total quando a viagem fecha; foi preciso UMA
+  consulta, só na rota concluída: `whatsapp-commands/infrastructure/whatsapp-route-closing.reader.ts` (`trip_drivers.driver_name` do motorista na viagem `completed` mais
+  recente + `count(trip_stops)`), melhor esforço (falha → mensagem sem número e sem nome, log só com empresa e erro). Porta `readRouteClosing?` no grupo
+  (`routeCompletedText`, também no "nada por enquanto" e na nota já baixada sem pendente) e `routeClosing?` na conversa individual (`buildRouteOfferReply`, `nextStepOf`); ligadas
+  no `main.ts`. A frase substitui `ROUTE_OFFER_TEXT.routeCompleted` (removido).
+- Divergência spec × desenho: a spec e o pedido escrevem `🏁 _Rota concluída!_` em itálico; o desenho (`conversas.html`, fluxo 4) usa negrito `*Rota concluída!*`. Segui o desenho.
+  A primeira linha do desenho (`✅ *NF … entregue.* Parada concluída.`) é da entrega (T4.2): hoje a despedida segue como mensagem separada depois da fala da baixa.
+- Contratos: `whatsapp-stop-flow-design.contract.ts` ganhou o fluxo 4 (oferta com estrada, recuo, rota concluída com e sem nome/total); atualizados group-route-offer,
+  route-offer (com `routeClosing`/`readRouteClosing` nos dublês), driver-journey e as fixtures/integrações das jornadas (as duas já exercitam o leitor real em Postgres:
+  "Todas as 3 paradas estão fechadas. Bom descanso, Motorista.").
+- Gates: typecheck limpo · `bun test --timeout 120000` 14355 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção nova) · eslint e prettier limpos · integração:
+  `whatsapp-driver-journey-group` 2 pass, `whatsapp-driver-journey-direct` 2 pass, `whatsapp-driver-flow-actions` 4 pass, `whatsapp-command-driver` 5 pass. Suíte
+  `test:integration` completa fica para a T6.2.

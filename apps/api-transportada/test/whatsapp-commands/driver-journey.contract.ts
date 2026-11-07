@@ -242,14 +242,14 @@ describe('o evento repetido oferece o que cabe no estado da parada', () => {
   })
 
   test('a oferta da próxima rota: seguir para ela, escolher outra ou nada', () => {
-    expect(describeNextRouteOffer({ card: NEXT }, { asks: true, now: NOW })).toEndWith(
+    expect(describeNextRouteOffer({ card: NEXT }, { asks: true })).toEndWith(
       '*1* - 🚚 Seguir para a *parada 3*\n*2* - 📋 Escolher outra da lista\n*3* - 💤 Nada por enquanto',
     )
   })
 
   test.each([
     describeAlreadyArrived({ card: CARD }, { arrivedAt: 'x', now: NOW }),
-    describeNextRouteOffer({ card: NEXT }, { asks: false, now: NOW }),
+    describeNextRouteOffer({ card: NEXT }, { asks: false }),
     describePendingSettlement(
       { card: { ...CARD, recipientName: '*' } },
       { arrivedAt: '', now: NOW },

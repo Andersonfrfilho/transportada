@@ -27,7 +27,6 @@ export type RouteOfferStop = {
 export const ROUTE_OFFER_TEXT = {
   declined: `${NOTHING_RECORDED_TEXT}\n${formatNextStep('quando for sair, mande *saí*.')}`,
   options: ['*1* - Seguir para ela 🚚', '*2* - Escolher outra da lista'],
-  routeCompleted: '🏁 *Rota concluída:* todas as paradas fechadas.',
   withoutQuestion: formatNextStep('quando for sair, mande *saí*.'),
   unreliableAddress:
     '⚠️ Este endereço está sem localização certa no mapa. Quando chegar, marque Cheguei e compartilhe a localização: eu atualizo o endereço.',

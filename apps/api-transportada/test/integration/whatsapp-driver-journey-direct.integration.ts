@@ -46,6 +46,7 @@ import {
   type WhatsAppDriverEventPorts,
 } from '../../src/whatsapp-commands/application/whatsapp-driver-events.service.js'
 import { createWhatsAppDriverPrompts } from '../../src/whatsapp-commands/application/whatsapp-driver-prompts.service.js'
+import { createWhatsAppRouteClosingReader } from '../../src/whatsapp-commands/infrastructure/whatsapp-route-closing.reader.js'
 import { createModuleWhatsAppFlowGraphProvider } from '../../src/whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import { createInMemoryWhatsAppSharedLocationStore } from '../../src/whatsapp-commands/application/whatsapp-shared-location.service.js'
 import { createDrizzleWhatsAppDeliveryPreparationRepository } from '../../src/whatsapp-commands/infrastructure/drizzle-whatsapp-delivery-preparation.repository.js'
@@ -224,6 +225,7 @@ async function buildDirectJourney(
     clock,
     listStops,
     ports,
+    routeClosing: createWhatsAppRouteClosingReader({ database: db }),
     sharedLocations,
     speech: CATALOG_BOT_SPEECH,
     stopCards: createWhatsAppStopCardReader({

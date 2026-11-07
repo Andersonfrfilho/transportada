@@ -91,6 +91,8 @@ export function createGroupStopPorts(dependencies: {
   }
   readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
   readonly ports: Pick<WhatsAppDriverEventPorts, 'reportArrival' | 'reportDeparture'>
+  /** Spec 300 RF12: número de paradas e nome do motorista da despedida de "rota concluída". */
+  readonly routeClosing?: GroupStopFlowPorts['readRouteClosing']
   readonly resolveSenderRole?: GroupStopFlowPorts['resolveSenderRole']
   readonly speech?: WhatsAppBotSpeechPort
   /** Spec 300 RF4: distância e tempo da lista de paradas; ausente, a lista sai sem a linha. */
@@ -149,6 +151,9 @@ export function createGroupStopPorts(dependencies: {
       ? {}
       : { resolveSenderRole: dependencies.resolveSenderRole }),
     ...(dependencies.hasLocation === undefined ? {} : { hasLocation: dependencies.hasLocation }),
+    ...(dependencies.routeClosing === undefined
+      ? {}
+      : { readRouteClosing: dependencies.routeClosing }),
     ...(dependencies.stopListTravel === undefined
       ? {}
       : { readStopListTravel: dependencies.stopListTravel }),

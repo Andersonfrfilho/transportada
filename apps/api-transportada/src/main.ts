@@ -263,6 +263,7 @@ import {
 } from './whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { createWhatsAppOfficeStopEvents } from './whatsapp-commands/infrastructure/whatsapp-office-stop-events.adapter.js'
 import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
+import { createWhatsAppRouteClosingReader } from './whatsapp-commands/infrastructure/whatsapp-route-closing.reader.js'
 import { createGroupReturnPorts } from './whatsapp/infrastructure/whatsapp-group-return.adapter.js'
 import {
   createGroupReturnFlow,
@@ -1755,6 +1756,8 @@ export function bootstrap(): Bun.Server<undefined> {
       ? {}
       : { routing: createOsrmRouteGeometryGateway({ baseUrl: config.routingMatrixUrl }) }),
   })
+  /** Spec 300 RF12: número de paradas e nome do motorista da despedida de "rota concluída" (uma consulta). */
+  const whatsappRouteClosing = createWhatsAppRouteClosingReader({ database: database.db, logger })
   /** Spec 300 RF4: distância e tempo da lista de paradas, pela estrada (OSRM `table`, uma consulta); só com `ROUTING_MATRIX_URL`. */
   const whatsappStopListTravel = createDriverStopListTravel({
     listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
@@ -1827,6 +1830,7 @@ export function bootstrap(): Bun.Server<undefined> {
     }),
     ports: whatsappDriverEventPorts,
     resolveSenderRole: whatsappSenderRole,
+    routeClosing: whatsappRouteClosing,
     speech: whatsappBotSpeech,
     stopCards: whatsappStopCards,
     stopListTravel: whatsappStopListTravel,
@@ -1837,6 +1841,7 @@ export function bootstrap(): Bun.Server<undefined> {
     listStops: listWhatsAppDriverStops,
     logger,
     ports: whatsappDriverEventPorts,
+    routeClosing: whatsappRouteClosing,
     sharedLocations: whatsappSharedLocations,
     speech: whatsappBotSpeech,
     stopCards: whatsappStopCards,

@@ -262,6 +262,7 @@ function createHarness(options: HarnessOptions = {}) {
           return { changed: true }
         },
       },
+      routeClosing: async () => ({ driverName: 'ANDERSON MOTORISTA', totalStops: 6 }),
       speech: CATALOG_BOT_SPEECH,
     }),
     graphs: createStaticWhatsAppFlowGraphProvider({ graphs: [GRAPH], rootFlowKey: FLOW_KEY }),
@@ -308,8 +309,9 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
     const harness = createHarness({ continuation: CONTINUES })
     await harness.send('1')
     expect(harness.sent[0]).toBe('*NF 17234 entregue.* Parada concluída. ✅')
-    expect(harness.sent[1]).toContain('*Parada 4 de 6*')
-    expect(harness.sent[1]).toContain('🏪 *Padaria Sol*')
+    expect(harness.sent[1]).toContain(
+      '> *PARADA 4 de 6*\n> 🧾 NF `17300`, `17301` · *Padaria Sol*\n> 📍 Rua das Flores, 100 - Centro',
+    )
     expect(harness.sent[1]).toContain('*1* - 🚚 Seguir para a *parada 4*')
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toMatchObject({
       kind: 'journey_actions',
@@ -399,7 +401,7 @@ describe('conversa individual: a baixa que fecha a parada oferece a próxima rot
     await harness.send('1')
     expect(harness.sent).toEqual([
       '*NF 17234 entregue.* Parada concluída. ✅',
-      ROUTE_OFFER_TEXT.routeCompleted,
+      '🏁 *Rota concluída!* Todas as 6 paradas estão fechadas.\nBom descanso, Anderson. 🌙',
     ])
     expect(harness.contextOf()[DRIVER_PROMPT_CONTEXT_KEY]).toBeUndefined()
   })

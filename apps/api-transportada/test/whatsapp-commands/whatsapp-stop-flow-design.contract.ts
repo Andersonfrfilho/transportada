@@ -17,7 +17,9 @@ import {
   describeArrivalReply,
   describeDepartureReply,
   describeJourneyNotUnderstood,
+  describeNextRouteOffer,
   describePendingSettlement,
+  describeRouteCompleted,
   JOURNEY_TEXT,
   nextRouteActions,
 } from '../../src/whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
@@ -30,6 +32,7 @@ import {
 import {
   describeLocationPrompt,
   LOCATION_PROMPT_TEXT,
+  ROUTE_OFFER_TEXT,
 } from '../../src/whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import type { StopCard } from '../../src/whatsapp-commands/domain/whatsapp-stop-card.policy.js'
 
@@ -248,6 +251,7 @@ describe('fluxo 2 · Saí', () => {
 const STOP_4: StopCard = {
   ...STOP_3,
   city: 'Sao Joaquim da Barra',
+  coordinate: { latitude: '-20.5812', longitude: '-47.8547' },
   district: 'Centro',
   documentNumbers: ['899836'],
   sequence: 4,
@@ -361,6 +365,50 @@ describe('fluxo 3 · Cheguei', () => {
         '',
         '_A parada 3 continua aberta. Responda 1 ou 2._',
       ].join('\n'),
+    )
+  })
+})
+
+describe('fluxo 4 · Próxima parada', () => {
+  test('oferta da próxima: o bloco com a estrada e o menu Seguir / Escolher outra / Nada', () => {
+    expect(
+      describeNextRouteOffer(
+        { card: STOP_4, eta: { distanceMetres: 56_000, durationSeconds: 2700 } },
+        { asks: true },
+      ),
+    ).toBe(
+      [
+        '➡️ *Próxima parada*',
+        '',
+        '> *PARADA 4 de 9*',
+        '> 🧾 NF `899836` · *RETA ALIMENTOS LTDA*',
+        '> 📍 Centro, Sao Joaquim da Barra',
+        '> 📏 *56 km* · ⏱️ _~45 min_',
+        '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-20.5812,-47.8547',
+        '',
+        '*O que você quer fazer agora?*',
+        '*1* - 🚚 Seguir para a *parada 4*',
+        '*2* - 📋 Escolher outra da lista',
+        '*3* - 💤 Nada por enquanto',
+      ].join('\n'),
+    )
+  })
+
+  test('"nada por enquanto" recua com o próximo passo da saída', () => {
+    expect(ROUTE_OFFER_TEXT.declined).toBe(
+      '👍 *Certo, nada foi registrado.*\n➡️ _Próximo passo:_ quando for sair, mande *saí*.',
+    )
+  })
+
+  test('rota concluída: o número de paradas e o primeiro nome do motorista; sem nome, sem a despedida', () => {
+    expect(describeRouteCompleted({ driverName: 'ANDERSON FERNANDES', totalStops: 9 })).toBe(
+      '🏁 *Rota concluída!* Todas as 9 paradas estão fechadas.\nBom descanso, Anderson. 🌙',
+    )
+    expect(describeRouteCompleted({ totalStops: 9 })).toBe(
+      '🏁 *Rota concluída!* Todas as 9 paradas estão fechadas.',
+    )
+    expect(describeRouteCompleted({ driverName: '   ', totalStops: 1 })).toBe(
+      '🏁 *Rota concluída!* Todas as paradas estão fechadas.',
     )
   })
 })

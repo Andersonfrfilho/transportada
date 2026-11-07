@@ -57,6 +57,7 @@ import {
   describeJourneyNotUnderstood,
   describeNextRouteOffer,
   describePendingSettlement,
+  describeRouteCompleted,
   enRouteStopActions,
   JOURNEY_ACTION,
   JOURNEY_TEXT,
@@ -77,6 +78,7 @@ import {
   STOP_LIST_TEXT,
   type StopListTravelView,
 } from '../domain/whatsapp-stop-list.policy.js'
+import type { WhatsAppRouteClosingReader } from '../infrastructure/whatsapp-route-closing.reader.js'
 import type { WhatsAppStopCardReader } from '../infrastructure/whatsapp-stop-card.reader.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
@@ -103,13 +105,23 @@ export type RouteOfferReply = {
 
 /** O que a baixa que fechou a parada diz em seguida; o pedido só nasce com a pergunta aberta. */
 export function buildRouteOfferReply(input: {
+  /** Spec 300 RF12: o que a despedida de "rota concluída" diz; ausente, a frase sai sem o número e o nome. */
+  readonly closing?: { readonly driverName: string; readonly totalStops: number } | null | undefined
   readonly continuation: WhatsAppRouteContinuation
   readonly gate: RouteOfferGate
   readonly now: Date
 }): RouteOfferReply {
-  const { continuation, gate, now } = input
+  const { closing, continuation, gate, now } = input
   if (continuation.tripCompleted) {
-    return { prompt: undefined, texts: [ROUTE_OFFER_TEXT.routeCompleted] }
+    return {
+      prompt: undefined,
+      texts: [
+        describeRouteCompleted({
+          driverName: closing?.driverName,
+          totalStops: closing?.totalStops,
+        }),
+      ],
+    }
   }
   const { nextStop } = continuation
   if (nextStop === null) return { prompt: undefined, texts: [] }
@@ -218,6 +230,8 @@ export function createWhatsAppDriverPrompts(dependencies: {
   readonly ports: Pick<WhatsAppDriverEventPorts, 'reportArrival' | 'reportDeparture'>
   /** Ausente, o bot não pede localização (como antes da 294). */
   readonly sharedLocations?: Pick<WhatsAppSharedLocationStore, 'consume' | 'has'>
+  /** Spec 300 RF12: número de paradas e nome do motorista da despedida de "rota concluída". */
+  readonly routeClosing?: WhatsAppRouteClosingReader
   readonly speech: WhatsAppBotSpeechPort
   /** Só empresa e nome do erro (o bloco da parada que não leu). */
   readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
@@ -245,6 +259,15 @@ export function createWhatsAppDriverPrompts(dependencies: {
       })
       return null
     }
+  }
+
+  /** RF12: a despedida da rota concluída, com o número de paradas e o primeiro nome do motorista da viagem. */
+  async function routeCompletedText(actor: WhatsAppDriverActor): Promise<string> {
+    const closing = await dependencies.routeClosing?.(actor)
+    return describeRouteCompleted({
+      driverName: closing?.driverName,
+      totalStops: closing?.totalStops,
+    })
   }
 
   const listStopsOf = async (actor: WhatsAppDriverActor) =>
@@ -327,7 +350,12 @@ export function createWhatsAppDriverPrompts(dependencies: {
     const { continuation } = input
     const nextStop = continuation.tripCompleted ? null : continuation.nextStop
     if (nextStop === null) {
-      return buildRouteOfferReply({ continuation, gate: input.gate, now: clock() })
+      return buildRouteOfferReply({
+        closing: continuation.tripCompleted ? await dependencies.routeClosing?.(input.actor) : null,
+        continuation,
+        gate: input.gate,
+        now: clock(),
+      })
     }
     const read = await safeRead({
       companyId: input.actor.companyId,
@@ -338,7 +366,7 @@ export function createWhatsAppDriverPrompts(dependencies: {
     const view = read ?? { card: cardFromRouteOfferStop(nextStop) }
     const stop = { id: nextStop.id }
     const asks = canAskRouteOffer(input.gate)
-    const text = describeNextRouteOffer(view, { asks, now: clock() })
+    const text = describeNextRouteOffer(view, { asks })
     return asks
       ? menuReply(text, nextRouteActions(view.card), stop.id)
       : { prompt: undefined, texts: [text] }
@@ -376,11 +404,14 @@ export function createWhatsAppDriverPrompts(dependencies: {
     }
     const next = findNextPendingStop(stops)
     if (next === undefined) {
-      return { prompt: undefined, texts: [`${headline}\n${ROUTE_OFFER_TEXT.routeCompleted}`] }
+      return {
+        prompt: undefined,
+        texts: [`${headline}\n${await routeCompletedText(input.actor)}`],
+      }
     }
     const view = await viewOf(input.actor, next, true)
     return menuReply(
-      `${headline}\n\n${describeNextRouteOffer(view, { asks: true, now })}`,
+      `${headline}\n\n${describeNextRouteOffer(view, { asks: true })}`,
       nextRouteActions(view.card),
       next.id,
     )
@@ -416,7 +447,11 @@ export function createWhatsAppDriverPrompts(dependencies: {
           : []
     const [first] = pending
     if (first === undefined) {
-      return { context: cleared, handled: true, texts: [ROUTE_OFFER_TEXT.routeCompleted] }
+      return {
+        context: cleared,
+        handled: true,
+        texts: [await routeCompletedText(turn.actor)],
+      }
     }
     const prompt: DriverPrompt = {
       confirmOutOfOrder: options.confirmOutOfOrder,
@@ -769,7 +804,7 @@ export function createWhatsAppDriverPrompts(dependencies: {
     if (findStopEnRoute(stops) !== undefined) return JOURNEY_TEXT.nextArrive
     if (findStopAwaitingSettlement(stops) !== undefined) return JOURNEY_TEXT.nextSettle
     return findNextPendingStop(stops) === undefined
-      ? ROUTE_OFFER_TEXT.routeCompleted
+      ? routeCompletedText(actor)
       : JOURNEY_TEXT.nextDepart
   }
 

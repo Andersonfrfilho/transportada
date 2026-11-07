@@ -220,7 +220,10 @@ export function createGroupDriverFlow(flows: {
     const { nextStop, tripCompleted } =
       outcome.routeContinuation satisfies WhatsAppRouteContinuation
     if (tripCompleted) {
-      return { kind: 'done', replies: [...outcome.replies, ROUTE_OFFER_TEXT.routeCompleted] }
+      return {
+        kind: 'done',
+        replies: [...outcome.replies, await flows.stop.routeCompletedText(turn)],
+      }
     }
     if (nextStop === null) return { kind: 'done', replies: outcome.replies, withoutFarewell: true }
     const asks = canAskRouteOffer({

@@ -216,14 +216,12 @@ Você chegou às ${at} e ainda não registrou a entrega.
         `*NF 17234 entregue.* Parada concluída. ✅
 
 ➡️ *Próxima parada*
-*Parada 2 de 3*
-*NF 17235* · R$ 99,90
-🏪 *MERCADO LUA CHEIA*
-🏢 Contratante: Distribuidora Aurora
-📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
-🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
-📦 1 volume
-📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~${eta} (25 min)_
+
+> *PARADA 2 de 3*
+> 🧾 NF \`17235\` · *MERCADO LUA CHEIA*
+> 📍 Ribeirao Preto
+> 📏 *12 km* · ⏱️ _~25 min_
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
 
 *O que você quer fazer agora?*
 *1* - 🚚 Seguir para a *parada 2*
@@ -246,14 +244,12 @@ Você chegou às ${at} e ainda não registrou a entrega.
 ⚠️ *A entrega da NF 17234 já foi registrada* às ${at}.
 
 ➡️ *Próxima parada*
-*Parada 2 de 3*
-*NF 17235* · R$ 99,90
-🏪 *MERCADO LUA CHEIA*
-🏢 Contratante: Distribuidora Aurora
-📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
-🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
-📦 1 volume
-📏 *12,3 km* do seu último ponto · ⏱️ _chegada prevista ~${eta} (25 min)_
+
+> *PARADA 2 de 3*
+> 🧾 NF \`17235\` · *MERCADO LUA CHEIA*
+> 📍 Ribeirao Preto
+> 📏 *12 km* · ⏱️ _~25 min_
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
 
 *O que você quer fazer agora?*
 *1* - 🚚 Seguir para a *parada 2*
@@ -417,13 +413,11 @@ ${farewell}`,
         `*NF 17236 não entregue* ↩️
 
 ➡️ *Próxima parada*
-*Parada 2 de 3*
-*NF 17235* · R$ 99,90
-🏪 *MERCADO LUA CHEIA*
-🏢 Contratante: Distribuidora Aurora
-📍 AVENIDA BRASIL, 2500, SERTAOZINHO, SP
-🗺️ https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
-📦 1 volume
+
+> *PARADA 2 de 3*
+> 🧾 NF \`17235\` · *MERCADO LUA CHEIA*
+> 📍 Ribeirao Preto
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
 
 *O que você quer fazer agora?*
 *1* - 🚚 Seguir para a *parada 2*
@@ -540,7 +534,8 @@ _Se não puder agora, responda pular._`,
       answered: [
         `*NF 17235 entregue.* Viagem concluída. 🏁
 
-🏁 *Rota concluída:* todas as paradas fechadas.
+🏁 *Rota concluída!* Todas as 3 paradas estão fechadas.
+Bom descanso, Motorista. 🌙
 
 ${farewell}`,
       ],
