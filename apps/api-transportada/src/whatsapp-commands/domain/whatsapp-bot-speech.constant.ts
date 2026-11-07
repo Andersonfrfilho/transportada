@@ -6,8 +6,15 @@
  * só o **padrão** publicado pelo código e o recuo quando o nó não existe no grafo vivo. Variáveis
  * entram como `{{nome}}`, e o editor as preserva como texto comum.
  */
+import { formatNextStep, REGISTER_FAILED_TEXT } from './whatsapp-message-format.policy.js'
 
 export const BOT_SPEECH_NODE_PREFIX = 'fala_'
+
+/** Spec 300 T5.4: a mesma recusa no grupo e na conversa individual. */
+const DOCUMENT_NOT_REACHABLE_TEXT = [
+  '🚫 *Essa nota não está mais na viagem do motorista.*',
+  formatNextStep('confira com o escritório.'),
+].join('\n')
 
 export const BOT_SPEECH_DEFAULTS = {
   alreadyRegistered: 'Já estava registrada.',
@@ -77,7 +84,7 @@ export const BOT_SPEECH_DEFAULTS = {
   operatorTripNoMoreActions: 'Esta viagem não aceita mais ações por aqui.',
   operatorUnscheduledStops: 'Há paradas sem agendamento — despache pelo painel.',
   returnRegistered: '↩️ *Não entrega registrada*',
-  driverDocumentNotReachable: 'Essa nota não está mais disponível na sua viagem.',
+  driverDocumentNotReachable: DOCUMENT_NOT_REACHABLE_TEXT,
   tripUnavailable: 'Esta viagem não está mais disponível.',
   /**
    * Spec 293 T11: os eventos da entrega pela camada comum (`whatsapp-driver-events.service.ts`). As
@@ -95,12 +102,14 @@ export const BOT_SPEECH_DEFAULTS = {
     '✅ *NF `{{documentNumber}}` entregue.* Parada {{sequence}} concluída.',
   groupDeliveryTripCompleted:
     '✅ *NF `{{documentNumber}}` entregue.* Parada {{sequence}} concluída.',
-  groupDocumentNotReachable: 'Essa nota não está mais disponível na viagem do motorista.',
-  groupDriverWithoutAccess:
-    'O motorista deste grupo ainda não tem acesso ao aplicativo, e o registro precisa ficar no nome dele. Cadastre o acesso ou registre pelo painel.',
+  groupDocumentNotReachable: DOCUMENT_NOT_REACHABLE_TEXT,
+  groupDriverWithoutAccess: [
+    '🔒 *O motorista deste grupo ainda não tem acesso ao aplicativo.*',
+    'O registro precisa ficar no nome dele.',
+    formatNextStep('peça ao escritório para liberar o acesso, ou registre pelo painel.'),
+  ].join('\n'),
   groupOccurrenceRegistered: '✅ *Ocorrência registrada* · NF `{{documentNumber}}`',
-  groupRegisterFailed:
-    'Não consegui registrar agora. Tente de novo em instantes ou registre pelo aplicativo.',
+  groupRegisterFailed: REGISTER_FAILED_TEXT,
   groupReturnRegistered:
     '↩️ *NF `{{documentNumber}}` não entregue* · {{reason}}\nA nota volta com você para o armazém.',
 } as const

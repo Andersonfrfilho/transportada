@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { REGISTER_FAILED_TEXT } from './whatsapp-message-format.policy.js'
 
 const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
@@ -24,7 +25,7 @@ export const WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY = 'whatsappInvalidListAns
 export const WHATSAPP_LIST_ANSWER_FALLBACK = 'Toque numa das opções da lista.'
 
 /** T020 (B4): o erro que nenhuma FlowAction mapeou. Sem detalhe, porque o detalhe é do log. */
-export const WHATSAPP_COMMAND_FAILURE_REPLY = 'Não consegui registrar agora. Tente de novo.'
+export const WHATSAPP_COMMAND_FAILURE_REPLY = REGISTER_FAILED_TEXT
 
 export const WHATSAPP_PHONE_VERIFIED_REPLY = '✅ Número vinculado.'
 

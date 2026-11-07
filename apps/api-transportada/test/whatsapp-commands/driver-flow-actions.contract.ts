@@ -582,7 +582,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
 
     expect(sent).toEqual([
       {
-        body: 'A viagem ainda não foi despachada — entregar e devolver só depois da saída.',
+        body: '🚫 *A viagem ainda não foi despachada.* Entregar e devolver só depois da saída.',
         kind: 'text',
       },
     ])
@@ -606,7 +606,10 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
 
     expect(sent).toEqual([
-      { body: 'Essa nota não está mais disponível na sua viagem.', kind: 'text' },
+      {
+        body: '🚫 *Essa nota não está mais na viagem do motorista.*\n➡️ _Próximo passo:_ confira com o escritório.',
+        kind: 'text',
+      },
     ])
   })
 

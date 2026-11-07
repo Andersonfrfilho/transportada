@@ -49,7 +49,7 @@ export const GROUP_REQUEST_TEXT = {
   busy: '⏳ *Já tem um pedido aberto neste grupo.*\nTermine o pedido de cima ou responda *cancelar*.',
   cancelled: `↩️ *Pedido cancelado.* Nada foi registrado.\n${formatNextStep('quando quiser, marque o bot de novo.')}`,
   gaveUp:
-    'Não consegui entender depois de 3 tentativas e encerrei o pedido. Suporte, por favor, acompanhe por aqui.',
+    '🙋 *Não consegui entender depois de 3 tentativas* e encerrei o pedido.\nO escritório vai acompanhar por aqui.',
   notUnderstood: (reason: string, prompt: string) =>
     [
       formatNotUnderstood({ reason: toReasonSentence(reason) }),

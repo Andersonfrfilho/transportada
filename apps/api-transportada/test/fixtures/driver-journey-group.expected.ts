@@ -102,14 +102,15 @@ _Se não puder agora, responda pular._`,
     },
     {
       answered: [
-        `🎙️ Estou escutando o seu áudio, só um momento. Já te mostro o que entendi para você confirmar.`,
+        `🎙️ _Escutando seu áudio, só um momento._`,
         `🎙️ *Entendi assim:*
+> 💬 _"cheguei"_
 
-💬 _“cheguei”_
+*Está certo?*
+*1* - ✅ Sim, pode seguir
+*2* - ❌ Não, descartar
 
-👉 *Está certo?* Responda com o número ou por áudio (_sim_ ou _não_):
-✅ *1 - Sim*, pode seguir
-❌ *2 - Não*, descartar`,
+_Responda com o número ou por áudio (sim ou não)._`,
       ],
       shown: '🎤 (áudio: "cheguei")',
     },

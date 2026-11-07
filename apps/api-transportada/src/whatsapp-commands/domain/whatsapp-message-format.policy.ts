@@ -11,6 +11,12 @@ export const STOP_LIST_VISIBLE_LIMIT = 10
 export const NOTHING_RECORDED_TEXT = '👍 *Certo, nada foi registrado.*'
 export const DISCARDED_TEXT = '↩️ *Descartado.* Nada foi registrado.'
 
+/** Spec 300 T5.4: a falha de registro é a mesma no grupo e na conversa individual. */
+export const REGISTER_FAILED_TEXT = [
+  '⚠️ *Não consegui registrar agora.*',
+  formatNextStep('tente de novo em instantes, ou registre pelo aplicativo.'),
+].join('\n')
+
 const QUOTE_PREFIX = '> '
 const DIRECTIONS_URL_BASE = 'https://www.google.com/maps/dir/?api=1&destination='
 

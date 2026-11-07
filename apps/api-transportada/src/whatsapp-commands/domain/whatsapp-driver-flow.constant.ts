@@ -115,17 +115,17 @@ export function describeReturnReasonOption(reason: DriverReturnReason): MessageO
 
 /** pt-BR do `TRIP_TRANSITION_BLOCK` (`trip-state.policy.ts`) — o motorista nunca lê código em inglês. */
 export const DRIVER_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlock, string>> = {
-  TRIP_ALREADY_DISPATCHED: 'A viagem já está na rua e não aceita mais mudanças por aqui.',
-  TRIP_CANCELLED: 'Esta viagem foi cancelada.',
-  TRIP_COMPLETED: 'Esta viagem já foi concluída.',
-  TRIP_SEPARATION_STARTED: 'A separação desta viagem já começou: a tripulação não troca mais.',
-  TRIP_CREW_NOT_DEFINED: 'Esta viagem ainda não tem motorista ou veículo definido.',
-  TRIP_DOCUMENT_ALREADY_CLOSED: 'Esta nota já foi entregue ou devolvida.',
-  TRIP_DOCUMENT_NOT_LOADED: 'Esta nota ainda não foi carregada.',
-  TRIP_DOCUMENT_NOT_SEPARATED: 'Esta nota ainda não foi separada.',
-  TRIP_HAS_NO_ROUTE: 'A viagem não tem roteiro planejado.',
+  TRIP_ALREADY_DISPATCHED: '🚫 *A viagem já está na rua.* Não aceita mais mudanças por aqui.',
+  TRIP_CANCELLED: '🚫 *Esta viagem foi cancelada.*',
+  TRIP_COMPLETED: '🚫 *Esta viagem já foi concluída.*',
+  TRIP_SEPARATION_STARTED: '🚫 *A separação desta viagem já começou.* A tripulação não troca mais.',
+  TRIP_CREW_NOT_DEFINED: '🚫 *Esta viagem ainda não tem motorista ou veículo definido.*',
+  TRIP_DOCUMENT_ALREADY_CLOSED: '🚫 *Esta nota já foi entregue ou devolvida.*',
+  TRIP_DOCUMENT_NOT_LOADED: '🚫 *Esta nota ainda não foi carregada.*',
+  TRIP_DOCUMENT_NOT_SEPARATED: '🚫 *Esta nota ainda não foi separada.*',
+  TRIP_HAS_NO_ROUTE: '🚫 *A viagem não tem roteiro planejado.*',
   TRIP_NOT_DISPATCHED:
-    'A viagem ainda não foi despachada — entregar e devolver só depois da saída.',
-  TRIP_ROUTE_NOT_PLANNED: 'O roteiro da viagem ainda não foi planejado.',
-  TRIP_TRAILER_REQUIRED: 'O cavalo precisa de uma carreta atrelada antes de sair.',
+    '🚫 *A viagem ainda não foi despachada.* Entregar e devolver só depois da saída.',
+  TRIP_ROUTE_NOT_PLANNED: '🚫 *O roteiro da viagem ainda não foi planejado.*',
+  TRIP_TRAILER_REQUIRED: '🚫 *O cavalo precisa de uma carreta atrelada antes de sair.*',
 }

@@ -375,3 +375,38 @@
   `whatsapp-commands.contract.test.ts`. Atualizados `group-attendant-close` e `attendant-field-actions`.
 - Gates: typecheck limpo · `bun --env-file=../../.env.test test --timeout 120000` 14417 testes: 14391 pass, 26 skip (os mesmos), 0 fail (`literal-message-text` verde) ·
   eslint e prettier limpos · integração: nenhum arquivo de `test/integration` referencia o encerramento (grep trip-close/TripClose/attendant-field), nada a rodar.
+
+### T5.4 (executor `haiku` → `opus` por ordem do dono) — tempo esgotado, áudio, recusas da API
+
+- Tempo (`whatsapp/infrastructure/whatsapp-group-request-expiry.watcher.ts`, `GROUP_REQUEST_EXPIRY_TEXT`): aviso `⏳ *Ainda espero sua resposta.*` + linha;
+  encerramento `⏰ *Pedido encerrado sem resposta.* Nada foi registrado.` + `formatNextStep`. Desistência (`whatsapp/application/whatsapp-group-request.service.ts`,
+  `GROUP_REQUEST_TEXT.gaveUp`): `🙋 *Não consegui entender depois de 3 tentativas* e encerrei o pedido.` + `O escritório vai acompanhar por aqui.`
+- Áudio (`whatsapp/application/whatsapp-bot-audio.service.ts`): `BOT_AUDIO_SPEECH.received` = `🎙️ _Escutando seu áudio, só um momento._`. `botAudioConfirmationText`
+  monta o "Entendi assim" no desenho: título, `> 💬 _"fala"_` (aspas retas, como no desenho), linhas da nota, `*Está certo?*`, opções por `formatOptions`
+  e `formatReplyHint` (módulo de formatação, sem montagem própria).
+- Nota falada (`whatsapp/domain/bot-spoken-note.policy.ts`, `describeSpokenNotes`): `🧾 NF \`n\` · *cliente*` e, em linha própria, `📍 endereço` (RF2).
+  Sem valor e sem contratante, como no desenho (mesma decisão da T5.1). `formatSpokenNoteAmount` segue exportada (usada em outros fluxos).
+- Recusas (`whatsapp-commands/domain/whatsapp-bot-speech.constant.ts`): `DOCUMENT_NOT_REACHABLE_TEXT` (nota fora da viagem + `➡️ _Próximo passo:_ confira com o escritório.`)
+  serve `groupDocumentNotReachable` e `driverDocumentNotReachable`; `groupDriverWithoutAccess` (🔒, registro no nome dele, próximo passo); `REGISTER_FAILED_TEXT`
+  (em `whatsapp-message-format.policy.ts`) serve `groupRegisterFailed` **e** `WHATSAPP_COMMAND_FAILURE_REPLY` (`whatsapp-command.constant.ts`), que era a
+  mesma recusa em outro texto na conversa individual.
+- Bloqueios da API (`whatsapp-commands/domain/whatsapp-driver-flow.constant.ts`, `DRIVER_TRANSITION_BLOCK_MESSAGES`): o desenho não tem texto para eles.
+  Aplicado só o título: `🚫 *…*` com a frase principal em negrito e o resto em linha normal. Nenhum próximo passo inventado.
+- Variáveis `{{…}}` novas: nenhuma. `fala_*` trocados no padrão (defaults): `groupDocumentNotReachable`, `driverDocumentNotReachable`,
+  `groupDriverWithoutAccess`, `groupRegisterFailed`. Nós vivos no grafo não mudam até a T6.1 (publicação preserva o texto).
+- Divergências spec × desenho (para o dono confirmar):
+  1. "Essa nota não está mais na viagem do motorista" também na conversa individual, onde o texto antigo era "na sua viagem": a regra "mesmo texto em grupo e individual" prevaleceu.
+  2. Confirmação do áudio: o desenho põe o lugar na mesma linha da nota (`· Guaira`). Aqui o endereço vai numa linha `📍` própria, porque a nota só tem endereço completo (RF2).
+  3. Bloqueios `TRIP_*` (sem texto no desenho): o prefixo do grupo `NF n: ` continua antes do ícone; o RF1 pede ícone primeiro. Mudança para depois.
+  4. `busy` de `whatsapp-canhoto-recognition-speech.constant.ts` tem o mesmo título `⏳ *Ainda espero sua resposta.*`, mas é do fluxo 5 (canhoto): não foi mexido aqui.
+  5. Ficaram sem troca, por não estarem no desenho: `BOT_AUDIO_SPEECH` (descartado, vazio, falha, longo, indisponível), "Não achei a NF" e "Notas com você" da nota falada, `🔢 Nota`.
+- Contrato: `test/whatsapp-commands/whatsapp-errors-flow-design.contract.ts` (fluxo 10: pedido sem resposta, desistência, escutando, "Entendi assim" com nota e sem nota,
+  recusas; `toBe` inteiro), ligado em `whatsapp-commands.contract.test.ts`. Atualizados (texto inteiro, sem `toContain` novo): `test/whatsapp/bot-audio.contract.ts`
+  (confirmação e nota falada), `test/whatsapp-commands/driver-flow-actions.contract.ts` (duas recusas), `test/fixtures/driver-journey-direct.expected.ts` e
+  `test/fixtures/driver-journey-group.expected.ts` (fala do áudio e "Entendi assim" dos dois caminhos reais).
+- Gates (árvore com T5.4 completa, de `apps/api-transportada`):
+  1. `bun run typecheck`: limpo.
+  2. `bun --env-file=../../.env.test test --timeout 120000`: 14421 testes em 224 arquivos: 14395 pass, 26 skip (os mesmos de antes), 0 fail. `literal-message-text` verde, sem exceção nova.
+  3. Integração, arquivos afetados (`whatsapp-driver-journey-direct`, `whatsapp-driver-journey-group`, `whatsapp-group-request-repository`, `whatsapp-group-occurrence-adapter`,
+     `whatsapp-driver-flow-actions`): 14 pass, 0 fail. Na primeira rodada, duas jornadas falharam por causa do texto antigo do áudio nos fixtures; corrigidas e rodadas de novo.
+  4. `bunx eslint` e `bunx prettier --write` nos arquivos tocados: limpos. O worker não espelha nenhum arquivo tocado.

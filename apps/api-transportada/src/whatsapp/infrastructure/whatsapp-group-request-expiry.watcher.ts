@@ -5,12 +5,15 @@ import { sql } from 'drizzle-orm'
 
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { GroupReplySenderPort } from '../application/whatsapp-group-request.port.js'
+import { formatNextStep } from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
 
 export const GROUP_REQUEST_EXPIRY_TEXT = {
-  expired:
-    '⏰ Não recebi resposta e encerrei este pedido. Para recomeçar, é só me marcar de novo. 🙂',
+  expired: [
+    '⏰ *Pedido encerrado sem resposta.* Nada foi registrado.',
+    formatNextStep('para recomeçar, é só me marcar de novo.'),
+  ].join('\n'),
   warning:
-    '⏳ Ainda estou aguardando a resposta do pedido. Se ninguém responder nos próximos minutos, eu encerro por aqui.',
+    '⏳ *Ainda espero sua resposta.*\nSe ninguém responder nos próximos minutos, eu encerro este pedido.',
 } as const
 
 type Row = { readonly company_id: string; readonly group_jid: string }

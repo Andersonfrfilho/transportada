@@ -17,6 +17,10 @@
  */
 import type { ApiLogger } from '../../shared/api.types.js'
 import { runOutsideWhatsAppTurn } from '../../whatsapp-commands/application/whatsapp-turn-replies.service.js'
+import {
+  formatOptions,
+  formatReplyHint,
+} from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
 
 export type BotAudioTranscriberPort = {
   /** O texto do áudio (pode vir vazio). Falha lança. */
@@ -36,8 +40,7 @@ export const BOT_AUDIO_SPEECH = {
     '🤔 Não consegui entender o áudio. Pode repetir falando mais perto do celular, ou escrever a mensagem?',
   failed:
     '⚠️ Não consegui transcrever o áudio agora. Pode mandar de novo daqui a pouco ou escrever a mensagem?',
-  received:
-    '🎙️ Estou escutando o seu áudio, só um momento. Já te mostro o que entendi para você confirmar.',
+  received: '🎙️ _Escutando seu áudio, só um momento._',
   tooLong: `⏱️ O áudio passou de ${BOT_AUDIO_MAX_SECONDS / 60} minutos. Mande um áudio mais curto ou escreva a mensagem, por favor.`,
   unavailable: '✍️ Por aqui eu ainda não consigo ouvir áudio. Escreva a mensagem, por favor.',
 } as const
@@ -83,13 +86,16 @@ export function botAudioConfirmationText(
   const tail = [...joined.map((number) => `🔢 Nota: *${number}*`), ...details]
   return [
     '🎙️ *Entendi assim:*',
-    '',
-    `💬 _“${preview}”_`,
-    '',
-    '👉 *Está certo?* Responda com o número ou por áudio (_sim_ ou _não_):',
-    '✅ *1 - Sim*, pode seguir',
-    '❌ *2 - Não*, descartar',
+    `> 💬 _"${preview}"_`,
     ...tail.flatMap((line) => ['', line]),
+    '',
+    '*Está certo?*',
+    formatOptions([
+      { action: 'Sim, pode seguir', icon: '✅' },
+      { action: 'Não, descartar', icon: '❌' },
+    ]),
+    '',
+    formatReplyHint('Responda com o número ou por áudio (sim ou não).'),
   ].join('\n')
 }
 
