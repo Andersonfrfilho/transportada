@@ -262,6 +262,22 @@ describe('encerrar a rota pelo bot', () => {
     expect(no.texts).toEqual([ATTENDANT_TEXT.cancelled])
   })
 
+  test('nota baixada entre a pergunta e o "sim" não aparece como sem baixa', async () => {
+    const t = setup([
+      {
+        ...TRIP_B,
+        documents: [doc('D4', '900', { separationStatus: 'delivered' }), TRIP_B.documents[1]!],
+      },
+    ])
+    await t.run(ATTENDANT_FLOW_ACTION_KIND.closeRouter, {
+      [ATTENDANT_FLOW_CONTEXT_KEY.closeAnswer]: ATTENDANT_CLOSE_ANSWER.confirm,
+      [ATTENDANT_FLOW_CONTEXT_KEY.closeOpenNumbers]: ['900'],
+      [ATTENDANT_FLOW_CONTEXT_KEY.tripId]: 'TB',
+    })
+    expect(t.closed).toEqual([{ tripId: 'TB', userId: 'U9' }])
+    expect(t.texts).toEqual(['🏁 *Rota encerrada.*'])
+  })
+
   test('falha ao encerrar vira aviso, nunca silêncio', async () => {
     const t = setup()
     t.failures.close = true

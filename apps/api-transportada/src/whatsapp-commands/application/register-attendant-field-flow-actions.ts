@@ -282,8 +282,14 @@ export function createAttendantFieldFlowActions(
       return { context: cleared, next: 'menu' }
     }
     try {
+      const trips = await deps.listRoadTrips({ companyId: actor.scope.companyId })
+      const openNumbers =
+        trips
+          .find((trip) => trip.id === tripId)
+          ?.documents.filter(isOpenDocument)
+          .map((document) => document.number) ?? readStrings(context, KEY.closeOpenNumbers)
       await deps.closeTrip({ context: actor.scope, tripId })
-      await channel.sendText(to, ATTENDANT_TEXT.closed(readStrings(context, KEY.closeOpenNumbers)))
+      await channel.sendText(to, ATTENDANT_TEXT.closed(openNumbers))
     } catch {
       await channel.sendText(to, ATTENDANT_TEXT.closeFailed)
     }

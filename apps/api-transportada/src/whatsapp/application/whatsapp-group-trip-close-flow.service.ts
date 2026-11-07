@@ -24,7 +24,8 @@ export type GroupTripCloseFlowPorts = {
     readonly phone: string
     readonly tripId: string
   }) => Promise<
-    { readonly kind: 'closed' } | { readonly kind: 'refused'; readonly message: string }
+    | { readonly kind: 'closed'; readonly openDocumentNumbers: readonly string[] }
+    | { readonly kind: 'refused'; readonly message: string }
   >
   /** A viagem ativa do motorista do grupo e os números das notas dela que ainda não fecharam. */
   readonly findActiveTrip: (input: {
@@ -73,12 +74,6 @@ const normalize = (text: string) =>
     .replace(/[.!?,;:]+$/u, '')
     .trim()
 
-function readOpenNumbers(state: Record<string, unknown>): readonly string[] {
-  const value = state.openDocumentNumbers
-  if (!Array.isArray(value)) return []
-  return value.filter((item): item is string => typeof item === 'string')
-}
-
 export function createGroupTripCloseFlow(ports: GroupTripCloseFlowPorts) {
   const done = (text: string): GroupFlowOutcome => ({ kind: 'done', replies: [text] })
 
@@ -97,7 +92,7 @@ export function createGroupTripCloseFlow(ports: GroupTripCloseFlowPorts) {
       return {
         kind: 'continue',
         replies: [GROUP_TRIP_CLOSE_TEXT.confirm(trip.openDocumentNumbers)],
-        state: { openDocumentNumbers: trip.openDocumentNumbers, tripId: trip.tripId },
+        state: { tripId: trip.tripId },
         step: GROUP_TRIP_CLOSE_STEP.confirm,
       }
     },
@@ -120,7 +115,7 @@ export function createGroupTripCloseFlow(ports: GroupTripCloseFlowPorts) {
       }
       const result = await ports.close({ companyId, phone: turn.sender, tripId })
       if (result.kind !== 'closed') return done(result.message)
-      return done(GROUP_TRIP_CLOSE_TEXT.closed(readOpenNumbers(turn.request.state)))
+      return done(GROUP_TRIP_CLOSE_TEXT.closed(result.openDocumentNumbers))
     },
   }
 }

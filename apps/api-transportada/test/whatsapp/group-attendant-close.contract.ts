@@ -59,7 +59,10 @@ const request = (step: string, state: Record<string, unknown> = {}): GroupReques
 })
 
 function setup(
-  options: { trip?: Awaited<ReturnType<GroupTripCloseFlowPorts['findActiveTrip']>> } = {},
+  options: {
+    openAtClose?: readonly string[]
+    trip?: Awaited<ReturnType<GroupTripCloseFlowPorts['findActiveTrip']>>
+  } = {},
 ) {
   const delivered: { documentId: string; actorUserId: string; attendant?: true }[] = []
   const closed: { phone: string; tripId: string }[] = []
@@ -93,7 +96,7 @@ function setup(
   const tripClose = createGroupTripCloseFlow({
     close: async (input) => {
       closed.push({ phone: input.phone, tripId: input.tripId })
-      return { kind: 'closed' }
+      return { kind: 'closed', openDocumentNumbers: options.openAtClose ?? ['17234', '17235'] }
     },
     findActiveTrip: async () =>
       options.trip ?? { kind: 'one', openDocumentNumbers: ['17234', '17235'], tripId: 'T1' },
@@ -220,6 +223,15 @@ describe('encerrar a rota (RF21)', () => {
     expect(t.closed).toEqual([{ phone: ATTENDANT, tripId: 'T1' }])
   })
 
+  test('nota baixada entre a pergunta e o "sim": o desfecho usa as abertas de agora', async () => {
+    const t = setup({ openAtClose: ['17235'] })
+    await t.start(ATTENDANT, 'encerrar a rota')
+    expect(await t.answer(ATTENDANT, '1')).toEqual({
+      kind: 'done',
+      replies: [GROUP_TRIP_CLOSE_TEXT.closed(['17235'])],
+    })
+  })
+
   test('com 2 a rota continua aberta e nada é chamado', async () => {
     const t = setup()
     await t.start(ATTENDANT, 'encerrar a rota')
@@ -272,6 +284,28 @@ describe('encerrar a rota (RF21)', () => {
 })
 
 describe('contagem de notas abertas é a regra do servidor (trip-close.policy)', () => {
+  test('o encerramento relê as notas e devolve as que ficaram abertas', async () => {
+    let reads = 0
+    const documents = [
+      { number: '17234', releasedAt: null, separationStatus: 'loaded' },
+      { number: '17235', releasedAt: null, separationStatus: 'delivered' },
+    ]
+    const closePorts = createWhatsAppGroupTripClosePorts({
+      bridge: { close: async () => ({}) },
+      listActiveTrips: async () => [],
+      readCloseDocuments: async () => {
+        reads += 1
+        return documents as never
+      },
+      resolveActor: async () =>
+        ({ context: { scope: { companyId: 'C1', userId: 'U9' } }, status: 'allowed' }) as never,
+      resolveSenderRole,
+    })
+    const result = await closePorts.close({ companyId: 'C1', phone: ATTENDANT, tripId: 'T1' })
+    expect(result).toEqual({ kind: 'closed', openDocumentNumbers: ['17234'] })
+    expect(reads).toBe(1)
+  })
+
   const ports = (
     documents: { number: string; releasedAt: null | string; separationStatus: string }[],
   ) =>
