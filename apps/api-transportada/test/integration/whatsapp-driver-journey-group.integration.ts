@@ -464,6 +464,27 @@ const STOP_1_CARD = [
   '🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000',
 ]
 
+const LIST_OF_THREE = [
+  '🚚 *Para qual parada você saiu?*',
+  '',
+  '> 👉 *PARADA 1 de 3* · _próxima da rota_',
+  '> 🧾 NF `17234` · *PADARIA SOL NASCENTE*',
+  '> 📍 Ribeirao Preto',
+  '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+  '',
+  '*PARADA 2 de 3*',
+  '🧾 NF `17235` · *MERCADO LUA CHEIA*',
+  '📍 Ribeirao Preto',
+  '🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99',
+  '',
+  '*PARADA 3 de 3*',
+  '🧾 NF `17236` · *ACOUGUE ESTRELA*',
+  '📍 Ribeirao Preto',
+  '🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.34,-47.73',
+  '',
+  '_Responda com o número da parada ou da nota._',
+].join('\n')
+
 function resumeJourneySteps(input: { readonly at: string; readonly greeting: string }): readonly {
   readonly expected: { readonly answered: readonly string[]; readonly shown: string }
   readonly expireRequest?: true
@@ -491,9 +512,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
     },
     {
       expected: {
-        answered: [
-          `${greeting}\n\n*Qual parada?* _Responda com o número da opção ou da nota:_\n*1* - NF 17234 · PADARIA SOL NASCENTE\n*2* - NF 17235 · MERCADO LUA CHEIA\n*3* - NF 17236 · ACOUGUE ESTRELA`,
-        ],
+        answered: [`${greeting}\n\n${LIST_OF_THREE}`],
         shown: '@bot iniciar rota',
       },
       send: text('@bot iniciar rota'),
@@ -642,7 +661,7 @@ function groupJourneySteps(world: JourneyWorld): readonly JourneyStep[] {
     text('cancelar'),
     text('@bot entreguei 17234'),
     text('2'),
-    text('2'),
+    text('3'),
     text('pular'),
     text('1'),
     text('@bot cheguei'),

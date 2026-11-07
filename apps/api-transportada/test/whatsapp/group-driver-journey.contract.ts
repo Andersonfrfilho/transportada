@@ -167,7 +167,7 @@ describe('grupo: "saí" com a baixa pendente', () => {
     const text = warned.kind === 'continue' ? (warned.replies[0] ?? '') : ''
     expect(text).toContain('⚠️ *Falta a baixa desta parada.*')
     expect(await t.answer('3')).toMatchObject({ kind: 'continue', step: 'stop.choose' })
-    expect(await t.answer('1')).toEqual({ kind: 'done', replies: ['Saída'], withoutFarewell: true })
+    expect(await t.answer('2')).toEqual({ kind: 'done', replies: ['Saída'], withoutFarewell: true })
     expect(t.recorded).toMatchObject([{ confirmOutOfOrder: true, event: 'depart', stopId: 'S2' }])
   })
 })

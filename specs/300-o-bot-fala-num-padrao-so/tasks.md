@@ -47,7 +47,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 - [x] **T3.1** Menu e desfechos gerais (fluxo 1 + RF8: "Não entreguei" no menu). Contratos com o texto de
       `conversas.html`. Aceite: contratos verdes.
-- [ ] **T3.2** Lista de paradas (RF4–RF7b) no grupo e na individual. Aceite: texto igual ao desenho com a fixture das
+- [x] **T3.2** Lista de paradas (RF4–RF7b) no grupo e na individual. Aceite: texto igual ao desenho com a fixture das
       paradas 3–7.
 - [ ] **T3.3** Saída: localização, registrada, já a caminho com menu (RF9), repetida, baixa pendente, fora da rota.
 - [ ] **T3.4** Chegada: endereço sem localização, registrada, repetida, fora da rota.

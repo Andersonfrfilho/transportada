@@ -92,6 +92,8 @@ export function createGroupStopPorts(dependencies: {
   readonly ports: Pick<WhatsAppDriverEventPorts, 'reportArrival' | 'reportDeparture'>
   readonly resolveSenderRole?: GroupStopFlowPorts['resolveSenderRole']
   readonly speech?: WhatsAppBotSpeechPort
+  /** Spec 300 RF4: distância e tempo da lista de paradas; ausente, a lista sai sem a linha. */
+  readonly stopListTravel?: GroupStopFlowPorts['readStopListTravel']
   /** O bloco da parada nas respostas (saída, chegada, menus); ausente, a resposta é só a frase do registro. */
   readonly stopCards?: WhatsAppStopCardReader
 }): GroupStopFlowPorts {
@@ -146,6 +148,9 @@ export function createGroupStopPorts(dependencies: {
       ? {}
       : { resolveSenderRole: dependencies.resolveSenderRole }),
     ...(dependencies.hasLocation === undefined ? {} : { hasLocation: dependencies.hasLocation }),
+    ...(dependencies.stopListTravel === undefined
+      ? {}
+      : { readStopListTravel: dependencies.stopListTravel }),
     ...(dependencies.stopCards === undefined
       ? {}
       : { readStopCard: (input) => safeReadStopCard(input) }),

@@ -217,15 +217,21 @@ export function directJourneyExpected({ at, eta }: JourneyClock): readonly Journ
     },
     {
       answered: [
-        `*Qual parada?* _Responda com o número da opção ou da nota:_
-*1* - NF 17235 · MERCADO LUA CHEIA
-*2* - NF 17236 · ACOUGUE ESTRELA`,
+        `🚚 *Para qual parada você saiu?*
+
+> 👉 *PARADA 2 de 3* · _próxima da rota_
+> 🧾 NF \`17235\` · *MERCADO LUA CHEIA*
+
+*PARADA 3 de 3*
+🧾 NF \`17236\` · *ACOUGUE ESTRELA*
+
+_Responda com o número da parada ou da nota._`,
       ],
       shown: '2',
     },
     {
       answered: [`📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_`],
-      shown: '2',
+      shown: '3',
     },
     {
       answered: [

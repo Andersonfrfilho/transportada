@@ -24,10 +24,24 @@ export function groupJourneyExpected({
       answered: [
         `${greeting}
 
-*Qual parada?* _Responda com o número da opção ou da nota:_
-*1* - NF 17234 · PADARIA SOL NASCENTE
-*2* - NF 17235 · MERCADO LUA CHEIA
-*3* - NF 17236 · ACOUGUE ESTRELA`,
+🚚 *Para qual parada você saiu?*
+
+> 👉 *PARADA 1 de 3* · _próxima da rota_
+> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*
+> 📍 Ribeirao Preto
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81
+
+*PARADA 2 de 3*
+🧾 NF \`17235\` · *MERCADO LUA CHEIA*
+📍 Ribeirao Preto
+🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
+
+*PARADA 3 de 3*
+🧾 NF \`17236\` · *ACOUGUE ESTRELA*
+📍 Ribeirao Preto
+🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.34,-47.73
+
+_Responda com o número da parada ou da nota._`,
       ],
       shown: '@bot iniciar rota',
     },
@@ -236,15 +250,25 @@ ${farewell}`,
     },
     {
       answered: [
-        `*Qual parada?* _Responda com o número da opção ou da nota:_
-*1* - NF 17235 · MERCADO LUA CHEIA
-*2* - NF 17236 · ACOUGUE ESTRELA`,
+        `🚚 *Para qual parada você saiu?*
+
+> 👉 *PARADA 2 de 3* · _próxima da rota_
+> 🧾 NF \`17235\` · *MERCADO LUA CHEIA*
+> 📍 Ribeirao Preto
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
+
+*PARADA 3 de 3*
+🧾 NF \`17236\` · *ACOUGUE ESTRELA*
+📍 Ribeirao Preto
+🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.34,-47.73
+
+_Responda com o número da parada ou da nota._`,
       ],
       shown: '2',
     },
     {
       answered: [`📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_`],
-      shown: '2',
+      shown: '3',
     },
     {
       answered: [

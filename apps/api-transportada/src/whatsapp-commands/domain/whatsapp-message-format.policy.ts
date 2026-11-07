@@ -19,6 +19,8 @@ export type MessageStop = {
   readonly sequence: number
   readonly total: number
   readonly invoiceNumber: string
+  /** As outras notas da mesma parada: entram na mesma linha, "NF `a`, `b`". */
+  readonly otherInvoiceNumbers?: readonly string[] | undefined
   readonly clientName: string
   readonly contractorName?: string | undefined
   readonly district?: string | undefined
@@ -70,12 +72,18 @@ function describeStopTravel(stop: MessageStop): string | undefined {
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
 
+function describeStopInvoice(stop: MessageStop): string {
+  const numbers = [stop.invoiceNumber, ...(stop.otherInvoiceNumbers ?? [])]
+  const invoice = `🧾 NF ${numbers.map((number) => `\`${number}\``).join(', ')}`
+  return stop.clientName === '' ? invoice : `${invoice} · *${stop.clientName}*`
+}
+
 function buildStopLines(params: FormatStopBlockParams): string[] {
   const { stop, detail } = params
   const place = describeStopPlace(params)
   const lines: (string | undefined)[] = [
     params.header ?? `*PARADA ${stop.sequence} de ${stop.total}*`,
-    `🧾 NF \`${stop.invoiceNumber}\` · *${stop.clientName}*`,
+    describeStopInvoice(stop),
     detail === 'card' && stop.contractorName ? `🏢 Contratante: ${stop.contractorName}` : undefined,
     place ? `📍 ${place}` : undefined,
     detail === 'card' && stop.volumes ? `📦 ${stop.volumes}` : undefined,

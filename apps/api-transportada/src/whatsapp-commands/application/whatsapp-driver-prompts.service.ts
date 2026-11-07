@@ -37,7 +37,6 @@ import {
   type OrderStopLabel,
 } from '../domain/whatsapp-driver-order.policy.js'
 import {
-  describeStopReference,
   findNextPendingStop,
   findStopAwaitingSettlement,
   findStopEnRoute,
@@ -62,7 +61,6 @@ import {
   nextRouteActions,
   pendingSettlementActions,
   pickJourneyAction,
-  spokenOptionNumber,
   type JourneyAction,
   type StopCardView,
 } from '../domain/whatsapp-driver-journey.policy.js'
@@ -70,6 +68,13 @@ import {
   DRIVER_FLOW_CONTEXT_KEY,
   DRIVER_FLOW_NODE,
 } from '../domain/whatsapp-driver-flow.constant.js'
+import {
+  describeStopListNotUnderstood,
+  formatStopList,
+  pickStopFromList,
+  STOP_LIST_TEXT,
+  type StopListTravelView,
+} from '../domain/whatsapp-stop-list.policy.js'
 import type { WhatsAppStopCardReader } from '../infrastructure/whatsapp-stop-card.reader.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { WhatsAppSharedLocationStore } from './whatsapp-shared-location.service.js'
@@ -215,6 +220,12 @@ export function createWhatsAppDriverPrompts(dependencies: {
   readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
   /** O bloco da parada nas respostas; ausente, só a frase do registro e o que a lista de paradas traz. */
   readonly stopCards?: Pick<WhatsAppStopCardReader, 'read'>
+  /** Spec 300 RF4: distância e tempo da lista de paradas; ausente, ou `null`, a lista sai sem a linha. */
+  readonly stopListTravel?: (input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly stops: readonly WhatsAppStopCandidate[]
+  }) => Promise<StopListTravelView | null>
 }): WhatsAppDriverPrompts {
   const { clock, ports, sharedLocations, speech } = dependencies
 
@@ -404,12 +415,21 @@ export function createWhatsAppDriverPrompts(dependencies: {
       stops: pending.map((stop) => ({
         id: stop.id,
         numbers: stop.documents.map((document) => document.number.replace(/^0+/u, '')),
+        sequence: stop.sequence,
       })),
     }
+    const travel = await dependencies.stopListTravel?.({ ...turn.actor, stops: pending })
     return {
       context: { ...cleared, [DRIVER_PROMPT_CONTEXT_KEY]: prompt },
       handled: true,
-      texts: [describeStopChoice(pending)],
+      texts: [
+        formatStopList({
+          stops: pending,
+          title: STOP_LIST_TEXT.departTitle,
+          totalStops: stops.length,
+          travel: travel ?? undefined,
+        }),
+      ],
     }
   }
 
@@ -710,21 +730,19 @@ export function createWhatsAppDriverPrompts(dependencies: {
     turn: PromptTurn & { readonly text: string },
     prompt: Extract<DriverPrompt, { kind: 'stop_choice' }>,
   ): Promise<WhatsAppDriverPromptResult> {
-    const picked = pickStopOption(prompt.stops, turn.text)
-    if (picked === undefined) {
-      const stops = await listStopsOf(turn.actor)
-      const listed = prompt.stops.flatMap((option) => stops.filter((stop) => stop.id === option.id))
+    const picked = pickStopFromList(prompt.stops, turn.text)
+    if (picked.kind === 'not_found') {
       return {
         context: turn.context,
         handled: true,
-        texts: [`Não entendi: não achei essa parada na lista.\n${describeStopChoice(listed)}`],
+        texts: [describeStopListNotUnderstood(prompt.stops, picked.reason)],
       }
     }
     return departTo(turn, {
       confirmOutOfOrder: prompt.confirmOutOfOrder,
-      documentNumber: picked.numbers[0],
-      idempotencyKey: `whatsapp-stop-choice:${picked.id}:${prompt.offeredAt}`,
-      stopId: picked.id,
+      documentNumber: picked.option.numbers[0],
+      idempotencyKey: `whatsapp-stop-choice:${picked.option.id}:${prompt.offeredAt}`,
+      stopId: picked.option.id,
     })
   }
 
@@ -831,23 +849,3 @@ export function createWhatsAppDriverPrompts(dependencies: {
 }
 
 export { DRIVER_PROMPT_CONTEXT_KEY }
-
-/** "*Qual parada?*" com as paradas pela nota e pelo cliente — a mesma lista do grupo. */
-function describeStopChoice(stops: readonly WhatsAppStopCandidate[]): string {
-  return [
-    '*Qual parada?* _Responda com o número da opção ou da nota:_',
-    ...stops.map((stop, index) => `*${index + 1}* - ${describeStopReference(stop)}`),
-  ].join('\n')
-}
-
-function pickStopOption<
-  Option extends { readonly id: string; readonly numbers: readonly string[] },
->(options: readonly Option[], text: string): Option | undefined {
-  const spoken = spokenOptionNumber(text)
-  if (spoken !== undefined) return options[spoken - 1]
-  const digits = text.replace(/\D/gu, '').replace(/^0+/u, '')
-  if (digits === '') return undefined
-  const byNumber = options.filter((option) => option.numbers.includes(digits))
-  if (byNumber.length === 1) return byNumber[0]
-  return /^\d{1,2}$/u.test(digits) ? options[Number(digits) - 1] : undefined
-}

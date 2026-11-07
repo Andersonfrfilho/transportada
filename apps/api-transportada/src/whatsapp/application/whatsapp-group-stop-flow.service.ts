@@ -25,7 +25,6 @@ import {
 } from '../../trips/domain/driver-stop-resolution.policy.js'
 import { isArrivalLate } from '../../trips/domain/address-arrival-correction.policy.js'
 import {
-  normalizeDriverCommandText,
   WHATSAPP_DRIVER_STOP_COMMAND,
   type WhatsAppDriverStopCommandEvent,
 } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
@@ -49,7 +48,6 @@ import {
   pendingSettlementActions,
   cardFromRouteOfferStop,
   cardFromStopCandidate,
-  spokenOptionNumber,
   type JourneyAction,
   type StopCardView,
 } from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
@@ -57,6 +55,13 @@ import {
   ROUTE_OFFER_TEXT,
   type RouteOfferStop,
 } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
+import {
+  describeStopListHint,
+  formatStopList,
+  pickStopFromList,
+  STOP_LIST_TEXT,
+  type StopListTravelView,
+} from '../../whatsapp-commands/domain/whatsapp-stop-list.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 import {
   SENDER_NOT_ALLOWED_TEXT,
@@ -129,27 +134,29 @@ export type GroupStopFlowPorts = {
     readonly stopId: string
     readonly withEta?: boolean
   }): Promise<StopCardView | null>
+  /**
+   * Spec 300 RF4: distância e tempo de cada parada da lista, pela estrada (uma consulta). Ausente, ou `null`, a lista sai
+   * sem a linha e sem o rodapé da localização.
+   */
+  readStopListTravel?(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly stops: readonly GroupStopCandidate[]
+  }): Promise<StopListTravelView | null>
   /** Spec 294 RF19: quem escreveu. Ausente, todo remetente é tratado como a tripulação (como antes da 294). */
   resolveSenderRole?: ResolveWhatsAppSenderRole
   /** A frase de "já está a caminho da parada N" e afins, na plateia do grupo. */
   enRouteMessage(input: { readonly companyId: string; readonly sequence: string }): Promise<string>
 }
 
-const askStopText = (labels: readonly string[]) =>
-  [
-    '*Qual parada?* _Responda com o número da opção ou da nota:_',
-    ...labels.map((label, index) => `*${index + 1}* - ${label}`),
-  ].join('\n')
-
 export const GROUP_STOP_TEXT = {
-  askStop: (stops: readonly GroupStopCandidate[]) => askStopText(stops.map(describeStopReference)),
   noStopArrive:
     'Não encontrei parada para registrar a chegada na viagem do motorista deste grupo.\n➡️ _Próximo passo:_ confira a viagem com o escritório.',
   noStopDepart:
     'Não encontrei parada para registrar a saída na viagem do motorista deste grupo.\n➡️ _Próximo passo:_ confira a viagem com o escritório.',
 } as const
 
-const REASON = { stop: 'não achei essa parada na lista' } as const
+const REASON = { stop: STOP_LIST_TEXT.notFoundText } as const
 
 type FlowState = {
   /** Spec 294 RF25: a parada que a API recusou por fora de ordem e a próxima do roteiro, esperando o 1/2. */
@@ -175,6 +182,8 @@ type FlowState = {
         readonly isAddressReliable?: boolean | undefined
         readonly label: string
         readonly numbers: readonly string[]
+        /** Spec 300 RF5: o número da parada, que é a opção da lista; ausente em pedido aberto antes da 300. */
+        readonly sequence?: number | undefined
       }[]
     | undefined
 }
@@ -402,14 +411,45 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
         )
   }
 
+  /** Spec 300 RF4–RF7b: a lista das paradas, com distância e tempo quando há ponto (falha da estrada não derruba a lista). */
+  async function describeStopChoice(
+    turn: GroupFlowTurn,
+    input: {
+      readonly event: WhatsAppDriverStopCommandEvent
+      readonly stops: readonly GroupStopCandidate[]
+      readonly totalStops: number
+    },
+  ): Promise<string> {
+    const travel = await ports.readStopListTravel?.({
+      companyId: turn.request.companyId,
+      driverId: turn.request.driverId,
+      stops: input.stops,
+    })
+    return formatStopList({
+      stops: input.stops,
+      title:
+        input.event === WHATSAPP_DRIVER_STOP_COMMAND.depart
+          ? STOP_LIST_TEXT.departTitle
+          : STOP_LIST_TEXT.arriveTitle,
+      totalStops: input.totalStops,
+      travel: travel ?? undefined,
+    })
+  }
+
   async function afterResolution(
     turn: GroupFlowTurn,
     role: WhatsAppSenderRole,
-    event: WhatsAppDriverStopCommandEvent,
-    resolution: WhatsAppStopResolution<GroupStopCandidate>,
-    documentNumbers: readonly string[],
-    confirmOutOfOrder = false,
+    input: {
+      readonly confirmOutOfOrder?: boolean
+      readonly documentNumbers: readonly string[]
+      readonly event: WhatsAppDriverStopCommandEvent
+      readonly resolution: WhatsAppStopResolution<GroupStopCandidate>
+      /** Quantas paradas a viagem tem (o "M" da lista). */
+      readonly totalStops: number
+    },
   ): Promise<GroupFlowOutcome> {
+    const { documentNumbers, event, resolution, totalStops } = input
+    const confirmOutOfOrder = input.confirmOutOfOrder ?? false
     const confirm = confirmOutOfOrder ? { confirmOutOfOrder: true } : {}
     switch (resolution.kind) {
       case 'none':
@@ -462,11 +502,12 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
             isAddressReliable: stop.isAddressReliable,
             label: describeStopReference(stop),
             numbers: stop.documents.map((document) => document.number.replace(/^0+/u, '')),
+            sequence: stop.sequence,
           })),
         }
         return {
           kind: 'continue',
-          replies: [GROUP_STOP_TEXT.askStop(resolution.stops)],
+          replies: [await describeStopChoice(turn, { event, stops: resolution.stops, totalStops })],
           state,
           step: GROUP_STOP_STEP.choose,
         }
@@ -506,7 +547,12 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       })
       const repeated = await repeatedEvent(turn, event, stops, documentNumbers)
       if (repeated !== null) return repeated
-      return afterResolution(turn, role, event, resolve(event, stops), documentNumbers)
+      return afterResolution(turn, role, {
+        documentNumbers,
+        event,
+        resolution: resolve(event, stops),
+        totalStops: stops.length,
+      })
     },
 
     /**
@@ -532,7 +578,13 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
         pending.kind === 'single'
           ? { kind: 'choose', stops: [pending.stop], suggested: pending.stop }
           : pending
-      return afterResolution(turn, role, event, listed, [], options.confirmOutOfOrder === true)
+      return afterResolution(turn, role, {
+        confirmOutOfOrder: options.confirmOutOfOrder === true,
+        documentNumbers: [],
+        event,
+        resolution: listed,
+        totalStops: stops.length,
+      })
     },
 
     /** O próximo passo de quem não quis nada agora: a chegada, a baixa pendente ou a saída. */
@@ -633,20 +685,20 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       }
       const stops = state.stops ?? []
       const event = state.event ?? WHATSAPP_DRIVER_STOP_COMMAND.arrive
-      const picked = pickStop(stops, turn.text)
-      if (picked === undefined) {
+      const picked = pickStopFromList(stops, turn.text)
+      if (picked.kind === 'not_found') {
         return {
           kind: 'not_understood',
-          prompt: askStopText(stops.map((stop) => stop.label)),
-          reason: REASON.stop,
+          prompt: describeStopListHint(stops),
+          reason: picked.reason,
         }
       }
       return recordOrAsk(turn, role, {
         ...(state.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}),
-        documentNumber: picked.numbers[0],
+        documentNumber: picked.option.numbers[0],
         event,
-        isAddressReliable: picked.isAddressReliable,
-        stopId: picked.id,
+        isAddressReliable: picked.option.isAddressReliable,
+        stopId: picked.option.id,
       })
     },
 
@@ -667,17 +719,3 @@ const stripZeros = (value: string) => value.replace(/^0+/u, '')
 
 const firstNumberOf = (stop: GroupStopCandidate): string | undefined =>
   stop.documents[0]?.number.replace(/^0+/u, '')
-
-function pickStop<Stop extends { readonly id: string; readonly numbers: readonly string[] }>(
-  stops: readonly Stop[],
-  text: string,
-): Stop | undefined {
-  const spoken = spokenOptionNumber(text)
-  if (spoken !== undefined) return stops[spoken - 1]
-  const normalized = normalizeDriverCommandText(text)
-  const digits = normalized.replace(/\D/gu, '').replace(/^0+/u, '')
-  if (digits === '') return undefined
-  const byNumber = stops.filter((stop) => stop.numbers.includes(digits))
-  if (byNumber.length === 1) return byNumber[0]
-  return /^\d{1,2}$/u.test(normalized) ? stops[Number(normalized) - 1] : undefined
-}

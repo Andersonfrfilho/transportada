@@ -738,7 +738,7 @@ function directJourneySteps(world: JourneyWorld): readonly JourneyStep[] {
     text('pular'),
     text('1'),
     text('2'),
-    text('2'),
+    text('3'),
     text('pular'),
     text('1'),
     text('saí'),

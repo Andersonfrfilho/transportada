@@ -105,3 +105,31 @@
 - Gates: typecheck limpo · `bun test --timeout 120000` 14325 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção
   nova) · eslint e prettier limpos · integração `whatsapp-driver-journey-group` 2 pass / 0 fail. Suíte `test:integration` completa
   fica para a T6.2 (máquina carregada).
+
+### T3.2 (executor `sonnet`)
+
+- Módulo puro novo `whatsapp-commands/domain/whatsapp-stop-list.policy.ts` (164 linhas): `formatStopList` (título, 10 blocos com `formatStopBlock`,
+  a primeira em citação com `👉 *PARADA N de M* · _próxima da rota_`, rodapé `_Responda com o número da parada ou da nota._` ou
+  `_E mais K paradas (X a Y): responda …_`, e `📎 _Mande sua localização…_` por último quando falta ponto), `pickStopFromList`
+  (RF5: número da parada primeiro, depois nota; fora da lista → motivo `Não achei a parada 12 nesta viagem.`, nota →
+  `Não achei a nota N nesta viagem.`, texto → `Não achei essa parada na lista.`) e `describeStopListNotUnderstood`
+  (`🤔 *Não entendi.* <motivo>` + `_Responda com o número da parada (3 a 7) ou da nota._`, como no desenho).
+  `formatStopBlock` ganhou `otherInvoiceNumbers` (várias notas na mesma linha, ``NF `a`, `b` ``) e a linha 🧾 sem cliente quando o nome falta.
+- Grupo (`whatsapp-group-stop-flow.service.ts`): `askStopText`/`pickStop` saíram; porta nova `readStopListTravel?`; o estado do passo
+  guarda `sequence` por parada; `afterResolution` passou a receber um objeto (era 6 parâmetros) com `totalStops` (todas as paradas da
+  viagem = o "M"). Individual (`whatsapp-driver-prompts.service.ts` → `stopChoice`/`answerStopChoice`): mesma lista por `sendText`
+  (D3), `DriverPromptStopOption.sequence` persistido (pedido antigo sem `sequence` volta à posição na lista).
+- Ligação no `main.ts`: `createDriverStopListTravel` (acha a viagem da parada) sobre `createWhatsAppStopListTravelReader`
+  (`readOriginPoint` = `readLastSharedPoint(database.db, …)`, `table` = `createOsrmRouteDistanceTableGateway` no mesmo
+  `config.routingMatrixUrl`), entregue ao `createGroupStopPorts` e ao `createWhatsAppDriverPrompts`. Falha da estrada nunca derruba a lista.
+- Divergências/decisões a registrar: (1) o desenho só mostra a lista de "saí"; a de "cheguei" usa `📍 *Em qual parada você chegou?*`
+  no mesmo padrão. (2) "Não entendi" de número fora da lista leva só a instrução com o intervalo (como no desenho), não a lista de novo.
+  (3) `📎` fica depois da instrução (a lista "termina com" ele).
+- Contratos: `test/whatsapp-commands/whatsapp-stop-list.contract.ts` (paradas 3–7 do desenho com ponto e sem ponto, OSRM fora, parada
+  sem estrada, corte em 10, escolha pelo número da parada/nota, fora da lista) e `driver-stop-choice.contract.ts` (individual);
+  `group-stop-flow` ganhou RF4/RF5 e perdeu os `toContain` da lista antiga; fixtures e integrações das jornadas (grupo e individual)
+  atualizadas ao texto novo (e a escolha da lista agora é pelo número da parada: `3` onde era a posição `2`).
+- Gates: typecheck limpo · `bun test --timeout 120000` 14341 pass / 26 skip / 0 fail (inclui `literal-message-text`, sem exceção nova) ·
+  eslint e prettier limpos · integração: `whatsapp-driver-journey-group` 2 pass, `whatsapp-driver-journey-direct` 2 pass,
+  `whatsapp-driver-flow-actions` 4 pass, `whatsapp-stop-place` 1 pass (uma tentativa do flow-actions estourou o timeout de 5 s do
+  `migrate` sob carga e passou ao repetir com `--timeout`). Suíte `test:integration` completa fica para a T6.2.

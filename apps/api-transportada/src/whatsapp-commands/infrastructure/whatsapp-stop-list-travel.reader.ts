@@ -97,3 +97,41 @@ export function createWhatsAppStopListTravelReader(dependencies: {
     },
   }
 }
+
+/** O leitor da lista pelo motorista: acha a viagem que tem a parada e lê distância e tempo dela; nunca lança. */
+export function createDriverStopListTravel(dependencies: {
+  readonly listActiveTrips: (input: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => Promise<readonly DriverTrip[]>
+  readonly logger?: { warn(message: string, fields?: Record<string, unknown>): void }
+  readonly reader: WhatsAppStopListTravelReader
+}) {
+  return async (input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly stops: readonly {
+      readonly id: string
+      readonly coordinate?: { readonly latitude: number; readonly longitude: number } | undefined
+    }[]
+  }): Promise<StopListTravel | null> => {
+    const [first] = input.stops
+    if (first === undefined) return null
+    try {
+      const trips = await dependencies.listActiveTrips(input)
+      const trip = trips.find((candidate) => candidate.stops.some((stop) => stop.id === first.id))
+      if (trip === undefined) return null
+      return await dependencies.reader.read({
+        companyId: input.companyId,
+        stops: input.stops,
+        trip,
+      })
+    } catch (error) {
+      dependencies.logger?.warn(WHATSAPP_STOP_LIST_TRAVEL_LOG.unavailable, {
+        companyId: input.companyId,
+        reason: error instanceof Error ? error.name : typeof error,
+      })
+      return null
+    }
+  }
+}
