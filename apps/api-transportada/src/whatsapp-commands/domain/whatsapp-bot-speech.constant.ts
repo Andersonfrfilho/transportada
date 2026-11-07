@@ -103,14 +103,15 @@ export const BOT_SPEECH_DEFAULTS = {
   /**
    * Spec 299 RF9/RF10: o lembrete da parada. A marca `@<telefone>` do grupo é posta pelo suporte de menção, na frente
    * do texto. `{{blocoParada}}` é montado pelo sistema (já traz a marcação do WhatsApp; o dado de terceiro dentro dele perde os
-   * marcadores); `{{nome}}` chega sem eles.
+   * marcadores); `{{nome}}` chega sem eles. `{{saidaQuando}}`/`{{chegadaQuando}}` também vêm do sistema ("às *19:01*",
+   * "*ontem* às *19:01*", "em *06/11* às *19:01*"); `{{saida}}`/`{{chegada}}` seguem entregando só a hora, para o texto antigo publicado.
    */
   lembreteChegada:
-    '👋 Oi, {{nome}}! Já chegou na parada?\nSaída às *{{saida}}* · chegada prevista *~{{previsao}}*\n\n{{blocoParada}}\n\n*1* - Cheguei\n*2* - Já entreguei (mande a foto do canhoto)\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou a caminho',
+    '👋 Oi, {{nome}}! Já chegou na parada?\nSaída {{saidaQuando}} · chegada prevista *~{{previsao}}*\n\n{{blocoParada}}\n\n*1* - Cheguei\n*2* - Já entreguei (mande a foto do canhoto)\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou a caminho',
   lembreteChegadaSemPrevisao:
-    '👋 Oi, {{nome}}! Já chegou na parada?\nSaída às *{{saida}}*\n\n{{blocoParada}}\n\n*1* - Cheguei\n*2* - Já entreguei (mande a foto do canhoto)\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou a caminho',
+    '👋 Oi, {{nome}}! Já chegou na parada?\nSaída {{saidaQuando}}\n\n{{blocoParada}}\n\n*1* - Cheguei\n*2* - Já entreguei (mande a foto do canhoto)\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou a caminho',
   lembreteEntrega:
-    '👋 Oi, {{nome}}! Já entregou na parada?\nChegada às *{{chegada}}*\n\n{{blocoParada}}\n\n*1* - Entreguei (mande a foto do canhoto)\n*2* - Não entreguei\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou descarregando',
+    '👋 Oi, {{nome}}! Já entregou na parada?\nChegada {{chegadaQuando}}\n\n{{blocoParada}}\n\n*1* - Entreguei (mande a foto do canhoto)\n*2* - Não entreguei\n*3* - Tive um problema (abrir ocorrência)\n*4* - Ainda estou descarregando',
   /** Spec 299 RF13/RF14: as respostas do passo do lembrete (adiou, não adia mais, opção inválida, já encerrado). */
   lembreteAdiado: 'Certo, volto a perguntar daqui a pouco. 👍',
   lembreteAdiamentoEsgotado:

@@ -18,6 +18,7 @@ const TIME_ZONE = 'America/Sao_Paulo'
 const DEPARTED_AT = new Date('2026-11-09T17:05:00.000Z') // 14:05 local
 const EXPECTED_AT = new Date('2026-11-09T17:40:00.000Z') // 14:40 local
 const ARRIVED_AT = new Date('2026-11-09T17:41:00.000Z') // 14:41 local
+const NOW = new Date('2026-11-09T18:00:00.000Z') // 15:00 local, o mesmo dia
 
 function input(overrides: Partial<StopReminderMessageInput> = {}): StopReminderMessageInput {
   return {
@@ -28,6 +29,7 @@ function input(overrides: Partial<StopReminderMessageInput> = {}): StopReminderM
     expectedAt: EXPECTED_AT,
     arrivedAt: undefined,
     isSharedPoint: true,
+    now: NOW,
     timeZone: TIME_ZONE,
     ...overrides,
   }
@@ -51,6 +53,7 @@ describe('etapa arrival (RF9)', () => {
       nome: 'Carlos',
       blocoParada: STOP_BLOCK,
       saida: '14:05',
+      saidaQuando: 'às *14:05*',
       previsao: '14:40',
     })
   })
@@ -62,6 +65,7 @@ describe('etapa arrival (RF9)', () => {
       nome: 'Carlos',
       blocoParada: STOP_BLOCK,
       saida: '14:05',
+      saidaQuando: 'às *14:05*',
     })
   })
 
@@ -99,6 +103,7 @@ describe('etapa settlement (RF10)', () => {
       nome: 'Carlos',
       blocoParada: STOP_BLOCK,
       chegada: '14:41',
+      chegadaQuando: 'às *14:41*',
     })
   })
 
@@ -119,6 +124,44 @@ describe('etapa settlement (RF10)', () => {
       { choice: '3', action: 'occurrence' },
       { choice: '4', action: 'postpone' },
     ])
+  })
+})
+
+describe('quando foi a saída ou a chegada, no dia local da empresa (spec 299, dono 2026-11-07)', () => {
+  const when = (departedAt: string, now: string) =>
+    buildStopReminderMessage(input({ departedAt: new Date(departedAt), now: new Date(now) }))
+      .variables.saidaQuando
+
+  test('no mesmo dia local: só a hora', () => {
+    expect(when('2026-11-09T03:00:00.000Z', '2026-11-10T02:59:59.000Z')).toBe('às *00:00*')
+  })
+
+  test('no dia local anterior: "ontem" — a virada da meia-noite é a de São Paulo, não a UTC', () => {
+    expect(when('2026-11-10T02:59:00.000Z', '2026-11-10T03:00:00.000Z')).toBe('*ontem* às *23:59*')
+    expect(when('2026-11-09T03:00:00.000Z', '2026-11-10T14:00:00.000Z')).toBe('*ontem* às *00:00*')
+  })
+
+  test('mais antigo: dia e mês', () => {
+    expect(when('2026-11-06T22:01:00.000Z', '2026-11-09T12:00:00.000Z')).toBe(
+      'em *06/11* às *19:01*',
+    )
+    expect(when('2026-11-08T02:59:00.000Z', '2026-11-10T12:00:00.000Z')).toBe(
+      'em *07/11* às *23:59*',
+    )
+  })
+
+  test('a chegada segue a mesma regra', () => {
+    const message = buildStopReminderMessage(
+      input({
+        arrivedAt: new Date('2026-11-08T13:00:00.000Z'),
+        departedAt: undefined,
+        expectedAt: undefined,
+        isSharedPoint: false,
+        now: NOW,
+        stage: 'settlement',
+      }),
+    )
+    expect(message.variables.chegadaQuando).toBe('*ontem* às *10:00*')
   })
 })
 

@@ -205,6 +205,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
   async function renderBody(
     reminder: DeliverableStopReminder,
     context: StopReminderDeliveryContext,
+    now: Date,
   ) {
     const stopBlock = await readStopBlock(reminder, context)
     const render = async (block: string) => {
@@ -216,6 +217,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
         driverName: plainText(context.driver.name),
         expectedAt: reminder.expectedAt ?? undefined,
         isSharedPoint: reminder.originKind === 'shared_point',
+        now,
         stage: reminder.stage,
         stopBlock: block,
         timeZone: context.timeZone,
@@ -310,7 +312,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
         tripStopId: reminder.tripStopId,
       })
       isPromptOpen = true
-      const body = await renderBody(reminder, context)
+      const body = await renderBody(reminder, context, now)
       const response = await dependencies.sender.send({
         body,
         companyId: reminder.companyId,
@@ -360,7 +362,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
   ) {
     if (dependencies.directSender === undefined) return undefined
     const result = await dependencies.directSender.send({
-      body: await renderBody(reminder, context),
+      body: await renderBody(reminder, context, now),
       companyId: reminder.companyId,
       driverId: context.driver.id,
       reminderId: reminder.id,

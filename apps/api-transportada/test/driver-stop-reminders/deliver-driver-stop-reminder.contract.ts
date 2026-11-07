@@ -270,6 +270,21 @@ describe('envia o lembrete no grupo (spec 299 T2.2, RF9, RF10, RF12)', () => {
     )
   })
 
+  test('saída de ontem e chegada de dias atrás levam o dia no texto', async () => {
+    const yesterday = build({
+      reminder: { anchorAt: new Date('2026-11-06T22:01:00.000Z'), originKind: 'fallback' },
+    })
+    await yesterday.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
+    expect(yesterday.sent[0]?.body.split('\n')[1]).toBe('Saída *ontem* às *19:01*')
+
+    const older = build({
+      reminder: { anchorAt: new Date('2026-11-04T14:41:00.000Z'), stage: 'settlement' },
+      context: { stop: { ...CONTEXT.stop, hasArrived: true } },
+    })
+    await older.useCase.execute({ companyId: COMPANY_ID, reminderId: REMINDER.id })
+    expect(older.sent[0]?.body.split('\n')[1]).toBe('Chegada em *04/11* às *11:41*')
+  })
+
   test('a última tentativa deixa o próximo prazo, e a seguinte escala em vez de enviar', async () => {
     const last = build({ reminder: { attempts: 2 } })
     expect(

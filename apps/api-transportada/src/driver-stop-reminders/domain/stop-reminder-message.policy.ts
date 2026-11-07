@@ -20,6 +20,7 @@ import type {
 export type { StopReminderMessageInput } from './driver-stop-reminder.types.js'
 
 const TRUNCATION_MARK = '…'
+const MILLISECONDS_PER_DAY = 86_400_000
 const ARRIVAL_ACTIONS = [ACTION.ARRIVED, ACTION.DELIVERED, ACTION.OCCURRENCE, ACTION.POSTPONE]
 const SETTLEMENT_ACTIONS = [
   ACTION.DELIVERED,
@@ -36,6 +37,39 @@ function formatLocalTime(moment: Date | undefined, timeZone: string): string {
     minute: '2-digit',
     hourCycle: 'h23',
   }).format(moment)
+}
+
+function formatLocalDay(moment: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(moment)
+}
+
+function localDayNumber(moment: Date, timeZone: string): number {
+  const [year = 0, month = 1, day = 1] = formatLocalDay(moment, timeZone).split('-').map(Number)
+  return Date.UTC(year, month - 1, day) / MILLISECONDS_PER_DAY
+}
+
+/**
+ * "às *19:01*", "*ontem* às *19:01*" ou "em *06/11* às *19:01*", no dia local da empresa. Variável montada pelo
+ * sistema (já traz a marcação do WhatsApp), para o texto do nó seguir sem literal de data: "Saída {{saidaQuando}}".
+ */
+function describeLocalMoment(params: {
+  readonly moment: Date | undefined
+  readonly now: Date
+  readonly timeZone: string
+}): string {
+  const { moment, now, timeZone } = params
+  if (!moment) return ''
+  const time = `às *${formatLocalTime(moment, timeZone)}*`
+  const daysAgo = localDayNumber(now, timeZone) - localDayNumber(moment, timeZone)
+  if (daysAgo === 0) return time
+  if (daysAgo === 1) return `*ontem* ${time}`
+  const [, month = '', day = ''] = formatLocalDay(moment, timeZone).split('-')
+  return `em *${day}/${month}* ${time}`
 }
 
 function buildOptions(
@@ -75,11 +109,27 @@ export function buildStopReminderMessage(input: StopReminderMessageInput): StopR
   if (input.stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT) {
     return {
       nodeKey: DRIVER_STOP_REMINDER_SPEECH_NODE.settlement,
-      variables: { ...base, chegada: formatLocalTime(input.arrivedAt, input.timeZone) },
+      variables: {
+        ...base,
+        chegada: formatLocalTime(input.arrivedAt, input.timeZone),
+        chegadaQuando: describeLocalMoment({
+          moment: input.arrivedAt,
+          now: input.now,
+          timeZone: input.timeZone,
+        }),
+      },
       options: buildOptions(SETTLEMENT_ACTIONS),
     }
   }
-  const departure = { ...base, saida: formatLocalTime(input.departedAt, input.timeZone) }
+  const departure = {
+    ...base,
+    saida: formatLocalTime(input.departedAt, input.timeZone),
+    saidaQuando: describeLocalMoment({
+      moment: input.departedAt,
+      now: input.now,
+      timeZone: input.timeZone,
+    }),
+  }
   if (!input.isSharedPoint) {
     return {
       nodeKey: DRIVER_STOP_REMINDER_SPEECH_NODE.arrivalWithoutEstimate,

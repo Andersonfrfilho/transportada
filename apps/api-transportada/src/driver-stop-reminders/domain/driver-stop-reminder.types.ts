@@ -133,6 +133,8 @@ export type StopReminderMessageInput = {
   readonly expectedAt?: Date | undefined
   readonly arrivedAt?: Date | undefined
   readonly isSharedPoint: boolean
+  /** O instante da cobrança: decide se a saída/chegada foi hoje, ontem ou antes, no dia local da empresa. */
+  readonly now: Date
   readonly timeZone: string
 }
 
