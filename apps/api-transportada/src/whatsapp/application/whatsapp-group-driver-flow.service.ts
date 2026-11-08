@@ -55,10 +55,11 @@ import type { GroupBoletoResend } from './whatsapp-group-boleto-resend.service.j
 import type { createGroupDeliveryFlow } from './whatsapp-group-delivery-flow.service.js'
 import type { createGroupTripCloseFlow } from './whatsapp-group-trip-close-flow.service.js'
 import type { createGroupStopFlow } from './whatsapp-group-stop-flow.service.js'
-import type {
-  GroupFlowOutcome,
-  GroupFlowTurn,
-  GroupRequestFlow,
+import {
+  GROUP_XML_ORIENTATION,
+  type GroupFlowOutcome,
+  type GroupFlowTurn,
+  type GroupRequestFlow,
 } from './whatsapp-group-request.port.js'
 
 export const GROUP_DRIVER_STEP = {
@@ -169,6 +170,8 @@ type MenuItem =
   | { readonly kind: 'deliver'; readonly icon: string; readonly action: string }
   | { readonly kind: 'return'; readonly icon: string; readonly action: string }
   | { readonly kind: 'occurrence'; readonly icon: string; readonly action: string }
+  /** Spec 308 D2.4: só no chat direto de quem tem envio de XML liberado; apenas orienta. */
+  | { readonly kind: 'xml'; readonly icon: string; readonly action: string }
 
 /** A ordem do menu (spec 300 RF8: "Não entreguei" é a 4). O ícone só enfeita: a escolha é pelo número ou pelo nome. */
 export const GROUP_DRIVER_MENU: readonly MenuItem[] = [
@@ -183,6 +186,8 @@ export const GROUP_DRIVER_MENU: readonly MenuItem[] = [
   { action: 'Não entreguei', icon: '↩️', kind: 'return' },
   { action: 'Ocorrência', icon: '⚠️', kind: 'occurrence' },
 ]
+
+const XML_MENU_ITEM: MenuItem = { action: 'Enviar XML das notas', icon: '📄', kind: 'xml' }
 
 const MENU_TITLE = '*O que você quer lançar?*'
 const MENU_REPLY_HINT = formatReplyHint('Responda com o número.')
@@ -386,8 +391,14 @@ export function createGroupDriverFlow(flows: {
       (item.kind !== 'return' || returnFlow !== undefined),
   )
   const menuText = menuOf(menu)
+  /** Spec 308 D2.4: quem tem envio de XML liberado ganha a última opção; os demais veem o menu de sempre. */
+  const menuFor = (turn: Pick<GroupFlowTurn, 'canImportXml'>): readonly MenuItem[] =>
+    turn.canImportXml === true ? [...menu, XML_MENU_ITEM] : menu
 
   async function choose(turn: GroupFlowTurn, item: MenuItem): Promise<GroupFlowOutcome> {
+    if (item.kind === 'xml') {
+      return { kind: 'done', replies: [GROUP_XML_ORIENTATION], withoutFarewell: true }
+    }
     if (item.kind === 'occurrence') return flows.occurrence.start({ ...turn, text: '' })
     if (item.kind === 'return' && returnFlow !== undefined) {
       return settleDelivery(turn, withReturnPrefix(await returnFlow.begin(turn, { numbers: [] })))
@@ -405,9 +416,9 @@ export function createGroupDriverFlow(flows: {
     ...turn,
     request: { ...turn.request, step: turn.request.step.slice(prefix.length) },
   })
-  const notUnderstoodMenu = (): GroupFlowOutcome => ({
+  const notUnderstoodMenu = (turn?: Pick<GroupFlowTurn, 'canImportXml'>): GroupFlowOutcome => ({
     kind: 'not_understood',
-    prompt: formatOptions(menu),
+    prompt: formatOptions(turn === undefined ? menu : menuFor(turn)),
     reason: GROUP_DRIVER_TEXT.notUnderstoodReason,
   })
 
@@ -431,16 +442,20 @@ export function createGroupDriverFlow(flows: {
       // Quem fez a pergunta (o dono do passo) é quem responde; passo sem dono não é de ninguém.
       switch (ownerOfStep(step)) {
         case 'menu': {
+          // Spec 308 D2.4: "xml"/"enviar xml" pelo nome; sem a permissão a opção não existe.
+          if (turn.canImportXml === true && isXmlOption(turn.text)) {
+            return choose(turn, XML_MENU_ITEM)
+          }
           // Spec 292 T9: a frase inteira no lugar da opção ("ocorrência, prorrogação do boleto da nota
           // 899877", por texto ou pelo áudio confirmado) vale como o pedido direto, com nota e tipo.
           if (isFreeSentence(turn.text)) {
-            return isDirectRequest(turn.text) ? flow.start(turn) : notUnderstoodMenu()
+            return isDirectRequest(turn.text) ? flow.start(turn) : notUnderstoodMenu(turn)
           }
-          const item = pickMenuItem(menu, turn.text)
-          return item === undefined ? notUnderstoodMenu() : choose(turn, item)
+          const item = pickMenuItem(menuFor(turn), turn.text)
+          return item === undefined ? notUnderstoodMenu(turn) : choose(turn, item)
         }
         case 'delivery': {
-          if (delivery === undefined) return notUnderstoodMenu()
+          if (delivery === undefined) return notUnderstoodMenu(turn)
           const answered = await delivery.answer(inner(turn, GROUP_DRIVER_STEP.deliveryPrefix))
           return settleDelivery(turn, withDeliveryPrefix(answered))
         }
@@ -451,19 +466,19 @@ export function createGroupDriverFlow(flows: {
         case 'reminder':
           return answerReminder(turn)
         case 'return': {
-          if (returnFlow === undefined) return notUnderstoodMenu()
+          if (returnFlow === undefined) return notUnderstoodMenu(turn)
           const answered = await returnFlow.answer(inner(turn, GROUP_DRIVER_STEP.returnPrefix))
           return settleDelivery(turn, withReturnPrefix(answered))
         }
         case 'close':
-          if (tripClose === undefined) return notUnderstoodMenu()
+          if (tripClose === undefined) return notUnderstoodMenu(turn)
           return withClosePrefix(await tripClose.answer(inner(turn, GROUP_DRIVER_STEP.closePrefix)))
         case 'stop':
           return withStopPrefix(await flows.stop.answer(inner(turn, GROUP_DRIVER_STEP.stopPrefix)))
         case 'occurrence':
           return flows.occurrence.answer(turn)
         default:
-          return notUnderstoodMenu()
+          return notUnderstoodMenu(turn)
       }
     },
 
@@ -492,7 +507,7 @@ export function createGroupDriverFlow(flows: {
       if (turn.text === '') {
         return {
           kind: 'continue',
-          replies: [menuText],
+          replies: [turn.canImportXml === true ? menuOf(menuFor(turn)) : menuText],
           state: {},
           step: GROUP_DRIVER_STEP.menu,
         }
@@ -545,6 +560,14 @@ function isDriverCommand(text: string): boolean {
     interpretDriverStopCommand(text) !== null ||
     interpretWhatsAppDriverEventCommand(text) !== undefined
   )
+}
+
+/** "xml", "enviar xml", "enviar xml das notas": o nome da opção de XML do chat direto. */
+function isXmlOption(text: string): boolean {
+  const words = normalizeDriverCommandText(text)
+    .split(' ')
+    .filter((word) => word !== '')
+  return words.includes('xml') && words.length <= 5
 }
 
 /** Duas palavras ou mais com letras: uma frase, não o número ou o nome curto de uma opção. */

@@ -2700,6 +2700,7 @@ function createEvolutionWebhook(input: {
   /** Spec 292 T9: o áudio no grupo é transcrito pelo worker e confirmado antes de seguir o fluxo. */
   const groupAudio = groupSessions === undefined ? undefined : input.groupAudio
   if (groupAudio !== undefined) groupQuestionAsked = createGroupQuestionAskedHandler(groupAudio)
+  const xmlReceiptRepository = createDrizzleWhatsAppXmlReceiptRepository(database)
   /** Um só: o cache do número do bot e dos `@lid` do grupo serve ao fluxo do motorista e ao recebimento de XML. */
   const groupIdentity = createEvolutionGroupIdentity({ gateway })
   return createWhatsAppEvolutionWebhookUseCase({
@@ -2732,6 +2733,11 @@ function createEvolutionWebhook(input: {
             },
           }),
       findGroupDriver: (lookup) => driverGroups.findDriverByGroup(lookup),
+      // Spec 308 D2.4: quem tem envio de XML liberado (a mesma regra do recebimento) vê a opção no 1:1.
+      findDirectImporter: async ({ companyId, phone }) =>
+        (await xmlReceiptRepository.findImportSender({ companyId, now: new Date(), phone })) !==
+        undefined,
+      replyDirect: (reply) => groupReplies.send(reply),
       // Spec 308: o motorista ativo pelo telefone; sem o fluxo do grupo (rota do dono), o 1:1 fica no painel.
       ...(groupSessions === undefined
         ? {}
@@ -2777,7 +2783,7 @@ function createEvolutionWebhook(input: {
     xmlInbound: createWhatsAppXmlInbound({
       identity: groupIdentity,
       logger,
-      repository: createDrizzleWhatsAppXmlReceiptRepository(database),
+      repository: xmlReceiptRepository,
     }),
     webhookSecrets: createWhatsAppEvolutionWebhookSecretService({ envelopeProvider }),
   })

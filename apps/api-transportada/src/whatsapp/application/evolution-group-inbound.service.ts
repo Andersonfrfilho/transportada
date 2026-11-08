@@ -35,7 +35,7 @@ import type {
   LazyEvolutionConnection,
 } from './evolution-group-identity.service.js'
 import type { WhatsAppBotAudio } from './whatsapp-bot-audio.service.js'
-import type { GroupQuestionAsked } from './whatsapp-group-request.port.js'
+import { GROUP_XML_ORIENTATION, type GroupQuestionAsked } from './whatsapp-group-request.port.js'
 
 /** Áudio não endereçado só é ouvido até 1 minuto: a chamada vem no começo, conversa longa é das pessoas. */
 const BOT_AUDIO_WAKE_MAX_SECONDS = 60
@@ -49,6 +49,8 @@ export type EvolutionMessageEvent = Extract<EvolutionWebhookEvent, { type: 'mess
 
 /** A mensagem que o bot aceitou: o que a sessão do pedido (T4) recebe. */
 export type AdmittedGroupMessage = {
+  /** Spec 308 D2.4: o chat direto de quem tem envio de XML liberado; o menu mostra "Enviar XML das notas". */
+  readonly canImportXml?: boolean
   readonly companyId: string
   /** O motorista dono do grupo: toda mensagem do grupo é dele (regra 1). */
   readonly driverId: string
@@ -183,6 +185,20 @@ export type EvolutionGroupInboundPorts = {
     readonly companyId: string
     readonly phone: string
   }) => Promise<null | { readonly driverId: string }>
+  /**
+   * Spec 308 D2.4: este telefone tem envio de XML liberado (a regra de `findImportSender`)? Ausente, o chat
+   * direto não oferece a opção.
+   */
+  findDirectImporter?: (input: {
+    readonly companyId: string
+    readonly phone: string
+  }) => Promise<boolean>
+  /** Spec 308 D2.4: a resposta do bot a quem importa XML mas não é motorista (sem sessão do pedido). */
+  replyDirect?: (input: {
+    readonly companyId: string
+    readonly groupJid: string
+    readonly texts: readonly string[]
+  }) => void
   /** T4: o número (só dígitos) de quem abriu o pedido em andamento no grupo, ou `null`. */
   findOpenRequestOwner(input: {
     readonly companyId: string
@@ -225,6 +241,8 @@ export type EvolutionGroupInboundOutcome =
 /** Spec 308: a mensagem do chat direto (1:1) que o motorista mandou ao número do bot. */
 export type EvolutionDirectMessage = {
   readonly audio?: GroupAudio | null
+  /** Spec 308 D2.4: o motorista também tem envio de XML liberado. */
+  readonly canImportXml?: boolean
   readonly companyId: string
   readonly connection: LazyEvolutionConnection
   /** O motorista achado pelo telefone (`findDirectDriver`). */
@@ -244,6 +262,19 @@ export type EvolutionGroupInbound = {
    * fluxo, sem marcação do bot, sem frase de chamada no áudio e sem perguntar ao Evolution quem escreveu.
    */
   receiveDirect?(input: EvolutionDirectMessage): Promise<EvolutionGroupInboundOutcome>
+  /** Spec 308 D2.4: o telefone de envio de XML liberado (`findDirectImporter`); `false` (ou ausente), não. */
+  findDirectImporter?(input: {
+    readonly companyId: string
+    readonly phone: string
+  }): Promise<boolean>
+  /**
+   * Spec 308 D2.4: quem importa XML e não é motorista escreve texto no 1:1: o bot orienta o envio dos XMLs.
+   * Sem texto (mídia, áudio), `no_text`.
+   */
+  receiveDirectImporter?(input: {
+    readonly companyId: string
+    readonly event: EvolutionMessageEvent
+  }): EvolutionGroupInboundOutcome
   receive(input: {
     /** Spec 292 T9: o áudio de voz da mensagem, lido do corpo cru; `null` sem áudio. */
     readonly audio?: GroupAudio | null
@@ -632,9 +663,11 @@ export function createEvolutionGroupInbound(
     }
   }
 
-  const { findDirectDriver } = dependencies
-  const inbound: EvolutionGroupInbound & Required<Pick<EvolutionGroupInbound, 'receiveDirect'>> = {
+  const { findDirectDriver, findDirectImporter } = dependencies
+  const inbound: EvolutionGroupInbound &
+    Required<Pick<EvolutionGroupInbound, 'receiveDirect' | 'receiveDirectImporter'>> = {
     ...(findDirectDriver === undefined ? {} : { findDirectDriver }),
+    ...(findDirectImporter === undefined ? {} : { findDirectImporter }),
     async receive({ audio = null, companyId, connection, event, media = null, senderLid }) {
       if (event.fromMe) return 'from_me'
       const groupJid = event.groupJid
@@ -819,7 +852,28 @@ export function createEvolutionGroupInbound(
       return 'admitted'
     },
 
-    async receiveDirect({ audio = null, companyId, connection, driverId, event, media = null }) {
+    receiveDirectImporter({ companyId, event }) {
+      if (event.fromMe) return 'from_me'
+      const sender = event.from
+      if (event.chat !== 'user' || !DIRECT_SENDER_PATTERN.test(sender)) return 'unknown_sender'
+      if (event.text === null || dependencies.replyDirect === undefined) return 'no_text'
+      dependencies.replyDirect({
+        companyId,
+        groupJid: directChatJid(sender),
+        texts: [GROUP_XML_ORIENTATION],
+      })
+      return 'admitted'
+    },
+
+    async receiveDirect({
+      audio = null,
+      canImportXml = false,
+      companyId,
+      connection,
+      driverId,
+      event,
+      media = null,
+    }) {
       if (event.fromMe) return 'from_me'
       // No 1:1 quem escreveu é o próprio chat: o SDK devolve `participant` vazio e o número em `from`.
       const sender = event.from
@@ -891,6 +945,7 @@ export function createEvolutionGroupInbound(
 
       const requestOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
       await dependencies.handle({
+        ...(canImportXml ? { canImportXml: true } : {}),
         companyId,
         driverId,
         groupJid,
@@ -913,6 +968,8 @@ export function createEvolutionGroupInbound(
     ? inbound
     : {
         ...(findDirectDriver === undefined ? {} : { findDirectDriver }),
+        ...(findDirectImporter === undefined ? {} : { findDirectImporter }),
+        receiveDirectImporter: (input) => inbound.receiveDirectImporter(input),
         receive: (input) =>
           turnReplies.withinTurn(() => inbound.receive(input), { companyId: input.companyId }),
         receiveDirect: (input) =>

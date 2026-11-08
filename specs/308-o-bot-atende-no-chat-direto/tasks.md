@@ -14,7 +14,10 @@ integração: `bun --env-file=../../.env.test run test:integration` (de dentro d
       `test/whatsapp/direct-chat-media.contract.ts` (passo da localização, "pular" falado, "1"/"2" e "sim"/"não")
       e no webhook (localização e áudio lidos do corpo cru do 1:1).
   > 🤖 Modelo: `sonnet`
-- [ ] **T4** Opção "Enviar XML das notas" no menu para quem passa em `findImportSender` (RF4, D2.4).
+- [x] **T4** Opção "Enviar XML das notas" no menu para quem passa em `findImportSender` (RF4, D2.4).
+      Feito: o motorista com XML liberado vê a opção 6 no menu do 1:1 (só orienta e fecha); quem importa XML e não é
+      motorista (risco da T1) recebe a orientação direto, sem sessão do pedido; citação à conversa da ocorrência segue
+      no painel. Grupo e quem não tem XML liberado: menu inalterado.
   > 🤖 Modelo: `sonnet`
 - [ ] **T5** Integração do webhook, roteiro de staging e runbook atualizados; teste com o número do Anderson.
   > 🤖 Modelo: `sonnet`

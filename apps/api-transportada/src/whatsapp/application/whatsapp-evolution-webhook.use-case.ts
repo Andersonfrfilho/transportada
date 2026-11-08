@@ -269,7 +269,10 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
           return null
         }
         const driver = await groupInbound.findDirectDriver({ companyId, phone: event.from })
-        if (driver === null) return null
+        // Spec 308 D2.4: quem tem envio de XML liberado vê a opção no menu (e, sem ser motorista, é orientado).
+        const canImportXml =
+          (await groupInbound.findDirectImporter?.({ companyId, phone: event.from })) === true
+        if (driver === null && (!canImportXml || event.text === null)) return null
         const message = {
           from: event.from,
           providerMessageId: event.externalMessageId,
@@ -285,11 +288,14 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         let outcome: string
         if (inbound.consumeDirectLimit?.({ companyId, from: event.from }) === false) {
           outcome = 'rate_limited'
+        } else if (driver === null) {
+          outcome = groupInbound.receiveDirectImporter?.({ companyId, event }) ?? 'no_text'
         } else {
           groupMedia ??= readGroupMedia(payload)
           groupAudio ??= readGroupAudio(payload)
           outcome = await groupInbound.receiveDirect({
             audio: groupAudio.get(event.externalMessageId) ?? null,
+            ...(canImportXml ? { canImportXml: true } : {}),
             companyId,
             connection,
             driverId: driver.driverId,

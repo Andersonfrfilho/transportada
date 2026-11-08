@@ -82,6 +82,8 @@ async function setup(
     apiPublicUrl?: string | undefined
     /** Spec 308: os telefones de motorista ativo; ausente, o webhook não tem a entrada direta. */
     directDrivers?: readonly string[]
+    /** Spec 308 D2.4: os telefones com envio de XML liberado (`findImportSender`). */
+    directImporters?: readonly string[]
     /** Spec 308: o teto por número já estourou. */
     directLimited?: boolean
     /** Spec 308: a citação casa numa conversa do painel. */
@@ -114,6 +116,7 @@ async function setup(
   const state = {
     deliveries: [] as unknown[],
     direct: [] as Parameters<NonNullable<EvolutionGroupInbound['receiveDirect']>>[0][],
+    importerReplies: [] as string[],
     findCalls: 0,
     gatewayCalls: [] as Parameters<WhatsAppEvolutionWebhookGatewayPort['setWebhook']>[0][],
     groupConnections: [] as unknown[],
@@ -199,6 +202,13 @@ async function setup(
               input: Parameters<NonNullable<EvolutionGroupInbound['receiveDirect']>>[0],
             ) {
               state.direct.push(input)
+              return 'admitted' as const
+            },
+            async findDirectImporter({ phone }: { readonly phone: string }) {
+              return options.directImporters?.includes(phone) === true
+            },
+            receiveDirectImporter({ event }: { readonly event: { readonly text: null | string } }) {
+              state.importerReplies.push(event.text ?? '')
               return 'admitted' as const
             },
           }),
@@ -750,5 +760,51 @@ describe('spec 308: o chat direto do motorista vai ao bot', () => {
       { audio: 4, id: 'PTT-1', media: null, text: null },
     ])
     expect(JSON.stringify(state.logs)).not.toContain('-21.17')
+  })
+
+  test('T4: quem importa XML e não é motorista é orientado no 1:1, sem ir ao painel', async () => {
+    const { state, useCase } = await setup({ directDrivers: [], directImporters: [PHONE] })
+
+    await useCase.receive(receiveWith({ rawBody: directBody({ text: 'oi' }) }))
+
+    expect(state.importerReplies).toEqual(['oi'])
+    expect(state.direct).toEqual([])
+    expect(state.messages).toEqual([])
+  })
+
+  test('T4: o motorista com XML liberado leva a permissão ao fluxo; sem XML, não leva', async () => {
+    const importer = await setup({ directDrivers: [PHONE], directImporters: [PHONE] })
+    await importer.useCase.receive(receiveWith({ rawBody: directBody() }))
+    expect(importer.state.direct.map(({ canImportXml }) => canImportXml)).toEqual([true])
+    expect(importer.state.importerReplies).toEqual([])
+
+    const plain = await setup({ directDrivers: [PHONE] })
+    await plain.useCase.receive(receiveWith({ rawBody: directBody() }))
+    expect(plain.state.direct.map(({ canImportXml }) => canImportXml)).toEqual([undefined])
+  })
+
+  test('T4: o importador que cita a conversa da ocorrência continua no painel', async () => {
+    const { state, useCase } = await setup({
+      directDrivers: [],
+      directImporters: [PHONE],
+      quotesPanel: true,
+    })
+
+    await useCase.receive(receiveWith({ rawBody: directBody({ replyTo: 'SENT-1' }) }))
+
+    expect(state.importerReplies).toEqual([])
+    expect(state.messages).toHaveLength(1)
+  })
+
+  test('T4: número sem motorista nem XML liberado continua no painel', async () => {
+    const { state, useCase } = await setup({
+      directDrivers: [],
+      directImporters: ['5516911112222'],
+    })
+
+    await useCase.receive(receiveWith({ rawBody: directBody() }))
+
+    expect(state.importerReplies).toEqual([])
+    expect(state.messages).toHaveLength(1)
   })
 })
