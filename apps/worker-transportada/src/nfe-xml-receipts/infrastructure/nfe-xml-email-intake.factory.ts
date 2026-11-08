@@ -47,6 +47,7 @@ export type NfeXmlEmailIntakePort = {
 }
 
 export function createNfeXmlEmailIntake(dependencies: {
+  readonly extraDomains?: readonly string[]
   readonly dkimVerifier: VerifyDkimHeaderFromPort
   readonly importGateway: ReceivedXmlImportGatewayPort
   readonly logger: ReceiptLogger
@@ -61,6 +62,7 @@ export function createNfeXmlEmailIntake(dependencies: {
           companyId: input.companyId,
           correlationId: input.correlationId,
           delivery: input.delivery,
+          extraDomains: dependencies.extraDomains ?? [],
           from: input.received.from,
           now: input.occurredAt,
           providerEmailId: input.providerEmailId,

@@ -211,6 +211,22 @@ const workerEnvironmentSchema = z
     ),
     /** Onde a imagem grava os modelos do PP-OCRv4 (Dockerfile). Ausente, o OCR não existe, ligado ou não. */
     CANHOTO_OCR_MODEL_DIR: optionalText(),
+    /**
+     * Spec 301: domínios EXTRAS em que `notas@<domínio>` também é a caixa de XML de NF-e (além do domínio de resposta da empresa),
+     * separados por vírgula. Serve ao apelido curto que o e-mail comum da empresa encaminha para a caixa de entrada.
+     */
+    NFE_XML_MAILBOX_DOMAINS: optionalText().refine(
+      (value) =>
+        value === undefined ||
+        value
+          .split(',')
+          .every((domain) =>
+            /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/u.test(
+              domain.trim().toLowerCase(),
+            ),
+          ),
+      'NFE_XML_MAILBOX_DOMAINS must be a comma-separated list of domains',
+    ),
     CANHOTO_OCR_TIMEOUT_MS: z.coerce.number().int().min(5000).max(120_000).default(30_000),
     /** A rede privada do Railway é IPv6: lá vale `::` para a API alcançar a rota interna. */
     WORKER_HOSTNAME: optionalText(),
@@ -412,6 +428,10 @@ export function parseWorkerEnvironment(
       ? {}
       : { botAudioTranscriptionPrompt: result.data.BOT_AUDIO_TRANSCRIPTION_PROMPT }),
     ...toCanhotoOcrEnvironment(result.data),
+    nfeXmlMailboxDomains: (result.data.NFE_XML_MAILBOX_DOMAINS ?? '')
+      .split(',')
+      .map((domain) => domain.trim().toLowerCase())
+      .filter((domain) => domain.length > 0),
     hostname: result.data.WORKER_HOSTNAME ?? '0.0.0.0',
     port: result.data.WORKER_PORT,
     prefetch: result.data.WORKER_PREFETCH,

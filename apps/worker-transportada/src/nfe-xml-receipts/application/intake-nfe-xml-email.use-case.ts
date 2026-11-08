@@ -35,6 +35,8 @@ export type NfeXmlEmailIntakeInput = {
   readonly now: Date
   readonly providerEmailId: string
   readonly replyDomain: string
+  /** Domínios extras em que `notas@` também vale (apelido curto da empresa que encaminha para a entrada). */
+  readonly extraDomains?: readonly string[]
   readonly to: readonly string[]
   readonly cc?: readonly string[] | undefined
 }
@@ -71,13 +73,15 @@ export class NfeXmlEmailDkimUnverifiableError extends Error {
 }
 
 function addressedToMailbox(input: NfeXmlEmailIntakeInput): boolean {
-  const domain = input.replyDomain.trim().toLowerCase()
+  const domains = [input.replyDomain, ...(input.extraDomains ?? [])].map((domain) =>
+    domain.trim().toLowerCase(),
+  )
   return [...input.to, ...(input.cc ?? [])].some((raw) => {
     const match = /<?([^<>\s@]+)@([^<>\s@]+)>?\s*$/u.exec(raw.trim())
     return (
       match !== null &&
       match[1]?.toLowerCase() === NFE_XML_MAILBOX_LOCAL_PART &&
-      match[2]?.toLowerCase() === domain
+      domains.includes(match[2]?.toLowerCase() ?? '')
     )
   })
 }
