@@ -842,6 +842,18 @@ mas não resolvem hoje.
 O Claude não consegue consultar DNS/SSL da Cloudflare: o conector dele só cobre Workers, D1, KV e R2, e o
 container não alcança os domínios. Para isso seria preciso um API token com Zone:Read e SSL/Certificates:Read.
 
+## 5.3 Publicar o grafo do bot do WhatsApp (staging; produção só com aprovação)
+
+O Postgres não tem proxy público e a imagem da api só leva o `dist`, então o
+`apps/api-transportada/scripts/whatsapp-flow-publish.ts` é empacotado (`bun build`) e enviado ao container
+por `railway ssh`. Script: `tmp/ops/staging-publica-grafo-whatsapp.sh <previa|adotar|publicar|sobrescrever chaves>`.
+
+1. `previa` primeiro (não grava): confira nós adicionados/removidos/alterados e `fala_* regravados`.
+2. `adotar` só na primeira publicação depois da spec 300 (o grafo vivo vira o baseline do código; recusado se o
+   histórico tiver edição `source=panel`). Depois, `publicar`.
+3. `sobrescrever fala_a,fala_b` leva o texto do código a chaves `fala_*` editadas no painel (spec 299).
+4. Feito em 2026-11-07 em staging: versão 3 → 4 (21 falas regravadas, 2 nós novos da 299).
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
