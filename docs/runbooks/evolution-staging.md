@@ -238,3 +238,17 @@ O passo a passo completo está no projeto Claude (`grupo-whatsapp/roteiro-teste-
 - Não compartilhar o Postgres ou o Redis com outro ambiente.
 - Não ligar o Evolution em produção sem aprovação do dono.
 - Não colar número, texto ou chave em chat, log ou PR.
+
+## Resposta do cliente ao boleto no WhatsApp (08/11/2026)
+
+Caso: o cliente (ou o teste do Anderson) responde "ola" ao boleto atualizado e "o bot não responde". **Não é falha:** a
+resposta entra na **conversa do cliente** no painel (`conversation: 1` no log `whatsapp_evolution.webhook.received`,
+pela `findLatestClientConversation`); quem responde é uma pessoa, pelo chat. Não existe resposta automática.
+
+Como conferir (só leitura, pela ferramenta Railway do Claude, sem script):
+
+1. Logs do serviço `evolution-api` (staging): `CONNECTED TO WHATSAPP` e o corpo da mensagem recebida (`status: 'DELIVERY_ACK'`).
+2. Logs do serviço `api` (staging) com filtro `whatsapp_evolution`: `conversation`/`unassigned` > 0 mostra que a resposta chegou.
+   `statuses: 0` em todas as entregas: o selo de entrega do que sai não está avançando (ver pendência na thread).
+
+A linha "✉️" do boleto no WhatsApp saía vazia quando o perfil fiscal não tem e-mail; agora a linha só com emoji some.
