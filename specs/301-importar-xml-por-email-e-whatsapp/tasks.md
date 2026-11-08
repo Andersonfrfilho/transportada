@@ -15,7 +15,7 @@ Uma task por vez; cada uma fecha com typecheck + testes da app + evidência em `
 
 > 🤖 Modelo: `sonnet` (migration → `opus`)
 
-- [ ] **T1.1 🧠** Migration aditiva `nfe_imports.received_via` + `received_from`; rollback; teste de migração.
+- [x] **T1.1 🧠** Migration aditiva `nfe_imports.received_via` + `received_from`; rollback; teste de migração.
 - [ ] **T1.2** Serviço "importar XML recebido" reutilizando `requestUpload` e o leitor de zip seguro.
 
 - [ ] **T1.3** Fila e lotes no worker (RN1–RN4): lote configurável, concorrência por empresa, retentativa com espera, fila morta;

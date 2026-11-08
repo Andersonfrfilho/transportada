@@ -1,0 +1,4 @@
+ALTER TABLE "nfe_imports" ADD COLUMN "received_via" text DEFAULT 'screen' NOT NULL;--> statement-breakpoint
+ALTER TABLE "nfe_imports" ADD COLUMN "received_from" text;--> statement-breakpoint
+ALTER TABLE "nfe_imports" ADD CONSTRAINT "nfe_imports_received_via_check" CHECK ("received_via" in ('screen', 'email', 'whatsapp'));--> statement-breakpoint
+ALTER TABLE "nfe_imports" ADD CONSTRAINT "nfe_imports_received_from_check" CHECK (("received_via" = 'screen' and "received_from" is null) or ("received_via" <> 'screen' and "received_from" is not null and char_length("received_from") between 3 and 254));
