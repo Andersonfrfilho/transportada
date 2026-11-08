@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { zipSync } from 'fflate'
 import { describe, expect, test } from 'bun:test'
 
 import { createNfeXmlEmailIntake } from '../../src/nfe-xml-receipts/infrastructure/nfe-xml-email-intake.factory.js'
@@ -100,6 +101,33 @@ describe('received XML import gateway', () => {
       payload: { importId },
     })
     expect(statements).toHaveLength(1) // o fechamento do recibo
+  })
+
+  test('a zip with several XMLs becomes one item per XML, all pointing to the same zip object (spec 306)', async () => {
+    const { database, inserts } = fakeDatabase()
+    const gateway = createDrizzleReceivedXmlImportGateway({ database, storage: fakeStorage() })
+    const zip = zipSync({
+      'a.xml': new TextEncoder().encode('<nfeProc>a</nfeProc>'),
+      'b.xml': new TextEncoder().encode('<nfeProc>b</nfeProc>'),
+      'c.xml': new TextEncoder().encode('<nfeProc>c</nfeProc>'),
+      'leia-me.txt': new TextEncoder().encode('x'),
+    })
+
+    await gateway.createImport({ ...IMPORT_INPUT, files: [{ bytes: zip, name: 'lote.zip' }] })
+
+    // 1 stored_object (o zip) + import + items + outbox
+    expect(inserts).toHaveLength(4)
+    const importRow = inserts[1]!.values as Record<string, unknown>
+    expect(importRow.receivedCount).toBe(1n)
+    const items = inserts[2]!.values as readonly Record<string, unknown>[]
+    expect(items.map((item) => item.sourceEntry).sort()).toEqual([
+      'entry:a.xml',
+      'entry:b.xml',
+      'entry:c.xml',
+    ])
+    expect(items.map((item) => item.ordinal)).toEqual([1n, 2n, 3n])
+    expect(new Set(items.map((item) => item.sourceObjectId)).size).toBe(1)
+    expect(new Set(items.map((item) => item.sourceName))).toEqual(new Set(['lote.zip']))
   })
 
   test('an automation import (e-mail mailbox) carries the automation job and trigger', async () => {
