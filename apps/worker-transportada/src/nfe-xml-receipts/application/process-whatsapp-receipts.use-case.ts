@@ -65,10 +65,13 @@ export async function processWhatsAppReceipts(
   })
   const result = { failed: 0, imported: 0, rejected: 0, released, retried: 0 }
   const startedAt = Date.now()
+  const imported: ReceiptRecord[] = []
   for (const receipt of batch) {
     const outcome = await processOne(receipt, dependencies)
     result[outcome] += 1
+    if (outcome === 'imported') imported.push(receipt)
   }
+  await acknowledgeGroups(imported, dependencies)
   dependencies.logger.info(NFE_XML_RECEIPT_LOG.batch, {
     channel: 'whatsapp',
     claimed: batch.length,
@@ -133,43 +136,56 @@ async function processOne(
       importId,
       receiptId: receipt.id,
     })
-    await acknowledge(receipt, dependencies)
     return 'imported'
   } catch (error: unknown) {
     return handleFailure(receipt, error, dependencies)
   }
 }
 
-/** O aviso de "recebi" é cortesia: falhar em mandá-lo não desfaz nem repete a importação já criada. */
-async function acknowledge(
-  receipt: ReceiptRecord,
+/**
+ * O aviso de "recebi" é cortesia: falhar em mandá-lo não desfaz nem repete a importação já criada. Quem manda vários
+ * arquivos em sequência recebe **um** aviso por lote (mesma empresa, mesmo remetente, mesma conversa), não um por arquivo.
+ */
+async function acknowledgeGroups(
+  receipts: readonly ReceiptRecord[],
   dependencies: WhatsAppReceiptDependencies,
 ): Promise<void> {
-  try {
-    await dependencies.reply.send({
-      channel: 'whatsapp',
-      companyId: receipt.companyId,
-      replyTo: receipt.replyTo,
-      sender: receipt.sender,
-      text: buildAcknowledgement({ accepted: 1, skipped: [] }),
-    })
-    await dependencies.repository.markAcknowledged({
-      now: dependencies.now(),
-      receiptId: receipt.id,
-    })
-    dependencies.logger.info(NFE_XML_RECEIPT_LOG.acknowledged, {
-      channel: 'whatsapp',
-      companyId: receipt.companyId,
-      receiptId: receipt.id,
-    })
-  } catch (error: unknown) {
-    dependencies.logger.warn(NFE_XML_RECEIPT_LOG.acknowledged, {
-      channel: 'whatsapp',
-      companyId: receipt.companyId,
-      errorName: error instanceof Error ? error.name : typeof error,
-      receiptId: receipt.id,
-      sent: false,
-    })
+  const groups = new Map<string, ReceiptRecord[]>()
+  for (const receipt of receipts) {
+    const key = [receipt.companyId, receipt.sender, receipt.replyTo ?? ''].join('|')
+    groups.set(key, [...(groups.get(key) ?? []), receipt])
+  }
+  for (const group of groups.values()) {
+    const [first] = group
+    if (first === undefined) continue
+    try {
+      await dependencies.reply.send({
+        channel: 'whatsapp',
+        companyId: first.companyId,
+        replyTo: first.replyTo,
+        sender: first.sender,
+        text: buildAcknowledgement({ accepted: group.length, skipped: [] }),
+      })
+      for (const receipt of group) {
+        await dependencies.repository.markAcknowledged({
+          now: dependencies.now(),
+          receiptId: receipt.id,
+        })
+        dependencies.logger.info(NFE_XML_RECEIPT_LOG.acknowledged, {
+          channel: 'whatsapp',
+          companyId: receipt.companyId,
+          receiptId: receipt.id,
+        })
+      }
+    } catch (error: unknown) {
+      dependencies.logger.warn(NFE_XML_RECEIPT_LOG.acknowledged, {
+        channel: 'whatsapp',
+        companyId: first.companyId,
+        errorName: error instanceof Error ? error.name : typeof error,
+        receipts: group.length,
+        sent: false,
+      })
+    }
   }
 }
 
