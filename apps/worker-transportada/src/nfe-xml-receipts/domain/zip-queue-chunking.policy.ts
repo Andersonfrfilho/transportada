@@ -89,7 +89,7 @@ function planChunks(entries: readonly Entry[]): readonly (readonly string[])[] {
 }
 
 /** Lê só o diretório do zip (nada é inflado). `undefined` = qualquer coisa fora do normal: não fatia. */
-function listSafeXmlEntries(bytes: Uint8Array): readonly Entry[] | undefined {
+export function listSafeXmlEntries(bytes: Uint8Array): readonly Entry[] | undefined {
   const entries: Entry[] = []
   let planned = 0
   let unsafe = false

@@ -18,6 +18,8 @@ import type {
   ReceivedXmlImportGatewayPort,
   ReceiptFile,
 } from '../application/nfe-xml-receipt.types.js'
+import { ZIP_ENTRY_SOURCE_PREFIX } from '../../nfe-imports/infrastructure/nfe-import-archive-expander.gateway.js'
+import { listSafeXmlEntries } from '../domain/zip-queue-chunking.policy.js'
 import { contentTypeForReceivedFile } from '../domain/received-xml-files.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -85,16 +87,18 @@ export function createDrizzleReceivedXmlImportGateway(dependencies: {
             triggeredBy,
           })
           await transaction.insert(nfeImportItems).values(
-            staged.map((item, index) => ({
-              companyId: input.companyId,
-              importId,
-              ordinal: BigInt(index + 1),
-              sourceEntry: index === 0 ? '/' : item.name,
-              sourceName: item.name,
-              sourceObjectId: item.objectId,
-              sourceSha256: item.sha256,
-              status: 'pending' as const,
-            })),
+            staged
+              .flatMap((item, index) => itemEntries(item, input.files[index], index))
+              .map((entry, ordinal) => ({
+                companyId: input.companyId,
+                importId,
+                ordinal: BigInt(ordinal + 1),
+                sourceEntry: entry.sourceEntry,
+                sourceName: entry.item.name,
+                sourceObjectId: entry.item.objectId,
+                sourceSha256: entry.item.sha256,
+                status: 'pending' as const,
+              })),
           )
           await transaction.insert(processingOutbox).values({
             actorUserId: input.requestedByUserId,
@@ -126,6 +130,24 @@ export function createDrizzleReceivedXmlImportGateway(dependencies: {
       return { importId }
     },
   }
+}
+
+/**
+ * Spec 306: um zip sadio vira um item por XML (todos apontam para o mesmo objeto do zip, `sourceEntry` = nome da entrada).
+ * Antes o zip era um item só e o consumidor lia apenas o primeiro XML. Zip fora do normal segue inteiro, para o expansor
+ * recusá-lo com o código exato.
+ */
+function itemEntries<T extends { readonly name: string }>(
+  item: T,
+  file: ReceiptFile | undefined,
+  index: number,
+): readonly { readonly item: T; readonly sourceEntry: string }[] {
+  const entries =
+    file !== undefined && item.name.trim().toLowerCase().endsWith('.zip')
+      ? listSafeXmlEntries(file.bytes)
+      : undefined
+  if (entries === undefined) return [{ item, sourceEntry: index === 0 ? '/' : item.name }]
+  return entries.map((entry) => ({ item, sourceEntry: `${ZIP_ENTRY_SOURCE_PREFIX}${entry.name}` }))
 }
 
 async function stage(

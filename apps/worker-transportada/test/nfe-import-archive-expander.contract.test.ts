@@ -182,6 +182,32 @@ describe('nfe import archive expander contract', () => {
     await expect(expander.expand(input(26 * 1024 * 1024))).rejects.toThrow('ZIP_ENTRY_TOO_LARGE')
   })
 
+  test('an item whose sourceEntry names an XML reads only that entry of the zip (spec 306)', async () => {
+    const files: Record<string, Uint8Array> = {}
+    for (let index = 0; index < 5; index += 1)
+      files[`nota-${index}.xml`] = xmlBytes(`<NFe n="${index}"/>`)
+    for (const sourceBytes of [zipSync(files), withZip64Sentinels(zipSync(files))]) {
+      const [entry, ...rest] = await createNfeImportArchiveExpander().expand({
+        contentType: 'application/zip',
+        sourceBytes,
+        sourceEntry: 'entry:nota-3.xml',
+        sourceName: 'lote.zip',
+      })
+      expect(rest).toHaveLength(0)
+      expect(entry?.entryName).toBe('nota-3.xml')
+      expect(new TextDecoder().decode(entry?.sourceBytes)).toBe('<NFe n="3"/>')
+    }
+    // entrada que não está no zip: recusa, nunca importa outra nota no lugar
+    await expect(
+      createNfeImportArchiveExpander().expand({
+        contentType: 'application/zip',
+        sourceBytes: zipSync(files),
+        sourceEntry: 'entry:inexistente.xml',
+        sourceName: 'lote.zip',
+      }),
+    ).rejects.toThrow('ZIP_NO_XML_ENTRIES')
+  })
+
   test('a zip written in a stream (Zip64 sentinels in the directory) expands by its real sizes (spec 305)', async () => {
     const files: Record<string, Uint8Array> = {}
     for (let index = 0; index < 20; index += 1)

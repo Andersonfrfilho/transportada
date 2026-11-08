@@ -74,16 +74,30 @@ export function createNfeImportArchiveExpander(
       if (input.contentType === 'application/xml') {
         return [toEntry(input.sourceEntry, input.sourceBytes)]
       }
-      return expandZip(input.sourceBytes, limits)
+      return expandZip(input.sourceBytes, limits, singleEntryName(input.sourceEntry))
     },
   }
+}
+
+/**
+ * Spec 306: o recebimento (e-mail/WhatsApp) cria um item por XML do zip, com o nome da entrada em `sourceEntry`. Item
+ * com o prefixo `entry:` (`ZIP_ENTRY_SOURCE_PREFIX`) lê só aquela entrada; o legado (`/`, o nome do zip) segue lendo o zip
+ * inteiro.
+ */
+export const ZIP_ENTRY_SOURCE_PREFIX = 'entry:'
+
+function singleEntryName(sourceEntry: string): string | undefined {
+  return sourceEntry.startsWith(ZIP_ENTRY_SOURCE_PREFIX)
+    ? sourceEntry.slice(ZIP_ENTRY_SOURCE_PREFIX.length)
+    : undefined
 }
 
 function expandZip(
   sourceBytes: Uint8Array,
   limits: ArchiveExpanderLimits,
+  only?: string,
 ): readonly ExpandedXmlEntry[] {
-  const unzipped = readArchive(sourceBytes, limits)
+  const unzipped = readArchive(sourceBytes, limits, only)
 
   const names = Object.keys(unzipped).sort()
   const entries: ExpandedXmlEntry[] = []
@@ -104,9 +118,14 @@ function expandZip(
 function readArchive(
   sourceBytes: Uint8Array,
   limits: ArchiveExpanderLimits,
+  only?: string,
 ): Record<string, Uint8Array> {
   const directory = readZipDirectory(sourceBytes)
-  if (directory.streamed) return readStreamedArchive(sourceBytes, directory.entries, limits)
+  if (directory.streamed) {
+    const wanted =
+      only === undefined ? directory.entries : directory.entries.filter((e) => e.name === only)
+    return readStreamedArchive(sourceBytes, wanted, limits)
+  }
 
   let acceptedEntries = 0
   let acceptedBytes = 0
@@ -117,6 +136,7 @@ function readArchive(
         if (isDirectory(file.name) || !isXmlEntry(file.name)) {
           return false
         }
+        if (only !== undefined && file.name !== only) return false
         assertSafeEntryName(file.name)
         assertWithinEntryLimit(file, limits)
 
