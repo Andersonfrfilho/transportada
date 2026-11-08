@@ -7,6 +7,7 @@ import { NFE_XML_RECEIPT_LIMITS } from '../../src/nfe-xml-receipts/domain/nfe-xm
 import {
   buildAcknowledgement,
   buildSummary,
+  mergeReports,
   describeRejection,
 } from '../../src/nfe-xml-receipts/domain/receipt-messages.policy.js'
 import { decideReceiptRetry } from '../../src/nfe-xml-receipts/domain/receipt-retry.policy.js'
@@ -103,6 +104,52 @@ describe('receipt messages policy', () => {
       '',
       '➡️ _Próximo passo:_ as notas novas já estão na página de NF-e.',
     ])
+  })
+
+  test('o resumo do WhatsApp leva horários, arquivos e contratantes quando há relatório (spec 309)', () => {
+    const text = buildSummary({
+      counts: { duplicated: 1, failed: 0, imported: 388, invalid: 0, received: 389, rejected: 0 },
+      problems: [],
+      report: {
+        contractors: [{ count: 388, name: 'COMERCIAL ZARAGOZA IMP EXP LTDA' }],
+        files: [{ code: null, count: 389, name: 'ID19045_procNFe_parte1.zip' }],
+        finishedAt: new Date('2026-11-08T21:02:00Z'),
+        receivedAt: new Date('2026-11-08T21:00:00Z'),
+      },
+    })
+    expect(text).toContain('🕒 _Chegou:_ 08/11/2026 18:00 · _Entrou no sistema:_ 08/11/2026 18:02')
+    expect(text).toContain('📄 *Arquivos*')
+    expect(text).toContain('• ID19045_procNFe_parte1.zip — 389 itens processados')
+    expect(text).toContain('🏢 *Contratantes das notas novas*')
+    expect(text).toContain('• COMERCIAL ZARAGOZA IMP EXP LTDA — 388 notas')
+    expect(text.split('\n').at(-1)).toContain('➡️ _Próximo passo:_')
+  })
+
+  test('vários relatórios do mesmo remetente viram um só: menor chegada, maior entrada, contratantes somadas', () => {
+    const merged = mergeReports([
+      {
+        contractors: [{ count: 2, name: 'A' }],
+        files: [{ code: null, count: 2, name: 'a.zip' }],
+        finishedAt: new Date('2026-11-08T21:02:00Z'),
+        receivedAt: new Date('2026-11-08T21:00:00Z'),
+      },
+      {
+        contractors: [
+          { count: 1, name: 'A' },
+          { count: 5, name: 'B' },
+        ],
+        files: [{ code: null, count: 6, name: 'b.zip' }],
+        finishedAt: new Date('2026-11-08T21:05:00Z'),
+        receivedAt: new Date('2026-11-08T21:01:00Z'),
+      },
+    ])
+    expect(merged?.receivedAt.toISOString()).toBe('2026-11-08T21:00:00.000Z')
+    expect(merged?.finishedAt?.toISOString()).toBe('2026-11-08T21:05:00.000Z')
+    expect(merged?.contractors).toEqual([
+      { count: 5, name: 'B' },
+      { count: 3, name: 'A' },
+    ])
+    expect(merged?.files.map((file) => file.name)).toEqual(['a.zip', 'b.zip'])
   })
 
   test('every rejection has a Portuguese explanation', () => {

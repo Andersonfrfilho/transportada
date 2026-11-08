@@ -99,11 +99,18 @@ export function buildAcknowledgement(input: {
 export function buildSummary(input: {
   readonly counts: ReceiptImportCounts
   readonly problems: readonly ReceiptItemProblem[]
+  /** Spec 309: quando há relatório, o resumo leva também os horários, os arquivos e as contratantes. */
+  readonly report?: ReceiptEmailReport | null | undefined
 }): string {
-  const { counts } = input
+  const { counts, report } = input
   const notImported = counts.invalid + counts.rejected + counts.failed
   const lines = [
     notImported === 0 ? '✅ *Importação concluída.*' : '⚠️ *Importação concluída com problemas.*',
+    ...(report === undefined || report === null || Number.isNaN(report.receivedAt.getTime())
+      ? []
+      : [
+          `🕒 _Chegou:_ ${formatMoment(report.receivedAt)} · _Entrou no sistema:_ ${report.finishedAt === null || Number.isNaN(report.finishedAt.getTime()) ? 'ainda processando' : formatMoment(report.finishedAt)}`,
+        ]),
     `Recebi ${plural(counts.received, 'arquivo', 'arquivos')}.`,
     `• ${plural(counts.imported, 'nota nova', 'notas novas')}`,
   ]
@@ -118,6 +125,7 @@ export function buildSummary(input: {
       )
     }
   }
+  if (report !== undefined && report !== null) lines.push(...reportLines(report))
   lines.push(
     '',
     notImported === 0
@@ -125,6 +133,59 @@ export function buildSummary(input: {
       : '➡️ _Próximo passo:_ corrija os arquivos com problema e envie de novo.',
   )
   return lines.join('\n')
+}
+
+/** Spec 309: arquivos e contratantes do relatório, no padrão do bot. */
+function reportLines(report: ReceiptEmailReport): string[] {
+  const lines: string[] = []
+  if (report.files.length > 0) {
+    lines.push('', '📄 *Arquivos*')
+    for (const file of report.files.slice(0, MAX_FILE_LINES)) {
+      const outcome =
+        file.code === null
+          ? plural(file.count, 'item processado', 'itens processados')
+          : `${plural(file.count, 'caso', 'casos')} não importado: ${PROBLEM_TEXT[file.code] ?? GENERIC_PROBLEM_TEXT}`
+      lines.push(`• ${file.name} — ${outcome}`)
+    }
+    if (report.files.length > MAX_FILE_LINES) lines.push('• e outros arquivos')
+  }
+  lines.push('', '🏢 *Contratantes das notas novas*')
+  if (report.contractors.length === 0) {
+    lines.push('• nenhuma nota nova nesta importação')
+  } else {
+    for (const contractor of report.contractors.slice(0, MAX_CONTRACTOR_LINES)) {
+      lines.push(`• ${contractor.name} — ${plural(contractor.count, 'nota', 'notas')}`)
+    }
+    if (report.contractors.length > MAX_CONTRACTOR_LINES) {
+      lines.push(`• e mais ${report.contractors.length - MAX_CONTRACTOR_LINES} contratantes`)
+    }
+  }
+  return lines
+}
+
+/** Vários recibos do mesmo remetente no WhatsApp viram um relatório só (spec 309). */
+export function mergeReports(reports: readonly ReceiptEmailReport[]): ReceiptEmailReport | null {
+  const [first, ...rest] = reports
+  if (first === undefined) return null
+  const contractors = new Map<string, number>()
+  for (const report of reports) {
+    for (const contractor of report.contractors) {
+      contractors.set(contractor.name, (contractors.get(contractor.name) ?? 0) + contractor.count)
+    }
+  }
+  const finished = reports.map((report) => report.finishedAt)
+  return {
+    contractors: [...contractors]
+      .map(([name, count]) => ({ count, name }))
+      .sort((a, b) => b.count - a.count),
+    files: reports.flatMap((report) => report.files),
+    finishedAt: finished.some((moment) => moment === null)
+      ? null
+      : new Date(Math.max(...finished.map((moment) => moment!.getTime()))),
+    receivedAt: new Date(
+      Math.min(first.receivedAt.getTime(), ...rest.map((report) => report.receivedAt.getTime())),
+    ),
+  }
 }
 
 /** Quando o recibo esgota as tentativas: a operação já foi avisada, quem mandou também. */

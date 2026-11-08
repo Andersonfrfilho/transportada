@@ -11,6 +11,7 @@ import {
   buildFailure,
   buildSummary,
   describeRejection,
+  mergeReports,
 } from '../domain/receipt-messages.policy.js'
 import type {
   ReceiptLogger,
@@ -31,7 +32,7 @@ export function textForReceipt(row: ReceiptSummaryRow): string {
     return describeRejection(row.rejectReason ?? 'no_accepted_file')
   }
   if (row.status === 'failed' || row.counts === null) return buildFailure()
-  return buildSummary({ counts: row.counts, problems: row.problems })
+  return buildSummary({ counts: row.counts, problems: row.problems, report: row.report })
 }
 
 /** Só o e-mail de uma importação concluída leva o relatório detalhado; recusa e falha seguem curtos. */
@@ -149,5 +150,6 @@ function combinedSummary(rows: readonly ReceiptSummaryRow[]): string {
   return buildSummary({
     counts,
     problems: [...problems].map(([code, count]) => ({ code, count })),
+    report: mergeReports(rows.flatMap((row) => (row.report == null ? [] : [row.report]))),
   })
 }
