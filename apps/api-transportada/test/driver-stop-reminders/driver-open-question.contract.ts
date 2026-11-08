@@ -103,9 +103,22 @@ describe('o leitor da pergunta aberta compõe as leituras do bot (spec 299 T2.2)
   })
 
   test('sem grupo vinculado o pedido do grupo não é consultado', async () => {
-    const { calls, read } = buildReader({ groupJid: undefined, groupRequest: true })
+    const { calls, read } = buildReader({ groupJid: undefined })
     expect(await read()).toMatchObject({ hasOpenGroupRequest: false })
-    expect(calls.some((call) => call.startsWith('request:'))).toBe(false)
+    expect(calls.some((call) => call.startsWith('request:') && call.endsWith('@g.us'))).toBe(false)
+  })
+
+  test('pedido aberto no chat direto do Evolution (spec 308) segura o lembrete, com e sem o nono dígito', async () => {
+    const { calls, read } = buildReader({ groupJid: undefined, groupRequest: true })
+    expect(await read()).toMatchObject({ hasOpenGroupRequest: true })
+    expect(calls).toContain('request:5516999990001@s.whatsapp.net')
+    expect(calls).toContain('request:551699990001@s.whatsapp.net')
+  })
+
+  test('áudio esperando confirmação no chat direto do Evolution (spec 308) segura o lembrete', async () => {
+    const { calls, read } = buildReader({ groupAudio: true, groupJid: undefined })
+    expect(await read()).toMatchObject({ hasPendingAudio: true })
+    expect(calls).toContain('group-audio:5516999990001@s.whatsapp.net')
   })
 
   test('escolha de parada da sessão individual', async () => {

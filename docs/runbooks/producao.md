@@ -1089,3 +1089,15 @@ select id, channel, status, attempts, error_code, next_attempt_at from nfe_xml_r
 primeiro. Rollback de `20261108151552` só com a tabela vazia (a guarda recusa o contrário).
 
 **Contratante envia XML (spec 302).** Quem a transportadora marcar com o tipo **"Pode enviar XML de NF-e"** no contato do contratante (tela de contatos do contratante) importa XML pelos dois canais, sem ser usuário: contato `active`, com o tipo e, no WhatsApp, com o aceite do WhatsApp. A importação sai com o ator `automation` e o remetente em `received_from`. Para revogar, desmarque o tipo ou inative o contato. Migration `20261108161438_contractor_contact_nfe_xml` é aditiva (amplia o CHECK); o rollback recusa enquanto algum contato tiver o tipo.
+
+## 5.24 O bot atende no chat direto do Evolution (spec 308, 08/11/2026) — só staging, nada mudou em produção
+
+O motorista (e quem tem envio de XML liberado) que escreve ao número do bot no 1:1 passa a receber o mesmo atendimento do
+grupo. **Produção não tem Evolution**, então nada disso está ligado lá e nada foi feito em produção nesta spec (sem
+variável nova, sem migration). A entrega é PR em `staging`; para a `main` só com pedido do Anderson.
+
+- Guia e conferências: `docs/runbooks/evolution-staging.md`, seção "O motorista no chat direto com o número do bot".
+- Conferência de staging pronta (somente leitura): `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/staging-chat-direto-confere.sh`
+  (saída em `tmp/ops/saidas/`; números mascarados).
+- Quando a spec for promovida à `main` (Evolution ainda desligado lá): nenhum passo manual; conferir só que
+  `whatsapp_evolution.direct_message` não aparece nos logs de produção.

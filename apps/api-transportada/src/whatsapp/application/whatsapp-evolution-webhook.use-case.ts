@@ -230,6 +230,8 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         direct: 0,
         group: 0,
         ignored: 0,
+        // Spec 308 (risco da T1): conversa 1:1 que chegou só com `@lid`, sem número para reconhecer.
+        lidOnly: 0,
         statuses: 0,
         unassigned: 0,
         xml: 0,
@@ -396,6 +398,7 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         } else {
           // A própria mensagem enviada pelo celular, status ou evento que não lemos.
           counts.ignored += 1
+          if (event.type === 'message' && !event.fromMe && event.chat === 'lid') counts.lidOnly += 1
         }
       }
       await repository.recordDelivery({

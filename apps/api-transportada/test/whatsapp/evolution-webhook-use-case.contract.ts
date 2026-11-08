@@ -688,6 +688,25 @@ describe('spec 308: o chat direto do motorista vai ao bot', () => {
     expect(JSON.stringify(state.logs)).not.toContain(PHONE)
   })
 
+  test('conversa 1:1 que chega só com @lid não é reconhecida, mas é contada no log (risco da T1)', async () => {
+    const { state, useCase } = await setup({ directDrivers: [PHONE] })
+
+    await useCase.receive(
+      receiveWith({
+        rawBody: upsert({
+          key: { fromMe: false, id: 'L1', remoteJid: '98765432101234@lid' },
+          message: { conversation: 'oi' },
+        }),
+      }),
+    )
+
+    expect(state.direct).toEqual([])
+    expect(state.messages).toEqual([])
+    const received = state.logs.find((log) => log.message === 'whatsapp_evolution.webhook.received')
+    expect(received?.fields).toMatchObject({ direct: 0, lidOnly: 1 })
+    expect(JSON.stringify(state.logs)).not.toContain('98765432101234')
+  })
+
   test('número que não é motorista continua no painel, como hoje', async () => {
     const { state, useCase } = await setup({ directDrivers: ['5516911112222'] })
 

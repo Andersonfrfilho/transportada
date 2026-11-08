@@ -54,18 +54,25 @@ export function createDriverOpenQuestionReader(dependencies: {
   return {
     async read({ companyId, driverId, now }) {
       const { groupJid, phone } = await dependencies.readContact({ companyId, driverId })
+      // Spec 308: o chat direto do Evolution é um "grupo de um só" (`<número>@s.whatsapp.net`); o pedido aberto
+      // e o áudio esperando confirmação dele também seguram o lembrete (spec 299), sob as duas formas do número.
+      const directJids = phone === undefined ? [] : directChatJids(phone)
       const [hasOpenCollection, hasOpenGroupRequest, session] = await Promise.all([
         dependencies.hasOpenCollection({ companyId, driverId }),
-        groupJid === undefined
-          ? Promise.resolve(false)
-          : dependencies.hasOpenGroupRequest({ companyId, groupJid, now }),
+        anyTrue(
+          [...(groupJid === undefined ? [] : [groupJid]), ...directJids].map((jid) =>
+            dependencies.hasOpenGroupRequest({ companyId, groupJid: jid, now }),
+          ),
+        ),
         phone === undefined
           ? Promise.resolve(undefined)
           : dependencies.readSession({ companyId, phone }),
       ])
       const hasPendingAudio =
         (phone !== undefined && dependencies.hasPendingIndividualAudio({ companyId, phone })) ||
-        (groupJid !== undefined && dependencies.hasPendingGroupAudio({ companyId, groupJid }))
+        [...(groupJid === undefined ? [] : [groupJid]), ...directJids].some((jid) =>
+          dependencies.hasPendingGroupAudio({ companyId, groupJid: jid }),
+        )
       return {
         hasOpenCollection,
         hasOpenGroupRequest,
@@ -89,6 +96,15 @@ export function sessionPhoneCandidates(rawPhone: string): readonly string[] {
     return [phone, `${phone.slice(0, NINTH_DIGIT_INDEX)}${phone.slice(NINTH_DIGIT_INDEX + 1)}`]
   }
   return [phone]
+}
+
+/** Spec 308 D1: o JID do chat direto, sob as duas formas do número (com e sem o nono dígito). */
+export function directChatJids(rawPhone: string): readonly string[] {
+  return sessionPhoneCandidates(rawPhone).map((candidate) => `${candidate}@s.whatsapp.net`)
+}
+
+async function anyTrue(checks: readonly Promise<boolean>[]): Promise<boolean> {
+  return (await Promise.all(checks)).some(Boolean)
 }
 
 type AudioReader = {

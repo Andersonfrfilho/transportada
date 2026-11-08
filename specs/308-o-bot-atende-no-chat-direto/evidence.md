@@ -88,3 +88,14 @@ Arquivos lidos: `whatsapp-evolution-webhook.use-case.ts`, `evolution-group-inbou
 `evolution-attribution.policy.ts`, `driver-open-question.adapter.ts`, `drizzle-driver-reminder-channel.resolver.ts`,
 `main.ts` (`createEvolutionWebhook`) e o `dist` do `@adatechnology/evolution-whatsapp-provider` 0.3.0
 (`senderOf`, `resolveEvolutionDestination`).
+
+## T5 — Integração, roteiro e runbook (riscos da T1)
+
+| Risco da T1                                | Tratamento                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lembrete de parada (299) não enxerga o 1:1 | **Feito:** pedido aberto e áudio pendente em `<número>@s.whatsapp.net` (duas formas do número) seguram o lembrete. Contrato em `driver-open-question.contract.ts` e integração com Postgres. **Não feito:** escolher o 1:1 do Evolution como canal do lembrete (não existe envio proativo por ele); registrado no runbook. |
+| Sessões duplicadas (grupo e 1:1)           | **Aceito e registrado:** o índice é por `(empresa, group_jid)`; cada conversa responde onde perguntou. Provado em integração (`whatsapp-group-request-repository.integration.ts`); script de conferência lista os casos reais.                                                                                             |
+| 1:1 só com `@lid`                          | **Medido:** `lidOnly` em `whatsapp_evolution.webhook.received` (contrato; sem número nem texto). Reconhecer sem número fica fora do escopo até haver dado de staging.                                                                                                                                                      |
+
+Verificação local: `bun test ./test/whatsapp.contract.test.ts ./test/driver-stop-reminders.contract.test.ts` verdes, `tsc` e `eslint` limpos nos arquivos tocados. A integração com Postgres roda no CI (sem Postgres local).
+Pendente: teste real em staging com o número do Anderson (roteiro, seção 6) depois do deploy.
