@@ -19,13 +19,13 @@ Em 2 e 3 o remetente recebe de volta um resumo: importadas, já estavam no siste
 
 ## Fatos levantados no código (08/11/2026)
 
-| Fato | Fonte |
-| --- | --- |
-| Tela aceita `application/xml`, `text/xml`, `application/zip`; cria importação `source = upload` | `nfe-imports/presentation/nfe-imports.schema.ts:13`, `request-nfe-import.use-case.ts` |
-| Webhook de e-mail recebido (Resend, assinado) existe, mas só trata respostas de ocorrência e **não lê anexos** | `contractor-mail/application/process-inbound-email-webhook.use-case.ts` |
-| Endereço de entrada com token + allowlist de remetentes existe só para a prévia `.xlsm` (spec 237) | `cargo-receiving/application/contractor-preview-email.use-case.ts` |
-| Leitor de zip seguro (zip-slip, zip bomb) existe para a prévia | `cargo-receiving/domain/cargo-preview-zip.parser.ts` |
-| O bot lê só legenda de documento; não baixa mídia de XML | `occurrence-conversation/application/whatsapp-conversation-inbound.service.ts` |
+| Fato                                                                                                           | Fonte                                                                                 |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Tela aceita `application/xml`, `text/xml`, `application/zip`; cria importação `source = upload`                | `nfe-imports/presentation/nfe-imports.schema.ts:13`, `request-nfe-import.use-case.ts` |
+| Webhook de e-mail recebido (Resend, assinado) existe, mas só trata respostas de ocorrência e **não lê anexos** | `contractor-mail/application/process-inbound-email-webhook.use-case.ts`               |
+| Endereço de entrada com token + allowlist de remetentes existe só para a prévia `.xlsm` (spec 237)             | `cargo-receiving/application/contractor-preview-email.use-case.ts`                    |
+| Leitor de zip seguro (zip-slip, zip bomb) existe para a prévia                                                 | `cargo-receiving/domain/cargo-preview-zip.parser.ts`                                  |
+| O bot lê só legenda de documento; não baixa mídia de XML                                                       | `occurrence-conversation/application/whatsapp-conversation-inbound.service.ts`        |
 
 ## Decisões (padrão mais seguro; o dono pode trocar)
 
@@ -49,17 +49,21 @@ Em 2 e 3 o remetente recebe de volta um resumo: importadas, já estavam no siste
 ## Histórias priorizadas
 
 ### P1 — E-mail com zip de XMLs
+
 **Given** remetente na allowlist **When** manda e-mail com `notas.zip` cheio de XML para a caixa **Then** uma importação
 é criada, e o remetente recebe resposta "N importadas, M já estavam, K inválidas (motivo)".
 
 ### P1 — E-mail com XMLs soltos
+
 **Given** e-mail com vários `.xml` anexos **When** recebido **Then** viram uma única importação, uma linha por arquivo.
 
 ### P1 — WhatsApp marcando o bot
+
 **Given** número cadastrado no grupo **When** envia XML ou zip marcando o bot (ou na conversa direta) **Then** o bot baixa
 o arquivo, cria a importação e responde na conversa com o resumo.
 
 ### P1 — Grupos do WhatsApp
+
 **Given** o bot está num grupo (specs 292/293: grupo do motorista, grupos da operação) **When** um membro cadastrado envia
 XML/zip marcando o bot (ou respondendo ao arquivo com a marcação) **Then** o bot importa e responde **no grupo**, marcando
 quem enviou. Arquivo sem marcação no grupo é ignorado (o bot não lê tudo que passa). Vale para qualquer grupo em que o bot
@@ -67,10 +71,12 @@ esteja; o grupo identifica a empresa, o remetente (número) precisa ser cadastra
 não importa nada.
 
 ### P1 — Remetente não autorizado
+
 **Given** remetente fora da allowlist / número não cadastrado **When** envia **Then** nada é importado; resposta
 genérica (e-mail: nenhuma; WhatsApp: "este número não pode importar notas"); registro da tentativa, sem o conteúdo.
 
 ### P2 — Reenvio e duplicidade
+
 **Given** o mesmo zip enviado duas vezes **Then** a segunda vez retorna "já estavam no sistema" (idempotência por sha256
 do anexo + chave de acesso), sem duplicar nota.
 
