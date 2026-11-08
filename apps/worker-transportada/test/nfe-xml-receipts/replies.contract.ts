@@ -29,7 +29,7 @@ function row(overrides: Partial<ReceiptSummaryRow>): ReceiptSummaryRow {
 
 describe('receipt replies', () => {
   test('writes the right text for a finished import, a rejection and a final failure', () => {
-    expect(textForReceipt(row({}))).toContain('• 4 notas novas')
+    expect(textForReceipt(row({}))).toContain('Importei 4 notas novas')
     expect(
       textForReceipt(row({ rejectReason: 'sender_not_allowed', status: 'rejected' })),
     ).toContain('não pode importar')
@@ -58,6 +58,43 @@ describe('receipt replies', () => {
     expect(repository.attempts).toEqual(['broken'])
     expect(repository.receivedMaxAttempts).toBe(NFE_XML_RECEIPT_LIMITS.summaryMaxAttempts)
     expect(JSON.stringify(entries)).not.toContain('maria@')
+  })
+
+  test('o resumo do WhatsApp espera o lote inteiro: com irmão ainda importando nada sai, recusa sai na hora (spec 310)', async () => {
+    const repository = new FakeSummaryRepository()
+    const whatsapp = (id: string, overrides: Partial<ReceiptSummaryRow> = {}) =>
+      row({
+        channel: 'whatsapp',
+        id,
+        replyTo: '120363@g.us',
+        sender: '5516999990000',
+        ...overrides,
+      })
+    repository.rows = [
+      whatsapp('w1'),
+      whatsapp('w2', { rejectReason: 'sender_not_allowed', status: 'rejected' }),
+      row({ id: 'e1' }),
+    ]
+    repository.inFlight = true
+    const texts: string[] = []
+    const { logger } = createLogCollector()
+    const dependencies = {
+      logger,
+      now: () => NOW,
+      reply: {
+        send: (input: { text: string }) => {
+          texts.push(input.text)
+          return Promise.resolve()
+        },
+      },
+      repository,
+    }
+    await sendReceiptReplies(dependencies)
+    expect(repository.sent.sort()).toEqual(['e1', 'w2'])
+    repository.inFlight = false
+    repository.sent.length = 0
+    await sendReceiptReplies(dependencies)
+    expect(repository.sent).toContain('w1')
   })
 
   test('resultados do mesmo remetente no WhatsApp viram UM resumo com o total; e-mail segue um por recibo (spec 308)', async () => {
@@ -104,13 +141,13 @@ describe('receipt replies', () => {
     })
     // 1 resumo somado + 1 recusa (texto igual) + 2 e-mails
     expect(texts).toHaveLength(4)
-    const combined = texts.find((text) => text.includes('7 arquivos'))
+    const combined = texts.find(
+      (text) => text.includes('Importei 4 notas novas') && text.includes('não pôde'),
+    )
     expect(combined).toBeDefined()
-    expect(combined).toContain('• Contratante Um — 6 notas')
-    expect(combined).toContain('• w1.zip — 3 itens processados')
-    expect(combined).toContain('4 notas novas')
-    expect(combined).toContain('2 já estavam no sistema')
-    expect(combined).toContain('1 arquivo não importado')
+    expect(combined).toContain('2 notas já estavam cadastradas, então não entraram de novo.')
+    expect(combined).toContain('1 arquivo não pôde ser importado:')
+    expect(combined).not.toContain('Contratante Um')
     expect(repository.sent.sort()).toEqual(['e1', 'e2', 'w1', 'w2', 'w3', 'w4', 'w5'])
   })
 
