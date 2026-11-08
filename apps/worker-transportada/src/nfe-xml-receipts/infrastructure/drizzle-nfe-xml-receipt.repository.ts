@@ -14,6 +14,7 @@ import type {
   ReceiptSummaryRow,
   WhatsAppReceiptMedia,
 } from '../application/nfe-xml-receipt.types.js'
+import { NFE_XML_MAILBOX_ACTOR_USER_ID } from '../application/intake-nfe-xml-email.use-case.js'
 import { NFE_IMPORT_ROLES } from '../domain/nfe-xml-receipt.constant.js'
 import type { NfeXmlReceiptRejection } from '../domain/nfe-xml-receipt.constant.js'
 
@@ -112,7 +113,20 @@ export function createDrizzleNfeXmlReceiptRepository(dependencies: {
         limit 1
       `)) as unknown as Rows<{ user_id: string }>
       const [row] = rows
-      return row === undefined ? undefined : { userId: row.user_id }
+      if (row !== undefined) return { userId: row.user_id }
+
+      // Spec 302: o contato do contratante com o tipo `nfe_xml` também pode enviar. A importação sai com o ator da caixa
+      // (a decisão de quem importa é do intake, que grava o remetente), então aqui basta existir um contato ativo.
+      const contacts = (await database.execute(sql`
+        select id
+        from contractor_contacts
+        where company_id = ${companyId}::uuid
+          and status = 'active'
+          and 'nfe_xml' = any(types)
+          and lower(email) = ${email.toLowerCase()}
+        limit 1
+      `)) as unknown as Rows<{ id: string }>
+      return contacts[0] === undefined ? undefined : { userId: NFE_XML_MAILBOX_ACTOR_USER_ID }
     },
 
     async markAcknowledged({ now, receiptId }) {

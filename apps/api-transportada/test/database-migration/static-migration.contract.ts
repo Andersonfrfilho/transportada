@@ -433,6 +433,7 @@ describe('Drizzle migrations', () => {
       '20261107165358_driver_stop_reminder_idle_stage',
       '20261108144212_nfe_import_received_via',
       '20261108151552_nfe_xml_receipts',
+      '20261108161438_contractor_contact_nfe_xml',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

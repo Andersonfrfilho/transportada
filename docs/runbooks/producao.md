@@ -1087,3 +1087,5 @@ select id, channel, status, attempts, error_code, next_attempt_at from nfe_xml_r
 
 **Publicação.** Ordem: banco/API (migrations `20261108144212` e `20261108151552`, aditivas) → worker → painel. Passa por `staging`
 primeiro. Rollback de `20261108151552` só com a tabela vazia (a guarda recusa o contrário).
+
+**Contratante envia XML (spec 302).** Quem a transportadora marcar com o tipo **"Pode enviar XML de NF-e"** no contato do contratante (tela de contatos do contratante) importa XML pelos dois canais, sem ser usuário: contato `active`, com o tipo e, no WhatsApp, com o aceite do WhatsApp. A importação sai com o ator `automation` e o remetente em `received_from`. Para revogar, desmarque o tipo ou inative o contato. Migration `20261108161438_contractor_contact_nfe_xml` é aditiva (amplia o CHECK); o rollback recusa enquanto algum contato tiver o tipo.
