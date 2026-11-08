@@ -102,6 +102,22 @@ describe('WhatsApp receipt cycle', () => {
     expect(repository.acknowledged).toEqual(['receipt-w1'])
   })
 
+  test('vários arquivos em sequência do mesmo remetente recebem UM aviso de recebimento (spec 308)', async () => {
+    const { dependencies, repository, sent } = setup()
+    repository.pending = [
+      whatsappReceipt({ id: 'w1', providerMessageId: 'A' }),
+      whatsappReceipt({ id: 'w2', providerMessageId: 'B' }),
+      whatsappReceipt({ id: 'w3', providerMessageId: 'C' }),
+      whatsappReceipt({ id: 'w4', providerMessageId: 'D', sender: '5516988887777', replyTo: null }),
+    ]
+    await processWhatsAppReceipts(dependencies)
+    expect(sent.map((message) => message.text)).toEqual([
+      expect.stringContaining('Recebi 3 arquivos'),
+      expect.stringContaining('Recebi 1 arquivo'),
+    ])
+    expect(repository.acknowledged.sort()).toEqual(['w1', 'w2', 'w3', 'w4'])
+  })
+
   test('a failed acknowledgement does not undo or repeat the import', async () => {
     const { dependencies, importGateway, repository } = setup({
       reply: { send: () => Promise.reject(new Error('whatsapp down')) },
