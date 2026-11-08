@@ -1,4 +1,4 @@
-# Feature 300 — Importar XML de NF-e por e-mail e por WhatsApp
+# Feature 301 — Importar XML de NF-e por e-mail e por WhatsApp
 
 > Pedido do Anderson em 08/11/2026: receber um zip cheio de XML (ou XMLs soltos) por e-mail e pelo WhatsApp, marcando o bot.
 
