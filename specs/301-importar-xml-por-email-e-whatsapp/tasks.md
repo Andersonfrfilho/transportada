@@ -6,7 +6,7 @@ Uma task por vez; cada uma fecha com typecheck + testes da app + evidência em `
 
 > 🤖 Modelo: `opus` (T0.1) · `sonnet` (T0.2)
 
-- [ ] **T0.1 🧠** Conferir no código: como o `requestUpload` recebe arquivos já em storage (`stagedSources`), qual ator
+- [x] **T0.1 🧠** Conferir no código: como o `requestUpload` recebe arquivos já em storage (`stagedSources`), qual ator
       usar sem usuário logado (D3), onde o webhook da Evolution entrega `documentMessage`, e como o Resend entrega anexos.
       Aceite: `plan.md` com arquivo:símbolo.
 - [ ] **T0.2** Contratos vermelhos: extração de anexos (zip/soltos/hostis), autorização de remetente, idempotência.
