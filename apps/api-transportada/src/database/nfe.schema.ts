@@ -1247,3 +1247,91 @@ export const nfeAccessKeyLookupBudgets = pgTable(
     check('nfe_access_key_lookup_budgets_used_check', sql`${table.usedInWindow} >= 0`),
   ],
 )
+
+/**
+ * Spec 301: o recibo de um envio de XML por e-mail ou WhatsApp. É a caixa de entrada durável: o webhook só
+ * grava a linha (`pending`) e o worker processa em lotes, com tentativas e motivo de recusa. O e-mail entra já
+ * processado (`imported`/`rejected`); o WhatsApp espera o worker baixar a mídia.
+ */
+export const NFE_XML_RECEIPT_CHANNELS = ['email', 'whatsapp'] as const
+export type NfeXmlReceiptChannel = (typeof NFE_XML_RECEIPT_CHANNELS)[number]
+export const NFE_XML_RECEIPT_STATUSES = [
+  'pending',
+  'processing',
+  'imported',
+  'rejected',
+  'failed',
+] as const
+export type NfeXmlReceiptStatus = (typeof NFE_XML_RECEIPT_STATUSES)[number]
+
+export const nfeXmlReceipts = pgTable(
+  'nfe_xml_receipts',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    channel: text().$type<NfeXmlReceiptChannel>().notNull(),
+    providerMessageId: text('provider_message_id').notNull(),
+    sender: text().notNull(),
+    /** Quem responde pela importação: o dono do número (WhatsApp); o e-mail usa o ator de sistema e deixa nulo. */
+    requestedByUserId: uuid('requested_by_user_id'),
+    /** WhatsApp: o chat (grupo ou conversa) onde a resposta sai; e-mail responde ao remetente. */
+    replyTo: text('reply_to'),
+    /** WhatsApp: a mensagem do webhook (o Evolution só baixa a mídia com ela) e o que se sabe do arquivo. */
+    media: jsonb(),
+    status: text().$type<NfeXmlReceiptStatus>().notNull().default('pending'),
+    rejectReason: text('reject_reason'),
+    attempts: integer().notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    filesCount: integer('files_count').notNull().default(0),
+    importId: uuid('import_id'),
+    lastErrorCode: text('last_error_code'),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    summarySentAt: timestamp('summary_sent_at', { withTimezone: true }),
+    /** Quantas vezes o resumo falhou ao sair; passado o teto, o recibo deixa de ser tentado e a operação vê o log. */
+    summaryAttempts: integer('summary_attempts').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('nfe_xml_receipts_company_channel_message_unique').on(
+      table.companyId,
+      table.channel,
+      table.providerMessageId,
+    ),
+    foreignKey({
+      columns: [table.companyId, table.importId],
+      foreignColumns: [nfeImports.companyId, nfeImports.id],
+      name: 'nfe_xml_receipts_company_import_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check('nfe_xml_receipts_channel_check', sql`${table.channel} in ('email', 'whatsapp')`),
+    check(
+      'nfe_xml_receipts_status_check',
+      sql`${table.status} in ('pending', 'processing', 'imported', 'rejected', 'failed')`,
+    ),
+    check('nfe_xml_receipts_sender_check', sql`char_length(${table.sender}) between 3 and 254`),
+    check(
+      'nfe_xml_receipts_attempts_check',
+      sql`${table.attempts} >= 0 and ${table.filesCount} >= 0 and ${table.summaryAttempts} >= 0`,
+    ),
+    check(
+      'nfe_xml_receipts_imported_import_check',
+      sql`${table.status} <> 'imported' or ${table.importId} is not null`,
+    ),
+    check(
+      'nfe_xml_receipts_rejected_reason_check',
+      sql`${table.status} <> 'rejected' or ${table.rejectReason} is not null`,
+    ),
+    index('nfe_xml_receipts_pending_idx')
+      .on(table.status, table.nextAttemptAt)
+      .where(sql`${table.status} in ('pending', 'processing')`),
+    index('nfe_xml_receipts_summary_pending_idx')
+      .on(table.companyId, table.status)
+      .where(
+        sql`${table.summarySentAt} is null and ${table.status} in ('imported', 'rejected', 'failed')`,
+      ),
+  ],
+)

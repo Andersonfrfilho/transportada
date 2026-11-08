@@ -22,3 +22,14 @@
 - Contratos novos em `request-and-idempotency.contract.ts` (canal e remetente gravados; tela sem as chaves).
 - `tsc --noEmit` limpo (com `NODE_OPTIONS=--max-old-space-size=5000`), eslint limpo, `nfe-import-application` 16 pass / 0 fail.
 - Falta da T1.2: o serviço que guarda os anexos e chama o caso de uso para e-mail/WhatsApp (nasce junto da T2.1/T3.1, que são os consumidores).
+
+## T1.2–T4.1 — Entrega completa (08/11/2026)
+
+- Worker: `test/nfe-xml-receipts.contract.test.ts` 47 pass / 0 fail (domínio, intake de e-mail, ciclo WhatsApp, respostas, infra, fatiamento de zip).
+- Worker, Postgres 16 real: `test/integration/nfe-xml-receipts.integration.ts` 10 pass / 0 fail (gravação idempotente, claim concorrente
+  com skip locked, retomada de recibo preso, remetente de e-mail autorizado, transação de importação completa, reentrega, resumo, alerta).
+- API, Postgres 16 real: `test/integration/nfe-xml-receipts.integration.ts` 2 pass / 0 fail (remetente verificado/validade 90 dias/vínculo
+  ativo/papel/outra empresa; recibo pendente idempotente e `rejected` só com motivo).
+- Migration `20261108151552_nfe_xml_receipts`: aplicada, `rollback.sql` recusa tabela com linhas e derruba vazia, reaplicada.
+- Painel: 627 pass (contrato do painel de recibos e origem na fila de importações).
+- Conhecido, fora do escopo: 5 falhas do decodificador de código de barras do canhoto no worker (`threaded canhoto barcode decoder`).

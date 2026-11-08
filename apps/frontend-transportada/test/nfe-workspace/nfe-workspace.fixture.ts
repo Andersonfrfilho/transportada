@@ -17,6 +17,8 @@ export type NfeImportSummaryContract = Readonly<{
   invalidCount: number
   processedCount: number
   receivedCount: number
+  receivedFrom?: null | string
+  receivedVia?: 'email' | 'screen' | 'whatsapp'
   rejectedCount: number
   source: 'access_key' | 'distribution' | 'upload'
   status:

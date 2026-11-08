@@ -102,7 +102,11 @@
     "reprocess": "Reprocess",
     "imported": "Imported",
     "invalid": "Invalid",
-    "failed": "Failed"
+    "failed": "Failed",
+    "via": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    }
   },
   "documents": {
     "reportExcludedWithoutTrip": "{{count}} invoice without a trip was left out",
@@ -746,6 +750,37 @@
       "placeholder": "No XML chosen",
       "failed": "Could not send the XML. Try again.",
       "notImported": "The XML was sent, but the note is not in the registry yet."
+    }
+  },
+  "xmlReceipts": {
+    "title": "Invoices received by e-mail and WhatsApp",
+    "subtitle": "XML or zip files sent to the invoice mailbox or the bot. Refused or failed ones show the reason.",
+    "loading": "Loading submissions...",
+    "error": "Could not load submissions.",
+    "empty": "No e-mail or WhatsApp submissions yet.",
+    "count": "{{count}} submission",
+    "count_other": "{{count}} submissions",
+    "files": "{{count}} file",
+    "files_other": "{{count}} files",
+    "channel": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    },
+    "status": {
+      "pending": "Queued",
+      "processing": "Downloading",
+      "imported": "Imported",
+      "rejected": "Refused",
+      "failed": "Failed"
+    },
+    "reason": {
+      "sender_not_allowed": "The sender has no verified registration with permission to import invoices.",
+      "sender_not_authenticated": "The e-mail sender could not be verified (sender signature).",
+      "no_accepted_file": "No .xml or .zip file was found in the message.",
+      "file_too_large": "The file exceeds the maximum accepted size.",
+      "mailbox_not_configured": "The invoice mailbox is not configured.",
+      "download_failed": "The file could not be downloaded; retries were made.",
+      "unknown": "Processing failed; operations were notified."
     }
   }
 }

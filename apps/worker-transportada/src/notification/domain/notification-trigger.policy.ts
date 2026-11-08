@@ -154,3 +154,27 @@ export function buildCertificateExpiryNotification({
     templateKey: NOTIFICATION_TEMPLATE_KEY.FISCAL_CERTIFICATE_EXPIRING,
   }
 }
+
+/** Spec 301: um envio de XML por e-mail/WhatsApp não foi importado. Sem remetente nem arquivo: canal e código. */
+export function buildNfeXmlReceiptFailureNotification({
+  channel,
+  companyId,
+  errorCode,
+  receiptId,
+  recipientUserId,
+}: {
+  readonly channel: 'email' | 'whatsapp'
+  readonly companyId: string
+  readonly errorCode: string
+  readonly receiptId: string
+  readonly recipientUserId: string
+}): NotificationTriggerInput {
+  return {
+    category: NOTIFICATION_CATEGORY.FISCAL,
+    companyId,
+    dedupeKey: `${NOTIFICATION_TEMPLATE_KEY.FISCAL_NFE_XML_RECEIPT_FAILED}:${receiptId}:${recipientUserId}`,
+    payload: { channel: channel === 'email' ? 'e-mail' : 'WhatsApp', errorCode },
+    recipientUserId,
+    templateKey: NOTIFICATION_TEMPLATE_KEY.FISCAL_NFE_XML_RECEIPT_FAILED,
+  }
+}

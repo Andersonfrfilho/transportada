@@ -70,6 +70,8 @@ export function buildNotificationSettingsOptions(translate: TranslateLabel): {
  */
 export const NOTIFICATION_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
   alertNumber: '2',
+  channel: 'WhatsApp',
+  errorCode: 'ZIP_CORRUPT',
   batchName: 'Lote CT-e julho',
   documentLabel: '883658/1',
   daysLeft: '15',

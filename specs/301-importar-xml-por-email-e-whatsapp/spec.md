@@ -130,3 +130,11 @@ a deduplicação; evidência em `evidence.md`.
 
 Nenhum `[NEEDS CLARIFICATION]` aberto. D1–D5 são o padrão seguro adotado; se o dono preferir outro (por exemplo,
 motorista não poder enviar), é ajuste de configuração, não de desenho.
+
+## Atualização (implementação, 08/11/2026)
+
+- RF4 mudou: a importação segue `source = 'upload'` e ganha `received_via` (`screen|email|whatsapp`) e `received_from`.
+- Caixa de recibos `nfe_xml_receipts` + ciclo em processo de 60 s (lote de 20 no WhatsApp, 5 tentativas, espera 1/5/15/60/180 min).
+- Zip grande é fatiado em vez de recusado. Teto de segurança: 50 MB por arquivo.
+- Autorização por papel (`invoices.import`: `company-admin`, `fiscal`, `operator`); permissões avulsas por usuário não são consideradas.
+- Resposta de e-mail não sai quando o Resend está desligado (sandbox).

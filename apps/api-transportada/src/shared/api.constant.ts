@@ -298,6 +298,8 @@ export const API_AUDIT_EVENTS_PATH = '/audit/events'
 export const API_NFE_IMPORTS_PATH = '/nfe-imports'
 export const API_NFE_IMPORTS_XML_PATH = '/nfe-imports/xml'
 export const API_NFE_IMPORTS_DISTRIBUTION_PATH = '/nfe-imports/distribution'
+/** Spec 301: os envios de XML por e-mail e WhatsApp, com o desfecho de cada um. */
+export const API_NFE_XML_RECEIPTS_PATH = '/nfe-xml-receipts'
 export const API_NFE_ACCESS_KEY_LOOKUPS_PATH = '/nfe-access-key-lookups'
 export const API_NFE_DOCUMENTS_PATH = '/nfe-documents'
 export const API_NFE_DOCUMENT_ACCESS_KEY_CHECKS_PATH = '/nfe-documents/access-key-checks'

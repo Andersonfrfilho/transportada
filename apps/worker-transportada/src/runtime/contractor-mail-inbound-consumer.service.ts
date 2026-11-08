@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { NfeXmlEmailDkimUnverifiableError } from '../nfe-xml-receipts/application/intake-nfe-xml-email.use-case.js'
 import type { RabbitMqConsumer, RabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 
 import {
@@ -40,7 +41,10 @@ function isPermanentFailure(error: unknown): boolean {
 
 /** Spec 237 T4.7a: o DKIM sem veredito do encaminhador é transitório e tem motivo próprio no log. */
 function describeTransientFailure(error: unknown): string {
-  return error instanceof CargoPreviewEmailDkimUnverifiableError ? 'dkim_unverifiable' : 'transient'
+  return error instanceof CargoPreviewEmailDkimUnverifiableError ||
+    error instanceof NfeXmlEmailDkimUnverifiableError
+    ? 'dkim_unverifiable'
+    : 'transient'
 }
 
 /**
@@ -94,6 +98,19 @@ export async function startContractorMailInboundConsumer(params: {
             logger: params.logger,
             message: 'inbound_email_token_unknown',
             metadata: { ...baseMetadata, reason: result.reason },
+          })
+          return { type: 'ack' }
+        }
+        if (result.outcome === 'nfe_xml') {
+          safeLogInfo({
+            logger: params.logger,
+            message: 'inbound_email_nfe_xml',
+            metadata: {
+              ...baseMetadata,
+              kind: result.nfeXml.kind,
+              ...(result.nfeXml.kind === 'rejected' ? { reason: result.nfeXml.reason } : {}),
+              ...(result.nfeXml.kind === 'imported' ? { files: result.nfeXml.files } : {}),
+            },
           })
           return { type: 'ack' }
         }

@@ -40,6 +40,11 @@ import {
   readGroupSenderLids,
 } from './evolution-group-inbound.service.js'
 import type { EvolutionConnectionRequest } from './whatsapp-evolution.port.js'
+import {
+  readWhatsAppXmlDocuments,
+  type WhatsAppXmlDocument,
+} from '../../nfe-xml-receipts/application/read-whatsapp-xml-documents.js'
+import type { WhatsAppXmlInbound } from '../../nfe-xml-receipts/application/receive-whatsapp-xml-document.service.js'
 import type { WhatsAppEvolutionSecretService } from './whatsapp-evolution-secret.service.js'
 import type {
   WhatsAppEvolutionWebhookGatewayPort,
@@ -98,6 +103,8 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
   readonly inbound: EvolutionConversationInbound
   readonly logger: ApiLogger
   readonly repository: WhatsAppEvolutionWebhookRepositoryPort
+  /** Spec 301: o `.xml`/`.zip` mandado ao bot (privado ou grupo qualquer, marcando o bot); ausente, é ignorado. */
+  readonly xmlInbound?: WhatsAppXmlInbound
   readonly webhookSecrets: WhatsAppEvolutionWebhookSecretService
 }): WhatsAppEvolutionWebhookUseCase {
   const { gateway, logger, repository, webhookSecrets } = dependencies
@@ -217,7 +224,7 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         return { outcome: 'ignored' }
       }
 
-      const counts = { conversation: 0, group: 0, ignored: 0, statuses: 0, unassigned: 0 }
+      const counts = { conversation: 0, group: 0, ignored: 0, statuses: 0, unassigned: 0, xml: 0 }
       const groupIgnored: Partial<
         Record<Exclude<EvolutionGroupInboundOutcome, 'admitted'>, number>
       > = {}
@@ -239,8 +246,26 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
           instanceName: registration.instanceName,
         }
       })
+      const xmlDocuments =
+        dependencies.xmlInbound === undefined
+          ? new Map<string, WhatsAppXmlDocument>()
+          : readWhatsAppXmlDocuments(payload)
       for (const event of parseEvolutionWebhook(payload)) {
-        if (event.type === 'connection') {
+        const xmlDocument =
+          event.type === 'message' ? xmlDocuments.get(event.externalMessageId) : undefined
+        if (event.type === 'message' && xmlDocument !== undefined && dependencies.xmlInbound) {
+          // Documento XML/zip é do recebimento de notas e não passa pelo fluxo do motorista nem da conversa.
+          senderLids ??= readGroupSenderLids(payload)
+          const outcome = await dependencies.xmlInbound.receive({
+            companyId,
+            connection,
+            document: xmlDocument,
+            event,
+            senderLid: senderLids.get(event.externalMessageId) ?? null,
+          })
+          if (outcome === 'recorded' || outcome === 'rejected') counts.xml += 1
+          else counts.ignored += 1
+        } else if (event.type === 'connection') {
           connectionState = event.state
         } else if (event.type === 'status') {
           await dependencies.inbound.receiveStatus({

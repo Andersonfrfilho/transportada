@@ -155,7 +155,11 @@
     "invalid": "Inválidas",
     "rejected": "De terceiros",
     "failed": "Falhas",
-    "copyId": "Copiar identificador do lote"
+    "copyId": "Copiar identificador do lote",
+    "via": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    }
   },
   "documents": {
     "reportExcludedWithoutTrip": "{{count}} nota sem viagem ficou de fora",
@@ -921,6 +925,37 @@
       "placeholder": "Nenhum XML escolhido",
       "failed": "Não foi possível enviar o XML. Tente de novo.",
       "notImported": "O XML foi enviado, mas a nota ainda não entrou no cadastro."
+    }
+  },
+  "xmlReceipts": {
+    "title": "Notas recebidas por e-mail e WhatsApp",
+    "subtitle": "Arquivos XML ou zip enviados à caixa de notas ou ao bot. O que foi recusado ou falhou mostra o motivo.",
+    "loading": "Carregando envios...",
+    "error": "Não foi possível carregar os envios.",
+    "empty": "Nenhum envio por e-mail ou WhatsApp ainda.",
+    "count": "{{count}} envio",
+    "count_other": "{{count}} envios",
+    "files": "{{count}} arquivo",
+    "files_other": "{{count}} arquivos",
+    "channel": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    },
+    "status": {
+      "pending": "Na fila",
+      "processing": "Baixando",
+      "imported": "Importado",
+      "rejected": "Recusado",
+      "failed": "Falhou"
+    },
+    "reason": {
+      "sender_not_allowed": "Quem enviou não tem cadastro verificado com permissão para importar notas.",
+      "sender_not_authenticated": "Não foi possível confirmar quem enviou o e-mail (assinatura do remetente).",
+      "no_accepted_file": "Nenhum arquivo .xml ou .zip foi encontrado na mensagem.",
+      "file_too_large": "O arquivo passa do tamanho máximo aceito.",
+      "mailbox_not_configured": "A caixa de notas não está configurada.",
+      "download_failed": "Não foi possível baixar o arquivo; novas tentativas foram feitas.",
+      "unknown": "Falha ao processar; a operação foi avisada."
     }
   }
 }
