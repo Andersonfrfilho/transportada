@@ -58,6 +58,7 @@ function message(overrides: Partial<EvolutionMessageEvent> = {}): EvolutionMessa
 function setup(
   options: {
     failEvolution?: boolean
+    groupDrivers?: readonly string[]
     openRequestOwner?: null | string
     ownerNumber?: null | string
     participants?: readonly EvolutionGroupParticipant[]
@@ -99,6 +100,12 @@ function setup(
       state.handled.push(admitted)
     },
     identity: createEvolutionGroupIdentity({ gateway }),
+    ...(options.groupDrivers === undefined
+      ? {}
+      : {
+          isGroupDriver: async ({ sender }: { readonly sender: string }) =>
+            options.groupDrivers?.includes(sender) === true,
+        }),
   })
   const receive = (
     event: EvolutionMessageEvent,
@@ -421,5 +428,51 @@ describe('grupo do motorista: leitura das respostas do Evolution', () => {
     expect(parseJid(`${BOT}:3@s.whatsapp.net`)).toEqual({ digits: BOT, server: 'user' })
     expect(parseJid(`${BOT_LID}@lid`)).toEqual({ digits: BOT_LID, server: 'lid' })
     expect(parseJid('@lid')).toBeNull()
+  })
+})
+
+describe('grupo do motorista: comando da rota sem marcar o bot', () => {
+  test('"Cheguei" do motorista, sem pedido aberto e sem @, segue como se tivesse marcado', async () => {
+    const { receive, state } = setup({ groupDrivers: [DRIVER] })
+
+    expect(await receive(message({ text: 'Cheguei' }))).toBe('admitted')
+    expect(state.handled[0]).toMatchObject({ sender: DRIVER, text: 'Cheguei', via: 'mention' })
+  })
+
+  test('saí, entreguei com nota e não entreguei também entram', async () => {
+    const { receive, state } = setup({ groupDrivers: [DRIVER] })
+
+    for (const text of ['saí', 'entreguei 899877', 'não entreguei 899877']) {
+      expect(await receive(message({ externalMessageId: text, text }))).toBe('admitted')
+    }
+    expect(state.handled.map((admitted) => admitted.text)).toEqual([
+      'saí',
+      'entreguei 899877',
+      'não entreguei 899877',
+    ])
+  })
+
+  test('conversa comum do motorista sem @ continua ignorada', async () => {
+    const { receive, state } = setup({ groupDrivers: [DRIVER] })
+
+    expect(await receive(message({ text: 'Ela n respondeu' }))).toBe('not_addressed')
+    expect(
+      await receive(message({ text: 'entreguei o boleto pro cliente e ele falou que vai pagar' })),
+    ).toBe('not_addressed')
+    expect(state.handled).toEqual([])
+  })
+
+  test('quem não é motorista do grupo precisa marcar o bot', async () => {
+    const { receive, state } = setup({ groupDrivers: [DRIVER] })
+
+    expect(await receive(message({ participant: SUPPORT, text: 'cheguei' }))).toBe('not_addressed')
+    expect(state.handled).toEqual([])
+  })
+
+  test('com pedido aberto de outra pessoa, o comando sem @ não atravessa', async () => {
+    const { receive, state } = setup({ groupDrivers: [DRIVER], openRequestOwner: SUPPORT })
+
+    expect(await receive(message({ text: 'cheguei' }))).toBe('not_addressed')
+    expect(state.handled).toEqual([])
   })
 })

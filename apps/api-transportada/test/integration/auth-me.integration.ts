@@ -86,6 +86,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             driverTripLockEnabled: false,
             driverTripLockMinScore: 70,
             mdfeAutoIssueEnabled: false,
+            driverRemindersEnabled: false,
             serviceClientIds: ['transportada-worker'],
             appEnv: 'test',
             bootstrapToken: undefined,

@@ -111,6 +111,14 @@ const workerEnvironmentSchema = z
       .enum(['true', 'false'])
       .default('false')
       .transform((value) => value === 'true'),
+    // Vazio é ausente, como na API: `.env.example` traz a chave sem valor.
+    DRIVER_REMINDERS_ENABLED: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      z
+        .enum(['true', 'false'])
+        .default('false')
+        .transform((value) => value === 'true'),
+    ),
     FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS: z.coerce.number().int().min(0).max(30_000).default(0),
     // Spec 071: o `tesseract-server` self-hosted que lê a CNH fotografada. Opcional, e a ausência é
     // silenciosa de propósito — leitura é conveniência para o operador, nunca porta de entrada, e um
@@ -384,6 +392,7 @@ export function parseWorkerEnvironment(
     ...(cnhPicture === undefined ? {} : { cnhPicture }),
     ...(mdfeAutoIssue === undefined ? {} : { mdfeAutoIssue }),
     mdfeAutoIssueEnabled: result.data.MDFE_AUTO_ISSUE_ENABLED,
+    driverRemindersEnabled: result.data.DRIVER_REMINDERS_ENABLED,
     nfseProvider: {
       baseUrl: result.data.NFSE_PROVIDER_BASE_URL,
       callbackBaseUrl: result.data.NFSE_CALLBACK_BASE_URL,

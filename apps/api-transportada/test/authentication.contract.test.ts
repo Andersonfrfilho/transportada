@@ -83,6 +83,32 @@ describe('authentication contract', () => {
     expect(() => parseEnvironment({ ...base, MDFE_AUTO_ISSUE_ENABLED: 'yes' })).toThrow()
   })
 
+  test('DRIVER_REMINDERS_ENABLED: ausente ou vazio é desligado, true liga, outro valor derruba o boot', () => {
+    const base = {
+      APP_ENV: 'test',
+      APP_PORT: '0',
+      DATABASE_URL: 'postgresql://transportada:transportada@localhost:55432/transportada',
+      FRONTEND_ORIGIN: 'http://localhost:53000',
+      KEYCLOAK_ADMIN_CLIENT_ID: 'transportada-admin-cli',
+      KEYCLOAK_ADMIN_CLIENT_SECRET: 'test-keycloak-admin-client-secret',
+      KEYCLOAK_AUDIENCE: 'transportada-api',
+      KEYCLOAK_ISSUER: 'https://keycloak.example.com/realms/transportada',
+      KEYCLOAK_JWKS_URI:
+        'https://keycloak.example.com/realms/transportada/protocol/openid-connect/certs',
+      LOG_LEVEL: 'error',
+      ...CRYPTOGRAPHIC_ENVIRONMENT,
+    }
+
+    expect(parseEnvironment(base).driverRemindersEnabled).toBe(false)
+    expect(parseEnvironment({ ...base, DRIVER_REMINDERS_ENABLED: '' }).driverRemindersEnabled).toBe(
+      false,
+    )
+    expect(
+      parseEnvironment({ ...base, DRIVER_REMINDERS_ENABLED: 'true' }).driverRemindersEnabled,
+    ).toBe(true)
+    expect(() => parseEnvironment({ ...base, DRIVER_REMINDERS_ENABLED: 'yes' })).toThrow()
+  })
+
   test.each([
     null,
     '',

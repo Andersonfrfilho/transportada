@@ -7,6 +7,7 @@
  * repetido, áudio, a oferta da próxima rota (1 e 2), fora de ordem, "saí" sem baixa, "não entreguei" e "rota
  * concluída". Confere o texto exato de cada resposta, a marcação do WhatsApp e os eventos gravados.
  */
+import { createDeliveryConfirmNoteReader } from '../../src/whatsapp-commands/infrastructure/whatsapp-delivery-confirm-note.adapter.js'
 import { createHmac } from 'node:crypto'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
@@ -45,6 +46,7 @@ import {
   type WhatsAppDriverEventPorts,
 } from '../../src/whatsapp-commands/application/whatsapp-driver-events.service.js'
 import { createWhatsAppDriverPrompts } from '../../src/whatsapp-commands/application/whatsapp-driver-prompts.service.js'
+import { createWhatsAppRouteClosingReader } from '../../src/whatsapp-commands/infrastructure/whatsapp-route-closing.reader.js'
 import { createModuleWhatsAppFlowGraphProvider } from '../../src/whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import { createInMemoryWhatsAppSharedLocationStore } from '../../src/whatsapp-commands/application/whatsapp-shared-location.service.js'
 import { createDrizzleWhatsAppDeliveryPreparationRepository } from '../../src/whatsapp-commands/infrastructure/drizzle-whatsapp-delivery-preparation.repository.js'
@@ -203,12 +205,14 @@ async function buildDirectJourney(
       throw new Error('a jornada não manda foto')
     },
     deliver: (input) => deliverWhatsAppDriverDocument(ports, input),
-    describeResult: ({ channel, companyId, documentNumber, result }) =>
+    describeDocument: createDeliveryConfirmNoteReader({ database: db, listActiveTrips }),
+    describeResult: ({ channel, companyId, documentNumber, result, stopSequence }) =>
       renderBotSpeechLine({
         companyId,
         line: describeWhatsAppDriverEventResult(result, {
           documentNumber,
           kind: channel === 'group' ? 'group' : 'driver',
+          ...(stopSequence === undefined ? {} : { stopSequence }),
         }),
         speech: CATALOG_BOT_SPEECH,
       }),
@@ -222,6 +226,7 @@ async function buildDirectJourney(
     clock,
     listStops,
     ports,
+    routeClosing: createWhatsAppRouteClosingReader({ database: db }),
     sharedLocations,
     speech: CATALOG_BOT_SPEECH,
     stopCards: createWhatsAppStopCardReader({
@@ -538,7 +543,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          'Toque na nota que você quer entregar.\n[ 17234 · PADARIA SOL… ]\n[ 17235 · MERCADO LUA… ]\n[ 17236 · ACOUGUE EST… ]',
+          '✅ *Qual nota você entregou?*\n[ NF 17234 · PADARIA … ]\n[ NF 17235 · MERCADO … ]\n[ NF 17236 · ACOUGUE … ]',
           'Toque numa nota da lista acima.',
         ],
         shown: 'entreguei',
@@ -552,7 +557,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          'Toque na parada em que você vai sair para.\n[ 1ª · NF 17234 · PAD… ]\n[ 2ª · NF 17235 · MER… ]\n[ 3ª · NF 17236 · ACO… ]',
+          '🚚 *Para qual parada você saiu?*\n[ 1ª · NF 17234 · PAD… ]\n[ 2ª · NF 17235 · MER… ]\n[ 3ª · NF 17236 · ACO… ]',
           'Toque numa parada da lista acima.',
         ],
         shown: 'iniciar rota',
@@ -562,8 +567,8 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_',
-          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+          '📍 *Mande sua localização* para medir a distância até a parada.\nClipe 📎 → Localização → Enviar localização atual.\n_Se não puder agora, responda pular._',
+          '*O que você quer lançar?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ ✅ Entreguei ]\n[ ↩️ Não entreguei ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: `(toca) NF ${first.number}`,
       },
@@ -581,7 +586,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '*Saída registrada* 🚚\n*Parada 1 de 3*\n*NF 17234* · R$ 1.234,56\n🏪 *PADARIA SOL NASCENTE*\n🏢 Contratante: Distribuidora Aurora\n📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000\n📦 3 volumes\n➡️ _Próximo passo:_ quando chegar, mande *cheguei*.',
+          `🚚 *Saída registrada* · ${at}\n\n> *PARADA 1 de 3*\n> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*\n> 🏢 Contratante: Distribuidora Aurora\n> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n> 📦 3 volumes\n> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81\n> 💰 Valor da nota: *R$ 1.234,56*\n\n➡️ _Próximo passo:_ quando chegar, mande *cheguei*.`,
         ],
         shown: 'pular',
       },
@@ -590,8 +595,8 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_',
-          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+          '📍 *Mande sua localização* para medir a distância até a parada.\nClipe 📎 → Localização → Enviar localização atual.\n_Se não puder agora, responda pular._',
+          '*O que você quer lançar?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ ✅ Entreguei ]\n[ ↩️ Não entreguei ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: 'cheguei',
       },
@@ -600,7 +605,7 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          '*Chegada registrada* 📍\n*Parada 1 de 3*\n*NF 17234* · R$ 1.234,56\n🏪 *PADARIA SOL NASCENTE*\n🏢 Contratante: Distribuidora Aurora\n📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000\n📦 3 volumes para entregar\n➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.\n🔜 _Depois desta:_ *NF 17235* · MERCADO LUA CHEIA – SERTAOZINHO',
+          `📍 *Chegada registrada* · ${at}\n\n> *PARADA 1 de 3*\n> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*\n> 🏢 Contratante: Distribuidora Aurora\n> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n> 📦 3 volumes\n> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81\n> 💰 Valor da nota: *R$ 1.234,56*\n\n🔜 *Depois desta:* parada 2 · MERCADO LUA CHEIA – Ribeirao Preto\n\n➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.`,
         ],
         shown: 'pular',
       },
@@ -609,21 +614,19 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          `⚠️ *A chegada nesta parada já foi registrada* às ${at}.
-*Parada 1 de 3*
-*NF 17234* · R$ 1.234,56
-🏪 *PADARIA SOL NASCENTE*
-🏢 Contratante: Distribuidora Aurora
-📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP
-🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000
-📦 3 volumes
+          `⚠️ *A chegada na parada 1 já foi registrada* às ${at}.
+
+> *PARADA 1 de 3*
+> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*
+> 📍 Ribeirao Preto
+> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81
 
 *O que você quer fazer agora?*
-*1* - Entreguei _(mande a foto do canhoto)_
-*2* - Não entreguei
-*3* - Abrir ocorrência
-*4* - Nada por enquanto`,
-          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+*1* - ✅ Entreguei _(mande a foto do canhoto)_
+*2* - ↩️ Não entreguei
+*3* - ⚠️ Abrir ocorrência
+*4* - 💤 Nada por enquanto`,
+          '*O que você quer lançar?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ ✅ Entreguei ]\n[ ↩️ Não entreguei ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: 'cheguei',
       },
@@ -633,7 +636,7 @@ function resumeJourneySteps(
       expected: {
         answered: [
           'Entregar NF 17234?',
-          'Confirma?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ ✅ Sim ]\n[ ❌ Não ]',
+          '✅ *Confirma?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ ✅ Sim ]\n[ ❌ Não ]',
         ],
         shown: '1',
       },
@@ -642,8 +645,8 @@ function resumeJourneySteps(
     {
       expected: {
         answered: [
-          `⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.\n\n📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._`,
-          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+          `📍 *NF \`17234\` · localização*\nSe puder, compartilhe a localização da entrega (clipe 📎 → Localização).\n_Falta 1 item. Se não tiver, responda pular._`,
+          '*O que você quer lançar?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ ✅ Entreguei ]\n[ ↩️ Não entreguei ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: '(toca) ✅ Sim',
       },
@@ -657,7 +660,9 @@ function resumeJourneySteps(
     },
     {
       expected: {
-        answered: [`Localização recebida.\n\n📸 *NF 17234:* mande a foto do canhoto assinado.`],
+        answered: [
+          '📍 _Localização recebida._\n\n📸 *NF `17234` · foto do canhoto*\nMande a foto do canhoto assinado.\n\n_Falta 1 item._',
+        ],
         shown: '📍 (localização)',
       },
       send: {
@@ -669,8 +674,8 @@ function resumeJourneySteps(
       expected: {
         answered: [
           // UMA mensagem: o aviso e a pergunta pendente nunca chegam separados.
-          '↩️ *Continuando a entrega da NF 17234.*\n📸 *NF 17234:* mande a foto do canhoto assinado.',
-          'O que você quer fazer com esta viagem?\n\n📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ 📦 Entregar ]\n[ ↩️ Devolver ]\n[ ⚠️ Ocorrência ]',
+          '↩️ *Continuando a entrega da NF `17234`.*\n📸 *NF `17234` · foto do canhoto*\nMande a foto do canhoto assinado.\n\n_Falta 1 item._',
+          '*O que você quer lançar?*\n\n📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._\n[ 🚚 Saí para a entrega ]\n[ 📍 Cheguei ]\n[ ✅ Entreguei ]\n[ ↩️ Não entreguei ]\n[ ⚠️ Ocorrência ]',
         ],
         shown: 'entreguei',
       },
@@ -736,7 +741,7 @@ function directJourneySteps(world: JourneyWorld): readonly JourneyStep[] {
     text('pular'),
     text('1'),
     text('2'),
-    text('2'),
+    text('3'),
     text('pular'),
     text('1'),
     text('saí'),

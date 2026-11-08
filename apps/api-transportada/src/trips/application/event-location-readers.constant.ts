@@ -93,6 +93,12 @@ export const EVENT_LOCATION_READERS: readonly EventLocationReader[] = [
     path: 'fleet/infrastructure/drizzle-driver-score.repository.ts',
     reason: 'instante da chegada para a pontualidade do motorista',
   },
+  {
+    columns: ['latitude', 'longitude'],
+    path: 'driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-refinement.repository.ts',
+    reason:
+      'lembrete ao motorista (299) — a saída é o ponto compartilhado de onde o OSRM mede a chegada',
+  },
 ]
 
 /**

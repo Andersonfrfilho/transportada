@@ -17,6 +17,8 @@
  * `context[contextKey]`; um segundo nó de ação (o "roteador") lê essa captura e decide: página
  * (`__more__`/`__back__`, reencaminha para o mesmo nó de ação) ou resposta real (segue o fluxo).
  */
+import { DRIVER_LIST_HEADING } from '../domain/whatsapp-driver-list-heading.constant.js'
+import { STOP_LIST_TEXT } from '../domain/whatsapp-stop-list.policy.js'
 import { randomUUID } from 'node:crypto'
 
 import type {
@@ -65,6 +67,7 @@ import {
   DRIVER_PROMPT_CONTEXT_KEY,
   readDriverPrompt,
 } from '../domain/whatsapp-driver-prompt.policy.js'
+import { formatBotClock } from '../domain/whatsapp-stop-card.policy.js'
 import type { RouteOfferStop } from '../domain/whatsapp-driver-route-offer.policy.js'
 import {
   buildRouteOfferReply,
@@ -195,7 +198,10 @@ function listOpenDocuments(trip: DriverTrip): readonly DriverTripDocument[] {
 }
 
 function toDocumentOption(document: DriverTripDocument): WhatsAppMenuOption {
-  return { id: document.id, title: `${document.number} · ${document.recipientName}` }
+  return {
+    id: document.id,
+    title: `NF ${document.number.replace(/^0+(?=\d)/u, '')} · ${document.recipientName}`,
+  }
 }
 
 function readPage(context: Record<string, unknown>): number {
@@ -260,10 +266,10 @@ function summarizeBatch(results: readonly WhatsAppDriverEventResult[]): string {
   return `${parts.join(', ')}.`
 }
 
-function toStepLabel(step: DriverFlowStep): string {
-  if (step === DRIVER_FLOW_STEP.deliver) return 'entregar'
-  if (step === DRIVER_FLOW_STEP.return) return 'devolver'
-  return 'registrar ocorrência para'
+function toDocumentHeading(step: DriverFlowStep): string {
+  if (step === DRIVER_FLOW_STEP.deliver) return DRIVER_LIST_HEADING.deliverDocument
+  if (step === DRIVER_FLOW_STEP.return) return DRIVER_LIST_HEADING.returnDocument
+  return DRIVER_LIST_HEADING.occurrenceDocument
 }
 
 /**
@@ -367,7 +373,7 @@ export function createDriverWhatsAppFlowActions(
     }
 
     await sendDynamicChoice({
-      body: `Toque na nota que você quer ${toStepLabel(step)}.`,
+      body: toDocumentHeading(step),
       channel,
       options: documents.map(toDocumentOption),
       page: readPage(context),
@@ -554,6 +560,7 @@ export function createDriverWhatsAppFlowActions(
       return { next: 'menu' }
     }
 
+    const documentNumber = await findDocumentNumber(actor, documentId)
     const result = await returnWhatsAppDriverDocument(deps, {
       actorUserId: actor.scope.userId,
       companyId: actor.scope.companyId,
@@ -563,7 +570,14 @@ export function createDriverWhatsAppFlowActions(
       location: consumeLocation({ actor, session }),
       reason,
     })
-    await say({ actor, channel, session }, describeWhatsAppDriverEventResult(result, DRIVER))
+    await say(
+      { actor, channel, session },
+      describeWhatsAppDriverEventResult(result, {
+        ...(documentNumber === undefined ? {} : { documentNumber }),
+        kind: 'driver',
+        returnReason: reason,
+      }),
+    )
     const offered = await offerNextRoute({
       actor,
       channel,
@@ -595,7 +609,7 @@ export function createDriverWhatsAppFlowActions(
     }
 
     await sendDynamicChoice({
-      body: 'O que aconteceu? Toque no tipo da ocorrência.',
+      body: DRIVER_LIST_HEADING.occurrenceType,
       channel,
       options: options.map((type) => ({ id: type.id, title: type.name })),
       page: readPage(context),
@@ -650,7 +664,7 @@ export function createDriverWhatsAppFlowActions(
   }
 
   const notePrompt: WhatsAppAuthorizedActionHandler = async ({ channel, session }) => {
-    const body = `Alguma observação sobre a ocorrência? Digite o texto (até ${DRIVER_OCCURRENCE_NOTE_MAX_LENGTH} caracteres) ou toque em Pular.`
+    const body = `${DRIVER_LIST_HEADING.occurrenceNote}\nEscreva agora (até ${DRIVER_OCCURRENCE_NOTE_MAX_LENGTH} caracteres), ou toque em Pular.`
     await channel.sendInteractiveList({
       body,
       buttonLabel: WHATSAPP_LIST_BUTTON_TEXT,
@@ -837,6 +851,7 @@ export function createDriverWhatsAppFlowActions(
       describeWhatsAppDriverEventResult(result, {
         ...(documentNumber === undefined ? {} : { documentNumber }),
         kind: 'driver',
+        time: formatBotClock(event.sentAt),
       }),
     )
     return backToTripMenu(tripId)
@@ -931,7 +946,8 @@ export function createDriverWhatsAppFlowActions(
     if (resolution.kind !== 'choose') return resolveStopEvent({ ...input, step, trip })
 
     await sendDynamicChoice({
-      body: `Toque na parada em que você ${step === DRIVER_FLOW_STEP.depart ? 'vai sair para' : 'chegou'}.`,
+      body:
+        step === DRIVER_FLOW_STEP.depart ? STOP_LIST_TEXT.departTitle : STOP_LIST_TEXT.arriveTitle,
       channel,
       options: resolution.stops.map((stop) => ({
         id: stop.id,
@@ -1158,7 +1174,7 @@ export function createDriverWhatsAppFlowActions(
     }
     const ids = new Set(stop.documents.map((document) => document.id))
     await sendDynamicChoice({
-      body: `Toque na nota que você quer ${toStepLabel(DRIVER_FLOW_STEP.deliver)}.`,
+      body: DRIVER_LIST_HEADING.deliverDocument,
       channel,
       options: listOpenDocuments(trip)
         .filter((document) => ids.has(document.id))

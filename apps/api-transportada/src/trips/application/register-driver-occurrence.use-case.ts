@@ -111,6 +111,13 @@ export async function registerDriverOccurrence(
             transaction.findDocumentOccurrenceById({ companyId: input.companyId, occurrenceId }),
         )
         if (result === null) throw new TripDocumentNotReachableError()
+        await transaction.onStopEvent({
+          channel: authorship.channel,
+          companyId: input.companyId,
+          kind: 'occurrence',
+          occurredAt: new Date(),
+          target: { documentIds: [input.documentId] },
+        })
 
         return result
       },

@@ -71,6 +71,8 @@ export type DeliveryProofChecklist = {
   readonly missing: readonly MissingDeliveryProof[]
   /** A próxima pergunta, ou `null` quando não há mais nada a perguntar. */
   readonly next: DeliveryProofQuestion | null
+  /** Spec 300 RF10: o que ainda falta dizer ao motorista (obrigatório ou não), sem a localização que só é oferecida. */
+  readonly pendingItems: readonly DeliveryProofQuestion[]
   /** Tudo o que a configuração exige chegou e não há opcional por oferecer: pode confirmar. */
   readonly ready: boolean
 }
@@ -127,7 +129,9 @@ export function resolveDeliveryProofChecklist(input: {
   const appOnly = settings.signature === 'required' ? (['signature'] as const) : []
   const next = open[0] ?? null
 
-  return { appOnly, missing, next, ready: next === null && appOnly.length === 0 }
+  const pendingItems = open.filter((question) => question.item !== DELIVERY_PROOF_ITEM.location)
+
+  return { appOnly, missing, next, pendingItems, ready: next === null && appOnly.length === 0 }
 }
 
 function pending(

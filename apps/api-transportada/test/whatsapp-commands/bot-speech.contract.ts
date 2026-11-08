@@ -14,6 +14,7 @@ import {
 } from '../../src/whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
 import {
   buildBotSpeechNodes,
+  assertOverwriteNodeIds,
   interpolateBotSpeech,
   preserveEditedBotSpeech,
 } from '../../src/whatsapp-commands/domain/whatsapp-bot-speech.policy.js'
@@ -88,10 +89,20 @@ describe('falas do bot como nós do grafo (spec 286 T8)', () => {
     const id = botSpeechNodeId('tripUnavailable')
     const current = graphWith({ [id]: { directMessage: 'Editada.', id, type: 'action' } })
     const next = graphWith(buildBotSpeechNodes())
-    const merged = preserveEditedBotSpeech(current, next)
+    const merged = preserveEditedBotSpeech(current, next, undefined)
     expect(merged.nodes[id]?.directMessage).toBe('Editada.')
     expect(merged.nodes[botSpeechNodeId('operatorNoTrips')]?.directMessage).toBe(
       BOT_SPEECH_DEFAULTS.operatorNoTrips,
     )
+  })
+})
+
+describe('--overwrite-nodes só aceita chave de fala (spec 299, revisão PR 570 L2)', () => {
+  test('chave fala_* passa', () => {
+    expect(() => assertOverwriteNodeIds(['fala_lembrete_chegada', 'fala_x'])).not.toThrow()
+  })
+
+  test('chave que não é de fala é rejeitada, com o nome dela na mensagem', () => {
+    expect(() => assertOverwriteNodeIds(['fala_x', 'menu'])).toThrow('menu')
   })
 })

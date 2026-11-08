@@ -32,6 +32,7 @@ import type {
   GroupFlowOutcome,
   GroupRequest,
 } from '../../src/whatsapp/application/whatsapp-group-request.port.js'
+import { createGroupReturnFlow } from '../../src/whatsapp/application/whatsapp-group-return-flow.service.js'
 import { createGroupStopFlow } from '../../src/whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { sameBrazilianPhone } from '../../src/whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
 
@@ -44,7 +45,9 @@ const reply = (texts: string[], awaitingText = false): WhatsAppDeliveryPreparati
   texts,
 })
 
-function fakePreparations(options: { open?: boolean; awaitingText?: boolean } = {}) {
+function fakePreparations(
+  options: { acceptsUnsolicited?: boolean; awaitingText?: boolean; open?: boolean } = {},
+) {
   const calls: { method: string; input: unknown }[] = []
   const preparations: WhatsAppDeliveryPreparations = {
     async answer(input) {
@@ -57,6 +60,9 @@ function fakePreparations(options: { open?: boolean; awaitingText?: boolean } = 
     async begin(input) {
       calls.push({ input, method: 'begin' })
       return reply([`NF ${input.documentNumber}: mande a foto do canhoto assinado.`])
+    },
+    async acceptsUnsolicitedPhoto() {
+      return options.acceptsUnsolicited ?? false
     },
     async hasOpen() {
       return options.open ?? true
@@ -107,6 +113,10 @@ function setupFlow(options: { awaitingText?: boolean; withoutAccess?: boolean } 
       initialStep: 'document',
       start: async () => ({ kind: 'done', replies: ['occ-start'] }),
     },
+    return: createGroupReturnFlow({
+      listOpenDocuments: async () => [],
+      returnDocument: async () => ({ message: 'devolvida' }),
+    }),
     stop: createGroupStopFlow({
       enRouteMessage: async () => 'en-route',
       listStops: async () => [],
@@ -164,7 +174,15 @@ describe('grupo: entreguei abre a entrega em preparo', () => {
       GROUP_DELIVERY_TEXT.askDocument([
         { id: 'DOC1', number: '017234', recipientName: 'Padaria Sol' },
       ]),
-    ).toContain('1. NF 17234 · Padaria Sol')
+    ).toBe(
+      [
+        '✅ *Qual nota você entregou?*',
+        '',
+        '*1* - 🧾 NF `17234` · *Padaria Sol*',
+        '',
+        '_Responda com o número da opção ou da nota._',
+      ].join('\n'),
+    )
     await t.answer('2')
     expect(t.calls[0]).toMatchObject({ input: { documentId: 'DOC2' }, method: 'begin' })
   })
@@ -187,10 +205,21 @@ describe('grupo: entreguei abre a entrega em preparo', () => {
     expect(t.calls).toEqual([])
   })
 
-  test('o menu ganha "Entreguei" como opção 3', async () => {
+  test('o menu é o do desenho da spec 300: "Entreguei" é a 3 e "Não entreguei" a 4', async () => {
     const t = setupFlow()
     expect(await t.start('')).toMatchObject({ replies: [GROUP_DRIVER_TEXT.menu] })
-    expect(GROUP_DRIVER_TEXT.menu).toContain('3. Entreguei')
+    expect(GROUP_DRIVER_TEXT.menu).toBe(
+      [
+        '*O que você quer lançar?*',
+        '*1* - 🚚 Saí para a entrega',
+        '*2* - 📍 Cheguei',
+        '*3* - ✅ Entreguei',
+        '*4* - ↩️ Não entreguei',
+        '*5* - ⚠️ Ocorrência',
+        '',
+        '_Responda com o número._',
+      ].join('\n'),
+    )
     await t.answer('3')
     expect(await t.answer('1')).toMatchObject({ kind: 'continue', step: 'delivery.answer' })
     expect(t.calls[0]).toMatchObject({ input: { documentId: 'DOC1' }, method: 'begin' })
@@ -287,7 +316,21 @@ describe('grupo: foto e localização do motorista', () => {
         senderLid: null,
       }),
     ).toBe('media')
-    expect(driver.media[0]).toMatchObject({ driverId: 'D1', providerMessageId: 'M1' })
+    expect(driver.media[0]).toMatchObject({
+      driverId: 'D1',
+      mentionsBot: false,
+      providerMessageId: 'M1',
+    })
+    expect(
+      await driver.receiver.receive({
+        companyId: 'C1',
+        connection,
+        event: event({ externalMessageId: 'M2', mentionedJids: ['5516900000001@s.whatsapp.net'] }),
+        media: { ...photo, caption: '@5516900000001' },
+        senderLid: null,
+      }),
+    ).toBe('media')
+    expect(driver.media[1]).toMatchObject({ mentionsBot: true, providerMessageId: 'M2' })
     const other = inbound(false)
     expect(
       await other.receiver.receive({
@@ -327,7 +370,9 @@ describe('grupo: foto e localização do motorista', () => {
     expect(advanced).toEqual(['5516988887777', '5516988887777'])
   })
 
-  function intake(options: { open?: boolean; failDownload?: boolean } = {}) {
+  function intake(
+    options: { open?: boolean; failDownload?: boolean; acceptsUnsolicited?: boolean } = {},
+  ) {
     const fake = fakePreparations(options)
     const downloads: unknown[] = []
     const sent: string[][] = []
@@ -360,13 +405,14 @@ describe('grupo: foto e localização do motorista', () => {
       },
       withoutAccessText: async () => 'sem acesso',
     })
-    const handle = (media: AdmittedGroupMedia['media']) =>
+    const handle = (media: AdmittedGroupMedia['media'], mentionsBot = false) =>
       service.handle({
         companyId: 'C1',
         connection,
         driverId: 'D1',
         groupJid: GROUP,
         media,
+        mentionsBot,
         providerMessageId: 'M1',
         sender: '5516988887777',
         timestamp: 1_790_000_000,
@@ -398,6 +444,32 @@ describe('grupo: foto e localização do motorista', () => {
     expect(t.mentions).toEqual(['5516988887777'])
   })
 
+  test('foto sem entrega aberta e sem marcar o bot: o leitor do canhoto não entra, nem baixa', async () => {
+    const t = intake({ acceptsUnsolicited: true, open: false })
+    await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
+    expect(t.downloads).toEqual([])
+    expect(t.calls).toEqual([])
+    expect(t.sent).toEqual([])
+  })
+
+  test('foto sem entrega aberta marcando o bot: vai ao leitor do canhoto', async () => {
+    const t = intake({ acceptsUnsolicited: true, open: false })
+    await t.handle({ caption: '@bot', kind: 'image', mimeType: 'image/jpeg' }, true)
+    expect(t.calls[0]).toMatchObject({
+      input: { allowsCanhotoReading: true },
+      method: 'receivePhoto',
+    })
+  })
+
+  test('foto pedida pela entrega aberta segue sem marcar, mas sem leitura automática', async () => {
+    const t = intake({ open: true })
+    await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
+    expect(t.calls[0]).toMatchObject({
+      input: { allowsCanhotoReading: false },
+      method: 'receivePhoto',
+    })
+  })
+
   test('foto sem entrega em preparo não é baixada nem respondida', async () => {
     const t = intake({ open: false })
     await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
@@ -408,7 +480,7 @@ describe('grupo: foto e localização do motorista', () => {
   test('download que falha pede a foto de novo', async () => {
     const t = intake({ failDownload: true })
     await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
-    expect(t.sent).toEqual([['Não consegui baixar a foto. Mande de novo, por favor.']])
+    expect(t.sent).toEqual([['⚠️ *Não consegui baixar a foto.*\nMande de novo, por favor.']])
   })
 
   test('localização sem pergunta aberta não fica guardada para um "cheguei" depois', async () => {

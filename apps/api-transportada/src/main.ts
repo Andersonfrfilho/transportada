@@ -190,6 +190,7 @@ import {
 import {
   type BotAudioTranscriberPort,
   createWhatsAppBotAudio,
+  type WhatsAppBotAudio,
 } from './whatsapp/application/whatsapp-bot-audio.service.js'
 import {
   describeSpokenNotes,
@@ -208,7 +209,34 @@ import {
 } from './whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 import type { GroupQuestionAsked } from './whatsapp/application/whatsapp-group-request.port.js'
 import { createWhatsAppGroupRequestSessions } from './whatsapp/application/whatsapp-group-request.service.js'
-import { createWhatsAppTurnReplies } from './whatsapp-commands/application/whatsapp-turn-replies.service.js'
+import {
+  createWhatsAppTurnReplies,
+  type WhatsAppTurnReplies,
+} from './whatsapp-commands/application/whatsapp-turn-replies.service.js'
+import { createDeliverDriverStopReminderUseCase } from './driver-stop-reminders/application/deliver-driver-stop-reminder.use-case.js'
+import { createPostponeDriverStopReminderUseCase } from './driver-stop-reminders/application/postpone-driver-stop-reminder.use-case.js'
+import {
+  createCurrentDriverNumberReader,
+  createDriverNumberReader,
+} from './driver-stop-reminders/infrastructure/current-trip-driver.query.js'
+import { DrizzleDriverStopReminderPostponementRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-postponement.repository.js'
+import { createStopNoteNumberReader } from './driver-stop-reminders/infrastructure/stop-note-number.query.js'
+import { DrizzleDriverStopReminderDeliveryRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-delivery.repository.js'
+import { createDrizzleDriverReminderChannelResolver } from './driver-stop-reminders/infrastructure/drizzle-driver-reminder-channel.resolver.js'
+import { createGroupReminderPromptOpener } from './driver-stop-reminders/infrastructure/group-reminder-prompt-opener.js'
+import { createGroupStopReminderSender } from './driver-stop-reminders/infrastructure/group-stop-reminder-sender.gateway.js'
+import { createReconcileDriverStopRemindersUseCase } from './driver-stop-reminders/application/reconcile-driver-stop-reminders.use-case.js'
+import {
+  combineStopReminderReconciliations,
+  createReconcileIdleDriverStopRemindersUseCase,
+} from './driver-stop-reminders/application/reconcile-idle-driver-stop-reminders.use-case.js'
+import { DrizzleDriverStopReminderIdleReconciliationRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-idle-reconciliation.repository.js'
+import { DrizzleDriverStopReminderReconciliationRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-reconciliation.repository.js'
+import { DrizzleDriverStopReminderRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder.repository.js'
+import { DrizzleDriverStopReminderSettingsRepository } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-settings.repository.js'
+import { createDriverStopReminderSettingsRoutes } from './driver-stop-reminders/presentation/driver-stop-reminder-settings.routes.js'
+import { createDriverStopReminderRoutes } from './driver-stop-reminders/presentation/driver-stop-reminders.routes.js'
+import { createDriverOpenQuestionPort } from './whatsapp-commands/infrastructure/driver-open-question.adapter.js'
 import { createEvolutionGroupReplySender } from './whatsapp/infrastructure/evolution-group-reply.gateway.js'
 import { startGroupRequestExpiryWatcher } from './whatsapp/infrastructure/whatsapp-group-request-expiry.watcher.js'
 import {
@@ -252,6 +280,7 @@ import { startCanhotoQuestionExpiryWatcher } from './whatsapp-commands/infrastru
 import { createWorkerCanhotoReader } from './whatsapp/infrastructure/worker-canhoto-reader.gateway.js'
 import { createWhatsAppDeliveryPreparations } from './whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { createWhatsAppPreparationProofAttacher } from './whatsapp-commands/infrastructure/whatsapp-delivery-preparation-proof.adapter.js'
+import { createDeliveryConfirmNoteReader } from './whatsapp-commands/infrastructure/whatsapp-delivery-confirm-note.adapter.js'
 import {
   createDrizzleWhatsAppDeliveryPreparationRepository,
   createWhatsAppDeliveryPreparationMedia,
@@ -262,12 +291,26 @@ import {
 } from './whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { createWhatsAppOfficeStopEvents } from './whatsapp-commands/infrastructure/whatsapp-office-stop-events.adapter.js'
 import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
+import { createWhatsAppRouteClosingReader } from './whatsapp-commands/infrastructure/whatsapp-route-closing.reader.js'
 import { createGroupReturnPorts } from './whatsapp/infrastructure/whatsapp-group-return.adapter.js'
+import {
+  createGroupReminderFlow,
+  type GroupReminderFlow,
+} from './whatsapp/application/whatsapp-group-reminder-flow.service.js'
 import {
   createGroupReturnFlow,
   type GroupReturnFlowPorts,
 } from './whatsapp/application/whatsapp-group-return-flow.service.js'
-import { createWhatsAppStopCardReader } from './whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
+import {
+  createWhatsAppStopCardReader,
+  readLastSharedPoint,
+} from './whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
+import {
+  createDriverStopListTravel,
+  createWhatsAppStopListTravelReader,
+} from './whatsapp-commands/infrastructure/whatsapp-stop-list-travel.reader.js'
+import { createOsrmRouteDistanceTableGateway } from './trips/infrastructure/osrm-route-distance-table.gateway.js'
+import { placeStops } from './whatsapp-commands/infrastructure/whatsapp-stop-place.reader.js'
 import { createDrizzleWhatsAppGroupRequestRepository } from './whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
 import { createGroupOccurrencePorts } from './whatsapp/infrastructure/whatsapp-group-occurrence.adapter.js'
 import { createDrizzleWhatsAppEvolutionWebhookRepository } from './whatsapp/infrastructure/drizzle-whatsapp-evolution-webhook.repository.js'
@@ -326,7 +369,7 @@ import { type ClientIpResolver, createClientIpResolver } from './http/client-ip.
 import { createRateLimiter } from './http/rate-limiter.service.js'
 import { createRateLimitSubjectService } from './http/rate-limit-subject.service.js'
 import { DrizzleRateLimiterRepository } from './http/drizzle-rate-limiter.repository.js'
-import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
+import { FlowGraphRepository, SessionRepository } from '@adatechnology/meta-whatsapp-module'
 import {
   createDriverWhatsAppFlowActions,
   type DriverFlowActionDependencies,
@@ -396,6 +439,10 @@ import { readDriverDeliveryProofs } from './trips/application/read-driver-delive
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
 import { readTripRouteGeometry as readTripRouteGeometryUseCase } from './trips/application/read-trip-route-geometry.use-case.js'
 import { freezeTripPlannedRoute } from './trips/application/freeze-trip-planned-route.use-case.js'
+import {
+  createDriverStopReminderRuntime,
+  type DriverStopReminderRuntime,
+} from './driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
 import { createRouteDepotQuery } from './trips/infrastructure/route-depot.query.js'
 import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/route-geometry-vehicle-axles.query.js'
@@ -1413,10 +1460,23 @@ export function bootstrap(): Bun.Server<undefined> {
    */
   const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db, logger)
   const whatsappDriverScoreRepository = new DrizzleDriverScoreRepository(database.db)
+  /** Spec 299: o lembrete ao motorista só existe com a chave global; desligada, nenhuma unidade de trabalho recebe o runtime. */
+  const driverStopReminders = config.driverRemindersEnabled
+    ? createDriverStopReminderRuntime({
+        database: database.db,
+        logger,
+        readDepot: (input) => createRouteDepotQuery(database.db).readDepot(input),
+        routing:
+          config.routingMatrixUrl === undefined
+            ? undefined
+            : createOsrmRouteGeometryGateway({ baseUrl: config.routingMatrixUrl }),
+      })
+    : undefined
   const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database.db,
     resolveStorageBucket(process.env),
     logger,
+    driverStopReminders,
   )
   const whatsappDeliveryProofRepository = new DrizzleDeliveryProofRepository(
     database.db,
@@ -1588,12 +1648,23 @@ export function bootstrap(): Bun.Server<undefined> {
   const listWhatsAppDriverStops = async (input: {
     readonly companyId: string
     readonly driverId: string
-  }) => (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap((trip) => trip.stops)
+  }) =>
+    placeStops(database.db, {
+      companyId: input.companyId,
+      logger,
+      stops: (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap(
+        (trip) => trip.stops,
+      ),
+    })
   const whatsappPreparationMedia = createWhatsAppDeliveryPreparationMedia({
     bucket: whatsappStorageBucket,
     storage: whatsappStorageGateway,
   })
   const whatsappDeliveryPreparations = createWhatsAppDeliveryPreparations({
+    describeDocument: createDeliveryConfirmNoteReader({
+      database: database.db,
+      listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    }),
     findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
     listStops: listWhatsAppDriverStops,
     attachProof: (input) =>
@@ -1604,12 +1675,13 @@ export function bootstrap(): Bun.Server<undefined> {
       input.attendant === true
         ? whatsappOfficeDelivery.deliver(input)
         : deliverWhatsAppDriverDocument(whatsappDriverEventPorts, input),
-    describeResult: ({ channel, companyId, documentNumber, result }) =>
+    describeResult: ({ channel, companyId, documentNumber, result, stopSequence }) =>
       renderBotSpeechLine({
         companyId,
         line: describeWhatsAppDriverEventResult(result, {
           documentNumber,
           kind: channel === 'group' ? 'group' : 'driver',
+          ...(stopSequence === undefined ? {} : { stopSequence }),
         }),
         speech: whatsappBotSpeech,
       }),
@@ -1717,6 +1789,21 @@ export function bootstrap(): Bun.Server<undefined> {
       ? {}
       : { routing: createOsrmRouteGeometryGateway({ baseUrl: config.routingMatrixUrl }) }),
   })
+  /** Spec 300 RF12: número de paradas e nome do motorista da despedida de "rota concluída" (uma consulta). */
+  const whatsappRouteClosing = createWhatsAppRouteClosingReader({ database: database.db, logger })
+  /** Spec 300 RF4: distância e tempo da lista de paradas, pela estrada (OSRM `table`, uma consulta); só com `ROUTING_MATRIX_URL`. */
+  const whatsappStopListTravel = createDriverStopListTravel({
+    listActiveTrips: (input) => whatsappDriverTripRepository.listActiveTrips(input),
+    logger,
+    reader: createWhatsAppStopListTravelReader({
+      logger,
+      readOriginPoint: ({ companyId, origin }) =>
+        readLastSharedPoint(database.db, companyId, origin),
+      ...(config.routingMatrixUrl === undefined
+        ? {}
+        : { table: createOsrmRouteDistanceTableGateway({ baseUrl: config.routingMatrixUrl }) }),
+    }),
+  })
   const whatsappGroupDelivery = createGroupDeliveryWiring({
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
     database: database.db,
@@ -1776,8 +1863,10 @@ export function bootstrap(): Bun.Server<undefined> {
     }),
     ports: whatsappDriverEventPorts,
     resolveSenderRole: whatsappSenderRole,
+    routeClosing: whatsappRouteClosing,
     speech: whatsappBotSpeech,
     stopCards: whatsappStopCards,
+    stopListTravel: whatsappStopListTravel,
   })
   /** Spec 294: a oferta da próxima rota, o pedido de localização e as conferências da conversa individual. */
   const whatsappDriverPrompts = createWhatsAppDriverPrompts({
@@ -1785,9 +1874,11 @@ export function bootstrap(): Bun.Server<undefined> {
     listStops: listWhatsAppDriverStops,
     logger,
     ports: whatsappDriverEventPorts,
+    routeClosing: whatsappRouteClosing,
     sharedLocations: whatsappSharedLocations,
     speech: whatsappBotSpeech,
     stopCards: whatsappStopCards,
+    stopListTravel: whatsappStopListTravel,
   })
   const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
     deliveryPreparations: whatsappDeliveryPreparations,
@@ -2142,6 +2233,17 @@ export function bootstrap(): Bun.Server<undefined> {
    * Spec 144 T006 — o despachante das mensagens recebidas. O teto por número é um só para a
    * instalação: a instância do módulo é refeita quando o token muda, e o teto não pode zerar junto.
    */
+  /** Spec 299: o áudio nasce na composição para o lembrete da parada também enxergar a confirmação pendente. */
+  const whatsappBotAudio = createWhatsAppBotAudio<null>({
+    logger,
+    transcriber: whatsappBotAudioTranscriber(),
+  })
+  /** Spec 299: o turno e o áudio do grupo nascem aqui (e não dentro do webhook) para o lembrete os alcançar. */
+  const whatsappGroupTurns = createWhatsAppTurnReplies({ logger })
+  const whatsappGroupAudio = createWhatsAppBotAudio<GroupAudioContext>({
+    logger,
+    transcriber: whatsappBotAudioTranscriber(),
+  })
   const whatsappCommandHook = createWhatsAppCommandHookFactory({
     authorization: new AuthorizationService(),
     clock: () => new Date(),
@@ -2164,7 +2266,7 @@ export function bootstrap(): Bun.Server<undefined> {
     rateLimiter: createRateLimiter(),
     sharedLocations: whatsappSharedLocations,
     /** Spec 292 T9: o áudio da conversa individual é transcrito pelo worker e confirmado. */
-    botAudio: createWhatsAppBotAudio<null>({ logger, transcriber: whatsappBotAudioTranscriber() }),
+    botAudio: whatsappBotAudio,
     /** Spec 293 T15: foto, localização e respostas da entrega em preparo na conversa individual. */
     deliveryProofs: {
       preparations: whatsappDriverCollections,
@@ -2191,6 +2293,69 @@ export function bootstrap(): Bun.Server<undefined> {
           companyId: config.companyId,
           db: database.db,
         })
+  /**
+   * Spec 299 T2.2: a entrega do lembrete vencido. O envio no grupo sai pelo Evolution da empresa, no mesmo ritmo do
+   * número (289), e passa pelo turno do grupo para nunca ultrapassar o que um turno aberto já guardou.
+   */
+  const reminderEvolutionSecrets = createWhatsAppEvolutionSecretService({
+    envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+  })
+  const reminderDocumentSender = createEvolutionDocumentSender({
+    pacer: createEvolutionSendPacer({
+      claimSlot: createDrizzleEvolutionSendSlotClaimer(database.db),
+      maxWaitMs: 20_000,
+    }),
+    repository: new DrizzleWhatsAppEvolutionRepository(database.db),
+    secrets: reminderEvolutionSecrets,
+  })
+  const reminderSessions = new SessionRepository(database.db)
+  const deliverDriverStopReminder = createDeliverDriverStopReminderUseCase({
+    channelResolver: createDrizzleDriverReminderChannelResolver({
+      database: database.db,
+      sessions: reminderSessions,
+    }),
+    driverOpenQuestions: createDriverOpenQuestionPort({
+      collections: whatsappDriverCollections,
+      database: database.db,
+      groupAudio: whatsappGroupAudio,
+      groupRequests: createDrizzleWhatsAppGroupRequestRepository(database.db),
+      individualAudio: whatsappBotAudio,
+      sessions: reminderSessions,
+    }),
+    isEnabled: config.driverRemindersEnabled,
+    logger,
+    promptOpener: createGroupReminderPromptOpener({
+      clock: () => new Date(),
+      readDriverNumber: createDriverNumberReader(database.db),
+      repository: createDrizzleWhatsAppGroupRequestRepository(database.db),
+    }),
+    repository: new DrizzleDriverStopReminderDeliveryRepository(database.db),
+    sender: createGroupStopReminderSender({
+      readCurrentDriverNumber: createCurrentDriverNumberReader(database.db),
+      sendText: async (input) => {
+        let providerMessageId: null | string = null
+        await whatsappGroupTurns.send({
+          body: input.body,
+          deliver: async (body) => {
+            ;({ providerMessageId } = await reminderDocumentSender.sendText({ ...input, body }))
+          },
+          key: `${input.companyId}|${input.number}`,
+        })
+        return { providerMessageId }
+      },
+    }),
+    speech: whatsappBotSpeech,
+    stopCards: whatsappStopCards,
+  })
+  /** Spec 299 T2.3: o passo `reminder.stage` do grupo (a opção 4 adia pelo mesmo cadastro de lembretes). */
+  const whatsappGroupReminder = createGroupReminderFlow({
+    postpone: (input) =>
+      createPostponeDriverStopReminderUseCase({
+        repository: new DrizzleDriverStopReminderPostponementRepository(database.db),
+      }).execute(input),
+    readNoteNumber: createStopNoteNumberReader(database.db),
+    speech: whatsappBotSpeech,
+  })
   // ADR-0076 §6: um resolvedor só, do ambiente, para o limitador anônimo e para toda trilha com IP.
   const resolveClientIp = createClientIpResolver(config.clientIpPolicy)
   const router = createRouter({
@@ -2201,12 +2366,15 @@ export function bootstrap(): Bun.Server<undefined> {
       resolveClientIp,
       userModule,
       whatsappCommandHook,
+      whatsappGroupAudio,
       whatsappGroupBoletoResend,
       whatsappGroupDelivery,
       whatsappGroupOccurrence,
+      whatsappGroupReminder,
       whatsappGroupReturn,
       whatsappGroupStop,
       whatsappGroupTripClose,
+      whatsappGroupTurns,
     }),
     authentication,
     authorization: new AuthorizationService(),
@@ -2299,10 +2467,36 @@ export function bootstrap(): Bun.Server<undefined> {
         postalCodeProviders: config.postalCodeProviders,
         resolveClientIp,
         routingMatrixUrl: config.routingMatrixUrl,
+        driverStopReminders,
         routeOptimizationQueue,
         vehicleCatalog: config.vehicleCatalog,
       }),
       ...createWhatsAppCommandSettlementRoutes({ settle: whatsappSettlement }),
+      ...createDriverStopReminderRoutes({
+        deliverDriverStopReminder,
+        reconcileDriverStopReminders: combineStopReminderReconciliations([
+          createReconcileDriverStopRemindersUseCase({
+            ...(driverStopReminders === undefined
+              ? {}
+              : { afterOpen: (reminders) => driverStopReminders.refineAfterCommit(reminders) }),
+            isEnabled: config.driverRemindersEnabled,
+            reconciliation: new DrizzleDriverStopReminderReconciliationRepository(
+              database.db,
+              logger,
+            ),
+            reminders: new DrizzleDriverStopReminderRepository(database.db, logger),
+          }),
+          createReconcileIdleDriverStopRemindersUseCase({
+            isEnabled: config.driverRemindersEnabled,
+            reconciliation: new DrizzleDriverStopReminderIdleReconciliationRepository(database.db),
+            reminders: new DrizzleDriverStopReminderRepository(database.db, logger),
+          }),
+        ]),
+      }),
+      ...createDriverStopReminderSettingsRoutes({
+        resolveClientIp,
+        settings: new DrizzleDriverStopReminderSettingsRepository(database.db),
+      }),
     ],
     tenantContext,
     userPictureExistence: new DrizzleUserPictureRepository(database.db),
@@ -2360,10 +2554,14 @@ type CreateAnonymousRoutesParams = {
   /** Spec 292 T5: o fluxo do pedido no grupo do motorista (só a entrega anônima do Evolution o usa). */
   readonly whatsappGroupOccurrence: GroupOccurrenceFlowPorts
   readonly whatsappGroupStop: GroupStopFlowPorts
+  /** Spec 299 T2.3: o passo do lembrete da parada no grupo. */
+  readonly whatsappGroupReminder: GroupReminderFlow
   /** "Não entreguei" no grupo do motorista. */
   readonly whatsappGroupReturn: GroupReturnFlowPorts
   /** Spec 294 RF21: "encerrar a rota" do atendente no grupo. */
   readonly whatsappGroupTripClose: GroupTripCloseFlowPorts
+  readonly whatsappGroupAudio: WhatsAppBotAudio<GroupAudioContext>
+  readonly whatsappGroupTurns: WhatsAppTurnReplies
   /** Spec 293 T15: a entrega em preparo no grupo; ausente, "entreguei" e as fotos não são atendidos. */
   readonly whatsappGroupDelivery: GroupDeliveryWiring
   /** Spec 292 T7: "pedir boleto de novo" no grupo. */
@@ -2391,6 +2589,8 @@ function createEvolutionWebhook(input: {
   readonly groupOccurrence?: GroupOccurrenceFlowPorts
   /** Spec 293 T12: o "saí"/"cheguei" do grupo; ausente, só a ocorrência atende. */
   readonly groupStop?: GroupStopFlowPorts
+  /** Spec 299 T2.3: o passo do lembrete da parada; ausente, a resposta a ele não é atendida. */
+  readonly groupReminder?: GroupReminderFlow
   /** "Não entreguei" no grupo; ausente, o texto segue para a ocorrência. */
   readonly groupReturn?: GroupReturnFlowPorts
   /** Spec 294 RF21: "encerrar a rota" do atendente; ausente, o texto segue como antes. */
@@ -2399,6 +2599,10 @@ function createEvolutionWebhook(input: {
   readonly groupDelivery?: GroupDeliveryWiring
   /** Spec 292 T7: "pedir boleto de novo" no grupo; ausente, o texto segue para a ocorrência. */
   readonly groupBoletoResend?: GroupBoletoResendPorts
+  /** Spec 299: o áudio do grupo, criado na composição; usado só pela instância que atende o grupo. */
+  readonly groupAudio?: WhatsAppBotAudio<GroupAudioContext>
+  /** Spec 299: o turno do grupo, criado na composição; ausente, a instância cria o próprio. */
+  readonly groupTurns?: WhatsAppTurnReplies
   readonly logger: ApiLogger
 }) {
   const { database, envelopeProvider, logger } = input
@@ -2410,7 +2614,7 @@ function createEvolutionWebhook(input: {
    * número (spec 289), fora do webhook.
    */
   /** Uma resposta por turno é uma mensagem: o remetente e a entrada do grupo dividem o mesmo turno. */
-  const groupTurns = createWhatsAppTurnReplies({ logger })
+  const groupTurns = input.groupTurns ?? createWhatsAppTurnReplies({ logger })
   const groupReplies = createEvolutionGroupReplySender({
     logger,
     turnReplies: groupTurns,
@@ -2452,6 +2656,7 @@ function createEvolutionWebhook(input: {
                     ? {}
                     : { delivery: createGroupDeliveryFlow(input.groupDelivery.flow) }),
                   occurrence: createGroupOccurrenceFlow(input.groupOccurrence),
+                  ...(input.groupReminder === undefined ? {} : { reminder: input.groupReminder }),
                   ...(input.groupReturn === undefined
                     ? {}
                     : { return: createGroupReturnFlow(input.groupReturn) }),
@@ -2487,13 +2692,7 @@ function createEvolutionWebhook(input: {
           replies: groupReplies,
         })
   /** Spec 292 T9: o áudio no grupo é transcrito pelo worker e confirmado antes de seguir o fluxo. */
-  const groupAudio =
-    groupSessions === undefined
-      ? undefined
-      : createWhatsAppBotAudio<GroupAudioContext>({
-          logger,
-          transcriber: whatsappBotAudioTranscriber(),
-        })
+  const groupAudio = groupSessions === undefined ? undefined : input.groupAudio
   if (groupAudio !== undefined) groupQuestionAsked = createGroupQuestionAskedHandler(groupAudio)
   return createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets,
@@ -2592,9 +2791,12 @@ function createAnonymousRoutes({
   whatsappGroupBoletoResend,
   whatsappGroupDelivery,
   whatsappGroupOccurrence,
+  whatsappGroupReminder,
   whatsappGroupReturn,
+  whatsappGroupAudio,
   whatsappGroupStop,
   whatsappGroupTripClose,
+  whatsappGroupTurns,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
   /**
@@ -2686,9 +2888,12 @@ function createAnonymousRoutes({
       groupDelivery: whatsappGroupDelivery,
       groupBoletoResend: whatsappGroupBoletoResend,
       groupOccurrence: whatsappGroupOccurrence,
+      groupReminder: whatsappGroupReminder,
       groupReturn: whatsappGroupReturn,
       groupStop: whatsappGroupStop,
       groupTripClose: whatsappGroupTripClose,
+      groupAudio: whatsappGroupAudio,
+      groupTurns: whatsappGroupTurns,
       logger,
     }),
   })
@@ -2917,6 +3122,7 @@ type CreateApplicationRoutesParams = {
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
   readonly resolveClientIp: ClientIpResolver
   readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
+  readonly driverStopReminders: DriverStopReminderRuntime | undefined
   /** Ausente sem broker: sem quem resolva, a rota de sugestão não sobe (ADR-0044 §7). */
   readonly routeOptimizationQueue: RouteOptimizationQueue | undefined
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
@@ -2990,6 +3196,7 @@ function createApplicationRoutes({
   postalCodeProviders,
   resolveClientIp,
   routingMatrixUrl,
+  driverStopReminders,
   routeOptimizationQueue,
   vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
@@ -3242,6 +3449,7 @@ function createApplicationRoutes({
   const officeOccurrenceBatches = new DrizzleOfficeOccurrenceBatchUnitOfWork(
     database,
     resolveStorageBucket(environment),
+    driverStopReminders,
   )
   const tripValuationQuery = new DrizzleTripValuationQuery(database, logger)
   const routeGeometryVehicleAxlesQuery = createRouteGeometryVehicleAxlesQuery(database)
@@ -3268,6 +3476,7 @@ function createApplicationRoutes({
     database,
     resolveStorageBucket(environment),
     logger,
+    driverStopReminders,
   )
   /**
    * Spec 161 T8: a reserva e a liquidação da chave para o galpão — cada chamada abre sua própria

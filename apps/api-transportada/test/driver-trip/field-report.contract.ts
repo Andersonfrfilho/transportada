@@ -190,6 +190,19 @@ describe('cheguei', () => {
     expect(world.state.calls).not.toContain(`markStopArrived:${STOP_ID}`)
   })
 
+  /** Chave diferente = outro canal (app depois do WhatsApp): a chegada já lançada não vira segundo evento. */
+  it('o mesmo cheguei por outro canal devolve o evento existente e não grava outro', async () => {
+    const world = buildArrivalWorld()
+
+    const first = await reportStopArrival(arrivalInput(world, 'whatsapp-group-request:1'))
+    const second = await reportStopArrival(arrivalInput(world, 'app-chave-2'))
+
+    expect(second.id).toBe(first.id)
+    expect(world.state.calls.filter((call) => call.startsWith('recordEvent:arrived'))).toHaveLength(
+      1,
+    )
+  })
+
   it('viagem que já está em trânsito não é promovida de novo', async () => {
     const world = buildArrivalWorld({ tripStatus: 'in_transit' })
 

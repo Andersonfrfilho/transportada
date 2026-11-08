@@ -296,7 +296,7 @@ export function createGroupOccurrencePorts(dependencies: {
  * O que a nota da viagem diz de si para o resumo do registro no grupo: série, destinatário (cliente), emitente
  * (contratante, pelo nome do cadastro quando há) e valor total. Vazios quando não há.
  */
-async function noteSummaryOf(
+export async function noteSummaryOf(
   database: Database,
   input: { readonly companyId: string; readonly documentId: string },
 ): Promise<GroupOccurrenceNoteSummary> {

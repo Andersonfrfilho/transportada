@@ -1063,7 +1063,7 @@ describe('FlowAction do passo de foto do operador (spec 161 T15)', () => {
     })
 
     expect(sent[0]?.body).toBe(
-      'Este tipo não vale para a contratante desta nota. Escolha outro tipo.',
+      '🚫 *Este tipo não vale para a contratante desta nota.*\n➡️ _Próximo passo:_ escolha outro tipo.',
     )
     expect(result).toMatchObject({ next: OPERATOR_FLOW_NODE.listOccurrenceTypes })
   })

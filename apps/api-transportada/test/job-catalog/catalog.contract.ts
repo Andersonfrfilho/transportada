@@ -180,6 +180,12 @@ const CATALOG = [
     job: 'occurrence.contractor-reply.alert',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 299 T1.2: o lembrete ao motorista na hora certa; o worker pede, a API envia. Nasce pausada. */
+    failureOutcomes: ['api_unreachable'],
+    job: 'driver.stop-reminder.dispatch',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -207,6 +213,7 @@ const SEED_MIGRATIONS = [
   '20261012180100_occurrence_automatic_mail_sweep_job',
   '20261012154238_conversation_audio_transcribe_job',
   '20261013010226_occurrence_contractor_reply_alert_job',
+  '20261106232509_driver_stop_reminders',
 ] as const
 
 describe('job catalog', () => {

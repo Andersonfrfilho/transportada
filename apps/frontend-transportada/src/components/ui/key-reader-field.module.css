@@ -9,3 +9,11 @@
   flex: 1 1 12rem;
   min-width: 0;
 }
+
+/* O campo do leitor não tem rótulo pai (`label input`), então não herdava a altura do campo: ficava
+   uma faixa achatada ao lado do botão. A altura é a do controle vizinho (`size="sm"`). */
+.input {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  font-size: var(--field-font-size-compact);
+}

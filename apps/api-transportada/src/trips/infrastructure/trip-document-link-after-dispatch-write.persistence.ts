@@ -58,23 +58,35 @@ export async function insertLoadedLinks(
 export async function recordLoadedEvents(
   transaction: TripTransaction,
   {
+    movedFrom,
     params,
     tripDocumentIds,
+    tripDocumentNfeIds,
   }: {
+    /** nota → viagem de onde ela veio, quando foi movida de outra viagem. */
+    readonly movedFrom: ReadonlyMap<string, string>
     readonly params: LinkTripDocumentsAfterDispatchParams
     readonly tripDocumentIds: readonly string[]
+    /** Mesma ordem de `tripDocumentIds`. */
+    readonly tripDocumentNfeIds: readonly string[]
   },
 ): Promise<void> {
   await transaction.insert(tripDocumentEvents).values(
-    tripDocumentIds.map((tripDocumentId) => ({
-      actorUserId: params.actorUserId,
-      channel: params.channel,
-      companyId: params.companyId,
-      fromStatus: null,
-      note: params.reason,
-      toStatus: LOADED_STATUS,
-      tripDocumentId,
-    })),
+    tripDocumentIds.map((tripDocumentId, index) => {
+      const origin = movedFrom.get(tripDocumentNfeIds[index] ?? '')
+      return {
+        actorUserId: params.actorUserId,
+        channel: params.channel,
+        companyId: params.companyId,
+        fromStatus: null,
+        note:
+          origin === undefined
+            ? params.reason
+            : `Veio da viagem ${origin.slice(0, 8)}: ${params.reason}`,
+        toStatus: LOADED_STATUS,
+        tripDocumentId,
+      }
+    }),
   )
 }
 

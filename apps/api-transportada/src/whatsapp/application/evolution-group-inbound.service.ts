@@ -16,6 +16,8 @@
  * ⚠️ Nada de número, texto ou id de grupo em log: só empresa, motivo e contagens.
  */
 import type { EvolutionWebhookEvent } from '@adatechnology/evolution-whatsapp-provider'
+import { interpretWhatsAppDriverEventCommand } from '../../whatsapp-commands/domain/whatsapp-driver-event-command.policy.js'
+import { normalizeDriverCommandText } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
 
 import { matchWakePhrase } from '../domain/bot-wake-phrase.policy.js'
 import { BOT_AUDIO_SPEECH, botAudioQuickAnswer } from './whatsapp-bot-audio.service.js'
@@ -25,6 +27,7 @@ import { isCancelText } from './whatsapp-group-request.service.js'
 import {
   decideGroupMessage,
   type GroupMessageIgnoredReason,
+  mentionsBot,
   parseJid,
 } from '../domain/evolution-group-message.policy.js'
 import type {
@@ -91,6 +94,8 @@ export type AdmittedGroupMedia = {
   readonly driverId: string
   readonly groupJid: string
   readonly media: GroupMedia
+  /** A legenda marcou o bot: só então a foto que ninguém pediu vai à leitura automática do canhoto. */
+  readonly mentionsBot: boolean
   readonly providerMessageId: string
   readonly sender: string
   /** Segundos desde 1970, do Evolution; `null` quando não veio. */
@@ -553,6 +558,31 @@ export function createEvolutionGroupInbound(
     return 'audio'
   }
 
+  /** Sem marcação nenhuma não pergunta nada ao Evolution; identidade fora do ar conta como não marcado. */
+  async function mediaMentionsBot(input: {
+    readonly companyId: string
+    readonly connection: LazyEvolutionConnection
+    readonly groupJid: string
+    readonly mentionedJids: readonly string[]
+  }): Promise<boolean> {
+    if (input.mentionedJids.length === 0) return false
+    try {
+      const botNumber = await identity.botNumber(input)
+      if (botNumber === null) return false
+      const lids = lidDigits(input.mentionedJids)
+      const directory =
+        lids.length === 0
+          ? new Map<string, string>()
+          : await identity.lidDirectory({ ...input, lids })
+      const botLids = new Set(
+        [...directory].filter(([, number]) => number === botNumber).map(([lid]) => lid),
+      )
+      return mentionsBot(input.mentionedJids, botNumber, botLids)
+    } catch {
+      return false
+    }
+  }
+
   const inbound: EvolutionGroupInbound = {
     async receive({ audio = null, companyId, connection, event, media = null, senderLid }) {
       if (event.fromMe) return 'from_me'
@@ -612,6 +642,12 @@ export function createEvolutionGroupInbound(
           driverId: owner.driverId,
           groupJid,
           media,
+          mentionsBot: await mediaMentionsBot({
+            companyId,
+            connection,
+            groupJid,
+            mentionedJids: event.mentionedJids,
+          }),
           providerMessageId: event.externalMessageId,
           sender,
           timestamp: event.timestamp,
@@ -687,13 +723,16 @@ export function createEvolutionGroupInbound(
         text: event.text,
       })
       if (!decision.admitted) {
-        // Texto de quem acabou de descartar um áudio, sem pedido aberto: vale como marcação.
+        // Texto de quem acabou de descartar um áudio, sem pedido aberto: vale como marcação. O comando da
+        // rota do motorista do grupo também: o bot diz "quando chegar, mande cheguei", sem pedir o @.
         if (
           decision.reason === 'not_addressed' &&
           requestOwner === null &&
           sender !== '' &&
           event.text.trim() !== '' &&
-          takeRetry(companyId, groupJid, sender)
+          (takeRetry(companyId, groupJid, sender) ||
+            (isShortRouteCommand(event.text) &&
+              (await isGroupDriver?.({ companyId, driverId: owner.driverId, sender })) === true))
         ) {
           await dependencies.handle({
             companyId,
@@ -746,6 +785,17 @@ export function createGroupQuestionAskedHandler(
   return ({ companyId, groupJid, owner }) => {
     bot.supersede({ companyId, conversation: groupConversation(groupJid), owner })
   }
+}
+
+const ROUTE_COMMAND_MAX_WORDS = 6
+
+/** "cheguei", "saí", "entreguei 17234", "não entreguei 17234": curto, para conversa comum não chamar o bot. */
+function isShortRouteCommand(text: string): boolean {
+  const words = normalizeDriverCommandText(text)
+    .split(' ')
+    .filter((word) => word !== '')
+  if (words.length === 0 || words.length > ROUTE_COMMAND_MAX_WORDS) return false
+  return interpretWhatsAppDriverEventCommand(text) !== undefined
 }
 
 function groupConversation(groupJid: string): string {

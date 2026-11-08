@@ -250,7 +250,11 @@ describe('a entrega confirmada vale na hora, com selo de envio (15/10)', () => {
 /** Pedido do usuário (15/10): faixa "Sincronizando eventos" / "Sincronizado" no topo da viagem. */
 describe('a faixa de sincronização da viagem (15/10)', () => {
   const item = (state: string, kind = 'deliver') =>
-    ({ idempotencyKey: `${kind}-${state}`, kind, status: { state } }) as never
+    ({
+      idempotencyKey: `${kind}-${state}`,
+      kind,
+      status: state === 'rejected' ? { cause: '404 TRIP_STOP_NOT_FOUND', state } : { state },
+    }) as never
 
   it('em curso conta fila e falha; recusa fica à parte e nunca vira "Sincronizado"', async () => {
     const { resolveTripSyncBanner } = await import(

@@ -338,6 +338,15 @@ export const JOB_CATALOG = [
     /** A batida: o intervalo do tipo é de minutos, e o piso do relógio já é cinco. */
     minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
   },
+  {
+    /**
+     * Spec 299 T1.2: o lembrete ao motorista na hora certa; o worker pede a cada batida, a API decide e envia.
+     * Nasce **pausada** (a migration a semeia desligada).
+     */
+    failureOutcomes: ['api_unreachable'],
+    job: 'driver.stop-reminder.dispatch',
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

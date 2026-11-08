@@ -1,5 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { CANHOTO_ALREADY_ATTACHED_CODE } from './canhotoReplacePrompt.service'
 import type { EventQueueItemView } from './eventQueueView.service'
+import { OUT_OF_ORDER_CODE } from './outOfOrderPrompt.service'
+import { resolveRejectionCauseCode } from './rejectionCauseLabel.service'
 
 /**
  * Pedido do usuário (15/10): a viagem diz "Sincronizando eventos" enquanto houver evento na fila e
@@ -19,13 +22,32 @@ export function countSyncingEvents(queueView: readonly EventQueueItemView[]): nu
   ).length
 }
 
+/** Spec 294 RF26/RF27: o 409 que só pede a confirmação do motorista — tem diálogo próprio, não é recusa. */
+const CONFIRMATION_CAUSE_CODES: ReadonlySet<string> = new Set([
+  CANHOTO_ALREADY_ATTACHED_CODE,
+  OUT_OF_ORDER_CODE,
+])
+
+export function isAwaitingDriverConfirmation(item: EventQueueItemView): boolean {
+  return (
+    item.status.state === 'rejected' &&
+    CONFIRMATION_CAUSE_CODES.has(resolveRejectionCauseCode(item.status.cause))
+  )
+}
+
+export function countRejectedEvents(queueView: readonly EventQueueItemView[]): number {
+  return queueView.filter(
+    (item) => item.status.state === 'rejected' && !isAwaitingDriverConfirmation(item),
+  ).length
+}
+
 export function resolveTripSyncBanner(input: {
   /** A fila já teve evento em curso nesta sessão e acabou de esvaziar (a tela segura isto por alguns segundos). */
   readonly justSynced: boolean
   readonly queueView: readonly EventQueueItemView[]
 }): TripSyncBannerState {
   const syncing = countSyncingEvents(input.queueView)
-  const rejected = input.queueView.filter((item) => item.status.state === 'rejected').length
+  const rejected = countRejectedEvents(input.queueView)
   if (rejected > 0) return { kind: 'rejected', rejected, syncing }
   if (syncing > 0) return { kind: 'syncing', syncing }
   return input.justSynced ? { kind: 'synced' } : { kind: 'idle' }

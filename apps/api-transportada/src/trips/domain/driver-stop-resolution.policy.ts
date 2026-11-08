@@ -19,7 +19,13 @@
 
 export type WhatsAppStopCandidate = {
   readonly arrivedAt: string | null
+  /** Spec 300 RF7: cidade do endereço do destinatário da nota, em iniciais maiúsculas; ausente em dublê. */
+  readonly city?: string | undefined
   readonly completedAt: string | null
+  /** Spec 300 RF4/RF7: a coordenada da parada, para o link de mapa e a distância da lista; ausente em dublê. */
+  readonly coordinate?: { readonly latitude: number; readonly longitude: number } | undefined
+  /** Spec 300 RF7: bairro do endereço do destinatário da nota, em iniciais maiúsculas; ausente em dublê. */
+  readonly district?: string | undefined
   readonly documents: readonly {
     /** Spec 294 RF26: o id da nota, para dizer a qual nota o canhoto repetido já pertence; ausente em dublê. */
     readonly id?: string | undefined

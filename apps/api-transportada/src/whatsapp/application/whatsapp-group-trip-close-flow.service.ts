@@ -6,6 +6,11 @@
  * diz quantas notas ainda estão abertas. Só o atendente cadastrado encerra: a tripulação é avisada e
  * ninguém mais registra nada.
  */
+import {
+  formatOpenDocumentsLine,
+  formatOptions,
+  formatTripClosed,
+} from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
 import { isCloseTripCommand } from '../../whatsapp-commands/domain/whatsapp-trip-close-command.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 import type { ResolveWhatsAppSenderRole } from './whatsapp-sender-role.service.js'
@@ -19,16 +24,21 @@ export type GroupTripCloseFlowPorts = {
     readonly phone: string
     readonly tripId: string
   }) => Promise<
-    { readonly kind: 'closed' } | { readonly kind: 'refused'; readonly message: string }
+    | { readonly kind: 'closed'; readonly openDocumentNumbers: readonly string[] }
+    | { readonly kind: 'refused'; readonly message: string }
   >
-  /** A viagem ativa do motorista do grupo e quantas notas dela ainda não fecharam. */
+  /** A viagem ativa do motorista do grupo e os números das notas dela que ainda não fecharam. */
   readonly findActiveTrip: (input: {
     readonly companyId: string
     readonly driverId: string
   }) => Promise<
     | { readonly kind: 'many' }
     | { readonly kind: 'none' }
-    | { readonly kind: 'one'; readonly openDocumentCount: number; readonly tripId: string }
+    | {
+        readonly kind: 'one'
+        readonly openDocumentNumbers: readonly string[]
+        readonly tripId: string
+      }
   >
   readonly resolveSenderRole: ResolveWhatsAppSenderRole
 }
@@ -36,14 +46,16 @@ export type GroupTripCloseFlowPorts = {
 export const GROUP_TRIP_CLOSE_TEXT = {
   attendantOnly: 'Só um atendente cadastrado encerra a rota por aqui.',
   cancelled: 'Certo, a rota continua aberta.',
-  closed: 'Rota encerrada. ✅',
-  confirm: (openDocumentCount: number) =>
+  closed: formatTripClosed,
+  confirm: (openDocumentNumbers: readonly string[]) =>
     [
-      openDocumentCount === 0
-        ? 'Encerrar a rota? Todas as notas já estão fechadas.'
-        : `Encerrar a rota? Ainda ${openDocumentCount === 1 ? 'há 1 nota em aberto' : `há ${openDocumentCount} notas em aberto`}.`,
-      '1 - Sim',
-      '2 - Não',
+      '🏁 *Encerrar a rota?*',
+      formatOpenDocumentsLine(openDocumentNumbers),
+      '',
+      formatOptions([
+        { action: 'Sim, encerrar', icon: '✅' },
+        { action: 'Não, deixar aberta', icon: '↩️' },
+      ]),
     ].join('\n'),
   confirmNotUnderstood: 'Responda 1 para encerrar a rota ou 2 para deixá-la aberta.',
   manyTrips: 'O motorista deste grupo tem mais de uma viagem ativa. Encerre pelo painel.',
@@ -79,7 +91,7 @@ export function createGroupTripCloseFlow(ports: GroupTripCloseFlowPorts) {
       if (trip.kind === 'many') return done(GROUP_TRIP_CLOSE_TEXT.manyTrips)
       return {
         kind: 'continue',
-        replies: [GROUP_TRIP_CLOSE_TEXT.confirm(trip.openDocumentCount)],
+        replies: [GROUP_TRIP_CLOSE_TEXT.confirm(trip.openDocumentNumbers)],
         state: { tripId: trip.tripId },
         step: GROUP_TRIP_CLOSE_STEP.confirm,
       }
@@ -102,7 +114,8 @@ export function createGroupTripCloseFlow(ports: GroupTripCloseFlowPorts) {
         }
       }
       const result = await ports.close({ companyId, phone: turn.sender, tripId })
-      return done(result.kind === 'closed' ? GROUP_TRIP_CLOSE_TEXT.closed : result.message)
+      if (result.kind !== 'closed') return done(result.message)
+      return done(GROUP_TRIP_CLOSE_TEXT.closed(result.openDocumentNumbers))
     },
   }
 }

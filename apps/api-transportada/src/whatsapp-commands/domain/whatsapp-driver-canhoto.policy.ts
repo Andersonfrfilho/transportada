@@ -4,6 +4,11 @@
  * Spec 294 RF26: **o canhoto repetido não grava duas vezes.** A API decide (hash do conteúdo, nota que já tem outro
  * canhoto); o bot só diz o que aconteceu e pergunta o 1/2 da troca. Textos iguais no grupo e na conversa individual.
  */
+import {
+  formatNotUnderstood,
+  formatOptions,
+  type MessageOption,
+} from './whatsapp-message-format.policy.js'
 
 /** A hora do motorista: o bot fala com transportadoras do Brasil (a mesma do cumprimento do grupo). */
 const BOT_TIME_ZONE = 'America/Sao_Paulo'
@@ -16,23 +21,34 @@ const clockOf = (at: Date): string =>
     timeZone: BOT_TIME_ZONE,
   }).format(at)
 
+const REPLACE_OPTIONS: readonly MessageOption[] = [
+  { action: 'Trocar o canhoto _(vai para conferência do escritório)_', icon: '🔄' },
+  { action: 'Descartar esta foto', icon: '🗑️' },
+]
+
 export const CANHOTO_TEXT = {
   /** Troca recusada: o canhoto que a nota já tinha continua. */
   kept: (documentNumber: string) =>
-    `Certo, descartei esta foto e mantive o canhoto da NF ${documentNumber}.`,
+    `↩️ *Foto descartada.* Mantive o canhoto da NF \`${documentNumber}\`.`,
   /** A mesma imagem já era canhoto: nada foi gravado. */
   duplicate: (input: { readonly attachedAt: Date; readonly documentNumber?: string | undefined }) =>
-    `Esse canhoto já tinha chegado${input.documentNumber === undefined ? '' : `: NF ${input.documentNumber}`}, entregue às ${clockOf(input.attachedAt)}.`,
+    [
+      '🔁 *Esse canhoto já tinha chegado.*',
+      `${input.documentNumber === undefined ? 'Entregue' : `NF \`${input.documentNumber}\`, entregue`} às ${clockOf(input.attachedAt)}. Nada foi gravado de novo.`,
+    ].join('\n'),
   /** Spec 294 T4.8: o bot leu o número da nota na foto. */
-  read: (documentNumber: string) => `Li o canhoto da NF ${documentNumber}.`,
-  notUnderstood: 'Responda 1 para trocar o canhoto ou 2 para descartar a foto.',
+  read: (documentNumber: string) => `📸 *Li o canhoto da NF \`${documentNumber}\`.*`,
+  notUnderstood: formatNotUnderstood({
+    options: REPLACE_OPTIONS,
+    reason: 'Responda com o número da opção:',
+  }),
   replaced: (documentNumber: string) =>
-    `Troquei o canhoto da NF ${documentNumber}. O escritório vai conferir.`,
+    `🔄 *Canhoto da NF \`${documentNumber}\` trocado.* O escritório vai conferir.`,
   /** Outra foto de nota que já tem canhoto: pergunta a troca. */
   replaceQuestion: (documentNumber: string) =>
     [
-      `A NF ${documentNumber} já tem um canhoto diferente deste.`,
-      '*1* - Trocar o canhoto (vai para conferência do escritório)',
-      '*2* - Descartar',
+      `⚠️ *A NF \`${documentNumber}\` já tem um canhoto diferente deste.*`,
+      '',
+      formatOptions(REPLACE_OPTIONS),
     ].join('\n'),
 } as const

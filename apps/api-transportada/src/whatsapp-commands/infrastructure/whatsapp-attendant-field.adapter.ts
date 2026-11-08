@@ -87,17 +87,27 @@ export async function listAttendantRoadTrips(
 export async function listTripCloseDocuments(
   database: Database,
   input: { readonly companyId: string; readonly tripId: string },
-): Promise<readonly TripCloseDocumentState[]> {
+): Promise<readonly (TripCloseDocumentState & { readonly number: string })[]> {
   const rows = await database
     .select({
+      number: nfeDocuments.number,
       releasedAt: tripDocuments.releasedAt,
       separationStatus: tripDocuments.separationStatus,
     })
     .from(tripDocuments)
+    .leftJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.companyId, tripDocuments.companyId),
+        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+      ),
+    )
     .where(
       and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.tripId, input.tripId)),
     )
+    .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
   return rows.map((row) => ({
+    number: row.number ?? '',
     releasedAt: toIso(row.releasedAt),
     separationStatus: row.separationStatus,
   }))

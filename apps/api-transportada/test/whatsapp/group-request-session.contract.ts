@@ -185,6 +185,8 @@ function setup(
 
 /** 09:00 em Brasília, sem nome do WhatsApp. */
 const HELLO = 'Bom dia! 👋'
+const CANCELLED_TEXT =
+  '↩️ *Pedido cancelado.* Nada foi registrado.\n➡️ _Próximo passo:_ quando quiser, marque o bot de novo.'
 
 function silentLogger(): ApiLogger {
   return { error: () => undefined, info: () => undefined, warn: () => undefined }
@@ -243,7 +245,9 @@ describe('pedido no grupo: um por vez', () => {
     await sessions.handle(message({ text: '' }))
     await said()
     await sessions.handle(message({ sender: SUPPORT, text: 'prorrogação' }))
-    expect(await said()).toEqual([GROUP_REQUEST_TEXT.busy])
+    expect(await said()).toEqual([
+      '⏳ *Já tem um pedido aberto neste grupo.*\nTermine o pedido de cima ou responda *cancelar*.',
+    ])
     expect(memory.requests[0]?.attempts).toBe(0)
   })
 
@@ -291,7 +295,7 @@ describe('pedido no grupo: cancelar e tentativas', () => {
 
     await sessions.handle(message({ text: '' }))
     await sessions.handle(message({ text: 'Cancelar', via: 'owner_reply' }))
-    expect(await said()).toEqual([`${HELLO}\n\nQual a nota?`, GROUP_REQUEST_TEXT.cancelled])
+    expect(await said()).toEqual([`${HELLO}\n\nQual a nota?`, CANCELLED_TEXT])
     expect(memory.requests[0]?.status).toBe('cancelled')
 
     await sessions.handle(message({ text: '' }))
@@ -321,7 +325,7 @@ describe('pedido no grupo: cancelar e tentativas', () => {
     await sessions.handle(message({ text: '' }))
     await said()
     await sessions.handle(message({ text: 'cancelar', via: 'owner_reply' }))
-    expect(await said()).toEqual([GROUP_REQUEST_TEXT.cancelled])
+    expect(await said()).toEqual([CANCELLED_TEXT])
     expect(memory.requests[0]?.status).toBe('cancelled')
   })
 
@@ -367,8 +371,8 @@ describe('pedido no grupo: cancelar e tentativas', () => {
     await sessions.handle(message({ text: 'abc', via: 'owner_reply' }))
     await sessions.handle(message({ text: 'def', via: 'owner_reply' }))
     expect(await said()).toEqual([
-      'Não entendi: a nota tem só números.\nQual a nota?',
-      'Não entendi: a nota tem só números.\nQual a nota?',
+      '🤔 *Não entendi.* A nota tem só números.\nQual a nota?',
+      '🤔 *Não entendi.* A nota tem só números.\nQual a nota?',
     ])
     await sessions.handle(message({ text: 'ghi', via: 'owner_reply' }))
     expect(await said()).toEqual([GROUP_REQUEST_TEXT.gaveUp])

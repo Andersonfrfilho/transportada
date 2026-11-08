@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "9ffb6b20-a33a-4c7e-be02-945081e058a8",
+  "id": "906c93a5-901f-4229-ac9f-4e3dfcc02167",
   "prevIds": [
-    "96b08953-5b56-43f8-bfc6-d99fffb3cc33"
+    "5368347a-be7c-488c-a2a6-0d24a340154e"
   ],
   "ddl": [
     {
@@ -537,6 +537,18 @@
     {
       "isRlsEnabled": false,
       "name": "company_driver_allowance_settings",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "company_driver_reminder_settings",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "driver_stop_reminders",
       "entityType": "tables",
       "schema": "public"
     },
@@ -6172,32 +6184,6 @@
       "generated": null,
       "identity": null,
       "name": "requested_by_user_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "nfe_imports"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "'screen'",
-      "generated": null,
-      "identity": null,
-      "name": "received_via",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "nfe_imports"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "received_from",
       "entityType": "columns",
       "schema": "public",
       "table": "nfe_imports"
@@ -16042,6 +16028,474 @@
       "entityType": "columns",
       "schema": "public",
       "table": "company_driver_allowance_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "3",
+      "generated": null,
+      "identity": null,
+      "name": "max_attempts",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "30",
+      "generated": null,
+      "identity": null,
+      "name": "interval_minutes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "30",
+      "generated": null,
+      "identity": null,
+      "name": "grace_min_minutes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "50",
+      "generated": null,
+      "identity": null,
+      "name": "grace_percent",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "30",
+      "generated": null,
+      "identity": null,
+      "name": "dwell_minutes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "30",
+      "generated": null,
+      "identity": null,
+      "name": "idle_minutes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'[]'",
+      "generated": null,
+      "identity": null,
+      "name": "operating_hours",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "trip_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "trip_stop_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "driver_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "stage",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "anchor_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "origin_kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "travel_seconds",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "expected_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "due_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "attempts",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "name": "postponements",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_sent_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_channel",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last_provider_message_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "dispatching_until",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "varchar(24)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "closed_reason",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "closed_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "escalated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "dismissed_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "1",
+      "generated": null,
+      "identity": null,
+      "name": "version",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "driver_stop_reminders"
     },
     {
       "type": "uuid",
@@ -46866,6 +47320,104 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "trip_stop_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "stage",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"status\" = 'pending'",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "driver_stop_reminders_pending_stop_stage_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "due_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "driver_stop_reminders_status_due_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "trip_stop_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "stage",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "created_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "driver_stop_reminders_cycle_probe_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "company_id",
           "isExpression": false,
           "asc": true,
@@ -55842,6 +56394,97 @@
       "table": "company_driver_allowance_settings"
     },
     {
+      "nameExplicit": false,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "company_driver_reminder_settings_company_id_companies_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "driver_stop_reminders_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "trip_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "trips",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "driver_stop_reminders_company_trip_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "trip_stop_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "trip_stops",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "driver_stop_reminders_company_trip_stop_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "driver_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "fleet_drivers",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "driver_stop_reminders_company_driver_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
       "nameExplicit": true,
       "columns": [
         "company_id"
@@ -64504,6 +65147,26 @@
         "company_id"
       ],
       "nameExplicit": false,
+      "name": "company_driver_reminder_settings_pkey",
+      "schema": "public",
+      "table": "company_driver_reminder_settings",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "driver_stop_reminders_pkey",
+      "schema": "public",
+      "table": "driver_stop_reminders",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "company_id"
+      ],
+      "nameExplicit": false,
       "name": "company_location_retention_settings_pkey",
       "schema": "public",
       "table": "company_location_retention_settings",
@@ -70821,20 +71484,6 @@
       "table": "nfe_import_items"
     },
     {
-      "value": "\"received_via\" in ('screen', 'email', 'whatsapp')",
-      "name": "nfe_imports_received_via_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "nfe_imports"
-    },
-    {
-      "value": "(\"received_via\" = 'screen' and \"received_from\" is null) or (\"received_via\" <> 'screen' and \"received_from\" is not null and char_length(\"received_from\") between 3 and 254)",
-      "name": "nfe_imports_received_from_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "nfe_imports"
-    },
-    {
       "value": "\"source\" in ('upload', 'distribution', 'access_key')",
       "name": "nfe_imports_source_check",
       "entityType": "checks",
@@ -71073,7 +71722,7 @@
       "table": "password_reset_requests"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'conversation.audio.transcribe', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill', 'holiday.provider.pull', 'occurrence.automatic-mail.sweep', 'occurrence.contractor-reply.alert')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'conversation.audio.transcribe', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill', 'holiday.provider.pull', 'occurrence.automatic-mail.sweep', 'occurrence.contractor-reply.alert', 'driver.stop-reminder.dispatch')",
       "name": "job_executions_job_check",
       "entityType": "checks",
       "schema": "public",
@@ -71115,7 +71764,7 @@
       "table": "job_executions"
     },
     {
-      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'conversation.audio.transcribe', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill', 'holiday.provider.pull', 'occurrence.automatic-mail.sweep', 'occurrence.contractor-reply.alert')",
+      "value": "\"job\" in ('nfe.distribution.pull', 'fuel.price.pull', 'nfse.status.pull', 'notification.schedules.run', 'trip.location.purge', 'identity.document.backfill', 'geocoding.backfill', 'geocoding.refine', 'whatsapp.command.settle', 'trip.cargo-layout.purge', 'rate-limit.window.purge', 'trip.occurrence-attachment.purge', 'trip.occurrence-upload.expire', 'occurrence-conversation.upload.expire', 'trip.canhoto.read', 'conversation.audio.transcribe', 'cargo-preview.retention.apply', 'nfe.recipient-email.backfill', 'holiday.provider.pull', 'occurrence.automatic-mail.sweep', 'occurrence.contractor-reply.alert', 'driver.stop-reminder.dispatch')",
       "name": "job_schedules_job_check",
       "entityType": "checks",
       "schema": "public",
@@ -72667,6 +73316,90 @@
       "entityType": "checks",
       "schema": "public",
       "table": "company_driver_allowance_settings"
+    },
+    {
+      "value": "\"max_attempts\" between 1 and 5",
+      "name": "company_driver_reminder_settings_max_attempts_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "value": "\"interval_minutes\" between 10 and 120",
+      "name": "company_driver_reminder_settings_interval_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "value": "\"grace_min_minutes\" >= 0 and \"grace_percent\" between 0 and 100",
+      "name": "company_driver_reminder_settings_grace_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "value": "\"dwell_minutes\" >= 0",
+      "name": "company_driver_reminder_settings_dwell_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "value": "\"idle_minutes\" between 10 and 240",
+      "name": "company_driver_reminder_settings_idle_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "value": "jsonb_typeof(\"operating_hours\") = 'array'",
+      "name": "company_driver_reminder_settings_operating_hours_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_driver_reminder_settings"
+    },
+    {
+      "value": "\"stage\" in ('arrival', 'settlement', 'idle')",
+      "name": "driver_stop_reminders_stage_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "value": "\"status\" in ('pending', 'closed', 'escalated', 'cancelled')",
+      "name": "driver_stop_reminders_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "value": "\"origin_kind\" in ('shared_point', 'previous_stop', 'company', 'fallback')",
+      "name": "driver_stop_reminders_origin_kind_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "value": "\"last_channel\" is null or \"last_channel\" in ('group', 'direct_text', 'direct_template')",
+      "name": "driver_stop_reminders_last_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "value": "\"closed_reason\" is null or \"closed_reason\" in ('arrived', 'stop_closed', 'occurrence', 'superseded', 'departure_cancelled', 'trip_closed', 'trip_cancelled', 'dismissed')",
+      "name": "driver_stop_reminders_closed_reason_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "driver_stop_reminders"
+    },
+    {
+      "value": "\"attempts\" >= 0 and \"postponements\" >= 0",
+      "name": "driver_stop_reminders_counters_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "driver_stop_reminders"
     },
     {
       "value": "\"retention_days\" between 30 and 90",

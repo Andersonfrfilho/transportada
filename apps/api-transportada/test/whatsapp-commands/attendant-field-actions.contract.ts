@@ -134,16 +134,22 @@ describe('baixa de várias notas pelo escritório', () => {
       { actorUserId: 'U9', documentId: 'D1' },
       { actorUserId: 'U9', documentId: 'D4' },
     ])
-    expect(t.texts).toEqual(['Baixa registrada pelo escritório: NF 17234, NF 900.'])
+    expect(t.texts).toEqual([
+      ['📋 *Baixa pelo escritório*', '', '✅ *Baixadas:* NF `17234`, NF `900`'].join('\n'),
+    ])
   })
 
   test('nota fechada, liberada ou inexistente não é baixada e entra no resumo', async () => {
     const t = setup()
     await t.command({ kind: 'deliver', numbers: ['17236', '901', '555', '17235'] })
     expect(t.delivered).toEqual([{ actorUserId: 'U9', documentId: 'D2' }])
-    expect(t.texts[0]).toContain('Baixa registrada pelo escritório: NF 17235.')
-    expect(t.texts[0]).toContain(
-      'Não encontrei em aberto em viagem na rua: NF 17236, NF 901, NF 555.',
+    expect(t.texts[0]).toBe(
+      [
+        '📋 *Baixa pelo escritório*',
+        '',
+        '✅ *Baixadas:* NF `17235`',
+        '⚠️ *Não encontrei em aberto em viagem na rua:* NF `17236`, NF `901`, NF `555`',
+      ].join('\n'),
     )
   })
 
@@ -161,9 +167,17 @@ describe('baixa de várias notas pelo escritório', () => {
       refusal: { code: 'document_not_reachable' },
     })
     await t.command({ kind: 'deliver', numbers: ['17234', '17235', '900'] })
-    expect(t.texts[0]).toContain('Canhoto pendente: NF 17235.')
-    expect(t.texts[0]).toContain('Já estavam baixadas: NF 17234.')
-    expect(t.texts[0]).toContain('Não consegui baixar: NF 900.')
+    expect(t.texts[0]).toBe(
+      [
+        '📋 *Baixa pelo escritório*',
+        '',
+        '🧾 *Canhoto pendente:* NF `17235`',
+        '🔁 *Já estavam baixadas:* NF `17234`',
+        '⚠️ *Não consegui baixar:* NF `900`',
+        '',
+        '➡️ _Próximo passo:_ o canhoto pendente pode ser mandado aqui por foto.',
+      ].join('\n'),
+    )
   })
 
   test('"entreguei" sem nota pede os números; mais de oito é recusado', async () => {
@@ -179,7 +193,7 @@ describe('encerrar a rota pelo bot', () => {
   test('com a NF a viagem é escolhida por ela e a contagem segue a regra do servidor (liberada não conta)', async () => {
     const t = setup()
     const next = await t.command({ documentNumber: '900', kind: 'close' })
-    expect(t.texts).toEqual([ATTENDANT_TEXT.confirm(1)])
+    expect(t.texts).toEqual([ATTENDANT_TEXT.confirm(['900'])])
     expect(next).toMatchObject({
       context: { [ATTENDANT_FLOW_CONTEXT_KEY.tripId]: 'TB' },
       next: ATTENDANT_FLOW_NODE.closeMenu,
@@ -207,7 +221,7 @@ describe('encerrar a rota pelo bot', () => {
       context: { [ATTENDANT_FLOW_CONTEXT_KEY.tripId]: 'TA' },
       next: ATTENDANT_FLOW_NODE.closeMenu,
     })
-    expect(t.texts).toEqual([ATTENDANT_TEXT.confirm(2)])
+    expect(t.texts).toEqual([ATTENDANT_TEXT.confirm(['017234', '17235'])])
   })
 
   test('uma viagem só na rua vai direto à confirmação; nenhuma avisa', async () => {
@@ -233,10 +247,11 @@ describe('encerrar a rota pelo bot', () => {
     const yes = setup()
     await yes.run(ATTENDANT_FLOW_ACTION_KIND.closeRouter, {
       [ATTENDANT_FLOW_CONTEXT_KEY.closeAnswer]: ATTENDANT_CLOSE_ANSWER.confirm,
+      [ATTENDANT_FLOW_CONTEXT_KEY.closeOpenNumbers]: ['900'],
       [ATTENDANT_FLOW_CONTEXT_KEY.tripId]: 'TB',
     })
     expect(yes.closed).toEqual([{ tripId: 'TB', userId: 'U9' }])
-    expect(yes.texts).toEqual([ATTENDANT_TEXT.closed])
+    expect(yes.texts).toEqual(['🏁 *Rota encerrada.* Ficaram sem baixa: NF `900`.'])
 
     const no = setup()
     await no.run(ATTENDANT_FLOW_ACTION_KIND.closeRouter, {
@@ -245,6 +260,22 @@ describe('encerrar a rota pelo bot', () => {
     })
     expect(no.closed).toEqual([])
     expect(no.texts).toEqual([ATTENDANT_TEXT.cancelled])
+  })
+
+  test('nota baixada entre a pergunta e o "sim" não aparece como sem baixa', async () => {
+    const t = setup([
+      {
+        ...TRIP_B,
+        documents: [doc('D4', '900', { separationStatus: 'delivered' }), TRIP_B.documents[1]!],
+      },
+    ])
+    await t.run(ATTENDANT_FLOW_ACTION_KIND.closeRouter, {
+      [ATTENDANT_FLOW_CONTEXT_KEY.closeAnswer]: ATTENDANT_CLOSE_ANSWER.confirm,
+      [ATTENDANT_FLOW_CONTEXT_KEY.closeOpenNumbers]: ['900'],
+      [ATTENDANT_FLOW_CONTEXT_KEY.tripId]: 'TB',
+    })
+    expect(t.closed).toEqual([{ tripId: 'TB', userId: 'U9' }])
+    expect(t.texts).toEqual(['🏁 *Rota encerrada.*'])
   })
 
   test('falha ao encerrar vira aviso, nunca silêncio', async () => {

@@ -40,6 +40,7 @@ describe('worker environment contract', () => {
       appEnv: 'local',
       cargoLayoutTimeBudgetMs: 120_000,
       databaseUrl: validEnvironment.DATABASE_URL,
+      driverRemindersEnabled: false,
       fiscalEnvironment: 'production',
       foundationSyntheticConsumerEnabled: false,
       foundationSyntheticEffectDelayMs: 0,
@@ -402,6 +403,29 @@ describe('worker environment contract', () => {
     test('valor fora de true/false derruba o boot', () => {
       expect(() =>
         parseWorkerEnvironment({ ...credentials, MDFE_AUTO_ISSUE_ENABLED: 'yes' }),
+      ).toThrow(WorkerConfigurationError)
+    })
+  })
+
+  describe('o interruptor dos lembretes do motorista', () => {
+    test('ausente ou vazio nasce desligado', () => {
+      expect(parseWorkerEnvironment(validEnvironment).driverRemindersEnabled).toBe(false)
+      expect(
+        parseWorkerEnvironment({ ...validEnvironment, DRIVER_REMINDERS_ENABLED: '' })
+          .driverRemindersEnabled,
+      ).toBe(false)
+    })
+
+    test('DRIVER_REMINDERS_ENABLED=true liga', () => {
+      expect(
+        parseWorkerEnvironment({ ...validEnvironment, DRIVER_REMINDERS_ENABLED: 'true' })
+          .driverRemindersEnabled,
+      ).toBe(true)
+    })
+
+    test('valor fora de true/false derruba o boot', () => {
+      expect(() =>
+        parseWorkerEnvironment({ ...validEnvironment, DRIVER_REMINDERS_ENABLED: 'yes' }),
       ).toThrow(WorkerConfigurationError)
     })
   })

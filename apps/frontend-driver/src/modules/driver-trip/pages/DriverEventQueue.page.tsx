@@ -18,9 +18,17 @@ import {
   type EventQueueItemView,
 } from '../shared/eventQueueView.service'
 import type { DriverTripErrorDetail } from '../shared/offlineQueue.service'
-import { resolveRejectionCauseLabelKey } from '../shared/rejectionCauseLabel.service'
+import {
+  resolveRejectionCauseCode,
+  resolveRejectionCauseLabelKey,
+} from '../shared/rejectionCauseLabel.service'
 import { formatQueuedAt } from '../shared/stalePending.service'
 import type { SentHistoryEntry } from '../shared/sentHistory.service'
+import {
+  formatDocumentNumbers,
+  resolveRejectedDocumentNumbers,
+  UNLOADED_DOCUMENTS_CODE,
+} from '../shared/unloadedDocuments.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverEventQueuePageProps = Readonly<{
@@ -113,7 +121,17 @@ export function DriverEventQueuePage({
   }): string {
     const key = resolveRejectionCauseLabelKey(input.cause, input.details)
     const { cause } = input
-    return key === undefined ? cause : t(key)
+    if (key === undefined) return cause
+    if (resolveRejectionCauseCode(cause) === UNLOADED_DOCUMENTS_CODE) {
+      const numbers = resolveRejectedDocumentNumbers({ details: input.details, stops })
+      if (numbers.length > 0) {
+        return t('eventQueue.cause.unloadedDocumentsNamed', {
+          count: numbers.length,
+          notes: formatDocumentNumbers(numbers),
+        })
+      }
+    }
+    return t(key)
   }
 
   /** Spec 206 RF8: "Iniciar rota — parada N", sem número quando a parada saiu do snapshot. */
