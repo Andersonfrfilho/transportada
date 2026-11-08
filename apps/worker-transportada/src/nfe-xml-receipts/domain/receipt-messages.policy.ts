@@ -74,16 +74,16 @@ function plural(count: number, one: string, many: string): string {
 }
 
 /**
- * A primeira resposta, logo ao receber: a fila pode demorar e quem mandou precisa saber que chegou. No padrão do bot
- * (spec 300 RF1): ícone + título em negrito, corpo, próximo passo na última linha.
+ * A primeira resposta, logo ao receber: a fila pode demorar e quem mandou precisa saber que chegou. O texto vai a quem
+ * enviou (muitas vezes a contratante): cumprimenta, agradece e não expõe nada do sistema por dentro.
  */
 export function buildAcknowledgement(input: {
   readonly accepted: number
   readonly skipped: readonly { readonly reason: ReceivedFileSkipReason }[]
 }): string {
   const lines = [
-    '📥 *Recebi seu envio.*',
-    `Recebi ${plural(input.accepted, 'arquivo', 'arquivos')} e já estou separando as notas.`,
+    '📥 *Recebi seu envio. Obrigado!*',
+    `Olá! Recebi ${plural(input.accepted, 'arquivo', 'arquivos')} e já estou separando as notas.`,
   ]
   if (input.skipped.length > 0) {
     const reasons = [...new Set(input.skipped.map((entry) => SKIP_TEXT[entry.reason]))]
@@ -91,101 +91,41 @@ export function buildAcknowledgement(input: {
       `Ignorei ${plural(input.skipped.length, 'arquivo', 'arquivos')} (${reasons.join(', ')}).`,
     )
   }
-  lines.push('', '➡️ _Próximo passo:_ já te dou um retorno com o resultado.')
+  lines.push('', 'Em instantes te aviso o resultado. 🙂')
   return lines.join('\n')
 }
 
-/** O resumo final, depois que a importação termina — no mesmo padrão do bot. */
+/** O resumo final, depois que a importação termina: quantas notas entraram, com saudação e agradecimento. */
 export function buildSummary(input: {
   readonly counts: ReceiptImportCounts
   readonly problems: readonly ReceiptItemProblem[]
-  /** Spec 309: quando há relatório, o resumo leva também os horários, os arquivos e as contratantes. */
-  readonly report?: ReceiptEmailReport | null | undefined
 }): string {
-  const { counts, report } = input
+  const { counts } = input
   const notImported = counts.invalid + counts.rejected + counts.failed
   const lines = [
     notImported === 0 ? '✅ *Importação concluída.*' : '⚠️ *Importação concluída com problemas.*',
-    ...(report === undefined || report === null || Number.isNaN(report.receivedAt.getTime())
-      ? []
-      : [
-          `🕒 _Chegou:_ ${formatMoment(report.receivedAt)} · _Entrou no sistema:_ ${report.finishedAt === null || Number.isNaN(report.finishedAt.getTime()) ? 'ainda processando' : formatMoment(report.finishedAt)}`,
-        ]),
-    `Recebi ${plural(counts.received, 'arquivo', 'arquivos')}.`,
-    `• ${plural(counts.imported, 'nota nova', 'notas novas')}`,
+    `Olá! Importei ${plural(counts.imported, 'nota nova', 'notas novas')} do seu envio.`,
   ]
   if (counts.duplicated > 0) {
-    lines.push(`• ${plural(counts.duplicated, 'já estava no sistema', 'já estavam no sistema')}`)
+    lines.push(
+      counts.duplicated === 1
+        ? '1 nota já estava cadastrada, então não entrou de novo.'
+        : `${counts.duplicated} notas já estavam cadastradas, então não entraram de novo.`,
+    )
   }
   if (notImported > 0) {
-    lines.push(`• ${plural(notImported, 'arquivo não importado', 'arquivos não importados')}`)
+    lines.push(
+      `${plural(notImported, 'arquivo não pôde', 'arquivos não puderam')} ser importado${notImported === 1 ? '' : 's'}:`,
+    )
     for (const problem of input.problems.slice(0, MAX_PROBLEM_LINES)) {
       lines.push(
         `   - ${plural(problem.count, 'caso', 'casos')}: ${PROBLEM_TEXT[problem.code] ?? GENERIC_PROBLEM_TEXT}`,
       )
     }
+    lines.push('Confira e, se puder, envie de novo.')
   }
-  if (report !== undefined && report !== null) lines.push(...reportLines(report))
-  lines.push(
-    '',
-    notImported === 0
-      ? '➡️ _Próximo passo:_ as notas novas já estão na página de NF-e.'
-      : '➡️ _Próximo passo:_ corrija os arquivos com problema e envie de novo.',
-  )
+  lines.push('', 'Obrigado pelo envio! 🙏')
   return lines.join('\n')
-}
-
-/** Spec 309: arquivos e contratantes do relatório, no padrão do bot. */
-function reportLines(report: ReceiptEmailReport): string[] {
-  const lines: string[] = []
-  if (report.files.length > 0) {
-    lines.push('', '📄 *Arquivos*')
-    for (const file of report.files.slice(0, MAX_FILE_LINES)) {
-      const outcome =
-        file.code === null
-          ? plural(file.count, 'item processado', 'itens processados')
-          : `${plural(file.count, 'caso', 'casos')} não importado: ${PROBLEM_TEXT[file.code] ?? GENERIC_PROBLEM_TEXT}`
-      lines.push(`• ${file.name} — ${outcome}`)
-    }
-    if (report.files.length > MAX_FILE_LINES) lines.push('• e outros arquivos')
-  }
-  lines.push('', '🏢 *Contratantes das notas novas*')
-  if (report.contractors.length === 0) {
-    lines.push('• nenhuma nota nova nesta importação')
-  } else {
-    for (const contractor of report.contractors.slice(0, MAX_CONTRACTOR_LINES)) {
-      lines.push(`• ${contractor.name} — ${plural(contractor.count, 'nota', 'notas')}`)
-    }
-    if (report.contractors.length > MAX_CONTRACTOR_LINES) {
-      lines.push(`• e mais ${report.contractors.length - MAX_CONTRACTOR_LINES} contratantes`)
-    }
-  }
-  return lines
-}
-
-/** Vários recibos do mesmo remetente no WhatsApp viram um relatório só (spec 309). */
-export function mergeReports(reports: readonly ReceiptEmailReport[]): ReceiptEmailReport | null {
-  const [first, ...rest] = reports
-  if (first === undefined) return null
-  const contractors = new Map<string, number>()
-  for (const report of reports) {
-    for (const contractor of report.contractors) {
-      contractors.set(contractor.name, (contractors.get(contractor.name) ?? 0) + contractor.count)
-    }
-  }
-  const finished = reports.map((report) => report.finishedAt)
-  return {
-    contractors: [...contractors]
-      .map(([name, count]) => ({ count, name }))
-      .sort((a, b) => b.count - a.count),
-    files: reports.flatMap((report) => report.files),
-    finishedAt: finished.some((moment) => moment === null)
-      ? null
-      : new Date(Math.max(...finished.map((moment) => moment!.getTime()))),
-    receivedAt: new Date(
-      Math.min(first.receivedAt.getTime(), ...rest.map((report) => report.receivedAt.getTime())),
-    ),
-  }
 }
 
 /** Quando o recibo esgota as tentativas: a operação já foi avisada, quem mandou também. */
