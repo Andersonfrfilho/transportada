@@ -27,6 +27,10 @@ import { storedObjects } from './storage.schema.js'
 export const NFE_IMPORT_SOURCES = ['upload', 'distribution', 'access_key'] as const
 export type NfeImportSource = (typeof NFE_IMPORT_SOURCES)[number]
 
+/** Spec 301: por onde o arquivo chegou. `source` segue `upload`; isto só diz o canal. */
+export const NFE_IMPORT_RECEIVED_VIA = ['screen', 'email', 'whatsapp'] as const
+export type NfeImportReceivedVia = (typeof NFE_IMPORT_RECEIVED_VIA)[number]
+
 export const NFE_ORIGIN_TRIGGERS = ['user', 'automation'] as const
 export type NfeOriginTrigger = (typeof NFE_ORIGIN_TRIGGERS)[number]
 
@@ -112,6 +116,8 @@ export const nfeImports = pgTable(
     triggeredBy: text('triggered_by').$type<NfeOriginTrigger>().notNull().default('user'),
     automationJob: text('automation_job'),
     requestedByUserId: uuid('requested_by_user_id').notNull(),
+    receivedVia: text('received_via').$type<NfeImportReceivedVia>().notNull().default('screen'),
+    receivedFrom: text('received_from'),
     correlationId: text('correlation_id').notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
     requestFingerprint: text('request_fingerprint').notNull(),
@@ -141,6 +147,14 @@ export const nfeImports = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    check(
+      'nfe_imports_received_via_check',
+      sql`${table.receivedVia} in ('screen', 'email', 'whatsapp')`,
+    ),
+    check(
+      'nfe_imports_received_from_check',
+      sql`(${table.receivedVia} = 'screen' and ${table.receivedFrom} is null) or (${table.receivedVia} <> 'screen' and ${table.receivedFrom} is not null and char_length(${table.receivedFrom}) between 3 and 254)`,
+    ),
     check(
       'nfe_imports_source_check',
       sql`${table.source} in ('upload', 'distribution', 'access_key')`,
