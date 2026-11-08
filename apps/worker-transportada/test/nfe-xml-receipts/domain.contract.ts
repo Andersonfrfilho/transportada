@@ -60,7 +60,12 @@ describe('receipt messages policy', () => {
     expect(text).toContain('Recebi 3 arquivos')
     expect(text).toContain('Ignorei 2 arquivos (não é .xml, .zip nem .rar)')
     expect(buildAcknowledgement({ accepted: 1, skipped: [] })).toBe(
-      'Recebi 1 arquivo e já estou importando. Aviso quando terminar.',
+      [
+        '📥 *Recebi seu envio.*',
+        'Recebi 1 arquivo e já estou separando as notas.',
+        '',
+        '➡️ _Próximo passo:_ já te dou um retorno com o resultado.',
+      ].join('\n'),
     )
   })
 
@@ -72,7 +77,9 @@ describe('receipt messages policy', () => {
         { code: 'XYZ_UNKNOWN', count: 2 },
       ],
     })
-    expect(text).toContain('• 10 notas importadas')
+    expect(text).toContain('⚠️ *Importação concluída com problemas.*')
+    expect(text).toContain('• 10 notas novas')
+    expect(text.split('\n').at(-1)).toContain('➡️ _Próximo passo:_')
     expect(text).toContain('• 2 já estavam no sistema')
     expect(text).toContain('• 3 arquivos não importados')
     expect(text).toContain('1 caso: o zip está corrompido ou protegido por senha')
@@ -82,6 +89,20 @@ describe('receipt messages policy', () => {
       problems: Array.from({ length: 9 }, (_, index) => ({ code: `C${index}`, count: 1 })),
     })
     expect(many.split('\n').filter((line) => line.startsWith('   -'))).toHaveLength(5)
+  })
+
+  test('o resumo sem problemas usa o padrão do bot: ícone e título em negrito, corpo e próximo passo (spec 309)', () => {
+    const text = buildSummary({
+      counts: { duplicated: 0, failed: 0, imported: 3, invalid: 0, received: 3, rejected: 0 },
+      problems: [],
+    })
+    expect(text.split('\n')).toEqual([
+      '✅ *Importação concluída.*',
+      'Recebi 3 arquivos.',
+      '• 3 notas novas',
+      '',
+      '➡️ _Próximo passo:_ as notas novas já estão na página de NF-e.',
+    ])
   })
 
   test('every rejection has a Portuguese explanation', () => {

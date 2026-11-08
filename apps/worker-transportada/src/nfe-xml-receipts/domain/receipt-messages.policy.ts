@@ -73,34 +73,43 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`
 }
 
-/** A primeira resposta, logo ao receber: a fila pode demorar e quem mandou precisa saber que chegou. */
+/**
+ * A primeira resposta, logo ao receber: a fila pode demorar e quem mandou precisa saber que chegou. No padrão do bot
+ * (spec 300 RF1): ícone + título em negrito, corpo, próximo passo na última linha.
+ */
 export function buildAcknowledgement(input: {
   readonly accepted: number
   readonly skipped: readonly { readonly reason: ReceivedFileSkipReason }[]
 }): string {
-  const lines = [`Recebi ${plural(input.accepted, 'arquivo', 'arquivos')} e já estou importando.`]
+  const lines = [
+    '📥 *Recebi seu envio.*',
+    `Recebi ${plural(input.accepted, 'arquivo', 'arquivos')} e já estou separando as notas.`,
+  ]
   if (input.skipped.length > 0) {
     const reasons = [...new Set(input.skipped.map((entry) => SKIP_TEXT[entry.reason]))]
     lines.push(
       `Ignorei ${plural(input.skipped.length, 'arquivo', 'arquivos')} (${reasons.join(', ')}).`,
     )
   }
-  lines.push('Aviso quando terminar.')
-  return lines.join(' ')
+  lines.push('', '➡️ _Próximo passo:_ já te dou um retorno com o resultado.')
+  return lines.join('\n')
 }
 
-/** O resumo final, depois que a importação termina. */
+/** O resumo final, depois que a importação termina — no mesmo padrão do bot. */
 export function buildSummary(input: {
   readonly counts: ReceiptImportCounts
   readonly problems: readonly ReceiptItemProblem[]
 }): string {
   const { counts } = input
-  const lines = [`Importação concluída: ${plural(counts.received, 'arquivo', 'arquivos')}.`]
-  lines.push(`• ${plural(counts.imported, 'nota importada', 'notas importadas')}`)
+  const notImported = counts.invalid + counts.rejected + counts.failed
+  const lines = [
+    notImported === 0 ? '✅ *Importação concluída.*' : '⚠️ *Importação concluída com problemas.*',
+    `Recebi ${plural(counts.received, 'arquivo', 'arquivos')}.`,
+    `• ${plural(counts.imported, 'nota nova', 'notas novas')}`,
+  ]
   if (counts.duplicated > 0) {
     lines.push(`• ${plural(counts.duplicated, 'já estava no sistema', 'já estavam no sistema')}`)
   }
-  const notImported = counts.invalid + counts.rejected + counts.failed
   if (notImported > 0) {
     lines.push(`• ${plural(notImported, 'arquivo não importado', 'arquivos não importados')}`)
     for (const problem of input.problems.slice(0, MAX_PROBLEM_LINES)) {
@@ -109,6 +118,12 @@ export function buildSummary(input: {
       )
     }
   }
+  lines.push(
+    '',
+    notImported === 0
+      ? '➡️ _Próximo passo:_ as notas novas já estão na página de NF-e.'
+      : '➡️ _Próximo passo:_ corrija os arquivos com problema e envie de novo.',
+  )
   return lines.join('\n')
 }
 
