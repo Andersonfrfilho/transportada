@@ -122,3 +122,40 @@ export function createAttendantFinder(dependencies: {
     return { actorUserId: scope.userId }
   }
 }
+
+/**
+ * Spec 308 D2.3: qual ficha é deste número? O número exato decide quando é de uma ficha só; sem ele, a forma
+ * com/sem o nono dígito só vale quando é de uma ficha só. `fleet_drivers.phone` não é único: duas fichas no
+ * mesmo número são pessoas que o bot não sabe separar, e o chat direto fica no painel.
+ */
+export function decideDriverPhoneMatch(
+  rows: readonly { readonly driverId: string; readonly phone: string }[],
+  exact: string,
+): null | string {
+  const exactRows = rows.filter((row) => row.phone === exact)
+  const candidates = exactRows.length > 0 ? exactRows : rows
+  const [only, ...others] = candidates
+  return only !== undefined && others.length === 0 ? only.driverId : null
+}
+
+/** Spec 308 D2.3: o motorista **ativo** da empresa com este número de WhatsApp, pelo telefone no SQL. */
+export async function findActiveDriverByPhone(
+  database: Database,
+  input: { readonly companyId: string; readonly phone: string },
+): Promise<null | { readonly driverId: string }> {
+  const { alternate, exact } = brazilianPhoneCandidates(input.phone)
+  if (exact.length < 10) return null
+  const phones = alternate === null ? [exact] : [exact, alternate]
+  const rows = await database
+    .select({ driverId: fleetDrivers.id, phone: fleetDrivers.phone })
+    .from(fleetDrivers)
+    .where(
+      and(
+        eq(fleetDrivers.companyId, input.companyId),
+        eq(fleetDrivers.status, 'active'),
+        inArray(fleetDrivers.phone, phones),
+      ),
+    )
+  const driverId = decideDriverPhoneMatch(rows, exact)
+  return driverId === null ? null : { driverId }
+}

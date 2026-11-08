@@ -275,6 +275,7 @@ import {
 import { createWhatsAppOfficeDelivery } from './whatsapp-commands/infrastructure/whatsapp-office-delivery.adapter.js'
 import {
   createAttendantFinder,
+  findActiveDriverByPhone,
   isCrewPhone,
 } from './whatsapp/infrastructure/whatsapp-group-sender.adapter.js'
 import { createWhatsAppSenderRoleResolver } from './whatsapp/application/whatsapp-sender-role.service.js'
@@ -2731,6 +2732,10 @@ function createEvolutionWebhook(input: {
             },
           }),
       findGroupDriver: (lookup) => driverGroups.findDriverByGroup(lookup),
+      // Spec 308: o motorista ativo pelo telefone; sem o fluxo do grupo (rota do dono), o 1:1 fica no painel.
+      ...(groupSessions === undefined
+        ? {}
+        : { findDirectDriver: (lookup) => findActiveDriverByPhone(database, lookup) }),
       findOpenRequestOwner: (lookup) =>
         groupSessions?.findOpenOwner(lookup) ?? Promise.resolve(null),
       handle: async (message) => {

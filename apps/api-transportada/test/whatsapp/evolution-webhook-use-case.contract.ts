@@ -80,6 +80,12 @@ type LogEntry = { level: string; message: string; fields: unknown }
 async function setup(
   options: {
     apiPublicUrl?: string | undefined
+    /** Spec 308: os telefones de motorista ativo; ausente, o webhook não tem a entrada direta. */
+    directDrivers?: readonly string[]
+    /** Spec 308: o teto por número já estourou. */
+    directLimited?: boolean
+    /** Spec 308: a citação casa numa conversa do painel. */
+    quotesPanel?: boolean
     gatewayFails?: boolean
     instanceName?: string
     registeredAt?: Date | null
@@ -107,6 +113,7 @@ async function setup(
 
   const state = {
     deliveries: [] as unknown[],
+    direct: [] as Parameters<NonNullable<EvolutionGroupInbound['receiveDirect']>>[0][],
     findCalls: 0,
     gatewayCalls: [] as Parameters<WhatsAppEvolutionWebhookGatewayPort['setWebhook']>[0][],
     groupConnections: [] as unknown[],
@@ -180,8 +187,27 @@ async function setup(
         state.groupConnections.push(await input.connection())
         return input.event.text === 'ignorar' ? 'not_addressed' : 'admitted'
       },
+      ...(options.directDrivers === undefined
+        ? {}
+        : {
+            async findDirectDriver({ phone }: { readonly phone: string }) {
+              return options.directDrivers?.includes(phone) === true
+                ? { driverId: `driver-${phone}` }
+                : null
+            },
+            async receiveDirect(
+              input: Parameters<NonNullable<EvolutionGroupInbound['receiveDirect']>>[0],
+            ) {
+              state.direct.push(input)
+              return 'admitted' as const
+            },
+          }),
     },
     inbound: {
+      consumeDirectLimit: () => options.directLimited !== true,
+      async quotesConversation() {
+        return options.quotesPanel === true
+      },
       async receiveMessage(input) {
         state.messages.push(input)
         return 'conversation'
@@ -619,5 +645,69 @@ describe('webhook do Evolution: apontar para a API', () => {
     expect(webhookUrl('https://api.exemplo.com//', WEBHOOK_ID)).toBe(
       `https://api.exemplo.com/public/whatsapp-evolution/${WEBHOOK_ID}`,
     )
+  })
+})
+
+describe('spec 308: o chat direto do motorista vai ao bot', () => {
+  const MENU_QUOTE = 'BOT-MENU-1'
+  const directBody = (overrides: { replyTo?: string; text?: string } = {}) =>
+    upsert({
+      key: { fromMe: false, id: 'D1', remoteJid: `${PHONE}@s.whatsapp.net` },
+      message:
+        overrides.replyTo === undefined
+          ? { conversation: overrides.text ?? 'oi' }
+          : {
+              extendedTextMessage: {
+                contextInfo: { stanzaId: overrides.replyTo },
+                text: overrides.text ?? 'oi',
+              },
+            },
+    })
+
+  test('motorista ativo pelo telefone entra no fluxo do grupo, não no painel', async () => {
+    const { state, useCase } = await setup({ directDrivers: [PHONE] })
+
+    await useCase.receive(receiveWith({ rawBody: directBody() }))
+
+    expect(state.messages).toEqual([])
+    expect(state.direct.map(({ driverId, event }) => ({ driverId, text: event.text }))).toEqual([
+      { driverId: `driver-${PHONE}`, text: 'oi' },
+    ])
+    const received = state.logs.find((log) => log.message === 'whatsapp_evolution.webhook.received')
+    expect(received?.fields).toMatchObject({ conversation: 0, direct: 1 })
+    expect(JSON.stringify(state.logs)).not.toContain(PHONE)
+  })
+
+  test('número que não é motorista continua no painel, como hoje', async () => {
+    const { state, useCase } = await setup({ directDrivers: ['5516911112222'] })
+
+    await useCase.receive(receiveWith({ rawBody: directBody() }))
+
+    expect(state.direct).toEqual([])
+    expect(state.messages.map(({ message }) => message.from)).toEqual([PHONE])
+  })
+
+  test('o motorista que cita a conversa da ocorrência fica no painel; citando o menu do bot, vai ao bot', async () => {
+    const panel = await setup({ directDrivers: [PHONE], quotesPanel: true })
+    await panel.useCase.receive(receiveWith({ rawBody: directBody({ replyTo: 'SENT-1' }) }))
+    expect(panel.state.direct).toEqual([])
+    expect(panel.state.messages).toHaveLength(1)
+
+    const bot = await setup({ directDrivers: [PHONE] })
+    await bot.useCase.receive(receiveWith({ rawBody: directBody({ replyTo: MENU_QUOTE }) }))
+    expect(bot.state.messages).toEqual([])
+    expect(bot.state.direct).toHaveLength(1)
+  })
+
+  test('acima do teto por número, nem o bot nem o painel', async () => {
+    const { state, useCase } = await setup({ directDrivers: [PHONE], directLimited: true })
+
+    await useCase.receive(receiveWith({ rawBody: directBody() }))
+
+    expect(state.direct).toEqual([])
+    expect(state.messages).toEqual([])
+    expect(
+      state.logs.find((log) => log.message === 'whatsapp_evolution.direct_message')?.fields,
+    ).toMatchObject({ outcome: 'rate_limited' })
   })
 })
