@@ -24,10 +24,11 @@ mensagem no formato da Meta), o chat direto entra no **mesmo** `groupInbound`/se
 do bot (no 1:1 toda mensagem do motorista é para o bot). Assim nenhuma regra do grupo é reescrita: tudo o que o grupo
 faz, o 1:1 faz, e o que mudar no grupo muda junto. Respostas saem pelo mesmo `groupReplies` (uma mensagem por turno,
 lista/botão como texto numerado, spec 292 T4b/300).
-*Spike (T1) confirma* que sessões, envio e leitura de foto/áudio aceitam JID individual; se alguma tabela exigir
+_Spike (T1) confirma_ que sessões, envio e leitura de foto/áudio aceitam JID individual; se alguma tabela exigir
 grupo cadastrado, o ajuste é a chave (não uma cópia do fluxo).
 
 **D2 — Quem é reconhecido (nesta ordem, primeiro que casar).**
+
 1. Documento `.xml/.zip/.rar`: segue a 301/306/307 (inalterado, vem antes de tudo).
 2. Mensagem que **cita** uma mensagem da conversa da ocorrência e casa na atribuição da 281 (`via: reply`): continua
    na conversa do painel (o motorista responde ao chat da ocorrência).
