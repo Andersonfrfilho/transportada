@@ -35,7 +35,7 @@ Em 2 e 3 o remetente recebe de volta um resumo: importadas, já estavam no siste
 - **D3 — Ator da importação:** e-mail e WhatsApp não têm usuário logado; a importação é gravada com o usuário dono do
   remetente (WhatsApp) ou com um ator de sistema "caixa de notas" (e-mail), e a origem (`email`/`whatsapp`) fica no
   registro e na trilha de auditoria.
-- **D4 — Limites:** os mesmos da tela, por anexo e no total; zip aninhado e entrada que não seja `.xml` são ignorados
+- **D4 — Limites de segurança (não de volume):** tamanho por arquivo como na tela; zip aninhado e entrada que não seja `.xml` são ignorados
   e contados como inválidos, sem derrubar o lote.
 - **D6 — Grupos:** o bot só age em grupo com marcação explícita; empresa vem do grupo já vinculado (spec 292), nunca do texto.
 - **D5 — Resposta:** e-mail responde ao remetente; WhatsApp responde na mesma conversa/grupo marcando quem enviou.
@@ -82,8 +82,12 @@ O recebimento **nunca** processa na requisição nem pesa no serviço; tudo é f
   e a mensagem na fila, e responde 2xx em milissegundos. Parse de zip e de XML roda no worker, nunca na API.
 - **RN2 — Lotes:** o worker processa em lotes de tamanho fixo (ex.: 50 XMLs por lote, configurável), com concorrência limitada
   e uma importação por vez por empresa. Zip grande vira vários lotes; um lote com erro não derruba os outros.
-- **RN3 — Proteção de carga:** limite de anexos, de bytes (compactado e descompactado) e de mensagens por remetente por hora;
-  excedeu → o excedente é recusado com motivo e o resto segue. Reentrega do webhook não reprocessa (idempotência por mensagem).
+- **RN3 — Volume não recusa, enfileira:** nada é recusado por quantidade. Zip grande, muitos anexos ou muitas mensagens
+  entram na fila e são processados aos poucos, no ritmo do worker (lotes de RN2), em ordem de chegada e com justiça entre
+  empresas. O remetente recebe logo "recebi N arquivos, estou processando" e depois o resumo final. Só há recusa por
+  **segurança**: remetente não autorizado, arquivo que não é XML/zip, zip malicioso (zip-slip, bomba de descompressão) —
+  e, nesses casos, só o item ruim é descartado, com motivo. A fila tem alerta de tamanho e de idade (RN6), não teto.
+  Reentrega do webhook não reprocessa (idempotência por mensagem).
 - **RN4 — Erro por item, com motivo:** cada XML termina `importada`, `já existia`, `inválida` ou `falhou`, com código e motivo
   em português (XML malformado, não é NF-e, chave inválida, assinatura ausente, fora do limite, zip protegido…). Falha
   transitória (storage, banco) tenta de novo com espera crescente; esgotou → vai para a fila morta e fica `falhou`, nunca some.
