@@ -79,6 +79,9 @@ async function executeRequest(
     invalidCount: 0n,
     processedCount: 0n,
     receivedCount: BigInt(request.stagedSources.length),
+    ...(request.received === undefined
+      ? {}
+      : { receivedFrom: request.received.from, receivedVia: request.received.via }),
     rejectedCount: 0n,
     requestedByUserId: request.context.userId,
     source: request.source,

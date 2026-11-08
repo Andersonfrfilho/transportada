@@ -669,6 +669,8 @@ function mapSummary(record: ImportRecord): NfeImportSummary {
     invalidCount: record.invalidCount,
     processedCount: record.processedCount,
     receivedCount: record.receivedCount,
+    receivedFrom: record.receivedFrom,
+    receivedVia: record.receivedVia,
     rejectedCount: record.rejectedCount,
     requestedByUserId: record.requestedByUserId,
     source: record.source,

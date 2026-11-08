@@ -24,6 +24,9 @@ export type NfeItemStatus =
   | 'invalid'
   | 'rejected'
   | 'failed'
+/** Spec 301: por onde o arquivo chegou; `screen` é o "Enviar XML" da tela. */
+export type NfeImportReceivedVia = 'email' | 'screen' | 'whatsapp'
+export type NfeImportReceived = { readonly from: string; readonly via: 'email' | 'whatsapp' }
 export type NfeImportSafeError = { readonly code: string; readonly message: string }
 export type NfeImportSourceDescriptor = {
   readonly contentLength: number
@@ -45,6 +48,8 @@ export type NfeImportSummary = {
   readonly invalidCount: bigint
   readonly processedCount: bigint
   readonly receivedCount: bigint
+  readonly receivedFrom?: string | null
+  readonly receivedVia?: NfeImportReceivedVia
   readonly rejectedCount: bigint
   readonly requestedByUserId: string
   readonly source: 'access_key' | 'distribution' | 'upload'
@@ -127,6 +132,8 @@ export type RequestNfeImportInput = {
   readonly correlationId: string
   readonly idempotencyKey: string
   readonly importId?: string
+  /** Spec 301: ausente = tela. E-mail e WhatsApp dizem de onde veio e de quem. */
+  readonly received?: NfeImportReceived
   readonly source: 'distribution' | 'upload'
   readonly stagedSources: readonly NfeImportSourceDescriptor[]
 }

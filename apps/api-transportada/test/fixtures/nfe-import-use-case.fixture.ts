@@ -26,6 +26,7 @@ export type RequestNfeImportInput = {
   readonly correlationId: string
   readonly idempotencyKey: string
   readonly importId?: string
+  readonly received?: { readonly from: string; readonly via: 'email' | 'whatsapp' }
   readonly source: 'distribution' | 'upload'
   readonly stagedSources: readonly NfeImportSourceDescriptor[]
 }
