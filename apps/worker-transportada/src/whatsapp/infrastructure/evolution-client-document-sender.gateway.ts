@@ -26,6 +26,7 @@ import type { GroupBoletoReturnSender } from '../../occurrence-conversation/infr
 
 /** O envio de um arquivo pode levar mais que o padrão de 15 s do SDK: o Evolution sobe o PDF ao WhatsApp antes de responder. */
 const SEND_TIMEOUT_MS = 60_000
+const MEDIA_TIMEOUT_MS = 60_000
 const TEXT_DECODER = new TextDecoder()
 const TEXT_ENCODER = new TextEncoder()
 
@@ -38,6 +39,13 @@ export class EvolutionClientDocumentSendError extends Error {
   }
 }
 
+/** Spec 301: baixa a mídia de uma mensagem do WhatsApp com a mensagem inteira (o Evolution sem banco só baixa assim). */
+export type EvolutionMediaFetcher = (params: {
+  readonly companyId: string
+  readonly maxBytes: number
+  readonly rawMessage: { readonly key: unknown; readonly message: unknown }
+}) => Promise<{ readonly bytes: Uint8Array } | { readonly kind: 'too_large' }>
+
 type Runner = { execute(query: SQL): PromiseLike<unknown> }
 
 export function createEvolutionClientDocumentSender(dependencies: {
@@ -46,7 +54,8 @@ export function createEvolutionClientDocumentSender(dependencies: {
   /** Spec 289: espaça os envios do número; ausente, o envio sai na hora (testes). */
   readonly pacer?: EvolutionSendPacer
   readonly runner: Runner
-}): ContractorReplyClientWhatsAppSender & Pick<GroupBoletoReturnSender, 'sendText'> {
+}): ContractorReplyClientWhatsAppSender &
+  Pick<GroupBoletoReturnSender, 'sendText'> & { readonly fetchMedia: EvolutionMediaFetcher } {
   async function decrypt(params: {
     readonly companyId: string
     readonly envelope: unknown
@@ -133,6 +142,27 @@ export function createEvolutionClientDocumentSender(dependencies: {
       } catch (error) {
         throw new EvolutionClientDocumentSendError(classify(error))
       }
+    },
+
+    async fetchMedia(params) {
+      const { apiKey, baseUrl, instanceName } = await credentials(params.companyId)
+      const url = `${baseUrl.replace(/\/+$/u, '')}/chat/getBase64FromMediaMessage/${encodeURIComponent(instanceName)}`
+      const response = await (dependencies.fetch ?? fetch)(url, {
+        body: JSON.stringify({ message: params.rawMessage }),
+        headers: { apikey: apiKey, 'content-type': 'application/json' },
+        method: 'POST',
+        signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS),
+      })
+      if (!response.ok) throw new EvolutionClientDocumentSendError('failed')
+      const body = (await response.json().catch(() => null)) as { readonly base64?: unknown } | null
+      if (typeof body?.base64 !== 'string' || body.base64 === '') {
+        throw new EvolutionClientDocumentSendError('failed')
+      }
+      // 4 caracteres de base64 são 3 bytes: mede antes de decodificar um arquivo que passaria do teto.
+      if (Math.floor((body.base64.length * 3) / 4) > params.maxBytes) {
+        return { kind: 'too_large' as const }
+      }
+      return { bytes: new Uint8Array(Buffer.from(body.base64, 'base64')) }
     },
 
     /** Spec 292 T7: o aviso do retorno do boleto ao grupo do pedido (o `@g.us` passa sem normalizar no SDK 0.3.0). */

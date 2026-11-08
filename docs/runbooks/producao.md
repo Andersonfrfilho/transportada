@@ -1057,3 +1057,33 @@ logs (`nfe_access_key_lookup_finished`, `nfe-access-key.v1`) e a fila de mensage
 
 **Publicação.** A ordem é banco/API → worker → painel. A migration `20261106120034_nfe_access_key_lookups` é aditiva.
 O rollback está ao lado; ele reclassifica `access_key` para `upload` e só roda com aprovação.
+
+## 5.23 XML de NF-e por e-mail e por WhatsApp (spec 301, 08/11/2026)
+
+Dois canais novos, mesma importação da tela "Enviar XML". Tudo que chega vira uma linha em `nfe_xml_receipts` e o worker
+processa em lotes, a cada 60 s (trava `pg_try_advisory_xact_lock`, então duas réplicas não duplicam). Nada é recusado por
+volume; zip grande é fatiado. Recusa só por segurança: remetente não autorizado, arquivo que não é `.xml`/`.zip`, zip hostil,
+arquivo acima de 50 MB.
+
+**E-mail.** Caixa `notas@<domínio de entrada>` (a parte local é `notas`). Precisa de: roteamento de entrada do domínio no Resend
+apontando para o webhook já existente; o ator `automation` (`00000000-0000-4000-8000-000000000006`) com vínculo ativo em cada
+empresa; remetente com papel `company-admin`, `fiscal` ou `operator` e DKIM alinhado.
+
+**WhatsApp.** Funciona em qualquer grupo em que o bot esteja (marcando o bot) e na conversa direta. O número precisa estar verificado
+(`user_whatsapp_phones.verified_at` há menos de 90 dias) com vínculo ativo e papel que importa nota.
+
+**Acompanhar (somente leitura):**
+
+```sql
+select channel, status, count(*), min(created_at) from nfe_xml_receipts group by 1, 2 order by 1, 2;
+select id, channel, status, attempts, error_code, next_attempt_at from nfe_xml_receipts
+ where status in ('failed', 'processing') order by updated_at desc limit 20;
+```
+
+- `processing` parado há mais de 15 min volta sozinho para `pending` no próximo ciclo.
+- `failed` é definitivo (5 tentativas): gera aviso `fiscal.nfe-xml-receipt-failed` aos usuários `company-admin` e `fiscal`.
+- Logs do worker: `nfe_xml_receipt_*` (`retry`, `failed`, `imported`), sem número, nome de arquivo nem XML.
+- O painel mostra os recibos recentes na página de NF-e (`GET /v1/nfe-xml-receipts`).
+
+**Publicação.** Ordem: banco/API (migrations `20261108144212` e `20261108151552`, aditivas) → worker → painel. Passa por `staging`
+primeiro. Rollback de `20261108151552` só com a tabela vazia (a guarda recusa o contrário).

@@ -32,3 +32,17 @@ tela "Enviar XML" (já existe) ─────┘                               
 - Webhook da Evolution não pode demorar: o download do documento sai do caminho da requisição (achado 7).
 - Número do grupo/remetente em formato LID: reaproveitar `identity.lidDirectory` do grupo (achado 5).
 - Tamanho de lote hoje desconhecido no worker de importação: medir na T1.3 antes de fixar o padrão de 50.
+
+## Correções do desenho depois da implementação (08/11/2026)
+
+- **Caixa de recibos** (`nfe_xml_receipts`, migration `20261108151552`): tudo que chega por e-mail ou WhatsApp vira um recibo
+  `pending` e o worker processa em lotes. O webhook nunca baixa mídia (achado 7). Nada é recusado por volume: só segurança
+  (remetente não autorizado, arquivo que não é `.xml`/`.zip`, zip hostil) e o teto de 50 MB por arquivo.
+- **Ciclo em processo**, não job do catálogo: a cada 60 s o worker roda `runCycle` sob `pg_try_advisory_xact_lock`. Job do catálogo
+  exigiria migration nos CHECKs de `job_executions`/`job_schedules`.
+- **E-mail** é um segundo ramo do consumidor de e-mail recebido (`contractor-mail`), decidido ANTES da prévia; ator `automation`.
+- **WhatsApp**: caminho do webhook independente do vínculo de grupo com motorista (achado 5): documento XML/zip vai só para
+  `xmlInbound`; em grupo exige marcação ao bot, em conversa direta não.
+- **Zip grande** é fatiado (`chunkOversizedZip`: até 400 entradas / 80 MB por fatia, `level: 0`) para caber nos limites do
+  expansor sem recusar por volume; zip suspeito segue inteiro e o expansor o recusa com o código `ZIP_*`.
+- **Resumo** ao remetente só quando a importação termina (`completed`, `partially_processed`, `failed`), com os problemas por código.

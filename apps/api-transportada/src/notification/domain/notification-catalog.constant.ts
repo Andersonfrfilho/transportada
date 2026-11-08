@@ -42,6 +42,11 @@ export const NOTIFICATION_TEMPLATE_KEY = {
   FISCAL_CERTIFICATE_EXPIRED: 'fiscal.certificate-expired',
   FISCAL_CERTIFICATE_EXPIRING: 'fiscal.certificate-expiring',
   MDFE_MANIFEST_ISSUANCE_FAILED: 'mdfe.manifest-issuance-failed',
+  /**
+   * Spec 301: um XML de NF-e recebido por e-mail ou WhatsApp esgotou as tentativas e não foi importado. Sem o
+   * conteúdo, o remetente nem o arquivo: o canal e o código do erro; o detalhe está em Notas fiscais.
+   */
+  NFE_XML_RECEIPT_FAILED: 'fiscal.nfe-xml-receipt-failed',
   NFSE_INVOICE_REJECTED: 'nfse.invoice-rejected',
   TRIP_DELIVERY_OCCURRENCE: 'trip.delivery-occurrence',
   /**
@@ -318,6 +323,21 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
       },
       inbox: {
         body: 'O MDF-e da viagem do veículo {{plate}} não foi emitido: {{reason}}',
+      },
+    },
+  },
+  {
+    category: NOTIFICATION_CATEGORY.FISCAL,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['channel', 'errorCode'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.NFE_XML_RECEIPT_FAILED,
+    templates: {
+      email: {
+        body: 'Um envio de XML de notas recebido por {{channel}} não foi importado depois de várias tentativas (erro {{errorCode}}).\nQuem enviou já foi avisado. Abra Notas fiscais no TransportAdA para conferir e peça o reenvio.',
+        subject: 'Envio de XML de notas não foi importado',
+      },
+      inbox: {
+        body: 'Um envio de XML recebido por {{channel}} não foi importado (erro {{errorCode}}). Confira em Notas fiscais.',
       },
     },
   },

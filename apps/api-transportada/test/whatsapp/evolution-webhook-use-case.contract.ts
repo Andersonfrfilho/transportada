@@ -10,6 +10,7 @@ import type { SecretEnvelopeProvider, SecretEnvelopeV1 } from '@adatechnology/se
 import type { CompanyContext } from '../../src/identity/domain/tenant-context.js'
 import type { EvolutionConversationInbound } from '../../src/occurrence-conversation/application/evolution-conversation-inbound.service.js'
 import type { ApiLogger } from '../../src/shared/api.types.js'
+import type { WhatsAppXmlInbound } from '../../src/nfe-xml-receipts/application/receive-whatsapp-xml-document.service.js'
 import type { EvolutionGroupInbound } from '../../src/whatsapp/application/evolution-group-inbound.service.js'
 import { createWhatsAppEvolutionSecretService } from '../../src/whatsapp/application/whatsapp-evolution-secret.service.js'
 import type {
@@ -84,6 +85,7 @@ async function setup(
     registeredAt?: Date | null
     status?: 'active' | 'disabled'
     withWebhookSecret?: boolean
+    withoutXml?: boolean
   } = {},
 ) {
   const provider = createFakeProvider()
@@ -115,6 +117,7 @@ async function setup(
     registeredAt: options.registeredAt ?? null,
     statuses: [] as Parameters<EvolutionConversationInbound['receiveStatus']>[0][],
     stored: [] as SecretEnvelopeV1[],
+    xml: [] as Parameters<WhatsAppXmlInbound['receive']>[0][],
   }
   const registration = (): WhatsAppEvolutionWebhookRegistration => ({
     apiKeyEnvelope,
@@ -189,6 +192,16 @@ async function setup(
     },
     logger,
     repository,
+    ...(options.withoutXml === true
+      ? {}
+      : {
+          xmlInbound: {
+            async receive(input) {
+              state.xml.push(input)
+              return 'recorded' as const
+            },
+          },
+        }),
     webhookSecrets,
   })
   return { state, useCase, webhookSecrets }
@@ -357,6 +370,72 @@ describe('webhook do Evolution: o que a entrega vira', () => {
     for (const forbidden of [group, PHONE, '98765432101234', API_KEY, 'texto do grupo secreto']) {
       expect(serialized).not.toContain(forbidden)
     }
+  })
+
+  test('spec 301: o documento .xml/.zip vai ao recebimento de notas e não ao fluxo do motorista nem da conversa', async () => {
+    const { state, useCase } = await setup()
+    const group = '120363000000000000@g.us'
+    const document = {
+      documentMessage: {
+        contextInfo: { mentionedJid: ['5516900000001@s.whatsapp.net'] },
+        fileLength: '10',
+        fileName: 'notas.zip',
+        mimetype: 'application/zip',
+      },
+    }
+
+    await useCase.receive(
+      receiveWith({
+        rawBody: upsert([
+          {
+            key: {
+              fromMe: false,
+              id: 'X1',
+              participant: `${PHONE}@s.whatsapp.net`,
+              remoteJid: group,
+            },
+            message: document,
+          },
+          {
+            key: { fromMe: false, id: 'X2', remoteJid: `${PHONE}@s.whatsapp.net` },
+            message: document,
+          },
+          {
+            key: {
+              fromMe: false,
+              id: 'P1',
+              participant: `${PHONE}@s.whatsapp.net`,
+              remoteJid: group,
+            },
+            message: {
+              documentMessage: { fileName: 'boleto.pdf', mimetype: 'application/pdf' },
+            },
+          },
+        ]),
+      }),
+    )
+
+    expect(state.xml.map((item) => item.event.externalMessageId)).toEqual(['X1', 'X2'])
+    expect(state.xml[0]?.document.fileName).toBe('notas.zip')
+    // O PDF continua com o fluxo de antes; o XML não passa por ele.
+    expect(state.groupMessages.map((item) => item.event.externalMessageId)).toEqual(['P1'])
+    expect(state.messages).toEqual([])
+    const received = state.logs.find((entry) => entry.message.endsWith('.received'))
+    expect(received?.fields).toMatchObject({ xml: 2 })
+  })
+
+  test('spec 301: sem o recebimento de notas ligado, o documento segue o caminho de antes', async () => {
+    const { state, useCase } = await setup({ withoutXml: true })
+    await useCase.receive(
+      receiveWith({
+        rawBody: upsert({
+          key: { fromMe: false, id: 'X1', remoteJid: `${PHONE}@s.whatsapp.net` },
+          message: { documentMessage: { fileName: 'notas.zip', mimetype: 'application/zip' } },
+        }),
+      }),
+    )
+    expect(state.xml).toEqual([])
+    expect(state.messages).toHaveLength(1)
   })
 
   test('as confirmações viram o status da mensagem, na empresa do webhook', async () => {

@@ -31,6 +31,8 @@ export const NOTIFICATION_CATEGORY = {
 export const NOTIFICATION_TEMPLATE_KEY = {
   BILLING_INVOICE_DUE: 'billing.invoice-due',
   CTE_BATCH_ISSUANCE_FAILED: 'cte-batch.issuance-failed',
+  /** Spec 301: o XML recebido por e-mail ou WhatsApp que esgotou as tentativas. */
+  FISCAL_NFE_XML_RECEIPT_FAILED: 'fiscal.nfe-xml-receipt-failed',
   /** O certificado digital vencendo ou vencido, disparado por `notification.schedules.run`. */
   FISCAL_CERTIFICATE_EXPIRED: 'fiscal.certificate-expired',
   FISCAL_CERTIFICATE_EXPIRING: 'fiscal.certificate-expiring',

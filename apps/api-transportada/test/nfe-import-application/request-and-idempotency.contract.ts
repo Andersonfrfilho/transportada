@@ -80,6 +80,54 @@ describe('request nfe import application contract', () => {
     expect(persisted).not.toContain('batch.zip')
   })
 
+  test('records the channel and sender when the files arrive by e-mail or WhatsApp', async () => {
+    for (const received of [
+      { from: 'fornecedor@exemplo.com.br', via: 'email' },
+      { from: '5516999990000', via: 'whatsapp' },
+    ] as const) {
+      const unitOfWork = new RequestNfeImportUnitOfWorkFixture()
+      const useCase = await createRequestNfeImportUseCaseFixture({
+        fingerprintService: createFingerprintFixture(REQUEST_FINGERPRINT),
+        unitOfWork,
+      })
+
+      await useCase.execute({
+        context: COMPANY_CONTEXT,
+        correlationId: CORRELATION_ID,
+        idempotencyKey: IDEMPOTENCY_KEY,
+        received,
+        source: 'upload',
+        stagedSources: UPLOAD_SOURCES,
+      })
+
+      expect(unitOfWork.createdImports).toEqual([
+        { ...createExpectedImportDraft(), receivedFrom: received.from, receivedVia: received.via },
+      ])
+      expect(unitOfWork.createdImports.map((draft) => draft.source)).toEqual(['upload'])
+    }
+  })
+
+  test('leaves the channel out of the draft for the screen upload, so the column default applies', async () => {
+    const unitOfWork = new RequestNfeImportUnitOfWorkFixture()
+    const useCase = await createRequestNfeImportUseCaseFixture({
+      fingerprintService: createFingerprintFixture(REQUEST_FINGERPRINT),
+      unitOfWork,
+    })
+
+    await useCase.execute({
+      context: COMPANY_CONTEXT,
+      correlationId: CORRELATION_ID,
+      idempotencyKey: IDEMPOTENCY_KEY,
+      source: 'upload',
+      stagedSources: UPLOAD_SOURCES,
+    })
+
+    const [draft] = unitOfWork.createdImports
+    expect(draft).toBeDefined()
+    expect('receivedVia' in (draft ?? {})).toBe(false)
+    expect('receivedFrom' in (draft ?? {})).toBe(false)
+  })
+
   test('emits a distribution event when the source is distribution', async () => {
     const unitOfWork = new RequestNfeImportUnitOfWorkFixture()
     const useCase = await createRequestNfeImportUseCaseFixture({
