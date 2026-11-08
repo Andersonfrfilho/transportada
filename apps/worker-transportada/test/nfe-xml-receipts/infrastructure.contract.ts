@@ -182,6 +182,62 @@ describe('receipt reply adapter', () => {
     expect(texts.map((entry) => entry.number)).toEqual(['1@g.us', '5516'])
   })
 
+  test('a detailed report goes out in the standard e-mail model, with the company logo inline (spec 304)', async () => {
+    const sent: { attachments?: unknown; html?: string; subject: string; text: string }[] = []
+    const adapter = createReceiptReplyAdapter({
+      findSettings: () =>
+        Promise.resolve({
+          id: 's1',
+          secretEnvelope: {},
+          senderAddress: 'x@y.com',
+          senderName: 'Empresa',
+        }),
+      mailGateway: {
+        sendEmail: (input) => {
+          sent.push({
+            ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
+            ...(input.html === undefined ? {} : { html: input.html }),
+            subject: input.subject,
+            text: input.text,
+          })
+          return Promise.resolve({ id: 'e1' })
+        },
+      },
+      renderEmail: ({ body, subject }) =>
+        Promise.resolve({
+          html: `<p>${body}</p>`,
+          logo: [
+            {
+              content: 'AA',
+              contentId: 'company-logo',
+              contentType: 'image/png',
+              fileName: 'logo.png',
+            },
+          ],
+          subject,
+          text: body,
+        }),
+      secretService: {
+        decrypt: () => Promise.resolve({ apiKey: 'key', replyTokenSecret: 's' }) as never,
+      },
+      sendWhatsAppText: () => Promise.resolve(),
+    })
+    await adapter.send({
+      channel: 'email',
+      companyId: COMPANY_ID,
+      email: { body: 'corpo', subject: 'Importação de notas: 2 notas novas' },
+      replyTo: null,
+      sender: 'maria@x.com',
+      text: 'curto',
+    })
+    expect(sent[0]).toMatchObject({
+      html: '<p>corpo</p>',
+      subject: 'Importação de notas: 2 notas novas',
+      text: 'corpo',
+    })
+    expect(sent[0]?.attachments).toHaveLength(1)
+  })
+
   test('e-mail goes through the company Resend settings to the sender', async () => {
     const { adapter, emails } = setup()
     await adapter.send({

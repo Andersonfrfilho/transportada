@@ -1356,6 +1356,7 @@ export async function startWorkerRuntime(
         bucket: storageBucket,
         put: (input) => storageGateway.storeObject(input),
       },
+      whiteLogo: toWhiteLogoPng,
     })
     const inboundMailGateway = createResendMailGateway({
       fetch: (target, init) => fetch(target, init),

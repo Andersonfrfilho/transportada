@@ -6,7 +6,10 @@
  * privado de quem mandou. Canal indisponível lança: o ciclo conta a tentativa e tenta de novo, até o teto.
  */
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
-import type { ResendMailGateway } from '../../contractor-mail/infrastructure/resend-mail.gateway.js'
+import type {
+  ResendEmailAttachment,
+  ResendMailGateway,
+} from '../../contractor-mail/infrastructure/resend-mail.gateway.js'
 import type { ReceiptReplyPort } from '../application/nfe-xml-receipt.types.js'
 
 const SUBJECT = 'Importação de notas fiscais (XML)'
@@ -18,7 +21,20 @@ export type ReceiptReplySettings = {
   readonly senderName: string
 }
 
+/** Spec 304: o e-mail no modelo padrão da empresa (visual editável em Notificações), nunca layout em código. */
+export type ReceiptEmailRenderer = (input: {
+  readonly body: string
+  readonly companyId: string
+  readonly subject: string
+}) => Promise<{
+  readonly html: string
+  readonly logo: readonly ResendEmailAttachment[]
+  readonly subject: string
+  readonly text: string
+}>
+
 export function createReceiptReplyAdapter(dependencies: {
+  readonly renderEmail?: ReceiptEmailRenderer
   readonly findSettings: (input: {
     readonly companyId: string
   }) => Promise<ReceiptReplySettings | undefined>
@@ -50,13 +66,23 @@ export function createReceiptReplyAdapter(dependencies: {
         envelope: settings.secretEnvelope,
         settingsId: settings.id,
       })
+      const rich =
+        input.email === undefined || dependencies.renderEmail === undefined
+          ? undefined
+          : await dependencies.renderEmail({
+              body: input.email.body,
+              companyId: input.companyId,
+              subject: input.email.subject,
+            })
       await dependencies.mailGateway.sendEmail({
         apiKey: secret.apiKey,
+        ...(rich === undefined || rich.logo.length === 0 ? {} : { attachments: rich.logo }),
         from: `${settings.senderName} <${settings.senderAddress}>`,
         headers: {},
+        ...(rich === undefined ? {} : { html: rich.html }),
         idempotencyKey: `nfe-xml-reply-${crypto.randomUUID()}`,
-        subject: SUBJECT,
-        text: input.text,
+        subject: rich?.subject ?? SUBJECT,
+        text: rich?.text ?? input.text,
         to: [input.sender],
       })
     },
