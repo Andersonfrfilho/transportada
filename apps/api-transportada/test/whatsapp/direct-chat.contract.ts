@@ -27,6 +27,7 @@ import { decideDriverPhoneMatch } from '../../src/whatsapp/infrastructure/whatsa
 const COMPANY_ID = '00000000-0000-4000-8000-000000000308'
 const DRIVER_ID = '00000000-0000-4000-8000-0000000003d1'
 const DRIVER = '5516988887777'
+const IMPORTER = '5516977776666'
 const DIRECT = `${DRIVER}@s.whatsapp.net`
 const CONNECTION = { apiKey: 'chave', baseUrl: 'https://evolution.exemplo.com', instanceName: 'x' }
 
@@ -56,6 +57,7 @@ function setup(options: { openRequestOwner?: null | string; wakePhrase?: string[
     listened: 0,
     media: [] as AdmittedGroupMedia[],
     openLookups: [] as string[],
+    replies: [] as { groupJid: string; texts: readonly string[] }[],
   }
   const identity: EvolutionGroupIdentity = {
     async botNumber() {
@@ -88,6 +90,9 @@ function setup(options: { openRequestOwner?: null | string; wakePhrase?: string[
     async findDirectDriver({ phone }) {
       return phone === DRIVER ? { driverId: DRIVER_ID } : null
     },
+    async findDirectImporter({ phone }) {
+      return phone === IMPORTER
+    },
     async findGroupDriver() {
       throw new Error('o 1:1 não consulta a ficha do grupo')
     },
@@ -102,6 +107,9 @@ function setup(options: { openRequestOwner?: null | string; wakePhrase?: string[
       state.media.push(media)
     },
     identity,
+    replyDirect: (reply) => {
+      state.replies.push(reply)
+    },
   })
   const receive = (
     event: EvolutionMessageEvent,
@@ -261,5 +269,37 @@ describe('spec 308: qual ficha é do número', () => {
       decideDriverPhoneMatch([row('a', '1688887777'), row('b', '1688887777')], '16988887777'),
     ).toBeNull()
     expect(decideDriverPhoneMatch([], '16988887777')).toBeNull()
+  })
+
+  test('spec 308 D2.4: o importador que é motorista leva canImportXml à sessão; sem a permissão, o campo não vai', async () => {
+    const { inbound, receive, state } = setup()
+
+    expect(await inbound.findDirectImporter?.({ companyId: COMPANY_ID, phone: IMPORTER })).toBe(
+      true,
+    )
+    expect(await inbound.findDirectImporter?.({ companyId: COMPANY_ID, phone: DRIVER })).toBe(false)
+
+    await receive(direct({ externalMessageId: 'X1' }), { canImportXml: true })
+    await receive(direct({ externalMessageId: 'X2' }))
+
+    expect(state.handled.map((message) => message.canImportXml)).toEqual([true, undefined])
+  })
+
+  test('spec 308 D2.4: o importador que não é motorista é orientado no 1:1, sem abrir pedido', async () => {
+    const { inbound, state } = setup()
+    const event = direct({ from: IMPORTER })
+
+    expect(await inbound.receiveDirectImporter?.({ companyId: COMPANY_ID, event })).toBe('admitted')
+    expect(
+      await inbound.receiveDirectImporter?.({
+        companyId: COMPANY_ID,
+        event: direct({ from: IMPORTER, text: null }),
+      }),
+    ).toBe('no_text')
+
+    expect(state.handled).toEqual([])
+    expect(state.replies).toHaveLength(1)
+    expect(state.replies[0]?.groupJid).toBe(`${IMPORTER}@s.whatsapp.net`)
+    expect(state.replies[0]?.texts.join('')).toContain('XMLs')
   })
 })

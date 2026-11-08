@@ -80,8 +80,14 @@ export type GroupRequestRepositoryPort = {
   }): Promise<boolean>
 }
 
+/** Spec 308 D2.4: a orientação da opção "Enviar XML das notas" (a importação responde sozinha, 301–307). */
+export const GROUP_XML_ORIENTATION =
+  '📄 Envie aqui os XMLs das notas, ou um zip/rar com eles. Eu importo e te aviso quando terminar.'
+
 /** Uma mensagem do grupo que chegou ao fluxo do pedido. */
 export type GroupFlowTurn = {
+  /** Spec 308 D2.4: quem escreveu tem envio de XML liberado (`findImportSender`); só o chat direto informa. */
+  readonly canImportXml?: boolean
   readonly request: GroupRequest
   /** Quem escreveu (só dígitos); pode não ser o dono quando marcou o bot para responder por ele. */
   readonly sender: string

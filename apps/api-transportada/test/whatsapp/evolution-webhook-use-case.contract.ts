@@ -82,6 +82,8 @@ async function setup(
     apiPublicUrl?: string | undefined
     /** Spec 308: os telefones de motorista ativo; ausente, o webhook não tem a entrada direta. */
     directDrivers?: readonly string[]
+    /** Spec 308 D2.4: os telefones com envio de XML liberado (`findImportSender`). */
+    directImporters?: readonly string[]
     /** Spec 308: o teto por número já estourou. */
     directLimited?: boolean
     /** Spec 308: a citação casa numa conversa do painel. */
@@ -114,6 +116,7 @@ async function setup(
   const state = {
     deliveries: [] as unknown[],
     direct: [] as Parameters<NonNullable<EvolutionGroupInbound['receiveDirect']>>[0][],
+    importerReplies: [] as string[],
     findCalls: 0,
     gatewayCalls: [] as Parameters<WhatsAppEvolutionWebhookGatewayPort['setWebhook']>[0][],
     groupConnections: [] as unknown[],
@@ -199,6 +202,13 @@ async function setup(
               input: Parameters<NonNullable<EvolutionGroupInbound['receiveDirect']>>[0],
             ) {
               state.direct.push(input)
+              return 'admitted' as const
+            },
+            async findDirectImporter({ phone }: { readonly phone: string }) {
+              return options.directImporters?.includes(phone) === true
+            },
+            receiveDirectImporter({ event }: { readonly event: { readonly text: null | string } }) {
+              state.importerReplies.push(event.text ?? '')
               return 'admitted' as const
             },
           }),
@@ -678,6 +688,25 @@ describe('spec 308: o chat direto do motorista vai ao bot', () => {
     expect(JSON.stringify(state.logs)).not.toContain(PHONE)
   })
 
+  test('conversa 1:1 que chega só com @lid não é reconhecida, mas é contada no log (risco da T1)', async () => {
+    const { state, useCase } = await setup({ directDrivers: [PHONE] })
+
+    await useCase.receive(
+      receiveWith({
+        rawBody: upsert({
+          key: { fromMe: false, id: 'L1', remoteJid: '98765432101234@lid' },
+          message: { conversation: 'oi' },
+        }),
+      }),
+    )
+
+    expect(state.direct).toEqual([])
+    expect(state.messages).toEqual([])
+    const received = state.logs.find((log) => log.message === 'whatsapp_evolution.webhook.received')
+    expect(received?.fields).toMatchObject({ direct: 0, lidOnly: 1 })
+    expect(JSON.stringify(state.logs)).not.toContain('98765432101234')
+  })
+
   test('número que não é motorista continua no painel, como hoje', async () => {
     const { state, useCase } = await setup({ directDrivers: ['5516911112222'] })
 
@@ -709,5 +738,92 @@ describe('spec 308: o chat direto do motorista vai ao bot', () => {
     expect(
       state.logs.find((log) => log.message === 'whatsapp_evolution.direct_message')?.fields,
     ).toMatchObject({ outcome: 'rate_limited' })
+  })
+
+  test('T3: a localização e o áudio do 1:1 chegam ao bot lidos do corpo cru, como no grupo', async () => {
+    const { state, useCase } = await setup({ directDrivers: [PHONE] })
+    const key = (id: string) => ({ fromMe: false, id, remoteJid: `${PHONE}@s.whatsapp.net` })
+
+    await useCase.receive(
+      receiveWith({
+        rawBody: upsert({
+          key: key('LOC-1'),
+          message: { locationMessage: { degreesLatitude: -21.17, degreesLongitude: -47.81 } },
+        }),
+      }),
+    )
+    await useCase.receive(
+      receiveWith({
+        rawBody: upsert({
+          key: key('PTT-1'),
+          message: { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true, seconds: 4 } },
+        }),
+      }),
+    )
+
+    expect(state.messages).toEqual([])
+    expect(
+      state.direct.map(({ audio, event, media }) => ({
+        audio: audio === null || audio === undefined ? null : audio.seconds,
+        id: event.externalMessageId,
+        media: media ?? null,
+        text: event.text,
+      })),
+    ).toEqual([
+      {
+        audio: null,
+        id: 'LOC-1',
+        media: { kind: 'location', latitude: -21.17, longitude: -47.81 },
+        text: null,
+      },
+      { audio: 4, id: 'PTT-1', media: null, text: null },
+    ])
+    expect(JSON.stringify(state.logs)).not.toContain('-21.17')
+  })
+
+  test('T4: quem importa XML e não é motorista é orientado no 1:1, sem ir ao painel', async () => {
+    const { state, useCase } = await setup({ directDrivers: [], directImporters: [PHONE] })
+
+    await useCase.receive(receiveWith({ rawBody: directBody({ text: 'oi' }) }))
+
+    expect(state.importerReplies).toEqual(['oi'])
+    expect(state.direct).toEqual([])
+    expect(state.messages).toEqual([])
+  })
+
+  test('T4: o motorista com XML liberado leva a permissão ao fluxo; sem XML, não leva', async () => {
+    const importer = await setup({ directDrivers: [PHONE], directImporters: [PHONE] })
+    await importer.useCase.receive(receiveWith({ rawBody: directBody() }))
+    expect(importer.state.direct.map(({ canImportXml }) => canImportXml)).toEqual([true])
+    expect(importer.state.importerReplies).toEqual([])
+
+    const plain = await setup({ directDrivers: [PHONE] })
+    await plain.useCase.receive(receiveWith({ rawBody: directBody() }))
+    expect(plain.state.direct.map(({ canImportXml }) => canImportXml)).toEqual([undefined])
+  })
+
+  test('T4: o importador que cita a conversa da ocorrência continua no painel', async () => {
+    const { state, useCase } = await setup({
+      directDrivers: [],
+      directImporters: [PHONE],
+      quotesPanel: true,
+    })
+
+    await useCase.receive(receiveWith({ rawBody: directBody({ replyTo: 'SENT-1' }) }))
+
+    expect(state.importerReplies).toEqual([])
+    expect(state.messages).toHaveLength(1)
+  })
+
+  test('T4: número sem motorista nem XML liberado continua no painel', async () => {
+    const { state, useCase } = await setup({
+      directDrivers: [],
+      directImporters: ['5516911112222'],
+    })
+
+    await useCase.receive(receiveWith({ rawBody: directBody() }))
+
+    expect(state.importerReplies).toEqual([])
+    expect(state.messages).toHaveLength(1)
   })
 })
