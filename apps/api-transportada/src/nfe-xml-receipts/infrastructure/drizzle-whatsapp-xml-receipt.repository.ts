@@ -2,14 +2,16 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, gt, inArray, isNotNull } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm'
 
 import {
+  contractorContacts,
   membershipRoles,
   nfeXmlReceipts,
   userCompanyMemberships,
   userWhatsAppPhones,
 } from '../../database/database.schema.js'
+import { SYSTEM_DISTRIBUTION_ACTOR_USER_ID } from '../../identity/domain/system-distribution-actor.constant.js'
 import { WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS } from '../../whatsapp-commands/domain/whatsapp-phone-verification.constant.js'
 import { toWhatsAppPhone } from '../../whatsapp-commands/domain/whatsapp-phone.policy.js'
 import { toWhatsAppPhoneKey } from '../../whatsapp-commands/domain/whatsapp-phone-key.policy.js'
@@ -54,7 +56,24 @@ export function createDrizzleWhatsAppXmlReceiptRepository(
           ),
         )
         .limit(1)
-      return row === undefined ? undefined : { userId: row.userId }
+      if (row !== undefined) return { userId: row.userId }
+
+      // Spec 302: o contato do contratante autorizado a enviar XML (tipo `nfe_xml`, ativo, com o aceite do WhatsApp).
+      // Não é usuário da empresa: a importação é gravada com o ator de sistema, e o remetente fica no registro.
+      const [contact] = await database
+        .select({ id: contractorContacts.id })
+        .from(contractorContacts)
+        .where(
+          and(
+            eq(contractorContacts.companyId, companyId),
+            eq(contractorContacts.status, 'active'),
+            isNotNull(contractorContacts.whatsappOptInAt),
+            sql`'nfe_xml' = any(${contractorContacts.types})`,
+            sql`left(${contractorContacts.phone}, 4) || right(${contractorContacts.phone}, 8) = ${toWhatsAppPhoneKey(canonical)}`,
+          ),
+        )
+        .limit(1)
+      return contact === undefined ? undefined : { userId: SYSTEM_DISTRIBUTION_ACTOR_USER_ID }
     },
 
     async recordReceipt(input) {

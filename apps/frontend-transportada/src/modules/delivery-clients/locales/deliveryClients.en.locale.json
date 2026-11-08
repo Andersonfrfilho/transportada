@@ -131,7 +131,8 @@
       "approves_charges": "Approves charges",
       "scheduling": "Scheduling",
       "invoices": "Invoices",
-      "cte_xml": "CT-e / XML"
+      "cte_xml": "CT-e / XML",
+      "nfe_xml": "Can send NF-e XML"
     },
     "stages": {
       "separation": "Separation",

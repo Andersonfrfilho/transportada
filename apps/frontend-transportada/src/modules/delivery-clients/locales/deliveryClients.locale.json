@@ -131,7 +131,8 @@
       "approves_charges": "Aprova cobranças",
       "scheduling": "Agendamento",
       "invoices": "Faturas",
-      "cte_xml": "CT-e / XML"
+      "cte_xml": "CT-e / XML",
+      "nfe_xml": "Pode enviar XML de NF-e"
     },
     "stages": {
       "separation": "Separação",

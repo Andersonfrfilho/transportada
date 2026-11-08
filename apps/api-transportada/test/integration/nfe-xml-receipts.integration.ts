@@ -124,6 +124,63 @@ describe('nfe xml receipts (spec 301, API)', () => {
   )
 
   testWithPostgres(
+    'authorizes a contractor contact with the nfe_xml type, an active status and the WhatsApp opt-in (spec 302)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        const otherCompanyId = crypto.randomUUID()
+        for (const id of [companyId, otherCompanyId]) {
+          await database.db.execute(
+            sql`insert into companies (id, status) values (${id}, 'active')`,
+          )
+        }
+        const adminId = crypto.randomUUID()
+        await database.db.execute(
+          sql`insert into identity_users (id, status) values (${adminId}, 'active')`,
+        )
+        const [contractor] = await database.db.execute<{ id: string }>(sql`
+          insert into contractors (company_id, tax_id, display_name)
+          values (${companyId}, '12345678000195', 'Contratante') returning id
+        `)
+        const contractorId = contractor?.id ?? ''
+        const seed = async (input: {
+          optIn: boolean
+          phone: string
+          status?: string
+          types: string
+        }) => {
+          await database.db.execute(sql`
+            insert into contractor_contacts
+              (company_id, contractor_id, email, phone, types, status, whatsapp_opt_in_at, whatsapp_opt_in_by_user_id)
+            values (${companyId}, ${contractorId}, ${`c${input.phone}@contratante.com.br`}, ${input.phone},
+              ${input.types}::text[], ${input.status ?? 'active'},
+              ${input.optIn ? NOW.toISOString() : null}::timestamptz, ${input.optIn ? adminId : null}::uuid)
+          `)
+        }
+        await seed({ optIn: true, phone: '5516911112222', types: '{nfe_xml}' })
+        await seed({ optIn: true, phone: '5516922223333', types: '{occurrences}' }) // sem o tipo
+        await seed({ optIn: false, phone: '5516933334444', types: '{nfe_xml}' }) // sem o aceite do WhatsApp
+        await seed({ optIn: true, phone: '5516944445555', status: 'inactive', types: '{nfe_xml}' }) // inativo
+        const repository = createDrizzleWhatsAppXmlReceiptRepository(database.db)
+        const find = (phone: string, company = companyId) =>
+          repository.findImportSender({ companyId: company, now: NOW, phone })
+
+        expect(await find('5516911112222')).toEqual({
+          userId: '00000000-0000-4000-8000-000000000006',
+        })
+        expect(await find('551611112222')).toEqual({
+          userId: '00000000-0000-4000-8000-000000000006',
+        })
+        expect(await find('5516922223333')).toBeUndefined()
+        expect(await find('5516933334444')).toBeUndefined()
+        expect(await find('5516944445555')).toBeUndefined()
+        expect(await find('5516911112222', otherCompanyId)).toBeUndefined()
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
     'records a pending receipt once per message, and a rejected one only with its reason',
     async () => {
       await withDisposableDatabase(async (database) => {

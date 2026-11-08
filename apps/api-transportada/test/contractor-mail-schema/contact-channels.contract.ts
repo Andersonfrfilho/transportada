@@ -57,7 +57,14 @@ describe('contatos da contratante com tipos e canais (spec 183 T301)', () => {
 
   test('tipos e grupos são conjuntos fechados; canal é e-mail ou WhatsApp', () => {
     const checks = checkSqlByName(contractorContacts)
-    for (const type of ['occurrences', 'approves_charges', 'scheduling', 'invoices', 'cte_xml']) {
+    for (const type of [
+      'occurrences',
+      'approves_charges',
+      'scheduling',
+      'invoices',
+      'cte_xml',
+      'nfe_xml',
+    ]) {
       expect(checks.contractor_contacts_types_check).toContain(`'${type}'`)
     }
     for (const stage of ['separation', 'delivery', 'stop']) {

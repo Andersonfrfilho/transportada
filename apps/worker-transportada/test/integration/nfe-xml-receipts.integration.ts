@@ -137,6 +137,30 @@ describeDatabase('nfe xml receipts (integration, spec 301)', () => {
     ).toBeUndefined()
   })
 
+  test('a contractor contact with the nfe_xml type and an active status is an authorized sender too (spec 302)', async () => {
+    const [contractor] = (await database.execute(sql`
+      insert into contractors (company_id, tax_id, display_name)
+      values (${companyId}, '98765432000110', 'Contratante') returning id
+    `)) as unknown as { id: string }[]
+    const contractorId = contractor?.id ?? ''
+    const seed = (email: string, types: string, status = 'active') =>
+      database.execute(sql`
+        insert into contractor_contacts (company_id, contractor_id, email, types, status)
+        values (${companyId}, ${contractorId}, ${email}, ${types}::text[], ${status})
+      `)
+    await seed('envia@contratante.com.br', '{nfe_xml}')
+    await seed('so-ocorrencia@contratante.com.br', '{occurrences}')
+    await seed('inativo@contratante.com.br', '{nfe_xml}', 'inactive')
+    const find = (email: string, company = companyId) =>
+      repository.findAuthorizedSenderByEmail({ companyId: company, email })
+    expect(await find('ENVIA@contratante.com.br')).toEqual({
+      userId: '00000000-0000-4000-8000-000000000006',
+    })
+    expect(await find('so-ocorrencia@contratante.com.br')).toBeUndefined()
+    expect(await find('inativo@contratante.com.br')).toBeUndefined()
+    expect(await find('envia@contratante.com.br', crypto.randomUUID())).toBeUndefined()
+  })
+
   test('the import is created whole: stored objects, import, items (first is "/"), outbox event and the receipt closed', async () => {
     const { receiptId } = await record('m-import')
     const { importId } = await importGateway.createImport({
