@@ -12,11 +12,15 @@ import {
   type WhatsAppStopCandidate,
 } from '../../trips/domain/driver-stop-resolution.policy.js'
 import { cardFromStopCandidate } from '../domain/whatsapp-driver-journey.policy.js'
-import { describeStopCard } from '../domain/whatsapp-stop-card.policy.js'
+import {
+  describeStopCard,
+  STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX,
+} from '../domain/whatsapp-stop-card.policy.js'
 import type { WhatsAppStopCardReader } from '../infrastructure/whatsapp-stop-card.reader.js'
 
 export type WhatsAppStopInProgress = {
   readonly documents: readonly {
+    readonly city?: string | undefined
     readonly id: string
     readonly number: string
     readonly recipientName?: string | undefined
@@ -43,7 +47,14 @@ export async function readWhatsAppStopInProgress(input: {
   const documents = stop.documents.flatMap((document) =>
     document.id === undefined || CLOSED_DOCUMENT.has(document.separationStatus)
       ? []
-      : [{ id: document.id, number: document.number, recipientName: document.recipientName }],
+      : [
+          {
+            city: stop.city,
+            id: document.id,
+            number: document.number,
+            recipientName: document.recipientName,
+          },
+        ],
   )
   if (documents.length === 0) return null
   if (documents.length > 1) return { documents, header: null, stopId: stop.id }
@@ -54,7 +65,9 @@ export async function readWhatsAppStopInProgress(input: {
   const card = view?.card ?? cardFromStopCandidate(stop)
   return {
     documents,
-    header: describeStopCard(card, { volumesSuffix: ' para entregar' }).join('\n'),
+    header: describeStopCard(card, { volumesSuffix: STOP_CARD_VOLUMES_TO_DELIVER_SUFFIX }).join(
+      '\n',
+    ),
     stopId: stop.id,
   }
 }

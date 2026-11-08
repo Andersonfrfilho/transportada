@@ -10,6 +10,7 @@
  * Uma nota por vez: o lote ("entreguei 17234 17235") e o "devolvi" são da T13. A nota é citada pelo número
  * e pelo cliente (spec 294 RF17).
  */
+import { DRIVER_LIST_HEADING } from '../../whatsapp-commands/domain/whatsapp-driver-list-heading.constant.js'
 import type {
   WhatsAppDocumentEventInput,
   WhatsAppDriverEventResult,
@@ -22,6 +23,11 @@ import {
 } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { WhatsAppStopInProgress } from '../../whatsapp-commands/application/whatsapp-stop-in-progress.service.js'
+import {
+  formatAttendantBatch,
+  formatOptions,
+  formatReplyHint,
+} from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 import {
   SENDER_NOT_ALLOWED_TEXT,
@@ -31,6 +37,7 @@ import {
 export const GROUP_DELIVERY_STEP = { answer: 'answer', choose: 'choose' } as const
 
 export type GroupDeliveryDocument = {
+  readonly city?: string | undefined
   readonly id: string
   readonly number: string
   readonly recipientName?: string | undefined
@@ -79,12 +86,7 @@ export type GroupDeliveryFlowPorts = {
 
 export const GROUP_DELIVERY_TEXT = {
   askDocument: (documents: readonly GroupDeliveryDocument[]) =>
-    [
-      'Qual nota você entregou? Responda com o número da nota:',
-      ...documents
-        .slice(0, 8)
-        .map((document, index) => `${index + 1}. ${describeDocument(document)}`),
-    ].join('\n'),
+    [DRIVER_LIST_HEADING.deliverDocument, '', describeDocumentChoices(documents)].join('\n'),
   noDocuments: 'Não encontrei nota aberta na viagem do motorista deste grupo.',
   notFound: (number: string) =>
     `Não encontrei a NF ${number} aberta na viagem do motorista deste grupo.`,
@@ -96,29 +98,7 @@ export const GROUP_DELIVERY_TEXT = {
 /** Teto de notas da baixa em lote (o mesmo da mensagem do motorista, spec 293 regra 8). */
 const BATCH_LIMIT = 8
 
-/** O resumo da baixa em lote do atendente, uma linha por situação. */
-export function describeAttendantBatch(outcomes: {
-  readonly alreadyDone: readonly string[]
-  readonly failed: readonly string[]
-  readonly missing: readonly string[]
-  readonly pendingProof: readonly string[]
-  readonly registered: readonly string[]
-}): string {
-  const list = (numbers: readonly string[]) => numbers.map((number) => `NF ${number}`).join(', ')
-  return [
-    outcomes.registered.length > 0
-      ? `Baixa registrada pelo escritório: ${list(outcomes.registered)}.`
-      : '',
-    outcomes.pendingProof.length > 0 ? `Canhoto pendente: ${list(outcomes.pendingProof)}.` : '',
-    outcomes.alreadyDone.length > 0 ? `Já estavam baixadas: ${list(outcomes.alreadyDone)}.` : '',
-    outcomes.missing.length > 0
-      ? `Não encontrei em aberto na viagem do motorista deste grupo: ${list(outcomes.missing)}.`
-      : '',
-    outcomes.failed.length > 0 ? `Não consegui baixar: ${list(outcomes.failed)}.` : '',
-  ]
-    .filter((line) => line !== '')
-    .join('\n')
-}
+const DOCUMENT_REPLY_HINT = 'Responda com o número da opção ou da nota.'
 
 const REASON = {
   answer: 'mande a foto pedida, ou responda "pular" se o item não for obrigatório',
@@ -131,7 +111,18 @@ const strip = (value: string) => value.replace(/^0+(?=\d)/u, '')
 
 function describeDocument(document: GroupDeliveryDocument): string {
   const name = document.recipientName?.trim()
-  return name ? `NF ${strip(document.number)} · ${name}` : `NF ${strip(document.number)}`
+  const city = document.city?.trim()
+  return [`NF \`${strip(document.number)}\``, name ? `*${name}*` : '', city ?? '']
+    .filter((part) => part !== '')
+    .join(' · ')
+}
+
+/** RF1: as notas como opções (ícone + nota + cliente + cidade) e a instrução em itálico. */
+function describeDocumentChoices(documents: readonly GroupDeliveryDocument[]): string {
+  const options = documents
+    .slice(0, BATCH_LIMIT)
+    .map((document) => ({ action: describeDocument(document), icon: '🧾' }))
+  return [formatOptions(options), '', formatReplyHint(DOCUMENT_REPLY_HINT)].join('\n')
 }
 
 export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
@@ -253,7 +244,7 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
       outcomes.registered.push(number)
       if (value.details?.proofPending === true) outcomes.pendingProof.push(number)
     })
-    return { kind: 'done', replies: [describeAttendantBatch(outcomes)] }
+    return { kind: 'done', replies: [formatAttendantBatch(outcomes)] }
   }
 
   async function reply(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
@@ -312,7 +303,7 @@ export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {
         if (picked === undefined) {
           return {
             kind: 'not_understood',
-            prompt: GROUP_DELIVERY_TEXT.askDocument(documents),
+            prompt: describeDocumentChoices(documents),
             reason: REASON.document,
           }
         }

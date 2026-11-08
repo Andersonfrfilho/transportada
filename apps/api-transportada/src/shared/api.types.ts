@@ -92,6 +92,8 @@ export type ApiEnvironment = {
    * (API e worker). Desligada, `POST /trips/:id/mdfe-manifests/automatic` responde 404.
    */
   readonly mdfeAutoIssueEnabled: boolean
+  /** Spec 299: interruptor global dos lembretes do motorista; desligado por padrão. */
+  readonly driverRemindersEnabled: boolean
   /** ADR-0047, emenda 2026-11-05: os `azp` dos clients que podem falar como service account. */
   readonly serviceClientIds: readonly string[]
   /** Versão da API da Nota RP das emissões novas (ADR 0098); a tentativa guarda a que usou. */

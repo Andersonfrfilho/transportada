@@ -9,7 +9,9 @@
  * de passo (`deliver`/`return`/`occurrence`, motivo, página) — nunca nome de destinatário nem
  * qualquer outro dado que precise ser lido de novo a cada renderização (D8).
  */
+import type { DriverReturnReason } from '../../trips/domain/driver-return-reason.policy.js'
 import type { TripTransitionBlock } from '../../trips/domain/trip-state.policy.js'
+import type { MessageOption } from './whatsapp-message-format.policy.js'
 
 export const DRIVER_FLOW_ACTION_KIND = {
   arrive: 'driver.arrive',
@@ -76,7 +78,7 @@ export const DRIVER_FLOW_CONTEXT_KEY = {
 
 /** Pedido não bloqueante: sem o ponto a baixa segue como `unavailable` (spec 196 T3.8). */
 export const DRIVER_LOCATION_REQUEST_TEXT =
-  '📍 Se puder, compartilhe sua localização antes de confirmar: toque no clipe (anexo) → Localização → Enviar localização atual.'
+  '📍 _Se puder, mande sua localização antes de confirmar: clipe (anexo) 📎 → Localização → Enviar localização atual._'
 
 export const DRIVER_FLOW_STEP = {
   arrive: 'arrive',
@@ -105,19 +107,25 @@ export const DRIVER_RETURN_REASON_LABELS: Readonly<Record<string, string>> = {
   recipient_refused: '🙅 Recusou receber',
 }
 
+/** Spec 300 (RF1): o motivo como opção numerada (ícone e ação), a partir do rótulo — a lista da Meta usa o rótulo inteiro. */
+export function describeReturnReasonOption(reason: DriverReturnReason): MessageOption {
+  const [icon = '', ...action] = (DRIVER_RETURN_REASON_LABELS[reason] ?? reason).split(' ')
+  return { action: action.join(' '), icon }
+}
+
 /** pt-BR do `TRIP_TRANSITION_BLOCK` (`trip-state.policy.ts`) — o motorista nunca lê código em inglês. */
 export const DRIVER_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlock, string>> = {
-  TRIP_ALREADY_DISPATCHED: 'A viagem já está na rua e não aceita mais mudanças por aqui.',
-  TRIP_CANCELLED: 'Esta viagem foi cancelada.',
-  TRIP_COMPLETED: 'Esta viagem já foi concluída.',
-  TRIP_SEPARATION_STARTED: 'A separação desta viagem já começou: a tripulação não troca mais.',
-  TRIP_CREW_NOT_DEFINED: 'Esta viagem ainda não tem motorista ou veículo definido.',
-  TRIP_DOCUMENT_ALREADY_CLOSED: 'Esta nota já foi entregue ou devolvida.',
-  TRIP_DOCUMENT_NOT_LOADED: 'Esta nota ainda não foi carregada.',
-  TRIP_DOCUMENT_NOT_SEPARATED: 'Esta nota ainda não foi separada.',
-  TRIP_HAS_NO_ROUTE: 'A viagem não tem roteiro planejado.',
+  TRIP_ALREADY_DISPATCHED: '🚫 *A viagem já está na rua.* Não aceita mais mudanças por aqui.',
+  TRIP_CANCELLED: '🚫 *Esta viagem foi cancelada.*',
+  TRIP_COMPLETED: '🚫 *Esta viagem já foi concluída.*',
+  TRIP_SEPARATION_STARTED: '🚫 *A separação desta viagem já começou.* A tripulação não troca mais.',
+  TRIP_CREW_NOT_DEFINED: '🚫 *Esta viagem ainda não tem motorista ou veículo definido.*',
+  TRIP_DOCUMENT_ALREADY_CLOSED: '🚫 *Esta nota já foi entregue ou devolvida.*',
+  TRIP_DOCUMENT_NOT_LOADED: '🚫 *Esta nota ainda não foi carregada.*',
+  TRIP_DOCUMENT_NOT_SEPARATED: '🚫 *Esta nota ainda não foi separada.*',
+  TRIP_HAS_NO_ROUTE: '🚫 *A viagem não tem roteiro planejado.*',
   TRIP_NOT_DISPATCHED:
-    'A viagem ainda não foi despachada — entregar e devolver só depois da saída.',
-  TRIP_ROUTE_NOT_PLANNED: 'O roteiro da viagem ainda não foi planejado.',
-  TRIP_TRAILER_REQUIRED: 'O cavalo precisa de uma carreta atrelada antes de sair.',
+    '🚫 *A viagem ainda não foi despachada.* Entregar e devolver só depois da saída.',
+  TRIP_ROUTE_NOT_PLANNED: '🚫 *O roteiro da viagem ainda não foi planejado.*',
+  TRIP_TRAILER_REQUIRED: '🚫 *O cavalo precisa de uma carreta atrelada antes de sair.*',
 }

@@ -6,7 +6,9 @@ import type {
   EventQueueItemView,
 } from '@/modules/driver-trip/shared/eventQueueView.service'
 import {
+  countRejectedEvents,
   countSyncingEvents,
+  isAwaitingDriverConfirmation,
   resolveTripSyncBanner,
   resolveTripSyncProgress,
 } from '@/modules/driver-trip/shared/tripSyncBanner.service'
@@ -77,6 +79,29 @@ describe('aviso de sincronização da viagem (teste local de 15/10)', () => {
     expect(
       resolveTripSyncBanner({ justSynced: false, queueView: [queueItem(UNVERIFIED)] }),
     ).toEqual({ kind: 'idle' })
+  })
+
+  /**
+   * Em produção (06/11): "Iniciar rota" na parada 8 com a 5 pendente abriu o diálogo de fora de ordem
+   * e, junto, "O escritório recusou 1 evento" e "O escritório mudou esta nota enquanto você estava
+   * sem sinal" — o escritório não recusou nem mudou nada; o servidor só pediu a confirmação.
+   */
+  it('o 409 que pede confirmação (fora de ordem, canhoto já anexado) não é recusa do escritório', () => {
+    const outOfOrder: EventQueueItemView = {
+      ...queueItem({ cause: '409 TRIP_STOP_OUT_OF_ORDER', state: 'rejected' }, 'depart'),
+      kind: 'depart',
+    }
+    const canhoto: EventQueueItemView = {
+      ...queueItem({ cause: '409 TRIP_CANHOTO_ALREADY_ATTACHED', state: 'rejected' }, 'proof'),
+      kind: 'proof',
+    }
+    expect(isAwaitingDriverConfirmation(outOfOrder)).toBe(true)
+    expect(isAwaitingDriverConfirmation(canhoto)).toBe(true)
+    expect(isAwaitingDriverConfirmation(queueItem(REJECTED))).toBe(false)
+    expect(countRejectedEvents([outOfOrder, canhoto, queueItem(REJECTED, 'c')])).toBe(1)
+    expect(resolveTripSyncBanner({ justSynced: false, queueView: [outOfOrder] })).toEqual({
+      kind: 'idle',
+    })
   })
 
   it('conta só o que está em curso: enfileirado e falho, não o recusado nem o não verificado', () => {

@@ -28,7 +28,7 @@ export type ReachableBatchDocument = {
 
 export type OfficeOccurrenceBatchTransactionPort = Pick<
   DriverFieldReportTransactionPort,
-  'claim' | 'recordOfficeAudit' | 'settle'
+  'claim' | 'onStopEvent' | 'recordOfficeAudit' | 'settle'
 > & {
   findOccurrenceType(input: {
     readonly companyId: string

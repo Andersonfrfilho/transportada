@@ -207,6 +207,8 @@ export function createWhatsAppCanhotoRecognition(
             ? []
             : [
                 {
+                  city: stop.city,
+                  clientName: document.recipientName?.trim(),
                   documentId: document.id,
                   documentNumber: stripZeros(document.number),
                   label: document.recipientName?.trim()
@@ -309,6 +311,7 @@ export function createWhatsAppCanhotoRecognition(
       kind: 'confirm_note',
       text: [
         CANHOTO_RECOGNITION_SPEECH.storeFailedKept,
+        '',
         CANHOTO_RECOGNITION_SPEECH.confirmNote(input.note),
       ].join('\n'),
     }).catch(() => reply([CANHOTO_RECOGNITION_SPEECH.storeFailedResend]))
@@ -476,7 +479,9 @@ export function createWhatsAppCanhotoRecognition(
       if (resolved !== null) return resolved
       return strict
         ? null
-        : reply([CANHOTO_RECOGNITION_SPEECH.notUnderstood], { awaitingText: true })
+        : reply([CANHOTO_RECOGNITION_SPEECH.notUnderstood[question.kind](notes)], {
+            awaitingText: true,
+          })
     },
 
     async canReceivePhoto(scope) {
@@ -545,6 +550,8 @@ export function createWhatsAppCanhotoRecognition(
 }
 
 const toCandidate = (note: OpenNote): WhatsAppCanhotoQuestionCandidate => ({
+  ...(note.city === undefined ? {} : { city: note.city }),
+  ...(note.clientName === undefined ? {} : { clientName: note.clientName }),
   documentId: note.documentId,
   documentNumber: note.documentNumber,
   label: note.label,

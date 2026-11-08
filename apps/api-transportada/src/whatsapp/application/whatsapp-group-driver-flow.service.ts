@@ -26,12 +26,10 @@ import {
   interpretDriverChoice,
   DRIVER_CHOICE,
 } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
+import { canAskRouteOffer } from '../../whatsapp-commands/domain/driver-open-question.policy.js'
+import { ROUTE_OFFER_TEXT } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import {
-  canAskRouteOffer,
-  ROUTE_OFFER_TEXT,
-} from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
-import {
-  describeJourneyQuestion,
+  describeJourneyOptions,
   JOURNEY_ACTION,
   JOURNEY_STEP,
   JOURNEY_TEXT,
@@ -39,11 +37,18 @@ import {
   readJourneyActions,
   type JourneyAction,
 } from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
+import {
+  formatOptions,
+  formatReplyHint,
+} from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
+import { DRIVER_STOP_REMINDER_CHOICE_ACTION as REMINDER_ACTION } from '../../driver-stop-reminders/domain/driver-stop-reminder.constant.js'
 import type { WhatsAppRouteContinuation } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { GROUP_DELIVERY_STEP } from './whatsapp-group-delivery-flow.service.js'
 import { GROUP_OCCURRENCE_STEP } from './whatsapp-group-occurrence-flow.service.js'
 import { GROUP_STOP_STEP } from './whatsapp-group-stop-flow.service.js'
 import { GROUP_TRIP_CLOSE_STEP } from './whatsapp-group-trip-close-flow.service.js'
+import { GROUP_REMINDER_STEP } from './whatsapp-group-reminder-flow.service.js'
+import type { GroupReminderFlow } from './whatsapp-group-reminder-flow.service.js'
 import { GROUP_RETURN_STEP } from './whatsapp-group-return-flow.service.js'
 import type { createGroupReturnFlow } from './whatsapp-group-return-flow.service.js'
 import type { GroupBoletoResend } from './whatsapp-group-boleto-resend.service.js'
@@ -61,6 +66,7 @@ export const GROUP_DRIVER_STEP = {
   deliveryPrefix: 'delivery.',
   journeyPrefix: 'journey.',
   menu: 'menu',
+  reminderPrefix: 'reminder.',
   returnPrefix: 'return.',
   routePrefix: 'route.',
   stopPrefix: 'stop.',
@@ -75,6 +81,7 @@ export type GroupStepOwner =
   | 'journey'
   | 'menu'
   | 'occurrence'
+  | 'reminder'
   | 'return'
   | 'route'
   | 'stop'
@@ -101,6 +108,12 @@ export const GROUP_STEP_REGISTRY: readonly {
   { owner: 'stop', prefix: GROUP_DRIVER_STEP.stopPrefix, steps: Object.values(GROUP_STOP_STEP) },
   /** O menu das ações da parada (evento repetido, baixa pendente, próxima rota). */
   { owner: 'journey', prefix: GROUP_DRIVER_STEP.journeyPrefix, steps: Object.values(JOURNEY_STEP) },
+  /** Spec 299 RF14: a pergunta do lembrete da parada (1 chegou · 2 entregou · 3 ocorrência · 4 adia). */
+  {
+    owner: 'reminder',
+    prefix: GROUP_DRIVER_STEP.reminderPrefix,
+    steps: Object.values(GROUP_REMINDER_STEP),
+  },
   /** "Não entreguei": o motivo da lista fechada. */
   {
     owner: 'return',
@@ -132,6 +145,13 @@ function ownerOfStep(step: string): GroupStepOwner | undefined {
   return undefined
 }
 
+/** A ação do lembrete que carrega só o número da nota (a chegada leva também a parada). */
+const REMINDER_JOURNEY_KIND = {
+  [REMINDER_ACTION.DELIVERED]: JOURNEY_ACTION.deliver,
+  [REMINDER_ACTION.NOT_DELIVERED]: JOURNEY_ACTION.return,
+  [REMINDER_ACTION.OCCURRENCE]: JOURNEY_ACTION.occurrence,
+} as const
+
 type RouteOfferState = {
   readonly routeOffer?: {
     readonly documentNumber?: string | undefined
@@ -143,30 +163,38 @@ type MenuItem =
   | {
       readonly kind: 'stop'
       readonly event: WhatsAppDriverStopCommandEvent
-      readonly label: string
+      readonly icon: string
+      readonly action: string
     }
-  | { readonly kind: 'deliver'; readonly label: string }
-  | { readonly kind: 'occurrence'; readonly label: string }
+  | { readonly kind: 'deliver'; readonly icon: string; readonly action: string }
+  | { readonly kind: 'return'; readonly icon: string; readonly action: string }
+  | { readonly kind: 'occurrence'; readonly icon: string; readonly action: string }
 
-/** A ordem do menu. T13 acrescenta "Devolvi". */
+/** A ordem do menu (spec 300 RF8: "Não entreguei" é a 4). O ícone só enfeita: a escolha é pelo número ou pelo nome. */
 export const GROUP_DRIVER_MENU: readonly MenuItem[] = [
-  { event: WHATSAPP_DRIVER_STOP_COMMAND.depart, kind: 'stop', label: 'Saí para a entrega' },
-  { event: WHATSAPP_DRIVER_STOP_COMMAND.arrive, kind: 'stop', label: 'Cheguei' },
-  { kind: 'deliver', label: 'Entreguei' },
-  { kind: 'occurrence', label: 'Ocorrência' },
+  {
+    action: 'Saí para a entrega',
+    event: WHATSAPP_DRIVER_STOP_COMMAND.depart,
+    icon: '🚚',
+    kind: 'stop',
+  },
+  { action: 'Cheguei', event: WHATSAPP_DRIVER_STOP_COMMAND.arrive, icon: '📍', kind: 'stop' },
+  { action: 'Entreguei', icon: '✅', kind: 'deliver' },
+  { action: 'Não entreguei', icon: '↩️', kind: 'return' },
+  { action: 'Ocorrência', icon: '⚠️', kind: 'occurrence' },
 ]
 
-const menuOf = (items: readonly MenuItem[]) =>
-  ['O que você quer lançar?', ...items.map((item, index) => `${index + 1}. ${item.label}`)].join(
-    '\n',
-  )
+const MENU_TITLE = '*O que você quer lançar?*'
+const MENU_REPLY_HINT = formatReplyHint('Responda com o número.')
+const MENU_NOT_UNDERSTOOD_REASON = 'Responda com o número da opção:'
 
-const MENU_WITHOUT_DELIVERY = GROUP_DRIVER_MENU.filter((item) => item.kind !== 'deliver')
+const menuOf = (items: readonly MenuItem[]) =>
+  [MENU_TITLE, formatOptions(items), '', MENU_REPLY_HINT].join('\n')
 
 export const GROUP_DRIVER_TEXT = {
   menu: menuOf(GROUP_DRIVER_MENU),
-  /** Sem a entrega em preparo montada (ex.: testes da T12), "Entreguei" não aparece. */
-  menuWithoutDelivery: menuOf(MENU_WITHOUT_DELIVERY),
+  /** O "não entendi" do menu repete só as opções (o `prompt`), sem o título nem a instrução. */
+  notUnderstoodReason: MENU_NOT_UNDERSTOOD_REASON,
 } as const
 
 export function createGroupDriverFlow(flows: {
@@ -175,6 +203,8 @@ export function createGroupDriverFlow(flows: {
   /** Spec 293 T15: ausente, "entreguei" segue para o fluxo de ocorrência como antes. */
   readonly delivery?: ReturnType<typeof createGroupDeliveryFlow>
   readonly occurrence: GroupRequestFlow
+  /** Spec 299 RF14: o passo do lembrete da parada; ausente, a resposta a ele não é atendida. */
+  readonly reminder?: GroupReminderFlow
   /** "Não entreguei"; ausente, o texto segue para o fluxo de ocorrência como antes. */
   readonly return?: ReturnType<typeof createGroupReturnFlow>
   readonly stop: ReturnType<typeof createGroupStopFlow>
@@ -204,7 +234,10 @@ export function createGroupDriverFlow(flows: {
     const { nextStop, tripCompleted } =
       outcome.routeContinuation satisfies WhatsAppRouteContinuation
     if (tripCompleted) {
-      return { kind: 'done', replies: [...outcome.replies, ROUTE_OFFER_TEXT.routeCompleted] }
+      return {
+        kind: 'done',
+        replies: [...outcome.replies, await flows.stop.routeCompletedText(turn)],
+      }
     }
     if (nextStop === null) return { kind: 'done', replies: outcome.replies, withoutFarewell: true }
     const asks = canAskRouteOffer({
@@ -289,11 +322,44 @@ export function createGroupDriverFlow(flows: {
     if (action === undefined) {
       return {
         kind: 'not_understood',
-        prompt: describeJourneyQuestion(actions),
+        prompt: describeJourneyOptions(actions),
         reason: JOURNEY_TEXT.choiceNotUnderstood,
       }
     }
     return runJourneyAction(turn, action)
+  }
+
+  /** Spec 299 RF11: as opções 1–3 do lembrete são os mesmos fluxos de "cheguei", "entreguei", "não entreguei" e ocorrência. */
+  async function answerReminder(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
+    const target = flows.reminder?.readTarget(turn)
+    if (flows.reminder === undefined || target === undefined) return notUnderstoodMenu()
+    // Comando digitado ("cheguei", "entreguei 17234") é um pedido novo, nunca a opção do lembrete.
+    if (isDriverCommand(turn.text)) return flow.start(turn)
+    const action = flows.reminder.pickAction(target, turn.text)
+    if (action === undefined) return flows.reminder.notUnderstood(turn, target)
+    if (action === REMINDER_ACTION.POSTPONE) return flows.reminder.postpone(turn, target)
+    // A escolha de outra parada não depende da nota da parada suposta.
+    if (action === REMINDER_ACTION.CHOOSE_STOP) {
+      return runJourneyAction(turn, { kind: JOURNEY_ACTION.chooseDeparture })
+    }
+    const documentNumber = await flows.reminder.readNoteNumber(turn, target)
+    if (action === REMINDER_ACTION.DEPARTED) {
+      return runJourneyAction(turn, {
+        kind: JOURNEY_ACTION.depart,
+        stopId: target.tripStopId,
+        ...(documentNumber === undefined ? {} : { documentNumber }),
+      })
+    }
+    if (action === REMINDER_ACTION.ARRIVED) {
+      return runJourneyAction(turn, {
+        kind: JOURNEY_ACTION.arrive,
+        stopId: target.tripStopId,
+        ...(documentNumber === undefined ? {} : { documentNumber }),
+      })
+    }
+    if (documentNumber === undefined) return runJourneyAction(turn, { kind: JOURNEY_ACTION.none })
+    const kind = REMINDER_JOURNEY_KIND[action]
+    return runJourneyAction(turn, { documentNumber, kind })
   }
 
   async function answerRouteOffer(turn: GroupFlowTurn): Promise<GroupFlowOutcome> {
@@ -313,16 +379,24 @@ export function createGroupDriverFlow(flows: {
     }
   }
 
-  const menu = delivery === undefined ? MENU_WITHOUT_DELIVERY : GROUP_DRIVER_MENU
-  const menuText =
-    delivery === undefined ? GROUP_DRIVER_TEXT.menuWithoutDelivery : GROUP_DRIVER_TEXT.menu
+  /** Sem a entrega ou a devolução montada (ex.: testes), a opção não aparece em vez de cair em ocorrência. */
+  const menu = GROUP_DRIVER_MENU.filter(
+    (item) =>
+      (item.kind !== 'deliver' || delivery !== undefined) &&
+      (item.kind !== 'return' || returnFlow !== undefined),
+  )
+  const menuText = menuOf(menu)
 
   async function choose(turn: GroupFlowTurn, item: MenuItem): Promise<GroupFlowOutcome> {
     if (item.kind === 'occurrence') return flows.occurrence.start({ ...turn, text: '' })
-    if (item.kind === 'deliver') {
-      return delivery === undefined
-        ? flows.occurrence.start({ ...turn, text: '' })
-        : settleDelivery(turn, withDeliveryPrefix(await delivery.begin(turn, [])))
+    if (item.kind === 'return' && returnFlow !== undefined) {
+      return settleDelivery(turn, withReturnPrefix(await returnFlow.begin(turn, { numbers: [] })))
+    }
+    if (item.kind === 'deliver' && delivery !== undefined) {
+      return settleDelivery(turn, withDeliveryPrefix(await delivery.begin(turn, [])))
+    }
+    if (item.kind === 'return' || item.kind === 'deliver') {
+      return flows.occurrence.start({ ...turn, text: '' })
     }
     return withStopPrefix(await flows.stop.begin(turn, item.event, []))
   }
@@ -333,9 +407,23 @@ export function createGroupDriverFlow(flows: {
   })
   const notUnderstoodMenu = (): GroupFlowOutcome => ({
     kind: 'not_understood',
-    prompt: menuText,
-    reason: 'responda com o número da opção',
+    prompt: formatOptions(menu),
+    reason: GROUP_DRIVER_TEXT.notUnderstoodReason,
   })
+
+  /**
+   * Com o menu aberto, só a frase que diz o que lançar vira pedido direto: comando da rota, número de nota ou
+   * "ocorrência". Conversa solta ("acabei de chegar, já vou fazer aqui") abria a ocorrência e o número digitado
+   * em seguida para o menu escolhia uma nota.
+   */
+  function isDirectRequest(text: string): boolean {
+    if (isDriverCommand(text) || /\d/u.test(text)) return true
+    if (tripClose?.matches(text) === true) return true
+    if ((flows.boletoResend?.interpret(text) ?? null) !== null) return true
+    return normalizeDriverCommandText(text)
+      .split(' ')
+      .some((word) => isWordOf(word, OCCURRENCE_WORDS))
+  }
 
   const flow: GroupRequestFlow = {
     async answer(turn) {
@@ -345,7 +433,9 @@ export function createGroupDriverFlow(flows: {
         case 'menu': {
           // Spec 292 T9: a frase inteira no lugar da opção ("ocorrência, prorrogação do boleto da nota
           // 899877", por texto ou pelo áudio confirmado) vale como o pedido direto, com nota e tipo.
-          if (isFreeSentence(turn.text)) return flow.start(turn)
+          if (isFreeSentence(turn.text)) {
+            return isDirectRequest(turn.text) ? flow.start(turn) : notUnderstoodMenu()
+          }
           const item = pickMenuItem(menu, turn.text)
           return item === undefined ? notUnderstoodMenu() : choose(turn, item)
         }
@@ -358,6 +448,8 @@ export function createGroupDriverFlow(flows: {
           return answerRouteOffer(turn)
         case 'journey':
           return answerJourney(turn)
+        case 'reminder':
+          return answerReminder(turn)
         case 'return': {
           if (returnFlow === undefined) return notUnderstoodMenu()
           const answered = await returnFlow.answer(inner(turn, GROUP_DRIVER_STEP.returnPrefix))
@@ -474,6 +566,7 @@ function pickMenuItem(menu: readonly MenuItem[], text: string): MenuItem | undef
     return menu.find((item) => item.kind === 'stop' && item.event === command.event)
   }
   if (normalized.startsWith('entreg')) return menu.find((item) => item.kind === 'deliver')
+  if (normalized.startsWith('nao entreg')) return menu.find((item) => item.kind === 'return')
   return isWordOf(normalized, OCCURRENCE_WORDS)
     ? menu.find((item) => item.kind === 'occurrence')
     : undefined

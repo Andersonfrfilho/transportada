@@ -93,6 +93,8 @@ jobs:
       # Contrato do watchdog que destranca o deploy (`deploy-watchdog.yml`): sem ele, a única
       # prova de que as travas de segurança valem seria o próprio incidente de produção.
       - run: bun test test/deploy-watchdog.contract.test.ts
+      # As quatro cópias do catálogo de rotinas (api, worker, cron, painel) têm de ser idênticas.
+      - run: bun test test/job-catalog-parity.contract.test.ts
       - name: Conferir a matriz
         run: |
           result='${{ needs.quality-app.result }}'

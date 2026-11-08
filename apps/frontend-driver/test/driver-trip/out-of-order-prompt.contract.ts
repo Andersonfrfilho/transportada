@@ -188,3 +188,39 @@ describe('o diálogo de fora de ordem (RF25/RF27)', () => {
     }
   })
 })
+
+/**
+ * Pedido do dono (06/11): a ordem da rota é sugestão — o motorista segue se achar melhor. A pergunta
+ * é um modal em cobre (a cor de aviso do app), que abre na hora e não diz que o escritório recusou.
+ */
+describe('o aviso de fora de ordem é sugestão, num modal (06/11)', () => {
+  const read = (path: string): Promise<string> =>
+    Bun.file(new URL(`../../${path}`, import.meta.url)).text()
+
+  it('os textos falam em rota sugerida e deixam seguir, sem "recusou" nem "mesmo assim"', () => {
+    const texts = [
+      driverTrip.outOfOrder.title,
+      driverTrip.outOfOrder.withNext,
+      driverTrip.outOfOrder.withCurrent,
+      driverTrip.outOfOrder.generic,
+      driverTrip.outOfOrder.confirm,
+    ].join(' ')
+    expect(driverTrip.outOfOrder.withNext).toContain('sugerida')
+    expect(texts).not.toMatch(/recus|mesmo assim|Quer mesmo/i)
+  })
+
+  it('é modal (foco preso, por cima da tela) em cobre, nunca a faixa vermelha de recusa', async () => {
+    const component = await read(
+      'src/modules/driver-trip/components/DriverOutOfOrderDialog.component.tsx',
+    )
+    expect(component).toContain('useModalDialog')
+    expect(component).toContain('aria-modal="true"')
+    expect(component).toContain('styles.outOfOrderModal')
+    expect(component).not.toContain('rejectedBanner')
+    const css = await read('src/modules/driver-trip/styles/driverTrip.module.css')
+    const backdrop = css.slice(css.indexOf('.outOfOrderBackdrop {'))
+    expect(backdrop.slice(0, backdrop.indexOf('}'))).toContain('position: fixed')
+    const modal = css.slice(css.indexOf('.outOfOrderModal {'))
+    expect(modal.slice(0, modal.indexOf('}'))).toContain('--color-copper')
+  })
+})

@@ -84,6 +84,8 @@ import { vehicleVolumeReferences } from './vehicle-volume-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
 import { companyDriverAllowanceSettings } from './company-driver-allowance-settings.schema.js'
+import { companyDriverReminderSettings } from './company-driver-reminder-settings.schema.js'
+import { driverStopReminders } from './driver-stop-reminder.schema.js'
 import { companyLocationRetentionSettings } from './company-location-retention-settings.schema.js'
 import { companyBusinessCalendarSettings } from './company-business-calendar-settings.schema.js'
 import { municipalHolidayRules } from './municipal-holiday-rule.schema.js'
@@ -223,6 +225,8 @@ import {
 } from './trip.schema.js'
 
 export * from './company-driver-allowance-settings.schema.js'
+export * from './company-driver-reminder-settings.schema.js'
+export * from './driver-stop-reminder.schema.js'
 export * from './company-location-retention-settings.schema.js'
 export * from './company-business-calendar-settings.schema.js'
 export * from './municipal-holiday-rule.schema.js'
@@ -325,6 +329,8 @@ export const databaseSchema = {
   companyDeliveryProofSettings,
   companyDistributionSettings,
   companyDriverAllowanceSettings,
+  companyDriverReminderSettings,
+  driverStopReminders,
   companyLocationRetentionSettings,
   companyBusinessCalendarSettings,
   municipalHolidayRules,

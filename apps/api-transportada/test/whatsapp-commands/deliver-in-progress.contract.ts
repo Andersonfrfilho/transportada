@@ -257,9 +257,9 @@ describe('conversa individual: "entreguei" sem número segue o que está em anda
     const result = await t.command([])
     expect(t.sent).toEqual([
       [
-        'LIST:Toque na nota que você quer entregar.',
-        '[ 899843 · CLIENTE 89… ]',
-        '[ 899844 · CLIENTE 89… ]',
+        'LIST:✅ *Qual nota você entregou?*',
+        '[ NF 899843 · CLIENTE… ]',
+        '[ NF 899844 · CLIENTE… ]',
       ].join('\n'),
     ])
     expect(t.begun).toEqual([])

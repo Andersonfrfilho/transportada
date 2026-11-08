@@ -119,8 +119,8 @@ describe('grupo: o "cheguei" repetido', () => {
     const outcome = await t.start('cheguei')
     expect(outcome).toMatchObject({ kind: 'continue', step: 'journey.actions' })
     const text = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
-    expect(text.split('\n')[0]).toBe('⚠️ *A chegada nesta parada já foi registrada* às 00:28.')
-    expect(text).toContain('*NF 899840*')
+    expect(text.split('\n')[0]).toBe('⚠️ *A chegada na parada 1 já foi registrada* às 00:28.')
+    expect(text).toContain('> 🧾 NF `899840` · *Cliente 899840*')
     expect(text).not.toContain('Qual parada?')
     expect(t.recorded).toEqual([])
   })
@@ -131,7 +131,7 @@ describe('grupo: o "cheguei" repetido', () => {
     expect(await nothing.answer('4')).toEqual({
       kind: 'done',
       replies: [
-        'Certo, não registrei nada.\n➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.',
+        '👍 *Certo, nada foi registrado.*\n➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.',
       ],
     })
     const notDelivered = setup()
@@ -165,9 +165,9 @@ describe('grupo: "saí" com a baixa pendente', () => {
     const warned = await t.start('saí')
     expect(warned).toMatchObject({ kind: 'continue', step: 'journey.actions' })
     const text = warned.kind === 'continue' ? (warned.replies[0] ?? '') : ''
-    expect(text).toContain('⚠️ *Falta a baixa desta parada.*')
+    expect(text.split('\n')[0]).toBe('⚠️ *Falta a baixa da parada 1.*')
     expect(await t.answer('3')).toMatchObject({ kind: 'continue', step: 'stop.choose' })
-    expect(await t.answer('1')).toEqual({ kind: 'done', replies: ['Saída'], withoutFarewell: true })
+    expect(await t.answer('2')).toEqual({ kind: 'done', replies: ['Saída'], withoutFarewell: true })
     expect(t.recorded).toMatchObject([{ confirmOutOfOrder: true, event: 'depart', stopId: 'S2' }])
   })
 })
@@ -255,7 +255,19 @@ describe('grupo: comando digitado com o menu aberto vai ao comando, não à nota
     const outcome = await t.answer('não entreguei 90003')
     expect(outcome).toMatchObject({ kind: 'continue', step: 'return.reason' })
     const text = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
-    expect(text).toContain('NF 90003')
+    expect(text).toBe(
+      [
+        '↩️ *Por que a NF `90003` não foi entregue?*',
+        '',
+        '*1* - 🚪 Destinatário ausente',
+        '*2* - 🙅 Recusou receber',
+        '*3* - 📍 Endereço não achado',
+        '*4* - 📦 Carga avariada',
+        '*5* - 🔒 Local fechado',
+        '',
+        '_Responda com o número do motivo._',
+      ].join('\n'),
+    )
   })
 
   test('"saí" digitado no menu sem a opção de sair segue como comando (avisa a baixa), sem gastar tentativa', async () => {
@@ -264,14 +276,18 @@ describe('grupo: comando digitado com o menu aberto vai ao comando, não à nota
     const outcome = await t.answer('saí')
     expect(outcome).toMatchObject({ kind: 'continue', step: 'journey.actions' })
     const text = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
-    expect(text).toContain('⚠️ *Falta a baixa desta parada.*')
+    expect(text.split('\n')[0]).toBe('⚠️ *Falta a baixa da parada 1.*')
   })
 
-  test('"saí 0090003" com outra parada a caminho não é a saída repetida dela', async () => {
+  test('"saí 0090003" com outra parada a caminho diz que já está a caminho da parada 1 e abre o menu dela (RF9)', async () => {
     const enRoute = [stop('S1', 1, '899840', { enRouteSince: ARRIVED_AT }), stop('S3', 3, '90003')]
     const t = setup(enRoute)
     const outcome = await t.start('saí 0090003')
-    expect(outcome).not.toMatchObject({ step: 'journey.actions' })
+    expect(outcome).toMatchObject({ kind: 'continue', step: 'journey.actions' })
+    const text = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
+    expect(text).toContain('> 🧾 NF `899840` · *Cliente 899840*')
+    expect(text).toContain('*1* - 📍 Cheguei na *parada 1*')
+    expect(t.recorded).toEqual([])
   })
 })
 
@@ -283,7 +299,7 @@ describe('grupo: o bloco da parada é melhor esforço (revisão do #552)', () =>
     const outcome = await t.start('cheguei')
     expect(outcome).toMatchObject({ kind: 'continue', step: 'journey.actions' })
     const text = outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : ''
-    expect(text).toContain('*NF 899840*')
+    expect(text).toContain('> 🧾 NF `899840` · *Cliente 899840*')
   })
 })
 

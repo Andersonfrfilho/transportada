@@ -1,13 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import type { KeyReaderFieldHandle } from '@/components/ui/key-reader-field'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
+import { useBippedNotes } from '../hooks/useBippedNotes.hook'
 import { useTripDocumentLinkDialog } from '../hooks/useTripDocumentLinkDialog.hook'
 import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.service'
 import { AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY } from '../shared/trip.constant'
@@ -16,7 +18,7 @@ import type { LinkDocumentsAfterDispatchResult } from '../shared/tripDocumentLin
 import styles from '../styles/trip.module.css'
 import { TripDocumentLinkOutcome } from './TripDocumentLinkOutcome.component'
 import { TripDocumentSearch } from './TripDocumentSearch.component'
-import { TripQuickNoteInput } from './TripQuickNoteInput.component'
+import { TripBippedNotes } from './TripBippedNotes.component'
 
 type TripLinkDocumentsAfterDispatchDialogProps = Readonly<{
   isOpen: boolean
@@ -49,12 +51,26 @@ export function TripLinkDocumentsAfterDispatchDialog({
 
   /** Nota escolhida pelo campo rápido: a busca remonta para refletir a marcação nova. */
   const [searchEpoch, setSearchEpoch] = useState(0)
+  const readerRef = useRef<KeyReaderFieldHandle>(null)
+  /**
+   * Bipar importa a nota da SEFAZ quando ela ainda não existe (spec 298); nota que está em outra viagem
+   * é oferecida com o aviso de que sai de lá — o servidor faz a troca e registra o evento nas duas.
+   */
+  const bipped = useBippedNotes({
+    allowOtherTrip: true,
+    availableDocuments: documentsQuery.data ?? [],
+    isLoadingDocuments: documentsQuery.isLoading,
+    onStage: (documents) => {
+      dialog.setNfeDocumentIds([
+        ...new Set([...dialog.nfeDocumentIds, ...documents.map((document) => document.id)]),
+      ])
+      setSearchEpoch((current) => current + 1)
+    },
+    refocusReader: () => readerRef.current?.focus(),
+    stagedDocumentIds: dialog.nfeDocumentIds,
+  })
 
   if (!isOpen) return null
-
-  const pickableDocuments = (documentsQuery.data ?? []).filter(
-    (document) => !dialog.nfeDocumentIds.includes(document.id),
-  )
 
   return createPortal(
     <div className={styles.mdfeGateOverlay} onKeyDown={handleKeyDown} role="presentation">
@@ -83,13 +99,7 @@ export function TripLinkDocumentsAfterDispatchDialog({
 
         {dialog.outcome === undefined ? (
           <div className={styles.linkDocumentsBody}>
-            <TripQuickNoteInput
-              documents={pickableDocuments}
-              onPick={(document) => {
-                dialog.setNfeDocumentIds([...dialog.nfeDocumentIds, document.id])
-                setSearchEpoch((current) => current + 1)
-              }}
-            />
+            <TripBippedNotes bipped={bipped} readerRef={readerRef} />
             <TripDocumentSearch
               documents={documentsQuery.data ?? []}
               isLoading={documentsQuery.isLoading}

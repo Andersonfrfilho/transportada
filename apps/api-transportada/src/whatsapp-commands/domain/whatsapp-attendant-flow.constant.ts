@@ -8,6 +8,8 @@
  * ⚠️ O `context` da sessão é jsonb persistido: só ids opacos e o comando interpretado, nunca nome de
  * cliente ou placa.
  */
+import { formatOpenDocumentsLine, formatTripClosed } from './whatsapp-message-format.policy.js'
+
 export const ATTENDANT_FLOW_ACTION_KIND = {
   closeRouter: 'attendant.close_router',
   fieldCommand: 'attendant.field_command',
@@ -24,6 +26,7 @@ export const ATTENDANT_FLOW_NODE = {
 
 export const ATTENDANT_FLOW_CONTEXT_KEY = {
   closeAnswer: 'attendantCloseAnswer',
+  closeOpenNumbers: 'attendantCloseOpenNumbers',
   fieldCommand: 'attendantFieldCommand',
   listPage: 'attendantListPage',
   tripAnswer: 'attendantTripAnswer',
@@ -39,11 +42,8 @@ export const ATTENDANT_TEXT = {
   askNumbers: 'Mande "entreguei" com o número das notas, por exemplo: entreguei 17234 17235.',
   cancelled: 'Certo, a rota continua aberta.',
   closeFailed: 'Não consegui encerrar a rota agora. Confira a viagem no painel.',
-  closed: 'Rota encerrada. ✅',
-  confirm: (openDocumentCount: number) =>
-    openDocumentCount === 0
-      ? 'Todas as notas desta rota já estão fechadas.'
-      : `Ainda ${openDocumentCount === 1 ? 'há 1 nota em aberto' : `há ${openDocumentCount} notas em aberto`} nesta rota.`,
+  closed: formatTripClosed,
+  confirm: formatOpenDocumentsLine,
   noRoadTrips: 'Não há viagem na rua para encerrar.',
   tooManyNotes: (limit: number) => `Mande no máximo ${limit} notas por vez.`,
   tripChoice: 'Toque na viagem que você quer encerrar.',

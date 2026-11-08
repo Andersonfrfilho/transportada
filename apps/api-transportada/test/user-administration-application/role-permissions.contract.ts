@@ -109,6 +109,7 @@ describe('concessão de permissão de serviço', () => {
         'whatsapp.settle',
         'mdfe.auto-issue',
         'trip.canhoto-auto-review',
+        'trip.stop-reminder-dispatch',
         'occurrence.automatic-mail',
         'driver.cnh-picture',
       ],
@@ -122,6 +123,7 @@ describe('concessão de permissão de serviço', () => {
       'permissions.3',
       'permissions.4',
       'permissions.5',
+      'permissions.6',
     ])
   })
 

@@ -37,6 +37,12 @@ import { DriverCanhotoReplaceDialog } from '../components/DriverCanhotoReplaceDi
 import { DriverOutOfOrderDialog } from '../components/DriverOutOfOrderDialog.component'
 import { resolveCanhotoReplacePrompt } from '../shared/canhotoReplacePrompt.service'
 import { resolveOutOfOrderPrompt } from '../shared/outOfOrderPrompt.service'
+import { resolveRejectionCauseCode } from '../shared/rejectionCauseLabel.service'
+import {
+  formatDocumentNumbers,
+  listUnloadedDocumentNumbers,
+  UNLOADED_DOCUMENTS_CODE,
+} from '../shared/unloadedDocuments.service'
 import { DriverFieldReportNotice } from '../components/DriverFieldReportNotice.component'
 import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
@@ -782,6 +788,13 @@ export function DriverTripWorkspacePage() {
   )
   const isDispatchQueued = dispatchItems.some((item) => item.status.state !== 'rejected')
   const isDispatchRejected = dispatchItems.some((item) => item.status.state === 'rejected')
+  /** A recusa por nota não carregada não se resolve tocando de novo: só o escritório destrava. */
+  const isDispatchRejectedByUnloaded = dispatchItems.some(
+    (item) =>
+      item.status.state === 'rejected' &&
+      resolveRejectionCauseCode(item.status.cause) === UNLOADED_DOCUMENTS_CODE,
+  )
+  const unloadedDocumentNumbers = trip === undefined ? [] : listUnloadedDocumentNumbers(trip.stops)
   const dispatchState =
     trip === undefined ? undefined : resolveDispatchState({ isDispatchQueued, trip })
   const isTripAwaitingDispatch = dispatchState?.isAwaiting ?? false
@@ -917,6 +930,14 @@ export function DriverTripWorkspacePage() {
         {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
         {dispatchState?.canDispatch === true && trip !== undefined ? (
           <div className={styles.actions}>
+            {unloadedDocumentNumbers.length > 0 ? (
+              <p className={styles.alert} role="status">
+                {t('dispatch.unloaded', {
+                  count: unloadedDocumentNumbers.length,
+                  notes: formatDocumentNumbers(unloadedDocumentNumbers),
+                })}
+              </p>
+            ) : null}
             <Button onClick={() => dispatchTrip(trip.id)} type="button">
               <Icon name="check" />
               {t('dispatch.start')}
@@ -933,7 +954,7 @@ export function DriverTripWorkspacePage() {
         ) : null}
         {isDispatchRejected ? (
           <p className={styles.alert} role="alert">
-            {t('dispatch.failed')}
+            {t(isDispatchRejectedByUnloaded ? 'dispatch.failedUnloaded' : 'dispatch.failed')}
           </p>
         ) : null}
 

@@ -3,11 +3,12 @@
  *
  * Spec 248 T4.10: a migration do alerta do retorno vencido amplia as mesmas CHECK de `job` que as anteriores
  * restauram no rollback delas; ela sai primeiro (ordem inversa), senão a CHECK antiga recusaria a linha do
- * relógio. Só desfaz se ainda estiver no journal, então chamar de novo não faz nada.
+ * relógio. A dos lembretes do motorista (spec 299 T1.2) veio depois e sai antes. Só desfaz se ainda estiver no journal, então chamar de novo não faz nada.
  */
 import type { SQL } from 'bun'
 import { join } from 'node:path'
 
+import { rollbackDriverStopRemindersIfApplied } from './driver-stop-reminders-rollback.assertion.js'
 import { migrationsDirectory, readMigrationNames } from './support.js'
 
 const MIGRATION_SUFFIX = '_occurrence_contractor_reply_alert_job'
@@ -19,6 +20,8 @@ export async function rollbackContractorReplyAlertJobIfApplied(
   const directory = directories.find((name) => name.endsWith(MIGRATION_SUFFIX))
   if (directory === undefined) return
   if (!(await readMigrationNames(database)).includes(directory)) return
+
+  await rollbackDriverStopRemindersIfApplied(database, directories)
 
   await database.unsafe(
     await Bun.file(join(migrationsDirectory.pathname, directory, 'rollback.sql')).text(),

@@ -147,7 +147,9 @@ describe('a mesma imagem já era canhoto (spec 294 RF26)', () => {
     const t = setup({ duplicateOf: 'DOC-A' })
     await t.begin()
     const reply = await t.photo('M1')
-    expect(reply?.texts).toEqual(['Esse canhoto já tinha chegado: NF 17234, entregue às 11:32.'])
+    expect(reply?.texts).toEqual([
+      '🔁 *Esse canhoto já tinha chegado.*\nNF `17234`, entregue às 11:32. Nada foi gravado de novo.',
+    ])
     expect(t.rows.get('P1')?.photos).toEqual([])
     expect(t.removed).toEqual(['P1/0'])
   })
@@ -156,21 +158,25 @@ describe('a mesma imagem já era canhoto (spec 294 RF26)', () => {
     const t = setup({ duplicateOf: 'DOC-B' })
     await t.begin()
     const reply = await t.photo('M1')
-    expect(reply?.texts[0]).toBe('Esse canhoto já tinha chegado: NF 17300, entregue às 11:32.')
+    expect(reply?.texts[0]).toBe(
+      '🔁 *Esse canhoto já tinha chegado.*\nNF `17300`, entregue às 11:32. Nada foi gravado de novo.',
+    )
   })
 
   test('nota que a viagem não conhece: fica sem o número', async () => {
     const t = setup({ duplicateOf: 'DOC-X' })
     await t.begin()
     const reply = await t.photo('M1')
-    expect(reply?.texts[0]).toBe('Esse canhoto já tinha chegado, entregue às 11:32.')
+    expect(reply?.texts[0]).toBe(
+      '🔁 *Esse canhoto já tinha chegado.*\nEntregue às 11:32. Nada foi gravado de novo.',
+    )
   })
 
   test('imagem nova segue o caminho de sempre', async () => {
     const t = setup({ duplicateOf: null })
     await t.begin()
     const reply = await t.photo('M1')
-    expect(reply?.texts[0]).toBe('Foto do canhoto recebida.')
+    expect(reply?.texts[0]).toBe('✅ _Canhoto recebido._')
     expect(t.rows.get('P1')?.photos).toHaveLength(1)
   })
 })
@@ -198,8 +204,9 @@ describe('outra foto de nota que já tem canhoto (spec 294 RF26)', () => {
     const asked = await reachConfirm(t)
     expect(asked).toMatchObject({ awaitingText: true, finished: false })
     expect(asked?.texts).toEqual([CANHOTO_TEXT.replaceQuestion('17300')])
-    expect(asked?.texts[0]).toContain('*1* - Trocar o canhoto (vai para conferência do escritório)')
-    expect(asked?.texts[0]).toContain('*2* - Descartar')
+    expect(asked?.texts[0]).toBe(
+      '⚠️ *A NF `17300` já tem um canhoto diferente deste.*\n\n*1* - 🔄 Trocar o canhoto _(vai para conferência do escritório)_\n*2* - 🗑️ Descartar esta foto',
+    )
     expect(t.rows.get('P1')?.status).toBe('open')
     expect(t.rows.get('P1')?.awaiting).toBe('replace_canhoto')
   })
@@ -247,10 +254,10 @@ describe('outra foto de nota que já tem canhoto (spec 294 RF26)', () => {
 describe('o texto do canhoto repetido', () => {
   test('hora em Brasília, com e sem número da nota', () => {
     expect(CANHOTO_TEXT.duplicate({ attachedAt: ATTACHED_AT, documentNumber: '17234' })).toBe(
-      'Esse canhoto já tinha chegado: NF 17234, entregue às 11:32.',
+      '🔁 *Esse canhoto já tinha chegado.*\nNF `17234`, entregue às 11:32. Nada foi gravado de novo.',
     )
     expect(CANHOTO_TEXT.duplicate({ attachedAt: ATTACHED_AT })).toBe(
-      'Esse canhoto já tinha chegado, entregue às 11:32.',
+      '🔁 *Esse canhoto já tinha chegado.*\nEntregue às 11:32. Nada foi gravado de novo.',
     )
   })
 })

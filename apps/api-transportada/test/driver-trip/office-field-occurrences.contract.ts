@@ -98,6 +98,7 @@ function unitOfWork(world: World): RegisterOfficeDocumentOccurrencesParams['unit
       const attachmentUploads = [...world.attachmentUploads]
       const audits = [...world.audits]
       const transaction: OfficeOccurrenceBatchTransactionPort = {
+        onStopEvent: () => Promise.resolve(),
         async claim(input): Promise<FieldReportClaim> {
           const existing = claims.get(input.idempotencyKey)
           if (existing !== undefined) return { ...existing, claimed: false }

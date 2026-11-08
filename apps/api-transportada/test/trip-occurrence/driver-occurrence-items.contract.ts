@@ -25,7 +25,6 @@ const TYPE_ID = '00000000-0000-4000-8000-0000000000e1'
 const ITEMS_FIELD = 'items'
 const DECLARED_AMOUNT_FIELD = 'declaredAmount'
 const REFERENCE_NUMBER_FIELD = 'referenceNumber'
-const USE_THE_APP = 'Registre pelo aplicativo.'
 
 describe('onde se digita o valor pago (resolveDeclaredAmountTarget)', () => {
   test.each([
@@ -307,10 +306,25 @@ describe('resolvedor único: os dois modos novos têm exceção; escopo e rótul
 
 describe('WhatsApp: as recusas novas mandam para o aplicativo', () => {
   test.each([
-    new TripOccurrenceReferenceNumberRequiredError(),
-    new TripOccurrenceDeclaredAmountRequiredError(DECLARED_AMOUNT_FIELD),
-    new OccurrenceItemQuantityAboveDocumentError('items[0].quantity'),
-  ])('%p', (error) => {
-    expect(describeOccurrenceRequirementRefusal(error)?.message).toContain(USE_THE_APP)
+    [
+      new TripOccurrenceReferenceNumberRequiredError(),
+      'Essa ocorrência pede o número do documento do cliente, e o WhatsApp não o envia.',
+    ],
+    [
+      new TripOccurrenceDeclaredAmountRequiredError(DECLARED_AMOUNT_FIELD),
+      'Essa ocorrência pede o valor pago e as quantidades, e o WhatsApp não os envia.',
+    ],
+    [
+      new OccurrenceItemQuantityAboveDocumentError('items[0].quantity'),
+      'Essa ocorrência pede o valor pago e as quantidades, e o WhatsApp não os envia.',
+    ],
+  ])('%p', (error, reason) => {
+    expect(describeOccurrenceRequirementRefusal(error)?.message).toBe(
+      [
+        '📱 *Esta ocorrência é registrada pelo aplicativo.*',
+        reason,
+        '➡️ _Próximo passo:_ abra o app e toque em *Ocorrência*.',
+      ].join('\n'),
+    )
   })
 })

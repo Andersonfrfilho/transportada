@@ -18,6 +18,7 @@ import type {
   OfficeOccurrenceBatchTransactionPort,
   OfficeOccurrenceBatchUnitOfWork,
 } from '../application/register-office-document-occurrences.use-case.js'
+import type { DriverStopReminderRuntime } from '../../driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
 import { findOccurrenceType, saveTripOccurrence } from './delivery-proof-read.support.js'
 import { PROOF_REACHABLE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
 import { DrizzleDriverFieldReportTransaction } from './drizzle-driver-field-report.repository.js'
@@ -37,15 +38,23 @@ export class DrizzleOfficeOccurrenceBatchUnitOfWork implements OfficeOccurrenceB
   public constructor(
     private readonly database: Database,
     private readonly bucket: string,
+    private readonly reminders?: DriverStopReminderRuntime,
   ) {}
 
   public execute<TResult>(
     operation: (transaction: OfficeOccurrenceBatchTransactionPort) => Promise<TResult>,
   ): Promise<TResult> {
     return this.database.transaction((transaction) => {
-      const fieldReports = new DrizzleDriverFieldReportTransaction(transaction, this.bucket)
+      /** A ocorrência só fecha lembretes (nunca abre), então não há refinamento depois do commit. */
+      const fieldReports = new DrizzleDriverFieldReportTransaction(
+        transaction,
+        this.bucket,
+        undefined,
+        { openedReminders: [], sink: this.reminders?.createEventSink(transaction) },
+      )
       return operation({
         claim: (input) => fieldReports.claim(input),
+        onStopEvent: (input) => fieldReports.onStopEvent(input),
         findDocumentOccurrence: (input) => findDocumentOccurrence(transaction, input),
         findDriverLockingOccurrence: (input) => findDriverLockingOccurrence(transaction, input),
         findOccurrenceType: (input) => findOccurrenceType(transaction, input),

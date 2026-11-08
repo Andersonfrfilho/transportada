@@ -116,7 +116,12 @@ const SEVEN_NOTES = [
   stopOf('S5', 5, ['899845', '899846']),
 ]
 
-const PHOTO_QUESTION = '📸 *NF 899840:* mande a foto do canhoto assinado.'
+const PHOTO_QUESTION = [
+  '📸 *NF `899840` · foto do canhoto*',
+  'Mande a foto do canhoto assinado.',
+  '',
+  '_Falta 1 item._',
+].join('\n')
 
 describe('grupo: "entreguei" sem número segue o que está em andamento', () => {
   test('entrega em preparo aberta (o pedido venceu): retoma a NF e repete a pergunta da foto', async () => {
@@ -126,7 +131,7 @@ describe('grupo: "entreguei" sem número segue o que está em andamento', () => 
     expect(await t.flow.start(t.turn('entreguei'))).toEqual({
       kind: 'continue',
       // Uma mensagem só: o Evolution espaça as mensagens, e a pergunta separada chegava depois da resposta seguinte.
-      replies: [`↩️ *Continuando a entrega da NF 899840.*\n${PHOTO_QUESTION}`],
+      replies: [`↩️ *Continuando a entrega da NF \`899840\`.*\n${PHOTO_QUESTION}`],
       state: {},
       step: 'delivery.answer',
     })
@@ -141,8 +146,9 @@ describe('grupo: "entreguei" sem número segue o que está em andamento', () => 
           '*Parada 1*',
           '*NF 899840*',
           '🏪 *CLIENTE 899840*',
-          '⚠️ *NF 899840 ainda não fechou.* Falta: foto do canhoto.',
-          '📍 *NF 899840:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+          '📍 *NF `899840` · localização*',
+          'Se puder, compartilhe a localização da entrega (clipe 📎 → Localização).',
+          '_Falta 1 item. Se não tiver, responda pular._',
         ].join('\n'),
       ],
       state: {},
@@ -165,7 +171,14 @@ describe('grupo: "entreguei" sem número segue o que está em andamento', () => 
     expect(await t.flow.start(t.turn('entreguei'))).toEqual({
       kind: 'continue',
       replies: [
-        'Qual nota você entregou? Responda com o número da nota:\n1. NF 899843 · CLIENTE 899843\n2. NF 899844 · CLIENTE 899844',
+        [
+          '✅ *Qual nota você entregou?*',
+          '',
+          '*1* - 🧾 NF `899843` · *CLIENTE 899843*',
+          '*2* - 🧾 NF `899844` · *CLIENTE 899844*',
+          '',
+          '_Responda com o número da opção ou da nota._',
+        ].join('\n'),
       ],
       state: {
         documents: [
@@ -197,8 +210,11 @@ describe('grupo: "entreguei" sem número segue o que está em andamento', () => 
     expect(await t.flow.start(t.turn('entreguei 899845'))).toMatchObject({
       kind: 'continue',
       replies: [
-        '⚠️ *NF 899845 ainda não fechou.* Falta: foto do canhoto.',
-        '📍 *NF 899845:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+        [
+          '📍 *NF `899845` · localização*',
+          'Se puder, compartilhe a localização da entrega (clipe 📎 → Localização).',
+          '_Falta 1 item. Se não tiver, responda pular._',
+        ].join('\n'),
       ],
       step: 'delivery.answer',
     })
@@ -219,7 +235,7 @@ describe('grupo: "cancelar" fecha a pergunta da entrega, nunca vira resposta', (
     await t.preparations.answer('pular')
     expect(await t.flow.cancel?.(t.turn('cancelar', 'delivery.answer'))).toEqual({
       kind: 'done',
-      replies: ['Entrega da NF 899840 cancelada. A nota continua aberta na viagem.'],
+      replies: ['↩️ *Entrega da NF `899840` cancelada.* A nota continua aberta na viagem.'],
     })
     expect(t.preparations.status()).toEqual(['cancelled'])
     expect(t.preparations.delivered).toEqual([])

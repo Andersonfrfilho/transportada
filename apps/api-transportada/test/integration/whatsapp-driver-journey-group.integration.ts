@@ -8,6 +8,7 @@
  * baixa, a oferta da próxima rota (1 e 2), fora de ordem, "não entreguei", "cancelar", nota já baixada e áudio.
  * Confere o texto exato de cada resposta, a marcação do WhatsApp e os eventos gravados.
  */
+import { createDeliveryConfirmNoteReader } from '../../src/whatsapp-commands/infrastructure/whatsapp-delivery-confirm-note.adapter.js'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
@@ -65,6 +66,7 @@ import { createWhatsAppTurnReplies } from '../../src/whatsapp-commands/applicati
 import { createGroupDeliveryWiring } from '../../src/whatsapp/infrastructure/whatsapp-group-delivery.adapter.js'
 import { createGroupReturnPorts } from '../../src/whatsapp/infrastructure/whatsapp-group-return.adapter.js'
 import { createGroupStopPorts } from '../../src/whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
+import { createWhatsAppRouteClosingReader } from '../../src/whatsapp-commands/infrastructure/whatsapp-route-closing.reader.js'
 import { botFarewell, botGreeting } from '../../src/whatsapp/domain/bot-greeting.policy.js'
 import { formatBotClock } from '../../src/whatsapp-commands/domain/whatsapp-stop-card.policy.js'
 import { withDisposableDatabase } from '../fixtures/disposable-database.fixture.js'
@@ -166,17 +168,20 @@ async function buildGroupJourney(db: JourneyDatabase, world: JourneyWorld, now: 
       throw new Error('a jornada não manda foto')
     },
     deliver: (input) => deliverWhatsAppDriverDocument(ports, input),
-    describeResult: ({ channel, companyId, documentNumber, result }) =>
+    describeDocument: createDeliveryConfirmNoteReader({ database: db, listActiveTrips }),
+    describeResult: ({ channel, companyId, documentNumber, result, stopSequence }) =>
       renderBotSpeechLine({
         companyId,
         line: describeWhatsAppDriverEventResult(result, {
           documentNumber,
           kind: channel === 'group' ? 'group' : 'driver',
+          ...(stopSequence === undefined ? {} : { stopSequence }),
         }),
         speech: CATALOG_BOT_SPEECH,
       }),
     logger,
     media: { read: async () => new Uint8Array(), write: async () => 'key' } as never,
+    listStops: async (input) => (await listActiveTrips(input)).flatMap((trip) => trip.stops),
     repository: createDrizzleWhatsAppDeliveryPreparationRepository(db),
     resolveSettings: (query) => proofs.resolveProofFieldSettings(query),
   })
@@ -225,6 +230,7 @@ async function buildGroupJourney(db: JourneyDatabase, world: JourneyWorld, now: 
         logger,
         ports,
         resolveSenderRole: crew,
+        routeClosing: createWhatsAppRouteClosingReader({ database: db, logger }),
         stopCards,
       }),
     ),
@@ -453,14 +459,29 @@ describe('"@bot entreguei" sem número segue a entrega em andamento (defeito de 
   )
 })
 
-const STOP_1_CARD = [
-  '*Parada 1 de 3*',
-  '*NF 17234* · R$ 1.234,56',
-  '🏪 *PADARIA SOL NASCENTE*',
-  '🏢 Contratante: Distribuidora Aurora',
-  '📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
-  '🗺️ https://www.google.com/maps/search/?api=1&query=-21.1700000,-47.8100000',
-]
+const LOCATION_ASK =
+  '📍 *Mande sua localização* para medir a distância até a parada.\nClipe 📎 → Localização → Enviar localização atual.\n_Se não puder agora, responda pular._'
+
+const LIST_OF_THREE = [
+  '🚚 *Para qual parada você saiu?*',
+  '',
+  '> 👉 *PARADA 1 de 3* · _próxima da rota_',
+  '> 🧾 NF `17234` · *PADARIA SOL NASCENTE*',
+  '> 📍 Ribeirao Preto',
+  '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+  '',
+  '*PARADA 2 de 3*',
+  '🧾 NF `17235` · *MERCADO LUA CHEIA*',
+  '📍 Ribeirao Preto',
+  '🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99',
+  '',
+  '*PARADA 3 de 3*',
+  '🧾 NF `17236` · *ACOUGUE ESTRELA*',
+  '📍 Ribeirao Preto',
+  '🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.34,-47.73',
+  '',
+  '_Responda com o número da parada ou da nota._',
+].join('\n')
 
 function resumeJourneySteps(input: { readonly at: string; readonly greeting: string }): readonly {
   readonly expected: { readonly answered: readonly string[]; readonly shown: string }
@@ -470,13 +491,13 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
   const { at, greeting } = input
   const text = (value: string) => ({ shown: value, text: value })
   const cancelled =
-    'Pedido cancelado, não registrei nada.\n➡️ _Próximo passo:_ quando quiser, marque o bot de novo.'
+    '↩️ *Pedido cancelado.* Nada foi registrado.\n➡️ _Próximo passo:_ quando quiser, marque o bot de novo.'
   return [
     {
       // Nada em andamento: a lista da viagem inteira, como antes.
       expected: {
         answered: [
-          `${greeting}\n\nQual nota você entregou? Responda com o número da nota:\n1. NF 17234 · PADARIA SOL NASCENTE\n2. NF 17235 · MERCADO LUA CHEIA\n3. NF 17236 · ACOUGUE ESTRELA`,
+          `${greeting}\n\n✅ *Qual nota você entregou?*\n\n*1* - 🧾 NF \`17234\` · *PADARIA SOL NASCENTE* · Ribeirao Preto\n*2* - 🧾 NF \`17235\` · *MERCADO LUA CHEIA* · Ribeirao Preto\n*3* - 🧾 NF \`17236\` · *ACOUGUE ESTRELA* · Ribeirao Preto\n\n_Responda com o número da opção ou da nota._`,
         ],
         shown: '@bot entreguei',
       },
@@ -489,16 +510,14 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
     },
     {
       expected: {
-        answered: [
-          `${greeting}\n\n*Qual parada?* _Responda com o número da opção ou da nota:_\n*1* - NF 17234 · PADARIA SOL NASCENTE\n*2* - NF 17235 · MERCADO LUA CHEIA\n*3* - NF 17236 · ACOUGUE ESTRELA`,
-        ],
+        answered: [`${greeting}\n\n${LIST_OF_THREE}`],
         shown: '@bot iniciar rota',
       },
       send: text('@bot iniciar rota'),
     },
     {
       expected: {
-        answered: ['📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_'],
+        answered: [LOCATION_ASK],
         shown: '1',
       },
       send: text('1'),
@@ -507,9 +526,16 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
       expected: {
         answered: [
           [
-            '*Saída registrada* 🚚',
-            ...STOP_1_CARD,
-            '📦 3 volumes',
+            `🚚 *Saída registrada* · ${at}`,
+            '',
+            '> *PARADA 1 de 3*',
+            '> 🧾 NF `17234` · *PADARIA SOL NASCENTE*',
+            '> 🏢 Contratante: Distribuidora Aurora',
+            '> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
+            '> 📦 3 volumes',
+            '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+            '> 💰 Valor da nota: *R$ 1.234,56*',
+            '',
             '➡️ _Próximo passo:_ quando chegar, mande *cheguei*.',
           ].join('\n'),
         ],
@@ -519,7 +545,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
     },
     {
       expected: {
-        answered: [`${greeting}\n\n📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_`],
+        answered: [`${greeting}\n\n${LOCATION_ASK}`],
         shown: '@bot cheguei',
       },
       send: text('@bot cheguei'),
@@ -528,11 +554,19 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
       expected: {
         answered: [
           [
-            '*Chegada registrada* 📍',
-            ...STOP_1_CARD,
-            '📦 3 volumes para entregar',
-            '➡️ _Próximo passo:_ depois da entrega, mande a foto do canhoto, ou *não entreguei*.',
-            '🔜 _Depois desta:_ *NF 17235* · MERCADO LUA CHEIA – SERTAOZINHO',
+            `📍 *Chegada registrada* · ${at}`,
+            '',
+            '> *PARADA 1 de 3*',
+            '> 🧾 NF `17234` · *PADARIA SOL NASCENTE*',
+            '> 🏢 Contratante: Distribuidora Aurora',
+            '> 📍 RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
+            '> 📦 3 volumes',
+            '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
+            '> 💰 Valor da nota: *R$ 1.234,56*',
+            '',
+            '🔜 *Depois desta:* parada 2 · MERCADO LUA CHEIA – Ribeirao Preto',
+            '',
+            '➡️ _Próximo passo:_ depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.',
           ].join('\n'),
         ],
         shown: 'pular',
@@ -545,15 +579,18 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
           [
             `${greeting}`,
             '',
-            `⚠️ *A chegada nesta parada já foi registrada* às ${at}.`,
-            ...STOP_1_CARD,
-            '📦 3 volumes',
+            `⚠️ *A chegada na parada 1 já foi registrada* às ${at}.`,
+            '',
+            '> *PARADA 1 de 3*',
+            '> 🧾 NF `17234` · *PADARIA SOL NASCENTE*',
+            '> 📍 Ribeirao Preto',
+            '> 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.17,-47.81',
             '',
             '*O que você quer fazer agora?*',
-            '*1* - Entreguei _(mande a foto do canhoto)_',
-            '*2* - Não entreguei',
-            '*3* - Abrir ocorrência',
-            '*4* - Nada por enquanto',
+            '*1* - ✅ Entreguei _(mande a foto do canhoto)_',
+            '*2* - ↩️ Não entreguei',
+            '*3* - ⚠️ Abrir ocorrência',
+            '*4* - 💤 Nada por enquanto',
           ].join('\n'),
         ],
         shown: '@bot cheguei',
@@ -563,7 +600,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
     {
       expected: {
         answered: [
-          '⚠️ *NF 17234 ainda não fechou.* Falta: foto do canhoto.\n\n📍 *NF 17234:* se puder, compartilhe a localização da entrega (clipe 📎 → Localização). _Se não tiver, responda pular._',
+          '📍 *NF `17234` · localização*\nSe puder, compartilhe a localização da entrega (clipe 📎 → Localização).\n_Falta 1 item. Se não tiver, responda pular._',
         ],
         shown: '1',
       },
@@ -571,7 +608,9 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
     },
     {
       expected: {
-        answered: [`Localização recebida.\n\n📸 *NF 17234:* mande a foto do canhoto assinado.`],
+        answered: [
+          '📍 _Localização recebida._\n\n📸 *NF `17234` · foto do canhoto*\nMande a foto do canhoto assinado.\n\n_Falta 1 item._',
+        ],
         shown: '📍 (localização)',
       },
       send: { media: LOCATION_S1, shown: '📍 (localização)' },
@@ -581,7 +620,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
       expected: {
         answered: [
           // UMA mensagem: o aviso e a pergunta pendente (o defeito de staging mandava a pergunta só no turno seguinte).
-          `${greeting}\n\n↩️ *Continuando a entrega da NF 17234.*\n📸 *NF 17234:* mande a foto do canhoto assinado.`,
+          `${greeting}\n\n↩️ *Continuando a entrega da NF \`17234\`.*\n📸 *NF \`17234\` · foto do canhoto*\nMande a foto do canhoto assinado.\n\n_Falta 1 item._`,
         ],
         shown: '@bot entreguei',
       },
@@ -640,7 +679,7 @@ function groupJourneySteps(world: JourneyWorld): readonly JourneyStep[] {
     text('cancelar'),
     text('@bot entreguei 17234'),
     text('2'),
-    text('2'),
+    text('3'),
     text('pular'),
     text('1'),
     text('@bot cheguei'),

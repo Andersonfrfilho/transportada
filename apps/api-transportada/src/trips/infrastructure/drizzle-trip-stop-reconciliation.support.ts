@@ -4,6 +4,8 @@
 import { and, eq } from 'drizzle-orm'
 
 import { tripDocuments, tripStops } from '../../database/trip.schema.js'
+import { logStopRemindersRemovedWithStop } from '../../driver-stop-reminders/infrastructure/log-stop-reminders-removed-with-stop.persistence.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import type { TripStopReconciliationPort } from '../application/reconcile-trip-stops.use-case.js'
 import type { TripTransaction } from './trip-queryable.type.js'
 
@@ -11,6 +13,7 @@ import type { TripTransaction } from './trip-queryable.type.js'
  * caminho que reconcilia parada (vínculo/desvínculo de nota, T007; desvio de endereço, T010b). */
 export function createTripStopReconciliationPort(
   transaction: TripTransaction,
+  logger?: ApiLogger,
 ): TripStopReconciliationPort {
   return {
     async countLiveDocumentsAtStop(input) {
@@ -37,6 +40,7 @@ export function createTripStopReconciliationPort(
       return { addressKey: created.addressKey, id: created.id, sequence: created.sequence }
     },
     async deleteStop(input) {
+      await logStopRemindersRemovedWithStop(transaction, { ...input, logger })
       await transaction
         .delete(tripStops)
         .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, input.stopId)))

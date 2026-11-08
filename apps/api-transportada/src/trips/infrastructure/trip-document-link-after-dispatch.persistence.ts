@@ -37,6 +37,8 @@ import type { TripTransaction } from './trip-queryable.type.js'
 export async function applyTripDocumentLinkAfterDispatch(
   transaction: TripTransaction,
   params: LinkTripDocumentsAfterDispatchParams,
+  /** Notas movidas de outra viagem nesta transação: nota → viagem de origem. */
+  movedFrom: ReadonlyMap<string, string> = new Map(),
 ): Promise<LinkTripDocumentsAfterDispatchResult | null> {
   const tripStatus = await lockTripAndCheckWindow(transaction, params)
   if (tripStatus === null) return null
@@ -84,8 +86,10 @@ export async function applyTripDocumentLinkAfterDispatch(
   }
 
   await recordLoadedEvents(transaction, {
+    movedFrom,
     params,
     tripDocumentIds: linked.map((document) => document.tripDocumentId),
+    tripDocumentNfeIds: linked.map((document) => document.nfeDocumentId),
   })
   await touchTrip(transaction, params)
   await closePendingReviewsOnLink(transaction, {

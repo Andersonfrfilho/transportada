@@ -432,6 +432,10 @@
         "label": "Leitura automática de canhoto",
         "where": "Só do serviço: o robô que lê o canhoto, sem tela. Nenhuma pessoa recebe."
       },
+      "trip.stop-reminder-dispatch": {
+        "label": "Entrega do lembrete ao motorista",
+        "where": "Só do serviço: o robô que cobra o motorista na hora certa, sem tela. Nenhuma pessoa recebe."
+      },
       "occurrence.automatic-mail": {
         "label": "Aviso automático de ocorrência",
         "where": "Só do serviço: o robô que envia o aviso à contratante, sem tela. Nenhuma pessoa recebe."

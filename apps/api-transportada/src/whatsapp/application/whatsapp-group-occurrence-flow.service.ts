@@ -17,7 +17,13 @@
  *   até a coleta terminar. Assinatura e produtos continuam só no app e voltam com a frase do campo.
  * - Sem valor no texto do grupo: a nota vai pelo número.
  */
+import { DRIVER_LIST_HEADING } from '../../whatsapp-commands/domain/whatsapp-driver-list-heading.constant.js'
 import { formatSpokenNoteAmount } from '../domain/bot-spoken-note.policy.js'
+import { formatBotClock } from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
+import {
+  formatOptions,
+  NOTHING_RECORDED_TEXT,
+} from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
 import type {
   GroupFlowOutcome,
   GroupFlowTurn,
@@ -188,50 +194,56 @@ export type GroupOccurrenceFlowPorts = {
 export const GROUP_OCCURRENCE_TEXT = {
   askContact: (channels: readonly GroupClientContactChannel[]) =>
     [
-      `📇 Para já enviarmos o boleto ao cliente, me passe ${describeChannels(channels)} dele.`,
-      '',
-      'Sem o contato agora? Responda _continuar_ e o boleto volta aqui pelo grupo.',
+      '📇 *Contato do cliente para o boleto*',
+      `Me passe ${describeChannels(channels)} dele.`,
+      '_Sem contato agora? Responda continuar e o boleto volta aqui pelo grupo._',
     ].join('\n'),
   askContactAgain: (known: boolean) =>
     known
-      ? 'Responda *1* para usar o contato cadastrado, ou _continuar_ para o boleto voltar pelo grupo.'
-      : 'Se não tiver agora, responda _continuar_ e o boleto volta pelo grupo.',
+      ? '_Responda 1 para usar este contato, ou continuar para o boleto voltar pelo grupo._'
+      : '_Se não tiver agora, responda continuar e o boleto volta pelo grupo._',
   askContactKnown: (contacts: readonly GroupClientContact[]) =>
     [
-      '📇 O cliente já tem contato cadastrado:',
-      ...contacts.map((contact) => `• *${contact.addressMasked}*`),
+      '📇 *Contato do cliente para o boleto*',
+      'O cliente já tem este contato:',
+      ...contacts.map((contact) => `> 📱 *${contact.addressMasked}*`),
       '',
-      '*1* - Usar este contato',
-      'Ou digite outro (telefone com DDD ou e-mail)',
-      'Ou responda _continuar_ para seguir sem contato: nesse caso o boleto volta aqui pelo grupo.',
+      formatOptions([{ action: 'Usar este contato', icon: '✅' }]),
+      'Ou escreva outro telefone com DDD ou e-mail.',
+      '_Sem contato agora? Responda continuar e o boleto volta aqui pelo grupo._',
     ].join('\n'),
-  askDocument: (documents: readonly GroupDriverDocument[]) =>
-    [
-      '📄 Em qual nota? Responda com o número da opção ou da nota:',
+  askDocument: (documents: readonly GroupDriverDocument[]) => {
+    const shown = documents.slice(0, GROUP_DOCUMENT_LIST_LIMIT)
+    const overflow = documents.length - shown.length
+    return [
+      DRIVER_LIST_HEADING.occurrenceDocument,
       '',
-      ...documents
-        .slice(0, GROUP_DOCUMENT_LIST_LIMIT)
-        .map((document, index) => `*${index + 1}* - NF ${document.number}`),
-      ...(documents.length > GROUP_DOCUMENT_LIST_LIMIT
-        ? [
-            '',
-            `E mais ${documents.length - GROUP_DOCUMENT_LIST_LIMIT} nota(s): digite o *número da nota*.`,
-          ]
-        : []),
-    ].join('\n'),
-  askNote: [
-    '📝 Quer acrescentar alguma observação?',
-    'Escreva agora ou responda _pular_ para seguir sem.',
-  ].join('\n'),
+      formatOptions(
+        shown.map((document) => ({ action: describeNoteOption(document), icon: '🧾' })),
+      ),
+      ...(overflow > 0 ? [`_E mais ${overflow} nota(s): digite o número da nota._`] : []),
+      '',
+      '_Responda com o número da opção ou da nota._',
+    ].join('\n')
+  },
+  askNote: [DRIVER_LIST_HEADING.occurrenceNote, 'Escreva agora. _Se não, responda pular._'].join(
+    '\n',
+  ),
   askLocation: [
-    '📍 Quer enviar a sua localização? (é opcional)',
+    '📍 *Quer enviar a sua localização?* (é opcional)',
     'Compartilhe pelo clipe ➜ *Localização*, ou responda _pular_.',
   ].join('\n'),
-  askType: (types: readonly GroupOccurrenceType[]) =>
+  askType: (
+    types: readonly GroupOccurrenceType[],
+    document: { readonly clientName: string; readonly documentNumber: string },
+  ) =>
     [
-      '⚠️ Qual ocorrência você quer registrar? Responda com o número ou o nome:',
+      DRIVER_LIST_HEADING.occurrenceType,
+      `> 🧾 NF \`${document.documentNumber}\`${document.clientName === '' ? '' : ` · ${document.clientName}`}`,
       '',
-      ...types.map((type, index) => `*${index + 1}* - ${type.name}`),
+      formatOptions(types.map((type) => ({ action: type.name, icon: '⚠️' }))),
+      '',
+      '_Responda com o número ou o nome._',
     ].join('\n'),
   confirm: (
     typeName: string,
@@ -239,70 +251,57 @@ export const GROUP_OCCURRENCE_TEXT = {
     note: string,
     contact = '',
     where: GroupConfirmDetails = {},
-  ) =>
-    [
-      `📋 Vou registrar *${typeName}* na *NF ${documentNumber}*.`,
-      ...(present(where.contractor) ? [`🏢 Contratante: ${where.contractor}`] : []),
-      ...(present(where.client) ? [`👤 Cliente: ${where.client}`] : []),
-      ...(present(where.address) ? [`🏠 Endereço da nota: ${where.address}`] : []),
+  ) => {
+    const details = [
+      ...(note === '' ? [] : [`📝 Observação: _${note}_`]),
+      ...(contact === '' ? [] : [`📇 Contato: *${contact}*`]),
+    ]
+    return [
+      '📋 *Confira a ocorrência*',
+      '',
+      `> ⚠️ *${typeName}*`,
+      `> 🧾 NF \`${documentNumber}\`${present(where.client) ? ` · *${where.client}*` : ''}`,
+      ...(present(where.contractor) ? [`> 🏢 Contratante: ${where.contractor}`] : []),
+      ...(present(where.address) ? [`> 📍 ${where.address}`] : []),
+      ...(present(where.amount) ? [`> 💰 Valor da nota: *${where.amount}*`] : []),
       ...(where.location === undefined
         ? []
-        : [`📍 Local da ocorrência: ${mapsLink(where.location)}`]),
-      ...(note === '' ? [] : [`📝 Observação: _${note}_`]),
-      ...(contact === '' ? [] : [`📇 Contato do cliente: *${contact}*`]),
-      ...(present(where.amount) ? [`💰 Valor da nota: *${where.amount}*`] : []),
+        : [`🗺️ Local da ocorrência: ${mapsLink(where.location)}`]),
+      ...(details.length === 0 ? [] : ['', ...details]),
       '',
-      'Posso confirmar?',
-      '*1* - Sim ✅',
-      '*2* - Não ❌',
-    ].join('\n'),
-  contactSaved: (masked: string) => `✅ Anotei o contato do cliente: *${masked}*.`,
-  declined: '👍 Tudo certo, não registrei nada.',
-  noDocuments: '🔎 Não encontrei notas na viagem em andamento do motorista deste grupo.',
-  noTypes: '🚫 Não há tipo de ocorrência ativo para esta nota.',
-  /**
-   * O resumo completo do que ficou registrado (pedido do Anderson em 04/11: o mesmo capricho do modelo do cliente).
-   * Série, cliente, observação e contato só aparecem quando existem.
-   */
+      '*Posso registrar?*',
+      formatOptions([
+        { action: 'Sim, registrar', icon: '✅' },
+        { action: 'Não, cancelar', icon: '❌' },
+      ]),
+    ].join('\n')
+  },
+  contactSaved: (masked: string) => `✅ _Contato anotado: *${masked}*._`,
+  declined: NOTHING_RECORDED_TEXT,
+  noDocuments: '🔎 *Não encontrei notas na viagem em andamento do motorista deste grupo.*',
+  noTypes: '🚫 *Não há tipo de ocorrência ativo para esta nota.*',
+  /** O registro do grupo: a nota em citação, a hora e o aviso da contratante (desenho, fluxo 7). */
   registered: (input: {
-    readonly address?: string
     readonly clientName?: string
     readonly contact?: string
-    readonly contractorName?: string
     readonly documentNumber: string
-    readonly location?: GroupSharedLocation
-    readonly note?: string
     readonly registeredAt?: string
     readonly sentToClient?: boolean
     readonly series?: string
-    readonly totalValue?: string
     readonly typeName: string
   }) => {
-    const when = input.registeredAt === undefined ? null : formatGroupDateTime(input.registeredAt)
-    const value = input.totalValue === undefined ? null : formatGroupMoney(input.totalValue)
-    const filled = (text: string | undefined) => (text ?? '').trim() !== ''
+    const when = input.registeredAt === undefined ? null : formatBotClock(input.registeredAt)
+    const series = present(input.series) ? `/${input.series}` : ''
     return [
-      '✅ *Ocorrência registrada!*',
+      `✅ *Ocorrência registrada*${when === null ? '' : ` · ${when}`}`,
       '',
-      `📄 *NF ${input.documentNumber}${filled(input.series) ? `/${input.series}` : ''}*`,
-      ...(filled(input.contractorName) ? [`🏢 Contratante: *${input.contractorName}*`] : []),
-      ...(filled(input.clientName) ? [`👤 Cliente: *${input.clientName}*`] : []),
-      ...(filled(input.address) ? [`🏠 Endereço da nota: ${input.address}`] : []),
-      '',
-      `⚠️ Ocorrência: *${input.typeName}*`,
-      ...(when === null ? [] : [`🕒 Registrada em: ${when}`]),
-      ...(input.location === undefined
-        ? []
-        : [`📍 Local da ocorrência: ${mapsLink(input.location)}`]),
-      ...(filled(input.note) ? [`📝 Observação: _${input.note}_`] : []),
-      ...(filled(input.contact) ? [`📇 Contato do cliente: *${input.contact}*`] : []),
-      ...(value === null ? [] : [`💰 Valor da nota: *${value}*`]),
+      `> ⚠️ *${input.typeName}*`,
+      `> 🧾 NF \`${input.documentNumber}${series}\`${present(input.clientName) ? ` · *${input.clientName}*` : ''}`,
+      ...(present(input.contact) ? [`> 📇 Contato: *${input.contact}*`] : []),
       '',
       input.sentToClient === true
-        ? '📨 Assim que a contratante responder, o boleto segue para o contato do cliente e eu aviso aqui.'
+        ? '📨 Assim que a contratante responder, o boleto segue para o cliente e eu aviso aqui.'
         : '📨 Assim que a contratante responder com o boleto, eu envio por aqui.',
-      '',
-      'Precisando de mais alguma coisa, é só me marcar. 🙂',
     ].join('\n')
   },
 } as const
@@ -325,6 +324,20 @@ export type GroupSharedLocation = { readonly latitude: number; readonly longitud
 /** O ponto como link do Google Maps (o mesmo que o WhatsApp abre). */
 export function mapsLink({ latitude, longitude }: GroupSharedLocation): string {
   return `https://maps.google.com/?q=${latitude.toFixed(6)},${longitude.toFixed(6)}`
+}
+
+/** A nota que a pergunta do tipo cita: o estado guarda o cliente e o número da nota já escolhida. */
+function askTypeDocumentOf(state: FlowState): {
+  readonly clientName: string
+  readonly documentNumber: string
+} {
+  return { clientName: state.documentClient ?? '', documentNumber: state.documentNumber ?? '' }
+}
+
+function describeNoteOption(document: GroupDriverDocument): string {
+  return present(document.recipientName)
+    ? `NF \`${document.number}\` · *${document.recipientName}*`
+    : `NF \`${document.number}\``
 }
 
 function describeChannels(channels: readonly GroupClientContactChannel[]): string {
@@ -425,7 +438,12 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
     }
     const type = typeHint === '' ? undefined : findTypeByName(types, typeHint)
     if (type !== undefined) return afterType(turn, next, type)
-    return continueWith(GROUP_OCCURRENCE_STEP.type, next, [GROUP_OCCURRENCE_TEXT.askType(types)])
+    return continueWith(GROUP_OCCURRENCE_STEP.type, next, [
+      GROUP_OCCURRENCE_TEXT.askType(types, {
+        clientName: document.recipientName ?? '',
+        documentNumber: document.number,
+      }),
+    ])
   }
 
   async function afterType(
@@ -533,21 +551,12 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
         kind: 'done',
         replies: [
           GROUP_OCCURRENCE_TEXT.registered({
-            ...(state.documentAddress === undefined ? {} : { address: state.documentAddress }),
-            ...(state.location === undefined ? {} : { location: state.location }),
-            ...(result.summary?.contractorName === undefined
-              ? {}
-              : { contractorName: result.summary.contractorName }),
             ...(result.summary?.registeredAt === undefined
               ? {}
               : { registeredAt: result.summary.registeredAt }),
-            ...(result.summary?.totalValue === undefined
-              ? {}
-              : { totalValue: result.summary.totalValue }),
             clientName: result.summary?.clientName ?? '',
             contact: state.contactMasked ?? '',
             documentNumber,
-            note,
             sentToClient: state.contactMasked !== undefined,
             series: result.summary?.series ?? '',
             typeName,
@@ -569,7 +578,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
       return continueWith(
         GROUP_OCCURRENCE_STEP.type,
         { ...state, typeId: undefined, typeName: undefined, types: remaining },
-        [result.message, GROUP_OCCURRENCE_TEXT.askType(remaining)],
+        [result.message, GROUP_OCCURRENCE_TEXT.askType(remaining, askTypeDocumentOf(state))],
       )
     }
     return { kind: 'done', replies: [result.message] }
@@ -609,7 +618,7 @@ export function createGroupOccurrenceFlow(ports: GroupOccurrenceFlowPorts): Grou
           if (type === undefined) {
             return {
               kind: 'not_understood',
-              prompt: GROUP_OCCURRENCE_TEXT.askType(types),
+              prompt: GROUP_OCCURRENCE_TEXT.askType(types, askTypeDocumentOf(state)),
               reason: REASON.type,
             }
           }

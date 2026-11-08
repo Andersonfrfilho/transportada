@@ -100,6 +100,11 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    */
   'trip.canhoto-auto-review',
   /**
+   * Spec 299: a entrega do lembrete vencido ao motorista, também do **serviço** e de uma rota só. O robô só marca o
+   * relógio e a API decide e envia; ele não recebe `trip.manage`, que lhe daria separar, carregar e cancelar viagem.
+   */
+  'trip.stop-reminder-dispatch',
+  /**
    * Spec 248 T4.4b: o aviso automático da ocorrência à contratante, também do **serviço** e de uma rota
    * só. O robô pede o envio e o servidor decide e grava; ele não recebe `trip.manage`.
    */
@@ -298,6 +303,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'mdfe.auto-issue',
     'whatsapp.settle',
     'trip.canhoto-auto-review',
+    'trip.stop-reminder-dispatch',
     'occurrence.automatic-mail',
   ]),
   /** Spec 295: a credencial da foto da CNH alcança só esta rota; ela não herda nada do `automation`. */
@@ -407,6 +413,7 @@ export const SERVICE_ONLY_PERMISSIONS = [
   'mdfe.auto-issue',
   'whatsapp.settle',
   'trip.canhoto-auto-review',
+  'trip.stop-reminder-dispatch',
   'occurrence.automatic-mail',
   'driver.cnh-picture',
 ] as const

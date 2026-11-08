@@ -14,7 +14,13 @@
  */
 import type { StopEventStep } from '../../trips/domain/stop-event-sequence.policy.js'
 import type { BotSpeechKey } from '../domain/whatsapp-bot-speech.constant.js'
-import { DRIVER_TRANSITION_BLOCK_MESSAGES } from '../domain/whatsapp-driver-flow.constant.js'
+import { formatNextStep } from '../domain/whatsapp-message-format.policy.js'
+import { formatBotClock } from '../domain/whatsapp-stop-card.policy.js'
+import type { DriverReturnReason } from '../../trips/domain/driver-return-reason.policy.js'
+import {
+  describeReturnReasonOption,
+  DRIVER_TRANSITION_BLOCK_MESSAGES,
+} from '../domain/whatsapp-driver-flow.constant.js'
 import type { BotSpeechLine } from './whatsapp-bot-speech.service.js'
 import {
   WHATSAPP_DRIVER_EVENT,
@@ -25,15 +31,34 @@ import {
 } from './whatsapp-driver-events.service.js'
 
 export type WhatsAppDriverEventAudience =
-  | { readonly documentNumber?: string; readonly kind: 'driver' }
+  | {
+      readonly documentNumber?: string
+      readonly kind: 'driver'
+      /** O motivo da devolução, para a frase "NF … não entregue · <motivo>". */
+      readonly returnReason?: DriverReturnReason
+      readonly stopSequence?: number
+      readonly time?: string
+    }
   /** `documentNumber` é o número da NF (o único dado da nota que aparece no grupo). */
-  | { readonly documentNumber?: string; readonly kind: 'group' }
+  | {
+      readonly documentNumber?: string
+      readonly kind: 'group'
+      readonly returnReason?: DriverReturnReason
+      readonly stopSequence?: number
+      readonly time?: string
+    }
 
-const USE_THE_APP = 'Registre pelo aplicativo.'
+const APP_ONLY_TITLE = '📱 *Esta ocorrência é registrada pelo aplicativo.*'
+
+function describeAppOnly(reason: string): string {
+  return [APP_ONLY_TITLE, reason, formatNextStep('abra o app e toque em *Ocorrência*.')].join('\n')
+}
 
 /** Spec 270 (R3): a frase dos dois canais quando o servidor recusa o tipo pela contratante. */
-export const OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE =
-  'Este tipo não vale para a contratante desta nota. Escolha outro tipo.'
+export const OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE = [
+  '🚫 *Este tipo não vale para a contratante desta nota.*',
+  formatNextStep('escolha outro tipo.'),
+].join('\n')
 
 /**
  * Spec 246 (RF13): o campo que o tipo exige e o WhatsApp ainda não colhe. A T15 da 293 passa a colher
@@ -42,12 +67,23 @@ export const OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE =
 export const OCCURRENCE_REQUIREMENT_MESSAGES: Readonly<Record<OccurrenceRequirementField, string>> =
   {
     contractor_scope: OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE,
-    declared_amount: `Essa ocorrência exige o valor pago e as quantidades, e o WhatsApp não os envia. ${USE_THE_APP}`,
-    items: `Essa ocorrência exige apontar os produtos da nota, e o WhatsApp não aponta produtos. ${USE_THE_APP}`,
-    note: 'Essa ocorrência exige a observação. Digite o que aconteceu.',
-    photo: `Essa ocorrência exige foto, e o WhatsApp não envia foto. ${USE_THE_APP}`,
-    reference_number: `Essa ocorrência exige o número do documento do cliente, e o WhatsApp não o envia. ${USE_THE_APP}`,
-    signature: `Essa ocorrência exige a assinatura de quem recebeu, e o WhatsApp não envia assinatura. ${USE_THE_APP}`,
+    declared_amount: describeAppOnly(
+      'Essa ocorrência pede o valor pago e as quantidades, e o WhatsApp não os envia.',
+    ),
+    items: describeAppOnly(
+      'Essa ocorrência pede para apontar os produtos da nota, e isso o WhatsApp não faz.',
+    ),
+    note: [
+      '📝 *Essa ocorrência exige a observação.*',
+      formatNextStep('digite o que aconteceu.'),
+    ].join('\n'),
+    photo: describeAppOnly('Essa ocorrência pede foto, e o WhatsApp não envia foto.'),
+    reference_number: describeAppOnly(
+      'Essa ocorrência pede o número do documento do cliente, e o WhatsApp não o envia.',
+    ),
+    signature: describeAppOnly(
+      'Essa ocorrência pede a assinatura de quem recebeu, e o WhatsApp não envia assinatura.',
+    ),
   }
 
 const DRIVER_REGISTERED: Readonly<Record<WhatsAppDriverEvent, BotSpeechKey>> = {
@@ -65,8 +101,8 @@ const STOP_EVENTS: ReadonlySet<WhatsAppDriverEvent> = new Set([
 
 /** Spec 294 RF14: a chegada com ponto atualiza o endereço ou manda a sugestão ao escritório. */
 export const ADDRESS_CORRECTION_TEXT = {
-  applied: 'Endereço atualizado. ✅',
-  suggested: 'Enviei para o escritório conferir o endereço. 📬',
+  applied: '✅ _Endereço corrigido pela sua localização._',
+  suggested: '📬 _Enviei para o escritório conferir o endereço._',
 } as const
 
 const STEP_WORDS = { arrived: 'a chegada', departed: 'a saída' } as const
@@ -87,6 +123,10 @@ export function describeRecordedTogether(input: {
 }): string | undefined {
   if (input.steps.length === 0) return undefined
   const marked = input.steps.map((step) => STEP_WORDS[step]).join(' e ')
+  // A entrega já diz a nota na primeira linha: a frase de apoio vai em itálico e sem repeti-la (spec 300, fluxo 5).
+  if (input.event === WHATSAPP_DRIVER_EVENT.deliver) {
+    return `_Marquei ${marked} junto com ${COMPANION_WORDS[input.event]}._`
+  }
   const note = input.documentNumber === undefined ? '' : ` da NF ${input.documentNumber}`
   return `Marquei ${marked} junto com ${COMPANION_WORDS[input.event]}${note}.`
 }
@@ -117,26 +157,64 @@ function describeMainLine(
   audience: WhatsAppDriverEventAudience,
 ): BotSpeechLine {
   if (result.kind === 'refused') return describeWhatsAppDriverEventRefusal(result.refusal, audience)
+  const delivered = describeDeliveredLine(result, audience)
+  if (delivered !== undefined) return delivered
+  const returned = describeReturnedLine(result, audience)
+  if (returned !== undefined) return returned
   const documentNumber = audience.kind === 'group' ? audience.documentNumber : undefined
   // Saí/cheguei não citam nota; sem número da nota, o grupo ouve a frase do motorista (sem dado).
   if (documentNumber === undefined || STOP_EVENTS.has(result.event)) {
-    return result.kind === 'already_registered'
-      ? { key: 'alreadyRegistered' }
-      : { key: DRIVER_REGISTERED[result.event] }
+    if (result.kind === 'already_registered') return { key: 'alreadyRegistered' }
+    const key = DRIVER_REGISTERED[result.event]
+    if (!STOP_EVENTS.has(result.event)) return { key }
+    return { key, params: { time: audience.time ?? formatBotClock(new Date()) } }
   }
   const params = { documentNumber }
   if (result.kind === 'already_registered') return { key: 'groupAlreadyRegistered', params }
   if (result.event === WHATSAPP_DRIVER_EVENT.deliver) {
-    if (result.details?.tripCompleted === true) {
-      return { key: 'groupDeliveryTripCompleted', params }
-    }
-    if (result.details?.stopCompleted === true) {
-      return { key: 'groupDeliveryStopCompleted', params }
-    }
     return { key: 'groupDeliveryRegistered', params }
   }
-  if (result.event === WHATSAPP_DRIVER_EVENT.return) return { key: 'groupReturnRegistered', params }
+  // Devolução sem o motivo conhecido: a fala curta, sem inventar a frase do motivo.
+  if (result.event === WHATSAPP_DRIVER_EVENT.return) return { key: 'returnRegistered' }
   return { key: 'groupOccurrenceRegistered', params }
+}
+
+/** Spec 300 (RF1): a entrega registrada diz a nota e a parada, igual nos dois canais; sem nota, a fala de antes. */
+function describeDeliveredLine(
+  result: WhatsAppDriverEventResult,
+  audience: WhatsAppDriverEventAudience,
+): BotSpeechLine | undefined {
+  const { documentNumber, stopSequence } = audience
+  if (result.kind !== 'registered' || result.event !== WHATSAPP_DRIVER_EVENT.deliver) {
+    return undefined
+  }
+  if (documentNumber === undefined) return undefined
+  const isStopClosed =
+    result.details?.stopCompleted === true || result.details?.tripCompleted === true
+  if (!isStopClosed || stopSequence === undefined) {
+    return { key: 'groupDeliveryRegistered', params: { documentNumber } }
+  }
+  const key =
+    result.details?.tripCompleted === true
+      ? 'groupDeliveryTripCompleted'
+      : 'groupDeliveryStopCompleted'
+  return { key, params: { documentNumber, sequence: stopSequence } }
+}
+
+/** Spec 300 (RF1): a devolução registrada diz a nota e o motivo, igual nos dois canais; sem os dois, a fala de antes. */
+function describeReturnedLine(
+  result: WhatsAppDriverEventResult,
+  audience: WhatsAppDriverEventAudience,
+): BotSpeechLine | undefined {
+  const { documentNumber, returnReason } = audience
+  if (result.kind !== 'registered' || result.event !== WHATSAPP_DRIVER_EVENT.return) {
+    return undefined
+  }
+  if (documentNumber === undefined || returnReason === undefined) return undefined
+  return {
+    key: 'groupReturnRegistered',
+    params: { documentNumber, reason: describeReturnReasonOption(returnReason).action },
+  }
 }
 
 export function describeWhatsAppDriverEventRefusal(

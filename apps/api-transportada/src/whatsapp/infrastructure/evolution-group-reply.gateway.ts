@@ -7,9 +7,8 @@ import {
   WHATSAPP_TURN_SEPARATOR,
   type WhatsAppTurnReplies,
 } from '../../whatsapp-commands/application/whatsapp-turn-replies.service.js'
+import { withGroupMention } from '../application/whatsapp-group-mention.service.js'
 import type { GroupReplySenderPort } from '../application/whatsapp-group-request.port.js'
-
-const PHONE_DIGITS = /^\d{8,15}$/u
 
 /**
  * Spec 292 T4: a resposta do bot no grupo, pelo `sendText` do Evolution da empresa com o `@g.us` como
@@ -76,15 +75,12 @@ export function createEvolutionGroupReplySender(dependencies: {
     readonly mentionNumber: string | undefined
   }): (body: string) => void {
     const { companyId, groupJid } = input
-    let pendingMention =
-      input.mentionNumber !== undefined && PHONE_DIGITS.test(input.mentionNumber)
-        ? input.mentionNumber
-        : undefined
+    let pendingMention = input.mentionNumber
     return (body) => {
       if (pendingMention === undefined) return enqueue({ body, companyId, groupJid })
-      const mentionNumber = pendingMention
+      const mention = withGroupMention({ body, mentionNumber: pendingMention })
       pendingMention = undefined
-      enqueue({ body: `@${mentionNumber} ${body}`, companyId, groupJid, mentionNumber })
+      enqueue({ ...mention, companyId, groupJid })
     }
   }
 

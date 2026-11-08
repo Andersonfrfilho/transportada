@@ -36,6 +36,8 @@ export type WhatsAppCanhotoQuestionStatus = (typeof WHATSAPP_CANHOTO_QUESTION_ST
 
 /** A nota que a pergunta oferece: só o id e o número como o motorista o vê (o texto lido nunca é guardado). */
 export type WhatsAppCanhotoQuestionCandidate = {
+  readonly city?: string
+  readonly clientName?: string
   readonly documentId: string
   readonly documentNumber: string
   readonly label: string

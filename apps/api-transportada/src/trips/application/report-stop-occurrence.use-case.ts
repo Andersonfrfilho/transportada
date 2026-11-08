@@ -200,7 +200,7 @@ export async function reportStopOccurrence(
         })
         if (audit !== undefined) await transaction.recordOfficeAudit(audit)
 
-        return transaction.recordOccurrence({
+        const recordedOccurrence = await transaction.recordOccurrence({
           actorUserId: input.actorUserId,
           attachmentObjectId: input.attachmentObjectId,
           authorship,
@@ -216,6 +216,14 @@ export async function reportStopOccurrence(
           occurrenceTypeId: reference.occurrenceTypeId,
           stopId: input.stopId,
         })
+        await transaction.onStopEvent({
+          channel: authorship.channel,
+          companyId: input.companyId,
+          kind: 'occurrence',
+          occurredAt: new Date(),
+          target: { stopId: input.stopId },
+        })
+        return recordedOccurrence
       },
       recall: async (occurrenceId) => {
         if (input.attachmentObjectId !== null) {

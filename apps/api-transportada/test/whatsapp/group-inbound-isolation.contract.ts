@@ -22,6 +22,8 @@ import {
   createGroupDriverFlow,
   GROUP_STEP_REGISTRY,
 } from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
+import { createGroupReminderFlow } from '../../src/whatsapp/application/whatsapp-group-reminder-flow.service.js'
+import { CATALOG_BOT_SPEECH } from '../../src/whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import { GROUP_OCCURRENCE_STEP } from '../../src/whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 import { createGroupProofIntake } from '../../src/whatsapp/application/whatsapp-group-proof-intake.service.js'
 import type {
@@ -57,6 +59,7 @@ type Owner =
   | 'delivery'
   | 'journey'
   | 'occurrence'
+  | 'reminder'
   | 'return'
   | 'route'
   | 'stop'
@@ -93,6 +96,16 @@ const PENDING: readonly {
     step: 'return.reason',
   },
   { owner: 'delivery', state: {}, step: 'delivery.answer' },
+  {
+    owner: 'reminder',
+    state: { reminderId: 'REM1', stage: 'arrival', tripStopId: 'S1' },
+    step: 'reminder.stage',
+  },
+  {
+    owner: 'reminder',
+    state: { reminderId: 'REM1', stage: 'settlement', tripStopId: 'S1' },
+    step: 'reminder.stage',
+  },
   ...Object.values(GROUP_OCCURRENCE_STEP).map((step) => ({
     owner: 'occurrence' as const,
     state: {},
@@ -172,6 +185,11 @@ function setup(seed: { step: string; state: Record<string, unknown> }) {
         turn.request.step === GROUP_OCCURRENCE_STEP.location ? spy('occurrence', 'location') : null,
       start: async () => spy('occurrence', 'start'),
     },
+    reminder: createGroupReminderFlow({
+      postpone: async () => ({ outcome: 'postponed' }),
+      readNoteNumber: async () => '1',
+      speech: CATALOG_BOT_SPEECH,
+    }),
     return: {
       answer: async (turn: GroupFlowTurn) => spy('return', turn.request.step),
       begin: async () => spy('return', 'begin'),
@@ -292,14 +310,24 @@ const OWNED: Record<Owner, keyof Spies | undefined> = {
   delivery: 'delivery',
   journey: undefined,
   occurrence: 'occurrence',
+  reminder: undefined,
   return: 'return',
   route: undefined,
   stop: undefined,
 }
 
+const REMINDER_DELEGATIONS: Partial<Record<keyof Spies, string[]>> = {
+  delivery: ['begin'],
+  occurrence: ['start'],
+  return: ['begin'],
+}
+
 function expectOnlyOwner(spies: Spies, owner: Owner): void {
   for (const name of ['canhoto', 'close', 'delivery', 'occurrence', 'return'] as const) {
-    if (OWNED[owner] !== name) expect(spies[name]).toEqual([])
+    if (OWNED[owner] === name) continue
+    // O lembrete só abre os fluxos que já existem (`begin`/`start`); nunca responde por eles.
+    const allowed = owner === 'reminder' ? (REMINDER_DELEGATIONS[name] ?? []) : []
+    expect(spies[name].filter((call) => !allowed.includes(call))).toEqual([])
   }
 }
 

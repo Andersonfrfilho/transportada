@@ -57,6 +57,7 @@ import {
   timestampPatchFor,
 } from './drizzle-trip-document-batch.repository.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
+import { closePendingStopReminders } from '../../driver-stop-reminders/infrastructure/close-pending-stop-reminders.persistence.js'
 import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import { TRACTOR_UNIT_VEHICLE_TYPE } from '../../shared/vehicle-type.constant.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
@@ -387,6 +388,11 @@ export class DrizzleTripRouteRepository
         fromStatus: tripRow.status,
         onBehalfOfDriverId: input.onBehalfOfDriverId,
         toStatus: updated.status,
+        tripId: input.tripId,
+      })
+      await closePendingStopReminders(transaction, {
+        companyId: input.companyId,
+        reason: 'trip_cancelled',
         tripId: input.tripId,
       })
 

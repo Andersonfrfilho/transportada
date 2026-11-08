@@ -69,7 +69,10 @@
   "dispatch": {
     "queued": "Trip start waiting to send — it goes up when the signal is back. You can already log the stops.",
     "failed": "The route could not be started. Tap again.",
+    "failedUnloaded": "The trip did not start: the office has to check the loading or release the departure. Then tap Dispatch trip again.",
     "start": "Dispatch trip",
+    "unloaded_one": "{{notes}} has not been marked as loaded yet. The trip only starts after the office checks the loading or releases the departure.",
+    "unloaded_other": "Invoices {{notes}} have not been marked as loaded yet. The trip only starts after the office checks the loading or releases the departure.",
     "waiting": "Waiting for dispatch — field actions unlock after the trip is dispatched."
   },
   "eventLimitCount": "The limit of events waiting to be sent was reached. Send the pending ones before recording another — nothing was discarded.",
@@ -91,6 +94,10 @@
       "referenceNumberRequired": "the customer document number is required by this occurrence type",
       "stopNotReachable": "this stop was removed from the trip; ask the office to record it",
       "tooLarge": "the photo is larger than the server accepts",
+      "unloadedDocuments": "some invoices have not been marked as loaded yet; ask the office to check the loading or release the departure",
+      "unloadedDocumentsNamed_one": "{{notes}} has not been marked as loaded yet; ask the office to check the loading or release the departure",
+      "unloadedDocumentsNamed_other": "invoices {{notes}} have not been marked as loaded yet; ask the office to check the loading or release the departure",
+      "unscheduledStops": "some stops of the trip have no time; ask the office to complete the route",
       "typeNotAvailableForContractor": "this occurrence type does not apply to the contractor of this note; choose another type"
     },
     "cancel": {
@@ -454,18 +461,18 @@
   "vehicle": "Vehicle {{plate}}",
   "proofPendingWarning": "Retaking it never helps: the worst photo counts. A photo sent much later counts as late, even if the device clock shows another time.",
   "outOfOrder": {
-    "confirm": "Record anyway",
+    "confirm": "Go to stop {{requested}}",
     "discard": "Mistake, discard",
-    "generic": "This tap ({{kind}}) is neither for the stop in progress nor the next one on the route. Record anyway?",
+    "generic": "This tap ({{kind}}) doesn't follow the suggested route order. You can go ahead if you think it's better.",
     "kind": {
       "arrive": "Arrived",
       "deliver": "Delivered",
       "depart": "Start route",
       "return": "Not delivered"
     },
-    "title": "Out of route order",
-    "withCurrent": "You started the route to stop {{current}}, but this tap ({{kind}}) is for stop {{requested}}. Record anyway?",
-    "withNext": "The next stop on the route is {{next}}. Do you really want to record {{kind}} at stop {{requested}}?"
+    "title": "Off the suggested route",
+    "withCurrent": "You're on your way to stop {{current}}, and this tap ({{kind}}) is for stop {{requested}}. You can go ahead if you think it's better — stop {{current}} stays open.",
+    "withNext": "The suggested route goes to stop {{next}} next. You can record {{kind}} at stop {{requested}} if you think it's better."
   },
   "pendingProofs": {
     "attach": "Attach proof",

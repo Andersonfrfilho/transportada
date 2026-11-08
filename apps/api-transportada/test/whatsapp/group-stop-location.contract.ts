@@ -104,7 +104,11 @@ describe('grupo: o pedido de localização do "saí" e do "cheguei" (RF24)', () 
       step: 'stop.location',
     })
     expect(asked.kind === 'continue' ? asked.replies[0] : '').toBe(
-      '📍 *Mande sua localização* pelo clipe 📎 _ou responda pular_',
+      [
+        '📍 *Mande sua localização* para medir a distância até a parada.',
+        'Clipe 📎 → Localização → Enviar localização atual.',
+        '_Se não puder agora, responda pular._',
+      ].join('\n'),
     )
     expect(t.recorded).toEqual([])
     t.recorded.length = 0
@@ -154,7 +158,11 @@ describe('grupo: o pedido de localização do "saí" e do "cheguei" (RF24)', () 
     const t = setup({ hasLocation: false })
     await t.start('saí')
     const again = await t.answer('estou chegando agora')
-    expect(again).toMatchObject({ kind: 'not_understood', prompt: LOCATION_PROMPT_TEXT.askAgain })
+    expect(again).toEqual({
+      kind: 'not_understood',
+      prompt: 'Clipe 📎 → Localização → Enviar localização atual, _ou responda pular._',
+      reason: 'Esta resposta vai por localização.',
+    })
     expect(t.recorded).toEqual([])
     expect(t.step()).toBe('stop.location')
   })
@@ -181,7 +189,14 @@ describe('grupo: "cheguei" em parada sem localização certa corrige o endereço
       kind: 'continue',
       replies: [LOCATION_PROMPT_TEXT.askUnreliableAddress],
     })
-    expect(LOCATION_PROMPT_TEXT.askUnreliableAddress).toContain('eu atualizo o endereço')
+    expect(LOCATION_PROMPT_TEXT.askUnreliableAddress).toBe(
+      [
+        '📍 *Este endereço está sem localização certa no mapa.*',
+        'Mande sua localização que eu corrijo o endereço.',
+        'Clipe 📎 → Localização → Enviar localização atual.',
+        '_Se não puder agora, responda pular._',
+      ].join('\n'),
+    )
   })
 
   test('parada confiável e "saí" mantêm o pedido simples', async () => {
@@ -201,7 +216,7 @@ describe('grupo: "cheguei" em parada sem localização certa corrige o endereço
     expect(t.recorded).toHaveLength(1)
   })
 
-  test('a resposta do registro leva "Endereço atualizado" ou "Enviei para o escritório conferir"', async () => {
+  test('a resposta do registro leva o endereço corrigido ou a sugestão ao escritório', async () => {
     const speech = await import(
       '../../src/whatsapp-commands/application/whatsapp-driver-event-speech.service.js'
     )
@@ -213,12 +228,16 @@ describe('grupo: "cheguei" em parada sem localização certa corrige o endereço
         companyId: 'C1',
         line: speech.describeWhatsAppDriverEventResult(
           { addressCorrection, event: 'arrive', kind: 'registered' },
-          { documentNumber: '17234', kind: 'group' },
+          { documentNumber: '17234', kind: 'group', time: '23:20' },
         ),
         speech: CATALOG_BOT_SPEECH,
       })
-    expect(await render('applied')).toBe('*Chegada registrada* 📍\nEndereço atualizado. ✅')
-    expect(await render('suggested')).toContain('Enviei para o escritório conferir')
+    expect(await render('applied')).toBe(
+      '📍 *Chegada registrada* · 23:20\n✅ _Endereço corrigido pela sua localização._',
+    )
+    expect(await render('suggested')).toBe(
+      '📍 *Chegada registrada* · 23:20\n📬 _Enviei para o escritório conferir o endereço._',
+    )
   })
 })
 

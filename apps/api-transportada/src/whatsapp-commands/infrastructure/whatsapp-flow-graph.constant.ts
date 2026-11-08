@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { DRIVER_LIST_HEADING } from '../domain/whatsapp-driver-list-heading.constant.js'
 import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 
 import { buildBotSpeechNodes } from '../domain/whatsapp-bot-speech.policy.js'
@@ -174,11 +175,11 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
       options: [
         ['depart', '🚚 Saí para a entrega'],
         ['arrive', '📍 Cheguei'],
-        ['deliver', '📦 Entregar'],
-        ['return', '↩️ Devolver'],
+        ['deliver', '✅ Entreguei'],
+        ['return', '↩️ Não entreguei'],
         ['occurrence', '⚠️ Ocorrência'],
       ],
-      question: `O que você quer fazer com esta viagem?\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
+      question: `*O que você quer lançar?*\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'menu',
     },
     [DRIVER_FLOW_NODE.depart]: {
@@ -223,7 +224,7 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
         [DRIVER_DIRECT_CONFIRM_ANSWER.yes, '✅ Sim'],
         [DRIVER_DIRECT_CONFIRM_ANSWER.no, '❌ Não'],
       ],
-      question: `Confirma?\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
+      question: `✅ *Confirma?*\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'menu',
     },
     [DRIVER_FLOW_NODE.directConfirmRouter]: {
@@ -256,7 +257,7 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
       options: DRIVER_RETURN_REASONS.map(
         (reason) => [reason, DRIVER_RETURN_REASON_LABELS[reason] ?? reason] as [string, string],
       ),
-      question: `Qual foi o motivo da devolução?\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
+      question: `↩️ *Por que a nota não foi entregue?*\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'menu',
     },
     [DRIVER_FLOW_NODE.returnReasonRouter]: {
@@ -290,7 +291,7 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
       contextKey: DRIVER_FLOW_CONTEXT_KEY.noteAnswer,
       id: DRIVER_FLOW_NODE.noteEntry,
       next: DRIVER_FLOW_NODE.noteRouter,
-      question: `Digite o texto, ou toque em Pular.\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
+      question: `${DRIVER_LIST_HEADING.occurrenceNote}\nEscreva agora, ou toque em Pular.\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'entrada_choice',
     },
     [DRIVER_FLOW_NODE.noteRouter]: {

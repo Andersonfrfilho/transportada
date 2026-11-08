@@ -299,11 +299,14 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
     expect(
       describeWhatsAppDriverEventResult({ event: 'deliver', kind: 'already_registered' }, DRIVER),
     ).toEqual({ key: 'alreadyRegistered' })
-    expect(describeWhatsAppDriverEventResult(registered('depart'), DRIVER)).toEqual({
+    const at = { ...DRIVER, time: '09:00' }
+    expect(describeWhatsAppDriverEventResult(registered('depart'), at)).toEqual({
       key: 'departureRegistered',
+      params: { time: '09:00' },
     })
-    expect(describeWhatsAppDriverEventResult(registered('arrive'), DRIVER)).toEqual({
+    expect(describeWhatsAppDriverEventResult(registered('arrive'), at)).toEqual({
       key: 'arrivalRegistered',
+      params: { time: '09:00' },
     })
   })
 
@@ -311,7 +314,16 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
     const details = { proofPending: false, stopCompleted: false, tripCompleted: false }
     expect(
       await render(describeWhatsAppDriverEventResult(registered('deliver', details), GROUP)),
-    ).toBe('*NF 17234 entregue* ✅')
+    ).toBe('✅ *NF `17234` entregue.*')
+    expect(
+      await render(
+        describeWhatsAppDriverEventResult(
+          registered('deliver', { ...details, stopCompleted: true }),
+          { ...GROUP, stopSequence: 3 },
+        ),
+      ),
+    ).toBe('✅ *NF `17234` entregue.* Parada 3 concluída.')
+    // Sem a parada conhecida, a frase não inventa o número.
     expect(
       await render(
         describeWhatsAppDriverEventResult(
@@ -319,17 +331,26 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
           GROUP,
         ),
       ),
-    ).toBe('*NF 17234 entregue.* Parada concluída. ✅')
+    ).toBe('✅ *NF `17234` entregue.*')
     expect(
       await render(
         describeWhatsAppDriverEventResult(
           registered('deliver', { ...details, stopCompleted: true, tripCompleted: true }),
-          GROUP,
+          { ...GROUP, stopSequence: 9 },
         ),
       ),
-    ).toBe('*NF 17234 entregue.* Viagem concluída. 🏁')
+    ).toBe('✅ *NF `17234` entregue.* Parada 9 concluída.')
+    expect(
+      await render(
+        describeWhatsAppDriverEventResult(registered('return'), {
+          ...GROUP,
+          returnReason: 'establishment_closed',
+        }),
+      ),
+    ).toBe('↩️ *NF `17234` não entregue* · Local fechado\nA nota volta com você para o armazém.')
+    // Sem o motivo conhecido, a fala curta (sem inventar a frase do motivo).
     expect(await render(describeWhatsAppDriverEventResult(registered('return'), GROUP))).toBe(
-      '*NF 17234 não entregue* ↩️',
+      '↩️ *Não entrega registrada*',
     )
     expect(
       await render(
@@ -386,7 +407,9 @@ describe('falas dos eventos: motorista e grupo (spec 293 T11)', () => {
           DRIVER,
         ),
       ),
-    ).toBe('A parada 2 já está a caminho. Registre a chegada nela antes de sair para outra.')
+    ).toBe(
+      '⚠️ *Você já está a caminho da parada 2.*\nRegistre a chegada nela antes de sair para outra.',
+    )
     expect(
       await render(
         describeWhatsAppDriverEventResult(

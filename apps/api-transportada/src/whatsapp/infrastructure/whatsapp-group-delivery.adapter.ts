@@ -14,6 +14,7 @@ import {
   type WhatsAppBotSpeechPort,
 } from '../../whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
+import { placeStops } from '../../whatsapp-commands/infrastructure/whatsapp-stop-place.reader.js'
 import { readWhatsAppStopInProgress } from '../../whatsapp-commands/application/whatsapp-stop-in-progress.service.js'
 import type { WhatsAppStopCardReader } from '../../whatsapp-commands/infrastructure/whatsapp-stop-card.reader.js'
 import type {
@@ -76,6 +77,19 @@ export function createGroupDeliveryWiring(dependencies: {
   const withoutAccessText = (companyId: string) =>
     renderBotSpeechLine({ companyId, line: { key: 'groupDriverWithoutAccess' }, speech })
 
+  /** As paradas das viagens ativas com bairro e cidade (melhor esforço, como na lista de paradas). */
+  const placeOpenStops = async (scope: {
+    readonly companyId: string
+    readonly driverId: string
+  }) => {
+    const trips = await dependencies.listActiveTrips(scope)
+    return placeStops(database, {
+      companyId: scope.companyId,
+      ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+      stops: trips.filter((trip) => !terminal.has(trip.status)).flatMap((trip) => trip.stops),
+    })
+  }
+
   return {
     flow: {
       consumeLocation: dependencies.consumeLocation,
@@ -86,29 +100,22 @@ export function createGroupDeliveryWiring(dependencies: {
       findStopInProgress: (actor) =>
         readWhatsAppStopInProgress({
           actor,
-          listStops: async (scope) =>
-            (await dependencies.listActiveTrips(scope))
-              .filter((trip) => !terminal.has(trip.status))
-              .flatMap((trip) => trip.stops),
+          listStops: async (scope) => placeOpenStops(scope),
           stopCards: dependencies.stopCards,
         }),
       async listOpenDocuments({ companyId, driverId }) {
-        const trips = await dependencies.listActiveTrips({ companyId, driverId })
         const seen = new Map<string, GroupDeliveryDocument>()
-        for (const trip of trips) {
-          if (terminal.has(trip.status)) continue
-          for (const stop of trip.stops) {
-            for (const document of stop.documents) {
-              const open =
-                document.separationStatus !== 'delivered' &&
-                document.separationStatus !== 'returned'
-              if (open && !seen.has(document.id)) {
-                seen.set(document.id, {
-                  id: document.id,
-                  number: document.number,
-                  recipientName: document.recipientDisplayName,
-                })
-              }
+        for (const stop of await placeOpenStops({ companyId, driverId })) {
+          for (const document of stop.documents) {
+            const open =
+              document.separationStatus !== 'delivered' && document.separationStatus !== 'returned'
+            if (open && !seen.has(document.id)) {
+              seen.set(document.id, {
+                city: stop.city,
+                id: document.id,
+                number: document.number,
+                recipientName: document.recipientDisplayName,
+              })
             }
           }
         }

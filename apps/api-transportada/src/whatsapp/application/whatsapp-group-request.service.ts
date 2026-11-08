@@ -20,6 +20,10 @@ import { botFarewell, botGreeting } from '../domain/bot-greeting.policy.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { AdmittedGroupMessage } from './evolution-group-inbound.service.js'
 import { isDriverCancelText } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
+import {
+  formatNextStep,
+  formatNotUnderstood,
+} from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
 import type {
   GroupFlowOutcome,
   GroupFlowTurn,
@@ -34,16 +38,23 @@ import type {
 /** Respostas que não cabem na pergunta até o pedido ser encerrado (regra 7). */
 export const GROUP_REQUEST_MAX_ATTEMPTS = 3
 
+/** O motivo do "não entendi" vira frase: inicial maiúscula e ponto final (o que termina em ":" introduz as opções). */
+function toReasonSentence(reason: string): string {
+  const trimmed = reason.trim()
+  const sentence = trimmed.endsWith(':') ? trimmed : `${trimmed.replace(/[.\s]+$/u, '')}.`
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`
+}
+
 export const GROUP_REQUEST_TEXT = {
-  busy: 'Há um pedido em andamento neste grupo. Aguarde terminar ou responda "cancelar".',
-  cancelled:
-    'Pedido cancelado, não registrei nada.\n➡️ _Próximo passo:_ quando quiser, marque o bot de novo.',
+  busy: '⏳ *Já tem um pedido aberto neste grupo.*\nTermine o pedido de cima ou responda *cancelar*.',
+  cancelled: `↩️ *Pedido cancelado.* Nada foi registrado.\n${formatNextStep('quando quiser, marque o bot de novo.')}`,
   gaveUp:
-    'Não consegui entender depois de 3 tentativas e encerrei o pedido. Suporte, por favor, acompanhe por aqui.',
+    '🙋 *Não consegui entender depois de 3 tentativas* e encerrei o pedido.\nO escritório vai acompanhar por aqui.',
   notUnderstood: (reason: string, prompt: string) =>
-    [`Não entendi: ${reason.replace(/[.\s]+$/u, '')}.`, ...(prompt === '' ? [] : [prompt])].join(
-      '\n',
-    ),
+    [
+      formatNotUnderstood({ reason: toReasonSentence(reason) }),
+      ...(prompt === '' ? [] : [prompt]),
+    ].join('\n'),
 } as const
 
 /**
@@ -273,7 +284,12 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
 
     async handleLocation({ companyId, groupJid, location, sender }) {
       const open = await repository.findOpen({ companyId, groupJid, now: dependencies.clock() })
-      if (open === null || open.ownerNumber !== sender || flow.locationReceived === undefined) {
+      if (
+        open === null ||
+        open.ownerNumber === '' ||
+        open.ownerNumber !== sender ||
+        flow.locationReceived === undefined
+      ) {
         return false
       }
       const outcome = await flow.locationReceived({
@@ -333,7 +349,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       }
 
       await link(open)
-      const isOwner = message.sender === open.ownerNumber
+      const isOwner = open.ownerNumber !== '' && message.sender === open.ownerNumber
       if (isCancelText(message.text) && (isOwner || message.via === 'mention')) {
         const owned = await flow.cancel?.(turnOf(message, open))
         if (owned !== undefined && owned !== null) return apply(message, open, owned)

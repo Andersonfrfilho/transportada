@@ -130,6 +130,8 @@ export type WorkerEnvironment = {
   readonly mdfeAutoIssue?: MdfeAutoIssueEnvironment
   /** `MDFE_AUTO_ISSUE_ENABLED`: o crachá sozinho não emite MDF-e; desligado por padrão. */
   readonly mdfeAutoIssueEnabled: boolean
+  /** `DRIVER_REMINDERS_ENABLED`: o interruptor global dos lembretes do motorista; desligado por padrão. */
+  readonly driverRemindersEnabled: boolean
   readonly logLevel: LogLevel
   /**
    * Spec 062 T005 — a Graph API da Meta, sem segredo: o token é por empresa e vive selado no banco.

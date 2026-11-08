@@ -16,12 +16,12 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 
 > 🤖 Modelo: `sonnet` (T0.1 é 🧠 — `opus`)
 
-- [ ] **T0.1 🧠** Conferir no código as premissas que o `plan.md` deixou para a T0.1: onde fica gravada a origem
+- [x] **T0.1 🧠** Conferir no código as premissas que o `plan.md` deixou para a T0.1: onde fica gravada a origem
       grupo × individual do evento (último canal, D5), nomes das permissões de leitura e gestão de viagens para a
       pendência e a dispensa, aba das Configurações (`automations` ou nova), e o desenho da extração do portão "pergunta
       aberta" (`RouteOfferGate` → `DriverOpenQuestionPort`) sem mudar a oferta da próxima rota. Aceite: `plan.md`
       atualizado com arquivo:símbolo; decisões em `evidence.md`.
-- [ ] **T0.2** Contratos vermelhos das políticas puras, com relógio injetado:
+- [x] **T0.2** Contratos vermelhos das políticas puras, com relógio injetado:
       `test/driver-stop-reminders/stop-reminder-{schedule,origin,transition,gate,message}.contract.ts` e o entrypoint
       `test/driver-stop-reminders.contract.test.ts` no `package.json`. Aceite: vermelhos pelo motivo certo (módulo ausente).
 
@@ -29,13 +29,13 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 
 > 🤖 Modelo: `sonnet` (T1.1 → `haiku`)
 
-- [ ] **T1.1** Chave global `DRIVER_REMINDERS_ENABLED` (padrão `false`) no schema de env da API e do worker, no
+- [x] **T1.1** Chave global `DRIVER_REMINDERS_ENABLED` (padrão `false`) no schema de env da API e do worker, no
       `.env.example` e no `make config`, no molde de `MDFE_AUTO_ISSUE_ENABLED`. Aceite: contrato do schema; `make config`.
-- [ ] **T1.2** Migration A aditiva: `driver_stop_reminders`, `company_driver_reminder_settings` e a linha de
+- [x] **T1.2** Migration A aditiva: `driver_stop_reminders`, `company_driver_reminder_settings` e a linha de
       `job_schedules` da rotina com os `CHECK` reescritos (plan.md § Dados e § Worker).
       Aceite: `make migration-test`; `db:generate` → `no_changes`.
-- [ ] **T1.3** Políticas puras (T0.2 verde): schedule, origin, transition, message.
-- [ ] **T1.4** `driver-stop-reminder.service.ts` (`onStopEvent`) ligado a saída, chegada, baixa, ocorrência,
+- [x] **T1.3** Políticas puras (T0.2 verde): schedule, origin, transition, message.
+- [x] **T1.4** `driver-stop-reminder.service.ts` (`onStopEvent`) ligado a saída, chegada, baixa, ocorrência,
       cancelamento de saída e encerramento da viagem, na transação do evento; OSRM depois do commit por `id`+`version`;
       chave global desligada → nada grava. Integração: saída abre `arrival` com reserva e depois com OSRM; OSRM fora →
       `origin_kind='fallback'`; chegada fecha e abre `settlement`; chegada marcada junto com a baixa não abre; baixa,
@@ -45,22 +45,27 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 
 > 🤖 Modelo: `sonnet` (T2.6 → `haiku`)
 
-- [ ] **T2.1** Conferir que o suporte de menção do grupo (pré-requisito, D8) está em `origin/staging`; o envio do
+- [x] **T2.1** Conferir que o suporte de menção do grupo (pré-requisito, D8) está em `origin/staging`; o envio do
       lembrete no grupo pede a menção do motorista da viagem por ele. Sem o suporte → **parar e perguntar** (não
       reimplementar). Aceite: contrato do lembrete com a menção pedida.
-- [ ] **T2.2** Extrair o portão "pergunta aberta" para `DriverOpenQuestionPort` sem mudar a oferta da próxima rota
+- [x] **T2.2** Extrair o portão "pergunta aberta" para `DriverOpenQuestionPort` sem mudar a oferta da próxima rota
       (diff de movimentação; contratos da 294 verdes). Política do portão (RF8) verde e `deliver-driver-stop-reminder.use-case.ts` + rota de robô
       `POST /driver-stop-reminders/:id/delivery` (permissão própria só no papel `automation`), com a vaga da 289 e a
       reserva por `version`. Integração: envia, adia por horário, por pedido aberto e por vaga; fecha se a parada andou;
       concorrência envia uma vez; 404 de outra empresa.
-- [ ] **T2.3** Passo `reminder.stage` no `GROUP_STEP_REGISTRY`: 1–4 delegam a cheguei/entreguei/não entreguei/
+- [x] **T2.3** Passo `reminder.stage` no `GROUP_STEP_REGISTRY`: 1–4 delegam a cheguei/entreguei/não entreguei/
       ocorrência; "4" adia sem consumir tentativa, até 3 adiamentos por etapa (RF13); "cancelar" fecha o passo e não o lembrete; comando digitado escapa.
       Falas como nós `fala_lembrete_*`. Aceite: matrizes `group-{flow,inbound}-isolation` verdes com o passo novo;
       `literal-message-text` verde.
-- [ ] **T2.4** Rotina `driver.stop-reminder.dispatch` no catálogo (API e worker, paridade), `driver-stop-reminder.routine.ts`
+- [x] **T2.4** Rotina `driver.stop-reminder.dispatch` no catálogo (API e worker, paridade), `driver-stop-reminder.routine.ts`
       e gateway para a API; registrada só com a chave global. Aceite: contrato da rotina e da paridade do catálogo.
-- [ ] **T2.5** Escolha do canal (D5): último canal de WhatsApp do motorista, grupo por padrão. Aceite: contrato.
-- [ ] **T2.6** OpenAPI gerado com a rota nova e o teste "toda rota aparece". Aceite: teste de documentação verde.
+- [x] **T2.5** Escolha do canal (D5): último canal de WhatsApp do motorista, grupo por padrão. Aceite: contrato.
+- [x] ~~T2.6~~ Não se aplica: a API não tem OpenAPI (contrato = arquivo de rotas + schema Zod).
+- [ ] **T2.7** Etapa `idle` ("sem evento", dono 2026-11-07; spec.md D10, RF21–RF25): migration aditiva (`idle_minutes` com
+      padrão 30 e `CHECK` de `stage` reescrito), `idleMinutes` nas configurações (API, PUT, schema), política de
+      transição/prazo/mensagem, varredura da parada suposta, portão, passo `reminder.stage` por variante e os nós
+      `fala_lembrete_sem_evento_{inicio,rota}` no grafo raiz. Aceite: contratos vermelhos antes; integração da varredura e da
+      entrega com os dois textos; matrizes de isolamento verdes; `make migration-test`; `db:generate` → `no_changes`.
 
 ## Fase 3 — Conversa individual e template da Meta
 
@@ -81,12 +86,13 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 - [ ] **T4.1** Escalada: `status='escalated'` depois da última tentativa; fonte de pendência
       `driverStopReminderEscalated`; notificação no sino para a lista efetiva de responsáveis; dispensa
       `POST /driver-stop-reminders/:id/dismissal`. A pendência some quando a etapa se resolve. Aceite: integração.
-- [ ] **T4.2** `GET/PUT /settings/driver-stop-reminders` (`settings.manage`, `.strict()`, todos os erros de uma vez,
+- [x] **T4.2** `GET/PUT /settings/driver-stop-reminders` (`settings.manage`, `.strict()`, todos os erros de uma vez,
       faixas do RF19) e leitura das configurações pela política (sem linha = desligado + padrões). Aceite: contrato + integração.
 - [ ] **T4.3** Painel: bloco "Cobrança do motorista" em Configurações e o tipo "Motorista sem resposta" em
       `/pendencias` com "Dispensar". Aceite: testes do painel (script `test`), typecheck, lint e build.
 - [ ] **T4.4** Locale e catálogo das falas novas no editor de fluxo (FlowsWorkspace) — chaves e variáveis listadas.
       Aceite: `grep` das chaves nos locales e teste do catálogo.
+      **depende da spec do editor de fluxos** (dono, 2026-11-07: o FlowsWorkspace do SDK não está montado no painel nem tem rotas na API; spec própria depois da 299).
 
 ## Fase 5 — Jornada com relógio falso
 

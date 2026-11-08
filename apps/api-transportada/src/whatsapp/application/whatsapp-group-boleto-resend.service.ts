@@ -37,23 +37,29 @@ export type GroupBoletoResendPorts = {
 export const GROUP_BOLETO_RESEND_TEXT = {
   askDocument: (pending: readonly GroupBoletoPendingRequest[]) =>
     [
-      '📄 Qual nota? Me marque e escreva *pedir boleto de novo* com o número:',
+      '📄 *Qual nota?*',
+      'Me marque e escreva *pedir boleto de novo* com o número:',
       '',
-      ...pending.map((request) => `• NF ${request.documentNumber}`),
+      ...pending.map((request) => `• NF \`${request.documentNumber}\``),
     ].join('\n'),
   failed: (documentNumber: string) =>
-    `⚠️ Não consegui pedir de novo o boleto da NF ${documentNumber} agora. Tente daqui a pouco ou fale com o escritório.`,
+    [
+      `⚠️ *Não consegui pedir de novo o boleto da NF \`${documentNumber}\` agora.*`,
+      'Tente daqui a pouco ou fale com o escritório.',
+    ].join('\n'),
   none: (documentNumber: null | string) =>
     documentNumber === null
-      ? '🔎 Não achei pedido de boleto aguardando a contratante neste grupo.'
-      : `🔎 Não achei pedido de boleto aguardando a contratante para a NF ${documentNumber} neste grupo.`,
+      ? '🔎 *Não achei pedido de boleto aguardando a contratante neste grupo.*'
+      : `🔎 *Não achei pedido de boleto aguardando a contratante para a NF \`${documentNumber}\` neste grupo.*`,
   notResendable: (documentNumber: string) =>
-    `⏳ O pedido do boleto da NF ${documentNumber} já foi reenviado há pouco ou não está mais aguardando a contratante. O escritório acompanha.`,
+    [
+      `⏳ *O pedido do boleto da NF \`${documentNumber}\` já foi reenviado há pouco.*`,
+      'Ou ele não está mais aguardando a contratante. O escritório acompanha.',
+    ].join('\n'),
   sent: (documentNumber: string) =>
     [
-      `📨 *Pedi de novo à contratante o boleto da NF ${documentNumber}.*`,
-      '',
-      'Assim que ela responder, o boleto vem para cá.',
+      `📨 *Pedi de novo o boleto da NF \`${documentNumber}\`.*`,
+      'Assim que a contratante responder, ele vem para cá.',
     ].join('\n'),
 } as const
 
