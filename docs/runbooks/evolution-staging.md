@@ -70,7 +70,7 @@ nenhuma chamada ao Evolution.
   chip. Conferir o estado da conexão; a mensagem é descartada (porta fechada), não aceita sem saber quem escreveu.
 - `unknown_sender`: quem escreveu só veio como `@lid` e a lista de participantes não trouxe o número dele.
 
-## O motorista no chat direto com o número do bot (spec 308 T2)
+## O motorista no chat direto com o número do bot (spec 308 T2/T3)
 
 O 1:1 de quem é **motorista ativo** da empresa (telefone da ficha, com ou sem o nono dígito, e de uma ficha só) entra no
 mesmo fluxo do grupo, como um "grupo de um só": o pedido fica em `whatsapp_group_requests` com
@@ -86,6 +86,15 @@ pergunta ao Evolution quem escreveu (nada de `GET /group/participants` para o 1:
   `whatsapp_evolution.webhook.received`. Sem número nem texto.
 - Ver os pedidos do 1:1 em staging: `select status, step, opened_at from whatsapp_group_requests where group_jid like
 '%@s.whatsapp.net' order by opened_at desc limit 20;`
+- Foto, localização e áudio no 1:1 (T3): seguem o caminho do grupo. A foto conta como marcada (canhoto); a
+  localização responde o passo da localização do "saí"/"cheguei" do pedido aberto no 1:1 (registra com o ponto) ou,
+  sem pedido, completa a entrega em preparo; sem nada esperando, o bot responde "Recebi a localização. Nenhuma
+  pergunta minha está esperando por ela". O áudio vai à transcrição sem frase de chamada; com o pedido aberto, a
+  resposta curta falada ("pular") vai direto ao passo, sem ele o bot pede o "Entendi assim" e aceita "1"/"2" digitado
+  ou "sim"/"não" falado. No log: `outcome` `media`, `audio` ou `audio_answer` em `whatsapp_evolution.direct_message`.
+- Conferir em staging (com o número do Anderson, que é motorista na ficha de teste): mandar "saí" no 1:1, depois a
+  localização atual; o pedido fecha (`status` diferente de `open` na consulta acima) e o bot responde "Saída
+  registrada". Mandar um áudio "cheguei", responder "sim" por áudio e ver o pedido da localização.
 - Ainda não coberto (tasks seguintes da 308): menu de XML para quem só importa nota (T4), o lembrete de parada
   enxergar o pedido do 1:1, e o 1:1 que chega só com `@lid` (segue ignorado).
 

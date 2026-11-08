@@ -710,4 +710,45 @@ describe('spec 308: o chat direto do motorista vai ao bot', () => {
       state.logs.find((log) => log.message === 'whatsapp_evolution.direct_message')?.fields,
     ).toMatchObject({ outcome: 'rate_limited' })
   })
+
+  test('T3: a localização e o áudio do 1:1 chegam ao bot lidos do corpo cru, como no grupo', async () => {
+    const { state, useCase } = await setup({ directDrivers: [PHONE] })
+    const key = (id: string) => ({ fromMe: false, id, remoteJid: `${PHONE}@s.whatsapp.net` })
+
+    await useCase.receive(
+      receiveWith({
+        rawBody: upsert({
+          key: key('LOC-1'),
+          message: { locationMessage: { degreesLatitude: -21.17, degreesLongitude: -47.81 } },
+        }),
+      }),
+    )
+    await useCase.receive(
+      receiveWith({
+        rawBody: upsert({
+          key: key('PTT-1'),
+          message: { audioMessage: { mimetype: 'audio/ogg; codecs=opus', ptt: true, seconds: 4 } },
+        }),
+      }),
+    )
+
+    expect(state.messages).toEqual([])
+    expect(
+      state.direct.map(({ audio, event, media }) => ({
+        audio: audio === null || audio === undefined ? null : audio.seconds,
+        id: event.externalMessageId,
+        media: media ?? null,
+        text: event.text,
+      })),
+    ).toEqual([
+      {
+        audio: null,
+        id: 'LOC-1',
+        media: { kind: 'location', latitude: -21.17, longitude: -47.81 },
+        text: null,
+      },
+      { audio: 4, id: 'PTT-1', media: null, text: null },
+    ])
+    expect(JSON.stringify(state.logs)).not.toContain('-21.17')
+  })
 })
