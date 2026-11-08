@@ -3,7 +3,7 @@
 Uma task por vez, PR para staging, merge com CI verde. Contrato: `bun --env-file=../../.env.test test --timeout 120000`;
 integração: `bun --env-file=../../.env.test run test:integration` (de dentro de `apps/api-transportada`).
 
-- [ ] **T1 🧠** Spike: confirmar que `groupSessions`, `groupReplies`, mídia e áudio aceitam JID individual; listar o que
+- [x] **T1 🧠** Spike: confirmar que `groupSessions`, `groupReplies`, mídia e áudio aceitam JID individual; listar o que
       exigir grupo cadastrado. Aceite: nota em `evidence.md`.
   > 🤖 Modelo: `opus`
 - [ ] **T2 🧠** Roteamento no webhook: `chat === 'user'` reconhecido (D2.3) entra no `groupInbound` como grupo de um só,
