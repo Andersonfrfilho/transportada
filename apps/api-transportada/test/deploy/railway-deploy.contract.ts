@@ -70,6 +70,7 @@ async function runDeploy({
       PATH: `${binaryDirectory}:${Bun.env.PATH ?? ''}`,
       POLL_INTERVAL_SECONDS: '0',
       PWD: home,
+      RETRY_DELAY_SECONDS: '0',
       RAILWAY_PROJECT_ID: 'project-stub',
       STUB_DEPLOYMENTS: JSON.stringify(deployments),
       STUB_UP_EXIT: String(upExitCode),
@@ -132,6 +133,34 @@ describe('contrato do deploy na Railway', () => {
       upOutput: buildLogsLine(DEPLOYMENT_ID),
     })
 
+    expect(result.exitCode).not.toBe(0)
+  })
+
+  /**
+   * Em 08/11/2026 a Railway recusou o snapshot do repositório (FAILED sem build) em worker,
+   * frontend e client no mesmo push. FAILED é repetido uma vez; o segundo FAILED é falha de verdade.
+   */
+  test('deployment FAILED é repetido uma vez antes de derrubar o pipeline', async () => {
+    const result = await runDeploy({
+      deployments: [{ id: DEPLOYMENT_ID, status: 'FAILED' }],
+      upExitCode: 0,
+      upOutput: buildLogsLine(DEPLOYMENT_ID),
+    })
+
+    expect(result.output).toContain('tentativa 2 de 2')
+    expect(result.output).not.toContain('tentativa 3')
+    expect(result.exitCode).not.toBe(0)
+  })
+
+  /** CRASHED é o código que subiu e caiu: repetir só esconderia o defeito. */
+  test('deployment CRASHED não é repetido', async () => {
+    const result = await runDeploy({
+      deployments: [{ id: DEPLOYMENT_ID, status: 'CRASHED' }],
+      upExitCode: 0,
+      upOutput: buildLogsLine(DEPLOYMENT_ID),
+    })
+
+    expect(result.output).not.toContain('tentativa 2')
     expect(result.exitCode).not.toBe(0)
   })
 })
