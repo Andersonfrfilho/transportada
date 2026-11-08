@@ -50,7 +50,7 @@ const MAX_PROBLEM_LINES = 5
 const REJECTION_TEXT: Readonly<Record<NfeXmlReceiptRejection, string>> = {
   [NFE_XML_RECEIPT_REJECTION.mailboxNotConfigured]: 'A caixa de notas não está configurada.',
   [NFE_XML_RECEIPT_REJECTION.noAcceptedFile]:
-    'Não encontrei nenhum arquivo .xml ou .zip na mensagem. Mande os XMLs das notas ou um zip com eles.',
+    'Não encontrei nenhum arquivo .xml, .zip ou .rar na mensagem. Mande os XMLs das notas ou um zip (ou rar) com eles.',
   [NFE_XML_RECEIPT_REJECTION.senderNotAllowed]:
     'Este remetente não pode importar notas. Peça à administração para liberar o seu cadastro.',
   [NFE_XML_RECEIPT_REJECTION.senderNotAuthenticated]:
@@ -61,7 +61,7 @@ const REJECTION_TEXT: Readonly<Record<NfeXmlReceiptRejection, string>> = {
 
 const SKIP_TEXT: Readonly<Record<ReceivedFileSkipReason, string>> = {
   [RECEIVED_FILE_SKIP_REASON.empty]: 'vazio',
-  [RECEIVED_FILE_SKIP_REASON.notXmlOrZip]: 'não é .xml nem .zip',
+  [RECEIVED_FILE_SKIP_REASON.notXmlOrZip]: 'não é .xml, .zip nem .rar',
   [RECEIVED_FILE_SKIP_REASON.tooLarge]: 'grande demais',
 }
 

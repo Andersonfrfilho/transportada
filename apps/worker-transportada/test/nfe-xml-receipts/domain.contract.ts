@@ -58,7 +58,7 @@ describe('receipt messages policy', () => {
       skipped: [{ reason: 'not_xml_or_zip' }, { reason: 'not_xml_or_zip' }],
     })
     expect(text).toContain('Recebi 3 arquivos')
-    expect(text).toContain('Ignorei 2 arquivos (não é .xml nem .zip)')
+    expect(text).toContain('Ignorei 2 arquivos (não é .xml, .zip nem .rar)')
     expect(buildAcknowledgement({ accepted: 1, skipped: [] })).toBe(
       'Recebi 1 arquivo e já estou importando. Aviso quando terminar.',
     )

@@ -14,6 +14,7 @@ import {
 } from '../domain/nfe-xml-receipt.constant.js'
 import { buildAcknowledgement } from '../domain/receipt-messages.policy.js'
 import { decideReceiptRetry } from '../domain/receipt-retry.policy.js'
+import { convertRarToZip } from '../domain/rar-to-zip.policy.js'
 import { chunkOversizedZip } from '../domain/zip-queue-chunking.policy.js'
 import { classifyReceivedFiles } from '../domain/received-xml-files.policy.js'
 import type {
@@ -112,10 +113,9 @@ async function processOne(
     })
     if ('kind' in downloaded) return await reject(NFE_XML_RECEIPT_REJECTION.tooLarge)
     // Zip com mais notas do que o expansor aceita de uma vez vira várias fatias da mesma importação (RN3).
-    const files: readonly ReceiptFile[] = chunkOversizedZip({
-      bytes: downloaded.bytes,
-      name: receipt.media.fileName,
-    })
+    const files: readonly ReceiptFile[] = chunkOversizedZip(
+      await convertRarToZip({ bytes: downloaded.bytes, name: receipt.media.fileName }),
+    )
     const { importId } = await dependencies.importGateway.createImport({
       automationJob: null,
       companyId: receipt.companyId,
