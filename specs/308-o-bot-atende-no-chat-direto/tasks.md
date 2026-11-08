@@ -1,0 +1,17 @@
+# Tasks — 308 O bot atende no chat direto
+
+Uma task por vez, PR para staging, merge com CI verde. Contrato: `bun --env-file=../../.env.test test --timeout 120000`;
+integração: `bun --env-file=../../.env.test run test:integration` (de dentro de `apps/api-transportada`).
+
+- [ ] **T1 🧠** Spike: confirmar que `groupSessions`, `groupReplies`, mídia e áudio aceitam JID individual; listar o que
+  exigir grupo cadastrado. Aceite: nota em `evidence.md`.
+  > 🤖 Modelo: `opus`
+- [ ] **T2 🧠** Roteamento no webhook: `chat === 'user'` reconhecido (D2.3) entra no `groupInbound` como grupo de um só,
+  sem marcação; citação à conversa da ocorrência e não reconhecido seguem `receiveMessage`. Contratos vermelhos antes.
+  > 🤖 Modelo: `opus` (decide o que o bot aceita)
+- [ ] **T3** Foto, localização e áudio no 1:1 pelo caminho do grupo (RF3).
+  > 🤖 Modelo: `sonnet`
+- [ ] **T4** Opção "Enviar XML das notas" no menu para quem passa em `findImportSender` (RF4, D2.4).
+  > 🤖 Modelo: `sonnet`
+- [ ] **T5** Integração do webhook, roteiro de staging e runbook atualizados; teste com o número do Anderson.
+  > 🤖 Modelo: `sonnet`
