@@ -5,6 +5,8 @@ import { createHash } from 'node:crypto'
 
 import { type UnzipFileInfo, unzipSync } from 'fflate'
 
+import { effectiveEntrySizes, readZipEntrySizes } from './zip-entry-sizes.reader.js'
+
 const XML_EXTENSION = '.xml'
 const DEFLATE_COMPRESSION = 8
 
@@ -101,6 +103,7 @@ function readArchive(
 ): Record<string, Uint8Array> {
   let acceptedEntries = 0
   let acceptedBytes = 0
+  const directory = readZipEntrySizes(sourceBytes)
 
   try {
     return unzipSync(sourceBytes, {
@@ -109,13 +112,17 @@ function readArchive(
           return false
         }
         assertSafeEntryName(file.name)
-        assertWithinEntryLimit(file, limits)
+        const sizes = effectiveEntrySizes(file, directory)
+        assertWithinEntryLimit(
+          { ...file, originalSize: sizes.originalSize, size: sizes.compressedSize },
+          limits,
+        )
 
         acceptedEntries += 1
         if (acceptedEntries > limits.maxEntries) {
           throw new ArchiveExpansionError(ARCHIVE_ERROR_CODE.EXPANSION_LIMIT)
         }
-        acceptedBytes += file.originalSize
+        acceptedBytes += sizes.originalSize
         if (acceptedBytes > limits.maxTotalBytes) {
           throw new ArchiveExpansionError(ARCHIVE_ERROR_CODE.EXPANSION_LIMIT)
         }

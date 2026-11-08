@@ -7,6 +7,7 @@
 import { describe, expect, test } from 'bun:test'
 import { strToU8, unzipSync, zipSync } from 'fflate'
 
+import { withZip64Sentinels } from '../fixtures/zip64-sentinel.fixture.js'
 import { createNfeImportArchiveExpander } from '../../src/nfe-imports/infrastructure/nfe-import-archive-expander.gateway.js'
 import { chunkOversizedZip } from '../../src/nfe-xml-receipts/domain/zip-queue-chunking.policy.js'
 
@@ -24,6 +25,13 @@ describe('zip chunking before the queue', () => {
   test('a zip within the importer limits goes through untouched', () => {
     const file = { bytes: zipWith(50), name: 'notas.zip' }
     expect(chunkOversizedZip(file)).toEqual([file])
+  })
+
+  test('a streamed zip (Zip64 sentinels) is chunked by its real sizes, not seen as 4 GiB per entry (spec 305)', () => {
+    const streamed = withZip64Sentinels(zipWith(1000))
+    const chunks = chunkOversizedZip({ bytes: streamed, name: 'fluxo.zip' })
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks[0]?.name).toBe('fluxo-parte-001.zip')
   })
 
   test('a loose xml and a non-zip are never touched', () => {

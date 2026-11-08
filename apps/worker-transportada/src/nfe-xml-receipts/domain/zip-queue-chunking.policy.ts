@@ -13,6 +13,10 @@
  */
 import { type UnzipFileInfo, unzipSync, zipSync } from 'fflate'
 
+import {
+  effectiveEntrySizes,
+  readZipEntrySizes,
+} from '../../nfe-imports/infrastructure/zip-entry-sizes.reader.js'
 import type { ReceiptFile } from '../application/nfe-xml-receipt.types.js'
 
 /** Abaixo dos tetos do expansor (500 entradas, 100 MB) para sobrar folga. */
@@ -76,30 +80,32 @@ function listSafeXmlEntries(bytes: Uint8Array): readonly Entry[] | undefined {
   const entries: Entry[] = []
   let planned = 0
   let unsafe = false
+  const directory = readZipEntrySizes(bytes)
   try {
     unzipSync(bytes, {
       filter(info: UnzipFileInfo): boolean {
         const name = info.name
+        const sizes = effectiveEntrySizes(info, directory)
         if (name.endsWith('/') || !name.toLowerCase().endsWith('.xml')) return false
         if (
           !isSafeName(name) ||
-          info.originalSize <= 0 ||
-          info.originalSize > ZIP_CHUNK_LIMITS.maxEntryBytes
+          sizes.originalSize <= 0 ||
+          sizes.originalSize > ZIP_CHUNK_LIMITS.maxEntryBytes
         ) {
           unsafe = true
           return false
         }
         if (
           info.compression === DEFLATE &&
-          info.size > 0 &&
-          info.originalSize / info.size > ZIP_CHUNK_LIMITS.maxCompressionRatio
+          sizes.compressedSize > 0 &&
+          sizes.originalSize / sizes.compressedSize > ZIP_CHUNK_LIMITS.maxCompressionRatio
         ) {
           unsafe = true
           return false
         }
-        planned += info.originalSize
+        planned += sizes.originalSize
         if (planned > ZIP_CHUNK_LIMITS.maxPlannedBytes) unsafe = true
-        entries.push({ name, size: info.originalSize })
+        entries.push({ name, size: sizes.originalSize })
         return false
       },
     })
