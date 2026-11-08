@@ -21,7 +21,7 @@ Uma task por vez; cada uma fecha com typecheck + testes da app + evidência em `
 
 ## Fase 3 — WhatsApp
 > 🤖 Modelo: `sonnet`
-- [ ] **T3.1** Handler de documento (menção ao bot ou conversa direta), número cadastrado, download da mídia pela Evolution.
+- [ ] **T3.1** Handler de documento (marcação ao bot em grupo, ou conversa direta), número cadastrado, download da mídia pela Evolution.
 - [ ] **T3.2** Resposta-resumo na conversa/grupo.
 
 ## Fase 4 — Tela e fechamento

@@ -37,6 +37,7 @@ Em 2 e 3 o remetente recebe de volta um resumo: importadas, já estavam no siste
   registro e na trilha de auditoria.
 - **D4 — Limites:** os mesmos da tela, por anexo e no total; zip aninhado e entrada que não seja `.xml` são ignorados
   e contados como inválidos, sem derrubar o lote.
+- **D6 — Grupos:** o bot só age em grupo com marcação explícita; empresa vem do grupo já vinculado (spec 292), nunca do texto.
 - **D5 — Resposta:** e-mail responde ao remetente; WhatsApp responde na mesma conversa/grupo marcando quem enviou.
 
 ## Fora do escopo
@@ -57,6 +58,13 @@ Em 2 e 3 o remetente recebe de volta um resumo: importadas, já estavam no siste
 ### P1 — WhatsApp marcando o bot
 **Given** número cadastrado no grupo **When** envia XML ou zip marcando o bot (ou na conversa direta) **Then** o bot baixa
 o arquivo, cria a importação e responde na conversa com o resumo.
+
+### P1 — Grupos do WhatsApp
+**Given** o bot está num grupo (specs 292/293: grupo do motorista, grupos da operação) **When** um membro cadastrado envia
+XML/zip marcando o bot (ou respondendo ao arquivo com a marcação) **Then** o bot importa e responde **no grupo**, marcando
+quem enviou. Arquivo sem marcação no grupo é ignorado (o bot não lê tudo que passa). Vale para qualquer grupo em que o bot
+esteja; o grupo identifica a empresa, o remetente (número) precisa ser cadastrado, e quem está no grupo mas não é cadastrado
+não importa nada.
 
 ### P1 — Remetente não autorizado
 **Given** remetente fora da allowlist / número não cadastrado **When** envia **Then** nada é importado; resposta
