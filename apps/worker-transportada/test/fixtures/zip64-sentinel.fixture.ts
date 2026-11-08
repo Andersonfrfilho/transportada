@@ -7,7 +7,10 @@
  */
 const SENTINEL = 0xffffffff
 
-export function withZip64Sentinels(zip: Uint8Array): Uint8Array {
+export function withZip64Sentinels(
+  zip: Uint8Array,
+  options: { readonly claimedOriginalSize?: bigint } = {},
+): Uint8Array {
   const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength)
   const eocd = zip.byteLength - 22
   if (view.getUint32(eocd, true) !== 0x06054b50) throw new Error('zip sem comentário esperado')
@@ -36,7 +39,7 @@ export function withZip64Sentinels(zip: Uint8Array): Uint8Array {
     const extra = 46 + nameLength
     entryView.setUint16(extra, 0x0001, true)
     entryView.setUint16(extra + 2, 16, true)
-    entryView.setBigUint64(extra + 4, BigInt(original), true)
+    entryView.setBigUint64(extra + 4, options.claimedOriginalSize ?? BigInt(original), true)
     entryView.setBigUint64(extra + 12, BigInt(compressed), true)
     entries.push(entry)
     cursor += length

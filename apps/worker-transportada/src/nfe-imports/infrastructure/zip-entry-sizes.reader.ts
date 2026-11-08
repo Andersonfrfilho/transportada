@@ -5,10 +5,12 @@
  * vários exportadores de NF-e) gravam `0xFFFFFFFF` nos campos de 32 bits e levam o tamanho de verdade no campo extra
  * Zip64 (id `0x0001`). O `filter` do `fflate` entrega o valor cru de 32 bits — 4 GiB para toda entrada — enquanto a
  * extração em si resolve o Zip64 sozinha. Sem esta leitura, o teto por arquivo recusa um zip são de 389 notas de 50 KB
- * como "grande demais". Aqui só se **lê** o diretório (nada é inflado); qualquer coisa fora do normal devolve o mapa
- * vazio e quem chama segue com o valor que o `fflate` deu.
+ * como "grande demais". Pior: se o `filter` aceita a entrada, o `fflate` aloca o buffer de saída com esse valor cru
+ * (4 GiB) e o worker morre por falta de memória. Por isso zip em fluxo **não** passa pelo `unzipSync`: a extração é feita
+ * aqui, entrada por entrada, com o buffer do tamanho real já conferido contra os tetos. Qualquer coisa fora do normal
+ * devolve o diretório vazio e quem chama segue com o valor que o `fflate` deu.
  */
-import type { UnzipFileInfo } from 'fflate'
+import { inflateSync, type UnzipFileInfo } from 'fflate'
 
 const ZIP32_SENTINEL = 0xffffffff
 const EOCD_SIGNATURE = 0x06054b50
@@ -139,4 +141,95 @@ function resolveEntry(input: {
     cursor += 4 + size
   }
   return { compressedSize, originalSize }
+}
+
+const LOCAL_SIGNATURE = 0x04034b50
+const LOCAL_FIXED_BYTES = 30
+const STORED = 0
+const DEFLATE = 8
+
+export type ZipDirectoryEntry = ZipEntrySizes & {
+  readonly localOffset: number
+  readonly method: number
+  readonly name: string
+}
+
+/** O diretório central inteiro; `streamed` quando alguma entrada traz o marcador de 32 bits (zip feito em fluxo). */
+export function readZipDirectory(bytes: Uint8Array): {
+  readonly entries: readonly ZipDirectoryEntry[]
+  readonly streamed: boolean
+} {
+  const entries: ZipDirectoryEntry[] = []
+  let streamed = false
+  try {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    const eocd = findEndOfCentralDirectory(view)
+    if (eocd === undefined) return { entries: [], streamed: false }
+    let { count, offset } = eocd
+    if (count === 0xffff || offset === ZIP32_SENTINEL) {
+      const zip64 = readZip64EndOfCentralDirectory(view, eocd.position)
+      if (zip64 === undefined) return { entries: [], streamed: false }
+      ;({ count, offset } = zip64)
+    }
+    const decoder = new TextDecoder()
+    let cursor = offset
+    for (let index = 0; index < count; index += 1) {
+      if (cursor + CENTRAL_FIXED_BYTES > view.byteLength) return { entries: [], streamed: false }
+      if (view.getUint32(cursor, true) !== CENTRAL_SIGNATURE)
+        return { entries: [], streamed: false }
+      const method = view.getUint16(cursor + 10, true)
+      const compressed = view.getUint32(cursor + 20, true)
+      const original = view.getUint32(cursor + 24, true)
+      const nameLength = view.getUint16(cursor + 28, true)
+      const extraLength = view.getUint16(cursor + 30, true)
+      const commentLength = view.getUint16(cursor + 32, true)
+      const localOffset = view.getUint32(cursor + 42, true)
+      const nameStart = cursor + CENTRAL_FIXED_BYTES
+      const extraStart = nameStart + nameLength
+      const next = extraStart + extraLength + commentLength
+      if (next > view.byteLength) return { entries: [], streamed: false }
+      if (compressed === ZIP32_SENTINEL || original === ZIP32_SENTINEL) streamed = true
+      entries.push({
+        ...resolveEntry({ compressed, extraLength, extraStart, original, view }),
+        localOffset,
+        method,
+        name: decoder.decode(bytes.subarray(nameStart, extraStart)),
+      })
+      cursor = next
+    }
+  } catch {
+    return { entries: [], streamed: false }
+  }
+  return { entries, streamed }
+}
+
+/**
+ * Extrai uma entrada pelo tamanho real do diretório. O buffer de saída tem exatamente `originalSize` — que quem chama
+ * já conferiu contra os tetos — e o resultado precisa ter esse tamanho. Qualquer divergência lança.
+ */
+export function extractZipEntry(bytes: Uint8Array, entry: ZipDirectoryEntry): Uint8Array {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const offset = entry.localOffset
+  if (offset === ZIP32_SENTINEL || offset + LOCAL_FIXED_BYTES > view.byteLength) {
+    throw new Error('ZIP_LOCAL_HEADER_INVALID')
+  }
+  if (view.getUint32(offset, true) !== LOCAL_SIGNATURE) throw new Error('ZIP_LOCAL_HEADER_INVALID')
+  const start =
+    offset +
+    LOCAL_FIXED_BYTES +
+    view.getUint16(offset + 26, true) +
+    view.getUint16(offset + 28, true)
+  const end = start + entry.compressedSize
+  if (end > view.byteLength) throw new Error('ZIP_ENTRY_TRUNCATED')
+  const data = bytes.subarray(start, end)
+  const output =
+    entry.method === STORED
+      ? data.slice()
+      : entry.method === DEFLATE
+        ? inflateSync(data, { out: new Uint8Array(entry.originalSize) })
+        : undefined
+  if (output === undefined || output.length !== entry.originalSize) {
+    throw new Error('ZIP_ENTRY_INVALID')
+  }
+  return output
 }
