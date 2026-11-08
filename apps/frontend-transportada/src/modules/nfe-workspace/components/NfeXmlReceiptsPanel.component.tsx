@@ -71,6 +71,46 @@ export function NfeXmlReceiptsPanel({ failed, loading, receipts }: NfeXmlReceipt
                   {t(`xmlReceipts.status.${receipt.status}`)}
                 </span>
               </header>
+              {receipt.import !== null && (
+                <dl className={styles.secondaryText} data-testid="nfe-xml-receipt-result">
+                  <div>
+                    <dt>{t('xmlReceipts.result.received')}</dt>
+                    <dd>{formatNfeImportMoment(receipt.createdAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('xmlReceipts.result.entered')}</dt>
+                    <dd>
+                      {receipt.import.finishedAt === null
+                        ? t('xmlReceipts.result.processing')
+                        : formatNfeImportMoment(receipt.import.finishedAt)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{t('xmlReceipts.result.notes')}</dt>
+                    <dd>
+                      {t('xmlReceipts.result.counts', {
+                        duplicated: receipt.import.counts.duplicated,
+                        imported: receipt.import.counts.imported,
+                        problems:
+                          receipt.import.counts.failed +
+                          receipt.import.counts.invalid +
+                          receipt.import.counts.rejected,
+                        received: receipt.import.counts.received,
+                      })}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{t('xmlReceipts.result.contractors')}</dt>
+                    <dd>
+                      {receipt.import.contractors.length === 0
+                        ? t('xmlReceipts.result.noContractors')
+                        : receipt.import.contractors
+                            .map((contractor) => `${contractor.name || '—'} (${contractor.count})`)
+                            .join(', ')}
+                    </dd>
+                  </div>
+                </dl>
+              )}
               {reason !== null && receipt.status !== 'imported' && (
                 <p className={styles.cardError} role="status">
                   {t(`xmlReceipts.reason.${reason}`, {

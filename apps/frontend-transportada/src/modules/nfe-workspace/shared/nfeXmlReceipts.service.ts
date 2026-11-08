@@ -4,11 +4,27 @@
  * Spec 301: os envios de XML por e-mail e WhatsApp, com o desfecho de cada um. Leitura só: quem grava é o webhook
  * (WhatsApp) e o consumidor de e-mail; quem decide o desfecho é o worker.
  */
+/** Spec 303: o desfecho da importação que o envio gerou. `finishedAt` nulo = ainda entrando. */
+export type NfeXmlReceiptImport = Readonly<{
+  contractors: readonly Readonly<{ count: number; name: string; taxId: null | string }>[]
+  counts: Readonly<{
+    duplicated: number
+    failed: number
+    imported: number
+    invalid: number
+    received: number
+    rejected: number
+  }>
+  finishedAt: null | string
+  status: string
+}>
+
 export type NfeXmlReceipt = Readonly<{
   channel: 'email' | 'whatsapp'
   createdAt: string
   filesCount: number
   id: string
+  import: NfeXmlReceiptImport | null
   importId: null | string
   lastErrorCode: null | string
   rejectReason: null | string
@@ -68,6 +84,7 @@ export function parseNfeXmlReceipts(body: unknown): readonly NfeXmlReceipt[] {
         createdAt: item.createdAt,
         filesCount: typeof item.filesCount === 'number' ? item.filesCount : 0,
         id: item.id,
+        import: parseImport(item.import),
         importId: typeof item.importId === 'string' ? item.importId : null,
         lastErrorCode: typeof item.lastErrorCode === 'string' ? item.lastErrorCode : null,
         rejectReason: typeof item.rejectReason === 'string' ? item.rejectReason : null,
@@ -85,4 +102,37 @@ export function needsAttention(receipt: NfeXmlReceipt): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function parseImport(value: unknown): NfeXmlReceiptImport | null {
+  if (!isRecord(value) || !isRecord(value.counts) || typeof value.status !== 'string') return null
+  const counts = value.counts
+  return {
+    contractors: Array.isArray(value.contractors)
+      ? value.contractors.flatMap((contractor): NfeXmlReceiptImport['contractors'] => {
+          if (!isRecord(contractor) || typeof contractor.name !== 'string') return []
+          return [
+            {
+              count: count(contractor.count),
+              name: contractor.name,
+              taxId: typeof contractor.taxId === 'string' ? contractor.taxId : null,
+            },
+          ]
+        })
+      : [],
+    counts: {
+      duplicated: count(counts.duplicated),
+      failed: count(counts.failed),
+      imported: count(counts.imported),
+      invalid: count(counts.invalid),
+      received: count(counts.received),
+      rejected: count(counts.rejected),
+    },
+    finishedAt: typeof value.finishedAt === 'string' ? value.finishedAt : null,
+    status: value.status,
+  }
 }

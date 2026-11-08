@@ -34,6 +34,36 @@ describe('xml receipts (spec 301)', () => {
     expect(parsed[1]).toMatchObject({ channel: 'email', filesCount: 3 })
   })
 
+  test('parses the import outcome (spec 303) and tolerates its absence or garbage', () => {
+    const outcome = {
+      contractors: [
+        { count: 2, name: 'Contratante Um', taxId: '123' },
+        { count: 1, name: 'Sem CNPJ', taxId: null },
+        { nope: true },
+      ],
+      counts: { duplicated: 1, failed: 0, imported: 3, invalid: 0, received: 4, rejected: 0 },
+      finishedAt: '2026-11-08T12:05:00.000Z',
+      status: 'completed',
+    }
+    const [done, running, legacy, garbage] = parseNfeXmlReceipts({
+      data: [
+        { ...ROW, id: 'a', import: outcome },
+        { ...ROW, id: 'b', import: { ...outcome, contractors: [], finishedAt: null } },
+        { ...ROW, id: 'c' },
+        { ...ROW, id: 'd', import: { status: 1 } },
+      ],
+    })
+    expect(done!.import?.counts.imported).toBe(3)
+    expect(done!.import?.contractors).toEqual([
+      { count: 2, name: 'Contratante Um', taxId: '123' },
+      { count: 1, name: 'Sem CNPJ', taxId: null },
+    ])
+    expect(done!.import?.finishedAt).toBe('2026-11-08T12:05:00.000Z')
+    expect(running!.import?.finishedAt).toBeNull()
+    expect(legacy!.import).toBeNull()
+    expect(garbage!.import).toBeNull()
+  })
+
   test('refuses a body that is not the expected envelope', () => {
     expect(() => parseNfeXmlReceipts({})).toThrow('NFE_XML_RECEIPTS_RESPONSE_INVALID')
     expect(() => parseNfeXmlReceipts(null)).toThrow('NFE_XML_RECEIPTS_RESPONSE_INVALID')

@@ -956,6 +956,15 @@
       "mailbox_not_configured": "A caixa de notas não está configurada.",
       "download_failed": "Não foi possível baixar o arquivo; novas tentativas foram feitas.",
       "unknown": "Falha ao processar; a operação foi avisada."
+    },
+    "result": {
+      "received": "Recebido em",
+      "entered": "Entrou no sistema em",
+      "processing": "Ainda entrando…",
+      "notes": "Notas",
+      "counts": "{{imported}} novas de {{received}} · {{duplicated}} já existiam · {{problems}} com problema",
+      "contractors": "Contratantes (notas novas)",
+      "noContractors": "nenhuma nota nova"
     }
   }
 }
