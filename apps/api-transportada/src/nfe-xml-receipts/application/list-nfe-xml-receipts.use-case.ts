@@ -6,11 +6,32 @@
  */
 import { maskPhone } from '../../logging/phone-mask.policy.js'
 
+/** Spec 303: o desfecho da importação que o recibo gerou — quantas notas, quando terminou e de quais contratantes. */
+export type NfeXmlReceiptImportView = {
+  readonly contractors: readonly {
+    readonly count: number
+    readonly name: string
+    readonly taxId: string | null
+  }[]
+  readonly counts: {
+    readonly duplicated: number
+    readonly failed: number
+    readonly imported: number
+    readonly invalid: number
+    readonly received: number
+    readonly rejected: number
+  }
+  /** Só quando a importação chegou a um estado final; antes disso é nulo (ainda processando). */
+  readonly finishedAt: string | null
+  readonly status: string
+}
+
 export type NfeXmlReceiptView = {
   readonly channel: 'email' | 'whatsapp'
   readonly createdAt: string
   readonly filesCount: number
   readonly id: string
+  readonly import: NfeXmlReceiptImportView | null
   readonly importId: string | null
   readonly lastErrorCode: string | null
   readonly rejectReason: string | null

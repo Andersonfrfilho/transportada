@@ -181,6 +181,125 @@ describe('nfe xml receipts (spec 301, API)', () => {
   )
 
   testWithPostgres(
+    'the listing carries the import outcome: counts, when it finished and the contractors of the notes (spec 303)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        await database.db.execute(
+          sql`insert into companies (id, status) values (${companyId}, 'active')`,
+        )
+        const userId = crypto.randomUUID()
+        await database.db.execute(
+          sql`insert into identity_users (id, status) values (${userId}, 'active')`,
+        )
+        const membershipId = crypto.randomUUID()
+        await database.db.execute(sql`
+          insert into user_company_memberships (id, user_id, company_id, status)
+          values (${membershipId}, ${userId}, ${companyId}, 'active')
+        `)
+        await database.db.execute(sql`
+          insert into contractors (company_id, tax_id, display_name)
+          values (${companyId}, '11111111000191', 'Contratante Um')
+        `)
+        const objectId = crypto.randomUUID()
+        await database.db.execute(sql`
+          insert into stored_objects
+            (id, company_id, bucket, object_key, provider, purpose, mime_type, sha256, size_bytes, status)
+          values (${objectId}, ${companyId}, 'integration', ${`xml/${objectId}`}, 's3', 'nfe_document',
+            'application/xml', ${'a'.repeat(64)}, 10, 'final')
+        `)
+        const newImport = async (
+          key: string,
+          status: string,
+          imported: number,
+          duplicated: number,
+        ) => {
+          const id = crypto.randomUUID()
+          await database.db.execute(sql`
+            insert into nfe_imports
+              (id, company_id, source, requested_by_user_id, correlation_id, idempotency_key,
+               request_fingerprint, status, received_count, processed_count, imported_count, duplicated_count,
+               updated_at)
+            values (${id}, ${companyId}, 'upload', ${userId}, ${key}, ${key}, ${key}, ${status},
+              ${imported + duplicated + (status === 'processing' ? 1 : 0)}, ${imported + duplicated}, ${imported}, ${duplicated}, ${NOW.toISOString()}::timestamptz)
+          `)
+          return id
+        }
+        const document = async (
+          importId: string,
+          key: string,
+          emitterTaxId: string,
+          name: string,
+        ) => {
+          const id = crypto.randomUUID()
+          await database.db.execute(sql`
+            insert into nfe_documents
+              (id, company_id, access_key, model, number, series, issued_at, operation_nature,
+               operation_type, status, source, total_value, products_value, xml_object_id, xml_sha256,
+               import_id, created_by_user_id, authorization_protocol)
+            values (${id}, ${companyId}, ${key.padEnd(44, '0')}, '55', '1', '1', ${NOW.toISOString()},
+              'venda', '1', 'authorized', 'upload', '10.00', '10.00', ${objectId}, ${'0'.repeat(64)},
+              ${importId}, ${userId}, 'p')
+          `)
+          await database.db.execute(sql`
+            insert into nfe_participants (company_id, document_id, role, tax_id, legal_name)
+            values (${companyId}, ${id}, 'emitter', ${emitterTaxId}, ${name})
+          `)
+        }
+        const done = await newImport('done', 'completed', 3, 1)
+        await document(done, '1', '11111111000191', 'Razão do Um')
+        await document(done, '2', '11111111000191', 'Razão do Um')
+        await document(done, '3', '22222222000191', 'Razão do Dois')
+        const running = await newImport('running', 'processing', 0, 0)
+
+        const repository = createDrizzleWhatsAppXmlReceiptRepository(database.db)
+        for (const [messageId, importId] of [
+          ['done', done],
+          ['running', running],
+        ] as const) {
+          await repository.recordReceipt({
+            companyId,
+            media: {
+              fileName: 'n.zip',
+              mimeType: 'application/zip',
+              rawMessage: { key: {}, message: {} },
+              sizeBytes: 1,
+            },
+            providerMessageId: messageId,
+            rejectReason: null,
+            replyTo: null,
+            requestedByUserId: userId,
+            sender: '5516988887777',
+            status: 'pending',
+          })
+          await database.db.execute(sql`
+            update nfe_xml_receipts set status = 'imported', import_id = ${importId}::uuid
+            where provider_message_id = ${messageId}
+          `)
+        }
+
+        const list = await createDrizzleNfeXmlReceiptReadRepository(database.db).listRecent({
+          companyId,
+          limit: 10,
+        })
+        const byImport = new Map(list.map((row) => [row.importId, row.import]))
+        const finished = byImport.get(done)
+        expect(finished?.status).toBe('completed')
+        expect(finished?.finishedAt).toBe(NOW.toISOString())
+        expect(finished?.counts).toMatchObject({ duplicated: 1, imported: 3, received: 4 })
+        expect(finished?.contractors).toEqual([
+          { count: 2, name: 'Contratante Um', taxId: '11111111000191' },
+          { count: 1, name: 'Razão do Dois', taxId: '22222222000191' },
+        ])
+        const pending = byImport.get(running)
+        expect(pending?.finishedAt).toBeNull()
+        expect(pending?.contractors).toEqual([])
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
     'records a pending receipt once per message, and a rejected one only with its reason',
     async () => {
       await withDisposableDatabase(async (database) => {

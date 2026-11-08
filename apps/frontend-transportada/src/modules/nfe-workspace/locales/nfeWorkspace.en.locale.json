@@ -781,6 +781,15 @@
       "mailbox_not_configured": "The invoice mailbox is not configured.",
       "download_failed": "The file could not be downloaded; retries were made.",
       "unknown": "Processing failed; operations were notified."
+    },
+    "result": {
+      "received": "Received at",
+      "entered": "Entered the system at",
+      "processing": "Still importing…",
+      "notes": "Notes",
+      "counts": "{{imported}} new of {{received}} · {{duplicated}} already existed · {{problems}} with problems",
+      "contractors": "Contractors (new notes)",
+      "noContractors": "no new notes"
     }
   }
 }
