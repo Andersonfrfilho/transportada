@@ -15,6 +15,8 @@ import { type UnzipFileInfo, unzipSync, zipSync } from 'fflate'
 
 import {
   effectiveEntrySizes,
+  extractZipEntry,
+  readZipDirectory,
   readZipEntrySizes,
 } from '../../nfe-imports/infrastructure/zip-entry-sizes.reader.js'
 import type { ReceiptFile } from '../application/nfe-xml-receipt.types.js'
@@ -46,13 +48,24 @@ export function chunkOversizedZip(file: ReceiptFile): readonly ReceiptFile[] {
   const chunks: ReceiptFile[] = []
   for (const [index, names] of planChunks(entries).entries()) {
     const wanted = new Set(names)
-    const extracted = unzipSync(file.bytes, { filter: (info) => wanted.has(info.name) })
+    const extracted = extractWanted(file.bytes, wanted)
     chunks.push({
       bytes: zipSync(extracted, { level: 0 }),
       name: `${base}-parte-${String(index + 1).padStart(3, '0')}.zip`,
     })
   }
   return chunks
+}
+
+/** Zip em fluxo (spec 305) não passa pelo `unzipSync`: ele alocaria 4 GiB por entrada com o marcador de 32 bits. */
+function extractWanted(bytes: Uint8Array, wanted: ReadonlySet<string>): Record<string, Uint8Array> {
+  const directory = readZipDirectory(bytes)
+  if (!directory.streamed) return unzipSync(bytes, { filter: (info) => wanted.has(info.name) })
+  const extracted: Record<string, Uint8Array> = {}
+  for (const entry of directory.entries) {
+    if (wanted.has(entry.name)) extracted[entry.name] = extractZipEntry(bytes, entry)
+  }
+  return extracted
 }
 
 function planChunks(entries: readonly Entry[]): readonly (readonly string[])[] {

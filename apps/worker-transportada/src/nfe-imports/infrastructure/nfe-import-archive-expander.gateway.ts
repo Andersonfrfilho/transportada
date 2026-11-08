@@ -5,7 +5,11 @@ import { createHash } from 'node:crypto'
 
 import { type UnzipFileInfo, unzipSync } from 'fflate'
 
-import { effectiveEntrySizes, readZipEntrySizes } from './zip-entry-sizes.reader.js'
+import {
+  extractZipEntry,
+  readZipDirectory,
+  type ZipDirectoryEntry,
+} from './zip-entry-sizes.reader.js'
 
 const XML_EXTENSION = '.xml'
 const DEFLATE_COMPRESSION = 8
@@ -101,9 +105,11 @@ function readArchive(
   sourceBytes: Uint8Array,
   limits: ArchiveExpanderLimits,
 ): Record<string, Uint8Array> {
+  const directory = readZipDirectory(sourceBytes)
+  if (directory.streamed) return readStreamedArchive(sourceBytes, directory.entries, limits)
+
   let acceptedEntries = 0
   let acceptedBytes = 0
-  const directory = readZipEntrySizes(sourceBytes)
 
   try {
     return unzipSync(sourceBytes, {
@@ -112,17 +118,13 @@ function readArchive(
           return false
         }
         assertSafeEntryName(file.name)
-        const sizes = effectiveEntrySizes(file, directory)
-        assertWithinEntryLimit(
-          { ...file, originalSize: sizes.originalSize, size: sizes.compressedSize },
-          limits,
-        )
+        assertWithinEntryLimit(file, limits)
 
         acceptedEntries += 1
         if (acceptedEntries > limits.maxEntries) {
           throw new ArchiveExpansionError(ARCHIVE_ERROR_CODE.EXPANSION_LIMIT)
         }
-        acceptedBytes += sizes.originalSize
+        acceptedBytes += file.originalSize
         if (acceptedBytes > limits.maxTotalBytes) {
           throw new ArchiveExpansionError(ARCHIVE_ERROR_CODE.EXPANSION_LIMIT)
         }
@@ -133,6 +135,47 @@ function readArchive(
     if (error instanceof ArchiveExpansionError) {
       throw error
     }
+    throw new ArchiveExpansionError(ARCHIVE_ERROR_CODE.INVALID_ARCHIVE)
+  }
+}
+
+/**
+ * Spec 305: zip feito em fluxo (marcador `0xFFFFFFFF` no diretório). O `unzipSync` alocaria 4 GiB por entrada, então a
+ * extração é nossa, com os mesmos tetos aplicados ao tamanho real, **antes** de qualquer buffer ser alocado.
+ */
+function readStreamedArchive(
+  sourceBytes: Uint8Array,
+  directory: readonly ZipDirectoryEntry[],
+  limits: ArchiveExpanderLimits,
+): Record<string, Uint8Array> {
+  const selected: ZipDirectoryEntry[] = []
+  let acceptedBytes = 0
+  for (const entry of directory) {
+    if (isDirectory(entry.name) || !isXmlEntry(entry.name)) continue
+    assertSafeEntryName(entry.name)
+    assertWithinEntryLimit(
+      {
+        compression: entry.method,
+        name: entry.name,
+        originalSize: entry.originalSize,
+        size: entry.compressedSize,
+      },
+      limits,
+    )
+    if (selected.length + 1 > limits.maxEntries) {
+      throw new ArchiveExpansionError(ARCHIVE_ERROR_CODE.EXPANSION_LIMIT)
+    }
+    acceptedBytes += entry.originalSize
+    if (acceptedBytes > limits.maxTotalBytes) {
+      throw new ArchiveExpansionError(ARCHIVE_ERROR_CODE.EXPANSION_LIMIT)
+    }
+    selected.push(entry)
+  }
+  try {
+    const extracted: Record<string, Uint8Array> = {}
+    for (const entry of selected) extracted[entry.name] = extractZipEntry(sourceBytes, entry)
+    return extracted
+  } catch {
     throw new ArchiveExpansionError(ARCHIVE_ERROR_CODE.INVALID_ARCHIVE)
   }
 }

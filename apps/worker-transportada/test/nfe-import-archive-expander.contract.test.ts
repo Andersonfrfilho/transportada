@@ -200,4 +200,19 @@ describe('nfe import archive expander contract', () => {
       createNfeImportArchiveExpander({ limits: { maxEntryBytes: 8 } }).expand(input),
     ).rejects.toThrow('ZIP_ENTRY_TOO_LARGE')
   })
+
+  test('a streamed zip that claims a huge real size is refused before any buffer is allocated (spec 305)', async () => {
+    const streamed = withZip64Sentinels(zipSync({ 'nota.xml': xmlBytes('<NFe/>') }), {
+      claimedOriginalSize: 1n << 40n,
+    })
+
+    await expect(
+      createNfeImportArchiveExpander().expand({
+        contentType: 'application/zip',
+        sourceBytes: streamed,
+        sourceEntry: 'a',
+        sourceName: 'bomba.zip',
+      }),
+    ).rejects.toThrow('ZIP_ENTRY_TOO_LARGE')
+  })
 })
