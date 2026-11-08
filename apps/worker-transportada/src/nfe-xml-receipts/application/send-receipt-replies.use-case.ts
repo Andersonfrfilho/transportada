@@ -6,7 +6,12 @@
  * recibo fica sem a marca e sai no ciclo seguinte; só o envio bem-sucedido o marca.
  */
 import { NFE_XML_RECEIPT_LIMITS, NFE_XML_RECEIPT_LOG } from '../domain/nfe-xml-receipt.constant.js'
-import { buildFailure, buildSummary, describeRejection } from '../domain/receipt-messages.policy.js'
+import {
+  buildEmailReport,
+  buildFailure,
+  buildSummary,
+  describeRejection,
+} from '../domain/receipt-messages.policy.js'
 import type {
   ReceiptLogger,
   ReceiptReplyPort,
@@ -29,6 +34,15 @@ export function textForReceipt(row: ReceiptSummaryRow): string {
   return buildSummary({ counts: row.counts, problems: row.problems })
 }
 
+/** Só o e-mail de uma importação concluída leva o relatório detalhado; recusa e falha seguem curtos. */
+export function emailForReceipt(
+  row: ReceiptSummaryRow,
+): { readonly body: string; readonly subject: string } | undefined {
+  if (row.channel !== 'email' || row.status !== 'imported') return undefined
+  if (row.counts === null || row.report === undefined || row.report === null) return undefined
+  return buildEmailReport({ counts: row.counts, report: row.report })
+}
+
 export async function sendReceiptReplies(
   dependencies: SendReceiptRepliesDependencies,
 ): Promise<{ readonly failed: number; readonly sent: number }> {
@@ -40,9 +54,11 @@ export async function sendReceiptReplies(
   let failed = 0
   for (const row of rows) {
     try {
+      const email = emailForReceipt(row)
       await dependencies.reply.send({
         channel: row.channel,
         companyId: row.companyId,
+        ...(email === undefined ? {} : { email }),
         replyTo: row.replyTo,
         sender: row.sender,
         text: textForReceipt(row),

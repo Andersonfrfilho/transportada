@@ -18,7 +18,7 @@ import type { ReceiptFile } from '../application/nfe-xml-receipt.types.js'
 /** Abaixo dos tetos do expansor (500 entradas, 100 MB) para sobrar folga. */
 export const ZIP_CHUNK_LIMITS = {
   maxEntries: 400,
-  maxEntryBytes: 5 * 1024 * 1024,
+  maxEntryBytes: 25 * 1024 * 1024,
   maxCompressionRatio: 20,
   maxTotalBytes: 80 * 1024 * 1024,
   /** Acima disto o zip é, na prática, uma bomba: segue inteiro e o expansor o recusa. */

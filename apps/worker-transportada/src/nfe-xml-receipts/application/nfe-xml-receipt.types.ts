@@ -101,10 +101,23 @@ export type ReceiptReplyPort = {
   send(input: {
     readonly channel: NfeXmlReceiptChannel
     readonly companyId: string
+    /** Só no e-mail: assunto e corpo detalhados, que o adaptador põe no modelo padrão de e-mail. */
+    readonly email?: { readonly body: string; readonly subject: string }
     readonly replyTo: string | null
     readonly sender: string
     readonly text: string
   }): Promise<void>
+}
+
+export type ReceiptReport = {
+  readonly contractors: readonly { readonly count: number; readonly name: string }[]
+  readonly files: readonly {
+    readonly code: null | string
+    readonly count: number
+    readonly name: string
+  }[]
+  readonly finishedAt: Date | null
+  readonly receivedAt: Date
 }
 
 export type ReceiptSummaryRow = {
@@ -113,6 +126,8 @@ export type ReceiptSummaryRow = {
   readonly counts: ReceiptImportCounts | null
   readonly id: string
   readonly problems: readonly ReceiptItemProblem[]
+  /** Spec 304: quando chegou, quando entrou, por arquivo e por contratante. Ausente = resumo curto de antes. */
+  readonly report?: ReceiptReport | null
   readonly rejectReason: NfeXmlReceiptRejection | null
   readonly replyTo: string | null
   readonly sender: string

@@ -24,6 +24,18 @@ export type ReceiptImportCounts = {
 
 export type ReceiptItemProblem = { readonly code: string; readonly count: number }
 
+/** Spec 304: o que o e-mail detalhado leva além das contagens. */
+export type ReceiptEmailReport = {
+  readonly contractors: readonly { readonly count: number; readonly name: string }[]
+  readonly files: readonly {
+    readonly code: null | string
+    readonly count: number
+    readonly name: string
+  }[]
+  readonly finishedAt: Date | null
+  readonly receivedAt: Date
+}
+
 const PROBLEM_TEXT: Readonly<Record<string, string>> = {
   ZIP_ENTRY_TOO_LARGE: 'um arquivo dentro do zip é grande demais',
   ZIP_EXPANSION_LIMIT: 'o zip descompactado passa do limite (mande em mais de um zip)',
@@ -103,4 +115,84 @@ export function buildSummary(input: {
 /** Quando o recibo esgota as tentativas: a operação já foi avisada, quem mandou também. */
 export function buildFailure(): string {
   return 'Não consegui importar este envio depois de várias tentativas. A equipe foi avisada e vai verificar.'
+}
+
+const MAX_FILE_LINES = 20
+const MAX_CONTRACTOR_LINES = 15
+
+function formatMoment(moment: Date): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      hour: '2-digit',
+      hour12: false,
+      minute: '2-digit',
+      month: '2-digit',
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+    })
+      .formatToParts(moment)
+      .map((part) => [part.type, part.value]),
+  ) as Record<string, string>
+  return `${parts.day}/${parts.month}/${parts.year} ${parts.hour === '24' ? '00' : parts.hour}:${parts.minute}`
+}
+
+/**
+ * Spec 304: o e-mail do resultado, com o que o escritório precisa para conferir sem abrir o painel — quando chegou e
+ * quando entrou, as contagens, cada arquivo com o seu motivo e as contratantes das notas novas. O texto vai ao modelo
+ * padrão de e-mail (visual editável em Notificações); aqui só entra o conteúdo. O nome do arquivo é de quem o mandou,
+ * e só viaja neste e-mail para ele mesmo, nunca para log.
+ */
+export function buildEmailReport(input: {
+  readonly counts: ReceiptImportCounts
+  readonly report: ReceiptEmailReport
+}): { readonly body: string; readonly subject: string } {
+  const { counts, report } = input
+  const notImported = counts.invalid + counts.rejected + counts.failed
+  const lines = [
+    notImported === 0
+      ? 'A importação terminou sem problemas.'
+      : 'A importação terminou, mas parte dos arquivos não entrou.',
+    '',
+    'Resumo',
+    `• Recebido em: ${formatMoment(report.receivedAt)}`,
+    `• Entrou no sistema em: ${report.finishedAt === null ? 'ainda processando' : formatMoment(report.finishedAt)}`,
+    `• ${plural(counts.received, 'arquivo recebido', 'arquivos recebidos')}`,
+    `• ${plural(counts.imported, 'nota nova', 'notas novas')}`,
+  ]
+  if (counts.duplicated > 0) {
+    lines.push(`• ${plural(counts.duplicated, 'já estava no sistema', 'já estavam no sistema')}`)
+  }
+  if (notImported > 0) {
+    lines.push(`• ${plural(notImported, 'arquivo não importado', 'arquivos não importados')}`)
+  }
+  if (report.files.length > 0) {
+    lines.push('', 'Arquivos')
+    for (const file of report.files.slice(0, MAX_FILE_LINES)) {
+      const outcome =
+        file.code === null
+          ? `${plural(file.count, 'item processado', 'itens processados')}`
+          : `${plural(file.count, 'caso', 'casos')} não importado: ${PROBLEM_TEXT[file.code] ?? GENERIC_PROBLEM_TEXT}`
+      lines.push(`• ${file.name} — ${outcome}`)
+    }
+    if (report.files.length > MAX_FILE_LINES) {
+      lines.push('• e outros arquivos')
+    }
+  }
+  lines.push('', 'Contratantes das notas novas')
+  if (report.contractors.length === 0) {
+    lines.push('• nenhuma nota nova nesta importação')
+  } else {
+    for (const contractor of report.contractors.slice(0, MAX_CONTRACTOR_LINES)) {
+      lines.push(`• ${contractor.name} — ${plural(contractor.count, 'nota', 'notas')}`)
+    }
+    if (report.contractors.length > MAX_CONTRACTOR_LINES) {
+      lines.push(`• e mais ${report.contractors.length - MAX_CONTRACTOR_LINES} contratantes`)
+    }
+  }
+  const subject =
+    notImported === 0
+      ? `Importação de notas: ${plural(counts.imported, 'nota nova', 'notas novas')}`
+      : `Importação de notas: ${counts.imported} novas e ${plural(notImported, 'arquivo com problema', 'arquivos com problema')}`
+  return { body: lines.join('\n'), subject }
 }

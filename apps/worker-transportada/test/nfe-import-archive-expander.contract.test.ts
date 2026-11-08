@@ -167,4 +167,17 @@ describe('nfe import archive expander contract', () => {
       }),
     ).rejects.toThrow('ZIP_ENTRY_TOO_LARGE')
   })
+
+  test('accepts a single XML above the old 5 MiB ceiling and refuses one above 25 MiB (spec 304)', async () => {
+    const expander = createNfeImportArchiveExpander()
+    const input = (size: number) => ({
+      contentType: 'application/zip' as const,
+      sourceBytes: zipSync({ 'big.xml': incompressibleBytes(size) }, { level: 0 }),
+      sourceEntry: 'big.xml',
+      sourceName: 'lote.zip',
+    })
+
+    expect(await expander.expand(input(6 * 1024 * 1024))).toHaveLength(1)
+    await expect(expander.expand(input(26 * 1024 * 1024))).rejects.toThrow('ZIP_ENTRY_TOO_LARGE')
+  })
 })

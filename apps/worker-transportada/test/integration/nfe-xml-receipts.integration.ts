@@ -277,6 +277,11 @@ describeDatabase('nfe xml receipts (integration, spec 301)', () => {
       rejected: 0,
     })
 
+    expect(ready?.report?.receivedAt).toBeInstanceOf(Date)
+    expect(ready?.report?.finishedAt).toBeInstanceOf(Date)
+    expect(ready?.report?.files).toEqual([{ code: null, count: 1, name: 'a.xml' }])
+    expect(ready?.report?.contractors).toEqual([])
+
     await repository.markSummarySent({ now: later(2), receiptId: waiting })
     due = await repository.findSummariesToSend({ limit: 50, maxAttempts: 5 })
     expect(mine(due).map((row) => row.id)).not.toContain(waiting)

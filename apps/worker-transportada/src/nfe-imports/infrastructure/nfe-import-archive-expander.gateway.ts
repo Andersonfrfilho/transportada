@@ -29,7 +29,7 @@ type ArchiveExpanderLimits = {
 const DEFAULT_LIMITS: ArchiveExpanderLimits = {
   maxCompressionRatio: 20,
   maxEntries: 500,
-  maxEntryBytes: 5 * 1024 * 1024,
+  maxEntryBytes: 25 * 1024 * 1024,
   maxTotalBytes: 100 * 1024 * 1024,
 }
 

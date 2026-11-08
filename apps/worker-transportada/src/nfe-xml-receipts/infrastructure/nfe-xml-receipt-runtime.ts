@@ -9,7 +9,9 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { createDrizzleCompanyLogoReader } from '../../contractor-mail/infrastructure/drizzle-company-logo.reader.js'
 import type { ResendMailGateway } from '../../contractor-mail/infrastructure/resend-mail.gateway.js'
+import { buildContractorReplyLayoutMail } from '../../occurrence-conversation/infrastructure/contractor-reply-client-email-layout.support.js'
 import { safeLogError, safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { NotificationTriggerInput } from '../../notification/domain/notification-trigger.policy.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
@@ -23,7 +25,11 @@ import {
   type ReceivedXmlStorage,
 } from './drizzle-received-xml-import.gateway.js'
 import { createReceiptOperatorAlertAdapter } from './receipt-operator-alert.adapter.js'
-import { createReceiptReplyAdapter, type ReceiptReplySettings } from './receipt-reply.adapter.js'
+import {
+  createReceiptReplyAdapter,
+  type ReceiptEmailRenderer,
+  type ReceiptReplySettings,
+} from './receipt-reply.adapter.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -48,6 +54,8 @@ export type NfeXmlReceiptRuntimeDependencies = {
   readonly resendDisabled?: boolean
   readonly secretService: Pick<ContractorMailCredentialSecretService, 'decrypt'>
   readonly sendNotification: (input: NotificationTriggerInput) => Promise<unknown>
+  /** O logo branco do cabeçalho escuro do modelo padrão; sem ele sai o logo original. */
+  readonly whiteLogo?: (logo: Uint8Array) => Promise<Uint8Array>
   readonly storage: ReceivedXmlStorage
 }
 
@@ -68,7 +76,37 @@ export function createNfeXmlReceiptRuntime(dependencies: NfeXmlReceiptRuntimeDep
     database,
     storage: dependencies.storage,
   })
+  const logoReader = createDrizzleCompanyLogoReader(database)
+  const renderEmail: ReceiptEmailRenderer = async ({ body, companyId, subject }) => {
+    const mail = await buildContractorReplyLayoutMail(database, { body, companyId, subject })
+    const logo = mail.hasInlineLogo ? await logoReader.find({ companyId }) : undefined
+    const white =
+      logo === undefined || dependencies.whiteLogo === undefined
+        ? undefined
+        : await dependencies
+            .whiteLogo(Buffer.from(logo.contentBase64, 'base64'))
+            .catch(() => undefined)
+    return {
+      html: mail.html,
+      logo:
+        logo === undefined
+          ? []
+          : [
+              {
+                content:
+                  white === undefined ? logo.contentBase64 : Buffer.from(white).toString('base64'),
+                contentId: 'company-logo',
+                contentType: white === undefined ? logo.mimeType : 'image/png',
+                fileName:
+                  white !== undefined || logo.mimeType === 'image/png' ? 'logo.png' : 'logo.jpg',
+              },
+            ],
+      subject: mail.subject,
+      text: mail.text,
+    }
+  }
   const reply = createReceiptReplyAdapter({
+    renderEmail,
     findSettings: dependencies.findReplySettings,
     mailGateway: dependencies.mailGateway,
     ...(dependencies.resendDisabled === true ? { resendDisabled: true } : {}),

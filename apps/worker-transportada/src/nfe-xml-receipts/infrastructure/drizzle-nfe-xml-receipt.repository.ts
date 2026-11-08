@@ -38,13 +38,17 @@ type ReceiptRow = {
 type SummaryRow = {
   channel: ReceiptSummaryRow['channel']
   company_id: string
+  contractors: { count: number; name: string }[] | null
   duplicated: number | null
   failed: number | null
+  files: { code: null | string; count: number; name: string }[] | null
+  finished_at: Date | string | null
   id: string
   imported: number | null
   invalid: number | null
   problems: { code: string; count: number }[] | null
   received: number | null
+  received_at: Date | string
   reject_reason: NfeXmlReceiptRejection | null
   rejected: number | null
   reply_to: string | null
@@ -200,7 +204,31 @@ export function createDrizzleNfeXmlReceiptRepository(dependencies: {
                      and it.error ->> 'code' is not null
                    group by 1 order by 2 desc limit 10
                  ) g
-               ) as problems
+               ) as problems,
+               r.created_at as received_at, i.updated_at as finished_at,
+               (
+                 select coalesce(jsonb_agg(jsonb_build_object('name', f.name, 'code', f.code, 'count', f.n)), '[]'::jsonb)
+                 from (
+                   select it.source_name as name, it.error ->> 'code' as code, count(*)::int as n
+                   from nfe_import_items it
+                   where it.import_id = r.import_id and it.company_id = r.company_id
+                   group by 1, 2 order by 1, 2 limit 21
+                 ) f
+               ) as files,
+               (
+                 select coalesce(jsonb_agg(jsonb_build_object('name', c.name, 'count', c.n)), '[]'::jsonb)
+                 from (
+                   select coalesce(nullif(btrim(ct.display_name), ''), nullif(btrim(p.legal_name), ''),
+                                   nullif(btrim(p.trade_name), ''), 'Sem contratante cadastrado') as name,
+                          count(*)::int as n
+                   from nfe_documents d
+                   left join nfe_participants p
+                     on p.company_id = d.company_id and p.document_id = d.id and p.role = 'emitter'
+                   left join contractors ct on ct.company_id = p.company_id and ct.tax_id = p.tax_id
+                   where d.import_id = r.import_id and d.company_id = r.company_id
+                   group by 1 order by 2 desc, 1 limit 16
+                 ) c
+               ) as contractors
         from nfe_xml_receipts r
         left join nfe_imports i on i.id = r.import_id and i.company_id = r.company_id
         where r.summary_sent_at is null and r.summary_attempts < ${maxAttempts}
@@ -262,6 +290,12 @@ function toSummary(row: SummaryRow): ReceiptSummaryRow {
           },
     id: row.id,
     problems: row.problems ?? [],
+    report: {
+      contractors: row.contractors ?? [],
+      files: row.files ?? [],
+      finishedAt: row.finished_at === null ? null : new Date(row.finished_at),
+      receivedAt: new Date(row.received_at),
+    },
     rejectReason: row.reject_reason,
     replyTo: row.reply_to,
     sender: row.sender,
