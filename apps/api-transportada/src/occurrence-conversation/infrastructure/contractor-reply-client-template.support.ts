@@ -91,6 +91,18 @@ const NON_DIGIT = /\D/gu
 /** CNPJ numérico ou alfanumérico (12 posições + 2 dígitos verificadores), como a máscara de `formatCnpjForDisplay`. */
 const CNPJ_SHAPE = /^[0-9A-Z]{12}[0-9]{2}$/u
 const POSTAL_CODE_SHAPE = /^\d{8}$/u
+/** Linha que sobrou só com emoji (ex.: "✉️ " quando a variável saiu vazia). */
+const EMOJI_ONLY_LINE = /^[ \t]*(?:[\p{Extended_Pictographic}\uFE0F\u200D][ \t]*)+$/u
+const BLANK_LINES = /\n{3,}/gu
+
+/** No WhatsApp, a linha de rótulo-emoji cuja variável veio vazia some (sem "✉️" solto); o resto do texto fica igual. */
+export function dropEmptyEmojiLines(body: string): string {
+  return body
+    .split('\n')
+    .filter((line) => !EMOJI_ONLY_LINE.test(line))
+    .join('\n')
+    .replace(BLANK_LINES, '\n\n')
+}
 
 async function rowsOf(
   runner: ContractorReplyClientTemplateRunner,
@@ -291,7 +303,9 @@ export async function resolveContractorReplyClientTexts(
           template: rawBody,
           values,
         })
-      : interpolateTemplate(rawBody, values)
+      : channel === 'email'
+        ? interpolateTemplate(rawBody, values)
+        : dropEmptyEmojiLines(interpolateTemplate(rawBody, values))
   ).trim()
   const subject =
     channel === 'email'
