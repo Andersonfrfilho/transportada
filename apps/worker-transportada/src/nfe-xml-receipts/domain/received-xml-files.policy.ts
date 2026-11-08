@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 301: quais anexos de um e-mail ou de uma mensagem entram na importação. Só `.xml` e `.zip` (o mesmo que a tela
- * aceita); o resto é ignorado com motivo, sem derrubar o lote. A extensão decide — o tipo MIME que o remetente declara
+ * Spec 301: quais anexos de um e-mail ou de uma mensagem entram na importação. Só `.xml`, `.zip` e `.rar` (este último vira zip na
+ * entrada, spec 307); o resto é ignorado com motivo, sem derrubar o lote. A extensão decide — o tipo MIME que o remetente declara
  * varia muito (`application/x-zip-compressed`, `text/plain`) e não é fronteira de segurança: o conteúdo é validado
  * quando o worker abre o arquivo.
  */
@@ -35,7 +35,7 @@ export function classifyReceivedFiles<TFile extends ReceivedFileCandidate>(
   const skipped: { file: TFile; reason: ReceivedFileSkipReason }[] = []
   for (const file of files) {
     const name = file.name.trim().toLowerCase()
-    if (!name.endsWith('.xml') && !name.endsWith('.zip')) {
+    if (!name.endsWith('.xml') && !name.endsWith('.zip') && !name.endsWith('.rar')) {
       skipped.push({ file, reason: RECEIVED_FILE_SKIP_REASON.notXmlOrZip })
     } else if (file.sizeBytes <= 0) {
       skipped.push({ file, reason: RECEIVED_FILE_SKIP_REASON.empty })

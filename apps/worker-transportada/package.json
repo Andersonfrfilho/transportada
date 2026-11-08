@@ -46,6 +46,7 @@
     "fast-xml-parser": "5.10.1",
     "fflate": "0.8.3",
     "mailauth": "5.0.3",
+    "node-unrar-js": "^2.0.2",
     "nodemailer": "^7.0.9",
     "onnxruntime-web": "1.23.2",
     "pdfjs-dist": "^6.2.108",

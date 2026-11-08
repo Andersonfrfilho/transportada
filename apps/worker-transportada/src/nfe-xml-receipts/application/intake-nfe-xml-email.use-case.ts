@@ -15,6 +15,7 @@ import {
   NFE_XML_RECEIPT_REJECTION,
   type NfeXmlReceiptRejection,
 } from '../domain/nfe-xml-receipt.constant.js'
+import { convertRarToZip } from '../domain/rar-to-zip.policy.js'
 import { chunkOversizedZip } from '../domain/zip-queue-chunking.policy.js'
 import { classifyReceivedFiles } from '../domain/received-xml-files.policy.js'
 import type {
@@ -161,8 +162,14 @@ export async function intakeNfeXmlEmail(
     automationJob: NFE_XML_MAILBOX_AUTOMATION_JOB,
     companyId: input.companyId,
     correlationId: input.correlationId,
-    files: accepted
-      .flatMap((file) => chunkOversizedZip({ bytes: file.bytes, name: file.name }))
+    files: (
+      await Promise.all(
+        accepted.map(async (file) =>
+          chunkOversizedZip(await convertRarToZip({ bytes: file.bytes, name: file.name })),
+        ),
+      )
+    )
+      .flat()
       .map((file) => ({ bytes: file.bytes, name: file.name })),
     receiptId,
     receivedFrom: sender,
