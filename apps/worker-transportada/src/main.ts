@@ -1404,6 +1404,7 @@ export async function startWorkerRuntime(
         mailGateway: inboundMailGateway,
         /** Spec 301: a caixa `notas@` decide antes da prévia. */
         nfeXmlIntake: createNfeXmlEmailIntake({
+          extraDomains: config.nfeXmlMailboxDomains,
           dkimVerifier: inboundDkimVerifier,
           importGateway: nfeXmlReceipts.importGateway,
           logger: createReceiptLogger(logger),

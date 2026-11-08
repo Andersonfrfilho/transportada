@@ -76,6 +76,29 @@ describe('NF-e XML e-mail intake', () => {
     expect(repository.recorded).toHaveLength(0)
   })
 
+  test('also accepts notas@ at an extra configured domain (the company short alias forwarded to the mailbox)', async () => {
+    const { dependencies, input } = setup()
+    const alias = { ...input, to: ['notas@Fernandes-Transportadora.com.br'] }
+    expect(await intakeNfeXmlEmail(alias, dependencies)).toEqual({ kind: 'not_xml_mailbox' })
+    expect(
+      await intakeNfeXmlEmail(
+        { ...alias, extraDomains: ['fernandes-transportadora.com.br'] },
+        dependencies,
+      ),
+    ).toMatchObject({ kind: 'imported' })
+    // outro endereço do mesmo domínio extra continua fora
+    expect(
+      await intakeNfeXmlEmail(
+        {
+          ...input,
+          extraDomains: ['fernandes-transportadora.com.br'],
+          to: ['contato@fernandes-transportadora.com.br'],
+        },
+        dependencies,
+      ),
+    ).toEqual({ kind: 'not_xml_mailbox' })
+  })
+
   test('imports zip and loose xml together, ignoring other attachments, as the mailbox actor', async () => {
     const { dependencies, importGateway, input, repository } = setup({
       attachments: [

@@ -47,6 +47,7 @@ describe('worker environment contract', () => {
       fuelPricePull: undefined,
       hostname: '0.0.0.0',
       mdfeAutoIssueEnabled: false,
+      nfeXmlMailboxDomains: [],
       /** Spec 062 T005: sem segredo e sem template — o padrão é a versão da Graph API e mais nada. */
       whatsapp: {
         apiVersion: 'v23.0',
@@ -71,6 +72,17 @@ describe('worker environment contract', () => {
       sentryDsn: undefined,
       sentryEnvironment: 'local',
     })
+  })
+
+  test('NFE_XML_MAILBOX_DOMAINS: lista de domínios em minúsculas; domínio inválido falha o boot', () => {
+    const parsed = parseWorkerEnvironment({
+      ...validEnvironment,
+      NFE_XML_MAILBOX_DOMAINS: 'Fernandes-Transportadora.com.br, outro.com.br',
+    })
+    expect(parsed.nfeXmlMailboxDomains).toEqual(['fernandes-transportadora.com.br', 'outro.com.br'])
+    expect(() =>
+      parseWorkerEnvironment({ ...validEnvironment, NFE_XML_MAILBOX_DOMAINS: 'nota@x.com' }),
+    ).toThrow()
   })
 
   test('sem SENTRY_DSN o rastreio de erro nasce desligado', () => {
