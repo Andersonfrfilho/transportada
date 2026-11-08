@@ -29,7 +29,7 @@ function row(overrides: Partial<ReceiptSummaryRow>): ReceiptSummaryRow {
 
 describe('receipt replies', () => {
   test('writes the right text for a finished import, a rejection and a final failure', () => {
-    expect(textForReceipt(row({}))).toContain('• 4 notas importadas')
+    expect(textForReceipt(row({}))).toContain('• 4 notas novas')
     expect(
       textForReceipt(row({ rejectReason: 'sender_not_allowed', status: 'rejected' })),
     ).toContain('não pode importar')
@@ -68,6 +68,12 @@ describe('receipt replies', () => {
         counts: { duplicated: 1, failed: 0, imported: 2, invalid: 0, received: 3, rejected: 0 },
         id,
         replyTo: '120363@g.us',
+        report: {
+          contractors: [{ count: 2, name: 'Contratante Um' }],
+          files: [{ code: null, count: 3, name: `${id}.zip` }],
+          finishedAt: new Date('2026-11-08T21:02:00Z'),
+          receivedAt: new Date('2026-11-08T21:00:00Z'),
+        },
         sender: '5516999990000',
         ...overrides,
       })
@@ -100,7 +106,9 @@ describe('receipt replies', () => {
     expect(texts).toHaveLength(4)
     const combined = texts.find((text) => text.includes('7 arquivos'))
     expect(combined).toBeDefined()
-    expect(combined).toContain('4 notas importadas')
+    expect(combined).toContain('• Contratante Um — 6 notas')
+    expect(combined).toContain('• w1.zip — 3 itens processados')
+    expect(combined).toContain('4 notas novas')
     expect(combined).toContain('2 já estavam no sistema')
     expect(combined).toContain('1 arquivo não importado')
     expect(repository.sent.sort()).toEqual(['e1', 'e2', 'w1', 'w2', 'w3', 'w4', 'w5'])
