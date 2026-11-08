@@ -110,7 +110,7 @@ O recebimento **nunca** processa na requisição nem pesa no serviço; tudo é f
   MIME bruto com sha256 e entrega os arquivos ao `requestUpload`.
 - RF2 Handler de documento no webhook da Evolution: baixa a mídia, valida tipo e tamanho, entrega ao `requestUpload`.
 - RF3 Serviço único "importar XML recebido" (origem `upload` | `email` | `whatsapp`) usado pelos três caminhos.
-- RF4 `nfe_imports.source` ganha `email` e `whatsapp` (migration aditiva, com rollback).
+- RF4 `nfe_imports` ganha `received_via` (`screen`/`email`/`whatsapp`) e `received_from` (migration aditiva, com rollback); `source` segue `upload`.
 - RF5 Resumo ao remetente montado a partir do relatório da importação, pelo worker quando a importação termina.
 - RF6 Tela de importações mostra a origem e o remetente.
 
