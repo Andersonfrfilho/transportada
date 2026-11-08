@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto'
 import { describe, expect, test } from 'bun:test'
 import { zipSync } from 'fflate'
 
+import { withZip64Sentinels } from './fixtures/zip64-sentinel.fixture.js'
 import { createNfeImportArchiveExpander } from '../src/nfe-imports/infrastructure/nfe-import-archive-expander.gateway.js'
 
 function sha256(bytes: Uint8Array): string {
@@ -179,5 +180,24 @@ describe('nfe import archive expander contract', () => {
 
     expect(await expander.expand(input(6 * 1024 * 1024))).toHaveLength(1)
     await expect(expander.expand(input(26 * 1024 * 1024))).rejects.toThrow('ZIP_ENTRY_TOO_LARGE')
+  })
+
+  test('a zip written in a stream (Zip64 sentinels in the directory) expands by its real sizes (spec 305)', async () => {
+    const files: Record<string, Uint8Array> = {}
+    for (let index = 0; index < 20; index += 1)
+      files[`nota-${index}.xml`] = xmlBytes(`<NFe n="${index}"/>`)
+    const streamed = withZip64Sentinels(zipSync(files))
+    const input = {
+      contentType: 'application/zip' as const,
+      sourceBytes: streamed,
+      sourceEntry: 'a',
+      sourceName: 'lote.zip',
+    }
+
+    expect(await createNfeImportArchiveExpander().expand(input)).toHaveLength(20)
+    // o tamanho de verdade continua valendo: a mesma entrada acima do teto é recusada
+    await expect(
+      createNfeImportArchiveExpander({ limits: { maxEntryBytes: 8 } }).expand(input),
+    ).rejects.toThrow('ZIP_ENTRY_TOO_LARGE')
   })
 })
