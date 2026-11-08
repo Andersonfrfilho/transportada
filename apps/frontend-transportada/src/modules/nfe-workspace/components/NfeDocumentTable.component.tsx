@@ -2,6 +2,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CountBadge } from '@/components/ui/count-badge'
 import { FilterPills, countFilterPills, type FilterPill } from '@/components/ui/filter-pills'
@@ -666,13 +667,15 @@ export function NfeDocumentTable({
                     <td className={styles.tableEmpty} colSpan={columnSpan}>
                       <p>{t('documents.emptyFiltered')}</p>
                       {table.hasActiveFilters && (
-                        <button
+                        <Button
                           className={styles.tableEmptyAction}
                           onClick={table.clearAllFilters}
                           type="button"
+                          variant="ghost"
                         >
+                          <Icon name="filter-clear" />
                           {t('documents.clearAll')}
-                        </button>
+                        </Button>
                       )}
                     </td>
                   </tr>
