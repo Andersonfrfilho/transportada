@@ -60,6 +60,43 @@ describe('receipt replies', () => {
     expect(JSON.stringify(entries)).not.toContain('maria@')
   })
 
+  test('o resumo do WhatsApp espera o lote inteiro: com irmão ainda importando nada sai, recusa sai na hora (spec 310)', async () => {
+    const repository = new FakeSummaryRepository()
+    const whatsapp = (id: string, overrides: Partial<ReceiptSummaryRow> = {}) =>
+      row({
+        channel: 'whatsapp',
+        id,
+        replyTo: '120363@g.us',
+        sender: '5516999990000',
+        ...overrides,
+      })
+    repository.rows = [
+      whatsapp('w1'),
+      whatsapp('w2', { rejectReason: 'sender_not_allowed', status: 'rejected' }),
+      row({ id: 'e1' }),
+    ]
+    repository.inFlight = true
+    const texts: string[] = []
+    const { logger } = createLogCollector()
+    const dependencies = {
+      logger,
+      now: () => NOW,
+      reply: {
+        send: (input: { text: string }) => {
+          texts.push(input.text)
+          return Promise.resolve()
+        },
+      },
+      repository,
+    }
+    await sendReceiptReplies(dependencies)
+    expect(repository.sent.sort()).toEqual(['e1', 'w2'])
+    repository.inFlight = false
+    repository.sent.length = 0
+    await sendReceiptReplies(dependencies)
+    expect(repository.sent).toContain('w1')
+  })
+
   test('resultados do mesmo remetente no WhatsApp viram UM resumo com o total; e-mail segue um por recibo (spec 308)', async () => {
     const repository = new FakeSummaryRepository()
     const whatsapp = (id: string, overrides: Partial<ReceiptSummaryRow> = {}) =>

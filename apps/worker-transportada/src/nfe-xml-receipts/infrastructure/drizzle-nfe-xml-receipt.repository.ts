@@ -242,6 +242,23 @@ export function createDrizzleNfeXmlReceiptRepository(dependencies: {
       return rows.map(toSummary)
     },
 
+    async hasBatchInFlight({ companyId, replyTo, sender }) {
+      const rows = (await database.execute(sql`
+        select 1 as found
+        from nfe_xml_receipts o
+        left join nfe_imports oi on oi.id = o.import_id and oi.company_id = o.company_id
+        where o.company_id = ${companyId}::uuid and o.channel = 'whatsapp'
+          and o.sender = ${sender} and o.reply_to is not distinct from ${replyTo}
+          and o.created_at > now() - interval '30 minutes'
+          and (
+            o.status in ('pending', 'processing')
+            or (o.status = 'imported' and oi.status not in ${FINISHED_IMPORT_STATUSES})
+          )
+        limit 1
+      `)) as unknown as Rows<{ found: number }>
+      return rows.length > 0
+    },
+
     async markSummaryAttempt({ receiptId }) {
       await database.execute(sql`
         update nfe_xml_receipts set summary_attempts = summary_attempts + 1, updated_at = now()

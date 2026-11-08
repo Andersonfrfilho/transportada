@@ -99,6 +99,10 @@ export class FakeSummaryRepository implements ReceiptSummaryRepositoryPort {
     this.receivedMaxAttempts = input.maxAttempts
     return Promise.resolve(this.rows.slice(0, input.limit))
   }
+  public inFlight = false
+  public hasBatchInFlight() {
+    return Promise.resolve(this.inFlight)
+  }
   public markSummaryAttempt(input: { receiptId: string }) {
     this.attempts.push(input.receiptId)
     return Promise.resolve()

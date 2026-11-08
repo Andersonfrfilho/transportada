@@ -287,6 +287,20 @@ describeDatabase('nfe xml receipts (integration, spec 301)', () => {
     expect(mine(due).map((row) => row.id)).not.toContain(waiting)
   })
 
+  test('há lote em andamento só enquanto um recibo recente do mesmo remetente e conversa ainda recebe ou importa (spec 310)', async () => {
+    const sender = '5516955554444'
+    const input = { companyId, replyTo: '120363@g.us', sender }
+    expect(await repository.hasBatchInFlight(input)).toBe(false)
+    const { receiptId } = await record('m-batch-1', { now: new Date(), sender })
+    expect(await repository.hasBatchInFlight(input)).toBe(true)
+    await repository.markRejected({ now: new Date(), reason: 'sender_not_allowed', receiptId })
+    expect(await repository.hasBatchInFlight(input)).toBe(false)
+    expect(await repository.hasBatchInFlight({ ...input, replyTo: '999@g.us' })).toBe(false)
+    const { receiptId: old } = await record('m-batch-old', { now: later(-60 * 24), sender })
+    expect(old).not.toBe('')
+    expect(await repository.hasBatchInFlight(input)).toBe(false)
+  })
+
   test('per-item error codes of a finished import come back grouped as the problems of the summary', async () => {
     const { receiptId } = await record('m-problems')
     const { importId } = await importGateway.createImport({

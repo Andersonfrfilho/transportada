@@ -140,6 +140,15 @@ export type ReceiptSummaryRepositoryPort = {
     readonly limit: number
     readonly maxAttempts: number
   }): Promise<readonly ReceiptSummaryRow[]>
+  /**
+   * Spec 310: há, no WhatsApp, outro recibo recente (30 min) do mesmo remetente e conversa ainda sendo recebido ou
+   * importado? Se há, o resumo do lote espera.
+   */
+  hasBatchInFlight(input: {
+    readonly companyId: string
+    readonly replyTo: string | null
+    readonly sender: string
+  }): Promise<boolean>
   /** Conta a falha de envio; o recibo sai da fila quando passa de `summaryMaxAttempts`. */
   markSummaryAttempt(input: { readonly receiptId: string }): Promise<void>
   markSummarySent(input: { readonly now: Date; readonly receiptId: string }): Promise<void>

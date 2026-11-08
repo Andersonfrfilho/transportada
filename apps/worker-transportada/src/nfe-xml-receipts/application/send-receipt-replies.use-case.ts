@@ -46,10 +46,11 @@ export function emailForReceipt(
 export async function sendReceiptReplies(
   dependencies: SendReceiptRepliesDependencies,
 ): Promise<{ readonly failed: number; readonly sent: number }> {
-  const rows = await dependencies.repository.findSummariesToSend({
+  const found = await dependencies.repository.findSummariesToSend({
     limit: NFE_XML_RECEIPT_LIMITS.summaryBatchSize,
     maxAttempts: NFE_XML_RECEIPT_LIMITS.summaryMaxAttempts,
   })
+  const rows = await withoutHeldBatches(found, dependencies.repository)
   let sent = 0
   let failed = 0
   for (const message of planMessages(rows)) {
@@ -94,6 +95,36 @@ export async function sendReceiptReplies(
     }
   }
   return { failed, sent }
+}
+
+/**
+ * Spec 310: o resumo do WhatsApp espera o lote inteiro. Um resultado pronto fica para o próximo ciclo enquanto outro
+ * recibo recente do mesmo remetente e conversa ainda está sendo recebido ou importado; recusas e falhas saem na hora.
+ */
+async function withoutHeldBatches(
+  rows: readonly ReceiptSummaryRow[],
+  repository: ReceiptSummaryRepositoryPort,
+): Promise<readonly ReceiptSummaryRow[]> {
+  const verdicts = new Map<string, boolean>()
+  const kept: ReceiptSummaryRow[] = []
+  for (const row of rows) {
+    if (row.channel !== 'whatsapp' || row.status !== 'imported') {
+      kept.push(row)
+      continue
+    }
+    const key = [row.companyId, row.sender, row.replyTo ?? ''].join('|')
+    let held = verdicts.get(key)
+    if (held === undefined) {
+      held = await repository.hasBatchInFlight({
+        companyId: row.companyId,
+        replyTo: row.replyTo,
+        sender: row.sender,
+      })
+      verdicts.set(key, held)
+    }
+    if (!held) kept.push(row)
+  }
+  return kept
 }
 
 type PlannedMessage = {
