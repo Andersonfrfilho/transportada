@@ -68,6 +68,20 @@ export type EvolutionInboundOutcome =
   | 'unassigned'
 
 export type EvolutionConversationInbound = {
+  /**
+   * Spec 308 D3: o chat direto do motorista vai ao bot, mas gasta o mesmo teto por número do Evolution.
+   * `true` quando ainda cabe (e conta esta mensagem). Ausente, não há teto a gastar.
+   */
+  consumeDirectLimit?(input: { readonly companyId: string; readonly from: string }): boolean
+  /**
+   * Spec 308 D2.2: a mensagem cita uma mensagem de uma conversa do painel e casa nela (a política da
+   * 281)? Só lê, não grava nem gasta o teto: quem decide gravar é `receiveMessage`. Falha conta como
+   * `false` (o motorista cai no bot, que responde; nada se perde em silêncio).
+   */
+  quotesConversation?(input: {
+    readonly companyId: string
+    readonly message: EvolutionInboundMessage
+  }): Promise<boolean>
   receiveMessage(input: {
     readonly companyId: string
     readonly message: EvolutionInboundMessage
@@ -92,37 +106,74 @@ export function createEvolutionConversationInbound(deps: {
   /** Outro balde que o da Meta: um número insistente no Evolution não gasta o teto do comando. */
   readonly rateLimiter: RateLimiter
 }): EvolutionConversationInbound {
+  /** A política da 281 sobre o que está no banco: só leitura. */
+  async function attribute(input: {
+    readonly companyId: string
+    readonly message: EvolutionInboundMessage
+    readonly senderPhoneKey: string
+  }) {
+    const { companyId, message, senderPhoneKey } = input
+    const replyTo = message.replyToProviderMessageId
+    const [context, recipient] = await Promise.all([
+      deps.inbound.loadAttributionContext({
+        companyId,
+        phone: message.from,
+        replyToProviderMessageId: replyTo,
+      }),
+      replyTo === null
+        ? Promise.resolve(null)
+        : deps.inbound.findReplyRecipient({ companyId, replyToProviderMessageId: replyTo }),
+    ])
+    const attribution = resolveEvolutionAttribution({
+      ...context,
+      replyToClientConversationId: recipient?.clientConversationId ?? null,
+      replyToRecipientPhoneKey:
+        recipient === null ? null : toWhatsAppPhoneKey(recipient.address.replace(/\D/gu, '')),
+      senderPhoneKey,
+    })
+    return { attribution, context }
+  }
+
+  const consume = (companyId: string, from: string) =>
+    deps.rateLimiter.consume({
+      key: `occurrence-conversation-evolution:${companyId}:${toWhatsAppPhoneKey(from)}`,
+      policy: WHATSAPP_COMMAND_RATE_LIMIT,
+    }).allowed
+
   return {
+    consumeDirectLimit({ companyId, from }) {
+      return consume(companyId, from)
+    },
+
+    async quotesConversation({ companyId, message }) {
+      if (message.replyToProviderMessageId === null || !PHONE_DIGITS_PATTERN.test(message.from)) {
+        return false
+      }
+      try {
+        const { attribution } = await attribute({
+          companyId,
+          message,
+          senderPhoneKey: toWhatsAppPhoneKey(message.from),
+        })
+        return attribution.kind === 'conversation' && attribution.via !== 'single_open'
+      } catch (error) {
+        deps.logger.error(OCCURRENCE_CONVERSATION_EVOLUTION_LOG.failed, {
+          companyId,
+          errorName: error instanceof Error ? error.name : typeof error,
+        })
+        return false
+      }
+    },
+
     async receiveMessage({ companyId, message }) {
       if (message.providerMessageId === '' || !PHONE_DIGITS_PATTERN.test(message.from)) {
         return 'ignored'
       }
       const senderPhoneKey = toWhatsAppPhoneKey(message.from)
-      const limit = deps.rateLimiter.consume({
-        key: `occurrence-conversation-evolution:${companyId}:${senderPhoneKey}`,
-        policy: WHATSAPP_COMMAND_RATE_LIMIT,
-      })
-      if (!limit.allowed) return 'rate_limited'
+      if (!consume(companyId, message.from)) return 'rate_limited'
 
       try {
-        const replyTo = message.replyToProviderMessageId
-        const [context, recipient] = await Promise.all([
-          deps.inbound.loadAttributionContext({
-            companyId,
-            phone: message.from,
-            replyToProviderMessageId: replyTo,
-          }),
-          replyTo === null
-            ? Promise.resolve(null)
-            : deps.inbound.findReplyRecipient({ companyId, replyToProviderMessageId: replyTo }),
-        ])
-        const attribution = resolveEvolutionAttribution({
-          ...context,
-          replyToClientConversationId: recipient?.clientConversationId ?? null,
-          replyToRecipientPhoneKey:
-            recipient === null ? null : toWhatsAppPhoneKey(recipient.address.replace(/\D/gu, '')),
-          senderPhoneKey,
-        })
+        const { attribution, context } = await attribute({ companyId, message, senderPhoneKey })
         const common = {
           bodyText: (message.text ?? '').slice(0, OCCURRENCE_MAIL_LIMITS.body),
           companyId,

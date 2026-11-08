@@ -35,6 +35,7 @@ import type { LazyEvolutionConnection } from './evolution-group-identity.service
 import {
   type EvolutionGroupInbound,
   type EvolutionGroupInboundOutcome,
+  type EvolutionMessageEvent,
   readGroupAudio,
   readGroupMedia,
   readGroupSenderLids,
@@ -224,7 +225,15 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         return { outcome: 'ignored' }
       }
 
-      const counts = { conversation: 0, group: 0, ignored: 0, statuses: 0, unassigned: 0, xml: 0 }
+      const counts = {
+        conversation: 0,
+        direct: 0,
+        group: 0,
+        ignored: 0,
+        statuses: 0,
+        unassigned: 0,
+        xml: 0,
+      }
       const groupIgnored: Partial<
         Record<Exclude<EvolutionGroupInboundOutcome, 'admitted'>, number>
       > = {}
@@ -246,6 +255,62 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
           instanceName: registration.instanceName,
         }
       })
+      /**
+       * Spec 308 D2: o chat direto de um motorista ativo (pelo telefone) vai ao fluxo do grupo como "grupo de
+       * um só", menos a resposta que cita uma mensagem de conversa do painel (D2.2). `null` quando não é
+       * motorista ou cita o painel: segue para `receiveMessage`, como antes.
+       */
+      async function routeDirect(event: EvolutionMessageEvent): Promise<null | string> {
+        const { groupInbound, inbound } = dependencies
+        if (
+          groupInbound.findDirectDriver === undefined ||
+          groupInbound.receiveDirect === undefined
+        ) {
+          return null
+        }
+        const driver = await groupInbound.findDirectDriver({ companyId, phone: event.from })
+        if (driver === null) return null
+        const message = {
+          from: event.from,
+          providerMessageId: event.externalMessageId,
+          replyToProviderMessageId: event.replyToExternalMessageId,
+          text: event.text,
+        }
+        if (
+          event.replyToExternalMessageId !== null &&
+          (await inbound.quotesConversation?.({ companyId, message })) === true
+        ) {
+          return null
+        }
+        let outcome: string
+        if (inbound.consumeDirectLimit?.({ companyId, from: event.from }) === false) {
+          outcome = 'rate_limited'
+        } else {
+          groupMedia ??= readGroupMedia(payload)
+          groupAudio ??= readGroupAudio(payload)
+          outcome = await groupInbound.receiveDirect({
+            audio: groupAudio.get(event.externalMessageId) ?? null,
+            companyId,
+            connection,
+            driverId: driver.driverId,
+            event,
+            media: groupMedia.get(event.externalMessageId) ?? null,
+          })
+        }
+        // Só o desfecho e o formato, nunca o número nem o texto.
+        logger.info('whatsapp_evolution.direct_message', {
+          companyId,
+          correlationId,
+          hasText: event.text !== null,
+          isReply: event.replyToExternalMessageId !== null,
+          outcome,
+          providerMessageId: event.externalMessageId,
+        })
+        if (['admitted', 'audio', 'audio_answer', 'media'].includes(outcome)) counts.direct += 1
+        else counts.ignored += 1
+        return outcome
+      }
+
       const xmlDocuments =
         dependencies.xmlInbound === undefined
           ? new Map<string, WhatsAppXmlDocument>()
@@ -274,6 +339,13 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
             status: event.status,
           })
           counts.statuses += 1
+        } else if (
+          event.type === 'message' &&
+          !event.fromMe &&
+          event.chat === 'user' &&
+          (await routeDirect(event)) !== null
+        ) {
+          // Spec 308: o motorista no chat direto foi atendido pelo fluxo do grupo (ou parou no teto).
         } else if (event.type === 'message' && !event.fromMe && event.chat === 'user') {
           const outcome = await dependencies.inbound.receiveMessage({
             companyId,

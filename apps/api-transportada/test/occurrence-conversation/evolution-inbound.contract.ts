@@ -435,3 +435,57 @@ describe('a resposta sem citar de quem recebeu o boleto', () => {
     expect(recorded.map((entry) => entry.kind)).toEqual(['unassigned'])
   })
 })
+
+describe('spec 308: o chat direto do motorista antes do bot', () => {
+  test('a citação que casa numa conversa do painel fica no painel; só lê, não grava', async () => {
+    const { inbound, recorded } = createInbound({
+      context: {
+        ...NOBODY,
+        replyTo: driverReply,
+        sender: { contractorContacts: [], driverUserId: 'driver-1' },
+      },
+    })
+
+    expect(
+      await inbound.quotesConversation?.({
+        companyId: COMPANY_ID,
+        message: message({ replyTo: 'EVO-OUT-1' }),
+      }),
+    ).toBe(true)
+    expect(recorded).toEqual([])
+  })
+
+  test('sem citação, ou citando o que não é do painel (o menu do bot), vai ao bot', async () => {
+    const { inbound } = createInbound({
+      context: { ...NOBODY, sender: { contractorContacts: [], driverUserId: 'driver-1' } },
+    })
+
+    expect(
+      await inbound.quotesConversation?.({ companyId: COMPANY_ID, message: message({}) }),
+    ).toBe(false)
+    expect(
+      await inbound.quotesConversation?.({
+        companyId: COMPANY_ID,
+        message: message({ replyTo: 'BOT-MENU-1' }),
+      }),
+    ).toBe(false)
+  })
+
+  test('o teto do 1:1 é o mesmo balde do painel, pela chave do número', async () => {
+    const { inbound } = createInbound()
+
+    for (let index = 0; index < 29; index += 1) {
+      expect(inbound.consumeDirectLimit?.({ companyId: COMPANY_ID, from: PHONE })).toBe(true)
+    }
+    // A 30ª pelo painel ainda cabe; a seguinte, pelo 1:1 com a outra grafia do número, não.
+    expect(await inbound.receiveMessage({ companyId: COMPANY_ID, message: message({}) })).toBe(
+      'unassigned',
+    )
+    expect(inbound.consumeDirectLimit?.({ companyId: COMPANY_ID, from: PHONE_WITHOUT_NINTH })).toBe(
+      false,
+    )
+    expect(await inbound.receiveMessage({ companyId: COMPANY_ID, message: message({}) })).toBe(
+      'rate_limited',
+    )
+  })
+})

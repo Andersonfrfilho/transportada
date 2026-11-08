@@ -174,6 +174,15 @@ export type EvolutionGroupInboundPorts = {
     readonly companyId: string
     readonly groupJid: string
   }): Promise<null | { readonly driverId: string }>
+  /**
+   * Spec 308 D2.3: o motorista ativo da empresa com este telefone (só dígitos, como o Evolution manda),
+   * ou `null` quando ninguém ou mais de uma ficha casa (o bot não adivinha). Ausente, o chat direto
+   * continua só no painel.
+   */
+  findDirectDriver?: (input: {
+    readonly companyId: string
+    readonly phone: string
+  }) => Promise<null | { readonly driverId: string }>
   /** T4: o número (só dígitos) de quem abriu o pedido em andamento no grupo, ou `null`. */
   findOpenRequestOwner(input: {
     readonly companyId: string
@@ -213,7 +222,28 @@ export type EvolutionGroupInboundOutcome =
   | 'not_driver'
   | GroupMessageIgnoredReason
 
+/** Spec 308: a mensagem do chat direto (1:1) que o motorista mandou ao número do bot. */
+export type EvolutionDirectMessage = {
+  readonly audio?: GroupAudio | null
+  readonly companyId: string
+  readonly connection: LazyEvolutionConnection
+  /** O motorista achado pelo telefone (`findDirectDriver`). */
+  readonly driverId: string
+  readonly event: EvolutionMessageEvent
+  readonly media?: GroupMedia | null
+}
+
 export type EvolutionGroupInbound = {
+  /** Spec 308 D2.3: o motorista dono deste telefone; `null` (ou ausente) mantém o chat direto no painel. */
+  findDirectDriver?(input: {
+    readonly companyId: string
+    readonly phone: string
+  }): Promise<null | { readonly driverId: string }>
+  /**
+   * Spec 308 D1: o chat direto do motorista é um "grupo de um só" (`<número>@s.whatsapp.net`): o mesmo
+   * fluxo, sem marcação do bot, sem frase de chamada no áudio e sem perguntar ao Evolution quem escreveu.
+   */
+  receiveDirect?(input: EvolutionDirectMessage): Promise<EvolutionGroupInboundOutcome>
   receive(input: {
     /** Spec 292 T9: o áudio de voz da mensagem, lido do corpo cru; `null` sem áudio. */
     readonly audio?: GroupAudio | null
@@ -469,7 +499,7 @@ export function createEvolutionGroupInbound(
     readonly ports: EvolutionGroupAudioPorts
     readonly senderLid: null | string
   }): Promise<EvolutionGroupInboundOutcome> {
-    const { audio, companyId, connection, event, groupJid, ports, senderLid } = input
+    const { audio, companyId, connection, event, groupJid, senderLid } = input
     let sender = event.participant
     let quotesBot = false
     try {
@@ -494,6 +524,25 @@ export function createEvolutionGroupInbound(
       return 'identity_unavailable'
     }
     if (sender === '') return 'unknown_sender'
+    return continueAudio({ ...input, quotesBot, sender })
+  }
+
+  /**
+   * O áudio com o remetente já conhecido. `quotesBot` é o áudio endereçado ao bot (cita o bot no grupo,
+   * ou chegou no chat direto, spec 308): vai à transcrição sem a frase de chamada.
+   */
+  async function continueAudio(input: {
+    readonly audio: GroupAudio
+    readonly companyId: string
+    readonly connection: LazyEvolutionConnection
+    readonly driverId: string
+    readonly event: EvolutionMessageEvent
+    readonly groupJid: string
+    readonly ports: EvolutionGroupAudioPorts
+    readonly quotesBot: boolean
+    readonly sender: string
+  }): Promise<EvolutionGroupInboundOutcome> {
+    const { audio, companyId, connection, event, groupJid, ports, quotesBot, sender } = input
     if (
       ports.bot.hasPending({ companyId, conversation: groupConversation(groupJid), owner: sender })
     ) {
@@ -583,7 +632,9 @@ export function createEvolutionGroupInbound(
     }
   }
 
-  const inbound: EvolutionGroupInbound = {
+  const { findDirectDriver } = dependencies
+  const inbound: EvolutionGroupInbound & Required<Pick<EvolutionGroupInbound, 'receiveDirect'>> = {
+    ...(findDirectDriver === undefined ? {} : { findDirectDriver }),
     async receive({ audio = null, companyId, connection, event, media = null, senderLid }) {
       if (event.fromMe) return 'from_me'
       const groupJid = event.groupJid
@@ -767,14 +818,107 @@ export function createEvolutionGroupInbound(
       })
       return 'admitted'
     },
+
+    async receiveDirect({ audio = null, companyId, connection, driverId, event, media = null }) {
+      if (event.fromMe) return 'from_me'
+      // No 1:1 quem escreveu é o próprio chat: o SDK devolve `participant` vazio e o número em `from`.
+      const sender = event.from
+      if (event.chat !== 'user' || !DIRECT_SENDER_PATTERN.test(sender)) return 'unknown_sender'
+      const groupJid = directChatJid(sender)
+      if (audio !== null) {
+        if (dependencies.audio === undefined) return 'no_text'
+        return continueAudio({
+          audio,
+          companyId,
+          connection,
+          driverId,
+          event,
+          groupJid,
+          ports: dependencies.audio,
+          // Tudo o que chega no 1:1 é para o bot: sem frase de chamada.
+          quotesBot: true,
+          sender,
+        })
+      }
+      const { handleMedia } = dependencies
+      if (media !== null) {
+        if (handleMedia === undefined) return 'no_text'
+        await handleMedia({
+          companyId,
+          connection,
+          driverId,
+          groupJid,
+          media,
+          // A foto no 1:1 é endereçada ao bot como a foto que o marca no grupo.
+          mentionsBot: true,
+          providerMessageId: event.externalMessageId,
+          sender,
+          timestamp: event.timestamp,
+        })
+        return 'media'
+      }
+      if (event.text === null) return 'no_text'
+      const text = event.text.trim()
+
+      const audioPorts = dependencies.audio
+      if (
+        audioPorts !== undefined &&
+        isCancelText(text) &&
+        (await cancelPendingAudio({ companyId, groupJid, ports: audioPorts, sender }))
+      ) {
+        return 'admitted'
+      }
+      if (
+        audioPorts !== undefined &&
+        audioPorts.bot.hasPending({
+          companyId,
+          conversation: groupConversation(groupJid),
+          owner: sender,
+        })
+      ) {
+        const handled = await applyAudioAnswer({
+          companyId,
+          groupJid,
+          ports: audioPorts,
+          providerMessageId: event.externalMessageId,
+          pushName: event.pushName,
+          sender,
+          spoken: false,
+          text,
+        })
+        if (handled) return 'admitted'
+      }
+
+      const requestOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
+      await dependencies.handle({
+        companyId,
+        driverId,
+        groupJid,
+        providerMessageId: event.externalMessageId,
+        replyToProviderMessageId: event.replyToExternalMessageId,
+        requestOwner,
+        sender,
+        senderName: event.pushName,
+        sentAt: toMessageSentAt(event.timestamp),
+        text,
+        // Sem marcação no 1:1: com o pedido aberto dele é a resposta; sem pedido, é a chamada do bot.
+        via: requestOwner === sender ? 'owner_reply' : 'mention',
+      })
+      return 'admitted'
+    },
   }
   // Uma resposta por turno é uma mensagem: tudo o que o bot diz a esta mensagem sai junto quando ela acaba.
   const { turnReplies } = dependencies
   return turnReplies === undefined
     ? inbound
     : {
+        ...(findDirectDriver === undefined ? {} : { findDirectDriver }),
         receive: (input) =>
           turnReplies.withinTurn(() => inbound.receive(input), { companyId: input.companyId }),
+        receiveDirect: (input) =>
+          turnReplies.withinTurn(() => inbound.receiveDirect(input), {
+            companyId: input.companyId,
+          }),
       }
 }
 
@@ -796,6 +940,14 @@ function isShortRouteCommand(text: string): boolean {
     .filter((word) => word !== '')
   if (words.length === 0 || words.length > ROUTE_COMMAND_MAX_WORDS) return false
   return interpretWhatsAppDriverEventCommand(text) !== undefined
+}
+
+/** O número do chat direto, como o Evolution manda (só dígitos, com o DDI). */
+const DIRECT_SENDER_PATTERN = /^\d{8,20}$/u
+
+/** Spec 308 D1: o chat direto como "grupo de um só": a chave do pedido, do turno e da resposta. */
+export function directChatJid(number: string): string {
+  return `${number}@s.whatsapp.net`
 }
 
 function groupConversation(groupJid: string): string {

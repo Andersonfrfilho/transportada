@@ -70,6 +70,25 @@ nenhuma chamada ao Evolution.
   chip. Conferir o estado da conexão; a mensagem é descartada (porta fechada), não aceita sem saber quem escreveu.
 - `unknown_sender`: quem escreveu só veio como `@lid` e a lista de participantes não trouxe o número dele.
 
+## O motorista no chat direto com o número do bot (spec 308 T2)
+
+O 1:1 de quem é **motorista ativo** da empresa (telefone da ficha, com ou sem o nono dígito, e de uma ficha só) entra no
+mesmo fluxo do grupo, como um "grupo de um só": o pedido fica em `whatsapp_group_requests` com
+`group_jid = <número>@s.whatsapp.net`. Não precisa marcar o bot nem dizer a frase de chamada no áudio, a API não
+pergunta ao Evolution quem escreveu (nada de `GET /group/participants` para o 1:1) e a resposta sai sem `@número`.
+
+- Fica no painel, como antes: quem não é motorista (cliente do boleto, contato da contratante), motorista inativo,
+  número em duas fichas, e a resposta do motorista que **cita** uma mensagem de conversa da ocorrência.
+- Teto por número: o mesmo balde do painel (`occurrence-conversation-evolution:<empresa>:<chave do número>`, 30 em 10
+  min, por processo). Acima dele a mensagem não vai a lugar nenhum (`outcome: rate_limited`).
+- Logs: `whatsapp_evolution.direct_message` por mensagem (`outcome`: `admitted`, `audio`, `audio_answer`, `media`,
+  `rate_limited`, `no_text`; mais `hasText`, `isReply`, `providerMessageId`) e `direct` na contagem de
+  `whatsapp_evolution.webhook.received`. Sem número nem texto.
+- Ver os pedidos do 1:1 em staging: `select status, step, opened_at from whatsapp_group_requests where group_jid like
+'%@s.whatsapp.net' order by opened_at desc limit 20;`
+- Ainda não coberto (tasks seguintes da 308): menu de XML para quem só importa nota (T4), o lembrete de parada
+  enxergar o pedido do 1:1, e o 1:1 que chega só com `@lid` (segue ignorado).
+
 ## O pedido no grupo do motorista (spec 292 T4/T5)
 
 Marcar o bot no grupo abre um pedido (um por vez por grupo; o dono é quem marcou). O bot pergunta a nota, o tipo de

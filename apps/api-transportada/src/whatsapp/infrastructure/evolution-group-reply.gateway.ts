@@ -22,8 +22,10 @@ import type { GroupReplySenderPort } from '../application/whatsapp-group-request
  *
  * Com `mentionNumber`, a primeira mensagem abre com a marca (`@número`, que o WhatsApp mostra como o nome do contato)
  * e o número vai em `mentioned`: quem pediu é avisado mesmo com o grupo silenciado. Sem número de telefone válido, sai sem
- * marca, nunca falha. O aviso sem pedido (vencimento do pedido) não marca ninguém.
+ * marca, nunca falha. O aviso sem pedido (vencimento do pedido) não marca ninguém, nem o chat direto (spec 308).
  */
+const GROUP_JID_SUFFIX = '@g.us'
+
 export function createEvolutionGroupReplySender(dependencies: {
   readonly logger: ApiLogger
   readonly sendText: (input: {
@@ -75,7 +77,8 @@ export function createEvolutionGroupReplySender(dependencies: {
     readonly mentionNumber: string | undefined
   }): (body: string) => void {
     const { companyId, groupJid } = input
-    let pendingMention = input.mentionNumber
+    // Spec 308: no chat direto (`…@s.whatsapp.net`) não há quem marcar; o `@número` seria texto solto.
+    let pendingMention = groupJid.endsWith(GROUP_JID_SUFFIX) ? input.mentionNumber : undefined
     return (body) => {
       if (pendingMention === undefined) return enqueue({ body, companyId, groupJid })
       const mention = withGroupMention({ body, mentionNumber: pendingMention })
