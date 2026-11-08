@@ -10,7 +10,10 @@ import { eq } from 'drizzle-orm'
 import { createDatabaseProvider } from '../../src/database/database-client.service.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { fleetDrivers, tripDrivers, trips } from '../../src/database/database.schema.js'
-import { isCrewPhone } from '../../src/whatsapp/infrastructure/whatsapp-group-sender.adapter.js'
+import {
+  findActiveDriverByPhone,
+  isCrewPhone,
+} from '../../src/whatsapp/infrastructure/whatsapp-group-sender.adapter.js'
 import { seedCargoTenants } from '../fixtures/cargo-arrival-database.fixture.js'
 import { COMPANY_CONTEXT } from '../fixtures/freight-region-http.fixture.js'
 import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
@@ -99,6 +102,37 @@ describe('tripulação do grupo pelo telefone (spec 294 S2)', () => {
   )
 })
 
+describe('motorista do chat direto pelo telefone (spec 308 D2.3)', () => {
+  testWithPostgres(
+    'o motorista ativo é achado pelo WhatsApp; inativo, outra empresa e número repetido não',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await setUp(database)
+        const find = (phone: string, companyId = world.companyId) =>
+          findActiveDriverByPhone(database.db, { companyId, phone })
+
+        expect(await find(`55${OWNER_PHONE}`)).toEqual({ driverId: world.ownerId })
+        expect(await find('551688887777')).toEqual({ driverId: world.ownerId })
+        expect(await find('5511900000000')).toBeNull()
+        expect(await find(`55${OWNER_PHONE}`, world.foreignCompanyId)).toBeNull()
+
+        await database.db
+          .update(fleetDrivers)
+          .set({ status: 'inactive' })
+          .where(eq(fleetDrivers.id, world.otherDriverId))
+        expect(await find(`55${OTHER_DRIVER_PHONE}`)).toBeNull()
+
+        // Duas fichas ativas no mesmo número: o bot não adivinha, o 1:1 fica no painel.
+        await database.db
+          .update(fleetDrivers)
+          .set({ phone: OWNER_PHONE })
+          .where(eq(fleetDrivers.id, world.helperId))
+        expect(await find(`55${OWNER_PHONE}`)).toBeNull()
+      })
+    },
+  )
+})
+
 async function setUp(database: TestDatabase) {
   const { foreignCompanyId } = await seedCargoTenants(database)
   const companyId = COMPANY_CONTEXT.companyId
@@ -132,6 +166,7 @@ async function setUp(database: TestDatabase) {
   return {
     companyId,
     foreignCompanyId,
+    helperId: helper.driverId,
     otherDriverId: other.driverId,
     ownerId: owner.driverId,
     tripId: seeded.tripId,

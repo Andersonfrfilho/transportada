@@ -359,6 +359,8 @@ function serializeSummary(summary: NfeImportSummary): object {
     createdAt: summary.createdAt,
     id: summary.id,
     idempotencyKey: summary.idempotencyKey,
+    receivedFrom: summary.receivedFrom ?? null,
+    receivedVia: summary.receivedVia ?? 'screen',
     source: summary.source,
     status: summary.status,
     terminalError: summary.terminalError,

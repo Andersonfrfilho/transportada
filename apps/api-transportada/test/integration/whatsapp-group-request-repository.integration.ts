@@ -7,10 +7,17 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { eq } from 'drizzle-orm'
+
 import { createDatabaseProvider } from '../../src/database/database-client.service.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
-import { companies, whatsappGroupRequestMessages } from '../../src/database/database.schema.js'
+import {
+  companies,
+  fleetDrivers,
+  whatsappGroupRequestMessages,
+} from '../../src/database/database.schema.js'
 import { DrizzleFleetDriverRepository } from '../../src/fleet/infrastructure/drizzle-fleet-driver.repository.js'
+import { createDriverOpenQuestionPort } from '../../src/whatsapp-commands/infrastructure/driver-open-question.adapter.js'
 import { createDrizzleWhatsAppGroupRequestRepository } from '../../src/whatsapp/infrastructure/drizzle-whatsapp-group-request.repository.js'
 import { withDisposableDatabase as withDisposableDatabaseLifecycle } from '../fixtures/disposable-database.fixture.js'
 import { DRIVER_FIELDS } from '../fixtures/fleet-http-payload.fixture'
@@ -189,6 +196,76 @@ describe('pedido no grupo do motorista, repositório (spec 292 T4)', () => {
       ).toBeNull()
     })
   })
+})
+
+describe('pedido no chat direto do Evolution, "grupo de um só" (spec 308 T5)', () => {
+  const DIRECT = `${OWNER}@s.whatsapp.net`
+
+  testWithPostgres(
+    'o JID individual abre um pedido por chat, ao lado do pedido do grupo do mesmo motorista',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, driverId, requests } = await setUp(database)
+        const open = (groupJid: string) =>
+          requests.open({
+            companyId,
+            driverId,
+            groupJid,
+            now: T0,
+            ownerNumber: OWNER,
+            step: 'menu',
+          })
+
+        const direct = await open(DIRECT)
+        const group = await open(GROUP)
+        expect(direct?.id).toBeDefined()
+        expect(group?.id).toBeDefined()
+        expect(direct?.id).not.toBe(group?.id)
+        // Um por vez por chat, também no 1:1.
+        expect(await open(DIRECT)).toBeNull()
+        expect(
+          (await requests.findOpen({ companyId, groupJid: DIRECT, now: minutes(1) }))?.id,
+        ).toBe(direct?.id)
+        // Outra empresa não enxerga o pedido.
+        expect(
+          await requests.findOpen({ companyId: crypto.randomUUID(), groupJid: DIRECT, now: T0 }),
+        ).toBeNull()
+      })
+    },
+  )
+
+  testWithPostgres(
+    'o pedido aberto no 1:1 segura o lembrete de parada (spec 299), com e sem o nono dígito',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, driverId, requests } = await setUp(database)
+        await database.db
+          .update(fleetDrivers)
+          .set({ phone: '16988887777' })
+          .where(eq(fleetDrivers.id, driverId))
+        const port = createDriverOpenQuestionPort({
+          collections: { hasOpen: async () => false },
+          database: database.db,
+          groupRequests: requests,
+          sessions: { getContext: async () => undefined },
+        })
+        const read = (now: Date) => port.read({ companyId, driverId, now })
+
+        expect(await read(T0)).toMatchObject({ hasOpenGroupRequest: false })
+        await requests.open({
+          companyId,
+          driverId,
+          groupJid: DIRECT,
+          now: T0,
+          ownerNumber: OWNER,
+          step: 'menu',
+        })
+        expect(await read(minutes(1))).toMatchObject({ hasOpenGroupRequest: true })
+        // Vencido, solta o lembrete.
+        expect(await read(minutes(11))).toMatchObject({ hasOpenGroupRequest: false })
+      })
+    },
+  )
 })
 
 type TestDatabase = ReturnType<typeof createDatabaseProvider>

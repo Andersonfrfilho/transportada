@@ -9,6 +9,13 @@ readonly TERMINAL_FAILURE_STATUSES='FAILED CRASHED REMOVED SKIPPED'
 # `SUCCESS` marca o release publicado, não o processo vivo: um contêiner em crash-loop passa por
 # `SUCCESS` antes de virar `CRASHED`. Só aceitamos o deploy depois de o status se sustentar.
 readonly STABLE_CONFIRMATIONS=3
+# A Railway às vezes recusa o deployment antes de construir ("Failed to snapshot repository. Please
+# try again in a few minutes.") ou perde o build sem deixar log; em 08/11/2026 isso derrubou worker,
+# frontend e client no mesmo push. Só `FAILED` (build/snapshot) é repetido: `CRASHED` é código ruim
+# e repetir só esconde o defeito.
+readonly DEPLOY_ATTEMPTS="${DEPLOY_ATTEMPTS:-2}"
+readonly RETRY_DELAY_SECONDS="${RETRY_DELAY_SECONDS:-45}"
+LAST_FAILURE_STATUS=""
 
 usage() {
   echo "uso: $0 <deploy|has-succeeded|assert-migrations> <serviço>" >&2
@@ -58,6 +65,7 @@ wait_for_deployment() {
     status="$(deployment_status "$service" "$deployment_id")"
     case " $TERMINAL_FAILURE_STATUSES " in
       *" $status "*)
+        LAST_FAILURE_STATUS="$status"
         echo "::error::$service terminou em $status no ambiente $TARGET_ENVIRONMENT"
         railway logs --service "$service" --environment "$TARGET_ENVIRONMENT" --lines 100 || true
         return 1
@@ -118,7 +126,7 @@ except Exception:
 # assim que o deploy de 10/08/2026 subiu SUCCESS na Railway e mesmo assim pulou migrations, worker,
 # cron e frontend. O identificador anunciado na saída é a prova de que houve deployment; sem ele a
 # falha é falha de verdade e não há status para consultar.
-deploy() {
+deploy_once() {
   local service="$1"
   local output
   local exit_code=0
@@ -157,6 +165,24 @@ deploy() {
   fi
 
   wait_for_deployment "$service" "$deployment_id"
+}
+
+deploy() {
+  local service="$1"
+  local attempt=1
+
+  while true; do
+    LAST_FAILURE_STATUS=""
+    if deploy_once "$service"; then
+      return 0
+    fi
+    if [ "$LAST_FAILURE_STATUS" != FAILED ] || [ "$attempt" -ge "$DEPLOY_ATTEMPTS" ]; then
+      return 1
+    fi
+    attempt=$((attempt + 1))
+    echo "::warning::$service: deployment FAILED antes de subir; tentativa $attempt de $DEPLOY_ATTEMPTS em ${RETRY_DELAY_SECONDS}s."
+    sleep "$RETRY_DELAY_SECONDS"
+  done
 }
 
 [ $# -eq 2 ] || usage

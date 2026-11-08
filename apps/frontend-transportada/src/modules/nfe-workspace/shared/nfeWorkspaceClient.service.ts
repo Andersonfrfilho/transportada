@@ -45,6 +45,10 @@ export type NfeImportSummary = Readonly<{
   invalidCount: number
   processedCount: number
   receivedCount: number
+  /** Spec 301: de quem veio (e-mail ou número mascarado no servidor não — o painel mascara). */
+  receivedFrom?: null | string
+  /** Spec 301: por onde chegou; `screen` é o "Enviar XML" da tela. */
+  receivedVia?: 'email' | 'screen' | 'whatsapp'
   rejectedCount: number
   source: 'access_key' | 'distribution' | 'upload'
   status:
@@ -492,6 +496,12 @@ function mapImportSummary(value: unknown): NfeImportSummary {
     invalidCount,
     processedCount,
     receivedCount,
+    ...(value.receivedVia === 'email' || value.receivedVia === 'whatsapp'
+      ? {
+          receivedFrom: typeof value.receivedFrom === 'string' ? value.receivedFrom : null,
+          receivedVia: value.receivedVia,
+        }
+      : {}),
     rejectedCount,
     source: value.source,
     status: value.status,

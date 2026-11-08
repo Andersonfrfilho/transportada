@@ -80,7 +80,9 @@ function setup(options: { withReturn?: boolean } = {}) {
     }),
   })
   let current = request('document')
+  let canImportXml = false
   const turn = (text: string) => ({
+    ...(canImportXml ? { canImportXml: true } : {}),
     request: current,
     sender: '5516988887777',
     senderName: null,
@@ -91,6 +93,9 @@ function setup(options: { withReturn?: boolean } = {}) {
     return outcome
   }
   return {
+    allowXml: () => {
+      canImportXml = true
+    },
     answer: async (text: string) => remember(await flow.answer(turn(text))),
     returned,
     start: async (text: string) => remember(await flow.start(turn(text))),
@@ -156,5 +161,45 @@ describe('o menu do grupo (spec 300, fluxo 1)', () => {
     const t = setup()
     await t.start('')
     expect(await t.answer('nao entreguei')).toMatchObject({ step: 'return.reason' })
+  })
+
+  test('spec 308 D2.4: quem tem envio de XML liberado vê "Enviar XML das notas" na 6; os demais, não', async () => {
+    const plain = setup()
+    const plainMenu = await plain.start('')
+    expect(JSON.stringify(plainMenu)).not.toContain('XML')
+
+    const importer = setup()
+    importer.allowXml()
+    expect(await importer.start('')).toEqual({
+      kind: 'continue',
+      replies: [
+        DESIGN_MENU.replace('_Responda', '*6* - 📄 Enviar XML das notas\n\n_Responda').replace(
+          '\n\n*6*',
+          '\n*6*',
+        ),
+      ],
+      state: {},
+      step: 'menu',
+    })
+  })
+
+  test('spec 308 D2.4: a 6 (ou "enviar xml") só orienta e fecha; sem permissão, a 6 não existe', async () => {
+    const importer = setup()
+    importer.allowXml()
+    await importer.start('')
+    const byNumber = await importer.answer('6')
+    expect(byNumber).toMatchObject({ kind: 'done', withoutFarewell: true })
+    expect(JSON.stringify(byNumber)).toContain('XMLs')
+
+    const byName = setup()
+    byName.allowXml()
+    await byName.start('')
+    expect(await byName.answer('enviar xml')).toEqual(byNumber)
+
+    const plain = setup()
+    await plain.start('')
+    expect(await plain.answer('6')).toMatchObject({ kind: 'not_understood' })
+    await plain.start('')
+    expect(await plain.answer('xml')).toMatchObject({ kind: 'not_understood' })
   })
 })

@@ -180,6 +180,11 @@ import { createWhatsAppEvolutionRoutes } from './whatsapp/presentation/whatsapp-
 import { createWhatsAppEvolutionUseCase } from './whatsapp/application/whatsapp-evolution.use-case'
 import { createWhatsAppEvolutionSecretService } from './whatsapp/application/whatsapp-evolution-secret.service'
 import { createWhatsAppEvolutionWebhookSecretService } from './whatsapp/application/whatsapp-evolution-webhook-secret.service.js'
+import { createListNfeXmlReceiptsUseCase } from './nfe-xml-receipts/application/list-nfe-xml-receipts.use-case.js'
+import { createDrizzleNfeXmlReceiptReadRepository } from './nfe-xml-receipts/infrastructure/drizzle-nfe-xml-receipt-read.repository.js'
+import { createNfeXmlReceiptRoutes } from './nfe-xml-receipts/presentation/nfe-xml-receipts.routes.js'
+import { createWhatsAppXmlInbound } from './nfe-xml-receipts/application/receive-whatsapp-xml-document.service.js'
+import { createDrizzleWhatsAppXmlReceiptRepository } from './nfe-xml-receipts/infrastructure/drizzle-whatsapp-xml-receipt.repository.js'
 import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
 import { createEvolutionGroupIdentity } from './whatsapp/application/evolution-group-identity.service.js'
 import {
@@ -270,6 +275,7 @@ import {
 import { createWhatsAppOfficeDelivery } from './whatsapp-commands/infrastructure/whatsapp-office-delivery.adapter.js'
 import {
   createAttendantFinder,
+  findActiveDriverByPhone,
   isCrewPhone,
 } from './whatsapp/infrastructure/whatsapp-group-sender.adapter.js'
 import { createWhatsAppSenderRoleResolver } from './whatsapp/application/whatsapp-sender-role.service.js'
@@ -2694,6 +2700,9 @@ function createEvolutionWebhook(input: {
   /** Spec 292 T9: o áudio no grupo é transcrito pelo worker e confirmado antes de seguir o fluxo. */
   const groupAudio = groupSessions === undefined ? undefined : input.groupAudio
   if (groupAudio !== undefined) groupQuestionAsked = createGroupQuestionAskedHandler(groupAudio)
+  const xmlReceiptRepository = createDrizzleWhatsAppXmlReceiptRepository(database)
+  /** Um só: o cache do número do bot e dos `@lid` do grupo serve ao fluxo do motorista e ao recebimento de XML. */
+  const groupIdentity = createEvolutionGroupIdentity({ gateway })
   return createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets,
     apiPublicUrl: input.apiPublicUrl,
@@ -2724,6 +2733,15 @@ function createEvolutionWebhook(input: {
             },
           }),
       findGroupDriver: (lookup) => driverGroups.findDriverByGroup(lookup),
+      // Spec 308 D2.4: quem tem envio de XML liberado (a mesma regra do recebimento) vê a opção no 1:1.
+      findDirectImporter: async ({ companyId, phone }) =>
+        (await xmlReceiptRepository.findImportSender({ companyId, now: new Date(), phone })) !==
+        undefined,
+      replyDirect: (reply) => groupReplies.send(reply),
+      // Spec 308: o motorista ativo pelo telefone; sem o fluxo do grupo (rota do dono), o 1:1 fica no painel.
+      ...(groupSessions === undefined
+        ? {}
+        : { findDirectDriver: (lookup) => findActiveDriverByPhone(database, lookup) }),
       findOpenRequestOwner: (lookup) =>
         groupSessions?.findOpenOwner(lookup) ?? Promise.resolve(null),
       handle: async (message) => {
@@ -2749,7 +2767,7 @@ function createEvolutionWebhook(input: {
       ...(groupSessions === undefined
         ? {}
         : { advanceRequestLocation: (request) => groupSessions.handleLocation(request) }),
-      identity: createEvolutionGroupIdentity({ gateway }),
+      identity: groupIdentity,
     }),
     inbound: createEvolutionConversationInbound({
       applyStatus: (status) =>
@@ -2761,6 +2779,12 @@ function createEvolutionWebhook(input: {
     }),
     logger,
     repository: createDrizzleWhatsAppEvolutionWebhookRepository(database),
+    /** Spec 301: XML de NF-e mandado ao bot, no privado ou em qualquer grupo em que ele seja marcado. */
+    xmlInbound: createWhatsAppXmlInbound({
+      identity: groupIdentity,
+      logger,
+      repository: xmlReceiptRepository,
+    }),
     webhookSecrets: createWhatsAppEvolutionWebhookSecretService({ envelopeProvider }),
   })
 }
@@ -6783,6 +6807,11 @@ function createApplicationRoutes({
             storedObjectRepository,
           }),
       },
+    }),
+    ...createNfeXmlReceiptRoutes({
+      listReceipts: createListNfeXmlReceiptsUseCase({
+        reader: createDrizzleNfeXmlReceiptReadRepository(database),
+      }),
     }),
     ...createNfeDocumentAccessKeyCheckRoutes({
       checkAccessKeys: createCheckAccessKeysUseCase({

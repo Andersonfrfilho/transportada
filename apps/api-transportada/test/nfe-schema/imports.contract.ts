@@ -23,6 +23,8 @@ describe('NF-e import schema', () => {
       'triggered_by',
       'automation_job',
       'requested_by_user_id',
+      'received_via',
+      'received_from',
       'correlation_id',
       'idempotency_key',
       'request_fingerprint',
@@ -46,6 +48,8 @@ describe('NF-e import schema', () => {
       triggered_by: 'text',
       automation_job: 'text',
       requested_by_user_id: 'uuid',
+      received_via: 'text',
+      received_from: 'text',
       correlation_id: 'text',
       idempotency_key: 'text',
       request_fingerprint: 'text',
@@ -65,7 +69,10 @@ describe('NF-e import schema', () => {
     expectGeneratedUuidPrimaryKey(nfeImports)
     expect(requiredColumnNames(nfeImports)).toEqual(
       columnNames(nfeImports).filter(
-        (columnName) => columnName !== 'terminal_error' && columnName !== 'automation_job',
+        (columnName) =>
+          columnName !== 'terminal_error' &&
+          columnName !== 'automation_job' &&
+          columnName !== 'received_from',
       ),
     )
     expect(uniqueColumnsByName(nfeImports)).toMatchObject({
@@ -73,6 +80,7 @@ describe('NF-e import schema', () => {
       nfe_imports_company_id_idempotency_key_unique: ['company_id', 'idempotency_key'],
     })
     expect(checkSqlByName(nfeImports)).toMatchObject({
+      nfe_imports_received_via_check: `"nfe_imports"."received_via" in ('screen', 'email', 'whatsapp')`,
       nfe_imports_source_check: `"nfe_imports"."source" in ('upload', 'distribution', 'access_key')`,
       nfe_imports_status_check: `"nfe_imports"."status" in ('pending', 'queued', 'processing', 'completed', 'partially_processed', 'failed', 'cancelled')`,
       nfe_imports_counters_check: `"nfe_imports"."received_count" >= 0 and "nfe_imports"."processed_count" >= 0 and "nfe_imports"."imported_count" >= 0 and "nfe_imports"."duplicated_count" >= 0 and "nfe_imports"."invalid_count" >= 0 and "nfe_imports"."rejected_count" >= 0 and "nfe_imports"."failed_count" >= 0 and "nfe_imports"."processed_count" <= "nfe_imports"."received_count" and "nfe_imports"."processed_count" = "nfe_imports"."imported_count" + "nfe_imports"."duplicated_count" + "nfe_imports"."invalid_count" + "nfe_imports"."rejected_count" + "nfe_imports"."failed_count"`,

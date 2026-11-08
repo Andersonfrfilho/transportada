@@ -199,6 +199,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
     })
 
   const turnOf = (message: AdmittedGroupMessage, request: GroupRequest): GroupFlowTurn => ({
+    ...(message.canImportXml === true ? { canImportXml: true } : {}),
     request,
     sender: message.sender,
     senderName: message.senderName,

@@ -193,6 +193,11 @@ import { createDrizzleCargoPreviewEmailRepository } from './cargo-preview-email/
 import { createDriverReplyNotifier } from './occurrence-conversation/infrastructure/driver-reply-notifier.gateway.js'
 import { createDrizzleContractorMailInboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { createNfeXmlEmailIntake } from './nfe-xml-receipts/infrastructure/nfe-xml-email-intake.factory.js'
+import {
+  createNfeXmlReceiptRuntime,
+  createReceiptLogger,
+} from './nfe-xml-receipts/infrastructure/nfe-xml-receipt-runtime.js'
 import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
 import { createSandboxSmtpMailGateway } from './contractor-mail/infrastructure/sandbox-smtp-mail.gateway.js'
 import {
@@ -788,6 +793,7 @@ export async function startWorkerRuntime(
   let passwordResetDeliveryConsumer: RuntimeConsumer | undefined
   let passwordResetDeliveryPublisher: RabbitMqProvider | undefined
   let passwordResetDeliveryRelayLoop: OutboxRelayLoop | undefined
+  let nfeXmlReceiptLoop: OutboxRelayLoop | undefined
   let syntheticConsumer: RuntimeConsumer | undefined
   let jobRunConsumer: RuntimeConsumer | undefined
   let jobRunProvider: RabbitMqProvider | undefined
@@ -1315,6 +1321,43 @@ export async function startWorkerRuntime(
       provider: contractorMailOutboundPublisher,
     })
     const inboundDkimVerifier = createDkimVerifierGateway({ resolveDns: resolveDkimDnsRecord })
+    /**
+     * Spec 301: XML de NF-e por e-mail (caixa `notas@`) e por WhatsApp (marcando o bot). O e-mail decide no consumidor
+     * de entrada; o WhatsApp é gravado pelo webhook da API e drenado em lotes pelo laço abaixo, junto dos resumos.
+     */
+    const nfeXmlEvolutionSender = createEvolutionClientDocumentSender({
+      envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+      pacer: createEvolutionSendPacer({
+        claimSlot: createDrizzleEvolutionSendSlotClaimer(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        maxWaitMs: 120_000,
+      }),
+      runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    })
+    const nfeXmlMailGateway = createResendMailGateway({
+      fetch: (target, init) => fetch(target, init),
+    })
+    const nfeXmlReceipts = createNfeXmlReceiptRuntime({
+      database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      evolution: nfeXmlEvolutionSender,
+      findReplySettings: (input) =>
+        createDrizzleContractorMailOutboundWorkerRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ).findSettingsByCompanyId(input),
+      logger,
+      mailGateway: nfeXmlMailGateway,
+      ...(config.emailResendDisabled === true ? { resendDisabled: true } : {}),
+      secretService: createContractorMailCredentialSecretService({
+        envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+      }),
+      sendNotification: (params) => notificationModule.useCases.sendNotification.execute(params),
+      storage: {
+        bucket: storageBucket,
+        put: (input) => storageGateway.storeObject(input),
+      },
+      whiteLogo: toWhiteLogoPng,
+    })
     const inboundMailGateway = createResendMailGateway({
       fetch: (target, init) => fetch(target, init),
     })
@@ -1360,6 +1403,15 @@ export async function startWorkerRuntime(
         }),
         dkimVerifier: inboundDkimVerifier,
         mailGateway: inboundMailGateway,
+        /** Spec 301: a caixa `notas@` decide antes da prévia. */
+        nfeXmlIntake: createNfeXmlEmailIntake({
+          extraDomains: config.nfeXmlMailboxDomains,
+          dkimVerifier: inboundDkimVerifier,
+          importGateway: nfeXmlReceipts.importGateway,
+          logger: createReceiptLogger(logger),
+          mailGateway: inboundMailGateway,
+          repository: nfeXmlReceipts.repository,
+        }),
         /** Spec 237 T4.6: a prévia por e-mail encaminhado, antes do trilho da conversa. */
         previewIntake: createCargoPreviewEmailIntake({
           dkimVerifier: inboundDkimVerifier,
@@ -2235,6 +2287,17 @@ export async function startWorkerRuntime(
       }),
     })
     passwordResetDeliveryRelayLoop.start()
+    /** Spec 301: a batida do recebimento de XML — o lote do WhatsApp e os resumos, um minuto de intervalo. */
+    nfeXmlReceiptLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.nfe-xml-receipts.${crypto.randomUUID()}`,
+      failureMessage: 'nfe_xml_receipt_cycle_failed',
+      intervalMs: 60_000,
+      leaseMs: 0,
+      limit: 0,
+      logger,
+      relay: { relayDueEntries: () => nfeXmlReceipts.runCycle() },
+    })
+    nfeXmlReceiptLoop.start()
     const shutdown = new WorkerShutdown({
       closeables: [
         // Antes do banco e do storage: a soltura graciosa devolve a tentativa da linha em voo.
@@ -2257,6 +2320,7 @@ export async function startWorkerRuntime(
         cargoLayoutRelayLoop,
         invitationDeliveryRelayLoop,
         passwordResetDeliveryRelayLoop,
+        nfeXmlReceiptLoop,
         storageGateway,
         // Últimos a fechar: o desligamento gracioso é a chance final de drenar o que saiu do
         // processo pela rede. Depois deles não há mais para onde mandar nada.
@@ -2351,6 +2415,7 @@ export async function startWorkerRuntime(
     await invitationDeliveryRelayLoop?.close().catch(() => undefined)
     await passwordResetDeliveryConsumer?.cancel().catch(() => undefined)
     await passwordResetDeliveryRelayLoop?.close().catch(() => undefined)
+    await nfeXmlReceiptLoop?.close().catch(() => undefined)
     await jobRunConsumer?.cancel().catch(() => undefined)
     await audioTranscriptionRuntime?.runner.close().catch(() => undefined)
     await relayLoop?.close().catch(() => undefined)

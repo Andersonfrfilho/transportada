@@ -1,0 +1,1 @@
+ALTER TABLE "contractor_contacts" DROP CONSTRAINT "contractor_contacts_types_check", ADD CONSTRAINT "contractor_contacts_types_check" CHECK ("types" <@ array['occurrences', 'approves_charges', 'scheduling', 'invoices', 'cte_xml', 'nfe_xml']::text[]);

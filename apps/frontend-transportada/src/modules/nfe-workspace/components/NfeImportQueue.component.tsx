@@ -23,6 +23,13 @@ type NfeImportQueueProps = Readonly<{
   readonly reprocessTargetId: string | null
 }>
 
+/** O e-mail aparece inteiro; o número do WhatsApp só pelos quatro últimos dígitos. */
+function formatReceivedFrom(item: NfeImportSummary): string {
+  if (item.receivedFrom === null || item.receivedFrom === undefined) return ''
+  if (item.receivedVia !== 'whatsapp') return item.receivedFrom
+  return `****${item.receivedFrom.replaceAll(/\D/gu, '').slice(-4)}`
+}
+
 function isReprocessable(item: NfeImportSummary): boolean {
   return (item.status === 'failed' || item.status === 'partially_processed') && item.failedCount > 0
 }
@@ -85,6 +92,9 @@ export function NfeImportQueue({
                   </div>
                   <span className={styles.secondaryText}>
                     {t(`filters.${item.source}`)} · {item.processedCount}/{item.receivedCount}
+                    {item.receivedVia !== undefined &&
+                      item.receivedVia !== 'screen' &&
+                      ` · ${t(`imports.via.${item.receivedVia}`)} ${formatReceivedFrom(item)}`}
                   </span>
                   <span className={styles.secondaryText}>
                     {t('imports.executedAt')}{' '}

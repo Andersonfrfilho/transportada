@@ -357,6 +357,9 @@ async function registerNfeMocks(
   await input.page.route(/\/nfe-imports(?:\?.*)?$/, async (route) => {
     await fulfillJson(route, { data: [IMPORT_SUMMARY], page: { nextCursor: null } })
   })
+  await input.page.route(/\/nfe-xml-receipts(?:\?.*)?$/, async (route) => {
+    await fulfillJson(route, { data: [] })
+  })
   const documentPage = buildDocumentPage({
     blockedDocumentCount: input.blockedDocumentCount,
     documentCount: input.documentCount,

@@ -37,6 +37,8 @@ import type {
   DriverReplyNotice,
   DriverReplyNoticePort,
 } from '../../occurrence-conversation/application/driver-reply-notice.port.js'
+import type { NfeXmlEmailIntakeResult } from '../../nfe-xml-receipts/application/intake-nfe-xml-email.use-case.js'
+import type { NfeXmlEmailIntakePort } from '../../nfe-xml-receipts/infrastructure/nfe-xml-email-intake.factory.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
 import type {
   ContractorMailInboundSettingsRecord,
@@ -73,6 +75,8 @@ export type RecordContractorMailInboundMessageDependencies = {
   readonly driverNotifier: DriverReplyNoticePort
   readonly dkimVerifier: VerifyDkimHeaderFromPort
   readonly mailGateway: ResendMailGateway
+  /** Spec 301: a caixa `notas@` — XML de NF-e por e-mail vira importação; decide antes da prévia. */
+  readonly nfeXmlIntake?: NfeXmlEmailIntakePort
   /** Spec 237 T4.6: o ramo da prévia encaminhada; só decide a mensagem que casa o token de um perfil. */
   readonly previewIntake: CargoPreviewEmailIntakePort
   readonly repository: ContractorMailInboundWorkerRepository
@@ -91,6 +95,11 @@ export type RecordContractorMailInboundMessageDependencies = {
 export type RecordContractorMailInboundMessageResult =
   | { readonly outcome: 'already_recorded' }
   | { readonly outcome: 'discarded'; readonly reason: 'multiple_matches' | 'token_unknown' }
+  | {
+      /** Spec 301: o desfecho da caixa de XML; só motivo e contagem vão a log. */
+      readonly nfeXml: Exclude<NfeXmlEmailIntakeResult, { readonly kind: 'not_xml_mailbox' }>
+      readonly outcome: 'nfe_xml'
+    }
   | {
       /** Spec 237 T4.6: a prévia por e-mail encaminhado decidiu — aceita, recusada ou ignorada por excesso. */
       readonly outcome: 'preview'
@@ -312,6 +321,19 @@ async function decideWithoutConversation(context: {
   readonly settings: ContractorMailInboundSettingsRecord
 }): Promise<PreviewDecision> {
   const { delivery, dependencies, envelope, received, settings } = context
+  if (dependencies.nfeXmlIntake !== undefined) {
+    const nfeXml = await dependencies.nfeXmlIntake.intake({
+      companyId: envelope.companyId,
+      correlationId: envelope.correlationId,
+      delivery,
+      occurredAt: new Date(envelope.occurredAt),
+      providerEmailId: envelope.payload.providerEmailId,
+      received,
+      replyDomain: settings.replyDomain,
+    })
+    if (nfeXml.kind === 'already_recorded') return { outcome: 'already_recorded' }
+    if (nfeXml.kind !== 'not_xml_mailbox') return { outcome: 'nfe_xml', nfeXml }
+  }
   const preview = await dependencies.previewIntake.intake({
     companyId: envelope.companyId,
     correlationId: envelope.correlationId,

@@ -19,6 +19,7 @@ import { AddressReportPanel } from '../components/AddressReportPanel.component'
 import { useAddressCorrectionRequests } from '../hooks/useAddressCorrectionRequests.hook'
 import { useAddressReport } from '../hooks/useAddressReport.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
+import { useNfeXmlReceipts } from '../hooks/useNfeXmlReceipts.hook'
 import { CameraMeasurementSettingsPanel } from '../components/CameraMeasurementSettingsPanel.component'
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
 import { PackageBoxMeasurementPanel } from '../components/PackageBoxMeasurementPanel.component'
@@ -41,6 +42,7 @@ import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.com
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
 import { NfeImportQueue } from '../components/NfeImportQueue.component'
+import { NfeXmlReceiptsPanel } from '../components/NfeXmlReceiptsPanel.component'
 import { AccessKeyImportSection } from '../components/AccessKeyImportSection.component'
 import { NfeImportByScanShortcut } from '../components/NfeImportByScanShortcut.component'
 import { NfeUploadPanel } from '../components/NfeUploadPanel.component'
@@ -262,6 +264,10 @@ export function NfeWorkspacePage() {
   const scheduledDistribution = useScheduledDistribution({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.scheduledDistribution,
+  })
+  const xmlReceipts = useNfeXmlReceipts({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: workspace.canRead,
   })
   const distributionCursor = useDistributionCursor({
     ...(companyId === undefined ? {} : { companyId }),
@@ -661,6 +667,13 @@ export function NfeWorkspacePage() {
                       reprocessSuccess={workspace.reprocessMutation.isSuccess}
                       reprocessTargetId={reprocessTargetId}
                     />
+                    {workspace.canRead && (
+                      <NfeXmlReceiptsPanel
+                        failed={xmlReceipts.isError}
+                        loading={xmlReceipts.isLoading}
+                        receipts={xmlReceipts.data}
+                      />
+                    )}
                   </>
                 ),
               },

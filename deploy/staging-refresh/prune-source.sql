@@ -204,6 +204,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('nfe_participants', 'keep', null),
   ('nfe_products', 'keep', null),
   ('nfe_volumes', 'keep', null),
+  ('nfe_xml_receipts', 'empty', null),
   ('nfse_emission_profiles', 'keep', null),
   ('nfse_fiscal_documents', 'empty', null),
   ('nfse_issuance_attempts', 'empty', null),
