@@ -14,6 +14,10 @@ Uma task por vez; cada uma fecha com typecheck + testes da app + evidência em `
 - [ ] **T1.1 🧠** Migration aditiva `nfe_imports.source` += `email`, `whatsapp` + origem/remetente; rollback; teste de migração.
 - [ ] **T1.2** Serviço "importar XML recebido" reutilizando `requestUpload` e o leitor de zip seguro.
 
+- [ ] **T1.3** Fila e lotes no worker (RN1–RN4): lote configurável, concorrência por empresa, retentativa com espera, fila morta;
+      contratos de carga (zip grande, lote com erro, reentrega).
+- [ ] **T1.4** Logs estruturados, métricas e avisos à operação (RN5–RN6); entrada no runbook de produção.
+
 ## Fase 2 — E-mail
 > 🤖 Modelo: `sonnet`
 - [ ] **T2.1** Webhook assinado da caixa de notas, allowlist + DKIM, anexos do Resend, idempotência por `email_id`.

@@ -74,6 +74,26 @@ genérica (e-mail: nenhuma; WhatsApp: "este número não pode importar notas"); 
 **Given** o mesmo zip enviado duas vezes **Then** a segunda vez retorna "já estavam no sistema" (idempotência por sha256
 do anexo + chave de acesso), sem duplicar nota.
 
+## Carga, lotes, logs e avisos (pedido do Anderson em 08/11/2026)
+
+O recebimento **nunca** processa na requisição nem pesa no serviço; tudo é fila e lote.
+
+- **RN1 — Receber é só enfileirar:** o webhook (e-mail ou Evolution) confere assinatura/remetente, grava o anexo no storage
+  e a mensagem na fila, e responde 2xx em milissegundos. Parse de zip e de XML roda no worker, nunca na API.
+- **RN2 — Lotes:** o worker processa em lotes de tamanho fixo (ex.: 50 XMLs por lote, configurável), com concorrência limitada
+  e uma importação por vez por empresa. Zip grande vira vários lotes; um lote com erro não derruba os outros.
+- **RN3 — Proteção de carga:** limite de anexos, de bytes (compactado e descompactado) e de mensagens por remetente por hora;
+  excedeu → o excedente é recusado com motivo e o resto segue. Reentrega do webhook não reprocessa (idempotência por mensagem).
+- **RN4 — Erro por item, com motivo:** cada XML termina `importada`, `já existia`, `inválida` ou `falhou`, com código e motivo
+  em português (XML malformado, não é NF-e, chave inválida, assinatura ausente, fora do limite, zip protegido…). Falha
+  transitória (storage, banco) tenta de novo com espera crescente; esgotou → vai para a fila morta e fica `falhou`, nunca some.
+- **RN5 — Logs:** log estruturado por mensagem e por lote (correlationId, origem, empresa, contagens, duração, código do
+  erro), **sem** o conteúdo do XML nem dados pessoais. Métricas: mensagens recebidas, itens por resultado, tamanho da fila,
+  tempo de processamento, idade da mensagem mais antiga.
+- **RN6 — Avisos:** o remetente sempre recebe o resumo (ou o motivo da recusa). A operação vê o resultado na tela de
+  importações e é avisada (notificação) quando há falha definitiva, fila morta com item ou fila parada além do limite;
+  alerta de operação para fila crescendo. Passo de produção novo vai para `docs/runbooks/producao.md`.
+
 ## Requisitos funcionais
 
 - RF1 Webhook de e-mail novo (assinatura Svix conferida **antes** de ler o corpo) busca os anexos pelo Resend, guarda o
