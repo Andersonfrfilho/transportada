@@ -183,6 +183,49 @@ describeDatabase('nfe xml receipts (integration, spec 301)', () => {
     await expect(insertPublicProvider()).rejects.toThrow()
   })
 
+  test('a domain linked to a contractor hands over the contractor tax id root, and a contact or member on it is not restricted (spec 314)', async () => {
+    const [contractor] = (await database.execute(sql`
+      insert into contractors (company_id, tax_id, display_name)
+      values (${companyId}, '05868574001090', 'SPANI') returning id
+    `)) as unknown as { id: string }[]
+    const contractorId = contractor?.id ?? ''
+    await database.execute(sql`
+      insert into nfe_xml_allowed_email_domains (company_id, domain, contractor_id)
+      values (${companyId}, 'spani.com.br', ${contractorId})
+    `)
+    await database.execute(sql`
+      insert into contractor_contacts (company_id, contractor_id, email, types, status)
+      values (${companyId}, ${contractorId}, 'cadastrado@spani.com.br', '{nfe_xml}'::text[], 'active')
+    `)
+    const find = (email: string) => repository.findAuthorizedSenderByEmail({ companyId, email })
+    const actor = '00000000-0000-4000-8000-000000000006'
+    expect(await find('qualquer@spani.com.br')).toEqual({
+      issuerTaxIdRoot: '05868574',
+      userId: actor,
+    })
+    expect(await find('cadastrado@spani.com.br')).toEqual({ userId: actor })
+    expect(await find('operador@transportadora.com.br')).toEqual({ userId: operatorId })
+  })
+
+  test('the import keeps the issuer restriction for the consumer to read', async () => {
+    const { receiptId } = await record('m-restricted')
+    const { importId } = await importGateway.createImport({
+      automationJob: null,
+      companyId,
+      correlationId: 'corr-restricted',
+      files: [{ bytes: new TextEncoder().encode('<a/>'), name: 'a.xml' }],
+      issuerTaxIdRoot: '05868574',
+      receiptId,
+      receivedFrom: 'qualquer@spani.com.br',
+      receivedVia: 'email',
+      requestedByUserId: operatorId,
+    })
+    const [row] = (await database.execute(sql`
+      select issuer_tax_id_root from nfe_imports where id = ${importId}::uuid
+    `)) as unknown as { issuer_tax_id_root: string | null }[]
+    expect(row?.issuer_tax_id_root).toBe('05868574')
+  })
+
   test('the import is created whole: stored objects, import, items (first is "/"), outbox event and the receipt closed', async () => {
     const { receiptId } = await record('m-import')
     const { importId } = await importGateway.createImport({

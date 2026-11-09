@@ -171,6 +171,9 @@ export async function intakeNfeXmlEmail(
     )
       .flat()
       .map((file) => ({ bytes: file.bytes, name: file.name })),
+    ...(authorized.issuerTaxIdRoot === undefined
+      ? {}
+      : { issuerTaxIdRoot: authorized.issuerTaxIdRoot }),
     receiptId,
     receivedFrom: sender,
     receivedVia: 'email',

@@ -121,6 +121,18 @@ describe('NF-e XML e-mail intake', () => {
     expect(repository.recorded[0]).toMatchObject({ channel: 'email', providerMessageId: 'email-1' })
   })
 
+  test('hands the issuer restriction of a domain-only sender to the import, and none for anyone else (spec 314)', async () => {
+    const restricted = setup()
+    restricted.repository.issuerRootByEmail.set('maria@transportadora.com.br', '05868574')
+    await intakeNfeXmlEmail(restricted.input, restricted.dependencies)
+    expect(restricted.importGateway.created[0]?.issuerTaxIdRoot).toBe('05868574')
+
+    const unrestricted = setup()
+    await intakeNfeXmlEmail(unrestricted.input, unrestricted.dependencies)
+    expect(unrestricted.importGateway.created[0]).toBeDefined()
+    expect(unrestricted.importGateway.created[0]).not.toHaveProperty('issuerTaxIdRoot')
+  })
+
   test('never refuses by volume: 300 attachments become one import', async () => {
     const attachments = Array.from({ length: 300 }, (_, index) => ({
       bytes: new Uint8Array([index % 255]),

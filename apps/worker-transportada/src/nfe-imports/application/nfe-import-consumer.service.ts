@@ -29,6 +29,7 @@ type PendingImportAggregate = {
   readonly companyCnpj: string
   readonly companyId: string
   readonly id: string
+  readonly issuerTaxIdRoot?: string | null
   readonly items: readonly PendingImportItem[]
 }
 
@@ -148,6 +149,7 @@ export function createNfeImportConsumer(input: {
           companyCnpj: pendingImport.companyCnpj,
           companyId: pendingImport.companyId,
           finalStorage: input.finalStorage,
+          issuerTaxIdRoot: pendingImport.issuerTaxIdRoot ?? null,
           repository: input.repository,
           sourceStorage: input.sourceStorage,
           xmlImporter: input.xmlImporter,
@@ -173,6 +175,7 @@ async function processItem(input: {
   readonly companyCnpj: string
   readonly companyId: string
   readonly finalStorage: NfeImportFinalStoragePort
+  readonly issuerTaxIdRoot: string | null
   readonly repository: NfeImportConsumerRepositoryPort
   readonly sourceStorage: NfeImportSourceStoragePort
   readonly xmlImporter: NfeXmlImporterPort
@@ -213,6 +216,21 @@ async function processItem(input: {
         error: {
           code: 'NFE_IMPORT_UNRELATED_CNPJ',
           message: 'NF-e is not related to the authenticated company',
+        },
+        itemId: input.item.id,
+        normalizedXml,
+        status: 'rejected',
+        variant: resolveVariant(normalizedXml),
+      })
+      return 'rejected'
+    }
+
+    if (!isIssuerAllowed({ issuerTaxIdRoot: input.issuerTaxIdRoot, normalizedXml })) {
+      await input.repository.completeItem({
+        accessKey,
+        error: {
+          code: 'NFE_IMPORT_ISSUER_MISMATCH',
+          message: 'NF-e issuer does not match the contractor linked to the sender domain',
         },
         itemId: input.item.id,
         normalizedXml,
@@ -334,6 +352,31 @@ function isRelatedToCompany(input: {
   return input.normalizedXml.document.relatedCnpjs
     .map((relatedCnpj) => normalizeTaxId(relatedCnpj))
     .includes(companyCnpj)
+}
+
+const TAX_ID_ROOT_LENGTH = 8
+const ACCESS_KEY_ISSUER_START = 6
+const ACCESS_KEY_ISSUER_END = 20
+
+/** Evento não traz o emitente no corpo: ele é o CNPJ embutido na chave da nota a que o evento se refere. */
+function resolveIssuerTaxIdRoot(normalizedXml: ImportedNfeXml): string {
+  const issuerTaxId =
+    normalizedXml.kind === 'nfe-event'
+      ? normalizeTaxId(normalizedXml.event.accessKey).slice(
+          ACCESS_KEY_ISSUER_START,
+          ACCESS_KEY_ISSUER_END,
+        )
+      : normalizeTaxId(normalizedXml.document.issuer.taxId ?? '')
+  return issuerTaxId.slice(0, TAX_ID_ROOT_LENGTH)
+}
+
+function isIssuerAllowed(input: {
+  readonly issuerTaxIdRoot: string | null
+  readonly normalizedXml: ImportedNfeXml
+}): boolean {
+  if (input.issuerTaxIdRoot === null) return true
+  const issuerRoot = resolveIssuerTaxIdRoot(input.normalizedXml)
+  return issuerRoot !== '' && issuerRoot === normalizeTaxId(input.issuerTaxIdRoot)
 }
 
 function resolveAccessKey(normalizedXml: ImportedNfeXml): string {

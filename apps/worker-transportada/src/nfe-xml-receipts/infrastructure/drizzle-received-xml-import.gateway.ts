@@ -77,6 +77,7 @@ export function createDrizzleReceivedXmlImportGateway(dependencies: {
             correlationId: input.correlationId,
             id: importId,
             idempotencyKey,
+            issuerTaxIdRoot: input.issuerTaxIdRoot ?? null,
             receivedCount: BigInt(staged.length),
             receivedFrom: input.receivedFrom,
             receivedVia: input.receivedVia,

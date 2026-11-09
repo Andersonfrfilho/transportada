@@ -21,6 +21,7 @@ import type { NfeXmlReceiptRejection } from '../domain/nfe-xml-receipt.constant.
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Rows<T> = readonly T[]
 
+const TAX_ID_ROOT_LENGTH = 8
 const FINISHED_IMPORT_STATUSES = sql`('completed', 'partially_processed', 'failed')`
 
 type ReceiptRow = {
@@ -132,18 +133,26 @@ export function createDrizzleNfeXmlReceiptRepository(dependencies: {
       `)) as unknown as Rows<{ id: string }>
       if (contacts[0] !== undefined) return { userId: NFE_XML_MAILBOX_ACTOR_USER_ID }
 
-      // Spec 311: o domínio liberado da empresa. O DKIM alinhado já foi exigido pelo intake antes de chegar aqui.
+      // Spec 311/314: o domínio liberado da empresa; com contratante, só vale para notas emitidas por ele (raiz do CNPJ).
+      // O DKIM alinhado já foi exigido pelo intake antes de chegar aqui.
       const at = email.lastIndexOf('@')
       if (at < 1) return undefined
       const domains = (await database.execute(sql`
-        select id
-        from nfe_xml_allowed_email_domains
-        where company_id = ${companyId}::uuid
-          and status = 'active'
-          and domain = ${email.slice(at + 1).toLowerCase()}
+        select d.id,
+               case when d.contractor_id is null then null
+                    else coalesce(substr(c.tax_id, 1, ${TAX_ID_ROOT_LENGTH}), '') end as issuer_tax_id_root
+        from nfe_xml_allowed_email_domains d
+        left join contractors c on c.id = d.contractor_id and c.company_id = d.company_id
+        where d.company_id = ${companyId}::uuid
+          and d.status = 'active'
+          and d.domain = ${email.slice(at + 1).toLowerCase()}
         limit 1
-      `)) as unknown as Rows<{ id: string }>
-      return domains[0] === undefined ? undefined : { userId: NFE_XML_MAILBOX_ACTOR_USER_ID }
+      `)) as unknown as Rows<{ id: string; issuer_tax_id_root: string | null }>
+      const [domain] = domains
+      if (domain === undefined) return undefined
+      return domain.issuer_tax_id_root === null
+        ? { userId: NFE_XML_MAILBOX_ACTOR_USER_ID }
+        : { issuerTaxIdRoot: domain.issuer_tax_id_root, userId: NFE_XML_MAILBOX_ACTOR_USER_ID }
     },
 
     async markAcknowledged({ now, receiptId }) {

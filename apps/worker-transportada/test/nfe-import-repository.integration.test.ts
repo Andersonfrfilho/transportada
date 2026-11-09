@@ -207,6 +207,7 @@ describeDatabase('DrizzleNfeImportConsumerRepository (integration)', () => {
       companyCnpj: COMPANY_CNPJ,
       companyId,
       id: importId,
+      issuerTaxIdRoot: null,
       items: [
         {
           attempt: 1,

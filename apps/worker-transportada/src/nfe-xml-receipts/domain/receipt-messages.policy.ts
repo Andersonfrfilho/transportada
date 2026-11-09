@@ -37,6 +37,8 @@ export type ReceiptEmailReport = {
 }
 
 const PROBLEM_TEXT: Readonly<Record<string, string>> = {
+  NFE_IMPORT_ISSUER_MISMATCH:
+    'a nota é de um emitente que este domínio não está autorizado a enviar',
   ZIP_ENTRY_TOO_LARGE: 'um arquivo dentro do zip é grande demais',
   ZIP_EXPANSION_LIMIT: 'o zip descompactado passa do limite (mande em mais de um zip)',
   ZIP_EMPTY_ENTRY: 'o zip tem arquivo vazio',

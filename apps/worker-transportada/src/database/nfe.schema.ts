@@ -136,6 +136,8 @@ export const nfeImports = pgTable('nfe_imports', {
     .notNull()
     .default('screen'),
   receivedFrom: text('received_from'),
+  /** Spec 314: raiz do CNPJ do emitente que a importação aceita; nula = qualquer emitente. */
+  issuerTaxIdRoot: text('issuer_tax_id_root'),
   triggeredBy: text('triggered_by').$type<NfeOriginTrigger>().notNull().default('user'),
   automationJob: text('automation_job'),
   correlationId: text('correlation_id').notNull(),

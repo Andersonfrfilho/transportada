@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { NFE_XML_RECEIPT_LIMITS } from '../../src/nfe-xml-receipts/domain/nfe-xml-receipt.constant.js'
 import {
   buildAcknowledgement,
+  buildEmailReport,
   buildSummary,
   describeRejection,
 } from '../../src/nfe-xml-receipts/domain/receipt-messages.policy.js'
@@ -104,6 +105,27 @@ describe('receipt messages policy', () => {
       'Obrigado pelo envio! 🙏',
     ])
     expect(text).not.toMatch(/Próximo passo|página|NF-e|sistema|\.xml/u)
+  })
+
+  test('says why a domain-restricted sender had a note refused, in the summary and in the e-mail report', () => {
+    const counts = { duplicated: 0, failed: 0, imported: 0, invalid: 0, received: 1, rejected: 1 }
+    const reason = 'a nota é de um emitente que este domínio não está autorizado a enviar'
+    const summary = buildSummary({
+      counts,
+      problems: [{ code: 'NFE_IMPORT_ISSUER_MISMATCH', count: 1 }],
+    })
+    expect(summary).toContain(`1 caso: ${reason}`)
+    expect(summary).not.toContain('não é uma NF-e válida')
+    const report = buildEmailReport({
+      counts,
+      report: {
+        contractors: [],
+        files: [{ code: 'NFE_IMPORT_ISSUER_MISMATCH', count: 1, name: 'nota.xml' }],
+        finishedAt: null,
+        receivedAt: new Date('2026-11-09T12:00:00.000Z'),
+      },
+    })
+    expect(report.body).toContain(reason)
   })
 
   test('every rejection has a Portuguese explanation', () => {

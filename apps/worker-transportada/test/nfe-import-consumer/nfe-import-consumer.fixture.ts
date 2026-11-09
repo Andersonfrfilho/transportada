@@ -33,6 +33,7 @@ export type PendingImportAggregate = {
   readonly companyCnpj: string
   readonly companyId: string
   readonly id: string
+  readonly issuerTaxIdRoot?: string | null
   readonly items: readonly PendingImportItem[]
 }
 

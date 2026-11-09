@@ -77,6 +77,7 @@ type PendingImportAggregate = {
   readonly companyCnpj: string
   readonly companyId: string
   readonly id: string
+  readonly issuerTaxIdRoot: string | null
   readonly items: readonly PendingImportItem[]
 }
 
@@ -123,7 +124,7 @@ export class DrizzleNfeImportConsumerRepository {
     readonly importId: string
   }): Promise<PendingImportAggregate | null> {
     const [importRow] = await this.#database
-      .select({ id: nfeImports.id })
+      .select({ id: nfeImports.id, issuerTaxIdRoot: nfeImports.issuerTaxIdRoot })
       .from(nfeImports)
       .where(and(eq(nfeImports.companyId, input.companyId), eq(nfeImports.id, input.importId)))
       .limit(1)
@@ -172,6 +173,7 @@ export class DrizzleNfeImportConsumerRepository {
       companyCnpj: profile.cnpj,
       companyId: input.companyId,
       id: input.importId,
+      issuerTaxIdRoot: importRow.issuerTaxIdRoot,
       items: itemRows.map((row) => ({
         attempt: Number(row.attempt),
         id: row.id,
