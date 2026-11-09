@@ -1362,6 +1362,9 @@ export const nfeXmlAllowedEmailDomains = pgTable(
       'nfe_xml_allowed_email_domains_public_provider_check',
       sql`${table.domain} not in ('gmail.com', 'googlemail.com', 'hotmail.com', 'outlook.com', 'live.com', 'msn.com', 'yahoo.com', 'yahoo.com.br', 'icloud.com', 'me.com', 'bol.com.br', 'uol.com.br', 'terra.com.br', 'ig.com.br', 'globo.com', 'protonmail.com', 'proton.me', 'aol.com')`,
     ),
-    check('nfe_xml_allowed_email_domains_status_check', sql`${table.status} in ('active', 'inactive')`),
+    check(
+      'nfe_xml_allowed_email_domains_status_check',
+      sql`${table.status} in ('active', 'inactive')`,
+    ),
   ],
 )
