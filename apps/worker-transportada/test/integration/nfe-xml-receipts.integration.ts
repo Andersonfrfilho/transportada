@@ -175,11 +175,12 @@ describeDatabase('nfe xml receipts (integration, spec 301)', () => {
     expect(await find('alguem@pausada.com.br')).toBeUndefined()
     expect(await find('alguem@outra.com.br')).toBeUndefined()
     expect(await find('alguem@liberada.com.br', crypto.randomUUID())).toBeUndefined()
-    await expect(
-      database.execute(sql`
+    const insertPublicProvider = async () => {
+      await database.execute(sql`
         insert into nfe_xml_allowed_email_domains (company_id, domain) values (${companyId}, 'gmail.com')
-      `),
-    ).rejects.toThrow()
+      `)
+    }
+    await expect(insertPublicProvider()).rejects.toThrow()
   })
 
   test('the import is created whole: stored objects, import, items (first is "/"), outbox event and the receipt closed', async () => {
