@@ -302,6 +302,15 @@ describe('pickStopFromList (RF5)', () => {
     })
   })
 
+  test('o número da nota digitado com ponto, hífen ou espaço de milhar vale como os dígitos', () => {
+    for (const text of ['899.862', '899-862', '899 862', 'NF 899.862']) {
+      expect(pickStopFromList(options, text)).toMatchObject({
+        kind: 'picked',
+        option: { id: 'stop-5' },
+      })
+    }
+  })
+
   test('o número da nota continua valendo, com ou sem zeros à esquerda', () => {
     expect(pickStopFromList(options, '899862')).toMatchObject({
       kind: 'picked',

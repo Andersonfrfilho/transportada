@@ -6,6 +6,7 @@
  */
 import type { WhatsAppStopCandidate } from '../../trips/domain/driver-stop-resolution.policy.js'
 import { spokenOptionNumber } from './whatsapp-driver-journey.policy.js'
+import { joinGroupedDocumentNumbers } from './whatsapp-document-number.policy.js'
 import {
   formatNotUnderstood,
   formatReplyHint,
@@ -142,7 +143,7 @@ export function pickStopFromList<Option extends StopListOption>(
   options: readonly Option[],
   text: string,
 ): StopListPick<Option> {
-  const digitBlocks = text.match(/\d+/gu) ?? []
+  const digitBlocks = joinGroupedDocumentNumbers(text).match(/\d+/gu) ?? []
   if (digitBlocks.length > 1) return { kind: 'not_found', reason: STOP_LIST_TEXT.notFoundText }
   const digits = (digitBlocks[0] ?? '').replace(/^0+/u, '')
   const wanted =
