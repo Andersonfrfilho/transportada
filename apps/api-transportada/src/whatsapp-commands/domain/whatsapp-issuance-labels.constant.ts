@@ -43,6 +43,7 @@ export const ISSUANCE_UNKNOWN_REASON_LABEL = 'Outro motivo — confira no painel
  */
 export const ISSUANCE_NO_PROFILE_LABELS: Readonly<Record<EmissionProfileNoMatchReason, string>> = {
   ambiguous: 'Dois perfis casam com a mesma prioridade — desempate no painel',
+  city_not_covered: 'A cidade de destino da nota não está em nenhuma região do perfil do emitente',
   not_cnpj: 'Emitente ou destinatário sem CNPJ (pessoa física)',
   unmatched: 'Nenhum perfil automático casa com a nota (perfil manual só se usa pelo painel)',
 }

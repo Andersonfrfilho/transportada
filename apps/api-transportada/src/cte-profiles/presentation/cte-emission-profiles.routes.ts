@@ -155,6 +155,13 @@ function serializeProfile(profile: CteEmissionProfileDetail): object {
     components: profile.components.map((component) => ({ ...component })),
     createdAt: profile.createdAt,
     deliveryDays: profile.deliveryDays,
+    destinationCities:
+      profile.destinationCities === null
+        ? null
+        : profile.destinationCities.map((key) => {
+            const [city = '', state = ''] = key.split('|')
+            return { city, state }
+          }),
     freightRule: { ...profile.freightRule },
     freightRuleId: profile.freightRuleId,
     groupingMode: profile.groupingMode,

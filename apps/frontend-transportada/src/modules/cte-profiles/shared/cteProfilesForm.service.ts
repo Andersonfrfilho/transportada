@@ -14,6 +14,10 @@ import {
   toMoneyDecimal,
   toRateFraction,
 } from './cteProfilesDecimal.service'
+import {
+  destinationCitiesFromText,
+  destinationCitiesToText,
+} from './cteProfilesDestinationCities.service'
 
 const RECEIVER_PICKUP_AT_DESTINATION = '0'
 
@@ -28,10 +32,12 @@ export type ComponentFormRow = Readonly<{
 
 export type ProfileFormState = Omit<
   CteProfileSettings,
-  'icmsBaseReductionRate' | 'icmsRate' | 'priority'
+  'destinationCities' | 'icmsBaseReductionRate' | 'icmsRate' | 'priority'
 > &
   Readonly<{
     components: readonly ComponentFormRow[]
+    /** Uma cidade por linha, `Cidade/UF`; vazio = qualquer cidade (spec 312). */
+    destinationCitiesText: string
     icmsBaseReductionRate: string
     icmsRate: string
     matchers: readonly CteProfileMatcher[]
@@ -116,6 +122,7 @@ export function toFormState(profile?: CteProfileDetail): ProfileFormState {
     chargeComponentLabel: settings.chargeComponentLabel,
     components: components.map(toComponentRow),
     deliveryDays: settings.deliveryDays,
+    destinationCitiesText: destinationCitiesToText(settings.destinationCities),
     groupingMode: settings.groupingMode,
     icmsBaseReductionRate: fromRateFraction(settings.icmsBaseReductionRate),
     icmsCst: settings.icmsCst,
@@ -165,6 +172,7 @@ function toSettings(state: ProfileFormState): CteProfileSettings {
     cfopInterstate: state.cfopInterstate,
     chargeComponentLabel: state.chargeComponentLabel,
     deliveryDays: state.deliveryDays,
+    destinationCities: destinationCitiesFromText(state.destinationCitiesText),
     groupingMode: state.groupingMode,
     icmsBaseReductionRate: toRateFraction(state.icmsBaseReductionRate),
     icmsCst: state.icmsCst,

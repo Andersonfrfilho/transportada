@@ -45,6 +45,7 @@ describe('cte emission profile schema', () => {
       'icms_base_reduction_rate',
       'cargo_insurance_declared',
       'municipal_service_policy',
+      'destination_cities',
       'output_document',
       'nfse_emission_profile_id',
       'version',
@@ -87,7 +88,9 @@ describe('cte emission profile schema', () => {
   /** O perfil NFS-e só existe quando o documento de saída é NFS-e — o CHECK amarra as duas metades. */
   test('requires every column but the NFS-e profile pointer', () => {
     expect(requiredColumnNames(cteEmissionProfiles)).toEqual(
-      columnNames(cteEmissionProfiles).filter((name) => name !== 'nfse_emission_profile_id'),
+      columnNames(cteEmissionProfiles).filter(
+        (name) => name !== 'nfse_emission_profile_id' && name !== 'destination_cities',
+      ),
     )
   })
 
