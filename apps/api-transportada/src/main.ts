@@ -868,6 +868,7 @@ import { registerOfficeDocumentOccurrences } from './trips/application/register-
 import { DrizzleOfficeOccurrenceBatchUnitOfWork } from './trips/infrastructure/drizzle-office-occurrence-batch.repository.js'
 import { DrizzleFieldTripTargetRepository } from './trips/infrastructure/drizzle-field-trip-target.repository'
 import { findCurrentDriverTrip } from './trips/application/find-current-driver-trip.use-case'
+import { flattenTripStopsWithUniqueSequence } from './trips/domain/driver-stops-numbering.policy'
 import { reportStopArrival } from './trips/application/report-stop-arrival.use-case'
 import { reportStopDeparture } from './trips/application/report-stop-departure.use-case'
 import { cancelStopDeparture } from './trips/application/cancel-stop-departure.use-case'
@@ -1658,8 +1659,8 @@ export function bootstrap(): Bun.Server<undefined> {
     placeStops(database.db, {
       companyId: input.companyId,
       logger,
-      stops: (await whatsappDriverTripRepository.listActiveTrips(input)).flatMap(
-        (trip) => trip.stops,
+      stops: flattenTripStopsWithUniqueSequence(
+        await whatsappDriverTripRepository.listActiveTrips(input),
       ),
     })
   const whatsappPreparationMedia = createWhatsAppDeliveryPreparationMedia({
