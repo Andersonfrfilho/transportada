@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  canShareMatcher,
   cityKey,
   explainEmissionProfile,
   resolveEmissionProfile,
@@ -111,5 +112,15 @@ describe('perfil de CT-e por cidade de destino (spec 312)', () => {
         profiles: [rioPreto, profile('dup', [cityKey('Adolfo', 'SP')])],
       }),
     ).toEqual({ reason: 'ambiguous' })
+  })
+})
+
+describe('matcher shared by regional profiles (spec 312)', () => {
+  test('two profiles may share a tax id only with disjoint city lists', () => {
+    expect(canShareMatcher(['A|SP'], ['B|SP'])).toBe(true)
+    expect(canShareMatcher(['A|SP', 'B|SP'], ['B|SP'])).toBe(false)
+    expect(canShareMatcher(null, ['B|SP'])).toBe(false)
+    expect(canShareMatcher(['A|SP'], null)).toBe(false)
+    expect(canShareMatcher(undefined, undefined)).toBe(false)
   })
 })

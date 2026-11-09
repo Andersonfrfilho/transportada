@@ -30,11 +30,6 @@ describe('cte emission profile matcher schema', () => {
 
     expect(uniqueColumnsByName(cteEmissionProfileMatchers)).toMatchObject({
       cte_emission_profile_matchers_company_id_id_unique: ['company_id', 'id'],
-      cte_emission_profile_matchers_company_tax_id_role_unique: [
-        'company_id',
-        'tax_id',
-        'match_role',
-      ],
     })
   })
 
