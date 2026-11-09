@@ -18,6 +18,7 @@ import {
   nfeVolumes,
   storedObjects,
 } from '../../database/nfe.schema.js'
+import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveNfeEventOrigin } from '../../nfe-documents/domain/nfe-event-origin.policy.js'
 import { lockAccessKey } from '../../nfe-documents/infrastructure/drizzle-nfe-document-status.persistence.js'
 import {
@@ -123,7 +124,7 @@ export class DrizzleNfeImportConsumerRepository {
     readonly importId: string
   }): Promise<PendingImportAggregate | null> {
     const [importRow] = await this.#database
-      .select({ id: nfeImports.id })
+      .select({ id: nfeImports.id, restrictedContractorId: nfeImports.restrictedContractorId })
       .from(nfeImports)
       .where(and(eq(nfeImports.companyId, input.companyId), eq(nfeImports.id, input.importId)))
       .limit(1)
@@ -138,6 +139,22 @@ export class DrizzleNfeImportConsumerRepository {
       .limit(1)
     if (profile === undefined) {
       throw new Error('NFE_IMPORT_MISSING_FISCAL_PROFILE')
+    }
+
+    let restrictedContractorTaxId: string | undefined
+    if (importRow.restrictedContractorId !== null) {
+      const [contractor] = await this.#database
+        .select({ taxId: contractors.taxId })
+        .from(contractors)
+        .where(
+          and(
+            eq(contractors.companyId, input.companyId),
+            eq(contractors.id, importRow.restrictedContractorId),
+          ),
+        )
+        .limit(1)
+      // Contratante sumido (não deveria: FK restrict): fecha em vez de abrir — nenhuma nota passa.
+      restrictedContractorTaxId = contractor?.taxId ?? ''
     }
 
     const itemRows = await this.#database
@@ -172,6 +189,7 @@ export class DrizzleNfeImportConsumerRepository {
       companyCnpj: profile.cnpj,
       companyId: input.companyId,
       id: input.importId,
+      ...(restrictedContractorTaxId === undefined ? {} : { restrictedContractorTaxId }),
       items: itemRows.map((row) => ({
         attempt: Number(row.attempt),
         id: row.id,

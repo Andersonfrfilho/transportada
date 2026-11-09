@@ -10,7 +10,11 @@ import type { ReceiptImportCounts, ReceiptItemProblem } from '../domain/receipt-
 
 export type ReceiptFile = { readonly bytes: Uint8Array; readonly name: string }
 
-export type AuthorizedSender = { readonly userId: string }
+export type AuthorizedSender = {
+  /** Spec 313: o domínio liberado amarrado a um contratante só traz nota emitida por ele. */
+  readonly restrictedContractorId?: string
+  readonly userId: string
+}
 
 /** O que o webhook do WhatsApp guarda para o worker baixar depois (o Evolution só baixa com a mensagem inteira). */
 export type WhatsAppReceiptMedia = {
@@ -89,6 +93,7 @@ export type ImportReceivedXmlInput = {
   readonly receivedFrom: string
   readonly receivedVia: NfeXmlReceiptChannel
   readonly requestedByUserId: string
+  readonly restrictedContractorId?: string
 }
 
 export type ReceivedXmlImportGatewayPort = {

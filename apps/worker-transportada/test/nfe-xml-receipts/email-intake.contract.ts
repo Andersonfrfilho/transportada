@@ -99,6 +99,15 @@ describe('NF-e XML e-mail intake', () => {
     ).toEqual({ kind: 'not_xml_mailbox' })
   })
 
+  test('passes the contractor linked to the sender domain to the import so the worker can hold the notes to it', async () => {
+    const { dependencies, importGateway, input, repository } = setup({
+      attachments: [{ bytes: new Uint8Array([2]), name: 'nota.xml' }],
+    })
+    repository.restrictedContractors.set('maria@transportadora.com.br', 'contractor-1')
+    await intakeNfeXmlEmail(input, dependencies)
+    expect(importGateway.created[0]).toMatchObject({ restrictedContractorId: 'contractor-1' })
+  })
+
   test('imports zip and loose xml together, ignoring other attachments, as the mailbox actor', async () => {
     const { dependencies, importGateway, input, repository } = setup({
       attachments: [

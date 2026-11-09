@@ -438,6 +438,7 @@ describe('Drizzle migrations', () => {
       '20261109141702_cte_profile_destination_cities',
       '20261109163000_cte_profile_matcher_per_city',
       '20261109192917_nfe_xml_allowed_domain_contractor',
+      '20261109222719_nfe_import_restricted_contractor',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

@@ -119,6 +119,11 @@ export const nfeImports = pgTable(
     requestedByUserId: uuid('requested_by_user_id').notNull(),
     receivedVia: text('received_via').$type<NfeImportReceivedVia>().notNull().default('screen'),
     receivedFrom: text('received_from'),
+    /** Spec 313: e-mail liberado por domínio amarrado a um contratante só traz nota emitida por ele. */
+    restrictedContractorId: uuid('restricted_contractor_id').references(() => contractors.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    }),
     correlationId: text('correlation_id').notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
     requestFingerprint: text('request_fingerprint').notNull(),
