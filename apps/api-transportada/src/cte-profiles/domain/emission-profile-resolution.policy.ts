@@ -9,6 +9,7 @@ import type {
 } from '../../database/cte-emission-profile.schema.js'
 import {
   CteEmissionProfileAmbiguousError,
+  CteEmissionProfileCityNotCoveredError,
   CteEmissionProfileInactiveError,
   CteEmissionProfileInvalidTaxIdError,
   CteEmissionProfileNotFoundError,
@@ -17,6 +18,21 @@ import {
 import { CNPJ_PATTERN } from '../../shared/tax-id.service.js'
 
 const TAX_ID_ROOT_LENGTH = 14 - 6
+
+/**
+ * Spec 312: a chave com que a cidade de destino é comparada — maiúscula, sem acento, espaços
+ * normalizados e a UF. O nome vem da nota (`xMun`) e da lista cadastrada à mão; só a forma
+ * normalizada é confiável para comparar as duas.
+ */
+export function cityKey(city: string, state: string): string {
+  const name = city
+    .normalize('NFD')
+    .replaceAll(/\p{Mn}/gu, '')
+    .toUpperCase()
+    .replaceAll(/\s+/gu, ' ')
+    .trim()
+  return `${name}|${state.trim().toUpperCase()}`
+}
 
 const PRECISION_RANK = { full: 0, root: 1 } as const
 const ROLE_RANK = { recipient: 1, sender: 0 } as const
@@ -33,9 +49,16 @@ export type EmissionProfileCandidate = {
   readonly name: string
   readonly priority: bigint
   readonly status: CteEmissionProfileStatus
+  /**
+   * Spec 312: as cidades de destino (chave de `cityKey`) a que o perfil se restringe. Ausente ou nulo
+   * é "qualquer cidade" — o caso de todo perfil anterior à 312. Lista vazia não casa nenhuma.
+   */
+  readonly destinationCities?: readonly string[] | null | undefined
 }
 
 export type EmissionProfileInvoiceParties = {
+  /** Spec 312: `cityKey` da cidade do endereço do destinatário; ausente quando a nota não a traz. */
+  readonly recipientCityKey?: string | null | undefined
   readonly recipientTaxId: string
   readonly senderTaxId: string
 }
@@ -71,13 +94,32 @@ export function resolveEmissionProfile({
 
   const senderTaxId = assertFullTaxId(invoice.senderTaxId)
   const recipientTaxId = assertFullTaxId(invoice.recipientTaxId)
-  const matches = profiles
-    .filter((candidate) => candidate.matchMode === 'sender_tax_id' && candidate.status === 'active')
-    .flatMap((candidate) => matchCandidate({ candidate, recipientTaxId, senderTaxId }))
+  const recipientCityKey = invoice.recipientCityKey
+  const active = profiles.filter(
+    (candidate) => candidate.matchMode === 'sender_tax_id' && candidate.status === 'active',
+  )
+  const matches = active
+    .flatMap((candidate) =>
+      matchCandidate({ candidate, recipientCityKey, recipientTaxId, senderTaxId }),
+    )
     .toSorted(compareMatches)
 
   const [best, runnerUp] = matches
-  if (best === undefined) throw new CteEmissionProfileUnresolvedError()
+  if (best === undefined) {
+    const coveredByTaxId = active.some(
+      (candidate) =>
+        matchCandidate({
+          candidate,
+          recipientCityKey: undefined,
+          recipientTaxId,
+          senderTaxId,
+          skipCity: true,
+        }).length > 0,
+    )
+    throw coveredByTaxId
+      ? new CteEmissionProfileCityNotCoveredError()
+      : new CteEmissionProfileUnresolvedError()
+  }
   if (runnerUp !== undefined && compareMatches(best, runnerUp) === 0) {
     throw new CteEmissionProfileAmbiguousError()
   }
@@ -109,7 +151,11 @@ export type FindEmissionProfileParams = {
 }
 
 /** Por que nenhum perfil rege a nota: nenhum casa, dois empatam, ou um dos lados não tem CNPJ. */
-export type EmissionProfileNoMatchReason = 'ambiguous' | 'not_cnpj' | 'unmatched'
+export type EmissionProfileNoMatchReason =
+  | 'ambiguous'
+  | 'city_not_covered'
+  | 'not_cnpj'
+  | 'unmatched'
 
 export type EmissionProfileExplanation =
   | { readonly reason?: undefined; readonly resolution: EmissionProfileResolution }
@@ -130,11 +176,14 @@ export function explainEmissionProfile({
     return { reason: 'not_cnpj' }
   }
 
-  const matches = profiles
-    .filter((candidate) => candidate.matchMode === 'sender_tax_id' && candidate.status === 'active')
+  const active = profiles.filter(
+    (candidate) => candidate.matchMode === 'sender_tax_id' && candidate.status === 'active',
+  )
+  const matches = active
     .flatMap((candidate) =>
       matchCandidate({
         candidate,
+        recipientCityKey: invoice.recipientCityKey,
         recipientTaxId: invoice.recipientTaxId,
         senderTaxId: invoice.senderTaxId,
       }),
@@ -142,7 +191,19 @@ export function explainEmissionProfile({
     .toSorted(compareMatches)
 
   const [best, runnerUp] = matches
-  if (best === undefined) return { reason: 'unmatched' }
+  if (best === undefined) {
+    const coveredByTaxId = active.some(
+      (candidate) =>
+        matchCandidate({
+          candidate,
+          recipientCityKey: undefined,
+          recipientTaxId: invoice.recipientTaxId,
+          senderTaxId: invoice.senderTaxId,
+          skipCity: true,
+        }).length > 0,
+    )
+    return { reason: coveredByTaxId ? 'city_not_covered' : 'unmatched' }
+  }
   if (runnerUp !== undefined && compareMatches(best, runnerUp) === 0) return { reason: 'ambiguous' }
 
   return {
@@ -165,19 +226,21 @@ export function explainEmissionProfile({
  */
 export function resolveMunicipalServicePolicy({
   profiles,
+  recipientCityKey,
   recipientTaxId,
   senderTaxId,
 }: {
   readonly profiles: readonly (EmissionProfileCandidate & {
     readonly municipalServicePolicy: CteMunicipalServicePolicy
   })[]
+  readonly recipientCityKey?: string | null | undefined
   readonly recipientTaxId: string | null
   readonly senderTaxId: string | null
 }): CteMunicipalServicePolicy {
   if (senderTaxId === null || recipientTaxId === null) return 'allow'
 
   const resolution = findEmissionProfile({
-    invoice: { recipientTaxId, senderTaxId },
+    invoice: { recipientCityKey, recipientTaxId, senderTaxId },
     profiles,
   })
   if (resolution === null) return 'allow'
@@ -206,13 +269,19 @@ function resolveRequestedProfile(
 
 function matchCandidate({
   candidate,
+  recipientCityKey,
   recipientTaxId,
   senderTaxId,
+  skipCity = false,
 }: {
   readonly candidate: EmissionProfileCandidate
+  readonly recipientCityKey?: string | null | undefined
   readonly recipientTaxId: string
   readonly senderTaxId: string
+  readonly skipCity?: boolean
 }): readonly ProfileMatch[] {
+  if (!skipCity && !coversCity(candidate, recipientCityKey)) return []
+
   const bestByRole = new Map<CteEmissionMatchRole, ProfileMatch>()
 
   for (const matcher of candidate.matchers) {
@@ -233,6 +302,17 @@ function matchCandidate({
   }
 
   return [...bestByRole.values()]
+}
+
+/** Sem lista, o perfil serve a qualquer cidade; com lista, só a cidade conhecida e listada. */
+function coversCity(
+  candidate: EmissionProfileCandidate,
+  recipientCityKey: string | null | undefined,
+): boolean {
+  const cities = candidate.destinationCities
+  if (cities === undefined || cities === null) return true
+  if (recipientCityKey === undefined || recipientCityKey === null) return false
+  return cities.includes(recipientCityKey)
 }
 
 function matchPrecision(matcherTaxId: string, partyTaxId: string): 'full' | 'root' | undefined {

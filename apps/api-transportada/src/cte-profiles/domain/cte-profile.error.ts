@@ -44,6 +44,16 @@ export class CteEmissionProfileUnresolvedError extends ApiError {
   }
 }
 
+export class CteEmissionProfileCityNotCoveredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CTE_PROFILE_CITY_NOT_COVERED',
+      message: 'The destination city of the invoice is not in any region of the matching profiles',
+      status: 422,
+    })
+  }
+}
+
 export class CteEmissionProfileInvalidTaxIdError extends ApiError {
   public constructor() {
     super({

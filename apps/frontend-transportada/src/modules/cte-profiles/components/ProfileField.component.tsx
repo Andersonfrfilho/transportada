@@ -37,6 +37,36 @@ type ProfileCheckboxFieldProps = Readonly<{
   onChange: (checked: boolean) => void
 }>
 
+type ProfileTextAreaFieldProps = Readonly<{
+  hint?: string
+  label: string
+  onChange: (value: string) => void
+  rows?: number
+  value: string
+}>
+
+/** Lista longa, uma entrada por linha (ex.: cidades de destino do perfil). */
+export function ProfileTextAreaField({
+  hint,
+  label,
+  onChange,
+  rows = 8,
+  value,
+}: ProfileTextAreaFieldProps) {
+  return (
+    <label className={styles.wideField}>
+      <span>{label}</span>
+      <textarea
+        rows={rows}
+        spellCheck={false}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {hint === undefined ? null : <small>{hint}</small>}
+    </label>
+  )
+}
+
 export function ProfileField({
   inputMode = 'text',
   isWide = false,

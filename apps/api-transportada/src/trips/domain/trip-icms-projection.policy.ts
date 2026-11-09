@@ -38,6 +38,8 @@ export type ResolveDocumentIcmsParams = {
   /** O `vICMS` do CT-e autorizado da nota; `null` enquanto não há documento. */
   readonly measuredIcms: null | string
   readonly profiles: readonly IcmsEmissionProfile[]
+  /** Spec 312: `cityKey` da cidade do destinatário; `null` quando a nota não a traz. */
+  readonly recipientCityKey?: null | string
   readonly recipientTaxId: null | string
   /** A linha de receita **desta** nota na conta — é a base do imposto (spec 125 D2). */
   readonly revenue: TripRevenueLine
@@ -79,7 +81,11 @@ function chooseProfile(input: ResolveDocumentIcmsParams): IcmsEmissionProfile | 
   if (input.senderTaxId === null || input.recipientTaxId === null) return undefined
 
   const resolution = findEmissionProfile({
-    invoice: { recipientTaxId: input.recipientTaxId, senderTaxId: input.senderTaxId },
+    invoice: {
+      recipientCityKey: input.recipientCityKey ?? null,
+      recipientTaxId: input.recipientTaxId,
+      senderTaxId: input.senderTaxId,
+    },
     profiles: input.profiles,
   })
   if (resolution === null) return undefined
