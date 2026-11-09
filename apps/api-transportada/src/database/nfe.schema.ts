@@ -22,6 +22,7 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { companies, identityUsers, userCompanyMemberships } from './identity.schema.js'
+import { contractors } from './delivery-client.schema.js'
 import { storedObjects } from './storage.schema.js'
 
 export const NFE_IMPORT_SOURCES = ['upload', 'distribution', 'access_key'] as const
@@ -1350,6 +1351,11 @@ export const nfeXmlAllowedEmailDomains = pgTable(
     /** Minúsculo, sem `@`, com ao menos um ponto. */
     domain: text().notNull(),
     status: text().notNull().default('active'),
+    /** Spec 313: a quem o domínio pertence; nulo nos domínios liberados antes do vínculo. */
+    contractorId: uuid('contractor_id').references(() => contractors.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

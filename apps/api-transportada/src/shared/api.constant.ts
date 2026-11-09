@@ -300,6 +300,8 @@ export const API_NFE_IMPORTS_XML_PATH = '/nfe-imports/xml'
 export const API_NFE_IMPORTS_DISTRIBUTION_PATH = '/nfe-imports/distribution'
 /** Spec 301: os envios de XML por e-mail e WhatsApp, com o desfecho de cada um. */
 export const API_NFE_XML_RECEIPTS_PATH = '/nfe-xml-receipts'
+/** Spec 313: domínios de e-mail liberados a enviar XML, de um contratante. */
+export const API_NFE_XML_ALLOWED_DOMAINS_PATH = '/nfe-xml-allowed-domains'
 export const API_NFE_ACCESS_KEY_LOOKUPS_PATH = '/nfe-access-key-lookups'
 export const API_NFE_DOCUMENTS_PATH = '/nfe-documents'
 export const API_NFE_DOCUMENT_ACCESS_KEY_CHECKS_PATH = '/nfe-documents/access-key-checks'
