@@ -25,6 +25,7 @@ describe('NF-e import schema', () => {
       'requested_by_user_id',
       'received_via',
       'received_from',
+      'restricted_contractor_id',
       'correlation_id',
       'idempotency_key',
       'request_fingerprint',
@@ -50,6 +51,7 @@ describe('NF-e import schema', () => {
       requested_by_user_id: 'uuid',
       received_via: 'text',
       received_from: 'text',
+      restricted_contractor_id: 'uuid',
       correlation_id: 'text',
       idempotency_key: 'text',
       request_fingerprint: 'text',
@@ -72,7 +74,8 @@ describe('NF-e import schema', () => {
         (columnName) =>
           columnName !== 'terminal_error' &&
           columnName !== 'automation_job' &&
-          columnName !== 'received_from',
+          columnName !== 'received_from' &&
+          columnName !== 'restricted_contractor_id',
       ),
     )
     expect(uniqueColumnsByName(nfeImports)).toMatchObject({
