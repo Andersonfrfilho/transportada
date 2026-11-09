@@ -1335,3 +1335,33 @@ export const nfeXmlReceipts = pgTable(
       ),
   ],
 )
+
+/**
+ * Spec 311: domínios de e-mail liberados a enviar XML de NF-e. Quem escreve de um endereço desses (com DKIM alinhado)
+ * é aceito sem estar cadastrado como contato. É da empresa, não do contratante: a importação já sai com o ator da caixa.
+ */
+export const nfeXmlAllowedEmailDomains = pgTable(
+  'nfe_xml_allowed_email_domains',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    /** Minúsculo, sem `@`, com ao menos um ponto. */
+    domain: text().notNull(),
+    status: text().notNull().default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('nfe_xml_allowed_email_domains_company_domain_unique').on(table.companyId, table.domain),
+    check(
+      'nfe_xml_allowed_email_domains_domain_check',
+      sql`${table.domain} = lower(${table.domain}) and ${table.domain} ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$' and char_length(${table.domain}) <= 253`,
+    ),
+    check(
+      'nfe_xml_allowed_email_domains_public_provider_check',
+      sql`${table.domain} not in ('gmail.com', 'googlemail.com', 'hotmail.com', 'outlook.com', 'live.com', 'msn.com', 'yahoo.com', 'yahoo.com.br', 'icloud.com', 'me.com', 'bol.com.br', 'uol.com.br', 'terra.com.br', 'ig.com.br', 'globo.com', 'protonmail.com', 'proton.me', 'aol.com')`,
+    ),
+    check('nfe_xml_allowed_email_domains_status_check', sql`${table.status} in ('active', 'inactive')`),
+  ],
+)

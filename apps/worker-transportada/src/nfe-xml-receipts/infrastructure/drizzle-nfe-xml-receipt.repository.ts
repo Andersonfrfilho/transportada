@@ -130,7 +130,20 @@ export function createDrizzleNfeXmlReceiptRepository(dependencies: {
           and lower(email) = ${email.toLowerCase()}
         limit 1
       `)) as unknown as Rows<{ id: string }>
-      return contacts[0] === undefined ? undefined : { userId: NFE_XML_MAILBOX_ACTOR_USER_ID }
+      if (contacts[0] !== undefined) return { userId: NFE_XML_MAILBOX_ACTOR_USER_ID }
+
+      // Spec 311: o domínio liberado da empresa. O DKIM alinhado já foi exigido pelo intake antes de chegar aqui.
+      const at = email.lastIndexOf('@')
+      if (at < 1) return undefined
+      const domains = (await database.execute(sql`
+        select id
+        from nfe_xml_allowed_email_domains
+        where company_id = ${companyId}::uuid
+          and status = 'active'
+          and domain = ${email.slice(at + 1).toLowerCase()}
+        limit 1
+      `)) as unknown as Rows<{ id: string }>
+      return domains[0] === undefined ? undefined : { userId: NFE_XML_MAILBOX_ACTOR_USER_ID }
     },
 
     async markAcknowledged({ now, receiptId }) {

@@ -1103,3 +1103,10 @@ variável nova, sem migration). A entrega é PR em `staging`; para a `main` só 
   (saída em `tmp/ops/saidas/`; números mascarados).
 - Quando a spec for promovida à `main` (Evolution ainda desligado lá): nenhum passo manual; conferir só que
   `whatsapp_evolution.direct_message` não aparece nos logs de produção.
+
+## Liberar um domínio de e-mail a enviar XML de NF-e (spec 311)
+
+- Migration `nfe_xml_allowed_email_domains` (aditiva). Depois do deploy, simular e gravar:
+  `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/liberar-dominio-xml.sh production empresa.com.br`
+  e, para gravar, o mesmo comando com `--apply` (digitar `sim`). `listar` mostra os domínios da empresa.
+- Provedor público (gmail, hotmail etc.) é recusado pelo banco. Subdomínio não herda. O DKIM alinhado segue obrigatório.
