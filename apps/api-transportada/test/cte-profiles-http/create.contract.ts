@@ -74,10 +74,9 @@ describe('cte emission profiles http create contract', () => {
     )
 
     expect(response.status).toBe(201)
-    expect(fixture.createCalls[0]?.settings.destinationCities).toEqual([
-      'SERTAOZINHO|SP',
-      'FRANCA|SP',
-    ])
+    expect(fixture.createCalls[0]?.settings).toEqual(
+      expect.objectContaining({ destinationCities: ['SERTAOZINHO|SP', 'FRANCA|SP'] }),
+    )
   })
 
   test('refuses a destination city without a two-letter state', async () => {
