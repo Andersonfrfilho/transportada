@@ -161,6 +161,27 @@ describeDatabase('nfe xml receipts (integration, spec 301)', () => {
     expect(await find('envia@contratante.com.br', crypto.randomUUID())).toBeUndefined()
   })
 
+  test('an active allowed domain of the company authorizes any address in it, and only it (spec 311)', async () => {
+    await database.execute(sql`
+      insert into nfe_xml_allowed_email_domains (company_id, domain, status) values
+        (${companyId}, 'liberada.com.br', 'active'),
+        (${companyId}, 'pausada.com.br', 'inactive')
+    `)
+    const find = (email: string, company = companyId) =>
+      repository.findAuthorizedSenderByEmail({ companyId: company, email })
+    const actor = { userId: '00000000-0000-4000-8000-000000000006' }
+    expect(await find('qualquer.um@LIBERADA.com.br')).toEqual(actor)
+    expect(await find('qualquer.um@sub.liberada.com.br')).toBeUndefined()
+    expect(await find('alguem@pausada.com.br')).toBeUndefined()
+    expect(await find('alguem@outra.com.br')).toBeUndefined()
+    expect(await find('alguem@liberada.com.br', crypto.randomUUID())).toBeUndefined()
+    await expect(
+      database.execute(sql`
+        insert into nfe_xml_allowed_email_domains (company_id, domain) values (${companyId}, 'gmail.com')
+      `),
+    ).rejects.toThrow()
+  })
+
   test('the import is created whole: stored objects, import, items (first is "/"), outbox event and the receipt closed', async () => {
     const { receiptId } = await record('m-import')
     const { importId } = await importGateway.createImport({
