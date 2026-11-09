@@ -30,7 +30,7 @@ jobs:
   # sintaxe no GitHub, por isso o `if` — e o `quality` abaixo continua reportando verde.
   quality-app:
     if: inputs.apps != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -74,7 +74,7 @@ jobs:
   quality:
     if: always()
     needs: quality-app
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -119,7 +119,7 @@ jobs:
   # (`provision-integration-database.ts`) — não depende do banco compartilhado nem do
   # `migration-test`, por isso é job à parte e não um shard a mais.
   integration-migration:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -146,7 +146,7 @@ jobs:
   # arquivos estavam sem peso. Pesos refeitos pela duração real de cada arquivo e 6 shards: o mais lento
   # cai para ~530s de teste. `test/integration-shard.contract.test.ts` prende `matrix` e `/N` juntos.
   integration-api:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -184,7 +184,7 @@ jobs:
   # não são citados por nenhum teste de integração, e o Keycloak (o serviço mais lento a subir) só é
   # usado por estes arquivos (`IDENTITY_FILES` em `scripts/integration-shard.ts`).
   integration-identity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -215,7 +215,7 @@ jobs:
         run: make down
 
   integration-worker:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -256,7 +256,7 @@ jobs:
           - suite: apps
             targets: smoke-landing smoke-driver
     name: integration-smoke (${{ matrix.suite }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Folga de mais de 10 min sobre o teto do passo de apt (5 min) — contrato em
     # test/deploy/integration-gate.contract.ts.
     timeout-minutes: 20
@@ -356,7 +356,7 @@ jobs:
         integration-worker,
         integration-smoke,
       ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Conferir as quatro frentes
