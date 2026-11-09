@@ -32,7 +32,7 @@ Leitura obrigatória feita: specs 301 a 311 (recibos, autorização por contato 
 ### Etapa 3 — Contratante criado na importação (decisão do desenho abaixo)
 
 - RF8. Ao importar uma nota cujo emitente (CNPJ) não é contratante da empresa, cria-se o contratante `active` com o nome
-  do emitente, só se a empresa ligar a opção (parametrizável, desligada por padrão).
+  do emitente, sempre (decisão do Anderson em 09/11/2026: emitente, ligado, sem opção).
 - RF9. Marcado como "criado automaticamente" e listado em `/pendencias` para conferência (período de fechamento e e-mail
   do relatório ficam padrão até alguém completar).
 
