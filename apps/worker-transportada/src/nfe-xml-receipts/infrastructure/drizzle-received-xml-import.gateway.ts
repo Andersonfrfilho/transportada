@@ -82,6 +82,7 @@ export function createDrizzleReceivedXmlImportGateway(dependencies: {
             receivedVia: input.receivedVia,
             requestFingerprint: fingerprint,
             requestedByUserId: input.requestedByUserId,
+            restrictedContractorId: input.restrictedContractorId ?? null,
             source: 'upload',
             status: 'queued',
             triggeredBy,

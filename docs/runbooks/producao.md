@@ -1089,6 +1089,8 @@ select id, channel, status, attempts, error_code, next_attempt_at from nfe_xml_r
 **Publicação.** Ordem: banco/API (migrations `20261108144212` e `20261108151552`, aditivas) → worker → painel. Passa por `staging`
 primeiro. Rollback de `20261108151552` só com a tabela vazia (a guarda recusa o contrário).
 
+**Ator `automation` de sistema em produção (09/11/2026).** Conferido com `tmp/ops/producao-automation-xml-confere.sh` (somente leitura): o ator `00000000-0000-4000-8000-000000000006` existe (`active`) e tem membership `active` na única empresa ativa (`ce523659-…`); `pronto: true`. `producao-automation-xml-cria.sh` (inserts idempotentes, exige digitar `producao`) foi rodado pelo Anderson em seguida e não mudou nada além do `updated_at` da membership. Nada a criar. Caixa de e-mail escolhida: `notas@resposta.fernandes-transportadora.com.br` (domínio `resposta.` verificado no Resend com recebimento ligado e webhook para a API de produção); sem alias no Zoho e sem `NFE_XML_MAILBOX_DOMAINS`. Saídas em `tmp/ops/saidas/producao-automation-xml-*-20261109-*.json`.
+
 **Contratante envia XML (spec 302).** Quem a transportadora marcar com o tipo **"Pode enviar XML de NF-e"** no contato do contratante (tela de contatos do contratante) importa XML pelos dois canais, sem ser usuário: contato `active`, com o tipo e, no WhatsApp, com o aceite do WhatsApp. A importação sai com o ator `automation` e o remetente em `received_from`. Para revogar, desmarque o tipo ou inative o contato. Migration `20261108161438_contractor_contact_nfe_xml` é aditiva (amplia o CHECK); o rollback recusa enquanto algum contato tiver o tipo.
 
 ## 5.24 O bot atende no chat direto do Evolution (spec 308, 08/11/2026) — só staging, nada mudou em produção

@@ -175,6 +175,9 @@ export async function intakeNfeXmlEmail(
     receivedFrom: sender,
     receivedVia: 'email',
     requestedByUserId: NFE_XML_MAILBOX_ACTOR_USER_ID,
+    ...(authorized.restrictedContractorId === undefined
+      ? {}
+      : { restrictedContractorId: authorized.restrictedContractorId }),
   })
   dependencies.logger.info(NFE_XML_RECEIPT_LOG.imported, {
     channel: 'email',

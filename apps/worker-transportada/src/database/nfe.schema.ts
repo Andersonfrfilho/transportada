@@ -136,6 +136,7 @@ export const nfeImports = pgTable('nfe_imports', {
     .notNull()
     .default('screen'),
   receivedFrom: text('received_from'),
+  restrictedContractorId: uuid('restricted_contractor_id'),
   triggeredBy: text('triggered_by').$type<NfeOriginTrigger>().notNull().default('user'),
   automationJob: text('automation_job'),
   correlationId: text('correlation_id').notNull(),

@@ -30,6 +30,8 @@ type PendingImportAggregate = {
   readonly companyId: string
   readonly id: string
   readonly items: readonly PendingImportItem[]
+  /** Spec 313: CNPJ do contratante a quem o domínio do e-mail pertence; só ele pode ser o emitente. */
+  readonly restrictedContractorTaxId?: string
 }
 
 type ExpandedXmlEntry = {
@@ -147,6 +149,7 @@ export function createNfeImportConsumer(input: {
           archiveExpander: input.archiveExpander,
           companyCnpj: pendingImport.companyCnpj,
           companyId: pendingImport.companyId,
+          restrictedContractorTaxId: pendingImport.restrictedContractorTaxId,
           finalStorage: input.finalStorage,
           repository: input.repository,
           sourceStorage: input.sourceStorage,
@@ -174,6 +177,7 @@ async function processItem(input: {
   readonly companyId: string
   readonly finalStorage: NfeImportFinalStoragePort
   readonly repository: NfeImportConsumerRepositoryPort
+  readonly restrictedContractorTaxId: string | undefined
   readonly sourceStorage: NfeImportSourceStoragePort
   readonly xmlImporter: NfeXmlImporterPort
   readonly item: PendingImportItem
@@ -213,6 +217,24 @@ async function processItem(input: {
         error: {
           code: 'NFE_IMPORT_UNRELATED_CNPJ',
           message: 'NF-e is not related to the authenticated company',
+        },
+        itemId: input.item.id,
+        normalizedXml,
+        status: 'rejected',
+        variant: resolveVariant(normalizedXml),
+      })
+      return 'rejected'
+    }
+
+    if (
+      input.restrictedContractorTaxId !== undefined &&
+      normalizeTaxId(accessKey).slice(6, 20) !== normalizeTaxId(input.restrictedContractorTaxId)
+    ) {
+      await input.repository.completeItem({
+        accessKey,
+        error: {
+          code: 'NFE_IMPORT_ISSUER_NOT_CONTRACTOR',
+          message: 'NF-e issuer is not the contractor linked to the sender e-mail domain',
         },
         itemId: input.item.id,
         normalizedXml,

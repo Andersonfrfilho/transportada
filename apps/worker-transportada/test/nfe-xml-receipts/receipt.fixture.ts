@@ -27,6 +27,7 @@ export class FakeReceiptRepository implements ReceiptRepositoryPort {
   public releasedStaleWith: number | undefined
   public pending: ReceiptRecord[] = []
   public authorizedEmails = new Set<string>()
+  public restrictedContractors = new Map<string, string>()
   public staleReleased = 0
 
   public claimPending(input: { limit: number }) {
@@ -38,8 +39,13 @@ export class FakeReceiptRepository implements ReceiptRepositoryPort {
     return Promise.resolve(this.staleReleased)
   }
   public findAuthorizedSenderByEmail(input: { email: string }) {
+    const email = input.email.toLowerCase()
+    if (!this.authorizedEmails.has(email)) return Promise.resolve(undefined)
+    const restrictedContractorId = this.restrictedContractors.get(email)
     return Promise.resolve(
-      this.authorizedEmails.has(input.email.toLowerCase()) ? { userId: USER_ID } : undefined,
+      restrictedContractorId === undefined
+        ? { userId: USER_ID }
+        : { restrictedContractorId, userId: USER_ID },
     )
   }
   public recordReceipt(input: RecordReceiptInput) {
