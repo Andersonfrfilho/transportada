@@ -40,10 +40,11 @@ const TEXT_ENCODER = new TextEncoder()
 
 type OutputDocumentChoice = Pick<
   CteEmissionProfileSettings,
-  'nfseEmissionProfileId' | 'outputDocument'
+  'destinationCities' | 'nfseEmissionProfileId' | 'outputDocument'
 >
 
 const NEW_PROFILE_OUTPUT: OutputDocumentChoice = {
+  destinationCities: null,
   nfseEmissionProfileId: null,
   outputDocument: 'cte',
 }
@@ -231,6 +232,7 @@ export function createCteEmissionProfilesUseCase(dependencies: {
         const settings = await resolveSettings({
           companyId: input.context.companyId,
           current: {
+            destinationCities: current.destinationCities,
             nfseEmissionProfileId: current.nfseEmissionProfileId,
             outputDocument: current.outputDocument,
           },
@@ -318,9 +320,11 @@ async function resolveSettings(input: {
   readonly settings: CteEmissionProfileSettingsInput
   readonly transaction: CteEmissionProfileTransactionPort
 }): Promise<CteEmissionProfileSettings> {
-  const { nfseEmissionProfileId, outputDocument, ...rest } = input.settings
+  const { destinationCities, nfseEmissionProfileId, outputDocument, ...rest } = input.settings
   const settings: CteEmissionProfileSettings = {
     ...rest,
+    destinationCities:
+      destinationCities === undefined ? input.current.destinationCities : destinationCities,
     nfseEmissionProfileId:
       nfseEmissionProfileId !== undefined
         ? nfseEmissionProfileId

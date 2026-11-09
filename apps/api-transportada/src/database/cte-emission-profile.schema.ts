@@ -139,6 +139,11 @@ export const cteEmissionProfiles = pgTable(
       .$type<CteMunicipalServicePolicy>()
       .notNull()
       .default('allow'),
+    /**
+     * Spec 312: as cidades de destino a que o perfil se restringe, como `CIDADE|UF` normalizada
+     * (`cityKey`). Nulo é qualquer cidade — todo perfil anterior à 312.
+     */
+    destinationCities: text('destination_cities').array(),
     outputDocument: text('output_document').$type<CteOutputDocument>().notNull().default('cte'),
     nfseEmissionProfileId: uuid('nfse_emission_profile_id'),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),

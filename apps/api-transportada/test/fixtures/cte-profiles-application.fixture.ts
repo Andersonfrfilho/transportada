@@ -29,6 +29,7 @@ export const CONTEXT = { companyId: COMPANY_ID, userId: USER_ID } as const
 
 export const PROFILE_SETTINGS: CteEmissionProfileSettings = {
   cargoInsuranceDeclared: true,
+  destinationCities: null,
   municipalServicePolicy: 'allow',
   cfopInternal: '5353',
   cfopInterstate: '6353',

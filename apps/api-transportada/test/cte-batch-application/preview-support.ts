@@ -118,6 +118,7 @@ export const SECOND_DOCUMENT: PreviewDocumentFixture = {
 
 const BASE_PROFILE: CteEmissionProfileDetail = {
   cargoInsuranceDeclared: true,
+  destinationCities: null,
   municipalServicePolicy: 'allow',
   nfseEmissionProfileId: null,
   outputDocument: 'cte',

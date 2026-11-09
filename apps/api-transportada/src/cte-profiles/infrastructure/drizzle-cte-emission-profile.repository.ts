@@ -546,6 +546,7 @@ function toProfileColumns(
 > {
   return {
     cargoInsuranceDeclared: settings.cargoInsuranceDeclared,
+    destinationCities: settings.destinationCities === null ? null : [...settings.destinationCities],
     cfopInternal: settings.cfopInternal,
     cfopInterstate: settings.cfopInterstate,
     chargeComponentLabel: settings.chargeComponentLabel,

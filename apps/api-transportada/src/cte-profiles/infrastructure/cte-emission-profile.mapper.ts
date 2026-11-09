@@ -85,6 +85,7 @@ export function mapProfile(input: {
 
   return {
     cargoInsuranceDeclared: record.cargoInsuranceDeclared,
+    destinationCities: record.destinationCities,
     municipalServicePolicy: record.municipalServicePolicy,
     cfopInternal: record.cfopInternal,
     cfopInterstate: record.cfopInterstate,

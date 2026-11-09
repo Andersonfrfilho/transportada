@@ -48,7 +48,11 @@ export const SETTINGS_KEYS = [
  * API sobe antes da tela e, na janela entre os dois, exigi-las recusaria toda linha e a lista de
  * perfis renderizaria vazia com 200 na rede — o mesmo defeito de `VEHICLE_DETAIL_KEYS`.
  */
-export const OPTIONAL_SETTINGS_KEYS = ['nfseEmissionProfileId', 'outputDocument'] as const
+export const OPTIONAL_SETTINGS_KEYS = [
+  'destinationCities',
+  'nfseEmissionProfileId',
+  'outputDocument',
+] as const
 
 /** O que a resposta precisa trazer. */
 export const REQUIRED_DETAIL_KEYS = [

@@ -1,0 +1,1 @@
+ALTER TABLE "cte_emission_profiles" ADD COLUMN "destination_cities" text[];
