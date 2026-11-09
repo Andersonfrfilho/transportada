@@ -84,6 +84,17 @@ export class CteEmissionProfileNameTakenError extends ApiError {
   }
 }
 
+export class CteEmissionProfileMatcherConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CTE_PROFILE_MATCHER_CONFLICT',
+      message:
+        'Another CT-e emission profile already uses this tax identifier; both need disjoint destination city lists to share it',
+      status: 409,
+    })
+  }
+}
+
 export class CteEmissionProfileNotActivatableError extends ApiError {
   public constructor() {
     super({

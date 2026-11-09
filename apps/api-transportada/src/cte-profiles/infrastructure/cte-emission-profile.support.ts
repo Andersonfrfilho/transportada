@@ -6,6 +6,7 @@ import { violatedUniqueConstraint } from '../../database/postgres-error.support.
 const NAME_CONSTRAINT = 'cte_emission_profiles_company_id_name_unique'
 
 export const NAME_TAKEN_SIGNAL = 'CTE_PROFILE_NAME_TAKEN'
+export const MATCHER_CONFLICT_SIGNAL = 'CTE_PROFILE_MATCHER_CONFLICT'
 
 export function isProfileNameConflict(error: unknown): boolean {
   return violatedUniqueConstraint(error) === NAME_CONSTRAINT
