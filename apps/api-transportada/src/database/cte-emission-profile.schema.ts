@@ -301,11 +301,6 @@ export const cteEmissionProfileMatchers = pgTable(
       .onDelete('cascade')
       .onUpdate('cascade'),
     unique('cte_emission_profile_matchers_company_id_id_unique').on(table.companyId, table.id),
-    unique('cte_emission_profile_matchers_company_tax_id_role_unique').on(
-      table.companyId,
-      table.taxId,
-      table.matchRole,
-    ),
     check(
       'cte_emission_profile_matchers_tax_id_check',
       sql`${table.taxId} ~ '^[A-Z0-9]{8}$' or ${table.taxId} ~ '^[A-Z0-9]{12}[0-9]{2}$'`,
