@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './cte-profiles/api-payload.contract.js'
 import './cte-profiles/client-and-queries.contract.js'
+import './cte-profiles/destination-cities.contract.js'
 import './cte-profiles/layout.contract.js'
 import './cte-profiles/municipal-service-policy.contract.js'
 import './cte-profiles/output-document.contract.js'

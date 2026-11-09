@@ -49,6 +49,8 @@ export type CteEmissionProfileFreightRuleInput = {
 
 export type CteEmissionProfileSettings = {
   readonly cargoInsuranceDeclared: boolean
+  /** Spec 312: chaves `CIDADE|UF` a que o perfil se restringe; nulo é qualquer cidade. */
+  readonly destinationCities: readonly string[] | null
   /** O que este perfil faz com serviço que começa e termina no mesmo município. */
   readonly municipalServicePolicy: CteMunicipalServicePolicy
   readonly cfopInternal: string
@@ -84,8 +86,10 @@ export type CteEmissionProfileSettings = {
  */
 export type CteEmissionProfileSettingsInput = Omit<
   CteEmissionProfileSettings,
-  'nfseEmissionProfileId' | 'outputDocument'
+  'destinationCities' | 'nfseEmissionProfileId' | 'outputDocument'
 > & {
+  /** Ausente preserva a lista atual (cliente anterior à 312); nulo a limpa. */
+  readonly destinationCities?: readonly string[] | null | undefined
   readonly nfseEmissionProfileId?: string | null | undefined
   readonly outputDocument?: CteOutputDocument | undefined
 }

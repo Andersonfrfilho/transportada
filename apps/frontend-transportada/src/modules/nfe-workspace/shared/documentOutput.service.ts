@@ -1,7 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DocumentOutput } from './nfeWorkspaceClient.service'
 
-export const NO_PROFILE_REASONS = ['ambiguous', 'not_cnpj', 'unmatched'] as const
+export const NO_PROFILE_REASONS = [
+  'ambiguous',
+  'city_not_covered',
+  'not_cnpj',
+  'unmatched',
+] as const
 
 export type DocumentOutputDescription =
   | Readonly<{ kind: 'cte' }>

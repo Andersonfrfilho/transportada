@@ -3,6 +3,8 @@
  */
 import { z } from 'zod'
 
+import { cityKey } from '../domain/emission-profile-resolution.policy.js'
+
 import {
   CTE_CHARGE_CALCULATION_TYPES,
   CTE_EMISSION_GROUPING_MODES,
@@ -64,9 +66,29 @@ const matcherSchema = z
   })
   .strict()
 
+/** Spec 312: cidade de destino como o operador a digita; a API guarda a chave normalizada. */
+const destinationCitySchema = z
+  .object({
+    city: z.string().trim().min(1).max(100),
+    state: z.string().trim().length(2),
+  })
+  .strict()
+
+const destinationCitiesSchema = z
+  .array(destinationCitySchema)
+  .max(1000)
+  .nullable()
+  .optional()
+  .transform((cities) =>
+    cities === undefined || cities === null
+      ? cities
+      : [...new Set(cities.map((item) => cityKey(item.city, item.state)))],
+  )
+
 const settingsSchema = z
   .object({
     cargoInsuranceDeclared: z.boolean(),
+    destinationCities: destinationCitiesSchema,
     municipalServicePolicy: z.enum(CTE_MUNICIPAL_SERVICE_POLICIES),
     cfopInternal: z.string().regex(CFOP),
     cfopInterstate: z.string().regex(CFOP),

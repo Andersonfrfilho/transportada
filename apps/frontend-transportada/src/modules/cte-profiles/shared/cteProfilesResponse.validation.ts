@@ -29,9 +29,13 @@ import {
 
 /** O que a API anterior à spec 144 quer dizer ao não mandar os dois campos: o perfil emite CT-e. */
 const OUTPUT_DEFAULTS = {
+  destinationCities: null,
   nfseEmissionProfileId: null,
   outputDocument: 'cte',
-} as const satisfies Pick<CteProfileSettings, 'nfseEmissionProfileId' | 'outputDocument'>
+} as const satisfies Pick<
+  CteProfileSettings,
+  'destinationCities' | 'nfseEmissionProfileId' | 'outputDocument'
+>
 
 function invalid(): Error {
   return new Error(CTE_PROFILES_ERROR.RESPONSE_INVALID)
@@ -43,7 +47,18 @@ function hasValidOutputDocument(value: Record<string, unknown>): boolean {
     !('outputDocument' in value) || isOneOf(value.outputDocument, CTE_PROFILE_OUTPUT_DOCUMENT)
   const isPointerValid =
     !('nfseEmissionProfileId' in value) || isNullableString(value.nfseEmissionProfileId)
-  return isDocumentValid && isPointerValid
+  const areCitiesValid =
+    !('destinationCities' in value) ||
+    value.destinationCities === null ||
+    (Array.isArray(value.destinationCities) &&
+      value.destinationCities.every(
+        (item: unknown) =>
+          isRecord(item) &&
+          hasOnlyKeys(item, ['city', 'state']) &&
+          isString(item.city) &&
+          isString(item.state),
+      ))
+  return isDocumentValid && isPointerValid && areCitiesValid
 }
 
 function isFreightRule(value: unknown): boolean {

@@ -291,6 +291,7 @@
       "noProfile": "Sem perfil — {{reason}}",
       "noProfileReason": {
         "ambiguous": "dois perfis empatam",
+        "city_not_covered": "cidade de destino fora das regiões do perfil",
         "not_cnpj": "emitente ou destinatário sem CNPJ",
         "unmatched": "nenhum perfil casa com a nota"
       }

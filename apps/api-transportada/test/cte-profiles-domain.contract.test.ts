@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import './cte-profiles-domain/profile-resolution.contract.js'
+import './cte-profiles-domain/profile-destination-city.contract.js'
 import './cte-profiles-domain/profile-lookup.contract.js'
 import './cte-profiles-domain/charge-composition.contract.js'
 import './cte-profiles-domain/profile-explanation.contract.js'

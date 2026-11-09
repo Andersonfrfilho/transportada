@@ -159,5 +159,9 @@
   "nfseEmissionProfileEmpty": "Nenhum perfil de NFS-e ativo. Ative um na tela de NFS-e.",
   "nfseOutputHint": "Tomador, regra de frete, CFOP e ICMS valem os do perfil de NFS-e escolhido.",
   "outputDocumentIncoherent": "Escolha um perfil de NFS-e para emitir NFS-e.",
-  "nfseProfileNotActive": "O perfil de NFS-e escolhido não está ativo."
+  "nfseProfileNotActive": "O perfil de NFS-e escolhido não está ativo.",
+  "destinationCities": "Cidades de destino (uma por linha, Cidade/UF)",
+  "destinationCitiesAny": "Vazio: o perfil vale para qualquer cidade do destinatário.",
+  "destinationCitiesCount": "{{count}} cidade(s). Só notas cujo destinatário está numa delas casam com este perfil.",
+  "destinationCitiesInvalid": "{{count}} linha(s) fora do formato Cidade/UF serão ignoradas, a primeira: {{first}}"
 }

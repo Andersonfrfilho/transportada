@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -13,7 +14,13 @@ import {
 } from '../shared/cteProfiles.types'
 import { type ProfileFormState, showsCteFiscalFields } from '../shared/cteProfilesForm.service'
 import styles from '../styles/cteProfiles.module.css'
-import { ProfileCheckboxField, ProfileField, ProfileSelectField } from './ProfileField.component'
+import { parseDestinationCities } from '../shared/cteProfilesDestinationCities.service'
+import {
+  ProfileCheckboxField,
+  ProfileField,
+  ProfileSelectField,
+  ProfileTextAreaField,
+} from './ProfileField.component'
 
 type CteProfileFiscalFieldsProps = Readonly<{
   onChange: (patch: Partial<ProfileFormState>) => void
@@ -148,6 +155,12 @@ export function CteProfileFiscalFields({ onChange, state }: CteProfileFiscalFiel
           onChange={(observations) => onChange({ observations })}
         />
       </div>
+      <ProfileTextAreaField
+        hint={destinationCitiesHint(state.destinationCitiesText, t)}
+        label={t('destinationCities')}
+        value={state.destinationCitiesText}
+        onChange={(destinationCitiesText) => onChange({ destinationCitiesText })}
+      />
       <ProfileCheckboxField
         checked={state.cargoInsuranceDeclared}
         label={t('cargoInsuranceDeclared')}
@@ -155,4 +168,13 @@ export function CteProfileFiscalFields({ onChange, state }: CteProfileFiscalFiel
       />
     </fieldset>
   )
+}
+
+function destinationCitiesHint(text: string, t: TFunction<'cteProfiles'>): string {
+  const { cities, invalidLines } = parseDestinationCities(text)
+  if (invalidLines.length > 0) {
+    return t('destinationCitiesInvalid', { count: invalidLines.length, first: invalidLines[0] })
+  }
+  if (cities.length === 0) return t('destinationCitiesAny')
+  return t('destinationCitiesCount', { count: cities.length })
 }

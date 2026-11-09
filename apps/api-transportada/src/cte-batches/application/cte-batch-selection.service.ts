@@ -6,6 +6,7 @@ import type { CteEmissionProfileDetail } from '../../cte-profiles/application/ct
 import {
   type EmissionProfileCandidate,
   type EmissionProfileResolution,
+  cityKey,
   resolveEmissionProfile,
   resolveMunicipalServicePolicy,
 } from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
@@ -132,6 +133,7 @@ function resolveDocument({
       ...document,
       municipalServicePolicy: resolveMunicipalServicePolicy({
         profiles: params.catalog.map(toCandidate),
+        recipientCityKey: recipientCityKeyOf(document),
         recipientTaxId: document.recipientTaxId,
         senderTaxId: document.senderTaxId,
       }),
@@ -148,7 +150,10 @@ function resolveDocument({
   try {
     resolution =
       manualResolution ??
-      resolveEmissionProfile({ invoice: parties, profiles: params.catalog.map(toCandidate) })
+      resolveEmissionProfile({
+        invoice: { ...parties, recipientCityKey: recipientCityKeyOf(document) },
+        profiles: params.catalog.map(toCandidate),
+      })
   } catch (error) {
     if (!(error instanceof ApiError)) throw error
     return { blocked: blockDocument(documentId, error.code) }
@@ -187,6 +192,15 @@ function resolveDocument({
       }),
     },
   }
+}
+
+/** Spec 312: a cidade do endereço do destinatário, na forma em que o perfil a lista. */
+function recipientCityKeyOf(document: {
+  readonly recipientCity: string | null
+  readonly recipientState: string | null
+}): string | null {
+  if (document.recipientCity === null || document.recipientState === null) return null
+  return cityKey(document.recipientCity, document.recipientState)
 }
 
 function resolveRequestedProfile(
@@ -239,6 +253,7 @@ function toCandidate(
   profile: CteEmissionProfileDetail,
 ): EmissionProfileCandidate & { readonly municipalServicePolicy: CteMunicipalServicePolicy } {
   return {
+    destinationCities: profile.destinationCities,
     id: profile.id,
     matchMode: profile.matchMode,
     matchers: profile.matchers,

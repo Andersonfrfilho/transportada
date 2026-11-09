@@ -34,6 +34,7 @@ import type {
   CteTaker,
 } from '../../database/cte-emission-profile.schema.js'
 import {
+  cityKey,
   explainEmissionProfile,
   resolveMunicipalServicePolicy,
 } from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
@@ -618,6 +619,7 @@ export class DrizzleNfeDocumentRepository
     }
 
     return [...profileById.values()].map((profile) => ({
+      destinationCities: profile.destinationCities,
       id: profile.id,
       matchMode: profile.matchMode,
       matchers: matchersByProfileId.get(profile.id) ?? [],
@@ -791,14 +793,24 @@ export class DrizzleNfeDocumentRepository
  * O perfil que rege a nota, ou o motivo de não haver um. Participante ausente é `not_cnpj`: sem o
  * documento de um dos lados não há CNPJ para casar, e é essa a frase que o operador precisa ler.
  */
+/** Spec 312: a cidade do endereço do destinatário, na forma em que o perfil a lista. */
+function recipientCityKeyOf(recipient: {
+  readonly city: string | null
+  readonly state: string | null
+}): string | null {
+  if (recipient.city === null || recipient.state === null) return null
+  return cityKey(recipient.city, recipient.state)
+}
+
 function findGoverningProfile(
   profiles: readonly MunicipalPolicyProfile[],
   senderTaxId: string | null,
   recipientTaxId: string | null,
+  recipientCityKey: string | null,
 ): GoverningProfile {
   if (senderTaxId === null || recipientTaxId === null) return { reason: 'not_cnpj' }
   const explanation = explainEmissionProfile({
-    invoice: { recipientTaxId, senderTaxId },
+    invoice: { recipientCityKey, recipientTaxId, senderTaxId },
     profiles,
   })
   if (explanation.resolution === undefined) return { reason: explanation.reason }
@@ -845,6 +857,7 @@ function describeDocument(
      */
     municipalServicePolicy: resolveMunicipalServicePolicy({
       profiles: blockContext.emissionProfiles,
+      recipientCityKey: recipientCityKeyOf(recipient),
       recipientTaxId: recipient.taxId,
       senderTaxId: emitter.taxId,
     }),
@@ -878,6 +891,7 @@ function describeDocument(
     blockContext.emissionProfiles,
     emitter.taxId,
     recipient.taxId,
+    recipientCityKeyOf(recipient),
   )
   /**
    * Os motivos que já existiam vêm antes: o vínculo com NFS-e é o que acende o atalho para a nota de
