@@ -1109,3 +1109,22 @@ variável nova, sem migration). A entrega é PR em `staging`; para a `main` só 
   `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/liberar-dominio-xml.sh production empresa.com.br`
   e, para gravar, o mesmo comando com `--apply` (digitar `sim`). `listar` mostra os domínios da empresa.
 - Provedor público (gmail, hotmail etc.) é recusado pelo banco. Subdomínio não herda. O DKIM alinhado segue obrigatório.
+
+## Perfis CT-e da UNICA por região e conferência de recibos de XML (spec 312, 09/11/2026)
+
+Feito em produção em 09/11/2026 por `cadastrar-perfis-unica.sh` (copiado de `ops-scripts/` da branch `work/unica-script`
+para `tmp/ops/`):
+
+- Dois perfis ativos para o CNPJ 26344834000108: "UNICA Ribeirão Preto 5%" (93 cidades) e "UNICA São José do Rio Preto 6%"
+  (142 cidades), cada um com a sua regra de frete (0,05 e 0,06). Clonados do perfil ativo da SPANI (raiz 05868574), que não
+  foi alterado. Cidade fora das 235 fica bloqueada com `CTE_PROFILE_CITY_NOT_COVERED`.
+- O script não grava `audit_logs`. Sem `--apply` ele roda tudo numa transação e desfaz. Staging primeiro, depois produção.
+- Dependia das migrations `20261109141702_cte_profile_destination_cities` e
+  `20261109163000_cte_profile_matcher_per_city` (esta solta a unicidade CNPJ + papel dos matchers; o sistema passou a
+  recusar `CTE_PROFILE_MATCHER_CONFLICT` se as listas de cidades se cruzam).
+- Pela tela: o formulário do perfil tem o campo "Cidades de destino", uma por linha, `Cidade/UF`.
+
+Conferir recibos de XML sem o painel: `tmp/ops/recibos-xml-por-remetente.sh <staging|production> <trecho do remetente>`
+(canal, remetente, status, motivo, arquivos, horário, aviso e resumo enviados). O e-mail da UNICA (unicafs.com.br) é recusado
+por DKIM (`sender_not_authenticated`); liberar domínio não resolve, o TI deles precisa corrigir. O WhatsApp funciona.
+Dica: o `ls` do Anderson tem alias; use `command ls` ao listar `tmp/ops/saidas/`.
