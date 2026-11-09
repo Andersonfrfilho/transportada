@@ -336,3 +336,17 @@ function assertFullTaxId(value: string): string {
   if (!CNPJ_PATTERN.test(value)) throw new CteEmissionProfileInvalidTaxIdError()
   return value
 }
+
+/**
+ * Dois perfis podem ter o mesmo CNPJ e papel só quando os dois se restringem a cidades e as listas não se cruzam
+ * (spec 312): é assim que um contratante tem percentuais diferentes por região. Sem lista de um dos lados, o mesmo
+ * CNPJ casaria os dois para a mesma nota.
+ */
+export function canShareMatcher(
+  first: readonly string[] | null | undefined,
+  second: readonly string[] | null | undefined,
+): boolean {
+  if (first === null || first === undefined || second === null || second === undefined) return false
+  const taken = new Set(first)
+  return second.every((key) => !taken.has(key))
+}

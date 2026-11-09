@@ -3,6 +3,7 @@
  */
 import { ApiError } from '../../shared/api.error.js'
 import {
+  CteEmissionProfileMatcherConflictError,
   CteEmissionProfileNameTakenError,
   CteEmissionProfileNotFoundError,
   CteEmissionProfileVersionConflictError,
@@ -17,6 +18,7 @@ import type {
 } from './cte-emission-profile.port.js'
 
 const NAME_TAKEN_SIGNAL = 'CTE_PROFILE_NAME_TAKEN'
+const MATCHER_CONFLICT_SIGNAL = 'CTE_PROFILE_MATCHER_CONFLICT'
 const FREIGHT_RULE_DESCRIPTION = 'Regra de frete vinculada ao perfil de emissao de CT-e'
 
 export const CREATE_OPERATION = 'cte-emission-profile.create'
@@ -145,11 +147,18 @@ export async function replaceChildren(input: {
   readonly profileId: string
   readonly transaction: CteEmissionProfileTransactionPort
 }): Promise<void> {
-  await input.transaction.replaceMatchers({
-    companyId: input.companyId,
-    matchers: input.matchers,
-    profileId: input.profileId,
-  })
+  try {
+    await input.transaction.replaceMatchers({
+      companyId: input.companyId,
+      matchers: input.matchers,
+      profileId: input.profileId,
+    })
+  } catch (error) {
+    if (error instanceof Error && error.message === MATCHER_CONFLICT_SIGNAL) {
+      throw new CteEmissionProfileMatcherConflictError()
+    }
+    throw error
+  }
   await input.transaction.replaceComponents({
     companyId: input.companyId,
     components: input.components,
