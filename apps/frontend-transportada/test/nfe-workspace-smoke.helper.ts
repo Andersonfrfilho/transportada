@@ -360,6 +360,13 @@ async function registerNfeMocks(
   await input.page.route(/\/nfe-xml-receipts(?:\?.*)?$/, async (route) => {
     await fulfillJson(route, { data: [] })
   })
+  // Spec 313: o painel de domínios liberados lê a lista e os contratantes da empresa.
+  await input.page.route(/\/nfe-xml-allowed-domains(?:\?.*)?$/, async (route) => {
+    await fulfillJson(route, { data: [] })
+  })
+  await input.page.route(/\/contractors(?:\?.*)?$/, async (route) => {
+    await fulfillJson(route, { data: [], page: { nextCursor: null } })
+  })
   const documentPage = buildDocumentPage({
     blockedDocumentCount: input.blockedDocumentCount,
     documentCount: input.documentCount,

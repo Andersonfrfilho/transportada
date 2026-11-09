@@ -19,6 +19,8 @@ import { AddressReportPanel } from '../components/AddressReportPanel.component'
 import { useAddressCorrectionRequests } from '../hooks/useAddressCorrectionRequests.hook'
 import { useAddressReport } from '../hooks/useAddressReport.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
+import { useContractorsQuery } from '@/modules/trip/queries/useContractors.query'
+import { useNfeXmlAllowedDomains } from '../hooks/useNfeXmlAllowedDomains.hook'
 import { useNfeXmlReceipts } from '../hooks/useNfeXmlReceipts.hook'
 import { CameraMeasurementSettingsPanel } from '../components/CameraMeasurementSettingsPanel.component'
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
@@ -42,6 +44,7 @@ import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.com
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
 import { NfeImportQueue } from '../components/NfeImportQueue.component'
+import { NfeXmlAllowedDomainsPanel } from '../components/NfeXmlAllowedDomainsPanel.component'
 import { NfeXmlReceiptsPanel } from '../components/NfeXmlReceiptsPanel.component'
 import { AccessKeyImportSection } from '../components/AccessKeyImportSection.component'
 import { NfeImportByScanShortcut } from '../components/NfeImportByScanShortcut.component'
@@ -269,6 +272,11 @@ export function NfeWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: workspace.canRead,
   })
+  const allowedDomains = useNfeXmlAllowedDomains({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings,
+  })
+  const domainContractors = useContractorsQuery({ enabled: canManageSettings })
   const distributionCursor = useDistributionCursor({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.distributionCursor,
@@ -672,6 +680,22 @@ export function NfeWorkspacePage() {
                         failed={xmlReceipts.isError}
                         loading={xmlReceipts.isLoading}
                         receipts={xmlReceipts.data}
+                      />
+                    )}
+                    {canManageSettings && (
+                      <NfeXmlAllowedDomainsPanel
+                        contractors={(domainContractors.data ?? []).map((contractor) => ({
+                          id: contractor.id,
+                          label: contractor.displayName,
+                        }))}
+                        domains={allowedDomains.query.data}
+                        failed={allowedDomains.query.isError}
+                        loading={allowedDomains.query.isLoading}
+                        onRelease={allowedDomains.release.mutateAsync}
+                        onSetStatus={allowedDomains.setStatus.mutateAsync}
+                        pending={
+                          allowedDomains.release.isPending || allowedDomains.setStatus.isPending
+                        }
                       />
                     )}
                   </>
