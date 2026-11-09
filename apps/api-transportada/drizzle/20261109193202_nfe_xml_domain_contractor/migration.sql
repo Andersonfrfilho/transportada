@@ -1,0 +1,2 @@
+ALTER TABLE "nfe_xml_allowed_email_domains" ADD COLUMN "contractor_id" uuid;--> statement-breakpoint
+ALTER TABLE "nfe_xml_allowed_email_domains" ADD CONSTRAINT "nfe_xml_allowed_email_domains_contractor_id_contractors_id_fkey" FOREIGN KEY ("contractor_id") REFERENCES "contractors"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

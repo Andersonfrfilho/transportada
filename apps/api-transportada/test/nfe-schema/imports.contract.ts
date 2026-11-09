@@ -25,6 +25,7 @@ describe('NF-e import schema', () => {
       'requested_by_user_id',
       'received_via',
       'received_from',
+      'issuer_tax_id_root',
       'correlation_id',
       'idempotency_key',
       'request_fingerprint',
@@ -72,7 +73,8 @@ describe('NF-e import schema', () => {
         (columnName) =>
           columnName !== 'terminal_error' &&
           columnName !== 'automation_job' &&
-          columnName !== 'received_from',
+          columnName !== 'received_from' &&
+          columnName !== 'issuer_tax_id_root',
       ),
     )
     expect(uniqueColumnsByName(nfeImports)).toMatchObject({

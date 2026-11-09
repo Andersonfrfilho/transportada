@@ -21,6 +21,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core'
 
+import { contractors } from './delivery-client.schema.js'
 import { companies, identityUsers, userCompanyMemberships } from './identity.schema.js'
 import { storedObjects } from './storage.schema.js'
 
@@ -118,6 +119,8 @@ export const nfeImports = pgTable(
     requestedByUserId: uuid('requested_by_user_id').notNull(),
     receivedVia: text('received_via').$type<NfeImportReceivedVia>().notNull().default('screen'),
     receivedFrom: text('received_from'),
+    /** Spec 314: raiz do CNPJ do emitente que a importação aceita; nula = qualquer emitente. */
+    issuerTaxIdRoot: text('issuer_tax_id_root'),
     correlationId: text('correlation_id').notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
     requestFingerprint: text('request_fingerprint').notNull(),
@@ -1338,7 +1341,8 @@ export const nfeXmlReceipts = pgTable(
 
 /**
  * Spec 311: domínios de e-mail liberados a enviar XML de NF-e. Quem escreve de um endereço desses (com DKIM alinhado)
- * é aceito sem estar cadastrado como contato. É da empresa, não do contratante: a importação já sai com o ator da caixa.
+ * é aceito sem estar cadastrado como contato. A importação sai com o ator da caixa. Spec 314: com `contractor_id`, o domínio só
+ * vale para notas cujo emitente é aquele contratante (raiz do CNPJ); sem ele, vale para a empresa inteira como antes.
  */
 export const nfeXmlAllowedEmailDomains = pgTable(
   'nfe_xml_allowed_email_domains',
@@ -1350,6 +1354,10 @@ export const nfeXmlAllowedEmailDomains = pgTable(
     /** Minúsculo, sem `@`, com ao menos um ponto. */
     domain: text().notNull(),
     status: text().notNull().default('active'),
+    contractorId: uuid('contractor_id').references(() => contractors.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

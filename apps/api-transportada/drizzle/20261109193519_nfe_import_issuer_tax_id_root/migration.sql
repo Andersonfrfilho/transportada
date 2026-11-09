@@ -1,0 +1,1 @@
+ALTER TABLE "nfe_imports" ADD COLUMN "issuer_tax_id_root" text;
