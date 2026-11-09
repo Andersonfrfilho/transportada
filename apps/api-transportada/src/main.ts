@@ -183,6 +183,11 @@ import { createWhatsAppEvolutionWebhookSecretService } from './whatsapp/applicat
 import { createListNfeXmlReceiptsUseCase } from './nfe-xml-receipts/application/list-nfe-xml-receipts.use-case.js'
 import { createDrizzleNfeXmlReceiptReadRepository } from './nfe-xml-receipts/infrastructure/drizzle-nfe-xml-receipt-read.repository.js'
 import { createNfeXmlReceiptRoutes } from './nfe-xml-receipts/presentation/nfe-xml-receipts.routes.js'
+import { createDrizzleNfeXmlAllowedDomainRepository } from './nfe-xml-receipts/infrastructure/drizzle-nfe-xml-allowed-domain.repository.js'
+import {
+  buildNfeXmlAllowedDomainDependencies,
+  createNfeXmlAllowedDomainRoutes,
+} from './nfe-xml-receipts/presentation/nfe-xml-allowed-domains.routes.js'
 import { createWhatsAppXmlInbound } from './nfe-xml-receipts/application/receive-whatsapp-xml-document.service.js'
 import { createDrizzleWhatsAppXmlReceiptRepository } from './nfe-xml-receipts/infrastructure/drizzle-whatsapp-xml-receipt.repository.js'
 import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
@@ -6809,6 +6814,9 @@ function createApplicationRoutes({
           }),
       },
     }),
+    ...createNfeXmlAllowedDomainRoutes(
+      buildNfeXmlAllowedDomainDependencies(createDrizzleNfeXmlAllowedDomainRepository(database)),
+    ),
     ...createNfeXmlReceiptRoutes({
       listReceipts: createListNfeXmlReceiptsUseCase({
         reader: createDrizzleNfeXmlReceiptReadRepository(database),

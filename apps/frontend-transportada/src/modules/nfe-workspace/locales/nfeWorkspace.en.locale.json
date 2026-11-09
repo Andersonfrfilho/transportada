@@ -791,5 +791,33 @@
       "contractors": "Contractors (new notes)",
       "noContractors": "no new notes"
     }
+  },
+  "allowedDomains": {
+    "title": "Mail domains allowed to send XML",
+    "subtitle": "Anyone writing from an address of a released domain (with a valid mail signature) can send invoice XML without being registered. Each domain belongs to a contractor.",
+    "count": "{{count}} domain",
+    "count_other": "{{count}} domains",
+    "domainLabel": "Mail domain",
+    "domainPlaceholder": "spani.com.br",
+    "contractorLabel": "Contractor that owns the domain",
+    "contractorPlaceholder": "Choose the contractor",
+    "contractorSearch": "Search contractor",
+    "contractorEmpty": "No contractor found.",
+    "release": "Release domain",
+    "loading": "Loading domains...",
+    "loadError": "Could not load the domains.",
+    "empty": "No domain released yet.",
+    "noContractor": "No contractor (released before the link)",
+    "turnOff": "Turn off",
+    "turnOn": "Turn on",
+    "status": {
+      "active": "Released",
+      "inactive": "Turned off"
+    },
+    "error": {
+      "NFE_XML_PUBLIC_EMAIL_DOMAIN": "A public mail provider (gmail, hotmail...) cannot be released as a whole. Register the person's address as a contractor contact instead.",
+      "NFE_XML_ALLOWED_DOMAIN_CONTRACTOR_NOT_FOUND": "That contractor does not exist in this company.",
+      "unknown": "Could not release the domain. Check the address and try again."
+    }
   }
 }

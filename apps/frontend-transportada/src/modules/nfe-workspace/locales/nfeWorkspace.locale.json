@@ -967,5 +967,33 @@
       "contractors": "Contratantes (notas novas)",
       "noContractors": "nenhuma nota nova"
     }
+  },
+  "allowedDomains": {
+    "title": "E-mails liberados a enviar XML",
+    "subtitle": "Quem escreve de um endereço do domínio liberado (com a assinatura do e-mail em ordem) pode mandar XML de nota sem estar cadastrado. Cada domínio pertence a um contratante.",
+    "count": "{{count}} domínio",
+    "count_other": "{{count}} domínios",
+    "domainLabel": "Domínio do e-mail",
+    "domainPlaceholder": "spani.com.br",
+    "contractorLabel": "Contratante dono do domínio",
+    "contractorPlaceholder": "Escolha o contratante",
+    "contractorSearch": "Buscar contratante",
+    "contractorEmpty": "Nenhum contratante encontrado.",
+    "release": "Liberar domínio",
+    "loading": "Carregando domínios...",
+    "loadError": "Não foi possível carregar os domínios.",
+    "empty": "Nenhum domínio liberado ainda.",
+    "noContractor": "Sem contratante (liberado antes do vínculo)",
+    "turnOff": "Desligar",
+    "turnOn": "Ligar",
+    "status": {
+      "active": "Liberado",
+      "inactive": "Desligado"
+    },
+    "error": {
+      "NFE_XML_PUBLIC_EMAIL_DOMAIN": "Provedor público (gmail, hotmail...) não pode ser liberado inteiro. Cadastre o e-mail da pessoa como contato do contratante.",
+      "NFE_XML_ALLOWED_DOMAIN_CONTRACTOR_NOT_FOUND": "Esse contratante não existe nesta empresa.",
+      "unknown": "Não foi possível liberar o domínio. Confira o endereço e tente de novo."
+    }
   }
 }
