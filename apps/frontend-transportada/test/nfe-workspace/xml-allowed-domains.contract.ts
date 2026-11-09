@@ -58,8 +58,11 @@ describe('allowed domains (spec 313)', () => {
         ),
       getAccessToken: () => Promise.resolve('token'),
     })
-    await expect(
-      client.release({ contractorId: 'c1', domain: 'gmail.com' }),
-    ).rejects.toBeInstanceOf(NfeXmlAllowedDomainRequestError)
+    const error: unknown = await client.release({ contractorId: 'c1', domain: 'gmail.com' }).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    )
+    expect(error).toBeInstanceOf(NfeXmlAllowedDomainRequestError)
+    expect((error as NfeXmlAllowedDomainRequestError).code).toBe('NFE_XML_PUBLIC_EMAIL_DOMAIN')
   })
 })
