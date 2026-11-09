@@ -9,6 +9,7 @@
  * Só reconhece o comando inteiro — "sair" sozinho, por exemplo, nunca é "saí": no grupo é o cancelar
  * do pedido. O texto livre que não for comando devolve `undefined` e segue o fluxo de sempre.
  */
+import { joinGroupedDocumentNumbers } from './whatsapp-document-number.policy.js'
 import { interpretDriverStopCommand, isWordOf } from './whatsapp-driver-command.policy.js'
 import type { DriverReturnReason } from '../../trips/domain/driver-return-reason.policy.js'
 
@@ -64,7 +65,7 @@ function extractNumbers(rest: string): string[] {
 export function interpretWhatsAppDriverEventCommand(
   text: string,
 ): WhatsAppDriverEventCommand | undefined {
-  const normalized = normalize(text)
+  const normalized = normalize(joinGroupedDocumentNumbers(text))
   if (normalized === '' || normalized.length > 120) return undefined
 
   // saí/cheguei: o interpretador compartilhado com o grupo (T12).

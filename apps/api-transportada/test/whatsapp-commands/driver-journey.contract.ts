@@ -378,6 +378,9 @@ describe('as paradas da jornada', () => {
   test.each([
     ['não entreguei', { kind: 'return', numbers: [] }],
     ['nao entreguei 17234', { kind: 'return', numbers: ['17234'] }],
+    ['entreguei 17234 17235 999', { kind: 'deliver', numbers: ['17234', '17235', '999'] }],
+    ['entreguei 916.075', { kind: 'deliver', numbers: ['916075'] }],
+    ['entreguei 916-075 e 916 076', { kind: 'deliver', numbers: ['916075', '916076'] }],
     [
       'Não entreguei 17234, recusou',
       { kind: 'return', numbers: ['17234'], reason: 'recipient_refused' },
