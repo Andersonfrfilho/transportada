@@ -1,0 +1,2 @@
+ALTER TABLE "nfe_imports" ADD COLUMN "restricted_contractor_id" uuid;--> statement-breakpoint
+ALTER TABLE "nfe_imports" ADD CONSTRAINT "nfe_imports_restricted_contractor_id_contractors_id_fkey" FOREIGN KEY ("restricted_contractor_id") REFERENCES "contractors"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

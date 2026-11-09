@@ -136,14 +136,19 @@ export function createDrizzleNfeXmlReceiptRepository(dependencies: {
       const at = email.lastIndexOf('@')
       if (at < 1) return undefined
       const domains = (await database.execute(sql`
-        select id
+        select id, contractor_id
         from nfe_xml_allowed_email_domains
         where company_id = ${companyId}::uuid
           and status = 'active'
           and domain = ${email.slice(at + 1).toLowerCase()}
         limit 1
-      `)) as unknown as Rows<{ id: string }>
-      return domains[0] === undefined ? undefined : { userId: NFE_XML_MAILBOX_ACTOR_USER_ID }
+      `)) as unknown as Rows<{ contractor_id: string | null; id: string }>
+      const [domain] = domains
+      if (domain === undefined) return undefined
+      return {
+        ...(domain.contractor_id === null ? {} : { restrictedContractorId: domain.contractor_id }),
+        userId: NFE_XML_MAILBOX_ACTOR_USER_ID,
+      }
     },
 
     async markAcknowledged({ now, receiptId }) {
