@@ -3,8 +3,8 @@
 - **Status:** aceito (decisão do Anderson em 2026-11-10: "a área do vendedor fica no app painel"; "esta correto" sobre a spec 316)
 - **Data:** 2026-11-10
 - **Contexto:** spec 316 (vendedor da contratante e o chat com ele).
-- **Emenda a:** [ADR-0050](0050-o-portal-do-contratante-e-outra-app.md) §1, **só para o papel `salesperson`**. O
-  contratante continua em `apps/frontend-client` e o motorista em `apps/frontend-driver` (ADR-0075).
+- **Emenda a:** [ADR-0050](0050-o-cliente-tem-portal.md) §1, **só para o papel `salesperson`**. O
+  contratante continua em `apps/frontend-client` e o motorista em `apps/frontend-driver` ([ADR-0075](0075-o-motorista-tem-app-propria.md)).
 
 ## Contexto
 
