@@ -54,21 +54,19 @@ export function NfeImportReprocessDialog({
     if (data.busy) return <p>{t('imports.reprocessDialog.busy')}</p>
     if (!data.reprocessable) return <p>{t('imports.reprocessDialog.nothing')}</p>
     return (
-      <p>
-        {t('imports.reprocessDialog.count', { count: data.total })}
+      <div className={styles.reprocessBody}>
+        <p>{t('imports.reprocessDialog.count', { count: data.total })}</p>
         {data.rejectedItems > 0 && (
-          <span className={styles.secondaryText}>
-            {' '}
+          <p className={styles.reprocessDetail}>
             {t('imports.reprocessDialog.rejected', { count: data.rejectedItems })}
-          </span>
+          </p>
         )}
         {data.failedItems > 0 && (
-          <span className={styles.secondaryText}>
-            {' '}
+          <p className={styles.reprocessDetail}>
             {t('imports.reprocessDialog.failed', { count: data.failedItems })}
-          </span>
+          </p>
         )}
-      </p>
+      </div>
     )
   }
 
