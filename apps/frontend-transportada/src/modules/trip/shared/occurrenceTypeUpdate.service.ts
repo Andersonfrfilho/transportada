@@ -34,6 +34,10 @@ export type OccurrenceTypeSaveInput = Readonly<{
   allowsMultipleItems: boolean
   /** Spec 179 RF1: só tem efeito em tipo de rua — é o motorista quem tira a foto. */
   attachmentMode: OccurrenceAttachmentMode
+  /** Spec 315 RF6: `undefined` é "não mexe"; a espera mínima `null` a desliga. */
+  arrivalTimeMode?: OccurrenceAttachmentMode | undefined
+  locationMode?: OccurrenceAttachmentMode | undefined
+  minWaitAfterArrivalMinutes?: null | number | undefined
   /** Spec 247 RF1: o valor pago digitado — `undefined` é "não mexe", como todo campo opcional do tipo. */
   declaredAmountLabel?: string | undefined
   declaredAmountMode?: OccurrenceAttachmentMode | undefined
@@ -124,6 +128,9 @@ export type OccurrenceTypeEdit = Readonly<
       | 'active'
       | 'allowsMultipleItems'
       | 'attachmentMode'
+      | 'arrivalTimeMode'
+      | 'locationMode'
+      | 'minWaitAfterArrivalMinutes'
       | 'declaredAmountLabel'
       | 'declaredAmountMode'
       | 'declaredAmountScope'
