@@ -1044,6 +1044,13 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
+          ...(input.arrivalTimeMode === undefined
+            ? {}
+            : { arrivalTimeMode: input.arrivalTimeMode }),
+          ...(input.locationMode === undefined ? {} : { locationMode: input.locationMode }),
+          ...(input.minWaitAfterArrivalMinutes === undefined
+            ? {}
+            : { minWaitAfterArrivalMinutes: input.minWaitAfterArrivalMinutes }),
           ...(input.driverLockMinutes === undefined
             ? {}
             : { driverLockMinutes: input.driverLockMinutes }),

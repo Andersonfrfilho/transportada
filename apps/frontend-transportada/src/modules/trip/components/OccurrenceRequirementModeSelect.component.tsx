@@ -13,11 +13,12 @@ import type {
   OccurrenceRecordField,
   OccurrenceRequirementField,
 } from '@/modules/trip/shared/occurrenceRequirement.constant'
+import type { OccurrenceStopField } from '@/modules/trip/shared/occurrenceStopFields.service'
 import styles from '@/modules/trip/styles/occurrenceTypeRequirement.module.css'
 
 export type OccurrenceRequirementModeSelectProps = Readonly<{
   disabled?: boolean
-  field: OccurrenceRecordField | OccurrenceRequirementField
+  field: OccurrenceRecordField | OccurrenceRequirementField | OccurrenceStopField
   onChange: (mode: OccurrenceAttachmentMode) => void
   value: OccurrenceAttachmentMode
 }>

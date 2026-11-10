@@ -147,6 +147,13 @@ export type OccurrenceType = Readonly<{
   notifies: boolean
   /** Spec 246 RF1c: de 1 a 5, lida só com a foto `required`. Ausente é API anterior ao campo (mesma regra). */
   photoMinimumCount?: number
+  /**
+   * Spec 315 RF6: o que o registro de parada pede de localização e de horário de chegada (só quando a parada não tem
+   * "Cheguei"), e a espera mínima depois do "Cheguei" em minutos (`null`: sem espera). Ausente é API anterior.
+   */
+  arrivalTimeMode?: OccurrenceAttachmentMode
+  locationMode?: OccurrenceAttachmentMode
+  minWaitAfterArrivalMinutes?: null | number
   /** Spec 247 RF1: o número do documento do cliente (ex.: a NFD) — rótulo e modo. Ausente é API anterior. */
   referenceNumberLabel?: string
   referenceNumberMode?: OccurrenceAttachmentMode

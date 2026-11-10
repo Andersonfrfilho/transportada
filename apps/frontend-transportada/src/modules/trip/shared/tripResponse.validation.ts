@@ -1956,6 +1956,9 @@ type RawOccurrenceType = Omit<
     declaredAmountMode?: unknown
     declaredAmountScope?: unknown
     declaredAmountLabel?: unknown
+    arrivalTimeMode?: unknown
+    locationMode?: unknown
+    minWaitAfterArrivalMinutes?: unknown
   }>
 
 function isPositiveInteger(value: unknown): value is number {
@@ -2041,6 +2044,10 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'declaredAmountMode',
         'declaredAmountScope',
         'declaredAmountLabel',
+        /** Spec 315 (ADR-0081 §9): localização, horário de chegada e espera mínima, tolerados antes de a API mandá-los. */
+        'arrivalTimeMode',
+        'locationMode',
+        'minWaitAfterArrivalMinutes',
         /** Spec 271 (D14): a API ainda pode mandar a chave da 269 até a etapa B: tolerada e ignorada (não chega ao tipo). */
         'contractorMailTemplateId',
         /** Spec 270 T1.1 (ADR-0107, ADR-0081 §9): o escopo de contratantes do tipo, tolerado antes de a API mandá-lo. */
@@ -2115,6 +2122,13 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.declaredAmountScope === undefined ||
       isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
     (value.declaredAmountLabel === undefined || isString(value.declaredAmountLabel)) &&
+    (value.locationMode === undefined ||
+      isOneOf(value.locationMode, ['off', 'optional', 'required'])) &&
+    (value.arrivalTimeMode === undefined ||
+      isOneOf(value.arrivalTimeMode, ['off', 'optional', 'required'])) &&
+    (value.minWaitAfterArrivalMinutes === undefined ||
+      value.minWaitAfterArrivalMinutes === null ||
+      Number.isInteger(value.minWaitAfterArrivalMinutes)) &&
     (value.iconName === undefined || value.iconName === null || isString(value.iconName)) &&
     hasValidContractorReplyTypeFields(value)
   )
@@ -2144,6 +2158,9 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     declaredAmountMode,
     declaredAmountScope,
     declaredAmountLabel,
+    arrivalTimeMode,
+    locationMode,
+    minWaitAfterArrivalMinutes,
     emailBody,
     emailItemLineTemplate,
     emailSubject,
@@ -2180,6 +2197,11 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     ...(isString(declaredAmountMode) ? { declaredAmountMode } : {}),
     ...(isString(declaredAmountScope) ? { declaredAmountScope } : {}),
     ...(isString(declaredAmountLabel) ? { declaredAmountLabel } : {}),
+    ...(isOneOf(locationMode, OCCURRENCE_ATTACHMENT_MODES) ? { locationMode } : {}),
+    ...(isOneOf(arrivalTimeMode, OCCURRENCE_ATTACHMENT_MODES) ? { arrivalTimeMode } : {}),
+    ...(typeof minWaitAfterArrivalMinutes === 'number' || minWaitAfterArrivalMinutes === null
+      ? { minWaitAfterArrivalMinutes }
+      : {}),
     ...(isString(iconName) ? { iconName } : {}),
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',

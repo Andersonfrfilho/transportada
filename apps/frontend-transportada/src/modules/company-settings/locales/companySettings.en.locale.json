@@ -435,14 +435,16 @@
       "title": "What it requires",
       "legend": "Required means the occurrence is not registered without it. Photo is the image captured on the device; Note is the driver's text; Signature is the one from whoever refused; Products are the invoice items the occurrence points to.",
       "mixedScope": "The requirements below apply only when the driver registers (Driver, on an invoice and Driver, at the stop). At the warehouse the rule is fixed.",
-      "stopOnlyScope": "With Driver, at the stop only the photo is required: note, signature and products apply with Driver, on an invoice.",
+      "stopOnlyScope": "For Driver, at the stop, photo, note, location and arrival time apply as configured below: signature and products apply to Driver, on an invoice.",
       "fields": {
         "photo": "Photo",
         "note": "Note",
         "signature": "Signature",
         "items": "Products",
         "referenceNumber": "Customer document number",
-        "declaredAmount": "Amount paid"
+        "declaredAmount": "Amount paid",
+        "location": "Location",
+        "arrivalTime": "Arrival time"
       },
       "modes": {
         "off": "Off",
@@ -455,7 +457,9 @@
         "signature": "Off: no signature asked. Optional: the driver may collect the one from whoever refused. Required: the occurrence is only sent with the signature drawn.",
         "items": "Off: the occurrence carries no products — registration hides the selector, redelivery does not apply and Correct only shows on occurrences that already have products or were already corrected. Optional: whoever registers may pick products. Required: the occurrence is only sent with a product picked.",
         "referenceNumber": "Off: the registration screen does not ask. Optional: it asks and accepts empty. Required: the register button only enables with the number filled in (e.g. the store's return invoice).",
-        "declaredAmount": "Off: the screen does not show it. Optional: it shows and accepts empty. Required: the register button only enables filled in. With no typed amount, the invoice's calculated sum applies."
+        "declaredAmount": "Off: the screen does not show it. Optional: it shows and accepts empty. Required: the register button only enables filled in. With no typed amount, the invoice's calculated sum applies.",
+        "location": "Off: no location asked. Optional: the app sends the location if the GPS has one. Required: the driver can only register with the location captured on the device.",
+        "arrivalTime": "Asked only when the driver did not mark Arrived. Required: the driver informs when they arrived and the system records the stop's arrival at that time. Does not apply together with the minimum wait."
       },
       "record": {
         "referenceLabel": "Number label on the registration screen",
@@ -479,6 +483,12 @@
         "count": "Minimum number of products",
         "hint": "Only applies when Products is Required. All invoice items suits a total refusal: the driver app only enables the registration with every product ticked. At least N enables it with N products ticked.",
         "allItemsHint": "With no minimum, the driver must mark every product on the invoice. Set \"At least N\" to accept a partial return."
+      },
+      "minWait": {
+        "title": "Minimum wait after Arrived",
+        "hint": "The driver can only open this type after the chosen time, counted from the Arrived tap, and sees a countdown. The office opens it at any time, informing when the driver arrived. Does not apply together with the arrival time.",
+        "off": "No minimum wait",
+        "option": "{{count}} minutes"
       }
     },
     "summary": {
