@@ -28,6 +28,7 @@ import { resolveOccurrenceProductCodes } from '../domain/occurrence-scope.policy
 import { findOccurrenceType, listDocumentProducts } from './delivery-proof-read.support.js'
 import { createOccurrenceTypeOverridesReader } from './occurrence-type-overrides-reader.js'
 import { findDocumentOccurrenceSubject } from './document-occurrence-subject.query.js'
+import { cancelOpenCanhotoPickup } from './canhoto-pickup.query.js'
 import {
   insertOccurrenceProductRows,
   listOccurrenceProductLines,
@@ -306,7 +307,11 @@ async function writeOccurrenceCancellation(
         eq(tripDocumentOccurrences.companyId, input.companyId),
         eq(tripDocumentOccurrences.id, input.occurrenceId),
       ),
-    )
+    ) /** Spec 321 T2: a coleta de canhoto ainda aberta da ocorrência cancelada é cancelada junto, na mesma transação. */
+  await cancelOpenCanhotoPickup(queryable, {
+    companyId: input.companyId,
+    occurrenceId: input.occurrenceId,
+  })
 }
 
 export async function readOccurrenceView(

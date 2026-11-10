@@ -104,6 +104,11 @@ import {
   type ForwardToNoteRecipientMode,
 } from '../shared/occurrence-contractor-reply.constant.js'
 import {
+  CANHOTO_PICKUP_OPEN_STATUSES,
+  CANHOTO_PICKUP_STATUSES,
+  type CanhotoPickupStatus,
+} from '../shared/canhoto-pickup.constant.js'
+import {
   buildEventLocationChecks,
   buildEventLocationColumns,
   buildEventLocationCompanyIndex,
@@ -3295,6 +3300,13 @@ export const companyOccurrenceTypes = pgTable(
      * implementado: o cadastro recusa voltar a `true` um tipo gravado com `false`.
      */
     countsCargoOnPickupTrip: boolean('counts_cargo_on_pickup_trip').notNull().default(true),
+    /**
+     * Spec 321 T2 (D4): o tipo **com coleta** — registrar o tipo numa nota cria a coleta de canhoto
+     * (`trip_canhoto_pickups`, `pending`) na mesma transação da ocorrência. É a marca que o cadastro lê para recusar
+     * `counts_cargo_on_pickup_trip = true` (D4c) e que a trava de repetido lê para valer `until_resolved` (D6).
+     * Padrão `false`: nenhum tipo existente passa a criar coleta.
+     */
+    createsCanhotoPickup: boolean('creates_canhoto_pickup').notNull().default(false),
     /** Spec 247 (RF1): se o registro pede o valor pago digitado — por item ou pela ocorrência. */
     declaredAmountMode: varchar('declared_amount_mode', { length: 16 })
       .$type<DeliveryProofFieldMode>()
@@ -4011,6 +4023,115 @@ export const tripOccurrenceCases = pgTable(
      * derrubou o índice original com `updated_at desc`).
      */
     index('trip_occurrence_cases_company_status_idx').on(table.companyId, table.status),
+  ],
+)
+
+/**
+ * Spec 321 T2 (D4): a coleta de canhoto retido pelo cliente. **Não** é linha de `trip_documents`: a entrega de origem
+ * segue entregue e intocada (a trava `trip_documents_delivered_locks_release_check` e o vínculo vivo não mudam, D3), e
+ * nenhum leitor de carga, contagem, score ou portal a soma por construção (T0 §8–9).
+ *
+ * Nasce `pending` na mesma transação da ocorrência do tipo com coleta (`saveTripOccurrence`); `pickup_trip_id` e
+ * `pickup_stop_id` ficam nulos até o escritório encaixá-la (T3). Uma coleta por ocorrência, e uma aberta por vínculo
+ * de origem (índice parcial): duas ocorrências com coleta na mesma entrega nunca correm juntas.
+ *
+ * FKs para viagem e parada da coleta são `restrict` (mesmo motivo de `trip_documents.stop_id`: `set null` numa FK
+ * composta zeraria `company_id`). Quem soltar a parada ou a viagem (T3) devolve a coleta a `pending` antes.
+ */
+export const tripCanhotoPickups = pgTable(
+  'trip_canhoto_pickups',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    /** A NF-e da entrega de origem; nula só quando o vínculo é de cálculo de frete (sem NF-e). */
+    nfeDocumentId: uuid('nfe_document_id'),
+    /** O vínculo da entrega em que o cliente segurou o canhoto — nunca alterado pela coleta. */
+    originTripDocumentId: uuid('origin_trip_document_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    pickupTripId: uuid('pickup_trip_id'),
+    pickupStopId: uuid('pickup_stop_id'),
+    status: varchar({ length: 16 }).notNull().default('pending').$type<CanhotoPickupStatus>(),
+    collectedAt: timestamp('collected_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_canhoto_pickups_company_id_id_unique').on(table.companyId, table.id),
+    unique('trip_canhoto_pickups_occurrence_unique').on(table.companyId, table.occurrenceId),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_canhoto_pickups_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.nfeDocumentId],
+      foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],
+      name: 'trip_canhoto_pickups_company_nfe_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.originTripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'trip_canhoto_pickups_company_origin_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_canhoto_pickups_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.pickupTripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_canhoto_pickups_company_pickup_trip_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.pickupStopId],
+      foreignColumns: [tripStops.companyId, tripStops.id],
+      name: 'trip_canhoto_pickups_company_pickup_stop_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'trip_canhoto_pickups_status_check',
+      sql`${table.status} in (${raw(inList(CANHOTO_PICKUP_STATUSES))})`,
+    ),
+    /** `pending` não tem viagem nem parada; `scheduled` exige a viagem da coleta. */
+    check(
+      'trip_canhoto_pickups_pending_unscheduled_check',
+      sql`${table.status} <> 'pending' or (${table.pickupTripId} is null and ${table.pickupStopId} is null)`,
+    ),
+    check(
+      'trip_canhoto_pickups_scheduled_trip_check',
+      sql`${table.status} <> 'scheduled' or ${table.pickupTripId} is not null`,
+    ),
+    check(
+      'trip_canhoto_pickups_stop_needs_trip_check',
+      sql`${table.pickupStopId} is null or ${table.pickupTripId} is not null`,
+    ),
+    check(
+      'trip_canhoto_pickups_collected_at_check',
+      sql`(${table.status} = 'collected') = (${table.collectedAt} is not null)`,
+    ),
+    uniqueIndex('trip_canhoto_pickups_open_origin_unique')
+      .on(table.companyId, table.originTripDocumentId)
+      .where(sql`${table.status} in (${raw(inList(CANHOTO_PICKUP_OPEN_STATUSES))})`),
+    index('trip_canhoto_pickups_company_status_idx').on(table.companyId, table.status),
+    index('trip_canhoto_pickups_company_nfe_document_idx').on(table.companyId, table.nfeDocumentId),
+    index('trip_canhoto_pickups_company_pickup_trip_idx').on(table.companyId, table.pickupTripId),
+    index('trip_canhoto_pickups_company_pickup_stop_idx').on(table.companyId, table.pickupStopId),
+    index('trip_canhoto_pickups_company_origin_document_idx').on(
+      table.companyId,
+      table.originTripDocumentId,
+    ),
   ],
 )
 

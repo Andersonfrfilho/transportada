@@ -83,3 +83,55 @@ automatic-group,occurrence-mail,occurrence-chat-mail,contractor-portal-message,c
   `test/occurrence-automatic-mail-sweep.integration.test.ts` (10 pass).
 - CA02, equipe interna: `test/trip-occurrence/driver-notification.contract.ts` ("spec 321 (CA02)"): o tipo marcado ainda avisa a equipe pela 275.
 - API `bun run test`: 14884 pass, 0 fail. `tsc --noEmit` e `eslint` limpos na API e no worker.
+
+## T2 — a coleta de canhoto nasce com a ocorrência (10/11/2026)
+
+Base: `origin/staging` @ 3736604 (T1 mergeada, PR #671), depois com a staging mergeada (#672, #673, #675): a migration foi regerada depois da `20261110214656`. Caminhos relativos a `apps/api-transportada/`.
+
+**Marca "tipo com coleta".** Coluna `company_occurrence_types.creates_canhoto_pickup` (boolean, padrão `false`), lida e gravada por
+`GET`/`PUT /company-settings/occurrence-types` como `createsCanhotoPickup` (ausente é "não mexa"). Ela substitui a leitura provisória da T1
+para D4c: a regra agora é `resolvePickupCargoCounting` (`src/trips/domain/canhoto-pickup.policy.ts`). No tipo **com** coleta (gravado ou
+pedido) só `countsCargoOnPickupTrip = false` vale: `true` explícito é `422 OCCURRENCE_TYPE_PICKUP_CARGO_UNSUPPORTED`; ausente vira `false`
+quando o gravado (ou o padrão `true` da coluna, na criação) é `true`. No tipo **sem** coleta o valor passa como veio, inclusive `true` (a
+recusa da T1 "voltar a `true` depois de `false`" saiu: sem a marca ela não tinha objeto). O painel (T5) manda as três chaves juntas.
+
+**Banco.** Migration `drizzle/20261110220029_canhoto_pickups` (gerada por `db:generate`, com snapshot): tabela `trip_canhoto_pickups`
+(`company_id`, `nfe_document_id`, `origin_trip_document_id`, `occurrence_id`, `pickup_trip_id`, `pickup_stop_id`, `status`
+`pending | scheduled | collected | cancelled`, `collected_at`), FKs compostas por `(company_id, id)` (ocorrência `cascade`; origem, NF-e,
+viagem e parada `restrict`, porque `set null` numa FK composta zeraria `company_id`), CHECKs (`pending` sem viagem nem parada, `scheduled`
+com viagem, parada só com viagem, `collected` ⇔ `collected_at`), uma coleta por ocorrência e **uma aberta por vínculo de origem** (índice
+único parcial `trip_canhoto_pickups_open_origin_unique`). Nada toca `trip_documents`. `rollback.sql` recusa rodar com coleta gravada ou tipo
+marcado. A tabela entrou na política do recorte do staging (`deploy/staging-refresh/prune-source.sql`, `keep`).
+
+**Registro (RF2, D4).** `saveTripOccurrence` (`delivery-proof-read.support.ts`), o escritor único dos três caminhos (app/WhatsApp do
+motorista, galpão e lote do escritório), cria a coleta `pending` logo depois da ocorrência, **na mesma transação**
+(`createPendingCanhotoPickup`, `src/trips/infrastructure/canhoto-pickup.query.ts`; a NF-e vem do próprio vínculo, nunca do payload). A
+marca é lida na consulta do tipo que a trava de repetido já fazia (`assertNoDuplicateOccurrenceRequest` agora a devolve), sem leitura nova.
+Se a coleta não nasce, a transação inteira desfaz (`CanhotoPickupNotCreatedError`, ou o índice parcial).
+
+**Repetido (D1, D6).** No tipo com coleta a política vale `until_resolved` qualquer que seja a gravada (`effectiveDuplicateRequestPolicy`), a
+ocorrência está aberta enquanto a coleta está `pending | scheduled` (`isCanhotoPickupOpen`; sem coleta, segue o andamento da 266), e
+**qualquer** coleta aberta da mesma nota bloqueia, de outro tipo com coleta inclusive (`findOpenCanhotoPickupOccurrenceId`). A trava
+advisory do tipo com coleta é por nota (`…:canhoto-pickup`), não por tipo. O app do motorista recebe a ocorrência aberta (como na 276); galpão
+e escritório, `409 TRIP_OCCURRENCE_DUPLICATE_REQUEST` com o id.
+
+**Cancelamento (167).** `writeOccurrenceCancellation` cancela a coleta ainda aberta na mesma transação (`cancelOpenCanhotoPickup`); a
+coletada fica como está.
+
+**Fora da T2 (fica para a T3/T4):** encaixe da coleta numa viagem (`scheduled`), volta a `pending` ao cancelar a viagem, casamento do canhoto
+e a resolução pela 266. Até lá nenhum escritor põe a coleta em `scheduled`/`collected`.
+
+**Testes.**
+
+- CA03 contra Postgres: `test/integration/canhoto-pickup-registration.integration.ts` (6 testes): nota entregue, o registro do tipo com
+  coleta grava a ocorrência e a coleta `pending` (NF-e e origem certas, sem viagem), e a linha de `trip_documents` e o status da viagem
+  ficam **idênticos** ao de antes; soltar a nota entregue continua recusado pelo banco. Tipo sem a marca não cria coleta. Com a coleta
+  aberta, o mesmo tipo (gravado `allow`) e outro tipo com coleta são repetidos (motorista recebe a mesma, escritório 409). Coleta
+  `collected` ou ocorrência cancelada liberam a nota (o cancelamento cancela a coleta). Coleta que não pode nascer desfaz a ocorrência junto.
+  Dois registros simultâneos gravam uma ocorrência e uma coleta. Junto: `occurrence-duplicate-request.integration.ts` (4 pass, sem mudança).
+- Contratos: `test/trip-occurrence/canhoto-pickup.contract.ts` (marca, fronteira, mapeamento, tabela de decisão de D4c, cadastro, D6, CHECK de
+  entregue no schema), `test/database-migration/canhoto-pickups.static.contract.ts` (aditiva, sem `ALTER TABLE "trip_documents"`, rollback),
+  `test/trip-schema/tenant-safety.contract.ts` (FKs compostas e `companyId` em toda junção/filtro de `canhoto-pickup.query.ts`).
+  `contractor-notice-block.contract.ts` trocou a tabela da recusa da T1 pela regra do tipo sem coleta.
+- `bun run test`: 14909 pass, 0 fail. `db:test` (migration + rollback em Postgres descartável): 253 pass. `tsc --noEmit`, `eslint` e
+  `prettier --check .` limpos.

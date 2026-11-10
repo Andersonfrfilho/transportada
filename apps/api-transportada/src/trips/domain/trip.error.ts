@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import { DiagnosableError } from '../../shared/diagnosable.error.js'
 import { OCCURRENCE_DECLARED_AMOUNT_FIELD } from '../../shared/trip-occurrence.constant.js'
 import { OCCURRENCE_CASE_TRANSITION_REFUSALS } from './occurrence-case-state.policy.js'
 import { TRIP_PROOF_REPORT_MAX_DOCUMENTS, TRIP_REPORT_MAX_ROWS } from './trip-report.constant.js'
@@ -712,6 +713,17 @@ export class OccurrenceTypePickupCargoUnsupportedError extends ApiError {
       message: 'Counting the canhoto pickup cargo on the pickup trip is not supported yet.',
       status: 422,
     })
+  }
+}
+
+/**
+ * Spec 321 T2: a coleta de canhoto não nasceu junto da ocorrência — o vínculo de origem sumiu entre a conferência e a
+ * escrita. A transação inteira desfaz: ocorrência do tipo com coleta nunca existe sem a coleta.
+ */
+export class CanhotoPickupNotCreatedError extends DiagnosableError {
+  public constructor() {
+    super('The canhoto pickup was not created with its occurrence')
+    this.name = 'CanhotoPickupNotCreatedError'
   }
 }
 

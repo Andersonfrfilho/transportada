@@ -209,6 +209,8 @@ export type OccurrenceTypeRecord = {
   readonly blocksContractorNotice?: boolean
   /** Spec 321 (D4c): se a coleta de canhoto soma carga na viagem que a busca. Opcional só para os dublês. */
   readonly countsCargoOnPickupTrip?: boolean
+  /** Spec 321 T2 (D4): registrar o tipo cria a coleta de canhoto. Opcional só para os dublês. */
+  readonly createsCanhotoPickup?: boolean
   /** Spec 271: a chave do modelo do módulo de notificação do tipo; nula é sem modelo. Opcional só para os dublês de teste. */
   readonly contractorNotificationTemplateKey?: null | string
   /** Spec 248 (RF1): o retorno da contratante — opcionais só para os dublês de teste; a leitura real sempre traz. */

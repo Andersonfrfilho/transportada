@@ -10,7 +10,7 @@ import {
   OccurrenceTypeLeavesDocumentBehindRequiresSeparationError,
   OccurrenceTypePickupCargoUnsupportedError,
 } from '../domain/trip.error.js'
-import { isPickupCargoCountingUnsupported } from '../domain/occurrence-contractor-notice.policy.js'
+import { resolvePickupCargoCounting } from '../domain/canhoto-pickup.policy.js'
 import {
   OCCURRENCE_CLIENT_CHANNEL_ORDER,
   type OccurrenceClientChannelMatrixChange,
@@ -141,10 +141,12 @@ export type SaveOccurrenceTypeValues = {
   /** Spec 321 (D2): o tipo nunca avisa a contratante. Ausente é "não mexa". */
   readonly blocksContractorNotice?: boolean | undefined
   /**
-   * Spec 321 (D4c): se a coleta soma carga na viagem que a busca. Ausente é "não mexa"; voltar a `true` um tipo
-   * gravado com `false` é recusado na fase 1 (`assertPickupCargoCountingSupported`).
+   * Spec 321 (D4c): se a coleta soma carga na viagem que a busca. Ausente é "não mexa"; no tipo com coleta só `false`
+   * vale na fase 1 (`resolvePickupCargoCounting`).
    */
   readonly countsCargoOnPickupTrip?: boolean | undefined
+  /** Spec 321 T2 (D4): o tipo cria a coleta de canhoto ao ser registrado. Ausente é "não mexa". */
+  readonly createsCanhotoPickup?: boolean | undefined
   /**
    * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação que escreve o e-mail à contratante.
    * Ausente é "não mexa"; `null` limpa. Conferida **antes** da transação: sem trava, e o envio reconfere.
@@ -226,6 +228,7 @@ export type CurrentOccurrenceTypeShape = Partial<
     OccurrenceTypeRecord,
     | 'contractorScope'
     | 'countsCargoOnPickupTrip'
+    | 'createsCanhotoPickup'
     | 'declaredAmountMode'
     | 'declaredAmountScope'
     | 'arrivalTimeMode'
@@ -260,7 +263,10 @@ export async function saveOccurrenceTypeWithTemplate(
   input: SaveOccurrenceTypeWithTemplateInput,
 ): Promise<OccurrenceTypeRecord> {
   const stored = await readStoredTypeWhenNeeded(input)
-  const values = resolveMomentsChange({ stored, values: input.values })
+  const values = resolvePickupCargoValues({
+    stored,
+    values: resolveMomentsChange({ stored, values: input.values }),
+  })
   if (values.leavesDocumentBehind === true && values.stage !== 'separation') {
     throw new OccurrenceTypeLeavesDocumentBehindRequiresSeparationError()
   }
@@ -271,7 +277,6 @@ export async function saveOccurrenceTypeWithTemplate(
   assertMinWaitExcludesArrivalTime({ stored, values })
   assertContractorScopeValues(values)
   assertReceivingChargeSendsNoContractorMail({ stored, values })
-  assertPickupCargoCountingSupported({ stored, values })
   await assertContractorTemplateIsUsable({
     companyId: input.companyId,
     templates: input.templates,
@@ -358,7 +363,8 @@ async function readStoredTypeWhenNeeded(
   const isStoredStateNeeded =
     occurrenceTypeId !== null &&
     (input.values.emailsContractor === true ||
-      input.values.countsCargoOnPickupTrip === true ||
+      input.values.countsCargoOnPickupTrip !== undefined ||
+      input.values.createsCanhotoPickup !== undefined ||
       itemsMode === undefined ||
       declaredAmountMode === undefined ||
       declaredAmountScope === undefined ||
@@ -387,21 +393,21 @@ function assertReceivingChargeSendsNoContractorMail(params: {
 }
 
 /**
- * Spec 321 (D4c): `true` só vale quando já é o gravado (ou na criação, onde é o padrão). Voltar a `true` um tipo
- * gravado com `false` é 422 até os leitores de carga da T0 §8 aprenderem a somar a coleta.
+ * Spec 321 (D4c, T2): o tipo com coleta só grava `countsCargoOnPickupTrip = false` na fase 1 — `true` explícito é 422,
+ * e ausente vira `false` quando o gravado (ou o padrão da coluna) é `true`. A regra é `resolvePickupCargoCounting`.
  */
-function assertPickupCargoCountingSupported(params: {
+function resolvePickupCargoValues(params: {
   readonly stored: CurrentOccurrenceTypeShape | null
   readonly values: SaveOccurrenceTypeValues
-}): void {
-  if (
-    isPickupCargoCountingUnsupported({
-      current: params.stored?.countsCargoOnPickupTrip,
-      requested: params.values.countsCargoOnPickupTrip,
-    })
-  ) {
-    throw new OccurrenceTypePickupCargoUnsupportedError()
-  }
+}): SaveOccurrenceTypeValues {
+  const decision = resolvePickupCargoCounting({
+    requestedCountsCargo: params.values.countsCargoOnPickupTrip,
+    requestedCreatesPickup: params.values.createsCanhotoPickup,
+    storedCountsCargo: params.stored?.countsCargoOnPickupTrip,
+    storedCreatesPickup: params.stored?.createsCanhotoPickup,
+  })
+  if (decision.kind === 'refuse') throw new OccurrenceTypePickupCargoUnsupportedError()
+  return { ...params.values, countsCargoOnPickupTrip: decision.countsCargoOnPickupTrip }
 }
 
 type ResolveMomentsChangeParams = {

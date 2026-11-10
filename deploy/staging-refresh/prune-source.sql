@@ -253,6 +253,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('toll_booths', 'keep', null),
   ('trip_cargo_layout_outbox', 'empty', null),
   ('trip_cargo_layouts', 'keep', null),
+  ('trip_canhoto_pickups', 'keep', null),
   ('trip_cost_entries', 'keep', null),
   ('trip_crew_events', 'keep', null),
   ('trip_delivery_proofs', 'keep', null),
