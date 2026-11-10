@@ -75,6 +75,11 @@ import { cargoArrivalDocuments } from './cargo-arrival-document.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
 import {
+  PIX_KEY_MAX_LENGTH,
+  PIX_KEY_TYPES,
+  type PixKeyType,
+} from '../shared/pix-key-type.constant.js'
+import {
   CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES,
   CONTRACTOR_REPLY_ALERT_MAX_COUNT,
   CONTRACTOR_REPLY_ALERT_MODES,
@@ -1636,6 +1641,10 @@ export const tripStopEvents = pgTable(
  * produção tinha **zero viagens**. Sem dado para migrar, o CHECK encolheu junto — conviver com
  * valor que a tela não oferece seria deixar a porta fechada por fora e aberta por dentro.
  */
+/** Spec 317 (E11): quem pagou a cobrança no recebimento. */
+export const STOP_OCCURRENCE_PAID_BY = ['driver', 'company'] as const
+export type StopOccurrencePaidBy = (typeof STOP_OCCURRENCE_PAID_BY)[number]
+
 export const TRIP_STOP_OCCURRENCE_KINDS = [
   'unexpected_charge',
   'long_wait',
@@ -1683,6 +1692,26 @@ export const tripStopOccurrences = pgTable(
      * coluna existe só para não pedir segunda migration — sem escritor nem leitor nesta spec.
      */
     signatureObjectId: uuid('signature_object_id'),
+    /**
+     * Spec 317 (E3): o valor pago na cobrança no recebimento, o **total** (soma das linhas de cobrança, calculada
+     * no servidor). Dinheiro em `numeric`, nunca float; `0` é valor. Nulo nos tipos que não pedem valor.
+     */
+    declaredAmount: numeric('declared_amount', { precision: 14, scale: 4 }),
+    /** Spec 317 (E11): quem pagou — `driver` ou `company`. Nulo nos tipos que não perguntam. */
+    paidBy: varchar('paid_by', { length: 16 }).$type<StopOccurrencePaidBy>(),
+    /**
+     * Spec 317 (E11): o PIX do motorista, obrigatório com `paid_by = 'driver'`. ⚠️ Dado financeiro: só a quem
+     * tem `trip.financials`, nunca em e-mail, log ou resposta ao app de outro motorista.
+     */
+    driverPixKey: text('driver_pix_key'),
+    driverPixKeyType: text('driver_pix_key_type').$type<PixKeyType>(),
+    /**
+     * Spec 317 (E13): o comprovante do PIX que o atendente envia ao motorista ao concluir — opcional, concluir
+     * nunca é bloqueado. O sistema não executa o PIX.
+     */
+    driverPayoutReceiptObjectId: uuid('driver_payout_receipt_object_id'),
+    driverPayoutSentAt: timestamp('driver_payout_sent_at', { withTimezone: true }),
+    driverPayoutSentByUserId: uuid('driver_payout_sent_by_user_id'),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /**
@@ -1737,6 +1766,20 @@ export const tripStopOccurrences = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.driverPayoutReceiptObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_stop_occurrences_company_payout_receipt_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.driverPayoutSentByUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'trip_stop_occurrences_payout_sender_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     /** Spec 218 RF-B5: nulável — dado gravado antes da migration converge pelo backfill. */
     foreignKey({
       columns: [table.companyId, table.occurrenceTypeId],
@@ -1778,6 +1821,24 @@ export const tripStopOccurrences = pgTable(
       sql`${table.reportedDistanceMeters} is null or ${table.reportedDistanceMeters} >= 0`,
     ),
     check(
+      'trip_stop_occurrences_declared_amount_check',
+      sql`${table.declaredAmount} is null or ${table.declaredAmount} >= 0`,
+    ),
+    check(
+      'trip_stop_occurrences_paid_by_check',
+      sql`${table.paidBy} is null or ${table.paidBy} in (${raw(inList(STOP_OCCURRENCE_PAID_BY))})`,
+    ),
+    /** Spec 317 (E11): quem pagou foi o motorista, o PIX dele é obrigatório (chave e tipo). */
+    check(
+      'trip_stop_occurrences_driver_pix_check',
+      sql`(${table.paidBy} is distinct from 'driver' or (${table.driverPixKey} is not null and length(btrim(${table.driverPixKey})) > 0 and ${table.driverPixKeyType} is not null)) and (${table.driverPixKeyType} is null or ${table.driverPixKeyType} in (${raw(inList(PIX_KEY_TYPES))})) and (${table.driverPixKey} is null or length(${table.driverPixKey}) <= ${raw(String(PIX_KEY_MAX_LENGTH))})`,
+    ),
+    /** Spec 317 (E13): o comprovante enviado carrega quando e por quem. */
+    check(
+      'trip_stop_occurrences_driver_payout_check',
+      sql`${table.driverPayoutReceiptObjectId} is null or (${table.driverPayoutSentAt} is not null and ${table.driverPayoutSentByUserId} is not null)`,
+    ),
+    check(
       'trip_stop_occurrences_kind_check',
       sql`${table.kind} in (${raw(inList(TRIP_STOP_OCCURRENCE_KINDS))})`,
     ),
@@ -1806,6 +1867,108 @@ export const tripStopOccurrences = pgTable(
       tableName: 'trip_stop_occurrences',
       timeColumn: table.createdAt,
     }),
+  ],
+)
+
+/**
+ * Spec 317 (E1): as "vagas de foto" do tipo de ocorrência — cada uma com rótulo próprio. O motorista tira uma foto
+ * por vaga, e as `required` travam o envio. Mecanismo genérico; só a cobrança no recebimento as usa, e o editor
+ * de tipos não as edita nesta spec (nascem pela migration).
+ */
+export const companyOccurrenceTypePhotoSlots = pgTable(
+  'company_occurrence_type_photo_slots',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceTypeId: uuid('occurrence_type_id').notNull(),
+    /** Chave estável (`charge_sign`, `payment_receipt`); o rótulo é o texto que o motorista lê. */
+    slotKey: varchar('slot_key', { length: 48 }).notNull(),
+    label: text().notNull(),
+    required: boolean().notNull().default(true),
+    position: smallint().notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_occurrence_type_photo_slots_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceTypeId],
+      foreignColumns: [companyOccurrenceTypes.companyId, companyOccurrenceTypes.id],
+      name: 'company_occurrence_type_photo_slots_company_type_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    unique('company_occurrence_type_photo_slots_key_unique').on(
+      table.companyId,
+      table.occurrenceTypeId,
+      table.slotKey,
+    ),
+    check(
+      'company_occurrence_type_photo_slots_key_check',
+      sql`${table.slotKey} ~ '^[a-z][a-z0-9_]{0,47}$'`,
+    ),
+    check(
+      'company_occurrence_type_photo_slots_label_check',
+      sql`length(btrim(${table.label})) > 0`,
+    ),
+    check('company_occurrence_type_photo_slots_position_check', sql`${table.position} >= 0`),
+  ],
+)
+
+/**
+ * Spec 317 (E2): a foto de cada vaga do registro da parada — uma linha por vaga. `attachment_object_id` da
+ * ocorrência continua guardando a foto da placa (compatibilidade); o resto da leitura passa por aqui.
+ */
+export const tripStopOccurrencePhotos = pgTable(
+  'trip_stop_occurrence_photos',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    stopOccurrenceId: uuid('stop_occurrence_id').notNull(),
+    slotKey: varchar('slot_key', { length: 48 }).notNull(),
+    objectId: uuid('object_id').notNull(),
+    position: smallint().notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_stop_occurrence_photos_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.stopOccurrenceId],
+      foreignColumns: [tripStopOccurrences.companyId, tripStopOccurrences.id],
+      name: 'trip_stop_occurrence_photos_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.objectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_stop_occurrence_photos_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** Uma foto por vaga por ocorrência: o reenvio da fila não duplica. */
+    unique('trip_stop_occurrence_photos_slot_unique').on(
+      table.companyId,
+      table.stopOccurrenceId,
+      table.slotKey,
+    ),
+    index('trip_stop_occurrence_photos_object_idx').on(table.companyId, table.objectId),
+    check(
+      'trip_stop_occurrence_photos_key_check',
+      sql`${table.slotKey} ~ '^[a-z][a-z0-9_]{0,47}$'`,
+    ),
+    check('trip_stop_occurrence_photos_position_check', sql`${table.position} >= 0`),
   ],
 )
 
@@ -3113,6 +3276,13 @@ export const companyOccurrenceTypes = pgTable(
       .notNull()
       .default(OCCURRENCE_TYPE_LOCATION_ARRIVAL_DEFAULTS.arrivalTimeMode),
     minWaitAfterArrivalMinutes: smallint('min_wait_after_arrival_minutes'),
+    /**
+     * Spec 317 (E7/RF13): se o app do motorista mostra, no cartão da parada, o aviso "possível cobrança na
+     * entrega" do cliente. O escritório vê o selo sempre; esta coluna só governa o motorista. Padrão `true`.
+     */
+    showClientChargeSealToDriver: boolean('show_client_charge_seal_to_driver')
+      .notNull()
+      .default(true),
     /** Spec 247 (RF1): se o registro pede o valor pago digitado — por item ou pela ocorrência. */
     declaredAmountMode: varchar('declared_amount_mode', { length: 16 })
       .$type<DeliveryProofFieldMode>()

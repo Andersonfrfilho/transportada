@@ -6,3 +6,4 @@
 import './field-report-hold/policy.contract.js'
 import './field-report-hold/hold-or-register.contract.js'
 import './field-report-hold/decide.contract.js'
+import './field-report-hold/settings.contract'

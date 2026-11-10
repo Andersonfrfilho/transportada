@@ -30,6 +30,7 @@ export const SETTINGS_PANELS = [
   'audioTranscription',
   'whatsappEvolution',
   'contractorAutomations',
+  'driverStopReminders',
   'salespeople',
 ] as const
 
@@ -59,6 +60,7 @@ export type SettingsDataSource =
   | 'deliveryProofSettings'
   | 'distributionCursor'
   | 'driverAllowanceSettings'
+  | 'driverStopReminderSettings'
   | 'entryKindCatalog'
   | 'federalTaxes'
   | 'freightRegions'
@@ -237,6 +239,15 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
     source: 'contractorAutomations',
     tab: 'automations',
   },
+  /**
+   * Spec 299 RF19: a cobrança do motorista pelo WhatsApp é da empresa inteira (liga/desliga, prazos e horário de
+   * funcionamento) — aba própria de Configurações, só com `settings.manage`.
+   */
+  driverStopReminders: {
+    module: 'company-settings',
+    source: 'driverStopReminderSettings',
+    tab: 'driverReminders',
+  },
   /** Spec 316 T1.4: o cadastro dos vendedores da contratante — painel autocontido, aba própria, `settings.manage`. */
   salespeople: { module: 'company-settings', source: 'salespeople', tab: 'salespeople' },
 }
@@ -287,6 +298,7 @@ export function resolveSettingsDataScope(
     deliveryProofSettings: sources.has('deliveryProofSettings'),
     distributionCursor: sources.has('distributionCursor'),
     driverAllowanceSettings: sources.has('driverAllowanceSettings'),
+    driverStopReminderSettings: sources.has('driverStopReminderSettings'),
     entryKindCatalog: sources.has('entryKindCatalog'),
     federalTaxes: sources.has('federalTaxes'),
     freightRegions: sources.has('freightRegions'),
@@ -319,6 +331,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'audioTranscription',
   'whatsapp',
   'automations',
+  'driverReminders',
   'salespeople',
 ] as const
 

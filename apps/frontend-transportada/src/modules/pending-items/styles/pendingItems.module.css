@@ -108,3 +108,8 @@
 .duplicateNote {
   color: var(--color-alert-ink);
 }
+
+.holdSetting {
+  display: grid;
+  gap: var(--space-2);
+}

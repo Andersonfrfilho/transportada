@@ -16,6 +16,7 @@
     "occurrenceWatchers": "Responsáveis por ocorrências",
     "whatsapp": "WhatsApp",
     "automations": "Automações",
+    "driverReminders": "Cobrança do motorista",
     "salespeople": "Vendedores"
   },
   "entryKinds": {
@@ -961,6 +962,74 @@
       "notFound": "A automação não existe mais.",
       "conflict": "Já existe uma automação com esse nome."
     }
+  },
+  "driverStopReminders": {
+    "kicker": "WhatsApp",
+    "title": "Cobrança do motorista",
+    "hint": "O bot pergunta ao motorista pelo WhatsApp quando uma parada passa do horário sem registro de chegada ou de entrega. Sem resposta, o escritório é avisado.",
+    "origin": {
+      "company": "Configuração gravada pela empresa.",
+      "default": "Nada gravado ainda: valem o padrão do sistema e a cobrança desligada."
+    },
+    "rules": {
+      "title": "Quando e quanto cobrar"
+    },
+    "enabledLabel": "Cobrar o motorista pelo WhatsApp",
+    "enabledOn": "Ligada: o bot cobra o motorista conforme os prazos abaixo, se a chave do ambiente também estiver ligada.",
+    "enabledOff": "Desligada: o bot não cobra ninguém.",
+    "fields": {
+      "maxAttempts": {
+        "label": "Cobranças",
+        "hint": "De {{min}} a {{max}}. Depois da última sem resposta, o escritório é avisado."
+      },
+      "intervalMinutes": {
+        "label": "Intervalo (min)",
+        "hint": "De {{min}} a {{max}} minutos."
+      },
+      "graceMinMinutes": {
+        "label": "Folga mínima (min)",
+        "hint": "De {{min}} a {{max}} minutos de espera depois do horário previsto."
+      },
+      "gracePercent": {
+        "label": "Folga (%)",
+        "hint": "De {{min}} a {{max}}% do tempo de deslocamento, somado à folga mínima."
+      },
+      "dwellMinutes": {
+        "label": "Permanência (min)",
+        "hint": "De {{min}} a {{max}} minutos entre a chegada e a cobrança da entrega."
+      },
+      "idleMinutes": {
+        "label": "Sem evento (min)",
+        "hint": "De {{min}} a {{max}} minutos sem nenhum registro da viagem antes de cobrar."
+      }
+    },
+    "hours": {
+      "title": "Horário de funcionamento",
+      "hint": "O bot só cobra dentro destas faixas. Dia sem faixa fica fechado. Até 3 faixas por dia.",
+      "alwaysOpen": "Sem nenhuma faixa, o bot cobra a qualquer hora, todos os dias.",
+      "closed": "Fechado",
+      "add": "Adicionar faixa",
+      "startLabel": "Início, {{day}}",
+      "endLabel": "Fim, {{day}}",
+      "remove": "Remover faixa, {{day}}",
+      "issue": {
+        "start_must_precede_end": "O início tem de ser antes do fim.",
+        "ranges_overlap": "As faixas do mesmo dia não podem se sobrepor.",
+        "too_many_ranges_in_weekday": "No máximo 3 faixas por dia."
+      }
+    },
+    "weekday": {
+      "0": "Domingo",
+      "1": "Segunda-feira",
+      "2": "Terça-feira",
+      "3": "Quarta-feira",
+      "4": "Quinta-feira",
+      "5": "Sexta-feira",
+      "6": "Sábado"
+    },
+    "save": "Salvar cobrança",
+    "saved": "Configuração da cobrança salva.",
+    "error": "Não foi possível salvar a cobrança ({{code}})."
   },
   "salespeople": {
     "title": "Vendedores",

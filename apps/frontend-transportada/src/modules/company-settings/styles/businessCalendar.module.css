@@ -472,3 +472,20 @@
   justify-content: space-between;
   gap: var(--space-2);
 }
+
+/* Spec 299 RF19: uma faixa de horário é início, fim e remover na mesma linha, no celular também. */
+.rangeRow {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.rangeIssue {
+  grid-column: 1 / -1;
+}
+
+/* O ícone do relógio do campo de hora come a largura no celular e corta "08:00 AM"; o campo já abre o seletor. */
+.rangeRow input[type='time']::-webkit-calendar-picker-indicator {
+  display: none;
+}

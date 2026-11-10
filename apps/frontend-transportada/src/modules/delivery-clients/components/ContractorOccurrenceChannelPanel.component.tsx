@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { PHONE_MASK_LENGTH } from '@/modules/shared/phone.service'
 
 import {
   useContractorOccurrenceChannel,
@@ -20,6 +21,11 @@ import {
   type ContractorOccurrenceChannelGroup,
   type OccurrenceChannelKind,
 } from '../shared/contractorOccurrenceChannel.types'
+import {
+  formatContractorContactPhone,
+  maskContractorContactPhoneInput,
+  normalizeContractorContactPhone,
+} from '../shared/contractorContacts.validation'
 import { isOccurrenceMentionPhoneValid } from '../shared/contractorOccurrenceChannel.validation'
 import styles from '../styles/contractorDirectory.module.css'
 
@@ -37,7 +43,7 @@ function toDraft(channel: ContractorOccurrenceChannel): Draft {
     channel: channel.channel,
     emailFallback: channel.emailFallback,
     groupJid: channel.groupJid ?? '',
-    mentionPhone: channel.mentionPhone ?? '',
+    mentionPhone: formatContractorContactPhone(channel.mentionPhone),
   }
 }
 
@@ -168,7 +174,7 @@ function ChannelForm({
             emailFallback: draft.emailFallback,
             groupJid: draft.groupJid,
             groupName: selectedGroupName,
-            mentionPhone: draft.mentionPhone.trim(),
+            mentionPhone: normalizeContractorContactPhone(draft.mentionPhone) ?? draft.mentionPhone,
           }
         : { channel: 'email', emailFallback: true },
     )
@@ -241,9 +247,12 @@ function ChannelForm({
               autoComplete="off"
               inputMode="tel"
               onBlur={() => setPhoneTouched(true)}
-              onChange={(event) => update({ mentionPhone: event.target.value })}
+              maxLength={PHONE_MASK_LENGTH}
+              onChange={(event) =>
+                update({ mentionPhone: maskContractorContactPhoneInput(event.target.value) })
+              }
               placeholder={t('occurrenceChannel.phonePlaceholder')}
-              type="text"
+              type="tel"
               value={draft.mentionPhone}
             />
           </label>

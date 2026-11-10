@@ -22,6 +22,11 @@ import type {
 } from '../application/field-report-hold.port.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
+export type FieldReportHoldSettings = {
+  readonly enabled: boolean
+  readonly updatedAt: Date | null
+}
+
 export type FieldReportHoldDisplay = {
   readonly invoiceNumber: null | string
   readonly occurrenceTypeName: null | string
@@ -74,6 +79,42 @@ export class DrizzleFieldReportHoldRepository implements FieldReportHoldPort {
       .limit(1)
 
     return row?.enabled === true
+  }
+
+  /** Sem linha é resposta válida: desligado (spec 320 D8). */
+  async readSettings(companyId: string): Promise<FieldReportHoldSettings> {
+    const [row] = await this.database
+      .select({
+        enabled: companyFieldReportHoldSettings.holdEnabled,
+        updatedAt: companyFieldReportHoldSettings.updatedAt,
+      })
+      .from(companyFieldReportHoldSettings)
+      .where(eq(companyFieldReportHoldSettings.companyId, companyId))
+      .limit(1)
+
+    return { enabled: row?.enabled === true, updatedAt: row?.updatedAt ?? null }
+  }
+
+  async saveSettings(input: {
+    readonly companyId: string
+    readonly enabled: boolean
+    readonly userId: string
+  }): Promise<FieldReportHoldSettings> {
+    const now = new Date()
+    await this.database
+      .insert(companyFieldReportHoldSettings)
+      .values({
+        companyId: input.companyId,
+        holdEnabled: input.enabled,
+        updatedAt: now,
+        updatedByUserId: input.userId,
+      })
+      .onConflictDoUpdate({
+        set: { holdEnabled: input.enabled, updatedAt: now, updatedByUserId: input.userId },
+        target: companyFieldReportHoldSettings.companyId,
+      })
+
+    return { enabled: input.enabled, updatedAt: now }
   }
 
   async isKeyRegistered(input: {

@@ -16,6 +16,7 @@
     "occurrenceWatchers": "Occurrence owners",
     "whatsapp": "WhatsApp",
     "automations": "Automations",
+    "driverReminders": "Driver reminders",
     "salespeople": "Salespeople"
   },
   "entryKinds": {
@@ -961,6 +962,74 @@
       "notFound": "The automation no longer exists.",
       "conflict": "An automation with this name already exists."
     }
+  },
+  "driverStopReminders": {
+    "kicker": "WhatsApp",
+    "title": "Driver reminders",
+    "hint": "The bot asks the driver on WhatsApp when a stop passes its time with no arrival or delivery recorded. With no answer, the office is notified.",
+    "origin": {
+      "company": "Setting saved by the company.",
+      "default": "Nothing saved yet: the system defaults apply and reminders are off."
+    },
+    "rules": {
+      "title": "When and how often"
+    },
+    "enabledLabel": "Remind the driver on WhatsApp",
+    "enabledOn": "On: the bot reminds the driver on the schedule below, if the environment switch is also on.",
+    "enabledOff": "Off: the bot reminds nobody.",
+    "fields": {
+      "maxAttempts": {
+        "label": "Reminders",
+        "hint": "From {{min}} to {{max}}. After the last unanswered one, the office is notified."
+      },
+      "intervalMinutes": {
+        "label": "Interval (min)",
+        "hint": "From {{min}} to {{max}} minutes."
+      },
+      "graceMinMinutes": {
+        "label": "Minimum grace (min)",
+        "hint": "From {{min}} to {{max}} minutes of wait after the expected time."
+      },
+      "gracePercent": {
+        "label": "Grace (%)",
+        "hint": "From {{min}} to {{max}}% of the travel time, added to the minimum grace."
+      },
+      "dwellMinutes": {
+        "label": "Dwell (min)",
+        "hint": "From {{min}} to {{max}} minutes between arrival and the delivery reminder."
+      },
+      "idleMinutes": {
+        "label": "No event (min)",
+        "hint": "From {{min}} to {{max}} minutes with no trip record before reminding."
+      }
+    },
+    "hours": {
+      "title": "Operating hours",
+      "hint": "The bot only reminds within these ranges. A day with no range is closed. Up to 3 ranges per day.",
+      "alwaysOpen": "With no range, the bot reminds at any time, every day.",
+      "closed": "Closed",
+      "add": "Add range",
+      "startLabel": "Start, {{day}}",
+      "endLabel": "End, {{day}}",
+      "remove": "Remove range, {{day}}",
+      "issue": {
+        "start_must_precede_end": "The start must be before the end.",
+        "ranges_overlap": "Ranges on the same day cannot overlap.",
+        "too_many_ranges_in_weekday": "At most 3 ranges per day."
+      }
+    },
+    "weekday": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "save": "Save reminders",
+    "saved": "Reminder settings saved.",
+    "error": "Could not save the reminder settings ({{code}})."
   },
   "salespeople": {
     "title": "Salespeople",

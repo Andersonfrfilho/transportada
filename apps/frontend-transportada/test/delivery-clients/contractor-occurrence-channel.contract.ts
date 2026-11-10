@@ -8,6 +8,11 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'bun:test'
 
 import { pickChoosableOccurrenceGroups } from '@/modules/delivery-clients/components/ContractorOccurrenceChannelPanel.component'
+import {
+  formatContractorContactPhone,
+  maskContractorContactPhoneInput,
+  normalizeContractorContactPhone,
+} from '@/modules/delivery-clients/shared/contractorContacts.validation'
 import { createContractorOccurrenceChannelClient } from '@/modules/delivery-clients/shared/contractorOccurrenceChannelClient.service'
 import {
   isOccurrenceMentionPhoneValid,
@@ -128,5 +133,20 @@ describe('o canal do aviso de ocorrência (spec 318 T8)', () => {
       expect(locale.occurrenceChannel?.title).toBeString()
       expect(locale.occurrenceChannel?.errors?.CONTRACTOR_OCCURRENCE_GROUP_TAKEN).toBeString()
     }
+  })
+})
+
+describe('o número a marcar sai mascarado e vai normalizado (spec 318 T8)', () => {
+  test('o campo usa a máscara da casa e o telefone gravado volta mascarado', () => {
+    expect(maskContractorContactPhoneInput('11999990318')).toBe('(11) 99999-0318')
+    expect(maskContractorContactPhoneInput('+5511999990318')).toBe('(11) 99999-0318')
+    expect(formatContractorContactPhone('5511999990318')).toBe('(11) 99999-0318')
+    expect(normalizeContractorContactPhone('(11) 99999-0318')).toBe('5511999990318')
+    const panel = readFileSync(
+      'src/modules/delivery-clients/components/ContractorOccurrenceChannelPanel.component.tsx',
+      'utf8',
+    )
+    expect(panel).toContain('maskContractorContactPhoneInput')
+    expect(panel).toContain('PHONE_MASK_LENGTH')
   })
 })
