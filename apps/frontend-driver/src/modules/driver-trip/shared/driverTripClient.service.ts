@@ -365,12 +365,17 @@ export type LocationConsent = Readonly<{ acceptedAt: string | null }>
 
 type DocumentOccurrenceReport = Extract<DriverFieldReport, { kind: 'documentOccurrence' }>
 type StopOccurrencePhotoReport = Extract<DriverFieldReport, { kind: 'stopOccurrencePhoto' }>
+/** Spec 317: a cobrança no recebimento — fotos por vaga e o corpo da cobrança num `POST` só. */
+type StopOccurrenceChargeReport = Extract<DriverFieldReport, { kind: 'stopOccurrenceCharge' }>
 /** Spec 193 D7: o PATCH `.../proof/receiver` — tem caminho e método próprios, fora do POST comum. */
 type ProofReceiverReport = Extract<DriverFieldReport, { kind: 'proofReceiver' }>
 /** Os relatos que são um `POST` JSON só — os que levam foto ou usam outro método têm caminho próprio. */
 type JsonFieldReport = Exclude<
   DriverFieldReport,
-  DocumentOccurrenceReport | StopOccurrencePhotoReport | ProofReceiverReport
+  | DocumentOccurrenceReport
+  | StopOccurrenceChargeReport
+  | StopOccurrencePhotoReport
+  | ProofReceiverReport
 >
 
 /** Spec 206: exportada — `stop-departure.contract.ts` prova o caminho de `depart`/`cancelDeparture`. */
@@ -707,6 +712,19 @@ async function sendReport(input: {
     })
     return undefined
   }
+  if (report.kind === 'stopOccurrenceCharge') {
+    await sendStopOccurrenceCharge({
+      dependencies,
+      diagnostics: {
+        attempt: options?.attempt,
+        idempotencyKey: report.idempotencyKey,
+        reportKind: report.kind,
+      },
+      report,
+      stamp,
+    })
+    return undefined
+  }
   if (report.kind === 'proofReceiver') {
     await request({
       body: JSON.stringify(report.fields),
@@ -874,6 +892,49 @@ async function sendStopOccurrencePhoto(input: {
     }),
     dependencies,
     idempotencyKey: report.occurrenceKey,
+    method: 'POST',
+    path: `${stopPath}/occurrences`,
+  })
+}
+
+/**
+ * Spec 317 (RF3, RF4): a cobrança no recebimento. Cada foto sobe pela rota da parada (par `occurrence-uploads` +
+ * `confirm`, sem o token no `PUT`), e só com **todas** confirmadas sai o `POST` único com `photos[{ slotKey, objectId }]`
+ * e `receivingCharge`: a API cobra as vagas obrigatórias e grava ocorrência, fotos, linhas de Ressarcimentos e a marca do
+ * cliente numa transação. A chave do item é a do registro — o reenvio da fila (queda no meio dos uploads) repete o `POST`
+ * com a mesma chave e não duplica linha nem foto.
+ */
+async function sendStopOccurrenceCharge(input: {
+  readonly dependencies: ClientDependencies
+  readonly diagnostics: StepContext
+  readonly report: StopOccurrenceChargeReport
+  readonly stamp: EventClockStamp | undefined
+}): Promise<void> {
+  const { dependencies, diagnostics, report, stamp } = input
+  const stopPath = `${CURRENT_TRIP_PATH}/stops/${report.stopId}`
+  const photos: { objectId: string; slotKey: string }[] = []
+  for (const entry of report.photos) {
+    const objectId = await uploadOccurrencePhoto({
+      dependencies,
+      diagnostics,
+      onProgress: () => undefined,
+      photo: entry.photo.blob,
+      uploadsPath: `${stopPath}/occurrence-uploads`,
+    })
+    photos.push({ objectId, slotKey: entry.slotKey })
+  }
+
+  await request({
+    body: JSON.stringify({
+      ...buildClockFields({ kind: report.kind, stamp }),
+      description: report.description,
+      location: report.location,
+      photos,
+      receivingCharge: report.receivingCharge,
+      ...stopOccurrenceReference(report),
+    }),
+    dependencies,
+    idempotencyKey: report.idempotencyKey,
     method: 'POST',
     path: `${stopPath}/occurrences`,
   })

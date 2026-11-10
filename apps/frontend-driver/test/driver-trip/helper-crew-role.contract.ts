@@ -169,6 +169,7 @@ function renderCard(input: {
       onProof: () => Promise.resolve(true),
       onQueuedDocumentOccurrence: () => 'queued',
       onRetryOccurrenceTypes: noop,
+      onReceivingCharge: () => 'queued',
       onStopOccurrence: () => 'queued',
       onToggle: noop,
       queueView: [],

@@ -10,6 +10,7 @@ import type {
 import { useCaptureRegistration } from './useCaptureRegistration.hook'
 import { useOccurrenceSignature } from './useOccurrenceSignature.hook'
 import { useOccurrenceValues } from './useOccurrenceValues.hook'
+import { useReceivingChargeForm } from './useReceivingChargeForm.hook'
 import { usePhotoPreviewUrl } from './usePhotoPreviewUrl.hook'
 import type { DriverOccurrencePhoto } from '../shared/driverTrip.types'
 import { isOccurrencePhotoWithinLimit } from '../shared/notDelivered.service'
@@ -65,6 +66,11 @@ export function useOccurrenceRegistrationForm(
       : []
   const selectedType = types.find((type) => type.id === occurrenceTypeId)
   const valuesForm = useOccurrenceValues({ products, type: selectedType })
+  /** Spec 317: só o tipo com vagas de foto (a cobrança no recebimento) tem este formulário; os demais seguem como sempre. */
+  const receivingCharge = useReceivingChargeForm({
+    documentIds: params.stop.documents.map((document) => document.id),
+    type: selectedType,
+  })
   const visibility =
     selectedType === undefined
       ? undefined
@@ -121,6 +127,14 @@ export function useOccurrenceRegistrationForm(
         extraPhotos: effectivePhotos.slice(1),
         hasProducts,
         photo: effectivePhotos[0],
+        ...(receivingCharge === undefined
+          ? {}
+          : {
+              receivingCharge: {
+                documentIds: receivingCharge.documentIds,
+                draft: receivingCharge.draft,
+              },
+            }),
         signature: effectiveSignature,
         values: { facts: valuesForm.values.facts, payload: valuesForm.values.payload },
       },
@@ -137,12 +151,19 @@ export function useOccurrenceRegistrationForm(
     return route !== 'blocked'
   }
 
+  const isSlotPhotoReading =
+    receivingCharge !== undefined &&
+    Object.values(receivingCharge.slotPhotoStates).includes('reading')
+
   return {
-    canRegister: canRegisterOccurrence({
-      ...gateFacts,
-      isPhotoReading: photoState === 'reading',
-      type: selectedType,
-    }),
+    canRegister:
+      receivingCharge === undefined
+        ? canRegisterOccurrence({
+            ...gateFacts,
+            isPhotoReading: photoState === 'reading',
+            type: selectedType,
+          })
+        : receivingCharge.missing.length === 0 && !isSlotPhotoReading,
     description,
     handleDescriptionChange: setDescription,
     handleProductsToggle: () => setIsProductsMarked((marked) => !marked),
@@ -152,7 +173,7 @@ export function useOccurrenceRegistrationForm(
     handleTypeSelect: setOccurrenceTypeId,
     hasProducts,
     missingFields:
-      selectedType === undefined
+      selectedType === undefined || receivingCharge !== undefined
         ? []
         : listMissingOccurrenceFields({ ...gateFacts, type: selectedType }),
     photoPreviewUrl: photoPreview.previewUrl,
@@ -163,6 +184,7 @@ export function useOccurrenceRegistrationForm(
       stop: params.stop,
       type: selectedType,
     }),
+    receivingCharge,
     selectedType,
     signature,
     types,

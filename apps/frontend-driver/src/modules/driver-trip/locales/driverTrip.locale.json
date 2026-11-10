@@ -123,6 +123,7 @@
       "occurrence": "Ocorrência",
       "proof": "Comprovante",
       "proofReceiver": "Quem recebeu",
+      "stopOccurrenceCharge": "Cobrança no recebimento (fotos e valor)",
       "stopOccurrencePhoto": "Foto da ocorrência da parada",
       "return": "Devolução"
     },
@@ -695,7 +696,9 @@
     "attachment": {
       "off": "Sem foto",
       "optional": "Foto opcional",
-      "required": "Foto obrigatória"
+      "required": "Foto obrigatória",
+      "slots_one": "1 foto obrigatória",
+      "slots_other": "{{count}} fotos obrigatórias"
     },
     "cancel": "Cancelar",
     "changeType": "Trocar tipo",
@@ -790,7 +793,44 @@
       "title": "Assinatura (opcional)",
       "titleRequired": "Assinatura (obrigatória)"
     },
-    "title": "Registrar ocorrência"
+    "title": "Registrar ocorrência",
+    "receivingCharge": {
+      "amount": "Valor pago",
+      "groupedAmount": "Valor pago (um só para as notas marcadas)",
+      "documents": "Notas da cobrança",
+      "documentsHint": "Marque as notas a que esta cobrança se refere.",
+      "documentNumber": "NF {{number}}",
+      "documentAmount": "Valor pago da NF {{number}}",
+      "mode": "Como registrar",
+      "modeOption": {
+        "one_per_document": "Uma linha por nota",
+        "grouped": "Uma linha para as notas"
+      },
+      "paidBy": "Quem pagou?",
+      "paidByOption": {
+        "driver": "Eu paguei",
+        "company": "A empresa pagou"
+      },
+      "pixKeyType": "Tipo da chave PIX",
+      "pixKeyTypePlaceholder": "Escolha o tipo",
+      "pixKeyTypeOption": {
+        "cpf": "CPF",
+        "cnpj": "CNPJ",
+        "email": "E-mail",
+        "phone": "Celular",
+        "random": "Chave aleatória"
+      },
+      "pixKey": "Sua chave PIX",
+      "pixKeyHint": "O escritório usa esta chave para devolver o que você pagou.",
+      "missing": {
+        "amount": "o valor pago",
+        "documentAmount": "o valor da NF {{number}}",
+        "documents": "as notas da cobrança",
+        "paidBy": "quem pagou",
+        "pix": "o tipo e a chave PIX",
+        "photo": "{{label}}"
+      }
+    }
   },
   "routeOccurrence": {
     "alert": {

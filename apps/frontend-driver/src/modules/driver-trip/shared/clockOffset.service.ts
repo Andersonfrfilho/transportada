@@ -30,6 +30,7 @@ export const CLOCK_FIELD_REPORT_KINDS = [
   'documentOccurrence',
   'occurrence',
   'return',
+  'stopOccurrenceCharge',
   'stopOccurrencePhoto',
 ] as const satisfies readonly DriverFieldReport['kind'][]
 

@@ -107,6 +107,7 @@ describe('a assinatura é parte do mesmo item da ocorrência (T4.2, 209 D1)', ()
     const handlers: OccurrenceRegistrationHandlers = {
       enqueueDocumentOccurrence: (occurrence) =>
         reports.push(buildDocumentOccurrenceReport({ idempotencyKey: 'chave-1', occurrence })),
+      reportReceivingCharge: () => undefined,
       reportStopOccurrence: () => undefined,
     }
     const type: DriverOccurrenceType = {

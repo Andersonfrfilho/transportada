@@ -203,6 +203,7 @@ export function listReportPhotos(report: DriverFieldReport): readonly DriverOccu
       ...(report.signature === undefined ? [] : [report.signature]),
     ]
   }
+  if (report.kind === 'stopOccurrenceCharge') return report.photos.map((entry) => entry.photo)
   return report.kind === 'stopOccurrencePhoto' ? [report.photo] : []
 }
 
@@ -308,7 +309,8 @@ export function withLegacyLocation(report: DriverFieldReport): DriverFieldReport
   if (
     report.kind !== 'dispatch' &&
     report.kind !== 'documentOccurrence' &&
-    report.kind !== 'occurrence'
+    report.kind !== 'occurrence' &&
+    report.kind !== 'stopOccurrenceCharge'
   ) {
     return report
   }

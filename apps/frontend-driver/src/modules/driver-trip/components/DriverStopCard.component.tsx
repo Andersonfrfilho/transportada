@@ -254,6 +254,7 @@ type DriverStopCardProps = Readonly<{
   onDiscardProofAwaitingDelivery: (documentId: string) => void
   onSendAllNow?: () => void
   /** Spec 209 + 218 D2: a ocorrência de parada, com o tipo do catálogo e a foto dela. */
+  onReceivingCharge: OccurrenceRegistrationHandlers['reportReceivingCharge']
   onStopOccurrence: OccurrenceRegistrationHandlers['reportStopOccurrence']
   /** Spec 179: "Não entreguei" — ocorrência com foto e devolução, no mesmo toque. */
   onNotDelivered: (input: {
@@ -316,6 +317,7 @@ export function DriverStopCard({
   onProofFieldsUpdate,
   onRemoveProof,
   onRetryOccurrenceTypes,
+  onReceivingCharge,
   onStopOccurrence,
   onToggle,
   queueView,
@@ -442,6 +444,10 @@ export function DriverStopCard({
     enqueueDocumentOccurrence: (input) => {
       onQueuedDocumentOccurrence(input)
       announce(input.documentId, t('activity.toast.documentOccurrence'))
+    },
+    reportReceivingCharge: (input) => {
+      onReceivingCharge(input)
+      announce(stop.id, t('activity.toast.occurrence'))
     },
     reportStopOccurrence: (input) => {
       onStopOccurrence(input)

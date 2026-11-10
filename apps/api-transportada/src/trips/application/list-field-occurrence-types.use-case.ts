@@ -42,6 +42,7 @@ import type {
 } from '../domain/occurrence-requirements.policy.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
+import type { StopOccurrencePhotoSlot } from '../domain/stop-occurrence-photo-slots.policy.js'
 import { resolveStopOccurrenceKind } from '../domain/stop-occurrence-kind.policy.js'
 
 /**
@@ -87,6 +88,8 @@ export type FieldOccurrenceType = OccurrenceCoreRequirements & {
   readonly flow: OccurrenceTypeFlow
   readonly id: string
   readonly name: string
+  /** Spec 317 (RF8): as vagas de foto do tipo, rotuladas; o app trava o envio sem as `required`. Ausente é sem vagas. */
+  readonly photoSlots?: readonly StopOccurrencePhotoSlot[]
   /**
    * Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa — a prévia do aviso no app
    * lê este campo. Nulo em tipo de nota; tipo de parada sem valor sai `other`, o mesmo que o
@@ -230,6 +233,9 @@ function toFieldOccurrenceType(params: {
     flow: type.flow ?? 'document',
     id: type.id,
     name: type.name,
+    ...(type.photoSlots === undefined || type.photoSlots.length === 0
+      ? {}
+      : { photoSlots: type.photoSlots }),
     referenceNumberLabel: requirements.referenceNumberLabel,
     referenceNumberMode: requirements.referenceNumberMode,
     stopKind: resolveFieldStopKind(type),

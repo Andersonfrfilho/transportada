@@ -40,6 +40,7 @@ export async function discardRejectedQueueItem(input: {
 const CANCELLABLE_QUEUED_KINDS: ReadonlySet<string> = new Set([
   'documentOccurrence',
   'occurrence',
+  'stopOccurrenceCharge',
   'stopOccurrencePhoto',
 ])
 

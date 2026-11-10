@@ -68,6 +68,7 @@ function captureHandlers(queued: DriverFieldReport[]): OccurrenceRegistrationHan
   return {
     enqueueDocumentOccurrence: (occurrence) =>
       queued.push(buildDocumentOccurrenceReport({ idempotencyKey: 'chave-1', occurrence })),
+    reportReceivingCharge: () => undefined,
     reportStopOccurrence: () => undefined,
   }
 }

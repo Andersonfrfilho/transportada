@@ -55,6 +55,7 @@ function buildStopCardProps(overrides: Partial<DriverStopCardProps> = {}) {
     onProof: () => Promise.resolve(true),
     onQueuedDocumentOccurrence: noop,
     onRetryOccurrenceTypes: noop,
+    onReceivingCharge: noop,
     onStopOccurrence: noop,
     onToggle: noop,
     queueView: [],
