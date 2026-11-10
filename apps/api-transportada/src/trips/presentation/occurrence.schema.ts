@@ -41,6 +41,7 @@ import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import {
   OCCURRENCE_DECLARED_AMOUNT_FIELD,
   OCCURRENCE_DECLARED_AMOUNT_SCOPES,
+  OCCURRENCE_MIN_WAIT_MINUTES,
   OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX,
   OCCURRENCE_MOMENTS,
   OCCURRENCE_TYPE_CONTRACTOR_SCOPE_MAX_CONTRACTORS,
@@ -498,6 +499,15 @@ const occurrenceTypeSchema = z
     iconName: z.enum(OCCURRENCE_TYPE_ICON_NAMES).nullable().optional(),
     referenceNumberLabel: requirementLabelSchema.optional(),
     referenceNumberMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    /** Spec 315 (D1, D10): ausente mantém; a espera mínima `null` a limpa. */
+    arrivalTimeMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    locationMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    minWaitAfterArrivalMinutes: z
+      .int()
+      .min(OCCURRENCE_MIN_WAIT_MINUTES.min)
+      .max(OCCURRENCE_MIN_WAIT_MINUTES.max)
+      .nullable()
+      .optional(),
     /**
      * Spec 269 D9: o painel antigo ainda manda o texto antigo do e-mail durante a publicação em etapas. Aceito
      * e descartado antes do mapeador, sem conferir marcador, até a etapa B tirar as chaves.

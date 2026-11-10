@@ -1118,8 +1118,14 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   ) {
     const rows = await this.transaction
       .select({
+        arrivalTimeMode: companyOccurrenceTypes.arrivalTimeMode,
+        attachmentMode: companyOccurrenceTypes.attachmentMode,
         flow: companyOccurrenceTypes.flow,
         id: companyOccurrenceTypes.id,
+        locationMode: companyOccurrenceTypes.locationMode,
+        minWaitAfterArrivalMinutes: companyOccurrenceTypes.minWaitAfterArrivalMinutes,
+        noteMode: companyOccurrenceTypes.noteMode,
+        photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
         stage: companyOccurrenceTypes.stage,
         stopKind: companyOccurrenceTypes.stopKind,
       })
@@ -1139,7 +1145,17 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     })
     if (type === undefined) return null
     if (!occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.stop, type })) return null
-    return { stopKind: type.stopKind }
+    return {
+      requirements: {
+        arrivalTimeMode: type.arrivalTimeMode,
+        attachmentMode: type.attachmentMode,
+        locationMode: type.locationMode,
+        minWaitAfterArrivalMinutes: type.minWaitAfterArrivalMinutes,
+        noteMode: type.noteMode,
+        photoMinimumCount: type.photoMinimumCount,
+      },
+      stopKind: type.stopKind,
+    }
   }
 
   public async recordOccurrence(

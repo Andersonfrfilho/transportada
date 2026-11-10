@@ -10,6 +10,7 @@ import {
   OCCURRENCE_REFERENCE_NUMBER_PATTERN,
   OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH,
   OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS,
+  OCCURRENCE_TYPE_LOCATION_ARRIVAL_DEFAULTS,
   OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
   OCCURRENCE_TYPE_FLOWS,
   OCCURRENCE_TYPE_ICON_NAMES,
@@ -3099,6 +3100,19 @@ export const companyOccurrenceTypes = pgTable(
     })
       .notNull()
       .default(OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS.referenceNumberLabel),
+    /**
+     * Spec 315 (D1, D10): se o registro de parada pede a localização, o horário de chegada (quando a parada
+     * não tem "Cheguei") e a espera mínima depois do "Cheguei". Padrão `'off'`/nulo: nenhum tipo existente muda.
+     */
+    locationMode: varchar('location_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_LOCATION_ARRIVAL_DEFAULTS.locationMode),
+    arrivalTimeMode: varchar('arrival_time_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_LOCATION_ARRIVAL_DEFAULTS.arrivalTimeMode),
+    minWaitAfterArrivalMinutes: smallint('min_wait_after_arrival_minutes'),
     /** Spec 247 (RF1): se o registro pede o valor pago digitado — por item ou pela ocorrência. */
     declaredAmountMode: varchar('declared_amount_mode', { length: 16 })
       .$type<DeliveryProofFieldMode>()
@@ -3273,6 +3287,18 @@ export const companyOccurrenceTypes = pgTable(
     check(
       OCCURRENCE_TYPE_ITEMS_OFF_SHAPE_CHECK,
       sql`${table.itemsMode} <> 'off' or ${table.redeliveryPolicy} = 'unset'`,
+    ),
+    check(
+      'company_occurrence_types_location_mode_check',
+      sql`${table.locationMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_arrival_time_mode_check',
+      sql`${table.arrivalTimeMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_min_wait_check',
+      sql`${table.minWaitAfterArrivalMinutes} is null or (${table.minWaitAfterArrivalMinutes} between 1 and 1440 and ${table.arrivalTimeMode} = 'off')`,
     ),
     check(
       'company_occurrence_types_reference_number_mode_check',

@@ -196,6 +196,9 @@ export type MeTripDependencies = {
     input: DriverContextInput &
       EventClockFields &
       StopOccurrenceReference & {
+        /** Spec 315 (D4, D5): o horário de chegada informado e a confirmação de ordem da chegada gravada junto. */
+        readonly arrivedAt?: Date
+        readonly confirmOutOfOrder?: boolean
         /** Spec 209 RF2: o upload confirmado da foto — `null` é a ocorrência sem foto. */
         readonly attachmentObjectId: string | null
         readonly description: string
@@ -917,7 +920,10 @@ export function createMeTripRoutes(
           driverId,
         })
 
-        return jsonResponse({ body: { data: { id: result.id } }, status: 201 })
+        return jsonResponse({
+          body: { data: { arrivalRecorded: result.arrivalRecorded, id: result.id } },
+          status: 201,
+        })
       },
       method: 'POST',
       async parse({ pathParameters, request }) {

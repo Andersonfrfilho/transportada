@@ -73,6 +73,8 @@ export type TripFieldOfficeTripDependencies = {
   readonly reportOccurrence: (
     input: OfficeContextInput &
       StopOccurrenceReference & {
+        /** Spec 315 (D10): a hora em que o motorista chegou, já validada na forma; a janela é do caso de uso. */
+        readonly arrivedAt?: Date
         readonly description: string
         readonly distanceMeters: number | null
         readonly documentId: string | null
@@ -225,6 +227,7 @@ function createStopOccurrenceRoute(
           correlationId: input.correlationId,
           ipAddress: input.ipAddress,
         }),
+        ...(input.arrivedAt === undefined ? {} : { arrivedAt: input.arrivedAt }),
         description: input.description,
         distanceMeters: input.distanceMeters,
         documentId: input.documentId,
@@ -237,7 +240,10 @@ function createStopOccurrenceRoute(
         target,
       })
 
-      return officeJsonResponse({ body: { data: { id: result.id } }, status: 201 })
+      return officeJsonResponse({
+        body: { data: { arrivalRecorded: result.arrivalRecorded, id: result.id } },
+        status: 201,
+      })
     },
     method: 'POST',
     async parse({ correlationId, pathParameters, request }) {

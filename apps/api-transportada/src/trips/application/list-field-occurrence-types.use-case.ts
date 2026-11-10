@@ -53,6 +53,13 @@ export type FieldOccurrenceType = OccurrenceCoreRequirements & {
   readonly declaredAmountMode: DeliveryProofFieldMode
   readonly declaredAmountScope: OccurrenceDeclaredAmountScope
   readonly iconName: null | OccurrenceTypeIconName
+  /**
+   * Spec 315 (D1, D10): o que o registro de parada pede de horário de chegada e localização, e a espera mínima
+   * depois do "Cheguei" (nulo: sem espera). Só o tipo os declara; nenhuma exceção os muda.
+   */
+  readonly arrivalTimeMode: DeliveryProofFieldMode
+  readonly locationMode: DeliveryProofFieldMode
+  readonly minWaitAfterArrivalMinutes: null | number
   readonly referenceNumberLabel: string
   readonly referenceNumberMode: DeliveryProofFieldMode
   /**
@@ -209,6 +216,9 @@ function toFieldOccurrenceType(params: {
     asksNewDueDate: type.asksNewDueDate === true,
     clientChannel: type.clientChannel ?? CLIENT_CHANNEL_DEFAULT,
     iconName: type.iconName ?? null,
+    arrivalTimeMode: type.arrivalTimeMode ?? 'off',
+    locationMode: type.locationMode ?? 'off',
+    minWaitAfterArrivalMinutes: type.minWaitAfterArrivalMinutes ?? null,
     declaredAmountLabel: requirements.declaredAmountLabel,
     declaredAmountMode: requirements.declaredAmountMode,
     /** O tipo não conhece a nota: só o modo de Produtos conta aqui; a nota sem produto refina no snapshot. */

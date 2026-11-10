@@ -90,6 +90,14 @@ const occurrenceBodySchema = z.object({
   documentId: z.uuid().nullish(),
   /** Spec 196 T3.2: o ponto do toque. Ausente ou `null` é a ocorrência sem ponto. */
   location: locationSchema.nullish(),
+  /**
+   * Spec 315 (D4, D5): o horário em que o motorista chegou, quando a parada não tem "Cheguei". O tipo decide se é
+   * pedido; com chegada já gravada o servidor o descarta. A janela (não no futuro, não antes do despacho) é conferida
+   * no caso de uso.
+   */
+  arrivedAt: z.iso.datetime().optional(),
+  /** Spec 315 (D5): a chegada gravada junto passa pela ordem da parada (spec 294). */
+  ...confirmOutOfOrderField,
 })
 
 /**
@@ -248,7 +256,9 @@ export async function parseDocumentReturnRequest(request: Request): Promise<
 }
 
 export type StopOccurrenceRequest = {
+  readonly arrivedAt?: Date
   readonly attachmentObjectId: string | null
+  readonly confirmOutOfOrder?: boolean
   readonly description: string
   readonly distanceMeters: number | null
   readonly documentId: string | null
@@ -266,6 +276,8 @@ export async function parseStopOccurrenceRequest(request: Request): Promise<Stop
   const body = await parseBody(occurrenceSchema, request)
   const common = {
     ...toEventClock(body),
+    ...toOutOfOrderConfirmation(body),
+    ...(body.arrivedAt === undefined ? {} : { arrivedAt: new Date(body.arrivedAt) }),
     attachmentObjectId: body.attachmentObjectId ?? null,
     description: body.description ?? '',
     /* Ausente e nulo dizem a mesma coisa — não aferida —, e viram o mesmo valor aqui. */

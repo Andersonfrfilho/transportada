@@ -16,6 +16,7 @@ import type {
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type { ArrivalLocationSource } from '../domain/address-arrival-correction.policy.js'
 import type { CorrectedClock } from '../domain/occurred-at.policy.js'
+import type { StopOccurrenceTypeRequirements } from '../domain/stop-occurrence-requirements.policy.js'
 import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
@@ -400,7 +401,11 @@ export type DriverFieldReportTransactionPort = {
   findStopOccurrenceType(input: {
     readonly companyId: string
     readonly occurrenceTypeId: string
-  }): Promise<{ readonly stopKind: TripStopOccurrenceKind | null } | null>
+  }): Promise<{
+    /** Spec 315: o que o tipo cobra do registro de parada. Ausente só nos dublês de teste antigos. */
+    readonly requirements?: StopOccurrenceTypeRequirements
+    readonly stopKind: TripStopOccurrenceKind | null
+  } | null>
   recordOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null

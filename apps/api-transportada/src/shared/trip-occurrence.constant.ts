@@ -246,6 +246,19 @@ export const OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS = {
 } as const
 
 /**
+ * Spec 315 (D1, D6, D10): a localização e o horário de chegada pedidos pelo tipo. Padrão `off`: aplicar a
+ * migration não muda o comportamento de nenhum tipo. `minWaitAfterArrivalMinutes` nulo é sem espera mínima.
+ */
+export const OCCURRENCE_TYPE_LOCATION_ARRIVAL_DEFAULTS = {
+  arrivalTimeMode: OCCURRENCE_ITEMS_MODE.off,
+  locationMode: OCCURRENCE_ITEMS_MODE.off,
+  minWaitAfterArrivalMinutes: null,
+} as const
+
+/** Spec 315 (D10): a espera mínima depois do "Cheguei", em minutos (1 dia no máximo). */
+export const OCCURRENCE_MIN_WAIT_MINUTES = { max: 1440, min: 1 } as const
+
+/**
  * Spec 247 (RF1): o número do documento do cliente (ex.: a NFD) — letras, dígitos, espaço, ponto,
  * barra e hífen, de 1 a 30. Mesma expressão na CHECK (`~`, POSIX) e na validação da API.
  */
