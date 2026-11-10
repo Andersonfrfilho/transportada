@@ -157,3 +157,10 @@ Publicação em etapas (ADR-0081 §9): painel tolerante → API → app. Tudo ad
   Teste: `test/driver-trip/charge-seal-notice.contract.tsx`. App: 2299 pass; painel: 1496 pass.
 - **Prints** (claro/escuro, desktop/celular): `prints/selo-parada-*.png` (app) e `prints/tipo-selo-motorista-*.png` (editor de tipos),
   conferidos contra os vizinhos da mesma tela.
+
+## Etapa 5 — Fechamento (2026-11-10)
+
+- **T15** documentação: seção 5.28 do runbook de produção (`docs/runbooks/producao.md`: ordem de publicação, o que conferir, como limpar a marca, como desligar o tipo; produção intocada) e a seção
+  "Cobrança no recebimento" nos `CLAUDE.md` da API, do painel e do app do motorista. Só texto; nenhum código, migration nem script novo.
+- **T16** publicação em staging: etapas 1 a 4 e T14a já estão em `staging` (PRs #672, #676, #683 e os anteriores), na ordem painel → API → app. **Produção não foi tocada** e só sobe com aprovação do Anderson,
+  por promoção `staging` → `main` (a migration aditiva `20261110194838_receiving_charge_to_settlements` é a primeira coisa a conferir no deploy da API).
