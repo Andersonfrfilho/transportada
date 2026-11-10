@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState, type MouseEvent } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -83,6 +83,11 @@ export function TripTable({
   const formatMoment = useMomentFormatter()
   const [confirming, setConfirming] = useState(false)
   const [closing, setClosing] = useState(false)
+  /** Encerrou tudo: a seleção esvazia e o diálogo fecha sozinho, em vez de ficar em "Encerrar 0 viagens". */
+  const closeableCount = table.closeableSelection.length
+  useEffect(() => {
+    if (closing && closeableCount === 0) setClosing(false)
+  }, [closing, closeableCount])
   const { t: tFleet } = useTranslation('fleet')
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
 

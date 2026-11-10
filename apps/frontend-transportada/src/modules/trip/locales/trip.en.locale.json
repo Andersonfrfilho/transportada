@@ -1976,6 +1976,7 @@
     "clear": "Clear selection",
     "closeTrips": "Close {{count}} trip",
     "closeTrips_other": "Close {{count}} trips",
+    "closeTrips_zero": "Close {{count}} trips",
     "count_one": "{{count}} trip selected",
     "count_other": "{{count}} trips selected",
     "selectAll": "Select every trip on this page that accepts a bulk action",
@@ -2786,7 +2787,8 @@
     "reasonLabel": "Reason for closing",
     "subtitle": "Documents without delivery stay as a pending receipt — closing does not wait for them.",
     "title": "Close {{count}} trip",
-    "title_other": "Close {{count}} trips"
+    "title_other": "Close {{count}} trips",
+    "title_zero": "Close {{count}} trips"
   },
   "proofPdfExport": {
     "planning": "Counting the stubs to split the PDF…",
