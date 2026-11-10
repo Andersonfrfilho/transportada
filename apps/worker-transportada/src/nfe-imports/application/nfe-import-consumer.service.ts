@@ -28,6 +28,8 @@ type PendingImportItem = {
 type PendingImportAggregate = {
   readonly companyCnpj: string
   readonly companyId: string
+  /** CNPJ dos contratantes ativos: o emitente que é contratante torna a nota da empresa mesmo sem o CNPJ dela no XML. */
+  readonly contractorTaxIds?: readonly string[]
   readonly id: string
   readonly items: readonly PendingImportItem[]
   /** Spec 313: CNPJ do contratante a quem o domínio do e-mail pertence; só ele pode ser o emitente. */
@@ -149,6 +151,7 @@ export function createNfeImportConsumer(input: {
           archiveExpander: input.archiveExpander,
           companyCnpj: pendingImport.companyCnpj,
           companyId: pendingImport.companyId,
+          contractorTaxIds: pendingImport.contractorTaxIds ?? [],
           restrictedContractorTaxId: pendingImport.restrictedContractorTaxId,
           finalStorage: input.finalStorage,
           repository: input.repository,
@@ -175,6 +178,7 @@ async function processItem(input: {
   readonly archiveExpander: NfeImportArchiveExpanderPort
   readonly companyCnpj: string
   readonly companyId: string
+  readonly contractorTaxIds: readonly string[]
   readonly finalStorage: NfeImportFinalStoragePort
   readonly repository: NfeImportConsumerRepositoryPort
   readonly restrictedContractorTaxId: string | undefined
@@ -208,6 +212,7 @@ async function processItem(input: {
       !isRelatedToCompany({
         accessKey,
         companyCnpj: input.companyCnpj,
+        contractorTaxIds: input.contractorTaxIds,
         existingDocument,
         normalizedXml,
       })
@@ -341,10 +346,13 @@ function buildSummary(input: {
 function isRelatedToCompany(input: {
   readonly accessKey: string
   readonly companyCnpj: string
+  readonly contractorTaxIds: readonly string[]
   readonly existingDocument: { readonly documentId: string } | null
   readonly normalizedXml: ImportedNfeXml
 }): boolean {
   const companyCnpj = normalizeTaxId(input.companyCnpj)
+  const issuerTaxId = normalizeTaxId(input.accessKey).slice(6, 20)
+  if (input.contractorTaxIds.some((taxId) => normalizeTaxId(taxId) === issuerTaxId)) return true
 
   if (input.normalizedXml.kind === 'nfe-event') {
     return (

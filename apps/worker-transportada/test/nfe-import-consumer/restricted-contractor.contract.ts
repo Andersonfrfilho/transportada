@@ -17,7 +17,10 @@ const IMPORT_ID = '97ba42a6-8b96-47c0-bdb5-b75dfed2f95c'
 const ISSUER_CNPJ = '30290856000160'
 const ACCESS_KEY = `3519073029085600016055001000000001100000001${'0'}`.slice(0, 44)
 
-async function run(restrictedContractorTaxId: string | undefined) {
+async function run(
+  restrictedContractorTaxId: string | undefined,
+  options: { contractorTaxIds?: readonly string[]; relatedCnpjs?: readonly string[] } = {},
+) {
   const calls: string[] = []
   const repository: NfeImportConsumerRepositoryPort = {
     async completeItem(input) {
@@ -47,6 +50,9 @@ async function run(restrictedContractorTaxId: string | undefined) {
             sourceSha256: 'sha-a',
           },
         ],
+        ...(options.contractorTaxIds === undefined
+          ? {}
+          : { contractorTaxIds: options.contractorTaxIds }),
         ...(restrictedContractorTaxId === undefined ? {} : { restrictedContractorTaxId }),
       }
     },
@@ -95,7 +101,7 @@ async function run(restrictedContractorTaxId: string | undefined) {
               statusCode: '100',
             },
             recipient: { name: 'Destinatario', taxId: COMPANY_CNPJ },
-            relatedCnpjs: [COMPANY_CNPJ],
+            relatedCnpjs: options.relatedCnpjs ?? [COMPANY_CNPJ],
             series: '1',
             status: 'authorized',
             totals: { invoice: '10.0000', products: '10.0000' },
@@ -153,5 +159,33 @@ describe('NF-e import restricted to the contractor linked to the sender domain',
   it('imports without restriction when the sender is not tied to a contractor', async () => {
     const { summary } = await run(undefined)
     expect(summary.importedCount).toBe(1)
+  })
+
+  it('accepts a note that does not name the company when the issuer is an active contractor (SEFAZ does not deliver it)', async () => {
+    const { calls, summary } = await run(undefined, {
+      contractorTaxIds: ['30.290.856/0001-60'],
+      relatedCnpjs: ['22844546000161'],
+    })
+    expect(summary.importedCount).toBe(1)
+    expect(calls).toContain('store-document')
+  })
+
+  it('still refuses a note that does not name the company when the issuer is not a contractor', async () => {
+    const { calls, summary } = await run(undefined, {
+      contractorTaxIds: ['05868574001090'],
+      relatedCnpjs: ['22844546000161'],
+    })
+    expect(summary.rejectedCount).toBe(1)
+    expect(calls).toContain('complete:rejected:NFE_IMPORT_UNRELATED_CNPJ')
+    expect(calls).not.toContain('store-document')
+  })
+
+  it('keeps holding the note to the linked contractor even when the issuer is another contractor', async () => {
+    const { calls, summary } = await run('05868574001090', {
+      contractorTaxIds: ['30290856000160', '05868574001090'],
+      relatedCnpjs: ['22844546000161'],
+    })
+    expect(summary.rejectedCount).toBe(1)
+    expect(calls).toContain('complete:rejected:NFE_IMPORT_ISSUER_NOT_CONTRACTOR')
   })
 })
