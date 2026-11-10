@@ -56,6 +56,14 @@ o elemento tocado é comparado com os vizinhos da mesma tela (campo com campo, b
 contraste é conferido no estado normal e no selecionado, e um print vai para o usuário como prova.
 Primitivo cru ao lado de um do design system é defeito da tarefa, não pendência de outra.
 
+⚠️ **A revisão é antes do PR, não depois do relato do usuário.** Bloco novo de formulário (spec 313: o
+"E-mails liberados a enviar XML" saiu com `<input>` sem altura, rótulo colado e seletor compacto ao lado
+de campo cheio, e o Anderson achou em produção) segue o formulário vizinho: `<label>` em grade com o
+rótulo em `<span>` em cima, campo com `--field-height`/`--field-padding`, e o `SearchableSelect`
+(compacto de fábrica) fechado na altura do campo com CSS do módulo. O print em tema **claro e escuro**,
+**desktop (1440) e celular (375)** é conferido por quem escreve — com o smoke do módulo e
+`VITE_SMOKE_AUTH_BYPASS=true` — e anexado à entrega, antes de abrir o PR.
+
 ## Fronteira entre módulos
 
 Um módulo que precisa de uma ação de outro módulo importa **só o componente de ação autocontido**
