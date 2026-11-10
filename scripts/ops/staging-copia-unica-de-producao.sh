@@ -81,7 +81,7 @@ async function run() {
 }
 function anonymize() {
   let n = 0
-  for (const r of tables.contractor_contacts || []) { n++; r.email = 'unica-contato-' + n + '@example.invalid'; r.phone = null; r.name = 'Contato Teste ' + n }
+  for (const r of tables.contractor_contacts || []) { n++; r.email = 'unica-contato-' + n + '@example.invalid'; r.phone = null; r.name = 'Contato Teste ' + n; r.whatsapp_opt_in_at = null; r.whatsapp_opt_in_by_user_id = null; r.preferred_channel = 'email' }
   for (const r of tables.nfe_documents || []) { r.recipient_email = null; r.additional_information = null }
   const fake = new Set()
   let m = 0
