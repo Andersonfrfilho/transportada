@@ -13,7 +13,7 @@ Modelo por etapa (regra do projeto): o coordenador abre cada etapa numa thread c
 - [ ] T4 Política `stop-occurrence-photo-slots.policy.ts` e leitura das vagas no registro.
 - [ ] T5 `report-stop-occurrence`: transação com fotos, linha `receiving_charge`, marca do cliente; remover a sugestão `onDelivered` para o tipo (E10).
 - [ ] T5a Modo por nota/agrupada: linhas, `delivery_charge_documents`, idempotência por (parada, nota).
-- [ ] T5b Pagamento ao motorista (E13): tabela, rota, bloqueio `409` na resolução.
+- [ ] T5b Comprovante do PIX opcional ao concluir (E13): colunas, anexo, envio ao motorista no chat da ocorrência; concluir nunca bloqueia.
 - [ ] T6 Relatório de Ressarcimentos com `photos[]`; rota para limpar a marca (`delivery.manage`).
 - [ ] T7 Validação do tipo recusa `emailsContractor` ligado em `unexpected_charge`.
 - [ ] T8 Adicionar os arquivos de teste novos à lista do `package.json` da API.
@@ -21,12 +21,12 @@ Modelo por etapa (regra do projeto): o coordenador abre cada etapa numa thread c
 ## Etapa 3 — Painel · Modelo: padrão do projeto
 
 - [ ] T9 Ressarcimentos: fotos rotuladas e link da ocorrência; locale; componentes do design system.
-- [ ] T10 Ficha/lista do cliente: selo "Possível cobrança na entrega" e ação de limpar; PIX do motorista na linha de Ressarcimentos (`trip.financials`); tela de registrar o pagamento ao motorista na resolução.
+- [ ] T10 Ficha/lista do cliente: selo "Possível cobrança na entrega" e ação de limpar; PIX do motorista na linha de Ressarcimentos (`trip.financials`); campo opcional do comprovante do PIX na tela de concluir.
 - [ ] T11 Prints claro/escuro, desktop/celular, comparados a outra tela do painel.
 
 ## Etapa 4 — App do motorista · Modelo: padrão do projeto
 
-- [ ] T12 Formulário: valor, escopo (uma nota/todas), quem pagou e PIX, vagas de foto rotuladas, travando o envio sem as duas.
+- [ ] T12 Formulário: valor, modo (por nota/agrupada), quem pagou e PIX, vagas de foto rotuladas, travando o envio sem as duas.
 - [ ] T13 Fila com `slotKey` e mensagem do que falta.
 - [ ] T14a Selo somente leitura no cartão da parada do motorista, só se `show_client_charge_seal_to_driver`; interruptor no editor de tipos (painel).
 - [ ] T14 Contrato de paridade da exigência (lê do servidor) e prints.

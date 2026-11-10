@@ -28,8 +28,8 @@ O negócio confirmou (Anderson, 10/11/2026) o desenho abaixo. Resultado:
   não vai direto à contratante" é comum, e aqui vale apenas para a cobrança no recebimento.
 - Gerar o lote/fatura ao contratante a partir da linha: continua o fluxo de Ressarcimentos já existente
   (spec 164), sem mudança.
-- Executar o PIX ao motorista pelo sistema: o PIX é **coletado, mostrado e o pagamento é registrado**
-  pelo atendente para concluir a ocorrência (E11, E13); quem faz a transferência é o atendente fora do
+- Executar o PIX ao motorista pelo sistema: o PIX é **coletado e mostrado**
+  e o comprovante, se o atendente enviar, chega ao motorista (E11, E13); quem faz a transferência é o atendente fora do
   sistema. A página de acertos cobra apenas a contratante (E12).
 - Reconhecer o valor por OCR do comprovante.
 - Tipos de **nota** (galpão/rua): continuam com a foto sem rótulo da 161/246.
@@ -103,13 +103,13 @@ O negócio confirmou (Anderson, 10/11/2026) o desenho abaixo. Resultado:
 - E12. **Só a contratante é cobrada na página existente** (decisão do Anderson, 10/11): a linha
   `receiving_charge` entra no mesmo fluxo de lote/cobrança da 164. O motorista **não** é cobrado nem
   ressarcido por esta página.
-- E13. **O atendente conclui pagando o motorista por PIX** (decisão do Anderson, 10/11; leitura desta
-  spec, a confirmar na revisão): quando `paid_by = driver`, a ocorrência só pode ser **resolvida**
-  (spec 266, `occurrences.resolve`) depois de o atendente registrar o pagamento ao motorista:
-  `trip_stop_occurrence_driver_payouts` (`stop_occurrence_id` único, `paid_at`, `amount`, snapshot da
-  chave PIX, `receipt_object_id` opcional, `recorded_by_user_id`). Sem o registro a resolução responde
-  `409 STOP_OCCURRENCE_DRIVER_PAYOUT_REQUIRED`. Com `paid_by = company` nada muda. O registro não move
-  dinheiro: é o aceite de que o PIX foi feito.
+- E13. **O atendente conclui a ocorrência e, se quiser, envia o comprovante do PIX ao motorista**
+  (decisão do Anderson, 10/11). Concluir **não é bloqueado**: marcar como concluída (spec 266,
+  `occurrences.resolve`) funciona com ou sem comprovante. Quando `paid_by = driver`, a tela de concluir
+  mostra o valor e o PIX do motorista e oferece o campo **opcional** "Comprovante do PIX": se anexado,
+  é guardado em `trip_stop_occurrences.driver_payout_receipt_object_id` (com `driver_payout_sent_at` e
+  `driver_payout_sent_by_user_id`) e **enviado ao motorista** no chat da ocorrência (a conversa da 183
+  que o motorista já lê pela 266), com o aviso de sempre. O sistema não executa o PIX.
 
 ## Histórias priorizadas
 
@@ -146,12 +146,12 @@ no lote ao contratante quando o escritório a incluir (fluxo da 164).
 **Then** o formulário pede a chave PIX dele (pré-preenchida se cadastrada), e o escritório vê o PIX
 na linha de Ressarcimentos; se a empresa pagou, o PIX não é pedido.
 
-### P1 — O atendente conclui com o PIX ao motorista
+### P1 — O atendente conclui e pode enviar o comprovante do PIX
 
 **Given** uma cobrança paga pelo motorista
 **When** o atendente vai resolver a ocorrência
-**Then** a tela mostra o valor e o PIX do motorista e só conclui depois de registrar o pagamento
-(data, valor e comprovante opcional).
+**Then** a tela mostra o valor e o PIX do motorista, deixa concluir a qualquer momento e oferece anexar
+o comprovante do PIX (opcional), que chega ao motorista no chat da ocorrência.
 
 ### P2 — O cliente fica marcado
 
@@ -173,13 +173,13 @@ escritório limpa.
   `receiving_charge`; `delivery_charges` ganha `stop_occurrence_id` (FK, nulo, único parcial) e
   `grouped_documents`; tabela `delivery_charge_documents`; CHECK que amarra `receiving_charge`,
   `stop_occurrence_id`, `origin = 'occurrence'` e (`trip_document_id` não nulo ou `grouped_documents`);
-  tabela `trip_stop_occurrence_driver_payouts`; `company_occurrence_types.show_client_charge_seal_to_driver`;
+  colunas `driver_payout_receipt_object_id`, `driver_payout_sent_at` e `driver_payout_sent_by_user_id` em `trip_stop_occurrences`; `company_occurrence_types.show_client_charge_seal_to_driver`;
   `trip_stop_occurrences` ganha `declared_amount`, `paid_by`, `driver_pix_key` e `driver_pix_key_type`
   (PIX obrigatório com `paid_by = driver`); tabelas `company_occurrence_type_photo_slots` e
   `trip_stop_occurrence_photos`; colunas da marca em `delivery_clients`.
-- RF12. A resolução de ocorrência de parada com `paid_by = driver` exige o registro de pagamento (E13),
-  em rota própria (`POST /trip-occurrences/stop/:id/driver-payout`, `occurrences.resolve`) e com a
-  chave PIX visível só a `trip.financials`.
+- RF12. Ao concluir ocorrência de parada com `paid_by = driver`, o comprovante do PIX é **opcional**
+  (`driver_payout_receipt_object_id`): sem ele a conclusão funciona igual; com ele, é enviado ao
+  motorista no chat da ocorrência. A chave PIX fica visível só a `trip.financials`.
 - RF13. O editor de tipos grava `show_client_charge_seal_to_driver`; o app do motorista lê o valor do
   servidor (RF8) e esconde o aviso quando desligado.
 - RF2. Semeadura por empresa: vagas `charge_sign` e `payment_receipt` (ambas `required`) para o tipo de
@@ -243,9 +243,6 @@ escritório limpa.
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: E13 é leitura nossa de "o atendente, para concluir, conclui com o PIX ao
-  motorista": registrar o pagamento ao motorista é pré-requisito para resolver a ocorrência. Confirmar
-  se é isso ou se basta mostrar o PIX.]
-
-Respondidas pelo Anderson em 10/11/2026: uma linha por nota ou agrupada (E4), selo ao motorista
-configurável (E7), só a contratante na página de acertos (E12).
+Nenhuma aberta. Respondidas pelo Anderson em 10/11/2026: uma linha por nota ou agrupada (E4), selo ao
+motorista configurável (E7), só a contratante na página de acertos (E12), comprovante do PIX opcional
+ao concluir (E13).
