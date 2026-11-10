@@ -101,8 +101,8 @@ canhoto chega.
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: **Mudança de modelo.** Como uma nota entregue não pode ser solta (T0 §1), "liberar a nota para outra viagem"
-  vira uma **coleta de canhoto** ligada à viagem nova, e não a nota inteira em duas viagens. Confirma? (A alternativa é relaxar a
-  trava de nota entregue, que afeta relatórios, portal e score.)]
-- Assumidas pelas recomendações, a confirmar: a coleta também não avisa a contratante; motorista e escritório registram; o escritório
-  escolhe a viagem; a SPANI exigir o canhoto para pagar fica fora (fase 2); alerta de prazo na fase 2.
+Decidido pelo Anderson em 10/11/2026: **opção A**. A "liberação" da nota é uma coleta de canhoto ligada à viagem nova (D4), e
+não a nota entregue solta.
+
+Assumidas pelas recomendações, a confirmar: a coleta também não avisa a contratante; motorista e escritório registram; o escritório
+escolhe a viagem; a SPANI exigir o canhoto para pagar fica fora (fase 2); alerta de prazo na fase 2.
