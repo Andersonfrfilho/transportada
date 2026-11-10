@@ -10,6 +10,9 @@ Tudo vai para `staging`; nada para `main` sem aprovação (a feature não é bug
       cobrança de foto/observação da parada (T4) sobe em PR separado. — Modelo: sonnet
 - [ ] **T2** [contrato primeiro] Migration `location_mode`/`arrival_time_mode` + rollback + CHECKs + schema Drizzle + asserção de
       migration (modelo `occurrence-declared-amount.*`). — Modelo: sonnet
+- [ ] **T2b** [contrato primeiro] Coluna `min_wait_after_arrival_minutes` (D10) na mesma migration da T2 + CHECK com `arrival_time_mode`;
+      política de espera mínima (`availableAt`), bloqueio no `reportStopOccurrence`, `serverNow`/`availableAt` no snapshot. —
+      Modelo: opus
 - [ ] **T3** [contrato primeiro] Política pura `occurrence-arrival-time.policy.ts` e guarda: `locationMode`/`arrivalTimeMode` em
       `resolveOccurrenceRequirements`, erros novos, tabela de casos (D3–D6). — Modelo: opus
 - [ ] **T4** [contrato primeiro] `reportStopOccurrence`: guarda de foto/observação/localização/horário, chegada na mesma
@@ -20,12 +23,14 @@ Tudo vai para `staging`; nada para `main` sem aprovação (a feature não é bug
 - [ ] **T6** Painel: tipos e validação tolerantes (primeiro), depois seletores **Localização** e **Horário de chegada** na aba
       Tipos usando o seletor padrão de modo; locale; prints claro/escuro, desktop/celular comparados com outra tela. —
       Modelo: sonnet
+- [ ] **T7b** App: tipo bloqueado com contador regressivo (relógio do servidor) e mensagem "marque Cheguei primeiro"; prints. —
+      Modelo: sonnet
 - [ ] **T7** App do motorista: modos no resolvedor espelhado (contrato de paridade), campos faltantes, rascunho, componentes
       `OccurrenceLocationField` e `OccurrenceArrivalTimeField` (design system do app), montagem do `arrivedAt` com virada de
       dia, fila só com ponto capturado, diálogo de ordem da parada; prints. — Modelo: sonnet
 - [ ] **T8** Contrato de paridade do `resolveOccurrenceRequirements` nas três apps com os dois campos. — Modelo: sonnet
-- [ ] **T9** (opcional) WhatsApp: o bot responde "este tipo precisa ser registrado pelo app" quando o servidor recusa por
-      localização/horário. Só se a leitura do código do bot confirmar o 422 chegando confuso. — Modelo: sonnet
+- [ ] **T9** WhatsApp: o bot traduz os 422 (localização, horário, espera mínima) em "este tipo precisa ser registrado pelo
+      app" ou "só abre às HH:mm" (usa `availableAt`). — Modelo: sonnet
 - [ ] **T10** Documentação: `apps/api-transportada/CLAUDE.md` e `docs/ai-context/api-transportada.md` (contrato), CLAUDE.md da
       raiz (parágrafo curto), runbook § de staging; `evidence.md` da spec. — Modelo: sonnet
 - [ ] **T11** Publicação em staging na ordem D9 (painel → API → app) e **só então** o script de configuração dos tipos (thread

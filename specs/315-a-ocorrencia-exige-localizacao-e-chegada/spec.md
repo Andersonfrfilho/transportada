@@ -71,6 +71,17 @@ parada.
   e snapshot) → app do motorista (tela). Como o default é `off`, **nenhum tipo passa a exigir antes do app novo estar no
   aparelho**: o script de configuração da staging é o último passo, e a `main` só recebe depois de o app estar publicado.
 
+- **D10 — Espera mínima depois do "Cheguei" (pedido do Anderson, 10/11/2026).** O tipo ganha
+  `min_wait_after_arrival_minutes` (`smallint NULL`, 1..1440; nulo = sem espera mínima; "Espera longa" recebe 30 pela
+  configuração). O servidor só aceita o registro depois de `arrived_at + N minutos`, lido na transação; antes disso responde
+  `422 TRIP_OCCURRENCE_MIN_WAIT_NOT_REACHED` com `availableAt` (ISO). **Sem chegada marcada o tipo fica bloqueado** — e aqui o
+  horário informado (D4) **não** destrava: a espera conta do toque, ou do horário informado que a ocorrência anterior da parada
+  tenha gravado, nunca de uma hora digitada na própria ocorrência. Por isso `min_wait_after_arrival_minutes` não nulo
+  **dispensa** o `arrival_time_mode` do mesmo tipo (CHECK: `min_wait_after_arrival_minutes is null or arrival_time_mode =
+'off'`). O app mostra o contador regressivo no tipo bloqueado ("Disponível às 14:50 · faltam 12 min"), calculado com o
+  relógio do servidor (`serverNow` do snapshot, não o do aparelho). O WhatsApp passa a ser bloqueado pelo mesmo servidor; a
+  mensagem do bot é trabalho separado (§ WhatsApp).
+
 ## Histórias priorizadas
 
 ### P1 — O operador declara a exigência no tipo
@@ -90,6 +101,12 @@ antigo mandar sem ponto, o servidor responde `422 TRIP_OCCURRENCE_LOCATION_REQUI
 **Given** uma parada sem chegada marcada e um tipo com horário de chegada obrigatório **When** o motorista registra a ocorrência
 informando `14:20` **Then** a ocorrência e a chegada da parada (14:20, gravada agora) nascem na mesma transação, e a parada passa
 a "chegou". **Given** a parada já marcada como chegada **Then** o app nem mostra o campo, e o servidor descarta o horário se ele vier.
+
+### P1 — "Espera longa" só abre 30 minutos depois do "Cheguei"
+
+**Given** o tipo com espera mínima de 30 min **When** o motorista ainda não marcou "Cheguei", ou marcou há 12 min **Then** o tipo
+aparece bloqueado com o contador (ou "marque Cheguei primeiro"), e o servidor responde `422
+TRIP_OCCURRENCE_MIN_WAIT_NOT_REACHED` se o registro chegar assim mesmo.
 
 ### P2 — O servidor cobra foto e observação na parada
 
@@ -116,6 +133,8 @@ auditoria registra a hora informada.
   estados igual ao de Observação), sem estilo próprio.
 - **RF7** O app do motorista mostra os campos Localização e Horário de chegada na tela de registro, bloqueia o envio até o que
   é obrigatório estar pronto, e manda `location` e `arrivedAt` no corpo.
+- **RF9** Coluna `min_wait_after_arrival_minutes` (D10): migration junto da T2, escrita/leitura no tipo, snapshot com `serverNow`
+  e `availableAt` por tipo e parada, bloqueio no servidor e contador no app.
 - **RF8** A mensagem de erro de cada código é uma frase em português no catálogo de erros da API e no `locale.json` do app.
 
 ## Requisitos não funcionais
@@ -146,8 +165,8 @@ O grupo registra ocorrência pelo caminho por nota (`whatsapp-occurrence-draft-c
 ocorrência de parada nem localização. Com D2, o tipo que exige localização **já é recusado pelo servidor** se o bot tentar
 registrá-lo (sem ponto). O que falta para o bot cumprir: (1) ler `locationMessage` do Evolution e tratá-la como o ponto;
 (2) perguntar "que horas você chegou?" quando o horário é obrigatório e a parada não tem chegada; (3) até lá, o bot deve
-responder "este tipo precisa ser registrado pelo app" em vez de tentar. O item (3) é a única parte pequena; entra como T9,
-opcional, e só se a leitura do código do bot confirmar que o erro 422 hoje chega ao motorista como mensagem confusa.
+responder "este tipo precisa ser registrado pelo app" em vez de tentar. O item (3) entra como T9 (agora obrigatório, pelo bloqueio da espera mínima): o bot traduz os 422 de localização, horário e
+espera mínima, dizendo quando o tipo abre.
 
 ## Critérios de aceite
 
@@ -157,6 +176,20 @@ opcional, e só se a leitura do código do bot confirmar que o erro 422 hoje che
 - **CA03** O contrato espelhado de `resolveOccurrenceRequirements` passa nas três apps com os dois campos.
 - **CA04** Prints do painel e do app (claro/escuro, desktop/celular) em `prints/`, lado a lado com tela de referência.
 - **CA05** Em staging, "Local fechado" configurado pelo script sibling recusa sem ponto e grava a chegada com o horário.
+
+## Pedidos do mesmo dia que ficam em spec separada
+
+Anotados aqui para não se perderem; nenhum deles bloqueia a 315.
+
+- **Cobrança no recebimento com duas fotos distintas** (placa da cobrança e comprovante de pagamento). A 315/D7 já cobra o
+  mínimo de fotos do tipo (`photo_minimum_count = 2`), mas **não distingue qual é qual**: é preciso foto com papel/rótulo
+  (`placa`, `comprovante`) por tipo. Spec própria.
+- **Cobrança vai para a página de ressarcimentos e para a Spani.** Ligar a ocorrência de parada ao ressarcimento (hoje só a
+  sugestão de cobrança por nota, spec 060 D4c) e o envio direto à Spani é spec própria. Nenhum outro tipo vai direto à Spani.
+- **"Endereço incorreto" vai ao vendedor, com chat com o vendedor do cliente** (WhatsApp e e-mail). Exige cadastro de vendedor
+  por cliente e canal de conversa novo; spec própria. A 315 só entrega o tipo com localização, observação e horário.
+- **Mensagem do bot de WhatsApp para tipo bloqueado** ("só abre às 14:50"): depende de D10 estar no servidor; é a T9, agora com
+  escopo fixo e não mais opcional.
 
 ## Dúvidas
 
