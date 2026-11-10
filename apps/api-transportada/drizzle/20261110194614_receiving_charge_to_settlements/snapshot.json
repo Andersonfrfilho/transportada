@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "39d6c0bd-023a-4616-964b-42793bf1145d",
+  "id": "5d9f752c-4823-4dde-9f49-cbee99fd5a54",
   "prevIds": [
-    "8773f5f7-576d-4acc-82a8-3075140a0e84"
+    "7d70674c-2c47-443d-abee-3a744f38990f"
   ],
   "ddl": [
     {
@@ -573,6 +573,18 @@
     {
       "isRlsEnabled": false,
       "name": "company_location_retention_settings",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "company_field_report_hold_settings",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "trip_field_report_holds",
       "entityType": "tables",
       "schema": "public"
     },
@@ -17104,6 +17116,292 @@
       "entityType": "columns",
       "schema": "public",
       "table": "company_location_retention_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_field_report_hold_settings"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "hold_enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_field_report_hold_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_field_report_hold_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_field_report_hold_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_field_report_hold_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "idempotency_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "operation",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "actor_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "trip_document_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "stop_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "payload",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tapped_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "occurred_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "received_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'held'",
+      "generated": null,
+      "identity": null,
+      "name": "state",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "probable_duplicate_of",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "decided_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "decided_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "decision_reason",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "released_result_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_field_report_holds"
     },
     {
       "type": "uuid",
@@ -48570,6 +48868,41 @@
           "opclass": null
         },
         {
+          "value": "state",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "received_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_field_report_holds_company_state_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
           "value": "state_ibge_code",
           "isExpression": false,
           "asc": true,
@@ -57868,6 +58201,78 @@
       ],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
+      "name": "company_field_report_hold_settings_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "company_field_report_hold_settings"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_field_report_holds_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "actor_user_id",
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user_company_memberships",
+      "columnsTo": [
+        "user_id",
+        "company_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_field_report_holds_actor_membership_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "trip_document_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "trip_documents",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_field_report_holds_company_document_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "company_business_calendar_settings_company_id_companies_id_fk",
       "entityType": "fks",
       "schema": "public",
@@ -66729,6 +67134,26 @@
         "company_id"
       ],
       "nameExplicit": false,
+      "name": "company_field_report_hold_settings_pkey",
+      "schema": "public",
+      "table": "company_field_report_hold_settings",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "trip_field_report_holds_pkey",
+      "schema": "public",
+      "table": "trip_field_report_holds",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "company_id"
+      ],
+      "nameExplicit": false,
       "name": "company_business_calendar_settings_pkey",
       "schema": "public",
       "table": "company_business_calendar_settings",
@@ -69745,6 +70170,18 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "energy_tariff_references"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "idempotency_key"
+      ],
+      "nullsNotDistinct": false,
+      "name": "trip_field_report_holds_company_key_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "trip_field_report_holds"
     },
     {
       "nameExplicit": true,
@@ -75163,6 +75600,27 @@
       "entityType": "checks",
       "schema": "public",
       "table": "company_location_retention_settings"
+    },
+    {
+      "value": "length(\"idempotency_key\") > 0",
+      "name": "trip_field_report_holds_key_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "value": "\"state\" in ('held', 'released', 'discarded')",
+      "name": "trip_field_report_holds_state_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_field_report_holds"
+    },
+    {
+      "value": "(\"state\" = 'held') = (\"decided_at\" is null)",
+      "name": "trip_field_report_holds_decision_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_field_report_holds"
     },
     {
       "value": "\"city_ibge_code\" ~ '^[1-5][0-9]{6}$'",
