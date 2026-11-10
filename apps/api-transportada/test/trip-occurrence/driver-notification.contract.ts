@@ -32,7 +32,10 @@ const BETO = '00000000-0000-4000-8000-0000000000b1'
 const CARLA = '00000000-0000-4000-8000-0000000000c9'
 const LEGACY_TEMPLATE = 'trip.delivery-occurrence'
 
-function readPort(type: { readonly emailTemplateKey: null | string }) {
+function readPort(type: {
+  readonly blocksContractorNotice?: boolean
+  readonly emailTemplateKey: null | string
+}) {
   return {
     async findConfirmedUpload() {
       return null
@@ -42,6 +45,9 @@ function readPort(type: { readonly emailTemplateKey: null | string }) {
         active: true,
         allowsMultipleItems: true,
         attachmentMode: 'off' as const,
+        ...(type.blocksContractorNotice === undefined
+          ? {}
+          : { blocksContractorNotice: type.blocksContractorNotice }),
         emailTemplateKey: type.emailTemplateKey,
         id: TIPO,
         name: 'Cliente ausente',
@@ -64,6 +70,7 @@ function readPort(type: { readonly emailTemplateKey: null | string }) {
 }
 
 function registrar(input: {
+  readonly blocksContractorNotice?: boolean
   readonly channel?: (typeof TRIP_FIELD_CHANNELS)[keyof typeof TRIP_FIELD_CHANNELS]
   readonly emailTemplateKey?: null | string
   readonly notify: (call: DriverOccurrenceNotification) => Promise<void>
@@ -93,7 +100,12 @@ function registrar(input: {
     notifier: { notify: input.notify },
     occurrenceTypeId: TIPO,
     productCode: '',
-    repository: readPort({ emailTemplateKey: input.emailTemplateKey ?? null }),
+    repository: readPort({
+      ...(input.blocksContractorNotice === undefined
+        ? {}
+        : { blocksContractorNotice: input.blocksContractorNotice }),
+      emailTemplateKey: input.emailTemplateKey ?? null,
+    }),
     unitOfWork: createFieldReportUnitOfWork(state),
   })
 }
@@ -114,6 +126,15 @@ describe('o registro do motorista avisa o painel (spec 275)', () => {
         tripId: TRIP,
       },
     ])
+  })
+
+  test('spec 321 (CA02): o tipo que nunca avisa a contratante ainda avisa a equipe interna', async () => {
+    const calls: DriverOccurrenceNotification[] = []
+    await registrar({
+      blocksContractorNotice: true,
+      notify: async (call) => void calls.push(call),
+    })
+    expect(calls.map((call) => call.templateKey)).toEqual([LEGACY_TEMPLATE])
   })
 
   test('o template do tipo vence o legado', async () => {

@@ -24,6 +24,7 @@ import {
   type ContractorOccurrenceGroupFailure,
   type ContractorOccurrenceGroupValues,
 } from '../domain/contractor-occurrence-group.policy.js'
+import { occurrenceTypeNeverNotifiesContractor } from '../../trips/domain/occurrence-contractor-notice.policy.js'
 import { resolveOccurrenceRecipients } from '../domain/occurrence-contractor-recipients.policy.js'
 import { ContractorReplyWhatsAppSendError } from './forward-contractor-reply-by-whatsapp.port.js'
 import type { SendOccurrenceMailUseCase } from './send-occurrence-mail.use-case.js'
@@ -37,6 +38,11 @@ export type AutomaticOccurrenceMailRecipient = {
 }
 
 export type AutomaticOccurrenceMailPlan = {
+  /**
+   * Spec 321 (D2): o tipo nunca avisa a contratante — nem e-mail, nem grupo da 318. Ausente vale `false` (dublê de
+   * teste); a leitura real sempre traz.
+   */
+  readonly blocksContractorNotice?: boolean
   /** Spec 271 (D13): os destinatários escolhidos no tipo; vazio é o `To` automático da etapa. */
   readonly chosenContactIds: readonly string[]
   readonly emailsContractor: boolean
@@ -119,6 +125,7 @@ export type AutomaticOccurrenceMailEmailResult =
   | {
       readonly outcome: 'skipped'
       readonly reason:
+        | 'contractor_notice_blocked'
         | 'mail_not_ready'
         | 'no_recipient'
         | 'no_template_selected'
@@ -311,6 +318,10 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
     async send(input: SendInput): Promise<AutomaticOccurrenceMailResult> {
       const plan = await dependencies.reader.findPlan(input)
       if (plan === null) return { outcome: 'skipped', reason: 'not_document' }
+      /** Spec 321 (D2): antes de qualquer canal, inclusive o grupo — a marca vence `emails_contractor`. */
+      if (occurrenceTypeNeverNotifiesContractor(plan)) {
+        return { outcome: 'skipped', reason: 'contractor_notice_blocked' }
+      }
       if (!plan.emailsContractor) return { outcome: 'skipped', reason: 'type_off' }
       const channel = plan.groupChannel ?? null
       if (channel !== null && dependencies.group !== undefined) {

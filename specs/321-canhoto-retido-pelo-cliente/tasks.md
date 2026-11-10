@@ -5,7 +5,7 @@ nada para `main` (não é bug crítico). **Nenhuma task começa com `[NEEDS CLAR
 
 - [x] **T0** Só leitura: casamento do canhoto, estado da nota, pontos de soma de carga, leitores do aviso à contratante, marcador.
       Resultado em `evidence.md`. — Modelo: sonnet
-- [ ] **T1** [contrato primeiro] Colunas `blocks_contractor_notice` e `counts_cargo_on_pickup_trip` (migration, rollback, schema,
+- [x] **T1** [contrato primeiro] Colunas `blocks_contractor_notice` e `counts_cargo_on_pickup_trip` (migration, rollback, schema,
       `PUT/GET occurrence-types`, cadastro recusa `true` de carga) e `occurrenceTypeNeverNotifiesContractor` nos quatro pontos de
       aviso; testes CA01 e CA02. — Modelo: opus
 - [ ] **T2** [contrato primeiro] Tabela `trip_canhoto_pickups` + registro (ocorrência e coleta na mesma transação) + `until_resolved` + CHECK de entregue intacto (CA03). — Modelo: opus

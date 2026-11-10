@@ -33,6 +33,9 @@ type PendingRow = Readonly<{ company_id: string; occurrence_id: string }>
  * pula (`no_template_selected`, sem gravar idempotência), e o varredor a repetiria a cada batida; a fila só pede
  * ocorrência que o envio pode atender.
  *
+ * Spec 321 (D2): tipo com `blocks_contractor_notice` nunca entra na fila, nem com `emails_contractor` ligado — é a cópia
+ * por valor da `occurrenceTypeNeverNotifiesContractor` da API (contrato `contractor-notice-block.contract.ts`).
+ *
  * Só as registradas depois da escolha (decisão de 2026-10-17): vale o carimbo da escolha da chave no tipo, o mesmo
  * critério da API (`registered_before_template`).
  */
@@ -56,6 +59,7 @@ export function createDrizzleOccurrenceAutomaticMailQueue(
           on t."id" = o."occurrence_type_id" and t."company_id" = o."company_id"
         join trip_documents d on d."id" = o."trip_document_id" and d."company_id" = o."company_id"
         where t."emails_contractor" = true
+          and t."blocks_contractor_notice" = false
           and o."stage" in ('delivery', 'separation')
           and o."cancelled_at" is null
           and o."created_at" <= ${params.createdBefore.toISOString()}::timestamptz

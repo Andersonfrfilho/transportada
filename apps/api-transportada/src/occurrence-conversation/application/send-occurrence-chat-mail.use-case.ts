@@ -11,6 +11,7 @@
  */
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { occurrenceTypeNeverNotifiesContractor } from '../../trips/domain/occurrence-contractor-notice.policy.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { buildChatMailSubject } from '../domain/occurrence-chat-mail-subject.policy.js'
 import { resolveOccurrenceRecipients } from '../domain/occurrence-contractor-recipients.policy.js'
@@ -23,6 +24,7 @@ import {
   OccurrenceChatMailNoRecipientsError,
   OccurrenceChatMailNotConfiguredError,
   OccurrenceChatMailTooLargeError,
+  OccurrenceContractorNoticeBlockedError,
   OccurrenceConversationContractorUnknownError,
   OccurrenceConversationMailInvalidError,
 } from '../domain/occurrence-conversation.error.js'
@@ -199,6 +201,10 @@ async function executeChatSend(params: {
   if (target.contractorId === null) throw new OccurrenceConversationContractorUnknownError()
   const { contractorId } = target
   const isClient = params.audience === 'client'
+  /** Spec 321 (D2): a contratante nunca recebe; o chat com o cliente da nota segue. */
+  if (!isClient && occurrenceTypeNeverNotifiesContractor(target)) {
+    throw new OccurrenceContractorNoticeBlockedError()
+  }
   const operation = isClient ? SEND_CLIENT_CHAT_MAIL_OPERATION : SEND_OCCURRENCE_CHAT_MAIL_OPERATION
   const clientAudience = isClient
     ? await transaction.findClientEmailAudience({ companyId, occurrenceId: input.occurrenceId })

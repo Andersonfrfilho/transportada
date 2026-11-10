@@ -22,6 +22,11 @@ import type {
 
 /** A ocorrência como o e-mail precisa dela: de que tipo, e de qual contratante (pelo emitente). */
 export type OccurrenceMailTarget = {
+  /**
+   * Spec 321 (D2): o tipo da ocorrência nunca avisa a contratante — o envio manual recusa. Ausente vale `false` (dublê
+   * de teste); a leitura real sempre traz.
+   */
+  readonly blocksContractorNotice?: boolean
   readonly contractorId: string | null
   readonly contractorName: string
   /** Spec 272 (D5): o CPF/CNPJ do emitente da nota, como gravado (sem pontuação); `null` sem documento. */

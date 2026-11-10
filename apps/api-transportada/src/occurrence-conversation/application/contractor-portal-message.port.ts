@@ -10,6 +10,8 @@ import type { ConversationAttachmentTransactionPort } from './conversation-attac
 
 /** Quem lê pelo portal: a contratante da conversa e as contas do portal ligadas a ela. */
 export type ContractorPortalAudience = {
+  /** Spec 321 (D2): o tipo nunca avisa a contratante. Ausente vale `false` (dublê); a leitura real sempre traz. */
+  readonly blocksContractorNotice?: boolean
   readonly contractorId: string
   readonly occurrenceKind: OccurrenceConversationKind
   /** Como a ocorrência se chama no aviso: a nota, nunca PII. */

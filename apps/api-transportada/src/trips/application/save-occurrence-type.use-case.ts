@@ -8,7 +8,9 @@
 import {
   OccurrenceEmailTemplateNotFoundError,
   OccurrenceTypeLeavesDocumentBehindRequiresSeparationError,
+  OccurrenceTypePickupCargoUnsupportedError,
 } from '../domain/trip.error.js'
+import { isPickupCargoCountingUnsupported } from '../domain/occurrence-contractor-notice.policy.js'
 import {
   OCCURRENCE_CLIENT_CHANNEL_ORDER,
   type OccurrenceClientChannelMatrixChange,
@@ -136,6 +138,13 @@ export type SaveOccurrenceTypeValues = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
   readonly emailsContractor?: boolean | undefined
+  /** Spec 321 (D2): o tipo nunca avisa a contratante. Ausente é "não mexa". */
+  readonly blocksContractorNotice?: boolean | undefined
+  /**
+   * Spec 321 (D4c): se a coleta soma carga na viagem que a busca. Ausente é "não mexa"; voltar a `true` um tipo
+   * gravado com `false` é recusado na fase 1 (`assertPickupCargoCountingSupported`).
+   */
+  readonly countsCargoOnPickupTrip?: boolean | undefined
   /**
    * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação que escreve o e-mail à contratante.
    * Ausente é "não mexa"; `null` limpa. Conferida **antes** da transação: sem trava, e o envio reconfere.
@@ -216,6 +225,7 @@ export type CurrentOccurrenceTypeShape = Partial<
   Pick<
     OccurrenceTypeRecord,
     | 'contractorScope'
+    | 'countsCargoOnPickupTrip'
     | 'declaredAmountMode'
     | 'declaredAmountScope'
     | 'arrivalTimeMode'
@@ -261,6 +271,7 @@ export async function saveOccurrenceTypeWithTemplate(
   assertMinWaitExcludesArrivalTime({ stored, values })
   assertContractorScopeValues(values)
   assertReceivingChargeSendsNoContractorMail({ stored, values })
+  assertPickupCargoCountingSupported({ stored, values })
   await assertContractorTemplateIsUsable({
     companyId: input.companyId,
     templates: input.templates,
@@ -347,6 +358,7 @@ async function readStoredTypeWhenNeeded(
   const isStoredStateNeeded =
     occurrenceTypeId !== null &&
     (input.values.emailsContractor === true ||
+      input.values.countsCargoOnPickupTrip === true ||
       itemsMode === undefined ||
       declaredAmountMode === undefined ||
       declaredAmountScope === undefined ||
@@ -372,6 +384,24 @@ function assertReceivingChargeSendsNoContractorMail(params: {
   if (params.values.emailsContractor !== true) return
   if (params.stored?.stopKind !== RECEIVING_CHARGE_STOP_KIND) return
   throw new ReceivingChargeContractorMailNotAllowedError()
+}
+
+/**
+ * Spec 321 (D4c): `true` só vale quando já é o gravado (ou na criação, onde é o padrão). Voltar a `true` um tipo
+ * gravado com `false` é 422 até os leitores de carga da T0 §8 aprenderem a somar a coleta.
+ */
+function assertPickupCargoCountingSupported(params: {
+  readonly stored: CurrentOccurrenceTypeShape | null
+  readonly values: SaveOccurrenceTypeValues
+}): void {
+  if (
+    isPickupCargoCountingUnsupported({
+      current: params.stored?.countsCargoOnPickupTrip,
+      requested: params.values.countsCargoOnPickupTrip,
+    })
+  ) {
+    throw new OccurrenceTypePickupCargoUnsupportedError()
+  }
 }
 
 type ResolveMomentsChangeParams = {
