@@ -70,7 +70,9 @@ export const DATABASE_UNAVAILABLE_ERROR_CODE = 'DATABASE_UNAVAILABLE'
 /** Viagem grande leva segundos para montar o mapa de carga — o aviso só aparece depois deste prazo. */
 export const SLOW_LOAD_NOTICE_DELAY_MS = 4000
 
-export const TRIP_PAGE_SIZE = 25
+/** Tamanhos oferecidos no seletor — o mesmo conjunto das outras listas do painel (NFS-e). */
+export const TRIP_PAGE_SIZES = [25, 50, 100] as const
+export type TripPageSize = (typeof TRIP_PAGE_SIZES)[number]
 
 export const CANHOTO_REVIEW_ALREADY_RESOLVED_CODE = 'CANHOTO_REVIEW_ALREADY_RESOLVED'
 export const CANHOTO_REVIEW_OUTCOME = {

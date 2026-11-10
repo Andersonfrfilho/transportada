@@ -408,6 +408,12 @@ export type TripFilters = {
 export type TripPage = {
   readonly items: readonly Trip[]
   readonly nextCursor: string | null
+  /** Cursor para voltar uma página (`direction=backward`); `null` na primeira página. */
+  readonly previousCursor?: string | null
+  /** Quantas viagens (já com os filtros) vêm antes desta página — a posição, para numerar a página. */
+  readonly offset?: number
+  /** Quantas viagens o filtro alcança, sem cursor — o total de páginas sai daqui. */
+  readonly total?: number
 }
 
 export type TripRepositoryPort = {
@@ -477,8 +483,12 @@ export type TripRepositoryPort = {
   list(input: {
     readonly companyId: string
     readonly cursor: string | null
+    /** `backward` lê as viagens mais novas que o cursor (a página anterior). */
+    readonly direction?: 'backward' | 'forward'
     readonly filters?: TripFilters
     readonly limit: number
+    /** Salto de página: pula tantas viagens a partir da mais nova. Exclui `cursor`. */
+    readonly offset?: number
   }): Promise<TripPage>
   listDrivers(input: {
     readonly companyId: string

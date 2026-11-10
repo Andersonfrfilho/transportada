@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq, gte, inArray, lte, lt, or, sql, type SQL } from 'drizzle-orm'
+import { and, eq, gt, gte, inArray, lte, lt, or, sql, type SQL } from 'drizzle-orm'
 
 import { cteBatchItems } from '../../database/cte-batch.schema.js'
 import { cteFiscalDocuments } from '../../database/cte-issuance.schema.js'
@@ -16,18 +16,23 @@ const AUTHORIZED_CTE_DOCUMENT_STATUS = 'authorized'
 
 type CompanyScope = { readonly companyId: string }
 
+/** `backward` lê as viagens **mais novas** que o cursor — o caminho de volta da paginação. */
+export type TripListDirection = 'backward' | 'forward'
+
 type TripListScope = CompanyScope & {
   readonly cursor: KeysetCursor | null
+  readonly direction?: TripListDirection
   readonly filters?: TripFilters
 }
 
 export function buildTripListFilters({
   companyId,
   cursor,
+  direction,
   filters,
 }: TripListScope): readonly SQL[] {
   const conditions: SQL[] = [eq(trips.companyId, companyId)]
-  if (cursor !== null) conditions.push(buildCursorCondition(cursor))
+  if (cursor !== null) conditions.push(buildCursorCondition(cursor, direction ?? 'forward'))
   if (filters?.statusEq !== undefined) conditions.push(eq(trips.status, filters.statusEq))
   if (filters?.statusIn !== undefined) conditions.push(inArray(trips.status, filters.statusIn))
   if (filters?.vehicleIdEq !== undefined) conditions.push(eq(trips.vehicleId, filters.vehicleIdEq))
@@ -94,9 +99,10 @@ export function cteAuthorizedExpression(): SQL {
   )})`
 }
 
-function buildCursorCondition(cursor: KeysetCursor): SQL {
+function buildCursorCondition(cursor: KeysetCursor, direction: TripListDirection): SQL {
+  const before = direction === 'forward' ? lt : gt
   return or(
-    lt(trips.createdAt, cursor.createdAt),
-    and(eq(trips.createdAt, cursor.createdAt), lt(trips.id, cursor.id)),
+    before(trips.createdAt, cursor.createdAt),
+    and(eq(trips.createdAt, cursor.createdAt), before(trips.id, cursor.id)),
   ) as SQL
 }

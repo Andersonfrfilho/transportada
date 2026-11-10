@@ -26,7 +26,9 @@ import {
 import { bulkActionableSelection, isSelectableForBulk } from '../shared/tripSelection.service'
 import { TripCancelDialog } from './TripCancelDialog.component'
 import { TripCloseBulkDialog, type TripCloseBulkFailure } from './TripCloseBulkDialog.component'
+import { TripColumnsMenu } from './TripColumnsMenu.component'
 import { TripOccupancyBars } from './TripOccupancyBars.component'
+import { TripPagination } from './TripPagination.component'
 import { TripResultCell } from './TripResultCell.component'
 import { TripReportExportButton } from './TripReportExportButton.component'
 import { TripProofPdfExportButton } from './TripProofPdfExportButton.component'
@@ -275,6 +277,7 @@ export function TripTable({
           não diz de quantas. As duas convivem, e a seleção é que ganha destaque.
         */}
         <p className={styles.counter}>{t('resultCounter', { shown: table.visibleItems.length })}</p>
+        <TripColumnsMenu table={table} />
         {/* Spec 102: a barra só existe com seleção — barra vazia permanente é ruído. */}
         {(canCancel && table.cancellableSelection.length > 0) ||
         (canClose && table.closeableSelection.length > 0) ||
@@ -437,30 +440,7 @@ export function TripTable({
         vehicleLabelOf={vehicleLabel}
       />
 
-      <div className={styles.toolbar}>
-        <Button
-          aria-label={t('pagination.previous')}
-          disabled={!table.canGoToPreviousPage}
-          onClick={table.goToPreviousPage}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <Icon name="page-previous" />
-          {t('pagination.previous')}
-        </Button>
-        <Button
-          aria-label={t('pagination.next')}
-          disabled={!table.hasNextPage}
-          onClick={table.goToNextPage}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          {t('pagination.next')}
-          <Icon name="page-next" />
-        </Button>
-      </div>
+      <TripPagination table={table} />
     </section>
   )
 }

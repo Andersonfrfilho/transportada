@@ -66,3 +66,13 @@ em lote no backend, os itens acima voltam à mesa e este ADR é revisitado.
 - O contrato de teste `test/design-system/data-tables.md` (checklist manual, se existir) marca os
   itens de coluna/seleção em massa como "N/A — ver ADR-0024" para o módulo `trip`.
 - Documentado também em `specs/027-viagens-nao-fiscais/evidence.md` § T010.
+
+## Revisão (10/11/2026): colunas e paginação numerada
+
+A tabela passou de 4 para 7 colunas (carga, ganho, resultado e ocupação), que era o gatilho desta ADR
+para voltar à mesa. Entram agora a **visibilidade e a ordem das colunas**, por usuário e guardadas
+no navegador (`trip.trips.columns.v1.<userId>`), pelo mesmo contrato compartilhado das outras
+tabelas (`tableColumnPreferences.service`). A paginação ganha tamanho de página (25/50/100) e
+números de página: `GET /trips` aceita `direction=backward` com cursor (página anterior) e `offset`
+(salto para a página N), e responde `previousCursor`, `offset` e `total`. Seleção em massa e filtro
+avançado seguem como antes.

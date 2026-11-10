@@ -33,21 +33,25 @@ describe('trip table contract', () => {
     ])
   })
 
-  test('walks cursor pagination forward and back through history', async () => {
+  test('walks cursor pagination with the neighbours the server sends', async () => {
     const { canGoToPreviousTripPage, nextTripPage, previousTripPage, TRIP_FIRST_PAGE } =
       await loadFutureModule<TripTableModule>('../../src/modules/trip/shared/tripTable.service')
 
-    expect(canGoToPreviousTripPage(TRIP_FIRST_PAGE)).toBe(false)
+    // Primeira página: o servidor não manda cursor de volta, então não há para onde voltar.
+    expect(canGoToPreviousTripPage(null)).toBe(false)
+    expect(TRIP_FIRST_PAGE).toEqual({ cursor: null, direction: 'forward', offset: null })
 
     const secondPage = nextTripPage(TRIP_FIRST_PAGE, SYNTHETIC_CURSOR)
-    expect(secondPage).toEqual({ cursor: SYNTHETIC_CURSOR, history: [null] })
-    expect(canGoToPreviousTripPage(secondPage)).toBe(true)
+    expect(secondPage).toEqual({ cursor: SYNTHETIC_CURSOR, direction: 'forward', offset: null })
+    expect(canGoToPreviousTripPage(SYNTHETIC_CURSOR)).toBe(true)
+    expect(nextTripPage(secondPage, null)).toEqual(secondPage)
 
-    const stayedPage = nextTripPage(secondPage, null)
-    expect(stayedPage).toEqual(secondPage)
-
-    expect(previousTripPage(secondPage)).toEqual(TRIP_FIRST_PAGE)
-    expect(previousTripPage(TRIP_FIRST_PAGE)).toEqual(TRIP_FIRST_PAGE)
+    expect(previousTripPage(secondPage, SYNTHETIC_CURSOR)).toEqual({
+      cursor: SYNTHETIC_CURSOR,
+      direction: 'backward',
+      offset: null,
+    })
+    expect(previousTripPage(TRIP_FIRST_PAGE, null)).toEqual(TRIP_FIRST_PAGE)
   })
 
   test('counts only filters carrying a defined, non-empty value', async () => {
@@ -339,7 +343,11 @@ type TripNavigationModule = {
 
 type TripColumnKey = 'createdAt' | 'status' | 'vehicleId'
 type TripSortState = null | Readonly<{ column: TripColumnKey; direction: 'asc' | 'desc' }>
-type TripPageState = Readonly<{ cursor: null | string; history: readonly (null | string)[] }>
+type TripPageState = Readonly<{
+  cursor: null | string
+  direction: 'backward' | 'forward'
+  offset: null | number
+}>
 type TripFilters = Readonly<{
   createdFrom?: string
   createdUntil?: string
@@ -357,11 +365,11 @@ type TripRow = Readonly<{
 }>
 
 type TripTableModule = {
-  readonly canGoToPreviousTripPage: (state: TripPageState) => boolean
+  readonly canGoToPreviousTripPage: (previousCursor: null | string) => boolean
   readonly countActiveTripFilters: (filters: TripFilters) => number
   readonly nextTripPage: (state: TripPageState, nextCursor: null | string) => TripPageState
   readonly nextTripSortState: (current: TripSortState, column: TripColumnKey) => TripSortState
-  readonly previousTripPage: (state: TripPageState) => TripPageState
+  readonly previousTripPage: (state: TripPageState, previousCursor: null | string) => TripPageState
   readonly sortTrips: (items: readonly TripRow[], sort: TripSortState) => readonly TripRow[]
   readonly TRIP_FIRST_PAGE: TripPageState
 }

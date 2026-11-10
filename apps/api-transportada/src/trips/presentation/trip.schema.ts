@@ -60,7 +60,9 @@ import {
 
 const TRIP_QUERY_KEYS = new Set([
   'cursor',
+  'direction',
   'limit',
+  'offset',
   'statusEq',
   'statusIn',
   'vehicleIdEq',
@@ -84,6 +86,8 @@ const TRIP_QUERY_CONFLICTS: readonly (readonly [string, string])[] = [
 
 type TripListing = {
   readonly cursor: string | null
+  readonly direction?: 'backward' | 'forward'
+  readonly offset?: number
   readonly filters?: TripFilters
   readonly limit: number
 }
@@ -206,7 +210,36 @@ export function parseTripList(url: URL): TripListing {
     ...optionalFilter('proofPendingEq', parseBooleanFilter(parameters.get('proofPendingEq'))),
   }
 
-  return { ...readPaging(parameters), ...(hasFilter(filters) ? { filters } : {}) }
+  return {
+    ...readPaging(parameters),
+    ...parseTripPosition(parameters),
+    ...(hasFilter(filters) ? { filters } : {}),
+  }
+}
+
+const PAGE_OFFSET = /^(?:0|[1-9][0-9]{0,6})$/
+
+/**
+ * Onde a página começa, de um de três jeitos que não se misturam: o cursor (próxima), o cursor
+ * com `direction=backward` (anterior — a volta só existe a partir de uma página) ou `offset` (salto
+ * para a página N). Misturar daria duas respostas para a mesma pergunta; recusar é o honesto.
+ */
+function parseTripPosition(parameters: URLSearchParams): {
+  readonly direction?: 'backward' | 'forward'
+  readonly offset?: number
+} {
+  const direction = parameters.get('direction')
+  const offset = parameters.get('offset')
+  if (direction !== null && direction !== 'backward' && direction !== 'forward') {
+    throw invalidRequest()
+  }
+  if (direction === 'backward' && parameters.get('cursor') === null) throw invalidRequest()
+  if (offset !== null) {
+    if (!PAGE_OFFSET.test(offset)) throw invalidRequest()
+    if (parameters.get('cursor') !== null || direction === 'backward') throw invalidRequest()
+    return { offset: Number(offset) }
+  }
+  return direction === null ? {} : { direction }
 }
 
 export function parseIsoDateTime(value: string | null): string | undefined {
