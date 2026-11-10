@@ -4850,6 +4850,7 @@ function createApplicationRoutes({
     }),
     /** Spec 320: o escritório lista, libera e descarta os relatos do app retidos por serem de outro dia. */
     ...createFieldReportHoldRoutes({
+      describeHolds: (input) => fieldReportHoldRepository.describe(input),
       register: async (payload) => {
         const occurrence = await registerDriverOccurrenceFromApp(
           payload as unknown as Parameters<RegisterDriverOccurrenceFromApp>[0],

@@ -8,6 +8,10 @@ import { z } from 'zod'
 
 import { parseBody, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
+import type {
+  FieldReportHoldDisplay,
+  FieldReportHoldRecord,
+} from '../infrastructure/drizzle-field-report-hold.repository.js'
 import {
   discardFieldReportHold,
   releaseFieldReportHold,
@@ -25,7 +29,12 @@ const RATE_LIMIT = {
 
 const discardBodySchema = z.object({ reason: z.string().trim().max(500).optional() }).strict()
 
-export type FieldReportHoldRoutesDependencies = DecideFieldReportHoldDependencies
+export type FieldReportHoldRoutesDependencies = DecideFieldReportHoldDependencies & {
+  readonly describeHolds?: (input: {
+    readonly companyId: string
+    readonly holds: readonly FieldReportHoldRecord[]
+  }) => Promise<ReadonlyMap<string, FieldReportHoldDisplay>>
+}
 
 const NO_STORE = { 'cache-control': 'no-store', 'content-type': 'application/json' } as const
 
@@ -40,7 +49,16 @@ export function createFieldReportHoldRoutes(
           state: 'held',
         })
 
-        return new Response(JSON.stringify({ data: holds }), { headers: NO_STORE, status: 200 })
+        const display = await dependencies.describeHolds?.({
+          companyId: context.scope.companyId,
+          holds,
+        })
+        const data = holds.map((hold) => ({
+          ...hold,
+          display: display?.get(hold.id) ?? { invoiceNumber: null, occurrenceTypeName: null },
+        }))
+
+        return new Response(JSON.stringify({ data }), { headers: NO_STORE, status: 200 })
       },
       method: 'GET',
       parse: () => ({}),

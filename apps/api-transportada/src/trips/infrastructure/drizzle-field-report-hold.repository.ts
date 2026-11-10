@@ -3,10 +3,13 @@
  *
  * Spec 320: os relatos do app retidos para o escritório. Toda consulta e toda escrita leva `company_id`.
  */
-import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 
 import {
   companyFieldReportHoldSettings,
+  companyOccurrenceTypes,
+  nfeDocuments,
+  tripDocuments,
   FIELD_REPORT_HOLD_STATES,
   tripDocumentOccurrences,
   tripFieldReportHolds,
@@ -18,6 +21,11 @@ import type {
   FieldReportHoldRecordInput,
 } from '../application/field-report-hold.port.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+
+export type FieldReportHoldDisplay = {
+  readonly invoiceNumber: null | string
+  readonly occurrenceTypeName: null | string
+}
 
 export type FieldReportHoldRecord = {
   readonly actorUserId: string
@@ -164,6 +172,72 @@ export class DrizzleFieldReportHoldRepository implements FieldReportHoldPort {
       .limit(LIST_LIMIT)
 
     return rows.map(toRecord)
+  }
+
+  /** O que o escritório precisa ler na tela: número da nota e nome do tipo (o corpo guardado só tem ids). */
+  async describe(input: {
+    readonly companyId: string
+    readonly holds: readonly FieldReportHoldRecord[]
+  }): Promise<ReadonlyMap<string, FieldReportHoldDisplay>> {
+    const documentIds = [
+      ...new Set(
+        input.holds.flatMap((hold) => (hold.tripDocumentId === null ? [] : [hold.tripDocumentId])),
+      ),
+    ]
+    const typeIds = [
+      ...new Set(
+        input.holds.flatMap((hold) =>
+          typeof hold.payload.occurrenceTypeId === 'string' ? [hold.payload.occurrenceTypeId] : [],
+        ),
+      ),
+    ]
+    const invoices =
+      documentIds.length === 0
+        ? []
+        : await this.database
+            .select({
+              id: tripDocuments.id,
+              number: nfeDocuments.number,
+              series: nfeDocuments.series,
+            })
+            .from(tripDocuments)
+            .innerJoin(nfeDocuments, eq(nfeDocuments.id, tripDocuments.nfeDocumentId))
+            .where(
+              and(
+                eq(tripDocuments.companyId, input.companyId),
+                inArray(tripDocuments.id, documentIds),
+              ),
+            )
+    const types =
+      typeIds.length === 0
+        ? []
+        : await this.database
+            .select({ id: companyOccurrenceTypes.id, name: companyOccurrenceTypes.name })
+            .from(companyOccurrenceTypes)
+            .where(
+              and(
+                eq(companyOccurrenceTypes.companyId, input.companyId),
+                inArray(companyOccurrenceTypes.id, typeIds),
+              ),
+            )
+    const invoiceById = new Map(invoices.map((row) => [row.id, row]))
+    const typeById = new Map(types.map((row) => [row.id, row.name]))
+
+    return new Map(
+      input.holds.map((hold) => {
+        const invoice =
+          hold.tripDocumentId === null ? undefined : invoiceById.get(hold.tripDocumentId)
+        const typeId = hold.payload.occurrenceTypeId
+
+        return [
+          hold.id,
+          {
+            invoiceNumber: invoice === undefined ? null : `${invoice.number}/${invoice.series}`,
+            occurrenceTypeName: typeof typeId === 'string' ? (typeById.get(typeId) ?? null) : null,
+          },
+        ]
+      }),
+    )
   }
 
   async findById(input: {
