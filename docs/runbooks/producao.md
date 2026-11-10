@@ -888,6 +888,19 @@ O tipo de parada `unexpected_charge` ("Cobrança no recebimento") grava uma linh
 - **Desligar sem migration reversa:** desativar o tipo na aba Tipos de `/ocorrencias` (`active = false`); as linhas já criadas ficam em Ressarcimentos.
 - Em produção **nada foi lido nem alterado** por esta spec até esta data.
 
+## 5.26 Copiar a Única de produção para staging, para testar a ocorrência (spec 318, 10/11/2026)
+
+Staging não tinha a contratante Única nem notas dela. `scripts/ops/staging-copia-unica-de-producao.sh [--confirm]` copia a
+contratante (CNPJ 26344834000108), os contatos e as `NOTES` notas mais recentes (padrão 5) com o que elas precisam (participantes,
+endereços, produtos, volumes e os pais por chave estrangeira).
+
+- **Produção: somente leitura** (`set transaction read only`). **Staging:** sem `--confirm` roda tudo numa transação e desfaz (simulação).
+- Anonimiza contatos (e-mail, telefone, nome), destinatários (nome, CPF, endereço, telefone, e-mail) e o texto livre da nota. O emitente (a Única) fica como é.
+- Usuários viram o `anderson.fernandes` de staging e a empresa segue a de staging. Se a Única já existe em staging, usa a de lá.
+- O XML das notas não é copiado (o balde de produção não é lido): a linha existe, o download do XML não.
+- Saída completa em `tmp/ops/saidas/staging-copia-unica-<data>.txt` (e o JSON exportado ao lado); o script imprime só o caminho.
+- Depois: configurar o canal WhatsApp na ficha da Única em staging (grupo e número) e criar uma viagem com essas notas para registrar a ocorrência.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
