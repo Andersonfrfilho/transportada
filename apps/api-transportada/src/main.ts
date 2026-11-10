@@ -737,6 +737,9 @@ import { createTripDocumentReviewRoutes } from './trips/presentation/trip-docume
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
 import { createOccurrenceResolutionRoutes } from './trips/presentation/occurrence-resolution.routes.js'
+import { createCanhotoPickupRoutes } from './trips/presentation/canhoto-pickup.routes.js'
+import { createCanhotoPickupScheduleUseCase } from './trips/application/canhoto-pickup-schedule.use-case.js'
+import { createDrizzleCanhotoPickupSchedule } from './trips/infrastructure/canhoto-pickup-schedule.persistence.js'
 import { createMeRouteOccurrenceRoutes } from './trips/presentation/me-route-occurrence.routes.js'
 import { createFindDriverRouteOccurrenceUseCase } from './trips/application/find-driver-route-occurrence.use-case.js'
 import { createSignDriverRouteOccurrenceFileUseCase } from './trips/application/sign-driver-route-occurrence-file.use-case.js'
@@ -4959,6 +4962,14 @@ function createApplicationRoutes({
         logger,
         notifier: occurrenceResolutionNotifier,
         unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
+      }),
+    }),
+    /** Spec 321 T3: o escritório encaixa a coleta de canhoto na viagem de outro motorista. */
+    ...createCanhotoPickupRoutes({
+      canhotoPickups: createCanhotoPickupScheduleUseCase({
+        logger,
+        repository: createDrizzleCanhotoPickupSchedule(database),
+        routeFreezer: tripRouteTollFreezer,
       }),
     }),
     /** Spec 266 / ADR-0105: o motorista lê as ocorrências da viagem atual dele. */

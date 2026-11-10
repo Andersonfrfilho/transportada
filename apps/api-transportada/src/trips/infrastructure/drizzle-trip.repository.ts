@@ -147,6 +147,7 @@ import type {
   TransferTripCrewResult,
 } from '../application/trip-crew-transfer.types.js'
 import { closePendingStopReminders } from '../../driver-stop-reminders/infrastructure/close-pending-stop-reminders.persistence.js'
+import { detachCanhotoPickupsAtStop } from './canhoto-pickup-schedule.persistence.js'
 import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
@@ -1204,6 +1205,16 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         return { hasDeliveredDocument: true, released: [] }
       }
 
+      /**
+       * Spec 321 T3: a coleta de canhoto encaixada na parada sai com ela (volta a `pending`), senão a parada nunca
+       * esvazia. Antes das notas: o último desvínculo é quem apaga a parada.
+       */
+      const detachedPickups = await detachCanhotoPickupsAtStop(transaction, {
+        companyId: input.companyId,
+        stopId: input.stopId,
+        tripId: input.tripId,
+      })
+
       const released: TripDocument[] = []
       for (const document of documents) {
         const result = await this.releaseDocumentWithin(transaction, {
@@ -1215,6 +1226,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           tripId: input.tripId,
         })
         if (result !== null) released.push(result)
+      }
+      /** Parada só de coleta: nenhuma nota para soltar, então a parada sai aqui, pelo mesmo reconciliador. */
+      if (documents.length === 0 && detachedPickups > 0) {
+        await reconcileStopOnUnlink({
+          companyId: input.companyId,
+          repository: createTripStopReconciliationPort(transaction, this.logger),
+          stopId: input.stopId,
+        })
+        await clearPlannedRoute(transaction, { companyId: input.companyId, tripId: input.tripId })
       }
       return { hasDeliveredDocument: false, released }
     })
