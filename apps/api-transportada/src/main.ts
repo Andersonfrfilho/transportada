@@ -469,6 +469,9 @@ import { createReadCargoLayoutUseCase } from './trips/application/read-cargo-lay
 import { createReopenCargoLayoutUseCase } from './trips/application/reopen-cargo-layout.use-case.js'
 import { DrizzleCargoLayoutLookupRepository } from './trips/infrastructure/drizzle-cargo-layout-lookup.repository.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
+import { holdOrRegisterDriverOccurrence } from './trips/application/field-report-hold.port.js'
+import { DrizzleFieldReportHoldRepository } from './trips/infrastructure/drizzle-field-report-hold.repository.js'
+import { createFieldReportHoldRoutes } from './trips/presentation/field-report-hold.routes.js'
 import {
   confirmReachableOccurrenceUpload,
   requestOccurrenceUpload,
@@ -862,7 +865,7 @@ import { DrizzleAutomaticManifestRepository } from './mdfe-manifests/infrastruct
 import { DrizzleTripFiscalReadinessQuery } from './trips/infrastructure/trip-fiscal-readiness.query'
 import { DrizzleDeliveryAddressOverrideRepository } from './trips/infrastructure/drizzle-delivery-address-override.repository'
 import { createTripRoutes } from './trips/presentation/trip.routes'
-import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
+import { createMeTripRoutes, type MeTripDependencies } from './trips/presentation/me-trip.routes'
 import { createTripFieldOfficeRoutes } from './trips/presentation/trip-field-office.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from './trips/presentation/trip-field-office-occurrence.routes.js'
 import { createTripFieldDeliverySettingsRoutes } from './trips/presentation/trip-field-delivery-settings.routes.js'
@@ -4302,6 +4305,48 @@ function createApplicationRoutes({
     repository: new DrizzleUserPictureRepository(database),
   })
 
+  type RegisterDriverOccurrenceFromApp = MeTripDependencies['registerDriverOccurrence']
+  const registerDriverOccurrenceFromApp: RegisterDriverOccurrenceFromApp = async (input) => {
+    const occurrence = await registerDriverOccurrence({
+      ...input,
+      repository: {
+        findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
+        findOccurrenceType: (query) => findOccurrenceType(database, query),
+        /** Spec 246 (RF6): a exceção do contratante/destinatário da nota vale no registro. */
+        findOccurrenceTypeOverrides: (query) =>
+          occurrenceAttachmentOverridesRepository.listOverridesForTypes({
+            companyId: query.companyId,
+            occurrenceTypeIds: [query.occurrenceTypeId],
+          }),
+        findReachableDocument: (query) => findDriverReachableDocument(database, query),
+        listDocumentProducts: (query) => listDocumentProducts(database, query),
+      },
+      notifier: driverOccurrenceNotifier,
+      /** Trava de uma viagem por vez: só o pedido do motorista no app; o escritório não passa por aqui. */
+      tripLock: {
+        enabled: driverTripLockEnabled,
+        listOnRoadTripIds: (query) => listDriverOnRoadTripIds(database, query),
+        minimumScore: driverTripLockMinScore,
+        readScore: async (query) =>
+          (
+            await driverScoreRepository.readScores({
+              companyId: query.companyId,
+              driverIds: [query.driverId],
+              now: new Date(),
+            })
+          ).get(query.driverId) ?? null,
+      },
+      unitOfWork: driverFieldReports,
+    })
+    /** Spec 183 T802: o aviso automático à contratante é do tipo, não do canal de registro. */
+    automaticOccurrenceMail.announce({
+      companyId: input.companyId,
+      occurrenceIds: [occurrence.id],
+    })
+    return occurrence
+  }
+  const fieldReportHoldRepository = new DrizzleFieldReportHoldRepository(database)
+
   return [
     ...createCompanySettingsRoutes({
       getSettings: createGetCompanySettingsUseCase({ repository: settingsRepository }),
@@ -4838,6 +4883,17 @@ function createApplicationRoutes({
       readTripOccurrenceTimeline: createReadTripOccurrenceTimelineUseCase({
         reader: { findSources: (input) => findTripOccurrenceTimelineSources(database, input) },
       }),
+    }),
+    /** Spec 320: o escritório lista, libera e descarta os relatos do app retidos por serem de outro dia. */
+    ...createFieldReportHoldRoutes({
+      describeHolds: (input) => fieldReportHoldRepository.describe(input),
+      register: async (payload) => {
+        const occurrence = await registerDriverOccurrenceFromApp(
+          payload as unknown as Parameters<RegisterDriverOccurrenceFromApp>[0],
+        )
+        return { id: occurrence.id }
+      },
+      repository: fieldReportHoldRepository,
     }),
     /** Spec 266 / ADR-0105: o escritório resolve a ocorrência (nota ou parada) com observação. */
     ...createOccurrenceResolutionRoutes({
@@ -5500,45 +5556,17 @@ function createApplicationRoutes({
        * despachou. O aviso interno sai sempre, para os responsáveis (267/271) e quem despachou — sem olhar
        * `notifies`, que segue sendo a escolha do registro do escritório.
        */
-      registerDriverOccurrence: async (input) => {
-        const occurrence = await registerDriverOccurrence({
-          ...input,
-          repository: {
-            findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
-            findOccurrenceType: (query) => findOccurrenceType(database, query),
-            /** Spec 246 (RF6): a exceção do contratante/destinatário da nota vale no registro. */
-            findOccurrenceTypeOverrides: (query) =>
-              occurrenceAttachmentOverridesRepository.listOverridesForTypes({
-                companyId: query.companyId,
-                occurrenceTypeIds: [query.occurrenceTypeId],
-              }),
-            findReachableDocument: (query) => findDriverReachableDocument(database, query),
-            listDocumentProducts: (query) => listDocumentProducts(database, query),
-          },
-          notifier: driverOccurrenceNotifier,
-          /** Trava de uma viagem por vez: só o pedido do motorista no app; o escritório não passa por aqui. */
-          tripLock: {
-            enabled: driverTripLockEnabled,
-            listOnRoadTripIds: (query) => listDriverOnRoadTripIds(database, query),
-            minimumScore: driverTripLockMinScore,
-            readScore: async (query) =>
-              (
-                await driverScoreRepository.readScores({
-                  companyId: query.companyId,
-                  driverIds: [query.driverId],
-                  now: new Date(),
-                })
-              ).get(query.driverId) ?? null,
-          },
-          unitOfWork: driverFieldReports,
-        })
-        /** Spec 183 T802: o aviso automático à contratante é do tipo, não do canal de registro. */
-        automaticOccurrenceMail.announce({
-          companyId: input.companyId,
-          occurrenceIds: [occurrence.id],
-        })
-        return occurrence
-      },
+      registerDriverOccurrence: registerDriverOccurrenceFromApp,
+      /** Spec 320: a ocorrência do app cujo toque não é do dia em que chegou fica retida para o escritório. */
+      holdDriverOccurrence: ({ clockOffsetMs, input, tappedAt }) =>
+        holdOrRegisterDriverOccurrence({
+          clockOffsetMs,
+          hold: fieldReportHoldRepository,
+          input,
+          now: new Date(),
+          register: registerDriverOccurrenceFromApp,
+          tappedAt,
+        }),
       /**
        * Spec 179 T202 (RF2): o arquivo nunca chega até aqui — só o pedido da URL e, depois, a
        * confirmação. As duas passam pela mesma consulta de alcance de `registerDriverOccurrence`

@@ -29,5 +29,18 @@
     "unavailable": "Mapa indisponível."
   },
   "distance": "{{meters}} m do ponto atual",
-  "distanceUnknown": "Sem ponto atual para comparar"
+  "distanceUnknown": "Sem ponto atual para comparar",
+  "holds": {
+    "title": "Ocorrências do app retidas",
+    "intro": "Ocorrências que o app do motorista enviou de outro dia. Elas só entram quando você libera; descartar não apaga nada do que já foi registrado.",
+    "error": "Falha ao carregar as ocorrências retidas",
+    "decisionError": "Não foi possível registrar a decisão. A ocorrência continua retida.",
+    "unknownType": "Ocorrência",
+    "invoice": "NF {{number}}",
+    "tapped": "Ocorreu em {{moment}}",
+    "received": "Chegou em {{moment}}",
+    "probableDuplicate": "Provável duplicada: já existe ocorrência parecida nesta nota.",
+    "release": "Liberar",
+    "discard": "Descartar"
+  }
 }

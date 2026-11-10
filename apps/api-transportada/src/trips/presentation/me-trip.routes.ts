@@ -60,6 +60,7 @@ import {
   parseStopArrivalRequest,
   parseIdempotencyKey,
   parseStopOccurrenceRequest,
+  toEventClock,
   type StopOccurrenceRequest,
 } from './me-trip.schema.js'
 
@@ -241,6 +242,18 @@ export type MeTripDependencies = {
     /** Spec 246 (RF9): a assinatura já confirmada — nunca o arquivo. */
     readonly signatureObjectId?: string | null | undefined
   }) => Promise<TripOccurrence>
+  /**
+   * Spec 320: ocorrência do app cujo toque não é do dia em que chegou fica retida para o escritório. Ausente é o
+   * comportamento de antes (registra sempre); a composição liga com o interruptor da empresa.
+   */
+  readonly holdDriverOccurrence?: (input: {
+    readonly clockOffsetMs?: number | undefined
+    readonly input: Parameters<MeTripDependencies['registerDriverOccurrence']>[0]
+    readonly tappedAt?: Date | undefined
+  }) => Promise<
+    | { readonly id: string; readonly kind: 'held' }
+    | { readonly kind: 'registered'; readonly occurrence: TripOccurrence }
+  >
   /** Spec 179 T202 (RF2): a URL assinada — o arquivo nunca passa por aqui. */
   readonly createOccurrenceUpload: (input: {
     readonly companyId: string
@@ -719,6 +732,7 @@ export function createMeTripRoutes(
     defineRoute<{
       readonly attachmentObjectId?: string | undefined
       readonly attachmentObjectIds?: readonly string[] | undefined
+      readonly clockOffsetMs?: number | undefined
       readonly declaredAmount?: string | undefined
       readonly documentId: string
       readonly idempotencyKey: string
@@ -730,10 +744,11 @@ export function createMeTripRoutes(
       readonly productCode: string
       readonly referenceNumber?: string | undefined
       readonly signatureObjectId?: string | null | undefined
+      readonly tappedAt?: Date | undefined
     }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
-        const occurrence = await dependencies.registerDriverOccurrence({
+        const registerInput = {
           actorUserId: context.scope.userId,
           attachmentObjectId: input.attachmentObjectId,
           attachmentObjectIds: input.attachmentObjectIds,
@@ -750,16 +765,33 @@ export function createMeTripRoutes(
           productCode: input.productCode,
           referenceNumber: input.referenceNumber,
           signatureObjectId: input.signatureObjectId,
-        })
+        }
+        if (dependencies.holdDriverOccurrence !== undefined) {
+          const result = await dependencies.holdDriverOccurrence({
+            clockOffsetMs: input.clockOffsetMs,
+            input: registerInput,
+            tappedAt: input.tappedAt,
+          })
+          if (result.kind === 'held') {
+            /** Retido não é recusado: o app tira o item da fila e o escritório decide (spec 320 D4). */
+            return jsonResponse({ body: { data: { held: true, id: result.id } }, status: 202 })
+          }
+
+          return jsonResponse({ body: { data: result.occurrence }, status: 201 })
+        }
+        const occurrence = await dependencies.registerDriverOccurrence(registerInput)
 
         return jsonResponse({ body: { data: occurrence }, status: 201 })
       },
       method: 'POST',
       async parse({ pathParameters, request }) {
         const body = await parseRegisterOccurrenceRequest(request)
+        const clock = toEventClock(body)
         return {
           attachmentObjectId: body.attachmentObjectId,
           attachmentObjectIds: body.attachmentObjectIds,
+          ...(clock.clockOffsetMs === undefined ? {} : { clockOffsetMs: clock.clockOffsetMs }),
+          ...(clock.tappedAt === undefined ? {} : { tappedAt: clock.tappedAt }),
           declaredAmount: body.declaredAmount,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),

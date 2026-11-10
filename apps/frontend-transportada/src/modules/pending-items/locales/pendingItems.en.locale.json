@@ -29,5 +29,18 @@
     "unavailable": "Map unavailable."
   },
   "distance": "{{meters}} m from the current point",
-  "distanceUnknown": "No current point to compare"
+  "distanceUnknown": "No current point to compare",
+  "holds": {
+    "title": "App occurrences on hold",
+    "intro": "Occurrences the driver app sent from another day. They only go in when you release them; discarding does not delete anything already recorded.",
+    "error": "Failed to load held occurrences",
+    "decisionError": "Could not record the decision. The occurrence is still on hold.",
+    "unknownType": "Occurrence",
+    "invoice": "Invoice {{number}}",
+    "tapped": "Happened on {{moment}}",
+    "received": "Arrived on {{moment}}",
+    "probableDuplicate": "Probably a duplicate: a similar occurrence already exists on this invoice.",
+    "release": "Release",
+    "discard": "Discard"
+  }
 }

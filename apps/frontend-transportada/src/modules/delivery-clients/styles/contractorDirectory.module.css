@@ -228,3 +228,10 @@
   color: var(--color-ready);
   margin: 0;
 }
+
+/* Spec 318: o formulário do canal do aviso dentro do cartão; só o respiro, os campos são os da casa. */
+.channelForm {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+}

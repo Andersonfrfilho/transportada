@@ -130,6 +130,12 @@ const registerOccurrenceSchema = z
      */
     attachmentObjectId: z.string().uuid().optional(),
     /**
+     * Spec 320 (D6): a hora do toque e o desvio do relógio (os mesmos campos da spec 234). Opcionais: o app antigo
+     * não os manda e então a ocorrência nunca é retida. Só a rota do motorista os lê; o escritório os ignora.
+     */
+    clockOffsetMs: z.int().optional(),
+    tappedAt: z.iso.datetime().optional(),
+    /**
      * Spec 246 (T2.7): a **lista** de uploads confirmados (1 a 5, sem repetir), para o tipo que exige mais
      * de uma foto. Retrocompatível: o app antigo manda só o campo único acima, e mandar os dois juntos é
      * 400 — escolher um em silêncio gravaria o anexo que ninguém marcou.

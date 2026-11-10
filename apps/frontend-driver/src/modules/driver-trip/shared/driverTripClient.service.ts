@@ -690,6 +690,7 @@ async function sendReport(input: {
         reportKind: report.kind,
       },
       report,
+      stamp,
     })
     return undefined
   }
@@ -735,8 +736,9 @@ async function sendDocumentOccurrence(input: {
   readonly dependencies: ClientDependencies
   readonly diagnostics: StepContext
   readonly report: DocumentOccurrenceReport
+  readonly stamp: EventClockStamp | undefined
 }): Promise<void> {
-  const { dependencies, diagnostics, report } = input
+  const { dependencies, diagnostics, report, stamp } = input
   const observer = dependencies.occurrenceUpload
   const key = report.idempotencyKey
   const photos = listDocumentOccurrencePhotos(report)
@@ -755,7 +757,7 @@ async function sendDocumentOccurrence(input: {
   }
   observer?.start(key)
   try {
-    await sendDocumentOccurrenceBody({ dependencies, diagnostics, report, reportProgress })
+    await sendDocumentOccurrenceBody({ dependencies, diagnostics, report, reportProgress, stamp })
     observer?.done(key)
   } catch (error) {
     const failure = describeAttachmentFailure(error)
@@ -770,8 +772,9 @@ async function sendDocumentOccurrenceBody(input: {
   readonly diagnostics: StepContext
   readonly report: DocumentOccurrenceReport
   readonly reportProgress: (index: number, progress: UploadProgress) => void
+  readonly stamp: EventClockStamp | undefined
 }): Promise<void> {
-  const { dependencies, diagnostics, report, reportProgress } = input
+  const { dependencies, diagnostics, report, reportProgress, stamp } = input
   const uploadsPath = `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`
   const photos = listDocumentOccurrencePhotos(report)
   /** Spec 246: fotos e assinatura sobem pelo mesmo par de upload, em paralelo — a ordem das fotos é a da lista. */
@@ -801,6 +804,8 @@ async function sendDocumentOccurrenceBody(input: {
   await request({
     body: JSON.stringify({
       ...buildAttachmentFields(attachmentObjectIds),
+      /** Spec 320: a API retém a ocorrência cujo toque foi de outro dia (`202 held`, que `request` já trata como sucesso). */
+      ...buildClockFields({ kind: report.kind, stamp }),
       ...(report.declaredAmount === undefined ? {} : { declaredAmount: report.declaredAmount }),
       ...(report.items === undefined ? {} : { items: report.items }),
       location: report.location,

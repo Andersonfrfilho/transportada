@@ -143,5 +143,46 @@
   "watchers": {
     "title": "Responsáveis desta contratante — substitui a lista da empresa",
     "description": "O atendente fixo desta contratante. Com algum responsável ativo aqui, só ele vai em cópia nos e-mails desta contratante; sem nenhum ativo, vale a lista da empresa."
+  },
+  "occurrenceChannel": {
+    "title": "Aviso de ocorrência — por onde chega à contratante",
+    "description": "Escolha se o aviso automático da ocorrência desta contratante sai por e-mail ou é postado num grupo de WhatsApp. Quais tipos avisam a contratante e o texto continuam definidos no tipo da ocorrência.",
+    "loading": "Carregando o canal do aviso",
+    "loadError": "Não foi possível carregar o canal do aviso ({{code}}).",
+    "channel": "Avisar a ocorrência por",
+    "kinds": {
+      "email": "E-mail",
+      "whatsapp_group": "WhatsApp (grupo)"
+    },
+    "emailHint": "O aviso sai por e-mail para os contatos da contratante, como nas demais.",
+    "groupHint": "O bot posta o aviso no grupo escolhido, marcando o número informado. Nenhum e-mail sai, salvo o de reserva.",
+    "group": "Grupo do WhatsApp",
+    "groupPlaceholder": "Escolha o grupo",
+    "groupSearch": "Buscar grupo",
+    "noGroups": "Nenhum grupo livre encontrado",
+    "loadingGroups": "Carregando os grupos do WhatsApp",
+    "currentGroup": "Grupo atual",
+    "hiddenTaken": "{{count}} grupo(s) não aparecem porque já pertencem a um motorista ou a outra contratante.",
+    "phone": "Número a marcar no grupo",
+    "phonePlaceholder": "(DDD) número",
+    "phoneHint": "Telefone com DDD. A pessoa precisa estar no grupo para ser avisada pela marcação.",
+    "phoneInvalid": "Informe um telefone válido, com DDD.",
+    "emailFallback": "Enviar por e-mail se o grupo falhar",
+    "emailFallbackHint": "Se o envio ao grupo falhar depois das tentativas, o aviso sai por e-mail para os contatos da contratante.",
+    "save": "Salvar o canal",
+    "saving": "Salvando",
+    "saved": "Canal salvo.",
+    "test": "Enviar mensagem de teste",
+    "testing": "Enviando o teste",
+    "testSent": "Mensagem de teste enviada ao grupo.",
+    "saveBeforeTest": "Salve as alterações para poder enviar o teste.",
+    "errors": {
+      "default": "Não foi possível concluir. Tente de novo.",
+      "CONTRACTOR_OCCURRENCE_GROUP_TAKEN": "Este grupo já pertence a um motorista ou a outra contratante. Escolha outro.",
+      "CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_MISSING": "Falta o modelo de WhatsApp do aviso de ocorrência em Notificações.",
+      "CONTRACTOR_OCCURRENCE_GROUP_NOT_CONFIGURED": "Salve o canal como grupo de WhatsApp antes de testar.",
+      "CONTRACTOR_OCCURRENCE_GROUP_TEST_FAILED": "A mensagem de teste não chegou ao grupo. Confira se o WhatsApp está conectado e se o bot está no grupo.",
+      "VALIDATION_ERROR": "Confira o grupo e o número informados."
+    }
   }
 }
