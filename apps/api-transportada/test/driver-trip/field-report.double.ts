@@ -10,6 +10,11 @@ import type {
 } from '../../src/trips/application/driver-field-report.port.js'
 import type { TripStopOccurrenceKind } from '../../src/database/trip.schema.js'
 import type { StopOccurrenceTypeRequirements } from '../../src/trips/domain/stop-occurrence-requirements.policy.js'
+import type {
+  ReceivingChargeLine,
+  ReceivingChargeStopDocument,
+} from '../../src/trips/domain/receiving-charge.policy.js'
+import type { StopOccurrencePhotoSlot } from '../../src/trips/domain/stop-occurrence-photo-slots.policy.js'
 import type { EventLocationStampColumns } from '../../src/trips/domain/event-location-stamp.types.js'
 import type { TripFieldChannel } from '../../src/trips/domain/trip-field-channel.constant.js'
 import type { DriverDocumentOccurrence } from '../../src/trips/application/driver-document-occurrence.types.js'
@@ -47,10 +52,37 @@ export type FieldReportState = {
   readonly stopOccurrenceTypes: Map<
     string,
     {
+      readonly photoSlots?: readonly StopOccurrencePhotoSlot[]
       readonly requirements?: StopOccurrenceTypeRequirements
       readonly stopKind: TripStopOccurrenceKind | null
     }
   >
+  /** Spec 317: `stopId` → as notas vivas da parada, com as partes já resolvidas. */
+  readonly stopChargeDocuments: Map<string, readonly ReceivingChargeStopDocument[]>
+  /** Spec 317: o que cada `recordOccurrence` gravou de cobrança (total, quem pagou, PIX), na ordem. */
+  readonly recordedReceivingCharges: (null | {
+    readonly declaredAmount: string
+    readonly driverPixKey: null | string
+    readonly driverPixKeyType: null | string
+    readonly paidBy: string
+  })[]
+  /** Spec 317: o anexo e a nota que cada `recordOccurrence` gravou, na ordem. */
+  readonly recordedOccurrenceColumns: {
+    readonly attachmentObjectId: null | string
+    readonly documentId: null | string
+  }[]
+  /** Spec 317: `occurrenceId:slotKey` → objeto; o unique da vaga segura o reenvio. */
+  readonly stopOccurrencePhotos: Map<string, string>
+  /** Spec 317: as linhas de Ressarcimentos, com a chave do índice único parcial. */
+  readonly receivingChargeLines: Map<
+    string,
+    ReceivingChargeLine & {
+      readonly proofObjectId: null | string
+      readonly stopOccurrenceId: string
+    }
+  >
+  /** Spec 317: `deliveryClientId` → a marca (origem e quantas vezes a data foi atualizada). */
+  readonly flaggedClients: Map<string, { readonly sourceStopOccurrenceId: string; updates: number }>
   readonly proofsByAttachmentKey: Map<string, string>
   /** ADR-0070 §1, spec 159 T6: `eventId:kind` de todo comprovante gravado — para `proofPending`. */
   readonly proofsByEventKind: Set<string>
@@ -96,6 +128,12 @@ export function createFieldReportState(
     occurrences: new Map(),
     recordedOccurrenceTypeIds: [],
     stopOccurrenceTypes: new Map(),
+    stopChargeDocuments: new Map(),
+    recordedReceivingCharges: [],
+    recordedOccurrenceColumns: [],
+    stopOccurrencePhotos: new Map(),
+    receivingChargeLines: new Map(),
+    flaggedClients: new Map(),
     proofsByAttachmentKey: new Map(),
     proofsByEventKind: new Set(),
     proofDetailsByEventKind: new Map(),
@@ -275,10 +313,51 @@ export function createFieldReportUnitOfWork(
       state.latestStopEvents.get(`${input.stopId}:${input.kind}`) ?? null,
     findStopOccurrenceType: async (input) =>
       state.stopOccurrenceTypes.get(`${input.companyId}:${input.occurrenceTypeId}`) ?? null,
+    listStopChargeDocuments: async (input) => state.stopChargeDocuments.get(input.stopId) ?? [],
+    recordStopOccurrencePhotos: async (input) => {
+      for (const photo of input.photos) {
+        const key = `${input.stopOccurrenceId}:${photo.slotKey}`
+        if (!state.stopOccurrencePhotos.has(key))
+          state.stopOccurrencePhotos.set(key, photo.objectId)
+      }
+    },
+    recordReceivingCharges: async (input) => {
+      state.calls.push(`recordReceivingCharges:${String(input.lines.length)}`)
+      for (const line of input.lines) {
+        const key = line.grouped
+          ? `${input.stopOccurrenceId}:grouped`
+          : `${input.stopOccurrenceId}:${line.tripDocumentId ?? ''}`
+        if (!state.receivingChargeLines.has(key)) {
+          state.receivingChargeLines.set(key, {
+            ...line,
+            proofObjectId: input.proofObjectId,
+            stopOccurrenceId: input.stopOccurrenceId,
+          })
+        }
+      }
+    },
+    flagReceivingChargeClients: async (input) => {
+      for (const clientId of new Set(input.deliveryClientIds)) {
+        const current = state.flaggedClients.get(clientId)
+        if (current === undefined) {
+          state.flaggedClients.set(clientId, {
+            sourceStopOccurrenceId: input.stopOccurrenceId,
+            updates: 1,
+          })
+        } else {
+          current.updates += 1
+        }
+      }
+    },
     recordOccurrence: async (input) => {
       state.calls.push(`recordOccurrence:${input.kind}`)
       state.occurrenceStamps.push(input.locationStamp)
       state.recordedOccurrenceTypeIds.push(input.occurrenceTypeId)
+      state.recordedReceivingCharges.push(input.receivingCharge ?? null)
+      state.recordedOccurrenceColumns.push({
+        attachmentObjectId: input.attachmentObjectId,
+        documentId: input.documentId,
+      })
       const occurrence = { id: nextIdentifier('occurrence') }
       state.occurrences.set(occurrence.id, occurrence)
       return occurrence

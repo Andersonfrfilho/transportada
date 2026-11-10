@@ -14,6 +14,7 @@ import type {
   ReportStopOccurrenceResult,
   StopOccurrenceReference,
 } from '../application/report-stop-occurrence.use-case.js'
+import type { ReceivingChargeInput } from '../domain/receiving-charge.policy.js'
 import {
   FIELD_TRIP_STEP,
   type FieldTripStep,
@@ -79,6 +80,8 @@ export type TripFieldOfficeTripDependencies = {
         readonly distanceMeters: number | null
         readonly documentId: string | null
         readonly idempotencyKey: string
+        /** Spec 317 (E3, E4, E11): a cobrança no recebimento. */
+        readonly receivingCharge?: ReceivingChargeInput
         readonly stopId: string
         readonly target: ResolvedTripFieldTarget
       },
@@ -232,6 +235,7 @@ function createStopOccurrenceRoute(
         distanceMeters: input.distanceMeters,
         documentId: input.documentId,
         idempotencyKey: input.idempotencyKey,
+        ...(input.receivingCharge === undefined ? {} : { receivingCharge: input.receivingCharge }),
         /** Spec 218 D2: o mesmo par que a rota do motorista manda — nunca os dois juntos. */
         ...(input.occurrenceTypeId === undefined
           ? { kind: input.kind }

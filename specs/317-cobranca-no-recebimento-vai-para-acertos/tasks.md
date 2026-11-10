@@ -9,14 +9,14 @@ Modelo por etapa (regra do projeto): o coordenador abre cada etapa numa thread c
 
 ## Etapa 2 — API · Modelo: opus (regra de dinheiro, transação e idempotência)
 
-- [ ] T3 Contratos: foto faltando por vaga, valor, nota (1 vs >1 vs 0), reenvio idempotente, sem saída à contratante (RF7), cliente marcado.
-- [ ] T4 Política `stop-occurrence-photo-slots.policy.ts` e leitura das vagas no registro.
-- [ ] T5 `report-stop-occurrence`: transação com fotos, linha `receiving_charge`, marca do cliente; remover a sugestão `onDelivered` para o tipo (E10).
-- [ ] T5a Modo por nota/agrupada: linhas, `delivery_charge_documents`, idempotência por (parada, nota).
-- [ ] T5b Comprovante do PIX opcional ao concluir (E13): colunas, anexo, envio ao motorista no chat da ocorrência; concluir nunca bloqueia.
-- [ ] T6 Relatório de Ressarcimentos com `photos[]`; rota para limpar a marca (`delivery.manage`).
-- [ ] T7 Validação do tipo recusa `emailsContractor` ligado em `unexpected_charge`.
-- [ ] T8 Adicionar os arquivos de teste novos à lista do `package.json` da API.
+- [x] T3 Contratos: foto faltando por vaga, valor, nota (1 vs >1 vs 0), reenvio idempotente, sem saída à contratante (RF7), cliente marcado.
+- [x] T4 Política `stop-occurrence-photo-slots.policy.ts` e leitura das vagas no registro.
+- [x] T5 `report-stop-occurrence`: transação com fotos, linha `receiving_charge`, marca do cliente; remover a sugestão `onDelivered` para o tipo (E10).
+- [x] T5a Modo por nota/agrupada: linhas, `delivery_charge_documents`, idempotência por (parada, nota).
+- [x] T5b Comprovante do PIX opcional ao concluir (E13): colunas, anexo, envio ao motorista no chat da ocorrência; concluir nunca bloqueia.
+- [x] T6 Relatório de Ressarcimentos com `photos[]`; rota para limpar a marca (`delivery.manage`).
+- [x] T7 Validação do tipo recusa `emailsContractor` ligado em `unexpected_charge`.
+- [x] T8 Adicionar os arquivos de teste novos à lista do `package.json` da API.
 
 ## Etapa 3 — Painel · Modelo: padrão do projeto
 

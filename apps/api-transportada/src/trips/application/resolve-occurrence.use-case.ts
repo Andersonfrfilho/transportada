@@ -13,11 +13,21 @@ import { OccurrenceCancelledError, TripOccurrenceNotFoundError } from '../domain
 import type { OccurrenceResolutionNotifierPort } from './occurrence-resolution-notifier.port.js'
 import type {
   OccurrenceKind,
+  OccurrenceResolutionTransactionPort,
   OccurrenceResolutionUnitOfWork,
 } from './occurrence-resolution.port.js'
+import {
+  StopOccurrencePayoutNotApplicableError,
+  StopOccurrencePayoutReceiptNotFoundError,
+} from '../domain/receiving-charge.error.js'
 
 export type ResolveOccurrenceInput = {
   readonly context: CompanyContext
+  /**
+   * Spec 317 (E13, T5b): o anexo do chat com o comprovante do PIX ao motorista. Opcional — concluir nunca é
+   * bloqueado por falta dele; só vale em ocorrência de parada paga pelo motorista.
+   */
+  readonly driverPayoutReceiptAttachmentId?: string | undefined
   readonly note: string
   readonly occurrenceId: string
   readonly occurrenceKind: OccurrenceKind
@@ -61,6 +71,7 @@ export function createResolveOccurrenceUseCase(
         })
         if (current.state === 'cancelled') throw new OccurrenceCancelledError()
         if (current.state === 'resolved') throw new OccurrenceAlreadyResolvedError()
+        await recordPayoutReceiptWhenSent(transaction, input)
 
         return transaction.insertInternalResolution({
           ...target,
@@ -89,4 +100,22 @@ export function createResolveOccurrenceUseCase(
       }
     },
   }
+}
+
+/** Spec 317 (E13): na mesma transação da resolução — o comprovante recusado desfaz a resolução, nunca grava pela metade. */
+async function recordPayoutReceiptWhenSent(
+  transaction: OccurrenceResolutionTransactionPort,
+  input: ResolveOccurrenceInput,
+): Promise<void> {
+  const attachmentId = input.driverPayoutReceiptAttachmentId
+  if (attachmentId === undefined) return
+  if (input.occurrenceKind !== 'stop') throw new StopOccurrencePayoutNotApplicableError()
+  const outcome = await transaction.recordDriverPayoutReceipt({
+    actorUserId: input.context.userId,
+    attachmentId,
+    companyId: input.context.companyId,
+    occurrenceId: input.occurrenceId,
+  })
+  if (outcome === 'not_found') throw new StopOccurrencePayoutReceiptNotFoundError()
+  if (outcome === 'not_driver_paid') throw new StopOccurrencePayoutNotApplicableError()
 }
