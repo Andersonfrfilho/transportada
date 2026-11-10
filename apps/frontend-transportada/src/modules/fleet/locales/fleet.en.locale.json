@@ -104,6 +104,7 @@
   "capacityKilograms": "Capacity (kg)",
   "cargoHeightMeters": "Cargo height (m)",
   "cargoLengthMeters": "Cargo length (m)",
+  "cargoSuggestionFromModel": "Payload published for the {{model}}, not a weighing. Check it before saving.",
   "cargoSuggestionFromReference": "Typical for the type, not a measurement. Spread within a type reaches twice over — check it with a tape before saving.",
   "cargoSuggestionFromVehicle": "Copied from {{plate}}, in this fleet. Check it with a tape before saving.",
   "cargoWidthMeters": "Cargo width (m)",
