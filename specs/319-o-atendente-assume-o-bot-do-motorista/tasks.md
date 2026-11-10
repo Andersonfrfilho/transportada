@@ -19,7 +19,7 @@ Uma task por vez, PR para staging, merge com CI verde. Contratos vermelhos antes
   > 🤖 Modelo: `sonnet`
 - [ ] **T7** Job de vencimento e devolução (aviso "voltei" conforme decisão).
   > 🤖 Modelo: `sonnet`
-- [ ] **T7b 🧠** Spike do SDK: o que o `conversations-ui` 0.14 já cobre para um chat por JID (fio, composer, menu, lido/enviado) e o que falta; incluindo se o botão Assumir/Devolver já existe (e qual é o contrato dele); lista de pedidos ao SDK. Aceite: nota em `evidence.md`.
+- [x] **T7b 🧠** Spike do SDK: o que o `conversations-ui` 0.14 já cobre para um chat por JID (fio, composer, menu, lido/enviado) e o que falta; incluindo se o botão Assumir/Devolver já existe (e qual é o contrato dele); lista de pedidos ao SDK. Aceite: nota em `evidence.md`.
   > 🤖 Modelo: `opus`
 - [ ] **T8** Página "Conversas do WhatsApp": lista, filtros, conversa, campo de envio, Assumir/Devolver, com o `ConversationThread` do SDK e os componentes de `src/components/ui/`.
       Prints claro/escuro, desktop e celular; comparar com outra tela do painel.
