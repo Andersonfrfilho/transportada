@@ -645,10 +645,12 @@ const occurrenceTypeSchema = z
      */
     blocksContractorNotice: z.boolean().optional(),
     /**
-     * Spec 321 (D4c): se a coleta de canhoto soma peso e dimensão na viagem que a busca. Ausente é "não mexa"; a fase 1
-     * recusa voltar a `true` um tipo gravado com `false` (422 `OCCURRENCE_TYPE_PICKUP_CARGO_UNSUPPORTED`).
+     * Spec 321 (D4c): se a coleta de canhoto soma peso e dimensão na viagem que a busca. Ausente é "não mexa"; no tipo
+     * com coleta a fase 1 recusa `true` (422 `OCCURRENCE_TYPE_PICKUP_CARGO_UNSUPPORTED`).
      */
     countsCargoOnPickupTrip: z.boolean().optional(),
+    /** Spec 321 T2 (D4): o tipo cria a coleta de canhoto ao ser registrado. Ausente é "não mexa". */
+    createsCanhotoPickup: z.boolean().optional(),
     /**
      * Spec 271 (D14): a chave da 269 (modelo do cadastro da 150, por id) é **aceita e ignorada** até as telas novas
      * estarem em produção — o painel antigo ainda a manda; depois disso sai daqui e o `.strict()` a recusa (T5.5).

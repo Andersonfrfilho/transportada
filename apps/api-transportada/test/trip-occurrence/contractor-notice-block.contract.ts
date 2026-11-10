@@ -7,8 +7,8 @@
  *   `occurrenceTypeNeverNotifiesContractor`, lida pelos quatro pontos de aviso (cada um com o próprio contrato:
  *   `automatic-mail`/`automatic-group`, `occurrence-mail`, `occurrence-chat-mail`, `contractor-portal-message` e,
  *   no worker, `contractor-notice-block.contract.ts`). Aqui: a regra, o nome da coluna que o worker copia e o cadastro.
- * - `countsCargoOnPickupTrip`: na fase 1 o cadastro só aceita `true` quando já é o gravado; voltar a `true` um tipo
- *   gravado com `false` é 422 `OCCURRENCE_TYPE_PICKUP_CARGO_UNSUPPORTED`.
+ * - `countsCargoOnPickupTrip`: gravado como veio no tipo sem coleta; a regra do tipo com coleta (T2, marca
+ *   `createsCanhotoPickup`) mora em `canhoto-pickup.contract.ts`.
  */
 import { describe, expect, test } from 'bun:test'
 import { getTableConfig } from 'drizzle-orm/pg-core'
@@ -21,11 +21,7 @@ import {
   type CurrentOccurrenceTypeShape,
   type SaveOccurrenceTypeValues,
 } from '../../src/trips/application/save-occurrence-type.use-case.js'
-import {
-  isPickupCargoCountingUnsupported,
-  occurrenceTypeNeverNotifiesContractor,
-} from '../../src/trips/domain/occurrence-contractor-notice.policy.js'
-import { OccurrenceTypePickupCargoUnsupportedError } from '../../src/trips/domain/trip.error.js'
+import { occurrenceTypeNeverNotifiesContractor } from '../../src/trips/domain/occurrence-contractor-notice.policy.js'
 import { parseOccurrenceTypeRequest } from '../../src/trips/presentation/occurrence.schema.js'
 
 const COMPANY = '00000000-0000-4000-8000-000000321001'
@@ -159,39 +155,14 @@ describe('o cadastro do tipo grava as duas marcas (spec 321 RF1)', () => {
   })
 })
 
-describe('a coleta não soma carga na fase 1 (spec 321 D4c)', () => {
-  test.each([
-    [undefined, undefined, false],
-    [true, true, false],
-    [true, undefined, false],
-    [false, false, false],
-    [false, true, true],
-    [undefined, true, false],
-  ] as const)('gravado %p, pedido %p → recusa: %p', (current, requested, expected) => {
-    expect(isPickupCargoCountingUnsupported({ current, requested })).toBe(expected)
-  })
-
-  test('voltar a `true` um tipo gravado com `false` é 422, sem gravar', async () => {
+describe('no tipo sem coleta, `countsCargoOnPickupTrip` não tem efeito e grava como veio (spec 321 T2)', () => {
+  test('ligar de volta (`true`) um tipo sem coleta gravado com `false` é aceito', async () => {
     const { promise, saved } = run({
-      stored: { ...STORED_SHAPE, countsCargoOnPickupTrip: false },
-      values: { countsCargoOnPickupTrip: true, occurrenceTypeId: TYPE_ID },
-    })
-    await expect(promise).rejects.toBeInstanceOf(OccurrenceTypePickupCargoUnsupportedError)
-    expect(saved).toEqual([])
-
-    const error = new OccurrenceTypePickupCargoUnsupportedError()
-    expect(error.code).toBe('OCCURRENCE_TYPE_PICKUP_CARGO_UNSUPPORTED')
-    expect(error.status).toBe(422)
-  })
-
-  test('mandar `true` num tipo que já é `true` (o painel manda o tipo inteiro) grava normalmente', async () => {
-    const { promise, reads, saved } = run({
-      stored: { ...STORED_SHAPE, countsCargoOnPickupTrip: true },
+      stored: { ...STORED_SHAPE, countsCargoOnPickupTrip: false, createsCanhotoPickup: false },
       values: { countsCargoOnPickupTrip: true, occurrenceTypeId: TYPE_ID },
     })
     await promise
-    expect(reads).toEqual([TYPE_ID])
-    expect(saved).toHaveLength(1)
+    expect(saved[0]?.countsCargoOnPickupTrip).toBe(true)
   })
 
   test('desligar (`false`) é sempre aceito', async () => {

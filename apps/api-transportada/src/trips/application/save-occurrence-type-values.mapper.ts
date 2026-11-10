@@ -39,6 +39,7 @@ export function toSaveOccurrenceTypeValues(
     emailsContractor: input.emailsContractor,
     blocksContractorNotice: input.blocksContractorNotice,
     countsCargoOnPickupTrip: input.countsCargoOnPickupTrip,
+    createsCanhotoPickup: input.createsCanhotoPickup,
     contractorNotificationTemplateKey: input.contractorNotificationTemplateKey,
     contractorMailWatcherUserIds: input.contractorMailWatcherUserIds,
     contractorMailRecipientContactIds: input.contractorMailRecipientContactIds,

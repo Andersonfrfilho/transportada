@@ -84,6 +84,8 @@ import {
 } from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import { assertNoDuplicateOccurrenceRequest } from './occurrence-duplicate-request.query.js'
+import { createPendingCanhotoPickup } from './canhoto-pickup.query.js'
+import { CanhotoPickupNotCreatedError } from '../domain/trip.error.js'
 import type { OccurrenceMailValues } from '../domain/occurrence-mail-values.types.js'
 import {
   OccurrenceTypeAcknowledgementInvalidError,
@@ -641,7 +643,7 @@ export async function saveTripOccurrence(
     )
     .limit(1)
   if (document === undefined) return null
-  await assertNoDuplicateOccurrenceRequest(queryable, {
+  const { createsCanhotoPickup } = await assertNoDuplicateOccurrenceRequest(queryable, {
     companyId: input.companyId,
     occurrenceTypeId: input.occurrenceTypeId,
     tripDocumentId: input.documentId,
@@ -684,6 +686,19 @@ export async function saveTripOccurrence(
       occurrenceId: saved.id,
       storedObjectIds,
     })
+  }
+
+  /**
+   * Spec 321 T2 (D4, RF2): o tipo com coleta cria a coleta `pending` na **mesma transação** da ocorrência. A linha de
+   * `trip_documents` não é tocada (D3, CA03): a entrega segue entregue e a nota não volta a ficar disponível.
+   */
+  if (createsCanhotoPickup) {
+    const pickupId = await createPendingCanhotoPickup(queryable, {
+      companyId: input.companyId,
+      occurrenceId: saved.id,
+      originTripDocumentId: input.documentId,
+    })
+    if (pickupId === null) throw new CanhotoPickupNotCreatedError()
   }
 
   /**
@@ -919,6 +934,7 @@ export async function findOccurrenceType(
       /** Spec 321 (D2, D4c): nunca avisa a contratante; a coleta soma (ou não) carga na viagem que a busca. */
       blocksContractorNotice: companyOccurrenceTypes.blocksContractorNotice,
       countsCargoOnPickupTrip: companyOccurrenceTypes.countsCargoOnPickupTrip,
+      createsCanhotoPickup: companyOccurrenceTypes.createsCanhotoPickup,
       /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
       contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
@@ -1110,6 +1126,7 @@ export async function listOccurrenceTypes(
       /** Spec 321 (D2, D4c): nunca avisa a contratante; a coleta soma (ou não) carga na viagem que a busca. */
       blocksContractorNotice: companyOccurrenceTypes.blocksContractorNotice,
       countsCargoOnPickupTrip: companyOccurrenceTypes.countsCargoOnPickupTrip,
+      createsCanhotoPickup: companyOccurrenceTypes.createsCanhotoPickup,
       /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
       contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
@@ -1481,6 +1498,7 @@ async function writeOccurrenceTypeRow(
     /** Spec 321 (D2, D4c): ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
     readonly blocksContractorNotice?: boolean | undefined
     readonly countsCargoOnPickupTrip?: boolean | undefined
+    readonly createsCanhotoPickup?: boolean | undefined
     /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
     readonly contractorNotificationTemplateKey?: null | string | undefined
     readonly contractorReplyAlertIntervalMinutes?: number | undefined
@@ -1590,6 +1608,9 @@ async function writeOccurrenceTypeRow(
     ...(input.countsCargoOnPickupTrip === undefined
       ? {}
       : { countsCargoOnPickupTrip: input.countsCargoOnPickupTrip }),
+    ...(input.createsCanhotoPickup === undefined
+      ? {}
+      : { createsCanhotoPickup: input.createsCanhotoPickup }),
     ...(input.contractorReplyAlertIntervalMinutes === undefined
       ? {}
       : { contractorReplyAlertIntervalMinutes: input.contractorReplyAlertIntervalMinutes }),
@@ -1729,6 +1750,7 @@ async function writeOccurrenceTypeRow(
     emailsContractor: saved.emailsContractor,
     blocksContractorNotice: saved.blocksContractorNotice,
     countsCargoOnPickupTrip: saved.countsCargoOnPickupTrip,
+    createsCanhotoPickup: saved.createsCanhotoPickup,
     contractorNotificationTemplateKey: saved.contractorNotificationTemplateKey,
     contractorScope: saved.contractorScope,
     contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,

@@ -13,15 +13,3 @@ export function occurrenceTypeNeverNotifiesContractor(type: {
 }): boolean {
   return type.blocksContractorNotice === true
 }
-
-/**
- * Spec 321 (D4c): na fase 1 a coleta de canhoto **não** soma carga na viagem que a busca. O cadastro só aceita `true`
- * quando ele já é o valor gravado (ou na criação, onde é o padrão da coluna): voltar a `true` um tipo gravado com
- * `false` é recusado até os leitores de carga da T0 §8 aprenderem a somar a coleta.
- */
-export function isPickupCargoCountingUnsupported(params: {
-  readonly current: boolean | undefined
-  readonly requested: boolean | undefined
-}): boolean {
-  return params.requested === true && params.current === false
-}
