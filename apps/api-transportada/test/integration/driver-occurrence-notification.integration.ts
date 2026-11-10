@@ -5,6 +5,7 @@
  * (`registerDriverOccurrence` + repositórios Drizzle + leitor do aviso + `sendNotification` do módulo), grava o aviso
  * em `notification.notifications` para os responsáveis e quem despachou — sem duplicar, com o tipo `notifies = false`.
  */
+import { DrizzleDriverOccurrenceEmailSettingsRepository } from '../../src/companies/infrastructure/drizzle-driver-occurrence-email-settings.repository.js'
 import { describe, expect, test } from 'bun:test'
 import { eq, sql } from 'drizzle-orm'
 
@@ -123,6 +124,7 @@ async function registerWithNotifier(database: TestDatabase, world: World) {
   const notifications = createApiNotificationModule({ config: CONFIG, db: database.db })
   const warnings: string[] = []
   const notifier = createDriverOccurrenceNotifier({
+    emailSettings: new DrizzleDriverOccurrenceEmailSettingsRepository(database.db),
     logger: { warn: (event) => void warnings.push(event) },
     reader: createDriverOccurrenceNotificationReader(database.db),
     send: (params) =>
