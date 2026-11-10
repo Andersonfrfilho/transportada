@@ -36,7 +36,7 @@ elegíveis são refeitos; os já importados ficam como estão.
 ## Requisitos funcionais
 
 - RF1: a rota de reprocesso aceita item `rejected` cujo `error.code` esteja na lista fechada de **recusas reprocessáveis** (hoje só `NFE_IMPORT_UNRELATED_CNPJ`), além de `failed`.
-- RF2: cada item refeito vira uma nova tentativa (`attempt + 1`, `previousItemId`, `previousAttempt`), como NFI-015; XML original, chave e histórico anterior não mudam.
+- RF2: item `failed` ganha nova tentativa (`attempt + 1`, `previousItemId`, `previousAttempt`), como NFI-015. Item `rejected` reprocessável **não ganha linha nova**: a importação volta a `queued` e o consumidor relê o item no lugar, o mesmo caminho que o script de operação usou em produção em 10/11/2026 (44 importadas, 2 duplicadas, contadores corretos). Linha nova para a mesma nota faria o consumidor processá-la duas vezes e contar em dobro. XML original e chave não mudam.
 - RF3: a API tem uma consulta que só conta (simulação) e devolve quantas notas seriam refeitas, por motivo, sem gravar nada; a tela usa essa contagem na confirmação.
 - RF4: a permissão é `invoices.import`, a mesma do reprocesso atual; `companyId` vem do contexto autenticado.
 - RF5: importação em `pending`, `queued` ou `processing` não pode ser reprocessada (`409`), para não haver duas tentativas ao mesmo tempo.

@@ -44,6 +44,7 @@ import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.com
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
 import { NfeImportQueue } from '../components/NfeImportQueue.component'
+import { NfeImportReprocessDialog } from '../components/NfeImportReprocessDialog.component'
 import { NfeXmlAllowedDomainsPanel } from '../components/NfeXmlAllowedDomainsPanel.component'
 import { NfeXmlReceiptsPanel } from '../components/NfeXmlReceiptsPanel.component'
 import { AccessKeyImportSection } from '../components/AccessKeyImportSection.component'
@@ -251,6 +252,7 @@ export function NfeWorkspacePage() {
   const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null)
   const [downloadErrorId, setDownloadErrorId] = useState<string | null>(null)
   const [reprocessTargetId, setReprocessTargetId] = useState<string | null>(null)
+  const [reprocessDialogId, setReprocessDialogId] = useState<string | null>(null)
   /**
    * Spec 088 R4: a aba abre pela URL. A planta do baú manda o conferente medir a caixa que falta, e
    * um atalho que larga na aba errada faz ele procurar o botão em vez de medir. É leitura única, na
@@ -399,12 +401,19 @@ export function NfeWorkspacePage() {
     })
   }
 
+  /** Abre o diálogo de confirmação; nada é gravado antes de "Confirmar" (spec 314). */
   function handleReprocess(id: string): void {
     setReprocessTargetId(id)
-    workspace.reprocessMutation.mutate({
-      id,
-      idempotencyKey: workspace.newIdempotencyKey(),
-    })
+    workspace.reprocessMutation.reset()
+    setReprocessDialogId(id)
+  }
+
+  function handleReprocessConfirm(): void {
+    if (reprocessDialogId === null) return
+    workspace.reprocessMutation.mutate(
+      { id: reprocessDialogId, idempotencyKey: workspace.newIdempotencyKey() },
+      { onSuccess: () => setReprocessDialogId(null) },
+    )
   }
 
   async function handleDownloadXml(document: NfeDocumentListItem): Promise<void> {
@@ -675,6 +684,15 @@ export function NfeWorkspacePage() {
                       reprocessSuccess={workspace.reprocessMutation.isSuccess}
                       reprocessTargetId={reprocessTargetId}
                     />
+                    {reprocessDialogId !== null && (
+                      <NfeImportReprocessDialog
+                        importId={reprocessDialogId}
+                        isSubmitting={workspace.reprocessMutation.isPending}
+                        loadPreview={workspace.previewReprocess}
+                        onCancel={() => setReprocessDialogId(null)}
+                        onConfirm={handleReprocessConfirm}
+                      />
+                    )}
                     {workspace.canRead && (
                       <NfeXmlReceiptsPanel
                         failed={xmlReceipts.isError}

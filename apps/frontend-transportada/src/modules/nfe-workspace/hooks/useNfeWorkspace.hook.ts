@@ -12,6 +12,7 @@ import {
   type ImportPollingState,
   type NfeDocumentListPage,
   type NfeImportFilters,
+  type NfeImportReprocessPreview,
   type NfeImportListPage,
   type NfeWorkspaceClient as WorkspaceClient,
   type RequestUploadInput,
@@ -31,6 +32,7 @@ export type NfeWorkspaceClient = WorkspaceClient
 export type NfeWorkspaceController = Readonly<{
   canImport: boolean
   canRead: boolean
+  previewReprocess: (input: Readonly<{ id: string }>) => Promise<NfeImportReprocessPreview>
   reprocessImport: (input: Readonly<{ id: string; idempotencyKey: string }>) => Promise<void>
   requestDistribution: (input: Readonly<{ idempotencyKey: string }>) => Promise<void>
   requestUpload: (input: RequestUploadInput) => Promise<void>
@@ -65,6 +67,8 @@ export function createNfeWorkspaceController(input: ControllerInput): NfeWorkspa
   return {
     canImport,
     canRead,
+    previewReprocess: (request) =>
+      canImport ? input.client.previewReprocess(request) : forbidden(),
     reprocessImport: (request) =>
       canImport ? input.client.reprocessImport(request).then(() => undefined) : forbidden(),
     requestDistribution: (request) =>
@@ -277,6 +281,7 @@ export function useNfeWorkspace(
       documentsQuery.isLoading || documentsQuery.hasNextPage || documentsQuery.isFetchingNextPage,
     isFetchingMoreDocuments: documentsQuery.isFetchingNextPage,
     isFetchingMoreImports: importsQuery.isFetchingNextPage,
+    previewReprocess: controller.previewReprocess,
     reprocessMutation,
     uploadMutation,
     newIdempotencyKey: createIdempotencyKey,
