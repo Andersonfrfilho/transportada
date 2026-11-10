@@ -77,6 +77,7 @@ type PendingImportItem = {
 type PendingImportAggregate = {
   readonly companyCnpj: string
   readonly companyId: string
+  readonly contractorTaxIds: readonly string[]
   readonly id: string
   readonly items: readonly PendingImportItem[]
 }
@@ -157,6 +158,12 @@ export class DrizzleNfeImportConsumerRepository {
       restrictedContractorTaxId = contractor?.taxId ?? ''
     }
 
+    // A nota em que a empresa não aparece (a SEFAZ não a entrega) entra quando o emitente é contratante ativo da empresa.
+    const contractorRows = await this.#database
+      .select({ taxId: contractors.taxId })
+      .from(contractors)
+      .where(and(eq(contractors.companyId, input.companyId), eq(contractors.status, 'active')))
+
     const itemRows = await this.#database
       .select({
         attempt: nfeImportItems.attempt,
@@ -188,6 +195,7 @@ export class DrizzleNfeImportConsumerRepository {
     return {
       companyCnpj: profile.cnpj,
       companyId: input.companyId,
+      contractorTaxIds: contractorRows.map((row) => row.taxId),
       id: input.importId,
       ...(restrictedContractorTaxId === undefined ? {} : { restrictedContractorTaxId }),
       items: itemRows.map((row) => ({
