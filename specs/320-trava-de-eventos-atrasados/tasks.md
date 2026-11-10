@@ -4,7 +4,7 @@ Modelo por etapa: servidor e migration em Opus; app e painel em Sonnet.
 
 ## Fase 0 — Medir (Sonnet)
 
-- [ ] T0.1 Anderson roda `tmp/ops/producao-motorista-eventos-atrasados.sh`; registrar em `evidence.md` o que duplicou.
+- [x] T0.1 Anderson roda `tmp/ops/producao-motorista-eventos-atrasados.sh`; registrar em `evidence.md` o que duplicou.
 - [ ] T0.2 Propor ao Anderson a limpeza do que já duplicou (só com OK dele).
 
 ## Fase 1 — Banco (Opus)
@@ -14,7 +14,7 @@ Modelo por etapa: servidor e migration em Opus; app e painel em Sonnet.
 
 ## Fase 2 — Servidor (Opus)
 
-- [ ] T2.1 Contrato da política (CA2, 3 h, fuso, virada de dia) e `field-report-hold.policy.ts`.
+- [x] T2.1 Contrato da política (CA2, 3 h, fuso, virada de dia) e `field-report-hold.policy.ts`.
 - [ ] T2.2 Reter dentro de `withFieldReport`; `202 held`; reenvio idempotente (CA1, CA6).
 - [ ] T2.3 Duplicata provável (CA3).
 - [ ] T2.4 Rotas listar, liberar e descartar; liberar idempotente com a hora original (CA4, CA5); integração.
