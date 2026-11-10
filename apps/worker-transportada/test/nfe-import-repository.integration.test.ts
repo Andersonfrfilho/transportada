@@ -206,6 +206,7 @@ describeDatabase('DrizzleNfeImportConsumerRepository (integration)', () => {
     expect(pendingImport).toEqual({
       companyCnpj: COMPANY_CNPJ,
       companyId,
+      contractorTaxIds: [],
       id: importId,
       items: [
         {
