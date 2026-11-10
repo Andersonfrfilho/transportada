@@ -13,6 +13,7 @@ import {
   NOTIFICATION_SCHEMA,
   OCCURRENCE_AUTOMATIC_MAIL_KEY_PREFIX,
   OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION,
+  OCCURRENCE_CONTRACTOR_GROUP_SEND_OPERATION,
   OCCURRENCE_CONTRACTOR_MAIL_CHANNEL,
   OCCURRENCE_CONTRACTOR_MAIL_LOCALE,
   UNSAFE_EMAIL_HTML_PATTERN,
@@ -98,6 +99,14 @@ export function createDrizzleOccurrenceAutomaticMailQueue(
             where r."company_id" = o."company_id"
               and r."operation" = ${OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION}
               and r."idempotency_key" = ${OCCURRENCE_AUTOMATIC_MAIL_KEY_PREFIX} || o."id"::text
+          )
+          and not exists (
+            select 1
+            from idempotency_records g
+            where g."company_id" = o."company_id"
+              and g."operation" = ${OCCURRENCE_CONTRACTOR_GROUP_SEND_OPERATION}
+              and g."idempotency_key" = ${OCCURRENCE_AUTOMATIC_MAIL_KEY_PREFIX} || o."id"::text
+              and g."status" = 'completed'
           )
           ${exclusion}
         order by o."created_at"
