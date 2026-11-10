@@ -1,0 +1,1 @@
+import{j as n,P as u}from"./index-dhtEl0ye.js";const i={default:"ui-badge-default",info:"ui-badge-info",secondary:"ui-badge-secondary",success:"ui-badge-success",warning:"ui-badge-warning"};function c({className:a,variant:e="default",...s}){return n.jsx("span",{className:u("ui-badge",i[e],a),...s})}export{c as B};

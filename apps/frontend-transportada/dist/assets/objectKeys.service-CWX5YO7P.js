@@ -1,0 +1,1 @@
+function s(e){return typeof e=="object"&&e!==null&&!Array.isArray(e)}function t(e,n){return s(e)&&Object.keys(e).every(r=>n.includes(r))&&n.every(r=>r in e)}function c(e,n){return s(e)&&Object.keys(e).every(r=>n.allowed.includes(r))&&n.required.every(r=>r in e)}export{c as a,t as h};

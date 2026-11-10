@@ -115,6 +115,16 @@ export function reprocessImportRequest(
   )
 }
 
+export function reprocessPreviewRequest(
+  importId = IMPORT_ID,
+  options: RequestOptions = {},
+): Request {
+  return new Request(
+    `http://localhost${NFE_IMPORTS_PATH}/${importId}/reprocess-preview${options.query ?? ''}`,
+    { headers: baseHeaders(options), method: 'GET' },
+  )
+}
+
 export function documentsListRequest(options: RequestOptions = {}): Request {
   return new Request(`http://localhost${NFE_DOCUMENTS_PATH}${options.query ?? ''}`, {
     headers: baseHeaders(options),

@@ -1,0 +1,1 @@
+import{ay as t}from"./index-dhtEl0ye.js";const i="/clientes?tab=mail",s="delivery-clients";function o(e){e.pushPath(i),e.rememberWorkspace(s),e.dispatchPopState()}function c(e){e.pushPath(t),e.rememberWorkspace("notification"),e.dispatchPopState()}export{o as a,c as n};

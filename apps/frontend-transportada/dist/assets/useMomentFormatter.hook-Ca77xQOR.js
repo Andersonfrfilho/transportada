@@ -1,0 +1,1 @@
+import{u as r,r as n}from"./index-dhtEl0ye.js";function a({locale:o,value:t}){const e=new Date(t);return Number.isNaN(e.getTime())?t:new Intl.DateTimeFormat(o,{dateStyle:"short",timeStyle:"short"}).format(e)}function m(){const{i18n:o}=r(),t=o.resolvedLanguage??"pt-BR";return n.useMemo(()=>e=>a({locale:t,value:e}),[t])}export{a as f,m as u};

@@ -1,0 +1,1 @@
+import{b as t}from"./index-dhtEl0ye.js";import{g as e}from"./useTripWorkspace.hook-sewQZdcg.js";const o=["trip","contractors"];function u(r){return t({enabled:r.enabled,queryFn:()=>e().listContractors(),queryKey:o})}export{u};

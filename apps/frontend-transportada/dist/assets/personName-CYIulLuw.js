@@ -1,0 +1,1 @@
+const n=new Set(["da","das","de","do","dos","e"]);function c(o){return o.trim().split(/\s+/).filter(e=>e!=="").map((e,r)=>{const t=e.toLocaleLowerCase("pt-BR");return r>0&&n.has(t)?t:t.replace(new RegExp("(^|[-'’])(\\p{L})","gu"),(p,a,s)=>a+s.toLocaleUpperCase("pt-BR"))}).join(" ")}export{c as f};

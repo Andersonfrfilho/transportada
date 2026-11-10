@@ -1,0 +1,1 @@
+function n(t){return String(t).padStart(2,"0")}function r(t){const e=new Date(t.length===10?`${t}T00:00:00.000Z`:t);return Number.isNaN(e.getTime())?t:`${n(e.getUTCDate())}/${n(e.getUTCMonth()+1)}/${String(e.getUTCFullYear())}`}export{r as f};

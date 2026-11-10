@@ -15,6 +15,7 @@ import {
   SECOND_IMPORT_ITEM,
   USER_ID,
   type NfeImportDetail,
+  type NfeImportItemAttempt,
   type NfeImportSummary,
 } from '../fixtures/nfe-import-application.fixture'
 import {
@@ -23,6 +24,17 @@ import {
   type NfeImportItemDraft,
   type ReprocessNfeImportUnitOfWorkPort,
 } from '../fixtures/nfe-import-use-case.fixture'
+import { createPreviewNfeImportReprocessUseCase } from '../../src/nfe-imports/application/preview-nfe-import-reprocess.use-case'
+
+const SECOND_ITEM_ID = '00000000-0000-4000-8000-0000000000a2'
+const UNRELATED_REJECTED_ITEM = {
+  ...IMPORT_ITEM,
+  error: {
+    code: 'NFE_IMPORT_UNRELATED_CNPJ',
+    message: 'NF-e is not related to the authenticated company',
+  },
+  status: 'rejected',
+} as const satisfies NfeImportItemAttempt
 
 describe('reprocess nfe import application contract', () => {
   test('queues a new attempt for a failed import without mutating immutable source lineage', async () => {
@@ -69,6 +81,81 @@ describe('reprocess nfe import application contract', () => {
         payload: { importId: IMPORT_ID },
       },
     ])
+  })
+
+  test('requeues a rejected-by-unrelated-cnpj import in place, without new item rows', async () => {
+    const unitOfWork = new ReprocessNfeImportUnitOfWorkFixture()
+    unitOfWork.detail = {
+      ...FAILED_IMPORT,
+      items: [UNRELATED_REJECTED_ITEM],
+      status: 'completed',
+    }
+    const useCase = await createReprocessNfeImportUseCaseFixture({ unitOfWork })
+
+    const result = await useCase.execute({ context: COMPANY_CONTEXT, importId: IMPORT_ID })
+
+    expect(result.status).toBe('queued')
+    expect(unitOfWork.queuedRetryItems).toEqual([])
+    expect(unitOfWork.outboxEntries).toHaveLength(1)
+  })
+
+  test('does not reprocess a rejection that no rule change can reverse', async () => {
+    const unitOfWork = new ReprocessNfeImportUnitOfWorkFixture()
+    unitOfWork.detail = {
+      ...FAILED_IMPORT,
+      items: [
+        { ...UNRELATED_REJECTED_ITEM, error: { code: 'XML_INVALID', message: 'XML is invalid' } },
+      ],
+      status: 'completed',
+    }
+    const useCase = await createReprocessNfeImportUseCaseFixture({ unitOfWork })
+
+    const error = await captureApiError(() =>
+      useCase.execute({ context: COMPANY_CONTEXT, importId: IMPORT_ID }),
+    )
+
+    expect(error).toMatchObject({ code: 'NFE_IMPORT_REPROCESS_NOT_ALLOWED', status: 409 })
+    expect(unitOfWork.outboxEntries).toEqual([])
+  })
+
+  test('does not reprocess an import that is still queued or processing', async () => {
+    for (const status of ['pending', 'queued', 'processing'] as const) {
+      const unitOfWork = new ReprocessNfeImportUnitOfWorkFixture()
+      unitOfWork.detail = { ...FAILED_IMPORT, items: [UNRELATED_REJECTED_ITEM], status }
+      const useCase = await createReprocessNfeImportUseCaseFixture({ unitOfWork })
+
+      const error = await captureApiError(() =>
+        useCase.execute({ context: COMPANY_CONTEXT, importId: IMPORT_ID }),
+      )
+
+      expect(error).toMatchObject({ code: 'NFE_IMPORT_REPROCESS_NOT_ALLOWED', status: 409 })
+      expect(unitOfWork.outboxEntries).toEqual([])
+    }
+  })
+
+  test('previews the counts without writing', async () => {
+    const detail = {
+      ...FAILED_IMPORT,
+      items: [
+        UNRELATED_REJECTED_ITEM,
+        { ...UNRELATED_REJECTED_ITEM, id: SECOND_ITEM_ID, ordinal: 2n },
+      ],
+      status: 'partially_processed',
+    } as const satisfies NfeImportDetail
+    const useCase = createPreviewNfeImportReprocessUseCase({
+      repository: { findById: async () => detail },
+    })
+
+    const preview = await useCase.execute({ context: COMPANY_CONTEXT, importId: IMPORT_ID })
+
+    expect(preview).toEqual({
+      busy: false,
+      failedItems: 0,
+      reprocessable: true,
+      reprocessableRejectionCodes: ['NFE_IMPORT_UNRELATED_CNPJ'],
+      rejectedItems: 2,
+      total: 2,
+    })
   })
 
   test('rejects reprocess for an import already completed or still active', async () => {

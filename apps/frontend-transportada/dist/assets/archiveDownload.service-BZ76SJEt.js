@@ -1,0 +1,1 @@
+function t(o){if(typeof document>"u")return;const c=URL.createObjectURL(o.blob),e=document.createElement("a");e.href=c,e.download=o.fileName,document.body.appendChild(e),e.click(),e.remove(),URL.revokeObjectURL(c)}export{t as s};

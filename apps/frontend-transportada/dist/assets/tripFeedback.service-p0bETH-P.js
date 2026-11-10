@@ -1,0 +1,1 @@
+import{W as o}from"./trip.module-B-YYMuf3.js";function s(e){return e instanceof Error?o[e.message]??"serverRefused":null}function u(e){for(const n of e){const r=s(n);if(r!==null)return r}return null}export{u as a,s as r};

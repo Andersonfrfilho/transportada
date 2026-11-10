@@ -1,0 +1,5 @@
+@tesseract.js-data/eng@1.0.0
+
+O pacote (empacotamento do modelo) é MIT (https://github.com/naptha/tessdata).
+O modelo em si (4.0.0_best_int/eng.traineddata.gz) e o formato .traineddata são do projeto Tesseract
+OCR (Apache-2.0, https://github.com/tesseract-ocr/tesseract), mantido pelo Google.

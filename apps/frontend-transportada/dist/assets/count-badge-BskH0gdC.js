@@ -1,0 +1,1 @@
+import{j as o}from"./index-dhtEl0ye.js";const r="_root_1raxo_7",a={root:r};function n({count:t}){return t<=0?null:o.jsx("span",{"aria-hidden":"true",className:a.root,"data-count-badge":"true",children:t})}export{n as C};

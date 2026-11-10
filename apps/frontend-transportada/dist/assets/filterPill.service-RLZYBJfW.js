@@ -1,0 +1,1 @@
+const R=", ";function f(t){const e=t.from.trim(),s=t.to.trim();if(e.length===0&&s.length===0)return"";const n=t.format??(a=>a),o=e.length===0?"…":n(e),r=s.length===0?"…":n(s);return`${o}–${r}`}function l(t){if(t.values.length!==t.defaults.length)return!0;const e=new Set(t.defaults);return t.values.some(s=>!e.has(s))}export{R as S,f as d,l as s};

@@ -1152,6 +1152,7 @@ import { createRouter, type RegisteredAnonymousRoute } from './http/router.servi
 import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
 import { createGetNfeImportUseCase } from './nfe-imports/application/get-nfe-import.use-case'
 import { createListNfeImportsUseCase } from './nfe-imports/application/list-nfe-imports.use-case'
+import { createPreviewNfeImportReprocessUseCase } from './nfe-imports/application/preview-nfe-import-reprocess.use-case'
 import { createReprocessNfeImportUseCase } from './nfe-imports/application/reprocess-nfe-import.use-case'
 import { createRequestNfeImportUseCase } from './nfe-imports/application/request-nfe-import.use-case'
 import { createGetLastJobRunUseCase } from './nfe-imports/application/get-last-job-run.use-case.js'
@@ -3775,6 +3776,7 @@ function createApplicationRoutes({
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })
   const reprocessImport = createReprocessNfeImportUseCase({ unitOfWork: nfeImportRepository })
+  const previewReprocess = createPreviewNfeImportReprocessUseCase({ repository: nfeImportRepository })
   const freightRules = createFreightRulesUseCase({
     fingerprintService,
     unitOfWork: freightRepository,
@@ -6792,6 +6794,7 @@ function createApplicationRoutes({
       getLastJobRun,
       getScheduledDistribution,
       listImports,
+      previewReprocess: { execute: (input) => previewReprocess.execute(input) },
       reprocessImport: { execute: (input) => reprocessImport.execute(input) },
       requestDistribution: {
         execute: (input) =>
