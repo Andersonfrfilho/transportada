@@ -60,6 +60,7 @@ import {
   enRouteStopActions,
   JOURNEY_ACTION,
   JOURNEY_TEXT,
+  settleStepText,
   nextRouteActions,
   pendingSettlementActions,
   pickJourneyAction,
@@ -801,7 +802,13 @@ export function createWhatsAppDriverPrompts(dependencies: {
   async function nextStepOf(actor: WhatsAppDriverActor): Promise<string> {
     const stops = await listStopsOf(actor)
     if (findStopEnRoute(stops) !== undefined) return JOURNEY_TEXT.nextArrive
-    if (findStopAwaitingSettlement(stops) !== undefined) return JOURNEY_TEXT.nextSettle
+    const awaiting = findStopAwaitingSettlement(stops)
+    if (awaiting !== undefined)
+      return settleStepText(
+        awaiting.documents.filter(
+          (document) => !['delivered', 'returned'].includes(document.separationStatus),
+        ).length,
+      )
     return findNextPendingStop(stops) === undefined
       ? routeCompletedText(actor)
       : JOURNEY_TEXT.nextDepart
