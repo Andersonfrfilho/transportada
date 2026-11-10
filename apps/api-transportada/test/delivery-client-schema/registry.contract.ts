@@ -177,10 +177,11 @@ describe('o repasse: lançamento, regra e lote (spec 060 T003)', () => {
    * ocorrência do motorista diz que cobraram, ele não sabe quanto, e o recibo está na foto. A
    * confirmação é que recusa sem valor.
    */
-  test('a taxa é numeric e positiva, com a sugestão como única exceção', () => {
+  test('a taxa é numeric e positiva, com a sugestão e a cobrança no recebimento como exceções', () => {
     expect(columnSqlTypes(deliveryCharges).amount).toBe('numeric(14, 4)')
+    // Spec 317 (E3): `0` é valor declarado pelo motorista (spec 247) só na cobrança no recebimento.
     expect(unqualifiedCheckSqlByName(deliveryCharges).delivery_charges_amount_check).toBe(
-      `"amount" > 0 or "status" = 'suggested'`,
+      `"amount" > 0 or "status" = 'suggested' or "charge_type" = 'receiving_charge'`,
     )
   })
 
