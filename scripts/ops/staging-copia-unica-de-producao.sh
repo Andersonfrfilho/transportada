@@ -174,7 +174,7 @@ try {
       let rows = tables[t]
       if (t === 'contractors') rows = rows.filter((r) => !skipRows.has(r.id))
       if (!rows.length) { report.passos.push({ tabela: t, oferecidas: 0, inseridas: 0 }); continue }
-      const res = await tx.unsafe('insert into ' + q(t) + ' select * from jsonb_populate_recordset(null::' + q(t) + ', $1::jsonb) on conflict do nothing returning 1', [JSON.stringify(rows)])
+      const res = await tx.unsafe('insert into ' + q(t) + ' select * from jsonb_populate_recordset(null::' + q(t) + ', ($1::text)::jsonb) on conflict do nothing returning 1', [JSON.stringify(rows)])
       report.passos.push({ tabela: t, oferecidas: rows.length, inseridas: res.length })
     }
     if (!CONFIRM) throw new Rollback('simulacao')
