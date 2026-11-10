@@ -119,6 +119,17 @@ import {
 } from './contractor-automations/application/contractor-automation.use-case.js'
 import { DrizzleContractorAutomationRepository } from './contractor-automations/infrastructure/drizzle-contractor-automation.repository.js'
 import { createContractorAutomationRoutes } from './contractor-automations/presentation/contractor-automation.routes.js'
+import {
+  createCreateSalespersonUseCase,
+  createLinkSalespersonContractorUseCase,
+  createListSalespeopleUseCase,
+  createReadSalespersonPortfolioUseCase,
+  createReplaceSalespersonPortfolioUseCase,
+  createUnlinkSalespersonContractorUseCase,
+  createUpdateSalespersonUseCase,
+} from './salespeople/application/salesperson.use-case.js'
+import { DrizzleSalespersonRepository } from './salespeople/infrastructure/drizzle-salesperson.repository.js'
+import { createSalespersonRoutes } from './salespeople/presentation/salesperson.routes.js'
 import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastructure/drizzle-location-retention-settings.repository.js'
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
 import { createLocationRetentionSettingsRoutes } from './companies/presentation/location-retention-settings.routes.js'
@@ -3376,6 +3387,7 @@ function createApplicationRoutes({
     maxDurationMs: audioTranscriptionMaxDurationMs,
     settings: new DrizzleAudioTranscriptionSettingsRepository(database),
   }
+  const salespersonDependencies = { salespeople: new DrizzleSalespersonRepository(database) }
   const contractorAutomationDependencies = {
     automations: new DrizzleContractorAutomationRepository(database),
   }
@@ -4475,6 +4487,16 @@ function createApplicationRoutes({
       get: createGetAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
       resolveClientIp,
       save: createSaveAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
+    }),
+    ...createSalespersonRoutes({
+      create: createCreateSalespersonUseCase(salespersonDependencies),
+      link: createLinkSalespersonContractorUseCase(salespersonDependencies),
+      list: createListSalespeopleUseCase(salespersonDependencies),
+      readPortfolio: createReadSalespersonPortfolioUseCase(salespersonDependencies),
+      replacePortfolio: createReplaceSalespersonPortfolioUseCase(salespersonDependencies),
+      resolveClientIp,
+      unlink: createUnlinkSalespersonContractorUseCase(salespersonDependencies),
+      update: createUpdateSalespersonUseCase(salespersonDependencies),
     }),
     ...createContractorAutomationRoutes({
       create: createCreateContractorAutomationUseCase(contractorAutomationDependencies),

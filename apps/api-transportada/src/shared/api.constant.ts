@@ -72,6 +72,8 @@ export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
 /** Spec 060: o cliente que tem hora e tem preço, e o embarcador que paga o repasse. */
 export const API_DELIVERY_CLIENTS_PATH = '/delivery-clients'
 export const API_CONTRACTORS_PATH = '/contractors'
+/** Spec 316: vendedor da contratante, ligação às contratantes e carteira de clientes. */
+export const API_SALESPEOPLE_PATH = '/salespeople'
 /** Spec 150 T301 (spec 143 T013): a lista de contatos de e-mail da contratante. */
 export const API_CONTRACTOR_CONTACTS_PATH = '/contractors/:id/contacts'
 export const API_CONTRACTOR_CONTACT_PATH = '/contractors/:id/contacts/:contactId'
