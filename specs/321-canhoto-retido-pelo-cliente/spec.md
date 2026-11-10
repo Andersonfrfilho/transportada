@@ -2,122 +2,107 @@
 
 ## Problema e resultado
 
-Em 10/11/2026 o Anderson pediu uma ocorrência para o caso em que **o cliente segura o canhoto** na hora da entrega
-(vai assinar depois, o responsável não está, quer conferir a nota) e **outro motorista pode buscar esse canhoto
-mais tarde**. Hoje o motorista só tem duas saídas ruins: entregar sem canhoto (cai em "canhoto pendente" da 223, que
-não diz _por quê_) ou não dar baixa.
+Em 10/11/2026 o Anderson pediu uma ocorrência para o caso em que **o cliente segura o canhoto** na entrega e **outro motorista
+pode buscá-lo depois**, em outra viagem. Hoje o motorista só tem duas saídas ruins: entregar sem canhoto (cai em "canhoto
+pendente" da 223, que não diz _por quê_ nem dá a quem cobrar) ou não dar baixa.
 
-Medido no código de `origin/staging`:
+Regras do Anderson (10/11/2026): a ocorrência **nunca vai à SPANI** nem a contratante alguma; **abrir a ocorrência já libera** a
+nota para outra viagem, **sem etapa da contratante**; a viagem nova **não leva o peso nem a dimensão** da nota, por configuração do
+tipo; o motorista da viagem nova **finaliza coletando o canhoto**; o painel mostra uma **flag com tooltip** explicando o caso.
 
-1. **A pendência de canhoto existe, mas é muda.** `trip_delivery_proofs.canhoto_review` e o `proofPending` (spec 223) dizem
-   "falta o canhoto", não "o cliente ficou com ele". O escritório não distingue canhoto esquecido de canhoto retido, e
-   não tem a quem cobrar.
-2. **O tipo de ocorrência já sabe não avisar a contratante.** `company_occurrence_types.notifies` e `emails_contractor`
-   (padrão `false`) decidem o aviso; um tipo novo com os dois desligados não sai para a SPANI. Falta **garantir** isso por
-   contrato, para que ninguém ligue sem querer (e para que o canal de grupo da spec 318 respeite o mesmo desligado).
-3. **A foto do canhoto já dá a baixa por quem a enviar.** Spec 294 (RF23): o worker lê o canhoto (OCR) e casa o número
-   com as notas abertas de quem mandou. Isso serve a "outro motorista pegou o canhoto": basta ele fotografar.
-
-Resultado: um tipo de ocorrência de nota, **"Canhoto retido pelo cliente"**, que (a) não gera aviso à contratante em
-nenhum canal, (b) mantém a entrega concluída e (c) deixa a nota com o canhoto **pendente de coleta**, visível numa lista
-do escritório, até alguém trazer o canhoto. Quando a foto chega por qualquer motorista (ou pelo escritório), a ocorrência
-**resolve sozinha** (andamento da 266, `system`).
+Resultado: o tipo **"Canhoto retido pelo cliente"** que (a) não gera aviso à contratante em canal algum, (b) mantém a entrega
+concluída, (c) cria uma **coleta de canhoto** pendente que o escritório encaixa na viagem de outro motorista, e (d) resolve quando o
+canhoto chega.
 
 ## Fora do escopo
 
-- **Enviar a ocorrência à SPANI** ou a qualquer contratante, por e-mail ou grupo de WhatsApp (é o contrário do pedido).
-- **Criar parada de coleta na viagem de outro motorista.** Depende da spec 297 (viagem com coletas, ainda rascunho no
-  PR #540). Esta spec entrega a pendência e a lista; o encaixe em viagem é a fase 2 (ver Dúvidas).
+- Qualquer aviso à contratante (e-mail, chat, grupo de WhatsApp) pela retenção ou pela coleta.
 - Mudar a regra do canhoto obrigatório (218/223) ou a conferência (220/222).
-- Cobrança financeira por canhoto não devolvido.
+- Desfazer a trava "entregue não migra" (`trip_documents_delivered_locks_release_check`): ver D4.
+- Reentrega da mercadoria (a mercadoria foi entregue; só o papel volta). A 260 segue como está.
+- Cobrança financeira por canhoto não devolvido; alerta de prazo (fase 2).
 
-## Decisões (recomendação — o Anderson confirma em Dúvidas)
+## Decisões
 
-- **D1 — É um tipo de ocorrência, não um estado novo da nota.** Reusa `company_occurrence_types` (cadastro, aba Tipos),
-  o registro por nota do motorista/escritório e o andamento da 266 (`resolved`/`reopened`). Nenhuma tabela de status
-  paralela. Ocorrência **aberta** deste tipo sobre a nota = canhoto retido; **resolvida** = canhoto recuperado.
-- **D2 — Nome e etapa.** "Canhoto retido pelo cliente", etapa `delivery`, `flow: document`, momentos `document` e `office`.
-  Entra no catálogo de bootstrap (`OCCURRENCE_TYPE_CATALOG`, entrada literal como a 208/241, sem migration) e no script de
-  configuração de staging.
-- **D3 — Nunca vai à contratante, por contrato.** Tipo nasce com `notifies = false`, `emails_contractor = false`, sem
-  modelo de e-mail. Um **teste de contrato** falha se a entrada do catálogo trouxer qualquer um ligado, e a cobrança
-  automática da 143/269/271 e o canal de grupo da 318 recebem a mesma guarda (o tipo é lido por nome estável no catálogo
-  `CANHOTO_RETAINED_OCCURRENCE_TYPE_NAME`; renomeado no painel, a guarda continua pelo id gravado — ver T2).
-- **D4 — É uma ocorrência que devolve a nota para ir a outra viagem (Anderson, 10/11/2026).** Reusa o mecanismo de devolução e
-  reentrega que já existe (164: `redelivery_policy = allowed`, a nota "não é presa", reentrega vai para outra viagem). Registrar
-  o tipo **devolve a nota** da viagem de origem, que fecha normalmente, e a deixa elegível para entrar em outra viagem. **Sem
-  coluna de liberação nova** se a T0 confirmar que o caminho da 164 basta. Ponto de conflito a resolver na T0: a tratativa da 164
-  passa pela decisão **da contratante** no portal; aqui isso não pode acontecer (nada vai à SPANI), então a reentrega nasce
-  **autorizada pelo próprio tipo**, sem etapa de contratante nem aviso. **Decidido pelo Anderson (10/11/2026): abrir a ocorrência já libera a nota.**
-- **D4b — Quem finaliza é o motorista da outra viagem (regra do Anderson).** A nota entra na nova viagem como **item de
-  coleta de canhoto** no endereço do cliente; o motorista dessa viagem a **finaliza coletando o canhoto** (foto do canhoto,
-  pelo caminho da 294/222). Só então a ocorrência resolve (D6). Sem encaixe em viagem de coleta (297 ainda é rascunho),
-  T0 mede o menor caminho: nota entregue/solta aceita como parada da viagem seguinte com o rótulo "coletar canhoto".
-- **D4c — A viagem nova não leva o peso nem a dimensão da nota (regra do Anderson, 10/11/2026).** É **configuração do tipo**, não
-  regra fixa: coluna `counts_cargo_on_pickup_trip` (booleana, padrão `true` = comportamento de hoje; o tipo "Canhoto retido"
-  é cadastrado com `false`). Com `false`, a nota que entra na outra viagem por causa da retenção **não soma** peso, volume,
-  dimensões nem ocupação/planta da viagem nova (a mercadoria já foi entregue; só o papel volta). Vale para a ocupação da viagem,
-  a conta de capacidade e o aviso de excesso de peso, e a nota continua visível na lista como "coletar canhoto". A config
-  aparece na aba Tipos só para tipos que devolvem a nota (D4), com o seletor padrão do painel.
-- **D4d — Flag com tooltip no painel (Anderson).** A nota de coleta aparece com uma **flag** "Coleta de canhoto" na viagem
-  nova (linha da nota, lista de notas e ocupação), e quando o peso/dimensão não conta a flag diz isso num **tooltip
-  explicativo** ("Esta nota volta só para buscar o canhoto; peso e dimensão não entram na carga desta viagem"). O texto vem do
-  locale, componentes padrão do design system (selo + tooltip já usados no painel), prints claro/escuro, desktop/celular.
-- **D5 — Exigências do registro.** Foto opcional (mostra o cliente/recibo, se houver), observação **obrigatória** (quem
-  ficou com o canhoto e o combinado), sem itens, sem valor, sem localização obrigatória. Todos via modos da 246, sem
-  campo novo.
-- **D6 — Resolve ao chegar o canhoto.** Quando o comprovante de canhoto da nota passa a existir (foto casada pelo worker
-  294/222, subida pelo escritório ou baixa com canhoto), o servidor grava o evento `resolved` do tipo `system` com frase
-  fixa ("Canhoto recebido"). Canhoto recusado na conferência (`rejected`) **reabre**.
-- **D7 — Lista do escritório.** Filtro "canhoto retido" na lista de ocorrências (a 277 já tem busca) e selo na nota no
-  detalhe da viagem, ao lado do "canhoto pendente" da 223 com texto distinto.
-- **D8 — Quem recolhe é o motorista da viagem que levou a nota (D4b).** O casamento da 294 usa "notas abertas de quem mandou":
-  a nota, ao entrar na nova viagem, é aberta para esse motorista, então casa sem ajuste no worker. T0 confere; se a nota entregue
-  não casa, o ajuste é incluir as notas com retenção aberta no conjunto de casamento.
+- **D1 — Tipo de ocorrência de nota, aberto pelo cadastro.** Reusa `company_occurrence_types`, o registro por nota
+  (motorista, escritório e WhatsApp) e a aba Tipos. Nome "Canhoto retido pelo cliente", etapa `delivery`. Criado por cadastro/script
+  de staging, **não** pelo catálogo de bootstrap (T0 §10). Modos: observação obrigatória, foto opcional, sem itens, valor nem
+  localização; `duplicate_request_policy = until_resolved` (T0 §11).
+- **D2 — Nunca vai à contratante, por contrato.** `emails_contractor = false` e sem modelo no tipo, mais **guarda no código**, porque os
+  envios manuais não leem o tipo (T0 §4). Função pura `occurrenceTypeNeverNotifiesContractor(type)` lida por: e-mail automático
+  (143/269/271), varredor do worker, envio/chat manual do escritório e, quando entrar, o canal de grupo da 318 (PR #646). A guarda
+  é por **marca no tipo** (`blocks_contractor_notice`, boolean, padrão `false`), não por nome nem por id fixo. `notifies` **não** é o
+  interruptor: a equipe interna continua avisada pela 275, e o CA diz "contratante".
+- **D3 — A entrega vale como feita e a viagem de origem fecha.** A ocorrência não solta a linha entregue: a trava
+  `trip_documents_delivered_locks_release_check` e o índice de vínculo vivo continuam (T0 §1).
+- **D4 — A "liberação" é um vínculo de coleta, não uma segunda linha de `trip_documents`.** Registrar o tipo cria uma **coleta de
+  canhoto** (`trip_canhoto_pickups`, tabela nova e aditiva): `company_id`, `nfe_document_id`, `origin_trip_document_id`,
+  `occurrence_id`, `pickup_trip_id` e `pickup_stop_id` (nulos até o escritório encaixar), `status`
+  (`pending | scheduled | collected | cancelled`), `collected_at`. O escritório encaixa a coleta na viagem de outro motorista, numa
+  parada no endereço do cliente. Isto evita o que uma segunda linha viva faria: dobrar contagem, score e rateio de custo e mostrar a
+  nota "em rota" de novo à contratante (T0 §9). **Alternativa descartada:** relaxar o CHECK de entregue (muda uma invariante que o
+  código inteiro assume).
+- **D4b — Quem finaliza é o motorista da viagem nova.** A coleta aparece na parada dele como "Coletar canhoto"; ele a conclui
+  fotografando o canhoto. O casamento do canhoto (T0 §3) passa a considerar as coletas `scheduled` **dele** (conjunto novo,
+  além das notas abertas da viagem), tanto na rotina do worker quanto no bot.
+- **D4c — A viagem nova não soma peso nem dimensão (config do tipo).** Coluna `counts_cargo_on_pickup_trip` (boolean, padrão
+  `true`; o tipo é cadastrado com `false`). Como a coleta **não** é linha de `trip_documents`, nenhum leitor de carga a soma por
+  construção: o valor `false` é o comportamento natural. O valor `true` (somar na viagem nova) exige alterar os leitores listados em
+  T0 §8 e fica **fora da fase 1**: o cadastro recusa `true` para tipo com coleta até lá. O seletor mostra o valor e o porquê.
+- **D4d — Flag com tooltip no painel (Anderson).** "Coleta de canhoto" na linha da nota/parada da viagem nova e na nota de origem
+  ("canhoto retido"), terceiro booleano derivado, no molde do `proofPending` (T0 §7). Tooltip: "Esta nota volta só para buscar o
+  canhoto; peso e dimensão não entram na carga desta viagem." Texto no locale pt-BR e en, componentes padrão do design system.
+- **D5 — Resolve ao chegar o canhoto.** Quando o canhoto da nota é fotografado na coleta e aprovado, a coleta vira `collected` e a
+  ocorrência recebe o andamento `resolved` (266). Mudança de banco necessária e aditiva (T0 §6): `resolved` do tipo `system` passa a
+  aceitar `pickup_id` como origem, nova frase fixa `canhoto_collected`; reprovar na conferência **reabre** a coleta (`scheduled`) e
+  a ocorrência (`reopened` por `system` com `pickup_id`). Espelhar a frase nas três apps (contrato de paridade).
+- **D6 — Marca de "aberta" única.** Ocorrência deste tipo **aberta** = coleta com `status` em `pending | scheduled`. Selo, lista
+  (filtro por id do tipo, não por nome), duplicidade e a 266 usam essa mesma definição.
+- **D7 — Quem registra e quem escolhe a viagem** (recomendações assumidas, ver Dúvidas): motorista (app e WhatsApp) e escritório
+  registram; o **escritório** encaixa a coleta na viagem, pelo painel, com a viagem em qualquer estado não finalizado.
 
 ## Requisitos funcionais
 
-- **RF1** — O catálogo traz o tipo (D2) e o cadastro o aceita como qualquer outro; a aba Tipos o mostra com os modos de D5.
-- **RF2** — Registrar o tipo na nota (motorista, escritório, WhatsApp) cria a ocorrência **sem** disparar aviso à
-  contratante em nenhum canal e sem criar mensagem ao cliente.
-- **RF3** — A nota com ocorrência aberta do tipo aparece como "canhoto retido" na viagem e na lista (D7).
-- **RF4** — Chegada do canhoto resolve; reprovação reabre (D6).
-- **RF5** — Registrar o tipo solta a nota da viagem de origem e a deixa elegível para outra viagem (D4); a viagem de origem fecha sem ela pendente.
-- **RF5d** — Flag "Coleta de canhoto" com tooltip na viagem nova, explicando que peso e dimensão não contam quando a config está `false` (D4d).
-- **RF5c** — Com `counts_cargo_on_pickup_trip = false`, a nota de coleta não entra no peso, volume, dimensão nem ocupação da viagem nova, e não dispara trava de capacidade (D4c).
-- **RF5b** — A nota na nova viagem aparece como "coletar canhoto" e o motorista a finaliza com a foto do canhoto (D4b, D8).
-- **RF6** — Ocorrência do tipo não conta como "problema na entrega" para o painel de pendências de entrega (a mercadoria
-  foi entregue); T0 confere como a 275 agrupa o aviso ao painel.
+- **RF1** — Tipo cadastrável com os modos de D1; `blocks_contractor_notice` e `counts_cargo_on_pickup_trip` editáveis na aba Tipos
+  com os seletores padrão do painel.
+- **RF2** — Registrar o tipo cria a ocorrência e a coleta `pending`, sem e-mail, sem mensagem à contratante, em nenhum canal (D2).
+- **RF3** — A nota de origem mostra "canhoto retido"; a viagem de origem fecha normalmente.
+- **RF4** — O escritório encaixa a coleta numa viagem de outro motorista; a parada aparece no app dele como "Coletar canhoto".
+- **RF5** — A coleta não entra em peso, volume, dimensão, ocupação, planta nem excesso de peso da viagem nova (D4c); a lista de
+  notas a mostra com a flag e o tooltip (D4d).
+- **RF6** — Canhoto fotografado na coleta casa (worker e bot), a coleta vira `collected` e a ocorrência resolve; reprovado, reabre (D5).
+- **RF7** — Contratante, relatórios e score não enxergam a coleta como nova entrega (T0 §9).
 
 ## Requisitos não funcionais
 
-- Aditiva: sem migration destrutiva; sem tipo existente alterado. Publicação em etapas (ADR-0081 §9): painel → API → app.
-- Nenhum CNPJ/nome de contratante no código (SPANI é a contratante do Anderson, não vira constante).
+- Tudo aditivo: tabela e colunas novas com padrão que mantém o comportamento de hoje; sem migration destrutiva. Os CHECKs do
+  andamento (266) são **relaxados** em migration própria, com rollback que recusa rodar com dado dependente.
+- Publicação em etapas (ADR-0081 §9): painel tolerante → API → app do motorista.
+- Nenhum CNPJ ou nome de contratante no código.
 
 ## Casos extremos e falhas
 
-- Dois registros do tipo na mesma nota: o segundo é recusado como duplicado enquanto o primeiro estiver aberto.
-- Canhoto chega **antes** do registro: registro vira desnecessário; o servidor recusa com mensagem clara.
-- Cliente devolve o canhoto ao próprio motorista na mesma viagem: resolve pela mesma foto.
-- Nota devolvida/recusada depois: a ocorrência encerra com a tratativa (166/164 mandam; o tipo não abre tratativa).
+- Dois registros do tipo na mesma nota: recusados como duplicado enquanto a coleta estiver aberta (`until_resolved`).
+- Canhoto chega antes de encaixar a coleta (cliente devolveu ao próprio motorista): a foto na viagem de origem resolve a coleta
+  `pending`.
+- Coleta encaixada em viagem que depois cancela: volta a `pending`.
+- Viagem de coleta finalizada sem o canhoto: a coleta volta a `pending` e a ocorrência segue aberta.
 
 ## Critérios de aceite
 
-- **CA01** Contrato: o tipo do catálogo tem `notifies = false`, `emails_contractor = false`, sem modelo; teste falha se mudar.
-- **CA02** Registrar o tipo numa nota de contratante com envio automático ligado **não** gera e-mail nem mensagem de grupo.
-- **CA03** Registrar o tipo solta a nota; a viagem de origem fecha e a nota pode ser acrescentada a outra viagem, onde aparece como "coletar canhoto".
-- **CA03b** A viagem nova com a nota de coleta mantém peso, volume e ocupação iguais aos de antes de acrescentá-la; com a config `true`, soma como nota comum.
-- **CA03c** A flag e o tooltip aparecem na linha da nota da viagem nova, em tema claro e escuro, desktop e celular.
-- **CA04** O motorista da nova viagem fotografa o canhoto, a nota se finaliza e a ocorrência resolve; `rejected` reabre.
-- **CA05** Em staging, prints claro/escuro, desktop/celular da aba Tipos e da lista, comparados com outra tela do painel.
+- **CA01** Contrato: `blocks_contractor_notice` impede aviso à **contratante** nos quatro pontos de D2; teste falha se um ponto ignorar a marca.
+- **CA02** Registrar o tipo numa nota de contratante com envio automático ligado não gera e-mail nem mensagem de grupo; a equipe
+  interna ainda é avisada pela 275.
+- **CA03** A viagem de origem fecha; a nota continua entregue; a linha de `trip_documents` não muda (CHECK de entregue intacto).
+- **CA03b** Peso, volume e ocupação da viagem nova ficam iguais com a coleta encaixada.
+- **CA03c** Flag e tooltip aparecem, em tema claro e escuro, no desktop e no celular.
+- **CA04** Foto do canhoto pelo motorista da viagem nova resolve; reprovação reabre.
+- **CA05** Em staging, prints da aba Tipos e da lista, comparados com outra tela do painel.
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: **Aviso à contratante na retenção e na coleta.** Pelo pedido, nenhum dos dois vai à SPANI. Confirma que
-  a **coleta do canhoto** (nota finalizada na outra viagem) também não gera aviso, ou só a retenção?] — recomendo nenhum dos dois.
-- [NEEDS CLARIFICATION: **SPANI exige o canhoto para pagar?** Se sim, enquanto retido a nota deve ficar fora do envio/faturamento
-  que o exige — hoje isso não é tratado (223 já deixa passar sem canhoto).]
-- [NEEDS CLARIFICATION: O motorista pode registrar sozinho no app e no WhatsApp, ou só o escritório?] — recomendo os dois.
-- [NEEDS CLARIFICATION: Quem escolhe a viagem? O escritório acrescenta a nota à viagem de outro motorista (recomendo), ou o
-  motorista "pega" a nota?]
-- [NEEDS CLARIFICATION: Prazo para cobrar o canhoto retido (alerta ao escritório após N dias)?] — recomendo fase 2.
+- [NEEDS CLARIFICATION: **Mudança de modelo.** Como uma nota entregue não pode ser solta (T0 §1), "liberar a nota para outra viagem"
+  vira uma **coleta de canhoto** ligada à viagem nova, e não a nota inteira em duas viagens. Confirma? (A alternativa é relaxar a
+  trava de nota entregue, que afeta relatórios, portal e score.)]
+- Assumidas pelas recomendações, a confirmar: a coleta também não avisa a contratante; motorista e escritório registram; o escritório
+  escolhe a viagem; a SPANI exigir o canhoto para pagar fica fora (fase 2); alerta de prazo na fase 2.
