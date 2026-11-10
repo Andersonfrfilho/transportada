@@ -1488,7 +1488,7 @@ div.cardError {
   grid-template-columns: minmax(0, 1fr);
 }
 
-@media (min-width: 48rem) {
+@media (min-width: 40rem) {
   .domainForm {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   }
