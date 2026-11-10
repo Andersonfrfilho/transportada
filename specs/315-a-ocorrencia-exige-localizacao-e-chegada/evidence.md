@@ -2,7 +2,7 @@
 
 ## Etapa 1 — API (T2, T2b, T3, T4, T5)
 
-- **T2/T2b — migration** `20261110155331_occurrence_location_arrival`: aplicada e revertida à mão em Postgres 16 descartável.
+- **T2/T2b — migration** `20261110180900_occurrence_location_arrival`: aplicada e revertida à mão em Postgres 16 descartável.
   Tipo existente fica `off`/nulo; `arrival_time_mode = 'required'` com espera mínima é recusado pela CHECK
   (`company_occurrence_types_min_wait_check`); o rollback recusa rodar com tipo configurado e, sem ele, derruba as três colunas.
   Contrato estático: `test/database-migration/occurrence-location-arrival.static.contract.ts`.

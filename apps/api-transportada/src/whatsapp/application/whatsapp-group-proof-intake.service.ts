@@ -151,11 +151,16 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
       }
 
       // Foto sem entrega em preparo é conversa do grupo: o bot não baixa nem responde — salvo o reconhecimento do
-      // canhoto (spec 294 T4.8), que só liga com o OCR do worker, com notas abertas do motorista e com o bot
-      // marcado na foto: sem a marcação, a leitura automática não entra nem com a entrega aberta.
+      // canhoto (spec 294 T4.8), que só liga com o OCR do worker e com notas abertas do motorista, e só quando o bot é
+      // marcado na foto ou o motorista já chegou na parada e falta a baixa (o bot mesmo pediu "a foto do canhoto" ali).
+      const preparationOpen = await ports.preparations.hasOpen({ companyId, driverId })
+      const stopInProgress =
+        media.mentionsBot ||
+        (await ports.preparations.acceptsPhotoFromStopInProgress?.({ companyId, driverId })) ===
+          true
       const open =
-        (await ports.preparations.hasOpen({ companyId, driverId })) ||
-        (media.mentionsBot &&
+        preparationOpen ||
+        (stopInProgress &&
           (await ports.preparations.acceptsUnsolicitedPhoto?.({ companyId, driverId })) === true)
       if (!open) return
       if (actor === null) return say(media, [await ports.withoutAccessText(companyId)])
@@ -182,7 +187,7 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
 
       const reply = await ports.preparations.receivePhoto({
         actor,
-        allowsCanhotoReading: media.mentionsBot,
+        allowsCanhotoReading: stopInProgress,
         bytes,
         caption: media.media.caption,
         channel: 'group',

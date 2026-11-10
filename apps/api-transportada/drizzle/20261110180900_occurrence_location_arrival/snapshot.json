@@ -3,7 +3,7 @@
   "dialect": "postgres",
   "id": "8773f5f7-576d-4acc-82a8-3075140a0e84",
   "prevIds": [
-    "c1cf99f4-079c-49da-980c-07ae9c6e7aa6"
+    "f9f188eb-2ef6-458d-a3b1-b473de577917"
   ],
   "ddl": [
     {
@@ -1071,6 +1071,12 @@
     {
       "isRlsEnabled": false,
       "name": "contractor_occurrence_watchers",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "contractor_occurrence_channels",
       "entityType": "tables",
       "schema": "public"
     },
@@ -30040,6 +30046,136 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "contractor_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'email'",
+      "generated": null,
+      "identity": null,
+      "name": "channel",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "group_jid",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "''",
+      "generated": null,
+      "identity": null,
+      "name": "group_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "mention_phone",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "email_fallback",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "whatsapp_channels"
     },
     {
@@ -33849,45 +33985,6 @@
       "default": "'off'",
       "generated": null,
       "identity": null,
-      "name": "location_mode",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
-      "type": "varchar(16)",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "'off'",
-      "generated": null,
-      "identity": null,
-      "name": "arrival_time_mode",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
-      "type": "smallint",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "min_wait_after_arrival_minutes",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
-      "type": "varchar(16)",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "'off'",
-      "generated": null,
-      "identity": null,
       "name": "declared_amount_mode",
       "entityType": "columns",
       "schema": "public",
@@ -34227,6 +34324,45 @@
       "generated": null,
       "identity": null,
       "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'off'",
+      "generated": null,
+      "identity": null,
+      "name": "location_mode",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'off'",
+      "generated": null,
+      "identity": null,
+      "name": "arrival_time_mode",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
+      "type": "smallint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "min_wait_after_arrival_minutes",
       "entityType": "columns",
       "schema": "public",
       "table": "company_occurrence_types"
@@ -60232,6 +60368,42 @@
       ],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
+      "name": "contractor_occurrence_channels_company_id_companies_id_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractors",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "contractor_occurrence_channels_company_contractor_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "whatsapp_channels_company_id_companies_id_fk",
       "entityType": "fks",
       "schema": "public",
@@ -66571,6 +66743,16 @@
         "id"
       ],
       "nameExplicit": false,
+      "name": "contractor_occurrence_channels_pkey",
+      "schema": "public",
+      "table": "contractor_occurrence_channels",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
       "name": "whatsapp_channels_pkey",
       "schema": "public",
       "table": "whatsapp_channels",
@@ -69991,6 +70173,30 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "contractor_mail_threads"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "contractor_occurrence_channels_company_contractor_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "group_jid"
+      ],
+      "nullsNotDistinct": false,
+      "name": "contractor_occurrence_channels_company_group_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
     },
     {
       "nameExplicit": true,
@@ -76713,6 +76919,34 @@
       "table": "contractor_occurrence_watchers"
     },
     {
+      "value": "\"channel\" in ('email', 'whatsapp_group')",
+      "name": "contractor_occurrence_channels_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "value": "\"group_jid\" is null or \"group_jid\" ~ '^[0-9]+(-[0-9]+)?@g\\.us$'",
+      "name": "contractor_occurrence_channels_group_jid_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "value": "\"mention_phone\" is null or \"mention_phone\" ~ '^55[1-9][0-9]{9,10}$'",
+      "name": "contractor_occurrence_channels_mention_phone_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
+      "value": "\"channel\" <> 'whatsapp_group' or (\"group_jid\" is not null and \"mention_phone\" is not null)",
+      "name": "contractor_occurrence_channels_group_complete_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_occurrence_channels"
+    },
+    {
       "value": "\"status\" in ('active', 'disabled')",
       "name": "whatsapp_channels_status_check",
       "entityType": "checks",
@@ -77525,27 +77759,6 @@
       "table": "company_occurrence_types"
     },
     {
-      "value": "\"location_mode\" in ('required', 'optional', 'off')",
-      "name": "company_occurrence_types_location_mode_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
-      "value": "\"arrival_time_mode\" in ('required', 'optional', 'off')",
-      "name": "company_occurrence_types_arrival_time_mode_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
-      "value": "\"min_wait_after_arrival_minutes\" is null or (\"min_wait_after_arrival_minutes\" between 1 and 1440 and \"arrival_time_mode\" = 'off')",
-      "name": "company_occurrence_types_min_wait_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "company_occurrence_types"
-    },
-    {
       "value": "\"reference_number_mode\" in ('required', 'optional', 'off')",
       "name": "company_occurrence_types_reference_number_mode_check",
       "entityType": "checks",
@@ -77744,6 +77957,27 @@
     {
       "value": "\"contractor_notification_template_key\" is null or length(btrim(\"contractor_notification_template_key\")) > 0",
       "name": "company_occurrence_types_contractor_notification_template_key_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
+      "value": "\"location_mode\" in ('required', 'optional', 'off')",
+      "name": "company_occurrence_types_location_mode_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
+      "value": "\"arrival_time_mode\" in ('required', 'optional', 'off')",
+      "name": "company_occurrence_types_arrival_time_mode_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_occurrence_types"
+    },
+    {
+      "value": "\"min_wait_after_arrival_minutes\" is null or (\"min_wait_after_arrival_minutes\" between 1 and 1440 and \"arrival_time_mode\" = 'off')",
+      "name": "company_occurrence_types_min_wait_check",
       "entityType": "checks",
       "schema": "public",
       "table": "company_occurrence_types"

@@ -435,14 +435,16 @@
       "title": "O que exige",
       "legend": "Obrigatório quer dizer: a ocorrência não é registrada sem aquilo. Foto é a imagem capturada no aparelho; Observação é o texto do motorista; Assinatura é a de quem deu a negativa; Produtos são os itens da nota que a ocorrência aponta.",
       "mixedScope": "As exigências abaixo valem só quando o motorista registra (Motorista, numa nota e Motorista, na parada). No galpão a regra é fixa.",
-      "stopOnlyScope": "Em Motorista, na parada só a foto é cobrada: observação, assinatura e produtos valem em Motorista, numa nota.",
+      "stopOnlyScope": "Em Motorista, na parada valem foto, observação, localização e horário de chegada, como estiver configurado abaixo: assinatura e produtos valem em Motorista, numa nota.",
       "fields": {
         "photo": "Foto",
         "note": "Observação",
         "signature": "Assinatura",
         "items": "Produtos",
         "referenceNumber": "Número do documento do cliente",
-        "declaredAmount": "Valor pago"
+        "declaredAmount": "Valor pago",
+        "location": "Localização",
+        "arrivalTime": "Horário de chegada"
       },
       "modes": {
         "off": "Desligado",
@@ -455,7 +457,9 @@
         "signature": "Desligado: não pede assinatura. Opcional: o motorista pode colher a de quem deu a negativa. Obrigatório: a ocorrência só sai com a assinatura desenhada.",
         "items": "Desligado: a ocorrência não carrega produtos — o registro não mostra o seletor, a reentrega não se aplica e Corrigir só aparece nas ocorrências que já têm produtos ou já foram corrigidas. Opcional: quem registra pode apontar os produtos. Obrigatório: a ocorrência só sai com produto apontado.",
         "referenceNumber": "Desligado: a tela de registro não pede. Opcional: pede e aceita vazio. Obrigatório: o botão de registrar só libera com o número preenchido (ex.: o da NFD da loja).",
-        "declaredAmount": "Desligado: a tela não mostra. Opcional: mostra e aceita vazio. Obrigatório: o botão de registrar só libera preenchido. Sem valor pago digitado, vale a soma calculada da NF-e."
+        "declaredAmount": "Desligado: a tela não mostra. Opcional: mostra e aceita vazio. Obrigatório: o botão de registrar só libera preenchido. Sem valor pago digitado, vale a soma calculada da NF-e.",
+        "location": "Desligado: não pede o ponto. Opcional: o app manda o ponto se o GPS tiver. Obrigatório: o motorista só registra com a localização capturada no aparelho.",
+        "arrivalTime": "Pedido só quando o motorista não marcou Cheguei. Obrigatório: ele informa a hora em que chegou e o sistema grava a chegada da parada com essa hora. Não vale junto da espera mínima."
       },
       "record": {
         "referenceLabel": "Rótulo do número na tela de registro",
@@ -479,6 +483,12 @@
         "count": "Quantidade mínima de produtos",
         "hint": "Só vale quando Produtos é Obrigatório. Todos os itens da nota serve à recusa total: o app do motorista só libera o registro com todos os produtos marcados. Ao menos N libera com N produtos marcados.",
         "allItemsHint": "Sem mínimo, o motorista marca todos os produtos da nota. Defina \"Ao menos N\" para aceitar devolução parcial."
+      },
+      "minWait": {
+        "title": "Espera mínima depois do Cheguei",
+        "hint": "O motorista só abre este tipo depois do tempo escolhido, contado do toque em Cheguei, e vê um contador. O escritório abre a qualquer momento, informando a hora em que o motorista chegou. Não vale junto do horário de chegada.",
+        "off": "Sem espera mínima",
+        "option": "{{count}} minutos"
       }
     },
     "summary": {

@@ -135,6 +135,14 @@ export type WhatsAppCanhotoRecognition = {
     readonly companyId: string
     readonly driverId: string
   }): Promise<boolean>
+  /**
+   * O motorista já chegou numa parada e ainda falta a baixa de alguma nota dela? Nesse momento a foto dele no grupo é quase
+   * sempre o canhoto, então vale lê-la mesmo sem marcar o bot.
+   */
+  hasStopAwaitingSettlement(scope: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<boolean>
   /** `null`: nada a fazer (sem nota aberta), a foto segue calada. */
   receivePhoto(input: {
     readonly actor: WhatsAppDriverActor
@@ -490,6 +498,10 @@ export function createWhatsAppCanhotoRecognition(
 
     async hasOpenQuestion(scope) {
       return (await findLiveQuestion(scope)) !== null
+    },
+
+    async hasStopAwaitingSettlement(scope) {
+      return findStopAwaitingSettlement(await ports.listStops(scope)) !== undefined
     },
 
     async receivePhoto({ actor, bytes, channel, mimeType, providerMessageId }) {

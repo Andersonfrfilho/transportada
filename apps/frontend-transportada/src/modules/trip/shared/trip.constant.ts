@@ -568,6 +568,7 @@ export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   /** Spec 281 T8b: pedir o contato do cliente ao motorista na abertura; esta tela só o tolera. */
   'asksClientContact',
   /** O campo opcional "nova data de vencimento" no app do motorista; esta tela só o tolera. */
+  'arrivalTimeMode',
   'asksNewDueDate',
   'attachmentMode',
   'clientChannel',
@@ -580,6 +581,8 @@ export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   'iconName',
   'itemsMinimumCount',
   'itemsMode',
+  'locationMode',
+  'minWaitAfterArrivalMinutes',
   'noteMode',
   'photoMinimumCount',
   'photoMode',

@@ -593,6 +593,9 @@ export function combineWhatsAppDriverCollections(input: {
     async acceptsUnsolicitedPhoto(scope) {
       return canhoto?.canReceivePhoto(scope) ?? false
     },
+    async acceptsPhotoFromStopInProgress(scope) {
+      return canhoto?.hasStopAwaitingSettlement(scope) ?? false
+    },
     repeatMediaRequest: async (request) => (await deliveries.repeatMediaRequest?.(request)) ?? null,
     begin: (request) => deliveries.begin(request),
     resume: async (request) => (await deliveries.resume?.(request)) ?? null,
