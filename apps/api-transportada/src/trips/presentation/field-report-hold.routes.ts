@@ -9,8 +9,10 @@ import { z } from 'zod'
 import { parseBody, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import type {
+  DrizzleFieldReportHoldRepository,
   FieldReportHoldDisplay,
   FieldReportHoldRecord,
+  FieldReportHoldSettings,
 } from '../infrastructure/drizzle-field-report-hold.repository.js'
 import {
   discardFieldReportHold,
@@ -29,7 +31,13 @@ const RATE_LIMIT = {
 
 const discardBodySchema = z.object({ reason: z.string().trim().max(500).optional() }).strict()
 
+const SETTINGS_PATH = '/company-settings/field-report-hold'
+const SETTINGS_POLICY = { permission: 'settings.manage', scope: 'company' } as const
+const settingsBodySchema = z.object({ enabled: z.boolean() }).strict()
+
 export type FieldReportHoldRoutesDependencies = DecideFieldReportHoldDependencies & {
+  /** O interruptor por empresa (D8): ligar e desligar é `settings.manage`, nunca a permissão de liberar. */
+  readonly settings: Pick<DrizzleFieldReportHoldRepository, 'readSettings' | 'saveSettings'>
   readonly describeHolds?: (input: {
     readonly companyId: string
     readonly holds: readonly FieldReportHoldRecord[]
@@ -38,10 +46,43 @@ export type FieldReportHoldRoutesDependencies = DecideFieldReportHoldDependencie
 
 const NO_STORE = { 'cache-control': 'no-store', 'content-type': 'application/json' } as const
 
+function settingsResponse(settings: FieldReportHoldSettings): Response {
+  const data = { enabled: settings.enabled, updatedAt: settings.updatedAt?.toISOString() ?? null }
+
+  return new Response(JSON.stringify({ data }), { headers: NO_STORE, status: 200 })
+}
+
 export function createFieldReportHoldRoutes(
   dependencies: FieldReportHoldRoutesDependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
   return [
+    defineRoute<Record<string, never>>({
+      async handle({ context }): Promise<Response> {
+        const settings = await dependencies.settings.readSettings(context.scope.companyId)
+
+        return settingsResponse(settings)
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: SETTINGS_PATH,
+      policy: SETTINGS_POLICY,
+    }),
+    defineRoute<{ readonly enabled: boolean }>({
+      async handle({ context, input }): Promise<Response> {
+        const settings = await dependencies.settings.saveSettings({
+          companyId: context.scope.companyId,
+          enabled: input.enabled,
+          userId: context.scope.userId,
+        })
+
+        return settingsResponse(settings)
+      },
+      method: 'PUT',
+      parse: ({ request }) => parseBody(settingsBodySchema, request),
+      pathname: SETTINGS_PATH,
+      policy: SETTINGS_POLICY,
+      rateLimit: { ...RATE_LIMIT, scope: 'field-report-hold-settings' },
+    }),
     defineRoute<Record<string, never>>({
       async handle({ context }): Promise<Response> {
         const holds = await dependencies.repository.list({

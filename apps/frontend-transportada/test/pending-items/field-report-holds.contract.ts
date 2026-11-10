@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   createFieldReportHoldsClient,
+  parseFieldReportHoldSettings,
   parseFieldReportHolds,
 } from '../../src/modules/pending-items/shared/fieldReportHoldsClient.service'
 
@@ -60,6 +61,29 @@ describe('retidos do app (spec 320)', () => {
     expect(seen).toEqual([
       'POST /field-report-holds/h1/release',
       'POST /field-report-holds/h2/discard',
+    ])
+  })
+
+  test('o interruptor lê e grava na rota da empresa e recusa corpo fora do contrato', async () => {
+    expect(parseFieldReportHoldSettings({ data: { enabled: true, updatedAt: null } })).toEqual({
+      enabled: true,
+    })
+    expect(() => parseFieldReportHoldSettings({ data: { enabled: 'sim' } })).toThrow()
+    const seen: string[] = []
+    const client = createFieldReportHoldsClient({
+      apiUrl: 'http://api',
+      fetch: (input) => {
+        const request = input as Request
+        seen.push(`${request.method} ${new URL(request.url).pathname}`)
+        return Promise.resolve(new Response('{"data":{"enabled":true}}', { status: 200 }))
+      },
+      getAccessToken: () => Promise.resolve('token'),
+    })
+    expect(await client.saveSettings(true)).toEqual({ enabled: true })
+    expect(await client.readSettings()).toEqual({ enabled: true })
+    expect(seen).toEqual([
+      'PUT /company-settings/field-report-hold',
+      'GET /company-settings/field-report-hold',
     ])
   })
 })

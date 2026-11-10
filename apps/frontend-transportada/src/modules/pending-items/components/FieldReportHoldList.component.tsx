@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { formatMomentWithLocale } from '@/modules/shared/momentFormat.service'
 
 import { useFieldReportHolds } from '../hooks/useFieldReportHolds.hook'
@@ -12,15 +13,40 @@ export function FieldReportHoldList(
   input: Readonly<{ companyId?: string; permissions: readonly string[] }>,
 ) {
   const { i18n, t } = useTranslation('pendingItems')
-  const { canDecide, decisionMutation, holds, listQuery } = useFieldReportHolds(input)
+  const {
+    canDecide,
+    canManageSettings,
+    decisionMutation,
+    holds,
+    listQuery,
+    settingsMutation,
+    settingsQuery,
+  } = useFieldReportHolds(input)
 
-  if (!canDecide || (!listQuery.isError && holds.length === 0)) return null
+  const showList = canDecide && (listQuery.isError || holds.length > 0)
+  if (!showList && !canManageSettings) return null
 
   return (
     <section aria-labelledby="field-report-holds-title" className={styles.holds}>
       <h2 id="field-report-holds-title">{t('holds.title')}</h2>
       <p className={styles.intro}>{t('holds.intro')}</p>
-      {listQuery.isError ? (
+      {canManageSettings ? (
+        <div className={styles.holdSetting}>
+          <Checkbox
+            checked={settingsQuery.data?.enabled ?? false}
+            disabled={settingsQuery.isLoading || settingsMutation.isPending}
+            label={t('holds.setting.label')}
+            onChange={(enabled) => settingsMutation.mutate(enabled)}
+          />
+          <p className={styles.intro}>{t('holds.setting.help')}</p>
+          {settingsQuery.isError || settingsMutation.isError ? (
+            <p className={styles.boundary} role="alert">
+              {t('holds.setting.error')}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {!showList ? null : listQuery.isError ? (
         <p className={styles.boundary} role="alert">
           {t('holds.error')}
         </p>
