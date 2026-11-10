@@ -24,6 +24,7 @@ import {
   OCCURRENCE_AUTOMATIC_MAIL_LOOKBACK_MILLISECONDS,
   OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION,
   OCCURRENCE_AUTOMATIC_MAIL_SWEEP_JOB,
+  OCCURRENCE_CONTRACTOR_GROUP_SEND_OPERATION,
   UNSAFE_EMAIL_HTML_PATTERN,
 } from '../src/occurrence-automatic-mail-sweep/domain/occurrence-automatic-mail-sweep.constant.js'
 import { OCCURRENCE_MAIL_UNSAFE_HTML_CASES } from './fixtures/occurrence-mail-unsafe-html-cases.fixture.js'
@@ -56,6 +57,8 @@ type TemplateShape =
 type Scenario = {
   readonly ageMilliseconds: number
   readonly alreadySent?: boolean
+  /** Spec 318: o resultado do aviso no grupo de WhatsApp da contratante. */
+  readonly groupStatus?: 'completed' | 'failed' | 'processing'
   readonly cancelled?: boolean
   readonly hasContractor?: boolean
   /** Spec 271: o que o módulo de notificação tem para a chave escolhida no tipo; padrão `usable`. */
@@ -71,6 +74,8 @@ const SCENARIOS = {
   alreadySent: { ageMilliseconds: 30 * MINUTE, alreadySent: true },
   cancelled: { ageMilliseconds: 30 * MINUTE, cancelled: true },
   fresh: { ageMilliseconds: 2 * MINUTE },
+  groupFailed: { ageMilliseconds: 30 * MINUTE, groupStatus: 'failed' },
+  groupSent: { ageMilliseconds: 30 * MINUTE, groupStatus: 'completed' },
   noContractor: { ageMilliseconds: 30 * MINUTE, hasContractor: false },
   noKey: { ageMilliseconds: 30 * MINUTE, typeHasKey: false },
   older: { ageMilliseconds: 45 * MINUTE },
@@ -217,6 +222,13 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
             ${scenario.cancelled === true ? 'lançada por engano' : null})`,
     )
     if (scenario.alreadySent === true) await recordSend(company, occurrenceId)
+    if (scenario.groupStatus !== undefined) {
+      await db.execute(
+        sql`insert into idempotency_records (company_id, operation, idempotency_key, request_fingerprint, status, response)
+            values (${company}, ${OCCURRENCE_CONTRACTOR_GROUP_SEND_OPERATION},
+              ${`${OCCURRENCE_AUTOMATIC_MAIL_KEY_PREFIX}${occurrenceId}`}, 'automatic', ${scenario.groupStatus}, '{}'::jsonb)`,
+      )
+    }
     ownIds.add(occurrenceId)
     return occurrenceId
   }
@@ -336,6 +348,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
 
     expect(pending.map((item) => item.occurrenceId).sort()).toEqual(
       [
+        occurrenceIds.groupFailed,
         occurrenceIds.older,
         occurrenceIds.otherCompany,
         occurrenceIds.ripe,
@@ -389,6 +402,14 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
       )) as unknown as { blocked: boolean }[]
       expect([entry.name, row?.blocked]).toEqual([entry.name, entry.worker === 'bloqueia'])
     }
+  })
+
+  /** Spec 318: o aviso que saiu no grupo não volta à fila; o que falhou (nada saiu) volta, e é a nova tentativa. */
+  it('leaves out what the contractor group already got, and keeps what failed there', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    expect(listed).not.toContain(occurrenceIds.groupSent)
+    expect(listed).toContain(occurrenceIds.groupFailed)
   })
 
   it('skips what was registered before the template was chosen on the type (spec 269, kept)', async () => {
@@ -446,6 +467,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
 
     expect(sent.sort()).toEqual(
       [
+        occurrenceIds.groupFailed,
         occurrenceIds.older,
         occurrenceIds.otherCompany,
         occurrenceIds.ripe,

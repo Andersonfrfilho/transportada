@@ -803,6 +803,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'identity/presentation/password-reset.routes.ts',
       'identity/presentation/user-activation.routes.ts',
       'occurrence-conversation/presentation/client-occurrence-conversation.routes.ts',
+      'occurrence-conversation/presentation/contractor-occurrence-channel.routes.ts',
       'occurrence-conversation/presentation/me-client-boleto-emails.routes.ts',
       'occurrence-conversation/presentation/me-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/me-subject-conversation.routes.ts',
