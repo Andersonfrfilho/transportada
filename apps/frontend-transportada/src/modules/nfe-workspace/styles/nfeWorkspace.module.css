@@ -1534,7 +1534,7 @@ div.cardError {
   font-size: var(--field-font-size);
 }
 
-/* Spec 314 — confirmação do reprocesso: mesmo visual do diálogo de emissão, num cartão centrado também no celular. */
+/* Spec 314 — confirmação do reprocesso: o molde do diálogo de emissão (tela cheia no celular, caixa do tablet para cima). */
 .reprocessOverlay {
   position: fixed;
   z-index: 40;
@@ -1542,18 +1542,20 @@ div.cardError {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-4);
+  padding: 0;
   background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
 }
 
 .reprocessDialog {
   display: grid;
   gap: var(--space-4);
-  width: min(30rem, 100%);
-  max-height: 92vh;
+  align-content: start;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
   padding: var(--space-5);
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border: none;
   color: var(--color-fog);
   background: var(--color-graphite);
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
@@ -1571,4 +1573,17 @@ div.cardError {
 .reprocessDetail {
   color: var(--color-slate);
   font-size: 0.875rem;
+}
+
+@media (min-width: 40rem) {
+  .reprocessOverlay {
+    padding: var(--space-4);
+  }
+
+  .reprocessDialog {
+    width: min(30rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  }
 }

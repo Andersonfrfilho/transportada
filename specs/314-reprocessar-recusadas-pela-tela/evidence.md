@@ -18,3 +18,5 @@
 ## Revisão de design (`web.md` §15)
 
 Prints do diálogo de confirmação com a API simulada (mesmo mock do smoke), tema escuro e claro, desktop 1440×900 e celular 390×844, estados "N notas serão refeitas" e "nenhuma nota pode ser refeita", em `prints/`. O diálogo usa `Button`, `Icon` e `useModalDialog` do design system, o mesmo cabeçalho/rodapé do diálogo de emissão de CT-e e o mesmo portal/overlay; não há controle novo nem estilo paralelo, só a cor e a borda dos tokens.
+
+No celular o diálogo ocupa a tela, como manda o contrato de diálogo modal (`web.md` §10, spec 154 T507); o par `.reprocessOverlay`/`.reprocessDialog` entrou na lista de `modal-dialog-fullscreen.contract.ts`. `bun run test` da app: 8740 pass, 0 fail.
