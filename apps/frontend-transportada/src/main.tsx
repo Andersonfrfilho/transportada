@@ -13,7 +13,7 @@ import { registerSW } from 'virtual:pwa-register'
 import { COPY_FEEDBACK_MILLISECONDS } from '@/modules/shared/clipboard.constant'
 import { parseBillingInvoiceRoute } from '@/modules/billing/shared/billingInvoiceRoute.service'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -727,13 +727,6 @@ function ApplicationShell(): ReactNode {
               >
                 <span aria-hidden="true">☰</span>
               </Button>
-              <div>
-                <CardTitle className="application-wordmark">
-                  {WORKSPACE_NAVIGATION_ITEMS.find((item) => item.key === currentWorkspace)
-                    ?.label ?? brand.name}
-                </CardTitle>
-                <CardDescription>Workspace operacional</CardDescription>
-              </div>
             </CardHeader>
             <CardContent className="application-header-context">
               <span>{brand.name}</span>

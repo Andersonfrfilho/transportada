@@ -736,10 +736,6 @@ a {
   padding-left: var(--space-4);
 }
 
-.application-shell-sidebar-collapsed .application-header-copy > div {
-  padding-left: 3.25rem;
-}
-
 /* Alvo de toque de 44px do `web.md` §10 — abaixo do breakpoint de desktop é o único jeito de abrir
    a navegação no celular, então ele não pode ficar menor que o mínimo. */
 .application-shell-sidebar-collapsed .ui-button.mobile-sidebar-trigger {
@@ -971,26 +967,6 @@ a {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
-}
-
-.application-wordmark {
-  margin: 0;
-  max-width: none;
-  font-size: 2rem;
-  line-height: 1;
-  letter-spacing: 0;
-  overflow-wrap: anywhere;
-  text-transform: none;
-  color: color-mix(in srgb, var(--color-fog) 96%, white 4%);
-  text-wrap: balance;
-}
-
-.application-header-copy p {
-  margin: 0;
-  max-width: 42rem;
-  color: var(--color-slate-muted);
-  font-size: 0.95rem;
-  line-height: 1.45;
 }
 
 .workspace-shell {
@@ -1439,8 +1415,7 @@ h2 {
     display: none;
   }
 
-  .application-shell-sidebar-collapsed .application-header-copy,
-  .application-shell-sidebar-collapsed .application-header-copy > div {
+  .application-shell-sidebar-collapsed .application-header-copy {
     padding-left: 0;
   }
 

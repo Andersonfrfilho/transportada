@@ -149,21 +149,20 @@ describe('responsive contract', () => {
   })
 })
 
-describe('cabeçalho da aplicação no celular (revisão do painel)', () => {
+describe('cabeçalho da aplicação (revisão do painel)', () => {
   /**
-   * Medido a 320px em /ressarcimentos: o nome da tela (241px) passava da caixa de 170px. O tamanho de
-   * 2rem é o da staging em todas as telas; o nome longo quebra em vez de encolher o cabeçalho de todos.
+   * O título e o subtítulo da tela moram na própria página (h1 padrão). O cabeçalho do topo repetia o nome
+   * da tela e uma frase genérica; agora só leva o menu, o contexto e a sessão.
    */
-  test('o nome da tela mantém 2rem e quebra em vez de alargar a página', async () => {
+  test('o cabeçalho da aplicação não repete o título da tela', async () => {
+    const main = await Bun.file(new URL('../../src/main.tsx', import.meta.url)).text()
     const styles = await Bun.file(new URL('../../src/styles/index.css', import.meta.url)).text()
-    const start = styles.indexOf('.application-wordmark {')
-    const rule = styles.slice(start, styles.indexOf('}', start))
     const copyStart = styles.indexOf('.ui-card-header.application-header-copy {')
     const copyRule = styles.slice(copyStart, styles.indexOf('}', copyStart))
 
-    expect(rule).toContain('font-size: 2rem')
-    expect(rule).not.toContain('clamp(')
-    expect(rule).toContain('overflow-wrap: anywhere')
+    expect(main).not.toContain('application-wordmark')
+    expect(main).not.toContain('Workspace operacional')
+    expect(styles).not.toContain('.application-wordmark')
     expect(copyRule).toContain('min-width: 0')
   })
 })
