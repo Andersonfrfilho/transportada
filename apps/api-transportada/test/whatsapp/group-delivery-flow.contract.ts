@@ -46,7 +46,12 @@ const reply = (texts: string[], awaitingText = false): WhatsAppDeliveryPreparati
 })
 
 function fakePreparations(
-  options: { acceptsUnsolicited?: boolean; awaitingText?: boolean; open?: boolean } = {},
+  options: {
+    acceptsUnsolicited?: boolean
+    awaitingText?: boolean
+    open?: boolean
+    stopInProgress?: boolean
+  } = {},
 ) {
   const calls: { method: string; input: unknown }[] = []
   const preparations: WhatsAppDeliveryPreparations = {
@@ -63,6 +68,9 @@ function fakePreparations(
     },
     async acceptsUnsolicitedPhoto() {
       return options.acceptsUnsolicited ?? false
+    },
+    async acceptsPhotoFromStopInProgress() {
+      return options.stopInProgress ?? false
     },
     async hasOpen() {
       return options.open ?? true
@@ -371,7 +379,12 @@ describe('grupo: foto e localização do motorista', () => {
   })
 
   function intake(
-    options: { open?: boolean; failDownload?: boolean; acceptsUnsolicited?: boolean } = {},
+    options: {
+      open?: boolean
+      failDownload?: boolean
+      acceptsUnsolicited?: boolean
+      stopInProgress?: boolean
+    } = {},
   ) {
     const fake = fakePreparations(options)
     const downloads: unknown[] = []
@@ -459,6 +472,22 @@ describe('grupo: foto e localização do motorista', () => {
       input: { allowsCanhotoReading: true },
       method: 'receivePhoto',
     })
+  })
+
+  test('foto sem marcar o bot, com a parada em andamento: vai ao leitor do canhoto', async () => {
+    const t = intake({ acceptsUnsolicited: true, open: false, stopInProgress: true })
+    await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
+    expect(t.calls[0]).toMatchObject({
+      input: { allowsCanhotoReading: true },
+      method: 'receivePhoto',
+    })
+  })
+
+  test('parada em andamento sem nota aberta: a foto segue calada', async () => {
+    const t = intake({ acceptsUnsolicited: false, open: false, stopInProgress: true })
+    await t.handle({ caption: null, kind: 'image', mimeType: 'image/jpeg' })
+    expect(t.downloads).toEqual([])
+    expect(t.calls).toEqual([])
   })
 
   test('foto pedida pela entrega aberta segue sem marcar, mas sem leitura automática', async () => {

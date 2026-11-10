@@ -275,6 +275,14 @@ export type WhatsAppDeliveryPreparations = {
     readonly companyId: string
     readonly driverId: string
   }): Promise<boolean>
+  /**
+   * A parada em andamento (já chegou, falta a baixa) faz da foto sem marcação o canhoto provável: o grupo pode lê-la sem o
+   * bot ser marcado. Ausente ou `false`, vale só a regra de `acceptsUnsolicitedPhoto` (foto marcando o bot).
+   */
+  acceptsPhotoFromStopInProgress?(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<boolean>
   /** A localização compartilhada vale para as preparações abertas que ainda não têm. */
   receiveLocation(input: {
     readonly actor: WhatsAppDriverActor
