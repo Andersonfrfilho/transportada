@@ -33,6 +33,8 @@ export type ReceiptRecord = {
   readonly providerMessageId: string
   readonly replyTo: string | null
   readonly requestedByUserId: string | null
+  /** Spec 315: o contratante a quem o contato do WhatsApp pertence; vira a restrição e a ponte da importação. */
+  readonly restrictedContractorId: string | null
   readonly sender: string
 }
 

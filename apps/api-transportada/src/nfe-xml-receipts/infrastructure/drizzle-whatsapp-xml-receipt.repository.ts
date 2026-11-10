@@ -60,8 +60,8 @@ export function createDrizzleWhatsAppXmlReceiptRepository(
 
       // Spec 302: o contato do contratante autorizado a enviar XML (tipo `nfe_xml`, ativo, com o aceite do WhatsApp).
       // Não é usuário da empresa: a importação é gravada com o ator de sistema, e o remetente fica no registro.
-      const [contact] = await database
-        .select({ id: contractorContacts.id })
+      const contacts = await database
+        .selectDistinct({ contractorId: contractorContacts.contractorId })
         .from(contractorContacts)
         .where(
           and(
@@ -72,8 +72,14 @@ export function createDrizzleWhatsAppXmlReceiptRepository(
             sql`left(${contractorContacts.phone}, 4) || right(${contractorContacts.phone}, 8) = ${toWhatsAppPhoneKey(canonical)}`,
           ),
         )
-        .limit(1)
-      return contact === undefined ? undefined : { userId: SYSTEM_DISTRIBUTION_ACTOR_USER_ID }
+        .limit(2)
+      const [contact] = contacts
+      if (contact === undefined) return undefined
+      // Spec 315: o contato liga o remetente a UM contratante; com mais de um, nenhum é assumido.
+      return {
+        ...(contacts.length === 1 ? { restrictedContractorId: contact.contractorId } : {}),
+        userId: SYSTEM_DISTRIBUTION_ACTOR_USER_ID,
+      }
     },
 
     async recordReceipt(input) {
@@ -87,6 +93,7 @@ export function createDrizzleWhatsAppXmlReceiptRepository(
           rejectReason: input.rejectReason,
           replyTo: input.replyTo,
           requestedByUserId: input.requestedByUserId,
+          restrictedContractorId: input.restrictedContractorId ?? null,
           sender: input.sender,
           status: input.status,
         })

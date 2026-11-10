@@ -448,6 +448,7 @@ export const nfeXmlReceipts = pgTable('nfe_xml_receipts', {
   requestedByUserId: uuid('requested_by_user_id'),
   replyTo: text('reply_to'),
   media: jsonb(),
+  restrictedContractorId: uuid('restricted_contractor_id'),
   status: text().$type<NfeXmlReceiptStatus>().notNull().default('pending'),
   rejectReason: text('reject_reason'),
   attempts: integer().notNull().default(0),

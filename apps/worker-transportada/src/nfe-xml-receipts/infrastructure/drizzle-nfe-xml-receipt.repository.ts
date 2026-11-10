@@ -32,6 +32,7 @@ type ReceiptRow = {
   provider_message_id: string
   reply_to: string | null
   requested_by_user_id: string | null
+  restricted_contractor_id: string | null
   sender: string
 }
 
@@ -79,7 +80,7 @@ export function createDrizzleNfeXmlReceiptRepository(dependencies: {
           for update skip locked
         )
         returning r.id, r.company_id, r.channel, r.provider_message_id, r.sender, r.requested_by_user_id,
-                  r.reply_to, r.media, r.attempts
+                  r.restricted_contractor_id, r.reply_to, r.media, r.attempts
       `)) as unknown as Rows<ReceiptRow>
       return rows.map(toRecord)
     },
@@ -121,16 +122,25 @@ export function createDrizzleNfeXmlReceiptRepository(dependencies: {
 
       // Spec 302: o contato do contratante com o tipo `nfe_xml` também pode enviar. A importação sai com o ator da caixa
       // (a decisão de quem importa é do intake, que grava o remetente), então aqui basta existir um contato ativo.
+      // Spec 315: o contato ainda liga o remetente a UM contratante; com mais de um, nenhum é assumido.
       const contacts = (await database.execute(sql`
-        select id
+        select distinct contractor_id
         from contractor_contacts
         where company_id = ${companyId}::uuid
           and status = 'active'
           and 'nfe_xml' = any(types)
           and lower(email) = ${email.toLowerCase()}
-        limit 1
-      `)) as unknown as Rows<{ id: string }>
-      if (contacts[0] !== undefined) return { userId: NFE_XML_MAILBOX_ACTOR_USER_ID }
+        limit 2
+      `)) as unknown as Rows<{ contractor_id: string }>
+      if (contacts.length > 0) {
+        const [contact] = contacts
+        return {
+          ...(contacts.length === 1 && contact !== undefined
+            ? { restrictedContractorId: contact.contractor_id }
+            : {}),
+          userId: NFE_XML_MAILBOX_ACTOR_USER_ID,
+        }
+      }
 
       // Spec 311: o domínio liberado da empresa. O DKIM alinhado já foi exigido pelo intake antes de chegar aqui.
       const at = email.lastIndexOf('@')
@@ -304,6 +314,7 @@ function toRecord(row: ReceiptRow): ReceiptRecord {
     providerMessageId: row.provider_message_id,
     replyTo: row.reply_to,
     requestedByUserId: row.requested_by_user_id,
+    restrictedContractorId: row.restricted_contractor_id,
     sender: row.sender,
   }
 }

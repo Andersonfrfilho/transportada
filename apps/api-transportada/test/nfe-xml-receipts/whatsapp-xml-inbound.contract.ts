@@ -87,12 +87,22 @@ function setup(
     duplicate?: boolean
     failEvolution?: boolean
     participants?: { lid: null | string; number: null | string }[]
+    restrictedContractorId?: string
   } = {},
 ) {
   const recorded: Parameters<WhatsAppXmlReceiptRepositoryPort['recordReceipt']>[0][] = []
   const repository: WhatsAppXmlReceiptRepositoryPort = {
     findImportSender: () =>
-      Promise.resolve(options.authorized === false ? undefined : { userId: 'user-1' }),
+      Promise.resolve(
+        options.authorized === false
+          ? undefined
+          : {
+              ...(options.restrictedContractorId === undefined
+                ? {}
+                : { restrictedContractorId: options.restrictedContractorId }),
+              userId: 'user-1',
+            },
+      ),
     recordReceipt: (input) => {
       recorded.push(input)
       return Promise.resolve({ created: options.duplicate !== true })
@@ -173,6 +183,18 @@ describe('XML sent to the bot on WhatsApp', () => {
       status: 'pending',
     })
     expect(recorded[0]!.media).toMatchObject({ fileName: 'notas.zip', sizeBytes: 2048 })
+  })
+
+  test('a sender tied to a contractor (spec 315) leaves the contractor on the receipt for the worker', async () => {
+    const { receive, recorded } = setup({ restrictedContractorId: 'contractor-1' })
+    expect(await receive({ mentionedJids: [`${BOT}@s.whatsapp.net`] })).toBe('recorded')
+    expect(recorded[0]).toMatchObject({ restrictedContractorId: 'contractor-1' })
+  })
+
+  test('a company member has no contractor on the receipt', async () => {
+    const { receive, recorded } = setup()
+    await receive({ mentionedJids: [`${BOT}@s.whatsapp.net`] })
+    expect(recorded[0]!.restrictedContractorId).toBeNull()
   })
 
   test('the mention can come from the document context and from an @lid', async () => {

@@ -28,7 +28,7 @@ export type WhatsAppXmlReceiptRepositoryPort = {
     readonly companyId: string
     readonly now: Date
     readonly phone: string
-  }): Promise<{ readonly userId: string } | undefined>
+  }): Promise<{ readonly restrictedContractorId?: string; readonly userId: string } | undefined>
   /** `created: false` quando a mesma mensagem já foi gravada (entrega repetida do webhook). */
   recordReceipt(input: {
     readonly companyId: string
@@ -37,6 +37,7 @@ export type WhatsAppXmlReceiptRepositoryPort = {
     readonly rejectReason: string | null
     readonly replyTo: string | null
     readonly requestedByUserId: string | null
+    readonly restrictedContractorId?: string | null
     readonly sender: string
     readonly status: 'pending' | 'rejected'
   }): Promise<{ readonly created: boolean }>
@@ -146,6 +147,7 @@ export function createWhatsAppXmlInbound(dependencies: {
         rejectReason,
         replyTo,
         requestedByUserId: authorized?.userId ?? null,
+        restrictedContractorId: authorized?.restrictedContractorId ?? null,
         sender,
         status: rejectReason === null ? 'pending' : 'rejected',
       })

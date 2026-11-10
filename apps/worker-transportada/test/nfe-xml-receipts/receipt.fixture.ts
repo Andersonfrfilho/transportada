@@ -144,6 +144,7 @@ export function whatsappReceipt(overrides: Partial<ReceiptRecord> = {}): Receipt
     providerMessageId: 'ABC',
     replyTo: '120363@g.us',
     requestedByUserId: USER_ID,
+    restrictedContractorId: null,
     sender: '5516999990000',
     ...overrides,
   }

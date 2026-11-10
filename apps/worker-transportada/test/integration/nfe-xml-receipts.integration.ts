@@ -154,11 +154,32 @@ describeDatabase('nfe xml receipts (integration, spec 301)', () => {
     const find = (email: string, company = companyId) =>
       repository.findAuthorizedSenderByEmail({ companyId: company, email })
     expect(await find('ENVIA@contratante.com.br')).toEqual({
+      restrictedContractorId: contractorId,
       userId: '00000000-0000-4000-8000-000000000006',
     })
     expect(await find('so-ocorrencia@contratante.com.br')).toBeUndefined()
     expect(await find('inativo@contratante.com.br')).toBeUndefined()
     expect(await find('envia@contratante.com.br', crypto.randomUUID())).toBeUndefined()
+  })
+
+  test('a contact registered under two contractors authorizes the sender but is tied to none (spec 315)', async () => {
+    const created = (await database.execute(sql`
+      insert into contractors (company_id, tax_id, display_name) values
+        (${companyId}, '11111111000111', 'Primeiro'), (${companyId}, '22222222000122', 'Segundo')
+      returning id
+    `)) as unknown as { id: string }[]
+    for (const contractor of created) {
+      await database.execute(sql`
+        insert into contractor_contacts (company_id, contractor_id, email, types, status)
+        values (${companyId}, ${contractor.id}, 'dois@contratantes.com.br', '{nfe_xml}'::text[], 'active')
+      `)
+    }
+    expect(
+      await repository.findAuthorizedSenderByEmail({
+        companyId,
+        email: 'dois@contratantes.com.br',
+      }),
+    ).toEqual({ userId: '00000000-0000-4000-8000-000000000006' })
   })
 
   test('an active allowed domain of the company authorizes any address in it, and only it (spec 311)', async () => {

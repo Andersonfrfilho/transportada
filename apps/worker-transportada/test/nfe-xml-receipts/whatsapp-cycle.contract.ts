@@ -72,6 +72,17 @@ describe('WhatsApp receipt cycle', () => {
     expect(importGateway.created[0]!.files.every((file) => file.name.endsWith('.zip'))).toBe(true)
   })
 
+  test('spec 315: the contractor the sender is tied to goes to the import; a member sender goes without one', async () => {
+    const { dependencies, importGateway, repository } = setup()
+    repository.pending = [
+      whatsappReceipt({ id: 'r-contact', restrictedContractorId: 'contractor-1' }),
+      whatsappReceipt({ id: 'r-member', providerMessageId: 'DEF' }),
+    ]
+    await processWhatsAppReceipts(dependencies)
+    expect(importGateway.created[0]).toMatchObject({ restrictedContractorId: 'contractor-1' })
+    expect(importGateway.created[1]).not.toHaveProperty('restrictedContractorId')
+  })
+
   test('releases stale receipts first and takes a bounded batch, leaving the rest for the next cycle', async () => {
     const { dependencies, importGateway, repository } = setup()
     repository.staleReleased = 2

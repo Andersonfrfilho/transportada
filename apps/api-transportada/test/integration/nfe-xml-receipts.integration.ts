@@ -165,10 +165,24 @@ describe('nfe xml receipts (spec 301, API)', () => {
         const find = (phone: string, company = companyId) =>
           repository.findImportSender({ companyId: company, now: NOW, phone })
 
-        expect(await find('5516911112222')).toEqual({
+        const linked = {
+          restrictedContractorId: contractorId,
           userId: '00000000-0000-4000-8000-000000000006',
-        })
-        expect(await find('551611112222')).toEqual({
+        }
+        expect(await find('5516911112222')).toEqual(linked)
+        expect(await find('551611112222')).toEqual(linked)
+
+        const [secondContractor] = await database.db.execute<{ id: string }>(sql`
+          insert into contractors (company_id, tax_id, display_name)
+          values (${companyId}, '98765432000110', 'Outro') returning id
+        `)
+        await database.db.execute(sql`
+          insert into contractor_contacts
+            (company_id, contractor_id, email, phone, types, status, whatsapp_opt_in_at, whatsapp_opt_in_by_user_id)
+          values (${companyId}, ${secondContractor?.id ?? ''}, 'duplo@outro.com.br', '5516911112222',
+            '{nfe_xml}'::text[], 'active', ${NOW.toISOString()}::timestamptz, ${adminId})
+        `)
+        expect(await find('5516911112222')).toEqual({
           userId: '00000000-0000-4000-8000-000000000006',
         })
         expect(await find('5516922223333')).toBeUndefined()

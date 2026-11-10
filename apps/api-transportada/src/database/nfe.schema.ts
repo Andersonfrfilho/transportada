@@ -1286,6 +1286,11 @@ export const nfeXmlReceipts = pgTable(
     replyTo: text('reply_to'),
     /** WhatsApp: a mensagem do webhook (o Evolution só baixa a mídia com ela) e o que se sabe do arquivo. */
     media: jsonb(),
+    /** Spec 315: o contratante a quem o contato do WhatsApp pertence; o worker o passa à importação. */
+    restrictedContractorId: uuid('restricted_contractor_id').references(() => contractors.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    }),
     status: text().$type<NfeXmlReceiptStatus>().notNull().default('pending'),
     rejectReason: text('reject_reason'),
     attempts: integer().notNull().default(0),

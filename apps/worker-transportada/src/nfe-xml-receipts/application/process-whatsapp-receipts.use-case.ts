@@ -128,6 +128,9 @@ async function processOne(
       receivedFrom: receipt.sender,
       receivedVia: 'whatsapp',
       requestedByUserId: receipt.requestedByUserId,
+      ...(receipt.restrictedContractorId === null
+        ? {}
+        : { restrictedContractorId: receipt.restrictedContractorId }),
     })
     logger.info(NFE_XML_RECEIPT_LOG.imported, {
       channel: 'whatsapp',
