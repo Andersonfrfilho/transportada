@@ -1130,3 +1130,10 @@ Conferir recibos de XML sem o painel: `tmp/ops/recibos-xml-por-remetente.sh <sta
 (canal, remetente, status, motivo, arquivos, horário, aviso e resumo enviados). O e-mail da UNICA (unicafs.com.br) é recusado
 por DKIM (`sender_not_authenticated`); liberar domínio não resolve, o TI deles precisa corrigir. O WhatsApp funciona.
 Dica: o `ls` do Anderson tem alias; use `command ls` ao listar `tmp/ops/saidas/`.
+
+## Entrada de XML por e-mail e WhatsApp: domínio liberado e emitente contratante (specs 311–313)
+
+- **Domínio liberado** (tela de NF-e, bloco "E-mails liberados a enviar XML"): cada domínio fica amarrado a um contratante. Nota de remetente daquele domínio só entra se o emitente (CNPJ da chave) for o contratante amarrado; senão a recusa é `NFE_IMPORT_ISSUER_NOT_CONTRACTOR`. Coluna `nfe_imports.restricted_contractor_id`.
+- **Emitente contratante conta como da empresa**: o consumidor aceita a nota cujo emitente é contratante ativo da empresa mesmo sem o CNPJ da empresa no XML (a SEFAZ não entrega essas notas). Emitente desconhecido segue recusado com `NFE_IMPORT_UNRELATED_CNPJ`.
+- **Por que um recibo diz "com problema"**: `ops-scripts/notas-com-problema-xml.sh <ambiente> <horas>` (somente leitura) agrupa os itens por status e código de erro; grava em `tmp/ops/saidas/`.
+- **Reprocesso**: a rota de reprocesso só refaz item `failed`. Item `rejected` não volta pela rota. Para as notas recusadas com `NFE_IMPORT_UNRELATED_CNPJ` (emitente contratante, antes do #626): `bash tmp/ops/producao-reprocessa-recusadas.sh [horas]` (padrão 72). Simula primeiro (só conta) e só grava depois do "sim": põe a importação em `queued` e republica `transportada.nfe.import.requested` no `processing_outbox`; o consumidor relê todos os itens. Só entram importações em que **todos** os itens são essa recusa (senão uma nota já importada viraria "duplicada"). Saída em `tmp/ops/saidas/reprocessa-recusadas-<data>.txt`; confira depois com `notas-com-problema-xml.sh`.
