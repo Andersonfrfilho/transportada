@@ -15,6 +15,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
+import { WHATSAPP_CHAT_TAKEOVER_TIMEOUT_SECONDS } from '../whatsapp-inbox/domain/whatsapp-chat.constant.js'
 import { companies } from './identity.schema.js'
 import { inList } from './schema-check.constant.js'
 
@@ -68,6 +69,10 @@ export const whatsappEvolutionSettings = pgTable(
     nextSendAt: timestamp('next_send_at', { withTimezone: true }),
     /** Spec 292 T4: tempo sem resposta até o pedido no grupo do motorista vencer (regra 5). */
     groupRequestTimeoutSeconds: integer('group_request_timeout_seconds').notNull().default(600),
+    /** Spec 319 RF6: tempo sem mensagem do atendente até o chat assumido voltar ao bot. */
+    chatTakeoverTimeoutSeconds: integer('chat_takeover_timeout_seconds')
+      .notNull()
+      .default(WHATSAPP_CHAT_TAKEOVER_TIMEOUT_SECONDS.default),
     connectionState: text('connection_state')
       .$type<WhatsAppEvolutionConnectionState>()
       .notNull()
@@ -133,6 +138,10 @@ export const whatsappEvolutionSettings = pgTable(
     check(
       'whatsapp_evolution_settings_group_request_timeout_check',
       sql`${table.groupRequestTimeoutSeconds} between 60 and 3600`,
+    ),
+    check(
+      'whatsapp_evolution_settings_chat_takeover_timeout_check',
+      sql`${table.chatTakeoverTimeoutSeconds} between ${sql.raw(String(WHATSAPP_CHAT_TAKEOVER_TIMEOUT_SECONDS.min))} and ${sql.raw(String(WHATSAPP_CHAT_TAKEOVER_TIMEOUT_SECONDS.max))}`,
     ),
     /** Ligar sem ter lido o aviso de risco (RF7) não existe, nem por SQL direto. */
     check(

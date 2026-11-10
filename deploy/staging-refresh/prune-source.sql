@@ -293,6 +293,8 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('vehicle_volume_references', 'keep', null),
   ('view_preferences', 'keep', null),
   ('whatsapp_canhoto_questions', 'empty', null),
+  ('whatsapp_chat_messages', 'empty', null),
+  ('whatsapp_chats', 'empty', null),
   ('whatsapp_channels', 'empty', null),
   ('whatsapp_command_documents', 'empty', null),
   ('whatsapp_command_requests', 'empty', null),

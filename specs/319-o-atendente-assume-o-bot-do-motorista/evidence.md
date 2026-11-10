@@ -79,3 +79,78 @@ O contrato **não tem**: quem assumiu (nome), vencimento, motivo da devolução,
 - Prévia (T6b): abrir o diálogo **antes** de entregar o texto ao composer não é possível hoje; a T6b decide entre um
   botão "Enviar com prévia" no `renderComposerLock`/cabeçalho ou esperar o pedido 3. Recomendo esperar o pedido 3 e,
   enquanto isso, mostrar o destino (grupo ou privado, remetente = bot) fixo acima do campo.
+
+## T2 — Domínio e migration (branch `work/319-t2-dominio`, sobre `origin/staging` `4f4ce8f`)
+
+Lido antes: a nota da T1 (PR #682, `work/319-t1-spike-envio`) e a da T7b (PR #680). As decisões abaixo seguem a T1:
+privado endereçado pelo número (nunca `@lid`), histórico gravado na hora do envio, eco deduplicado pelo
+`provider_message_id`, envio em duas fases (`queued` antes de chamar o Evolution).
+
+### O que entrou
+
+| Peça                        | Onde                                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| Vocabulário                 | `src/whatsapp-inbox/domain/whatsapp-chat.constant.ts`                                     |
+| JID que entra na caixa      | `domain/whatsapp-chat-jid.policy.ts` (`classifyWhatsAppChatJid`, `directWhatsAppChatJid`) |
+| Quem atende, assumir, prazo | `domain/whatsapp-chat-takeover.policy.ts`                                                 |
+| Status que só avança        | `domain/whatsapp-chat-message.policy.ts`                                                  |
+| Erros                       | `domain/whatsapp-chat.error.ts` (404, 409 com quem segura, 400 JID)                       |
+| Porta                       | `application/whatsapp-chat.port.ts`                                                       |
+| Serviço                     | `application/whatsapp-chat-takeover.service.ts` (`createWhatsAppChatTakeoverService`)     |
+| Repositório                 | `infrastructure/drizzle-whatsapp-chat.repository.ts`                                      |
+| Schema                      | `src/database/whatsapp-chat.schema.ts`; coluna nova em `whatsapp-evolution.schema.ts`     |
+| Migration                   | `drizzle/20261110224844_whatsapp_chats` (aditiva, com `rollback.sql` que recusa dado)     |
+
+**Tabelas.**
+
+- `whatsapp_chats`: um por `(company_id, chat_jid)`; `kind` `group`|`direct` casado com o JID por CHECK (`…@g.us` ou
+  `<8–15 dígitos>@s.whatsapp.net`; `@lid` não entra); `state` `bot`|`operator`; com `operator`, dono
+  (`taken_over_by_user_id`, FK para o vínculo da mesma empresa), início e vencimento obrigatórios; devolução com
+  `release_reason` `manual`|`expired`, hora e quem devolveu (só na manual); `last_message_at`/`last_inbound_at`/`read_at`
+  para a lista e o "não lido". Índice parcial do vencimento só nos assumidos.
+- `whatsapp_chat_messages`: autor `driver`|`member` (recebida, sem status) ou `bot`|`operator`|`phone` (enviada, com
+  status `queued`→`sent`→`delivered`→`read` ou `failed` com motivo `disconnected`|`number_not_found`|`failed`);
+  `operator` exige `author_user_id` e texto de 1 a 4000; `sender_phone` só na recebida; `provider_message_id` único por
+  empresa (índice parcial). FK composta para o chat, com `company_id`.
+- `whatsapp_evolution_settings.chat_takeover_timeout_seconds` (padrão 1800, de 300 a 28800): o prazo da RF6 por empresa.
+- Staging-refresh: as duas tabelas novas são `empty` (conversa é dado pessoal).
+
+**Assumir atômico.** `takeOver` é um `UPDATE … WHERE state = 'bot' OR expires_at <= now OR taken_over_by = eu`. No
+READ COMMITTED, o segundo `UPDATE` espera o primeiro e reavalia o `WHERE` na linha nova: perde e recebe `held` com
+quem segura e até quando (o serviço transforma em `409 WHATSAPP_CHAT_ALREADY_TAKEN_OVER` com
+`takenOver { userId, expiresAt }`). O próprio atendente renova sem trocar o início.
+
+**Vencimento.** Duas formas, como o plano pede: na leitura (`resolveWhatsAppChatAttendance` trata `operator` vencido como
+`bot`, então a guarda da T3 já cala/religa certo) e em lote (`expireDue`, CTE com `for update skip locked`, grava
+`expired` e devolve empresa, chat e quem segurava para a T7 avisar). `touch` empurra o prazo a cada mensagem do
+atendente e devolve `null` se ele não segura mais.
+
+### Para as próximas tasks
+
+- **T3 (guarda):** `service.attendanceOf({ companyId, chatJid })`. `kind: 'operator'` = não responder nem avançar
+  fluxo, só gravar. Chat que não existe é `bot`. O JID do privado sai de `directWhatsAppChatJid(número)`.
+- **T4 (histórico):** `service.ensureChat` + `repository.appendMessage`. Eco e reentrega voltam `duplicate` sem mexer
+  em nada. `bot`/`phone` nascem `sent`; o `operator` nasce `queued`.
+- **T5 (rotas):** `takeOver`/`release`/`ensureChat` lançam `ApiError` prontos (404, 409, 400). Auditoria e permissão
+  ficam na T5.
+- **T6 (envio):** `appendMessage({ author: 'operator', … })` (fase 1), depois `updateMessageStatus` com `messageId` e
+  `providerMessageId` (`sent`) ou `failed` + motivo; reenvio = `failed → queued` na mesma linha; `touch` empurra o prazo.
+  O status do webhook entra com `updateMessageStatus({ providerMessageId, status })`, que só avança.
+- **T7 (job):** `service.expireDue({ limit })`.
+
+### Testes
+
+Postgres 16 local (`.env.test`), Bun 1.4.4.
+
+- Contrato novo `test/whatsapp-inbox.contract.test.ts` (domínio, serviço com dublê, separação da ocorrência e
+  `companyId` em toda consulta do repositório): **17 pass, 0 fail**.
+- Contrato estático da migration `test/database-migration/whatsapp-chats.static.contract.ts`, no
+  `database-migration.contract.test.ts`: **215 pass, 4 skip, 0 fail** (o `schema-snapshot` incluído).
+- Integração nova `test/integration/whatsapp-chat-repository.integration.ts`: **11 pass, 0 fail** (dois atendentes ao
+  mesmo tempo, renovar, devolver, vencer em lote uma vez, eco deduplicado, status que só avança, CHECKs, isolamento por
+  empresa, prazo da empresa).
+- `bun run test` da API inteira: **14 949 pass, 1 fail** na primeira rodada (o contrato do staging-refresh cobrando
+  política para as tabelas novas); corrigido em `prune-source.sql`, `test/deploy.contract.test.ts` **214 pass**.
+- Rollback à mão num banco migrado: recusa com chat gravado (`whatsapp_chats has 1 rows; refusing…`) e, vazio, remove
+  as tabelas, a coluna e a linha do journal.
+- `tsc --noEmit`, `eslint` dos arquivos tocados e `prettier --check` limpos.
