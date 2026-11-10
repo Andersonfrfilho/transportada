@@ -146,6 +146,7 @@ function buildRecordingClient(
 const ACCEPTING_ROUTE_SUFFIX_BY_KIND: Readonly<Record<string, string>> = {
   arrive: '/arrive',
   deliver: '/deliver',
+  documentOccurrence: '/occurrences',
   occurrence: '/occurrences',
   return: '/return',
   stopOccurrencePhoto: '/occurrences',
@@ -162,10 +163,11 @@ async function sendAndCollect(
 }
 
 describe('quais relatos levam tappedAt e clockOffsetMs (spec 234, esquemas .strict() da API)', () => {
-  it('são exatamente arrive, deliver, return e a ocorrência de parada (com a foto dela)', () => {
+  it('são exatamente arrive, deliver, return e as ocorrências de parada (com a foto dela) e de nota', () => {
     expect([...CLOCK_FIELD_REPORT_KINDS].sort()).toEqual([
       'arrive',
       'deliver',
+      'documentOccurrence',
       'occurrence',
       'return',
       'stopOccurrencePhoto',
@@ -193,7 +195,6 @@ describe('quais relatos levam tappedAt e clockOffsetMs (spec 234, esquemas .stri
       'cancelDeparture',
       'depart',
       'dispatch',
-      'documentOccurrence',
       'proofReceiver',
     ])
   })
