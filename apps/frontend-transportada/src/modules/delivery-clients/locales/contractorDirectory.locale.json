@@ -164,7 +164,7 @@
     "currentGroup": "Grupo atual",
     "hiddenTaken": "{{count}} grupo(s) não aparecem porque já pertencem a um motorista ou a outra contratante.",
     "phone": "Número a marcar no grupo",
-    "phonePlaceholder": "(DDD) número",
+    "phonePlaceholder": "(11) 98765-4321",
     "phoneHint": "Telefone com DDD. A pessoa precisa estar no grupo para ser avisada pela marcação.",
     "phoneInvalid": "Informe um telefone válido, com DDD.",
     "emailFallback": "Enviar por e-mail se o grupo falhar",
