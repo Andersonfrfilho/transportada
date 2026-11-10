@@ -15,9 +15,6 @@
   "number": "680481",
   "occurrenceTypes": [
     {
-      "arrivalTimeMode": "off",
-      "locationMode": "off",
-      "minWaitAfterArrivalMinutes": null,
       "itemsMinimumCount": null,
       "itemsMode": "required",
       "noteMode": "optional",
