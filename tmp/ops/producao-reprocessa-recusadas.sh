@@ -16,16 +16,18 @@ mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/reprocessa-recusadas-$(date +%Y%m%d-%H%M%S).txt"
 ENCODED="$(base64 -w0 "$HELPER")"
 
-run() { # $1 = APPLY (0|1)
+RAW="$OUT_DIR/reprocessa-recusadas-raw-$(date +%Y%m%d-%H%M%S).txt"
+run() { # $1 = APPLY (0|1); a saida inteira vai para $RAW e so as linhas __RESULT__ voltam
   railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -s worker -e production -- \
     sh -c "cd /app/apps/worker-transportada && APPLY=$1 HOURS=$HOURS bun -e \"\$(echo $ENCODED | base64 -d)\"" \
-    2>&1 | grep '^__RESULT__' || true
+    >"$RAW" 2>&1 || true
+  grep '^__RESULT__' "$RAW" || true
 }
 
 echo "== SIMULACAO (nada e gravado) =="
 SIM="$(run 0)"
 echo "$SIM" | tee "$OUT"
-[ -n "$SIM" ] || { echo "sem resultado da simulacao" >&2; exit 1; }
+[ -n "$SIM" ] || { echo "sem resultado da simulacao; ultimas linhas da saida (em $RAW):" >&2; tail -25 "$RAW" | cut -c1-300 >&2; exit 1; }
 echo "$SIM" | grep -q 'elegiveis=0' && { echo "Nada a reprocessar."; exit 0; }
 echo
 echo "ATENCAO: vai republicar o evento de importacao em PRODUCAO para as importacoes acima."
@@ -34,6 +36,6 @@ read -r -p 'Digite "sim" para gravar: ' ANSWER
 echo "== APLICANDO =="
 RES="$(run 1)"
 echo "$RES" | tee -a "$OUT"
-[ -n "$RES" ] || { echo "sem resultado ao aplicar — confira com notas-com-problema-xml.sh" >&2; exit 1; }
+[ -n "$RES" ] || { echo "sem resultado ao aplicar (saida em $RAW) — confira com notas-com-problema-xml.sh" >&2; tail -25 "$RAW" | cut -c1-300 >&2; exit 1; }
 echo "Saida: $OUT"
 echo "Depois de ~2 min rode: bash tmp/ops/notas-com-problema-xml.sh production 72"
