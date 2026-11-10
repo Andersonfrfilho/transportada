@@ -60,6 +60,7 @@ import { assertOccurrenceContractorReplyRollback } from './occurrence-contractor
 import { assertOccurrenceContractorReplyConstraints } from './occurrence-contractor-reply-constraints.assertion.js'
 import { assertNfeRecipientEmailRollback } from './nfe-recipient-email.assertion.js'
 import { assertOccurrenceDeclaredAmountRollback } from './occurrence-declared-amount.assertion.js'
+import { assertContractorOccurrenceChannel } from './contractor-occurrence-channel.assertion.js'
 import { assertOccurrenceTypeIconRollback } from './occurrence-type-icon.assertion.js'
 import { assertOccurrenceStopFlowBackfill } from './occurrence-stop-flow.assertion.js'
 import { assertOccurrenceStopKindBackfill } from './occurrence-stop-kind.assertion.js'
@@ -373,6 +374,13 @@ describe('Drizzle migration integration', () => {
         })
 
         await assertNfeRecipientEmailRollback({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
+        await assertContractorOccurrenceChannel({
+          companyId: identityFixture.companyId,
           connectionString,
           database,
           directories: migrationDirectories,

@@ -100,6 +100,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('contractor_mail_settings', 'empty', null),
   ('contractor_mail_templates', 'keep', null),
   ('contractor_mail_threads', 'empty', null),
+  ('contractor_occurrence_channels', 'empty', null),
   ('contractor_occurrence_watchers', 'keep', null),
   ('contractor_portal_bindings', 'keep', null),
   ('contractor_receiving_profiles', 'keep', null),
