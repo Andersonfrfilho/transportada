@@ -3,6 +3,7 @@ import { isZeroAmount, toTypedMeasure } from '@/modules/shared/decimalAmount.ser
 
 import { VEHICLE_MEASURE_FIELD_SCALE } from './fleetVehicleMeasure.service'
 import { normalizeVehicleCatalogName } from './vehicleCatalogChoices.service'
+import { VEHICLE_MODEL_PAYLOADS } from './vehicleModelPayload.constant'
 import type { FleetVehicleDetail, FleetVehicleFormState, MdfeBodyType } from './fleet.types'
 import type { LoadingAccess } from '@/modules/shared/loadingAccess.constant'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
@@ -25,6 +26,7 @@ export type VehicleReference = Readonly<{
 export type VehicleSuggestionOrigin =
   | Readonly<{ kind: 'reference' }>
   | Readonly<{ kind: 'vehicle'; plate: string }>
+  | Readonly<{ kind: 'model'; model: string }>
 
 /**
  * ⚠️ **O tipo não semeia porta lateral, e isto é medido, não estético.** A Fiorino e a Kangoo são o
@@ -81,13 +83,41 @@ export function resolveVehicleSuggestion(
   if (measured !== null) return measured
 
   const reference = fromReference(input)
-  if (reference !== null) return reference
+  const modelPayload = findModelPayload(input)
+  if (reference !== null) {
+    /** A referência sem peso publicado herda a carga útil do modelo, sem trocar a origem das medidas. */
+    return reference.capacityKilograms === '' && modelPayload !== null
+      ? { ...reference, capacityKilograms: toFormMeasure(modelPayload.payloadKilograms) }
+      : reference
+  }
 
   /**
-   * Sem referência de medida e sem veículo idêntico medido, não há o que sugerir. O acesso de
-   * carregamento **não** preenche esta lacuna sozinho: ele deixou de ser derivado do tipo.
+   * Sem veículo idêntico medido nem referência de medida, só a carga útil publicada do modelo pode
+   * ser sugerida — as medidas ficam vazias. O acesso de carregamento **não** preenche esta lacuna
+   * sozinho: ele deixou de ser derivado do tipo.
    */
-  return null
+  if (modelPayload === null) return null
+  return {
+    capacityKilograms: toFormMeasure(modelPayload.payloadKilograms),
+    cargoHeightMeters: '',
+    cargoLengthMeters: '',
+    cargoWidthMeters: '',
+    loadingAccess: '',
+    origin: { kind: 'model', model: modelPayload.label },
+  }
+}
+
+function findModelPayload(input: Readonly<{ brand: string; model: string }>) {
+  const brand = normalizeVehicleCatalogName(input.brand)
+  const model = normalizeVehicleCatalogName(input.model)
+  if (brand === '' || model === '') return null
+  return (
+    VEHICLE_MODEL_PAYLOADS.find(
+      (entry) =>
+        entry.brandIncludes.some((part) => brand.includes(part)) &&
+        entry.modelIncludes.some((part) => model.includes(part)),
+    ) ?? null
+  )
 }
 
 function fromMeasuredVehicle(

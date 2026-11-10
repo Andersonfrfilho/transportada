@@ -1172,5 +1172,8 @@ cavalo dá o de volume (`resolveCapacityUnknownReason`). Dado faltando na ficha,
 - Corrigir: `tmp/ops/producao-veiculos-corrigir.sh` (prévia por padrão, `--apply` grava em transação; só toca veículo ainda
   com `body_type='00'` e `capacity_kg=0`; incrementa `version`). Valores aprovados pelo Anderson. Aplicado em 10/11/2026 nas placas
   FLU7H32, FPA9H77, CAH8I08, FNG3980, FMN6C46 (tipo `other`→`van`), GFT4A58 e RFJ1B74 (tipo `other`→`utility`).
+- Completar só as medidas do baú de 6 veículos que já tinham carroceria e peso: `tmp/ops/producao-veiculos-medidas.sh [--apply]`
+  (Fiorinas DGC4I33, HIC2C79, FVB5I89 e Masters FFV2D95, PFM6A08 a partir de veículo igual já medido; Ducato Cargo IUZ9D73 pela referência da van).
+  Só toca veículo com as três medidas zeradas e incrementa `version`.
 - ⚠️ Medidas do Besta (CAH8I08) e do Ducato Maxicargo (FNG3980) foram derivadas do volume informado (5,2 m³ e ≈13 m³): conferir com fita.
 - Saídas ficam em `tmp/ops/saidas/veiculos-*.txt`.

@@ -107,6 +107,7 @@
   "capacityKilograms": "Capacidade (kg)",
   "cargoHeightMeters": "Altura do baú (m)",
   "cargoLengthMeters": "Comprimento do baú (m)",
+  "cargoSuggestionFromModel": "Carga útil publicada para o {{model}}, não pesagem. Confira antes de salvar.",
   "cargoSuggestionFromReference": "Média do tipo, não medição. A dispersão dentro de um tipo chega ao dobro — confira com a fita antes de salvar.",
   "cargoSuggestionFromVehicle": "Copiado de {{plate}}, da própria frota. Confira com a fita antes de salvar.",
   "cargoWidthMeters": "Largura do baú (m)",
