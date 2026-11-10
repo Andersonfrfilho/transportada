@@ -21,10 +21,10 @@ novo. O que foi tentado e não funcionou entra na seção "Erros que não devem 
    letras (ver `producao-env-storage.sh` abaixo). Chaves se leem de dentro do script, em variável.
 3. **Quando a sessão não consegue sozinha** (sem `railway` logado, sem acesso à produção), ela deixa
    um script `.sh` pronto, com tudo (inclusive o `railway ssh` e a consulta), em
-   `/home/miyazaki/Documents/personal/ativada/` e passa só `bash /home/miyazaki/Documents/personal/ativada/<nome>.sh`.
+   `/home/miyazaki/Documents/personal/transportada/tmp/ops/` e passa só `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/<nome>.sh`.
    Nunca passar caminho que não exista na máquina dele.
    **Saída grande vai para arquivo**: o script grava a saída completa em
-   `/home/miyazaki/Documents/personal/ativada/saidas/<nome>-<data>.json` e imprime só o caminho, para o Anderson não
+   `/home/miyazaki/Documents/personal/transportada/tmp/ops/saidas/<nome>-<data>.json` e imprime só o caminho, para o Anderson não
    copiar logs; a sessão lê o arquivo direto (`device_stage_files`).
 4. **Scripts não assumem onde o repositório está.** Use `REPO="${REPO:-$(git rev-parse --show-toplevel)}"`
    e aborte com mensagem clara se não achar `.github/scripts/railway-deploy.sh`. Nada de
@@ -1130,3 +1130,10 @@ Conferir recibos de XML sem o painel: `tmp/ops/recibos-xml-por-remetente.sh <sta
 (canal, remetente, status, motivo, arquivos, horário, aviso e resumo enviados). O e-mail da UNICA (unicafs.com.br) é recusado
 por DKIM (`sender_not_authenticated`); liberar domínio não resolve, o TI deles precisa corrigir. O WhatsApp funciona.
 Dica: o `ls` do Anderson tem alias; use `command ls` ao listar `tmp/ops/saidas/`.
+
+## Entrada de XML por e-mail e WhatsApp: domínio liberado e emitente contratante (specs 311–313)
+
+- **Domínio liberado** (tela de NF-e, bloco "E-mails liberados a enviar XML"): cada domínio fica amarrado a um contratante. Nota de remetente daquele domínio só entra se o emitente (CNPJ da chave) for o contratante amarrado; senão a recusa é `NFE_IMPORT_ISSUER_NOT_CONTRACTOR`. Coluna `nfe_imports.restricted_contractor_id`.
+- **Emitente contratante conta como da empresa**: o consumidor aceita a nota cujo emitente é contratante ativo da empresa mesmo sem o CNPJ da empresa no XML (a SEFAZ não entrega essas notas). Emitente desconhecido segue recusado com `NFE_IMPORT_UNRELATED_CNPJ`.
+- **Por que um recibo diz "com problema"**: `ops-scripts/notas-com-problema-xml.sh <ambiente> <horas>` (somente leitura) agrupa os itens por status e código de erro; grava em `tmp/ops/saidas/`.
+- **Reprocesso**: a rota de reprocesso só refaz item `failed`. Item `rejected` não volta pela rota: pedir reenvio do XML ou rodar script pontual (simular primeiro, produção só com o "sim" do Anderson).
