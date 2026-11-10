@@ -57,6 +57,8 @@ type FakeKeycloak = {
  */
 type RememberMeSettings = {
   readonly rememberMe: boolean
+  readonly ssoSessionIdleTimeout: number
+  readonly ssoSessionMaxLifespan: number
   readonly ssoSessionIdleTimeoutRememberMe: number
   readonly ssoSessionMaxLifespanRememberMe: number
 }
@@ -64,6 +66,8 @@ type RememberMeSettings = {
 /** O padrão do Keycloak: desligado, e prazos zerados (que caem nos da sessão comum). */
 const KEYCLOAK_DEFAULT_REMEMBER_ME: RememberMeSettings = {
   rememberMe: false,
+  ssoSessionIdleTimeout: 1800,
+  ssoSessionMaxLifespan: 36000,
   ssoSessionIdleTimeoutRememberMe: 0,
   ssoSessionMaxLifespanRememberMe: 0,
 }
@@ -138,6 +142,8 @@ function startFakeKeycloak(input: {
             readonly editUsernameAllowed?: boolean
             readonly loginTheme?: string
             readonly rememberMe?: boolean
+            readonly ssoSessionIdleTimeout?: number
+            readonly ssoSessionMaxLifespan?: number
             readonly ssoSessionIdleTimeoutRememberMe?: number
             readonly ssoSessionMaxLifespanRememberMe?: number
           }
@@ -153,6 +159,8 @@ function startFakeKeycloak(input: {
           if (body.rememberMe !== undefined) {
             const written = {
               rememberMe: body.rememberMe,
+              ssoSessionIdleTimeout: body.ssoSessionIdleTimeout ?? 0,
+              ssoSessionMaxLifespan: body.ssoSessionMaxLifespan ?? 0,
               ssoSessionIdleTimeoutRememberMe: body.ssoSessionIdleTimeoutRememberMe ?? 0,
               ssoSessionMaxLifespanRememberMe: body.ssoSessionMaxLifespanRememberMe ?? 0,
             }
@@ -600,6 +608,8 @@ describe('contrato de reconciliação — continuar conectado', () => {
     const realm = (await Bun.file(REALM_PATH).json()) as RememberMeSettings
     return {
       rememberMe: realm.rememberMe,
+      ssoSessionIdleTimeout: realm.ssoSessionIdleTimeout,
+      ssoSessionMaxLifespan: realm.ssoSessionMaxLifespan,
       ssoSessionIdleTimeoutRememberMe: realm.ssoSessionIdleTimeoutRememberMe,
       ssoSessionMaxLifespanRememberMe: realm.ssoSessionMaxLifespanRememberMe,
     }
@@ -609,6 +619,9 @@ describe('contrato de reconciliação — continuar conectado', () => {
     const declared = await readDeclaredRememberMe()
 
     expect(declared.rememberMe).toBe(true)
+    /** Mais que os 30 min do padrão: sessão que morre parada derrubou o painel em 10/11/2026. */
+    expect(declared.ssoSessionIdleTimeout).toBeGreaterThan(1800)
+    expect(declared.ssoSessionMaxLifespan).toBeGreaterThanOrEqual(declared.ssoSessionIdleTimeout)
     expect(declared.ssoSessionIdleTimeoutRememberMe).toBeGreaterThan(0)
     expect(declared.ssoSessionMaxLifespanRememberMe).toBeGreaterThanOrEqual(
       declared.ssoSessionIdleTimeoutRememberMe,
