@@ -1,8 +1,8 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "14e203c4-ecb0-405e-b715-582d99a58158",
-  "prevIds": ["e3d4883b-1068-4699-9e03-d26e08d9c335"],
+  "id": "9932f5f8-12fb-47a0-993f-42009fe5d691",
+  "prevIds": ["499ac577-834b-468c-93ea-f685590f55a6"],
   "ddl": [
     {
       "isRlsEnabled": false,
@@ -1603,6 +1603,12 @@
     {
       "isRlsEnabled": false,
       "name": "company_audio_transcription_settings",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "company_driver_occurrence_email_settings",
       "entityType": "tables",
       "schema": "public"
     },
@@ -45613,6 +45619,58 @@
       "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_occurrence_email_settings"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "name": "enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_occurrence_email_settings"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_occurrence_email_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_driver_occurrence_email_settings"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
       "default": "gen_random_uuid()",
       "generated": null,
       "identity": null,
@@ -63580,6 +63638,19 @@
       "columnsTo": ["id"],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
+      "name": "company_driver_occurrence_email_settings_company_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "company_driver_occurrence_email_settings"
+    },
+    {
+      "nameExplicit": true,
+      "columns": ["company_id"],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": ["id"],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
       "name": "contractor_automations_company_fk",
       "entityType": "fks",
       "schema": "public",
@@ -65776,6 +65847,14 @@
       "name": "company_audio_transcription_settings_pkey",
       "schema": "public",
       "table": "company_audio_transcription_settings",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["company_id"],
+      "nameExplicit": false,
+      "name": "company_driver_occurrence_email_settings_pkey",
+      "schema": "public",
+      "table": "company_driver_occurrence_email_settings",
       "entityType": "pks"
     },
     {

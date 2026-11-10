@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,10 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import {
+  hasReceivingChargeDetail,
+  ReceivingChargeDetail,
+} from '../components/ReceivingChargeDetail.component'
 import { useOccurrenceReimbursements } from '../hooks/useOccurrenceReimbursements.hook'
 import {
   DELIVERY_CHARGE_STATUSES,
@@ -273,42 +278,51 @@ export function OccurrenceReimbursementsWorkspacePage() {
                         )
 
                   return (
-                    <tr key={row.id}>
-                      <td>
-                        {/*
-                         * A linha que não pode entrar no fechamento diz isso aqui, na própria linha:
-                         * marcá-la e só descobrir o problema no rodapé é descobrir tarde.
-                         */}
-                        <Tooltip label={ineligibilityLabel}>
-                          <Checkbox
-                            ariaLabel={
-                              ineligibility === null
-                                ? t('reimbursements.table.select')
-                                : `${t('reimbursements.table.select')} — ${ineligibilityLabel}`
-                            }
-                            checked={controller.selectedIds.has(row.id)}
-                            disabled={ineligibility !== null}
-                            onChange={() => controller.toggleRow(row.id)}
-                          />
-                        </Tooltip>
-                      </td>
-                      <td>{row.chargedOn}</td>
-                      <td>
-                        {row.noteNumber === null
-                          ? '—'
-                          : row.noteSeries === null
-                            ? row.noteNumber
-                            : `${row.noteNumber}/${row.noteSeries}`}
-                      </td>
-                      <td>{t(`chargeType.${row.chargeType}`)}</td>
-                      <td>{formatAmount(row.amount)}</td>
-                      <td>{t(`chargeStatus.${row.status}`)}</td>
-                      <td>
-                        {row.hasSettlement
-                          ? t('reimbursements.table.settlementDone')
-                          : t('reimbursements.table.settlementPending')}
-                      </td>
-                    </tr>
+                    <Fragment key={row.id}>
+                      <tr>
+                        <td>
+                          {/*
+                           * A linha que não pode entrar no fechamento diz isso aqui, na própria linha:
+                           * marcá-la e só descobrir o problema no rodapé é descobrir tarde.
+                           */}
+                          <Tooltip label={ineligibilityLabel}>
+                            <Checkbox
+                              ariaLabel={
+                                ineligibility === null
+                                  ? t('reimbursements.table.select')
+                                  : `${t('reimbursements.table.select')} — ${ineligibilityLabel}`
+                              }
+                              checked={controller.selectedIds.has(row.id)}
+                              disabled={ineligibility !== null}
+                              onChange={() => controller.toggleRow(row.id)}
+                            />
+                          </Tooltip>
+                        </td>
+                        <td>{row.chargedOn}</td>
+                        <td>
+                          {row.noteNumber === null
+                            ? '—'
+                            : row.noteSeries === null
+                              ? row.noteNumber
+                              : `${row.noteNumber}/${row.noteSeries}`}
+                        </td>
+                        <td>{t(`chargeType.${row.chargeType}`)}</td>
+                        <td>{formatAmount(row.amount)}</td>
+                        <td>{t(`chargeStatus.${row.status}`)}</td>
+                        <td>
+                          {row.hasSettlement
+                            ? t('reimbursements.table.settlementDone')
+                            : t('reimbursements.table.settlementPending')}
+                        </td>
+                      </tr>
+                      {hasReceivingChargeDetail(row) ? (
+                        <tr className={styles.detailRow}>
+                          <td colSpan={7}>
+                            <ReceivingChargeDetail row={row} />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   )
                 })}
               </tbody>

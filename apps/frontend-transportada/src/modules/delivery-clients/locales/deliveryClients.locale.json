@@ -272,5 +272,12 @@
       "load": "Não foi possível carregar os números do cliente.",
       "generic": "Não foi possível salvar. Tente de novo em instantes."
     }
+  },
+  "receivingChargeFlag": {
+    "seal": "Possível cobrança na entrega",
+    "hint": "Um motorista registrou cobrança neste cliente em {{date}}. Limpe a marca quando ela não valer mais.",
+    "openOccurrence": "Abrir a ocorrência",
+    "clear": "Limpar a marca",
+    "clearFailed": "Não foi possível limpar a marca. Tente de novo."
   }
 }

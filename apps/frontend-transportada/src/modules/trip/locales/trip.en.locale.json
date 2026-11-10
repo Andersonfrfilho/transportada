@@ -2430,7 +2430,9 @@
       "alreadyResolved": "It was already resolved. The screen was refreshed.",
       "cancelled": "This occurrence was cancelled and cannot be resolved.",
       "generic": "Could not resolve the occurrence. Try again."
-    }
+    },
+    "receiptMessage": "PIX receipt",
+    "receiptFailed": "The PIX receipt could not be sent to the driver; the occurrence was resolved without it."
   },
   "occurrenceSettlement": {
     "title": "Goods settlement",

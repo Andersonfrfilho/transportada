@@ -59,6 +59,9 @@ export const API_COMPANY_SETTINGS_LOCATION_RETENTION_IMPACT_PATH =
   '/company-settings/location-retention/impact'
 /** Spec 264 RF17: a empresa liga ou desliga a transcrição dos áudios das conversas por assunto. */
 export const API_COMPANY_SETTINGS_AUDIO_TRANSCRIPTION_PATH = '/company-settings/audio-transcription'
+/** Spec 322: a empresa liga ou desliga o e-mail do aviso da ocorrência que o motorista registra. */
+export const API_COMPANY_SETTINGS_DRIVER_OCCURRENCE_EMAIL_PATH =
+  '/company-settings/driver-occurrence-email'
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
 /** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */

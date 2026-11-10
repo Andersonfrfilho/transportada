@@ -91,7 +91,13 @@ export type TripOccurrenceFeedClient = Readonly<{
   cancelOccurrenceCase: (input: CaseActionWithNoteInput) => Promise<CaseActionResult>
   /** Spec 266 RF7: `POST /trip-occurrences/:kind/:id/resolution` — nota obrigatória, 409 se já resolvida ou cancelada. */
   resolveTripOccurrence: (
-    input: Readonly<{ kind: OccurrenceResolutionKind; note: string; occurrenceId: string }>,
+    input: Readonly<{
+      /** Spec 317 (E13): o anexo do comprovante do PIX, já enviado ao motorista; opcional, nunca trava a conclusão. */
+      driverPayoutReceiptAttachmentId?: string
+      kind: OccurrenceResolutionKind
+      note: string
+      occurrenceId: string
+    }>,
   ) => Promise<OccurrenceResolutionResult>
   /** RF8: só sai de `decided`. */
   closeOccurrenceCase: (input: CaseActionInput) => Promise<CaseActionResult>
@@ -629,7 +635,15 @@ export function createTripOccurrenceFeedClient(
       const payload = await requestJson(
         dependencies,
         `${TRIP_OCCURRENCES_PATH}/${input.kind}/${encodeURIComponent(input.occurrenceId)}/resolution`,
-        { body: { note: input.note }, method: 'POST' },
+        {
+          body: {
+            note: input.note,
+            ...(input.driverPayoutReceiptAttachmentId === undefined
+              ? {}
+              : { driverPayoutReceiptAttachmentId: input.driverPayoutReceiptAttachmentId }),
+          },
+          method: 'POST',
+        },
       )
       return readResolutionResult(payload)
     },

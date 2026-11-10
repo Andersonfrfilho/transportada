@@ -61,3 +61,35 @@ O painel publicado lança erro em `chargeType` desconhecido (`readChargeType` em
 novo, então pode ir a staging antes; **o painel da Etapa 3 (com `receiving_charge` no vocabulário) vai antes de
 qualquer tipo de cobrança no recebimento ser usado**, e antes desta API chegar à `main`. As chaves novas das linhas do
 relatório são toleradas pelo painel publicado.
+
+## Etapa 3 — Painel (2026-11-10)
+
+Branch `feat/317-etapa-3-painel`, sobre `staging` com a Etapa 2.
+
+### O que mudou
+
+- **T9** `extra-charges`: `receiving_charge` entra em `DELIVERY_CHARGE_TYPES` (o `readChargeType` não lança mais na primeira
+  linha); o relatório lê `photos[]`, `receivingCharge`, `tripId` e `stopOccurrenceId` com leitura tolerante (API antiga, foto
+  malformada). Cada linha com detalhe ganha uma linha própria abaixo com as fotos rotuladas (`ReceivingChargeDetail`), quem pagou, o
+  PIX do motorista (a tela já exige `trip.financials`) e o botão "Abrir a ocorrência". Textos em `.locale.json` (pt-BR e en).
+- **T10** `delivery-clients`: `DeliveryClientReceivingChargeFlag` na ficha do cliente (selo "Possível cobrança na entrega", data,
+  link da ocorrência e "Limpar a marca" só com `fleet.manage`), sobre `GET`/`DELETE /delivery-clients/:id/receiving-charge-flag`.
+  `trip`: `OccurrenceResolutionPanel` oferece o "Comprovante do PIX" (opcional) nas ocorrências de parada pagas pelo motorista
+  (`DriverPayoutReceiptField`, dono `extra-charges`): o arquivo sobe pelo chat do motorista que já existe
+  (`sendDriverPayoutReceipt`) e o id do anexo vai em `driverPayoutReceiptAttachmentId`; se o envio falhar, a ocorrência conclui
+  sem o comprovante e a tela avisa.
+- **T11** prints em `prints/` (claro/escuro × desktop 1440/celular 390) de Ressarcimentos e da ficha do cliente, gerados por
+  `test/spec-317-prints.smoke.spec.ts` (fora do smoke da CI).
+
+### Limites conhecidos
+
+- A lista de clientes não mostra o selo (a marca é lida por cliente; ler a de todos seriam N chamadas). Só a ficha mostra.
+- O campo do comprovante localiza a cobrança no relatório de Ressarcimentos (primeira página de 100, filtrada por tipo): a API
+  não expõe `paidBy` no detalhe da ocorrência, e linha já fechada em lote sai do relatório — nesse caso o campo não aparece e a
+  conclusão segue igual.
+- O campo do comprovante na tela de concluir não tem print (exige simular o detalhe da ocorrência); coberto por contrato.
+
+### Testes
+
+- `test/extra-charges/receiving-charge.contract.ts` (tipo e traduções, leitura tolerante, marca do cliente, envio do
+  comprovante); `bun run test` do painel: 0 fail; `tsc --noEmit`, `eslint --max-warnings 0` e `prettier` limpos nos arquivos tocados.

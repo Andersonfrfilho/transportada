@@ -11,6 +11,8 @@ import type {
   ExtraChargeBatch,
   ExtraChargeBatchReport,
   OccurrenceChargeReportPage,
+  OccurrenceChargeReportPhoto,
+  OccurrenceChargeReportReceivingCharge,
   OccurrenceChargeReportRow,
 } from './extraCharges.types'
 
@@ -144,8 +146,44 @@ function toOccurrenceChargeReportRow(value: unknown): OccurrenceChargeReportRow 
     noteNumber: readNullableString(value.noteNumber),
     noteSeries: readNullableString(value.noteSeries),
     occurrenceId: readNullableString(value.occurrenceId),
+    photos: readReportPhotos(value.photos),
+    receivingCharge: readReceivingCharge(value.receivingCharge),
     status: readChargeStatus(value.status),
+    stopOccurrenceId: readNullableString(value.stopOccurrenceId),
     tripDocumentId: readNullableString(value.tripDocumentId),
+    tripId: readNullableString(value.tripId),
+  }
+}
+
+/**
+ * Spec 317: leitura tolerante dos campos novos — a API pode ir a staging antes do painel, e resposta sem eles
+ * (ou com foto malformada) mostra a linha sem foto em vez de derrubar a tela.
+ */
+function readReportPhotos(value: unknown): readonly OccurrenceChargeReportPhoto[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry): OccurrenceChargeReportPhoto[] => {
+    if (!isRecord(entry)) return []
+    const { expiresAt, label, slotKey, url } = entry
+    if (
+      typeof expiresAt !== 'string' ||
+      typeof label !== 'string' ||
+      typeof slotKey !== 'string' ||
+      typeof url !== 'string'
+    ) {
+      return []
+    }
+    return [{ expiresAt, label, slotKey, url }]
+  })
+}
+
+function readReceivingCharge(value: unknown): OccurrenceChargeReportReceivingCharge | null {
+  if (!isRecord(value)) return null
+  const paidBy = value.paidBy === 'driver' || value.paidBy === 'company' ? value.paidBy : null
+  return {
+    driverPayoutSentAt: readNullableString(value.driverPayoutSentAt),
+    driverPixKey: readNullableString(value.driverPixKey),
+    driverPixKeyType: readNullableString(value.driverPixKeyType),
+    paidBy,
   }
 }
 

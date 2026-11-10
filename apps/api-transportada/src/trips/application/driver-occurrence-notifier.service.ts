@@ -5,6 +5,7 @@
  * 267/271) e quem despachou a viagem. Reverte o "sem notificador" da 079: o registro do app **é** o relato, e quem
  * trata a ocorrência nem sempre é quem despachou.
  */
+import type { DriverOccurrenceEmailSettingsPort } from '../../companies/application/driver-occurrence-email-settings.port.js'
 import { NOTIFICATION_CATEGORY } from '../../notification/domain/notification-catalog.constant.js'
 import { resolveEffectiveWatchers } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
 import type { OccurrenceWatcherCandidate } from '../../contractor-mail/domain/occurrence-watcher.policy.js'
@@ -51,6 +52,8 @@ export type DriverOccurrenceNotificationReader = {
 
 type SendNotification = (input: {
   readonly category: string
+  /** Ausente = o módulo resolve pelas preferências de cada destinatário (spec 322: `['inbox']` sem o e-mail). */
+  readonly channels?: readonly ['inbox']
   readonly companyId: string
   readonly dedupeKey: string
   readonly payload: object
@@ -63,6 +66,8 @@ type SendNotification = (input: {
  * ids e contagens — nunca nome nem endereço. Um destinatário que falha não impede os outros.
  */
 export function createDriverOccurrenceNotifier(input: {
+  /** Spec 322: o interruptor da empresa para o e-mail deste aviso. */
+  readonly emailSettings: DriverOccurrenceEmailSettingsPort
   readonly logger: Logger
   readonly reader: DriverOccurrenceNotificationReader
   readonly send: SendNotification
@@ -92,10 +97,13 @@ export function createDriverOccurrenceNotifier(input: {
           dispatcherUserId,
           watcherUserIds: watchers.copy.map((watcher) => watcher.userId),
         })
+        const emailEnabled = await resolveEmailEnabled(input, { companyId, occurrenceId, tripId })
         const results = await Promise.allSettled(
           recipients.map((recipientUserId) =>
             input.send({
               category: NOTIFICATION_CATEGORY.TRIP,
+              /** Spec 322: interruptor desligado = só a caixa de entrada; ligado, as preferências do usuário decidem. */
+              ...(emailEnabled ? {} : { channels: ['inbox'] as const }),
               companyId,
               /** D5: o índice único do módulo é `(company_id, dedupe_key)` — a chave carrega o destinatário. */
               dedupeKey: `${templateKey}:${occurrenceId}:${recipientUserId}`,
@@ -134,5 +142,24 @@ export function createDriverOccurrenceNotifier(input: {
         })
       }
     },
+  }
+}
+
+/**
+ * Spec 322 D4: se a leitura do interruptor falha, o e-mail **não** sai (o sino sim) — melhor um aviso a menos por
+ * e-mail do que um e-mail que a empresa mandou desligar.
+ */
+async function resolveEmailEnabled(
+  input: { readonly emailSettings: DriverOccurrenceEmailSettingsPort; readonly logger: Logger },
+  context: { readonly companyId: string; readonly occurrenceId: string; readonly tripId: string },
+): Promise<boolean> {
+  try {
+    return (await input.emailSettings.find({ companyId: context.companyId })).enabled
+  } catch (error) {
+    input.logger.warn('driver_occurrence_email_setting_unreadable', {
+      ...context,
+      reason: error instanceof Error ? error.message : 'unknown',
+    })
+    return false
   }
 }

@@ -401,6 +401,22 @@
       "invalid": "O servidor recusou o pedido. A configuração anterior foi mantida."
     }
   },
+  "driverOccurrenceEmail": {
+    "title": "E-mail do aviso de ocorrência do motorista",
+    "loading": "Carregando a configuração do aviso",
+    "retry": "Tentar de novo",
+    "description": "Quando o motorista registra uma ocorrência numa nota, os responsáveis por ocorrências e quem despachou a viagem recebem um aviso.",
+    "effectOfTurningOff": "Ao desligar: ninguém da empresa recebe esse aviso por e-mail. Ele continua na caixa de entrada (o sino). Os outros e-mails, como o da contratante, não mudam.",
+    "toggle": "Enviar esse aviso também por e-mail",
+    "lastChange": "Última alteração: {{when}}",
+    "saving": "Salvando a configuração",
+    "error": {
+      "failed": "Não foi possível falar com o servidor. A configuração anterior foi mantida.",
+      "forbidden": "Você não tem permissão para alterar esta configuração.",
+      "unauthenticated": "Sua sessão expirou. Entre de novo para continuar.",
+      "invalid": "O servidor recusou o pedido. A configuração anterior foi mantida."
+    }
+  },
   "contractorReply": {
     "title": "Retorno da contratante",
     "loading": "Carregando o retorno da contratante",

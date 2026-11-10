@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import './companies/audio-transcription-settings.contract.js'
+import './companies/driver-occurrence-email-settings.contract.js'
 import './companies/company-contacts.contract.js'
 import './companies/company-energy-policy.contract.js'
 import './companies/company-energy.contract.js'

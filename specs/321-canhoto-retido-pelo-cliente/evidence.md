@@ -86,7 +86,7 @@ automatic-group,occurrence-mail,occurrence-chat-mail,contractor-portal-message,c
 
 ## T2 — a coleta de canhoto nasce com a ocorrência (10/11/2026)
 
-Base: `origin/staging` @ 3736604 (T1 mergeada, PR #671). Caminhos relativos a `apps/api-transportada/`.
+Base: `origin/staging` @ 3736604 (T1 mergeada, PR #671), depois com a staging mergeada (#672, #673, #675): a migration foi regerada depois da `20261110214656`. Caminhos relativos a `apps/api-transportada/`.
 
 **Marca "tipo com coleta".** Coluna `company_occurrence_types.creates_canhoto_pickup` (boolean, padrão `false`), lida e gravada por
 `GET`/`PUT /company-settings/occurrence-types` como `createsCanhotoPickup` (ausente é "não mexa"). Ela substitui a leitura provisória da T1
@@ -95,7 +95,7 @@ pedido) só `countsCargoOnPickupTrip = false` vale: `true` explícito é `422 OC
 quando o gravado (ou o padrão `true` da coluna, na criação) é `true`. No tipo **sem** coleta o valor passa como veio, inclusive `true` (a
 recusa da T1 "voltar a `true` depois de `false`" saiu: sem a marca ela não tinha objeto). O painel (T5) manda as três chaves juntas.
 
-**Banco.** Migration `drizzle/20261110213420_canhoto_pickups` (gerada por `db:generate`, com snapshot): tabela `trip_canhoto_pickups`
+**Banco.** Migration `drizzle/20261110220029_canhoto_pickups` (gerada por `db:generate`, com snapshot): tabela `trip_canhoto_pickups`
 (`company_id`, `nfe_document_id`, `origin_trip_document_id`, `occurrence_id`, `pickup_trip_id`, `pickup_stop_id`, `status`
 `pending | scheduled | collected | cancelled`, `collected_at`), FKs compostas por `(company_id, id)` (ocorrência `cascade`; origem, NF-e,
 viagem e parada `restrict`, porque `set null` numa FK composta zeraria `company_id`), CHECKs (`pending` sem viagem nem parada, `scheduled`
