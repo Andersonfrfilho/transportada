@@ -1177,3 +1177,13 @@ cavalo dá o de volume (`resolveCapacityUnknownReason`). Dado faltando na ficha,
   Só toca veículo com as três medidas zeradas e incrementa `version`.
 - ⚠️ Medidas do Besta (CAH8I08) e do Ducato Maxicargo (FNG3980) foram derivadas do volume informado (5,2 m³ e ≈13 m³): conferir com fita.
 - Saídas ficam em `tmp/ops/saidas/veiculos-*.txt`.
+
+## 5.27 Eventos velhos do app do motorista (spec 320, 10/11/2026) — leitura em produção, nada alterado
+
+O motorista 87 reenviou pelo app, em 10/11/2026 às 17:34 UTC, uma fila velha de toques. Duas leituras **somente de consulta** no banco de produção (`railway ssh -s api -e production`, `bun` com `DATABASE_URL` do próprio serviço), scripts em `tmp/ops/producao-motorista-eventos-atrasados.sh` e `producao-motorista-paradas-atrasadas.sh`:
+
+- Os toques atrasados eram **saiu, chegou e entregou** de três paradas (`tapped_at` de 09/11 e 10/11, gravados em 10/11 às 17:34 UTC), todos do canal `driver_app`. A etapa pulada foi gravada junto, com a mesma hora do toque.
+- Nessas três paradas não há evento de outro canal e nenhuma ocorrência de nota nos documentos delas: **não há duplicata para limpar**, e nada foi apagado ou alterado.
+- A trava da spec 320 retém só **ocorrência de nota** (decisão do dono); saiu, chegou e entregou atrasados continuam entrando. Estender é uma mudança pequena, mas pede decisão.
+- Armadilha do script: `railway ssh` precisa rodar de dentro da pasta do repositório (projeto ligado); o script agora entra nela sozinho. Lista de ids no `bun` SQL é `in ${sql(lista)}`, não `= any(${lista}::uuid[])`.
+- Interruptor da trava: `GET`/`PUT /company-settings/field-report-hold` (`settings.manage`) e a caixa em Pendências. Desligado por padrão em toda empresa; ligar em produção pede aprovação humana.
