@@ -48,7 +48,7 @@ do escritório, até alguém trazer o canhoto. Quando a foto chega por qualquer 
   o tipo **devolve a nota** da viagem de origem, que fecha normalmente, e a deixa elegível para entrar em outra viagem. **Sem
   coluna de liberação nova** se a T0 confirmar que o caminho da 164 basta. Ponto de conflito a resolver na T0: a tratativa da 164
   passa pela decisão **da contratante** no portal; aqui isso não pode acontecer (nada vai à SPANI), então a reentrega nasce
-  **autorizada pelo próprio tipo**, sem etapa de contratante nem aviso (ver Dúvidas).
+  **autorizada pelo próprio tipo**, sem etapa de contratante nem aviso. **Decidido pelo Anderson (10/11/2026): abrir a ocorrência já libera a nota.**
 - **D4b — Quem finaliza é o motorista da outra viagem (regra do Anderson).** A nota entra na nova viagem como **item de
   coleta de canhoto** no endereço do cliente; o motorista dessa viagem a **finaliza coletando o canhoto** (foto do canhoto,
   pelo caminho da 294/222). Só então a ocorrência resolve (D6). Sem encaixe em viagem de coleta (297 ainda é rascunho),
@@ -112,12 +112,6 @@ do escritório, até alguém trazer o canhoto. Quando a foto chega por qualquer 
 - **CA05** Em staging, prints claro/escuro, desktop/celular da aba Tipos e da lista, comparados com outra tela do painel.
 
 ## Dúvidas
-
-- [NEEDS CLARIFICATION: **Reentrega sem a contratante.** A tratativa da 164 pede decisão da contratante no portal. Para este tipo recomendo
-  reentrega **autorizada automaticamente pelo tipo**, sem etapa de contratante, sem aviso e sem cobrança. Confirma?]
-
-Respondidas pelo Anderson em 10/11/2026: a entrega vale como feita; a ocorrência **devolve a nota** para ir a outra viagem; o motorista
-dessa viagem a finaliza coletando o canhoto (D4, D4b).
 
 - [NEEDS CLARIFICATION: **Aviso à contratante na retenção e na coleta.** Pelo pedido, nenhum dos dois vai à SPANI. Confirma que
   a **coleta do canhoto** (nota finalizada na outra viagem) também não gera aviso, ou só a retenção?] — recomendo nenhum dos dois.
