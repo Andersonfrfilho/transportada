@@ -6,15 +6,15 @@
 
 ## Specs do mesmo assunto (lidas)
 
-| Spec            | O que já decidiu e esta spec **usa sem refazer**                                                                                                  |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 150, 195, 113   | "Endereço incorreto": correção de endereço, e-mail que pede à contratante que atualize o cadastro. **Esta spec muda só o destinatário** (D5).      |
-| 183, 211        | A ocorrência tem conversas por participante; o núcleo multicanal (mensagem com canal, anexo, status, leitura, não atribuídas).                    |
+| Spec            | O que já decidiu e esta spec **usa sem refazer**                                                                                                    |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 150, 195, 113   | "Endereço incorreto": correção de endereço, e-mail que pede à contratante que atualize o cadastro. **Esta spec muda só o destinatário** (D5).       |
+| 183, 211        | A ocorrência tem conversas por participante; o núcleo multicanal (mensagem com canal, anexo, status, leitura, não atribuídas).                      |
 | 270             | Tipo com escopo de contratantes (`all` / `listed`). A regra de roteamento por tipo (D5) segue o mesmo desenho: dado no tipo, nunca nome de tipo.    |
 | 274, 287        | O composer envia por e-mail (modelo padrão `notification.standard-email`) e escolhe o canal; catálogo de canais por participante é **dado** (RF6b). |
-| 281, 283        | WhatsApp pelo Evolution e o terceiro participante `client` na tela da ocorrência: é o molde da coluna "Vendedor".                                 |
-| 308             | O chat direto: o bot reconhece o telefone e trata o 1:1 como "grupo de um só". O vendedor é mais um número reconhecido (D2.3 da 308).             |
-| ADR-0050 / 0073 | A contratante é usuário (mesmo Keycloak, papel `contractor`, vínculo em `contractor_portal_bindings`) e usa app separada, `frontend-client`.      |
+| 281, 283        | WhatsApp pelo Evolution e o terceiro participante `client` na tela da ocorrência: é o molde da coluna "Vendedor".                                   |
+| 308             | O chat direto: o bot reconhece o telefone e trata o 1:1 como "grupo de um só". O vendedor é mais um número reconhecido (D2.3 da 308).               |
+| ADR-0050 / 0073 | A contratante é usuário (mesmo Keycloak, papel `contractor`, vínculo em `contractor_portal_bindings`) e usa app separada, `frontend-client`.        |
 
 ## Problema e resultado
 
