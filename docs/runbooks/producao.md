@@ -1139,3 +1139,25 @@ Dica: o `ls` do Anderson tem alias; use `command ls` ao listar `tmp/ops/saidas/`
 - **Reprocesso**: a rota de reprocesso só refaz item `failed`. Item `rejected` não volta pela rota. Pela tela (spec 314, na staging): o botão "Reprocessar" da fila de processamentos também vale para nota recusada com `NFE_IMPORT_UNRELATED_CNPJ`, mostra quantas serão refeitas e só grava no "Confirmar". O script abaixo segue como plano B em lote. Para as notas recusadas com `NFE_IMPORT_UNRELATED_CNPJ` (emitente contratante, antes do #626): `bash tmp/ops/producao-reprocessa-recusadas.sh [horas]` (padrão 72). Simula primeiro (só conta) e só grava depois do "sim": põe a importação em `queued` e republica `transportada.nfe.import.requested` no `processing_outbox`; o consumidor relê todos os itens. Só entram importações em que **todos** os itens são essa recusa (senão uma nota já importada viraria "duplicada"). Saída em `tmp/ops/saidas/reprocessa-recusadas-<data>.txt`; confira depois com `notas-com-problema-xml.sh`.
 
 ⚠️ **Script de operação que roda no container do worker não importa de `dist/` além dos entrypoints.** O build empacota (`bun build … --packages=external`) só `main.js` e os `*.main.js`/workers listados no `package.json`; não existe `dist/database/*.js` nem `dist/config/*.js`. Um `import(`${DIST}/database/nfe.schema.js`)` falha com `Cannot find module` (foi o primeiro erro do `producao-reprocessa-recusadas`, 10/11/2026). Use SQL cru com `drizzle-orm` (`sql`) e os nomes de coluna do banco; `producao-consulta-por-chave.mjs` ainda importa de `dist/` e precisa da mesma troca antes de ser usado.
+
+## 5.25 Painel em "Indisponível" com 401: sessão do Keycloak vencida (10/11/2026)
+
+**Sintoma:** Workspace NF-e e notificações em "Indisponível / Não foi possível carregar"; no console, 401 em `/auth/me`, `/v1/notifications/unread-count` e `/view-preferences`. A API e o Keycloak estavam saudáveis.
+
+**Causa:** o realm de produção estava com o padrão do Keycloak: sessão morre com **30 min parada** (`ssoSessionIdleTimeout` 1800) e teto de 10 h. A renovação do token devolve `Token is not active` e a API (que só valida a assinatura, sem consultar o Keycloak) passa a responder 401. O "continuar conectado" só vale se a pessoa marcar a caixa.
+
+**Correção (10/11/2026):**
+
+- Produção ajustada à mão para ociosidade **8 h** (28800) e teto **7 dias** (604800) com `APLICAR_SESSAO=1 bash tmp/ops/producao-keycloak-eventos.sh` (PUT 204, conferido na leitura seguinte).
+- `deploy/keycloak/realm.json` e `.github/scripts/keycloak-reconcile.sh` passaram a declarar os mesmos prazos (PR #636), então staging e instalação nova não voltam ao padrão.
+- O painel, ao receber 401 com token que o navegador acha válido, reautentica uma vez por minuto (PR #634 na staging, #635 na `main`).
+
+**Scripts** (em `tmp/ops/`):
+
+- `producao-keycloak-sessao.sh` — somente leitura: prazos do realm, client `transportada-spa`, chaves e eventos.
+- `producao-keycloak-eventos.sh` — escreve: liga eventos de login/renovação (14 dias) e, com `APLICAR_SESSAO=1`, ajusta a sessão.
+- `producao-thiago-falhas.sh` — somente leitura: eventos de campo de um motorista (paradas, status, ocorrências) em 36 h.
+
+⚠️ **Eventos do Keycloak seguem desligados:** a conta de serviço da API recebe 403 em `/events/config` (falta `manage-events` do client `realm-management`, ou ligar à mão em _Realm settings → Events_). Sem eles, um 401 com token ainda válido não deixa rastro.
+
+**Bun SQL:** em `Bun.SQL`, lista em `IN` é `in ${sql(arr)}`; `any(${arr})` dá `malformed array literal`.

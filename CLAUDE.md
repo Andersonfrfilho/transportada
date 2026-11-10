@@ -260,6 +260,15 @@ A ordem de migração de cada serviço, e por que apagar o arquivo primeiro derr
 `docs/spec/railway.md` § "Migrar um serviço". Duas coisas que o arquivo **não** pode fazer: registrar
 domínio próprio (cria-se no painel) e carregar segredo (as variáveis viram `preserve()`).
 
+## Sessão do Keycloak é configuração versionada, e 401 em tudo é sessão vencida
+
+⚠️ **Em 10/11/2026 o painel de produção ficou em "Indisponível" porque o realm estava com o padrão do Keycloak** (sessão morre com 30 min parada, teto de 10 h): a renovação devolve `Token is not active` e a API, que só valida a assinatura, responde 401. Ponto de atenção:
+
+- **Prazo de sessão e token mora em `deploy/keycloak/realm.json` e é reconciliado por `.github/scripts/keycloak-reconcile.sh`** (contrato em `apps/api-transportada/test/deploy/keycloak-realm.contract.ts`). Não é `realm/transportada-local-realm.json`, que é só o realm local. Ajuste manual em produção sem mexer nesses arquivos volta ao padrão na próxima instalação.
+- **Painel com "Indisponível" e 401 em `/auth/me`, notificações e preferências ao mesmo tempo** é sessão, não queda: confira os prazos do realm (`tmp/ops/producao-keycloak-sessao.sh`) antes de procurar bug na API. Detalhe no runbook § 5.25.
+- **Os eventos do Keycloak estão desligados** (falta `manage-events` na conta de serviço da API): sem eles um 401 com token válido não deixa rastro. Ligar antes de investigar de novo.
+- **Doc de runbook passa por `prettier --check .` na CI**: rode `bunx prettier --write` no `.md` antes do push.
+
 ## Produção: leia e atualize o runbook
 
 ⚠️ **Toda sessão que for ler logs, consultar o banco, mexer em variáveis, redeployar ou testar o
