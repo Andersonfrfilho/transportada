@@ -10,18 +10,19 @@ Causa lida no código (a confirmar com os dados de produção, T0.1):
 2. O servidor só reconhece repetição pela chave de idempotência do toque (`trip_field_reports`). Se o mesmo fato foi registrado por outro caminho (painel, bot, WhatsApp), a chave do app é nova e o evento entra como novo.
 3. A ocorrência de nota não leva a hora do toque (o esquema é `.strict()`), então o servidor grava a hora da chegada: a ocorrência velha aparece como de hoje.
 
-**Resultado:** evento ou ocorrência do app cuja data do toque não é a do dia em que chega **não é aplicado**. Fica retido, o escritório vê em `/pendencias` e decide **Liberar** (aplica com a hora original do toque) ou **Descartar**. Se o fato já consta no sistema, a retenção avisa que é provável duplicata.
+**Resultado:** ocorrência do app cuja data do toque não é a do dia em que chega **não é aplicado**. Fica retido, o escritório vê em `/pendencias` e decide **Liberar** (aplica com a hora original do toque) ou **Descartar**. Se o fato já consta no sistema, a retenção avisa que é provável duplicata.
 
 ## Decisões (propostas, aguardam OK do Anderson)
 
 - **D1 — A trava é no servidor.** O PWA instalado pode ser um build antigo; só o servidor garante.
-- **D2 — Regra "mesma data".** Compara o dia do toque corrigido (`tappedAt + clockOffsetMs`) com o dia do recebimento, no fuso `America/Sao_Paulo`. Dias diferentes **e** mais de 3 h entre toque e recebimento: retém. A tolerância evita reter o toque das 23:58 recebido às 00:03.
-- **D3 — O que é retido:** relatos do motorista pelo app (`channel = driver_app`): chegada, saída, baixa, retorno, ocorrência de parada, ocorrência de nota e comprovante. Escritório e WhatsApp nunca são retidos.
+- **D2 — Regra "mesma data".** Compara o dia do toque corrigido (`tappedAt + clockOffsetMs`) com o dia do recebimento, no fuso `America/Sao_Paulo`. Dias diferentes **e** mais de 3 h entre toque e recebimento: retém (tolerância de 3 h confirmada pelo Anderson). A tolerância evita reter o toque das 23:58 recebido às 00:03.
+- **D3 — O que é retido (decisão do Anderson, 10/11/2026): só ocorrências** do motorista pelo app (`channel = driver_app`): ocorrência de parada e ocorrência de nota. Chegada, saída, baixa, retorno e comprovante seguem como hoje nesta spec. Escritório e WhatsApp nunca são retidos.
 - **D4 — Retido não é recusado.** O servidor responde `202` com `held: true`. O app trata como entregue e tira da fila (recusa de negócio faria o motorista descartar; erro de rede faria reenviar para sempre) e mostra "enviado ao escritório para conferência".
 - **D5 — Duplicata provável.** Ao reter, procura o mesmo fato já registrado entre o toque e o recebimento, por qualquer canal: mesma parada e tipo de evento, ou mesma nota e mesmo tipo de ocorrência. Achando, o painel mostra "provável duplicata de <registro>" com Descartar sugerido. Liberar continua possível.
 - **D6 — O app manda a hora do toque também na ocorrência de nota** (`tappedAt` e `clockOffsetMs` opcionais). Sem o campo o servidor não retém (comportamento de hoje), para não quebrar build antigo.
 - **D7 — Liberar aplica com a hora original** (`occurredAt` = toque corrigido), pelo mesmo caminho do relato e a mesma chave de idempotência. Liberar duas vezes não duplica. Descartar guarda quem, quando e por quê.
 - **D8 — Interruptor por empresa**, desligado por padrão. Primeiro staging; produção só com aprovação.
+- **D10 — Quem libera (decisão do Anderson): só o escritório.** Liberar e descartar exigem a permissão de gestão de viagens do escritório; atendente e motorista não liberam.
 - **D9 — A liberação roda as validações da spec 315** com a hora do toque; falhou, o item continua retido com o motivo.
 
 ## Fora do escopo
@@ -29,6 +30,7 @@ Causa lida no código (a confirmar com os dados de produção, T0.1):
 - Apagar ou cancelar a duplicação que já está em produção (decisão separada, com OK do Anderson depois da leitura dos dados).
 - Mudar a fila do app para apagar por idade (a 227 segue valendo).
 - Reter eventos do escritório ou do bot.
+- Reter chegada, saída, baixa, retorno e comprovante (ficam para uma spec futura, se a medição do T0.1 mostrar necessidade).
 
 ## Histórias priorizadas
 
@@ -74,6 +76,4 @@ Causa lida no código (a confirmar com os dados de produção, T0.1):
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: tolerância de 3 h e fuso de Brasília, ou "só o mesmo dia", sem tolerância?]
-- [NEEDS CLARIFICATION: a retenção vale para todas as operações da D3 ou só para ocorrências por enquanto?]
-- [NEEDS CLARIFICATION: quem libera, só `trip.manage` ou também o atendente?]
+Nenhuma aberta. Decididas pelo Anderson em 10/11/2026: tolerância de 3 h; retenção só para ocorrências; só o escritório libera.

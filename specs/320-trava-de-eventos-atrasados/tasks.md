@@ -18,7 +18,9 @@ Modelo por etapa: servidor e migration em Opus; app e painel em Sonnet.
 - [ ] T2.2 Reter dentro de `withFieldReport`; `202 held`; reenvio idempotente (CA1, CA6).
 - [ ] T2.3 Duplicata provável (CA3).
 - [ ] T2.4 Rotas listar, liberar e descartar; liberar idempotente com a hora original (CA4, CA5); integração.
-- [ ] T2.5 `tappedAt` e `clockOffsetMs` opcionais na ocorrência de nota, `.strict()` preservado.
+- [ ] T2.5 Reter só ocorrência de parada e de nota (D3), com o corte pela política.
+- [ ] T2.6 Liberar e descartar só com permissão do escritório (D10).
+- [ ] T2.7 `tappedAt` e `clockOffsetMs` opcionais na ocorrência de nota, `.strict()` preservado.
 
 ## Fase 3 — App do motorista (Sonnet)
 
