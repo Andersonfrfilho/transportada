@@ -1479,3 +1479,57 @@ div.cardError {
   align-items: center;
   gap: var(--space-3);
 }
+
+/* Liberar domínio de e-mail de XML (spec 313): rótulo em cima, campo com a métrica de campo (`docs/frontend/fields.md`). */
+.domainForm {
+  display: grid;
+  gap: var(--space-3);
+  align-items: end;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 48rem) {
+  .domainForm {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+}
+
+.domainField {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  min-width: 0;
+}
+
+.domainField > span {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.domainField input {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.domainActions {
+  display: flex;
+}
+
+.domainFormError {
+  grid-column: 1 / -1;
+}
+
+/* O seletor de contratante é compacto de fábrica (barra de filtro); no formulário ele fecha na altura do campo ao lado. */
+.domainField button {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  font-size: var(--field-font-size);
+}
