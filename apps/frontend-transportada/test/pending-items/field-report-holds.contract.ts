@@ -31,7 +31,7 @@ describe('retidos do app (spec 320)', () => {
   })
 
   test('linha malformada sai da lista sem derrubar as outras, e sem display vira nulo', () => {
-    const { display: _display, ...withoutDisplay } = HOLD
+    const withoutDisplay = { ...HOLD, display: undefined }
     const holds = parseFieldReportHolds({
       data: [{ id: 'x' }, 'lixo', { ...withoutDisplay, probableDuplicateOf: 'abc' }],
     })
@@ -48,12 +48,12 @@ describe('retidos do app (spec 320)', () => {
     const seen: string[] = []
     const client = createFieldReportHoldsClient({
       apiUrl: 'http://api',
-      fetch: async (input) => {
+      fetch: (input) => {
         const request = input as Request
         seen.push(`${request.method} ${new URL(request.url).pathname}`)
-        return new Response('{"data":{}}', { status: 200 })
+        return Promise.resolve(new Response('{"data":{}}', { status: 200 }))
       },
-      getAccessToken: async () => 'token',
+      getAccessToken: () => Promise.resolve('token'),
     })
     await client.decide({ decision: 'release', id: 'h1' })
     await client.decide({ decision: 'discard', id: 'h2' })
