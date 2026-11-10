@@ -7,16 +7,16 @@
 - Conversa por ocorrência vem do módulo `occurrence-conversation` (183/211) com participantes; o `client` (283) e o canal por
   participante (287 RF6b) são o molde. WhatsApp pelo Evolution (281); chat direto 1:1 pela 308 (`groupInbound` "grupo de um só").
 - E-mail pelo modelo padrão (274) e modelos do módulo de notificação (269/271/272). Proibido layout de e-mail em código.
-- Premissas abertas: ver "Dúvidas" da spec. O plano segue as recomendações; mudar uma resposta muda só a tarefa apontada.
+- Decisões do dono de 2026-11-10 na spec. Restam 2 dúvidas não bloqueantes, com padrão adotado.
 
 ## Arquitetura e arquivos afetados
 
 - **API** (`apps/api-transportada/src`): módulo novo `salespeople/` (domain/application/infrastructure/presentation, padrão
   `contractor-portal`); `database/salesperson.schema.ts`; ajustes em `occurrence-conversation/` (participante `salesperson`,
   catálogo de canais), no registro de ocorrência (resolução do vendedor) e em `whatsapp/` (reconhecimento do telefone, 308 D2).
-- **Painel** (`apps/frontend-transportada`): tela Vendedores (cadastro, ligação, carteira); campo no editor de tipos
+- **Painel** (`apps/frontend-transportada`): ações "Encaminhar à contratante/ao vendedor", aviso "sem vendedor" com "Vincular" e "Cadastro rápido"; tela Vendedores (cadastro, ligação, carteira); campo no editor de tipos
   (`/ocorrencias` aba Tipos); aba/coluna "Vendedor" na conversa da ocorrência; chip "sem vendedor".
-- **Área do vendedor** (`apps/frontend-client`): módulo `salesperson` (lista da carteira, chat).
+- **Área do vendedor** (`apps/frontend-transportada`, decisão do dono): casca mínima com rotas protegidas por `salesperson.*`; ADR que emenda a 0050.
 - **Worker**: envio por e-mail/WhatsApp pelo trilho existente (sem novo consumidor, salvo o que a T6 medir).
 - **Realm** (`deploy/keycloak/realm.json` + reconciliação): papel `salesperson`. Nunca ajuste manual em produção.
 - Documentação: `apps/api-transportada/CLAUDE.md`, `docs/ai-context/`, runbook (`docs/runbooks/producao.md` se tocar produção),
@@ -34,9 +34,9 @@
 
 Tabelas novas: `contractor_salespeople` (id, company_id, name, email, whatsapp_e164, status, membership_id nulo),
 `contractor_salesperson_links` (company_id, salesperson_id, contractor_id; FK composta por empresa; único por par),
-`contractor_salesperson_clients` (link_id, company_id, tax_id; **único por (contractor_id, tax_id) titular**), histórico de carteira.
-Colunas novas no tipo: `notify_salesperson boolean not null default false`, `salesperson_mail_template_key text null`.
-Migration aditiva; rollback derruba tabelas/colunas novas (teste `make migration-test`). "Endereço incorreto" passa a `true` por
+`contractor_salesperson_clients` (link_id, company_id, tax_id; único por (link_id, tax_id); vários vendedores por cliente), histórico de carteira.
+Colunas novas no tipo: `forward_targets text[] not null default '{}'` (subconjunto de `contractor`/`salesperson`), `salesperson_mail_template_key text null`.
+Migration aditiva; rollback derruba tabelas/colunas novas (teste `make migration-test`). os três tipos recebem seus destinos por
 **script de ops com aprovação**, não pela migration (liberação gradual como a 266).
 
 ## Segurança e tenant
@@ -62,7 +62,8 @@ claro/escuro, desktop/celular; roteiro em staging com número do Anderson. Arqui
 
 ## Riscos
 
-- Carteira inicial vazia: sem importação, tudo cai em "sem vendedor" (Dúvida 7).
+- Carteira inicial vazia até o Anderson subir a lista (T1.5): tudo cai em "sem vendedor".
+- Vendedor dentro do painel quebra a separação da ADR-0050: o contrato negativo de rotas do papel `salesperson` é obrigatório antes de qualquer tela.
 - Mesmo telefone em dois papéis (motorista/vendedor) — ordem do reconhecimento da 308.
 - Mexer no mesmo editor de tipos e no mesmo `PUT` de specs em voo (269/270): rebasear antes de abrir PR.
 - Escopo grande: por isso as Fases abaixo, cada uma entregável sozinha em staging.
