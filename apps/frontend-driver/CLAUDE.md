@@ -555,3 +555,9 @@ Nenhuma `slotKey` fixa em `src/` (a exigência é lida do servidor; contrato de 
   pela rota da parada e faz **um** `POST` com `photos[{ slotKey, objectId }]` e `receivingCharge`, com a chave do registro (reenvio não duplica). Entra na cota de bytes, no carimbo de hora e no cancelamento; fila cheia devolve o toque inteiro.
 - **Selo:** `DriverChargeSealNotice` no cartão da parada, somente leitura, só com `stops[].clientChargeSeal`; ausente/malformado some. Limite: o PIX não vem pré-preenchido (o snapshot não traz o PIX do cadastro).
 - Prints em `specs/317-*/prints/` (`test/spec-317-prints.smoke.spec.ts`, fora da CI). **Este app vai por último** (painel → API → app).
+
+## Ocorrência recusada sai das pendências (pedido de 10/11/2026)
+
+Na drenagem (`drainQueueWithAttachments`), recusa do servidor em `occurrence`, `documentOccurrence`, `stopOccurrencePhoto` e `stopOccurrenceCharge` tira o item e os anexos dele da fila na hora
+(`isClearedOnRejection`); a recusa fica no histórico "Enviados" (`remember(..., 'rejected')`). Entrega, chegada, devolução e despacho recusados **continuam à vista** (spec 227: o motorista precisa saber que não foram
+registrados; o despacho recusado explica "NF … não carregadas"). `test/driver-trip/occurrence-cleared-on-rejection.contract.ts`.
