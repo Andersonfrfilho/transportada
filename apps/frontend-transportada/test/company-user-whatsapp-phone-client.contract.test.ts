@@ -9,11 +9,11 @@ function createScenario(response: Response) {
   const calls: Request[] = []
   const client = createCompanyUserWhatsAppPhoneClient({
     apiUrl: 'http://api.test',
-    fetch: async (input) => {
+    fetch: (input) => {
       calls.push(input as Request)
-      return response
+      return Promise.resolve(response)
     },
-    getAccessToken: async () => 'token',
+    getAccessToken: () => Promise.resolve('token'),
   })
   return { calls, client }
 }
@@ -50,7 +50,7 @@ describe('cliente do WhatsApp de outra pessoa (administrador)', () => {
     const taken = createScenario(
       Response.json({ error: { code: 'WHATSAPP_PHONE_TAKEN' } }, { status: 409 }),
     )
-    await expect(taken.client.bind({ phone: '5516999991234', userId: USER_ID })).rejects.toThrow(
+    expect(taken.client.bind({ phone: '5516999991234', userId: USER_ID })).rejects.toThrow(
       'WHATSAPP_PHONE_TAKEN',
     )
   })
