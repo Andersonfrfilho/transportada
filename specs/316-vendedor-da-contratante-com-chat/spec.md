@@ -1,4 +1,4 @@
-# Feature 315 — O vendedor da contratante e o chat com ele
+# Feature 316 — O vendedor da contratante e o chat com ele
 
 > Pedido do dono (Anderson), 2026-11-10, na conversa dos tipos de ocorrência a validar em staging.
 > Status: **rascunho aguardando resposta às dúvidas** (seção "Dúvidas"). Nada aqui está implementado.
