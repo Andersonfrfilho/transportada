@@ -22,6 +22,11 @@ import {
 } from '../components/DriverAllowancePanel.component'
 import { useDriverAllowancePanel } from '../hooks/useDriverAllowancePanel.hook'
 import {
+  DriverStopReminderPanel,
+  type DriverStopReminderPanelProps,
+} from '../components/DriverStopReminderPanel.component'
+import { useDriverStopReminderPanel } from '../hooks/useDriverStopReminderPanel.hook'
+import {
   WhatsAppEvolutionPanel,
   type WhatsAppEvolutionPanelProps,
 } from '../components/WhatsAppEvolutionPanel.component'
@@ -133,6 +138,7 @@ type SettingsBodyProps = Readonly<{
   certificatePending: boolean
   contacts: ContactsSection
   driverAllowance: DriverAllowancePanelProps
+  driverStopReminders: DriverStopReminderPanelProps
   whatsappEvolution: WhatsAppEvolutionPanelProps
   entryKindCatalog: CompanyEntryKindCatalogPanelProps
   federalTaxes: FederalTaxPanelProps
@@ -256,6 +262,7 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'company') return <CompanyTabPanel {...props} />
   if (tab === 'taxes') return <FederalTaxPanel {...props.federalTaxes} />
   if (tab === 'driverAllowance') return <DriverAllowancePanel {...props.driverAllowance} />
+  if (tab === 'driverReminders') return <DriverStopReminderPanel {...props.driverStopReminders} />
   if (tab === 'whatsapp') return <WhatsAppEvolutionPanel {...props.whatsappEvolution} />
   /** Spec 285: painel autocontido — busca a própria configuração, só com `settings.manage`. */
   if (tab === 'automations')
@@ -406,6 +413,13 @@ export function CompanySettingsPage() {
   })
   const driverAllowanceError =
     driverAllowancePanel.saveMutation.error ?? driverAllowancePanel.clearMutation.error
+  const driverStopReminderPanel = useDriverStopReminderPanel({
+    ...(companyId === undefined ? {} : { companyId }),
+    /* Spec 299 RF19: o endereço declarado do painel é a aba Cobrança do motorista. */
+    enabled: canManageSettings && activeTab === 'driverReminders',
+  })
+  const driverStopReminderError =
+    driverStopReminderPanel.query.error ?? driverStopReminderPanel.saveMutation.error
   const [whatsappQrOpen, setWhatsappQrOpen] = useState(false)
   const whatsappActive = canManageSettings && activeTab === 'whatsapp'
   const whatsappPanel = useWhatsAppEvolutionPanel({
@@ -503,6 +517,20 @@ export function CompanySettingsPage() {
           onSave: (amount) => driverAllowancePanel.saveMutation.mutate(amount),
           saved: driverAllowancePanel.saveMutation.isSuccess,
           stored: driverAllowancePanel.query.data,
+        }}
+        driverStopReminders={{
+          disabled: !canManageSettings || driverStopReminderPanel.saveMutation.isPending,
+          errorCode:
+            driverStopReminderError instanceof Error ? driverStopReminderError.message : undefined,
+          loading: driverStopReminderPanel.query.isLoading,
+          onEdit: () => {
+            if (!driverStopReminderPanel.saveMutation.isIdle) {
+              driverStopReminderPanel.saveMutation.reset()
+            }
+          },
+          onSave: (body) => driverStopReminderPanel.saveMutation.mutate(body),
+          saved: driverStopReminderPanel.saveMutation.isSuccess,
+          stored: driverStopReminderPanel.query.data,
         }}
         whatsappEvolution={{
           disabled:
