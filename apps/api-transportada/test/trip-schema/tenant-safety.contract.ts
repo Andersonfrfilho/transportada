@@ -540,3 +540,26 @@ describe('canhoto pickup tenant safety (spec 321 T2)', () => {
     expect(source).toInclude('where ${tripDocuments.companyId} = ${input.companyId}')
   })
 })
+
+describe('spec 321 T3: o encaixe da coleta de canhoto leva a empresa em toda junção e filtro', () => {
+  const source = readFileSync(
+    new URL(
+      '../../src/trips/infrastructure/canhoto-pickup-schedule.persistence.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  test('every join and every filter carries companyId', () => {
+    const joins = source.split(/\.(?:innerJoin|leftJoin)\(/).slice(1)
+    expect(joins.length).toBeGreaterThan(2)
+    for (const join of joins) {
+      expect(join.slice(0, join.indexOf('),'))).toInclude('companyId')
+    }
+    const wheres = source.split('.where(').slice(1)
+    expect(wheres.length).toBeGreaterThan(5)
+    for (const where of wheres) {
+      expect(where.slice(0, 200)).toInclude('companyId')
+    }
+  })
+})

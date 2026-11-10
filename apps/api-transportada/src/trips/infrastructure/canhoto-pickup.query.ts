@@ -121,3 +121,50 @@ export async function readCanhotoPickupStatuses(
     )
   return new Map(rows.map((row) => [row.occurrenceId, row.status]))
 }
+
+/**
+ * Spec 321 T3: as paradas que ainda têm coleta encaixada. A parada é derivada (ADR-0043 §3) e some quando esvazia; a
+ * coleta `scheduled` também a ocupa, então nenhum escritor apaga a parada debaixo dela — e por isso a FK `restrict`
+ * da coleta para a parada nunca dispara num desvínculo de nota.
+ */
+export async function listStopsWithScheduledCanhotoPickup(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly stopIds: readonly string[] },
+): Promise<ReadonlySet<string>> {
+  if (input.stopIds.length === 0) return new Set()
+  const rows = await queryable
+    .select({ stopId: tripCanhotoPickups.pickupStopId })
+    .from(tripCanhotoPickups)
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        eq(tripCanhotoPickups.status, 'scheduled'),
+        inArray(tripCanhotoPickups.pickupStopId, [...new Set(input.stopIds)]),
+      ),
+    )
+  return new Set(rows.flatMap((row) => (row.stopId === null ? [] : [row.stopId])))
+}
+
+/**
+ * Spec 321 T3 (casos extremos): a viagem que cancela ou conclui com a coleta ainda encaixada devolve a coleta a
+ * `pending` — o canhoto não veio, a ocorrência segue aberta e o escritório encaixa de novo. A parada fica (é o
+ * histórico da viagem; cancelar também não apaga parada). Chamado pelo escritor único de `trip_status_events`
+ * (`recordTripStatusChange`), então vale para todo caminho que finaliza a viagem.
+ */
+export async function returnScheduledCanhotoPickupsOfTrip(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly tripId: string },
+): Promise<number> {
+  const returned = await queryable
+    .update(tripCanhotoPickups)
+    .set({ pickupStopId: null, pickupTripId: null, status: 'pending', updatedAt: new Date() })
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        eq(tripCanhotoPickups.pickupTripId, input.tripId),
+        eq(tripCanhotoPickups.status, 'scheduled'),
+      ),
+    )
+    .returning({ id: tripCanhotoPickups.id })
+  return returned.length
+}

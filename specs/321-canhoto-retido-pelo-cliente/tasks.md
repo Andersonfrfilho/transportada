@@ -9,7 +9,7 @@ nada para `main` (não é bug crítico). **Nenhuma task começa com `[NEEDS CLAR
       `PUT/GET occurrence-types`, cadastro recusa `true` de carga) e `occurrenceTypeNeverNotifiesContractor` nos quatro pontos de
       aviso; testes CA01 e CA02. — Modelo: opus
 - [x] **T2** [contrato primeiro] Tabela `trip_canhoto_pickups` + registro (ocorrência e coleta na mesma transação) + `until_resolved` + CHECK de entregue intacto (CA03). — Modelo: opus
-- [ ] **T3** [contrato primeiro] Encaixe da coleta pelo escritório em viagem de outro motorista, volta a `pending` ao cancelar,
+- [x] **T3** [contrato primeiro] Encaixe da coleta pelo escritório em viagem de outro motorista, volta a `pending` ao cancelar,
       contrato de que carga não a soma (CA03b). — Modelo: opus
 - [ ] **T4** [contrato primeiro] Casamento do canhoto da coleta no worker e no bot; andamento 266 (migration que relaxa os CHECKs,
       frase `canhoto_collected`, resolve e reabre); CA04. — Modelo: opus
