@@ -74,6 +74,7 @@ import {
   type CompanySettingsViewModel,
 } from '../shared/companySettingsViewModel.service'
 import { AudioTranscriptionSettingsPanel } from '@/modules/occurrence-conversation/components/AudioTranscriptionSettingsPanel.component'
+import { DriverOccurrenceEmailSettings } from '@/modules/occurrence-conversation/components/DriverOccurrenceEmailSettings.component'
 import { OccurrenceWatchersPanel } from '@/modules/occurrence-conversation/components/OccurrenceWatchersPanel.component'
 import { QuickRepliesSettingsPanel } from '@/modules/occurrence-conversation/components/QuickRepliesSettingsPanel.component'
 
@@ -279,7 +280,11 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   /** Spec 267 RF1: os responsáveis que vão em cópia — painel autocontido do módulo da conversa, só com `settings.manage`. */
   if (tab === 'occurrenceWatchers') {
     return (
-      <OccurrenceWatchersPanel canManage={props.canManageSettings} scope={{ kind: 'company' }} />
+      <>
+        <OccurrenceWatchersPanel canManage={props.canManageSettings} scope={{ kind: 'company' }} />
+        {/* Spec 322: o e-mail do aviso da ocorrência do motorista vai a esses mesmos responsáveis — vive ao lado. */}
+        <DriverOccurrenceEmailSettings canManage={props.canManageSettings} />
+      </>
     )
   }
   /** Spec 264 RF17: painel autocontido — busca a própria configuração, só com `settings.manage`. */

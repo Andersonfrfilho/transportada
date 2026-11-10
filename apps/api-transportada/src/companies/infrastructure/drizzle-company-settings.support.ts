@@ -36,6 +36,13 @@ export async function acquireAudioTranscriptionLock(
   await acquireAdvisoryLock(transaction, ['audio-transcription', companyId])
 }
 
+export async function acquireDriverOccurrenceEmailLock(
+  transaction: CompanySettingsTransaction,
+  companyId: string,
+): Promise<void> {
+  await acquireAdvisoryLock(transaction, ['driver-occurrence-email', companyId])
+}
+
 export async function acquireIdempotencyLock(
   transaction: CompanySettingsTransaction,
   fields: readonly string[],

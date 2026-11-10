@@ -182,10 +182,13 @@ function candidate(
 function notifierWith(input: {
   readonly company?: readonly OccurrenceWatcherCandidate[]
   readonly dispatcher?: null | string
+  readonly emailEnabled?: boolean
+  readonly emailSettingsFail?: boolean
   readonly failFor?: string
   readonly readerFails?: boolean
 }) {
   const sent: Sent[] = []
+  const channelsSent: (readonly string[] | undefined)[] = []
   const warnings: { readonly event: string; readonly meta: Record<string, unknown> | undefined }[] =
     []
   const reader: DriverOccurrenceNotificationReader = {
@@ -201,10 +204,18 @@ function notifierWith(input: {
     },
   }
   const notifier = createDriverOccurrenceNotifier({
+    emailSettings: {
+      find: async () => {
+        if (input.emailSettingsFail === true) throw new Error('banco fora do ar')
+        return { enabled: input.emailEnabled ?? true, updatedAt: null }
+      },
+      save: async () => ({ enabled: true, updatedAt: null }),
+    },
     logger: { warn: (event, meta) => void warnings.push({ event, meta }) },
     reader,
     send: async (params) => {
       if (params.recipientUserId === input.failFor) throw new Error('recusado')
+      channelsSent.push(params.channels)
       sent.push({
         dedupeKey: params.dedupeKey,
         payload: params.payload,
@@ -213,7 +224,7 @@ function notifierWith(input: {
       })
     },
   })
-  return { notifier, sent, warnings }
+  return { channelsSent, notifier, sent, warnings }
 }
 
 const NOTIFICATION: DriverOccurrenceNotification = {
@@ -309,5 +320,35 @@ describe('a ligação no main.ts (spec 275)', () => {
       )
     }
     expect(source).toContain('notifier: occurrenceNotifier')
+  })
+})
+
+describe('o e-mail do aviso é um interruptor da empresa (spec 322)', () => {
+  test('ligado (ou sem linha), o aviso não força canal: valem as preferências de cada usuário', async () => {
+    const { channelsSent, notifier } = notifierWith({ company: [candidate(ANA)] })
+    await notifier.notify(NOTIFICATION)
+    expect(channelsSent).toHaveLength(2)
+    expect(channelsSent.every((channels) => channels === undefined)).toBe(true)
+  })
+
+  test('desligado, todo destinatário recebe só na caixa de entrada', async () => {
+    const { channelsSent, notifier, sent } = notifierWith({
+      company: [candidate(ANA)],
+      emailEnabled: false,
+    })
+    await notifier.notify(NOTIFICATION)
+    expect(sent).toHaveLength(2)
+    expect(channelsSent.every((channels) => channels?.join() === 'inbox')).toBe(true)
+  })
+
+  test('não conseguir ler o interruptor não derruba o aviso: sai só no sino, com warn sem dado pessoal', async () => {
+    const { channelsSent, notifier, sent, warnings } = notifierWith({ emailSettingsFail: true })
+    await notifier.notify(NOTIFICATION)
+    expect(sent).toHaveLength(1)
+    expect(channelsSent[0]?.join()).toBe('inbox')
+    expect(warnings.map((warning) => warning.event)).toContain(
+      'driver_occurrence_email_setting_unreadable',
+    )
+    expect(JSON.stringify(warnings)).not.toContain('@')
   })
 })

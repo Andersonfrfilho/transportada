@@ -401,6 +401,22 @@
       "invalid": "The server refused the request. The previous setting was kept."
     }
   },
+  "driverOccurrenceEmail": {
+    "title": "Driver occurrence notice by email",
+    "loading": "Loading the notice setting",
+    "retry": "Try again",
+    "description": "When the driver records an occurrence on an invoice, the occurrence owners and whoever dispatched the trip receive a notice.",
+    "effectOfTurningOff": "When turned off: nobody in the company receives this notice by email. It stays in the inbox (the bell). Other emails, such as the one to the contractor, do not change.",
+    "toggle": "Also send this notice by email",
+    "lastChange": "Last change: {{when}}",
+    "saving": "Saving the setting",
+    "error": {
+      "failed": "Could not reach the server. The previous setting was kept.",
+      "forbidden": "You do not have permission to change this setting.",
+      "unauthenticated": "Your session has expired. Sign in again to continue.",
+      "invalid": "The server refused the request. The previous setting was kept."
+    }
+  },
   "contractorReply": {
     "title": "Contractor reply",
     "loading": "Loading the contractor reply",

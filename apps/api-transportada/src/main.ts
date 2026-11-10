@@ -110,6 +110,12 @@ import {
   createGetAudioTranscriptionSettingsUseCase,
   createSaveAudioTranscriptionSettingsUseCase,
 } from './companies/application/audio-transcription-settings.use-case.js'
+import {
+  createGetDriverOccurrenceEmailSettingsUseCase,
+  createSaveDriverOccurrenceEmailSettingsUseCase,
+} from './companies/application/driver-occurrence-email-settings.use-case.js'
+import { DrizzleDriverOccurrenceEmailSettingsRepository } from './companies/infrastructure/drizzle-driver-occurrence-email-settings.repository.js'
+import { createDriverOccurrenceEmailSettingsRoutes } from './companies/presentation/driver-occurrence-email-settings.routes.js'
 import { DrizzleAudioTranscriptionSettingsRepository } from './companies/infrastructure/drizzle-audio-transcription-settings.repository.js'
 import { createAudioTranscriptionSettingsRoutes } from './companies/presentation/audio-transcription-settings.routes.js'
 import {
@@ -1483,7 +1489,11 @@ export function bootstrap(): Bun.Server<undefined> {
    * Spec 275: o aviso interno da ocorrência que o motorista registra numa nota — app e WhatsApp, sempre, para os
    * responsáveis (267/271) e quem despachou. Reverte o "sem notificador" da 079.
    */
+  const driverOccurrenceEmailSettings = new DrizzleDriverOccurrenceEmailSettingsRepository(
+    database.db,
+  )
   const driverOccurrenceNotifier = createDriverOccurrenceNotifier({
+    emailSettings: driverOccurrenceEmailSettings,
     logger,
     reader: createDriverOccurrenceNotificationReader(database.db),
     send: (params) =>
@@ -3397,6 +3407,9 @@ function createApplicationRoutes({
     maxDurationMs: audioTranscriptionMaxDurationMs,
     settings: new DrizzleAudioTranscriptionSettingsRepository(database),
   }
+  const driverOccurrenceEmailDependencies = {
+    settings: new DrizzleDriverOccurrenceEmailSettingsRepository(database),
+  }
   const salespersonDependencies = { salespeople: new DrizzleSalespersonRepository(database) }
   const contractorAutomationDependencies = {
     automations: new DrizzleContractorAutomationRepository(database),
@@ -4496,6 +4509,11 @@ function createApplicationRoutes({
       get: createGetAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
       resolveClientIp,
       save: createSaveAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
+    }),
+    ...createDriverOccurrenceEmailSettingsRoutes({
+      get: createGetDriverOccurrenceEmailSettingsUseCase(driverOccurrenceEmailDependencies),
+      resolveClientIp,
+      save: createSaveDriverOccurrenceEmailSettingsUseCase(driverOccurrenceEmailDependencies),
     }),
     ...createSalespersonRoutes({
       create: createCreateSalespersonUseCase(salespersonDependencies),
