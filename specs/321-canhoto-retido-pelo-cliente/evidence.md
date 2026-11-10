@@ -45,3 +45,41 @@ Só leitura. Caminhos relativos a `apps/`. Cada achado abaixo mudou o desenho da
     e o seed só atua em empresa **sem nenhum tipo**. O tipo vai por cadastro/script, não pelo catálogo.
 11. **Duplicidade:** a recusa já existe (`duplicate_request_policy`, spec 276): basta configurar `until_resolved` no tipo.
 12. **O filtro de tipo da lista (277) é por nome**; renomear o tipo quebra o filtro. Filtro por id não existe.
+
+## T1 — marcas do tipo e guarda da contratante (10/11/2026)
+
+Base: `origin/staging` @ 73ec3d1 + PR #668 (opção A). Caminhos relativos a `apps/`.
+
+**Banco.** Migration `api-transportada/drizzle/20261110210213_occurrence_contractor_notice_block`: `blocks_contractor_notice boolean
+default false not null` e `counts_cargo_on_pickup_trip boolean default true not null` em `company_occurrence_types`, sem `UPDATE`
+(nenhum tipo muda). `rollback.sql` recusa rodar com tipo marcado (`blocks_contractor_notice` ou `counts_cargo_on_pickup_trip = false`).
+Snapshot gerado por `db:generate`. Contrato estático: `test/database-migration/occurrence-contractor-notice-block.static.contract.ts`.
+
+**Cadastro.** `GET`/`PUT /company-settings/occurrence-types` leem e gravam `blocksContractorNotice` e `countsCargoOnPickupTrip`
+(ausente é "não mexa"). Leitura escolhida para "o cadastro recusa `true`" (D4c), já que a T1 ainda não tem marca de "tipo com coleta":
+`true` só passa quando já é o gravado (ou na criação, onde é o padrão); voltar a `true` um tipo gravado com `false` é
+`422 OCCURRENCE_TYPE_PICKUP_CARGO_UNSUPPORTED` (`isPickupCargoCountingUnsupported`). Assim o painel pode mandar o tipo inteiro sem erro.
+
+**Guarda (D2).** Regra única `occurrenceTypeNeverNotifiesContractor` (`trips/domain/occurrence-contractor-notice.policy.ts`), lida em:
+
+1. e-mail automático e grupo da 318 (`send-automatic-occurrence-mail.use-case.ts`): `skipped`/`contractor_notice_blocked` antes de
+   reservar o grupo; o leitor do plano nem lê contato, modelo ou grupo;
+2. varredor do worker (`drizzle-occurrence-automatic-mail-queue.repository.ts`): `and t."blocks_contractor_notice" = false`, cópia por valor
+   com contrato que monta o SQL de verdade (`worker test/occurrence-automatic-mail-sweep/contractor-notice-block.contract.ts`);
+3. envio manual do escritório: e-mail e reenvio da 248 (`send-occurrence-mail.use-case.ts`), chat por e-mail
+   (`send-occurrence-chat-mail.use-case.ts`, só a plateia contratante: o chat do cliente segue) e portal
+   (`contractor-portal-message.use-case.ts`), todos `409 OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED` sem gravar nada. A marca chega pelo alvo
+   (`findOccurrenceTypeBlocksContractorNotice`, `trips/infrastructure/occurrence-contractor-notice.query.ts`).
+
+`notifies` não foi tocado: o aviso interno da 275 (`register-driver-occurrence`) continua igual.
+
+**Testes.**
+
+- CA01: contratos em `test/trip-occurrence/contractor-notice-block.contract.ts`, `test/occurrence-conversation/{automatic-mail,
+automatic-group,occurrence-mail,occurrence-chat-mail,contractor-portal-message,client-chat-mail}.contract.ts` e no worker; o filtro do
+  varredor foi tirado à mão e 4 testes ficaram vermelhos (contrato + integração), voltando ao verde com ele.
+- CA02 contra Postgres: `test/integration/occurrence-automatic-mail.integration.ts` ("spec 321 (CA01/CA02)"): tipo marcado com o
+  automático ligado devolve `contractor_notice_blocked`, o manual é 409 e nenhuma linha de e-mail ou conversa nasce. Worker:
+  `test/occurrence-automatic-mail-sweep.integration.test.ts` (10 pass).
+- CA02, equipe interna: `test/trip-occurrence/driver-notification.contract.ts` ("spec 321 (CA02)"): o tipo marcado ainda avisa a equipe pela 275.
+- API `bun run test`: 14884 pass, 0 fail. `tsc --noEmit` e `eslint` limpos na API e no worker.

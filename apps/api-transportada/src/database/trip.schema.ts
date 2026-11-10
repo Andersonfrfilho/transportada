@@ -3283,6 +3283,18 @@ export const companyOccurrenceTypes = pgTable(
     showClientChargeSealToDriver: boolean('show_client_charge_seal_to_driver')
       .notNull()
       .default(true),
+    /**
+     * Spec 321 (D2): o tipo **nunca** avisa a contratante, em canal nenhum (e-mail automático, varredor do worker,
+     * envio/chat/portal manual do escritório e grupo da 318). Quem decide é `occurrenceTypeNeverNotifiesContractor`,
+     * lida pelos quatro pontos; `notifies` (aviso interno) não muda. Padrão `false`: nenhum tipo existente muda.
+     */
+    blocksContractorNotice: boolean('blocks_contractor_notice').notNull().default(false),
+    /**
+     * Spec 321 (D4c): se a coleta de canhoto soma peso e dimensão da nota na viagem que a busca. Padrão `true` (o
+     * comportamento natural de qualquer vínculo); o tipo da coleta é cadastrado com `false`. Na fase 1 só `false` é
+     * implementado: o cadastro recusa voltar a `true` um tipo gravado com `false`.
+     */
+    countsCargoOnPickupTrip: boolean('counts_cargo_on_pickup_trip').notNull().default(true),
     /** Spec 247 (RF1): se o registro pede o valor pago digitado — por item ou pela ocorrência. */
     declaredAmountMode: varchar('declared_amount_mode', { length: 16 })
       .$type<DeliveryProofFieldMode>()

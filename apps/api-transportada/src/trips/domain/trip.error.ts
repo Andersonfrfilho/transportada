@@ -695,6 +695,26 @@ export class OccurrenceTypeItemsOffRedeliveryPolicyError extends ApiError {
   }
 }
 
+/**
+ * Spec 321 (D4c): na fase 1 a coleta de canhoto não soma carga na viagem que a busca. Voltar a `true` um tipo gravado
+ * com `false` prometeria uma conta que nenhum leitor de carga faz.
+ */
+export class OccurrenceTypePickupCargoUnsupportedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_PICKUP_CARGO_UNSUPPORTED',
+      details: [
+        {
+          field: 'countsCargoOnPickupTrip',
+          message: 'Counting the canhoto pickup cargo on the pickup trip is not supported yet',
+        },
+      ],
+      message: 'Counting the canhoto pickup cargo on the pickup trip is not supported yet.',
+      status: 422,
+    })
+  }
+}
+
 /** O nome é único por empresa em qualquer etapa, inclusive entre os tipos de recebimento que o painel não lista. */
 export class OccurrenceTypeNameTakenError extends ApiError {
   public constructor() {

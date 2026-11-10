@@ -1601,3 +1601,44 @@ describe('a prévia com modelo HTML (spec 272 T2.4, D12)', () => {
     expect(preview.bodyText).toBe('')
   })
 })
+
+describe('o tipo que nunca avisa a contratante recusa o e-mail à mão (spec 321 D2, CA01)', () => {
+  test('envio manual é 409 OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED, sem e-mail, conversa nem idempotência', async () => {
+    const { decryptCalls, state, useCase } = createFake({
+      target: { ...TARGET, blocksContractorNotice: true },
+    })
+
+    expect(await failure(() => useCase.send(input()))).toMatchObject({
+      code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED',
+      status: 409,
+    })
+    expect(state.mails).toEqual([])
+    expect(state.conversationMessages).toEqual([])
+    expect(state.idempotency.size).toBe(0)
+    expect(decryptCalls).toEqual([])
+  })
+
+  test('o aviso automático e o reenvio do retorno também param aqui (rede do caso de uso)', async () => {
+    const { state, useCase } = createFake({ target: { ...TARGET, blocksContractorNotice: true } })
+
+    expect(
+      await failure(() =>
+        useCase.send(input({ actorUserId: null, automatic: true, idempotencyKey: 'auto-1' })),
+      ),
+    ).toMatchObject({ code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED' })
+    expect(
+      await failure(() =>
+        useCase.send(input({ contractorReplyResend: true, idempotencyKey: 'r-1' })),
+      ),
+    ).toMatchObject({ code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED' })
+    expect(state.mails).toEqual([])
+  })
+
+  test('sem a marca, o mesmo envio sai (a guarda lê a marca, não o tipo)', async () => {
+    const { state, useCase } = createFake({ target: { ...TARGET, blocksContractorNotice: false } })
+
+    await useCase.send(input())
+
+    expect(state.mails).toHaveLength(1)
+  })
+})

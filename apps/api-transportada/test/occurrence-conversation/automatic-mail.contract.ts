@@ -239,3 +239,19 @@ describe('o lote não estoura o pool (spec 183 T903, achados C4/S4)', () => {
     expect(order).toEqual(['a', 'b', 'c', 'd'])
   })
 })
+
+describe('o tipo que nunca avisa a contratante (spec 321 D2, CA02)', () => {
+  test('marcado, nada sai — nem com `emails_contractor` ligado e modelo pronto', async () => {
+    const { run, sent } = setup({ plan: plan({ blocksContractorNotice: true }) })
+
+    expect(await run()).toEqual({ outcome: 'skipped', reason: 'contractor_notice_blocked' })
+    expect(sent).toEqual([])
+  })
+
+  test('sem a marca, o mesmo plano envia', async () => {
+    const { run, sent } = setup({ plan: plan({ blocksContractorNotice: false }) })
+
+    expect(await run()).toMatchObject({ outcome: 'sent' })
+    expect(sent).toHaveLength(1)
+  })
+})

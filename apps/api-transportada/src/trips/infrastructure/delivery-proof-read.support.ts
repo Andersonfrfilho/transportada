@@ -916,6 +916,9 @@ export async function findOccurrenceType(
       iconName: companyOccurrenceTypes.iconName,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      /** Spec 321 (D2, D4c): nunca avisa a contratante; a coleta soma (ou não) carga na viagem que a busca. */
+      blocksContractorNotice: companyOccurrenceTypes.blocksContractorNotice,
+      countsCargoOnPickupTrip: companyOccurrenceTypes.countsCargoOnPickupTrip,
       /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
       contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
@@ -1104,6 +1107,9 @@ export async function listOccurrenceTypes(
       iconName: companyOccurrenceTypes.iconName,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      /** Spec 321 (D2, D4c): nunca avisa a contratante; a coleta soma (ou não) carga na viagem que a busca. */
+      blocksContractorNotice: companyOccurrenceTypes.blocksContractorNotice,
+      countsCargoOnPickupTrip: companyOccurrenceTypes.countsCargoOnPickupTrip,
       /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
       contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
@@ -1472,6 +1478,9 @@ async function writeOccurrenceTypeRow(
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
+    /** Spec 321 (D2, D4c): ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
+    readonly blocksContractorNotice?: boolean | undefined
+    readonly countsCargoOnPickupTrip?: boolean | undefined
     /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
     readonly contractorNotificationTemplateKey?: null | string | undefined
     readonly contractorReplyAlertIntervalMinutes?: number | undefined
@@ -1575,6 +1584,12 @@ async function writeOccurrenceTypeRow(
       ? {}
       : { minWaitAfterArrivalMinutes: input.minWaitAfterArrivalMinutes }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
+    ...(input.blocksContractorNotice === undefined
+      ? {}
+      : { blocksContractorNotice: input.blocksContractorNotice }),
+    ...(input.countsCargoOnPickupTrip === undefined
+      ? {}
+      : { countsCargoOnPickupTrip: input.countsCargoOnPickupTrip }),
     ...(input.contractorReplyAlertIntervalMinutes === undefined
       ? {}
       : { contractorReplyAlertIntervalMinutes: input.contractorReplyAlertIntervalMinutes }),
@@ -1712,6 +1727,8 @@ async function writeOccurrenceTypeRow(
     iconName: saved.iconName,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
+    blocksContractorNotice: saved.blocksContractorNotice,
+    countsCargoOnPickupTrip: saved.countsCargoOnPickupTrip,
     contractorNotificationTemplateKey: saved.contractorNotificationTemplateKey,
     contractorScope: saved.contractorScope,
     contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,

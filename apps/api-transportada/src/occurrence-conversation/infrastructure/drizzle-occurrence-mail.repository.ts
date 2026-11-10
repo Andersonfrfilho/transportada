@@ -84,6 +84,8 @@ import {
 } from './drizzle-occurrence-contractor-reply.repository.js'
 import { recordContractorReplyResend } from './drizzle-contractor-reply-resend.repository.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
+import { occurrenceTypeNeverNotifiesContractor } from '../../trips/domain/occurrence-contractor-notice.policy.js'
+import { findOccurrenceTypeBlocksContractorNotice } from '../../trips/infrastructure/occurrence-contractor-notice.query.js'
 import type { AutomaticOccurrenceMailReaderPort } from '../application/send-automatic-occurrence-mail.use-case.js'
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
 import {
@@ -117,12 +119,18 @@ async function findOccurrenceTarget(
   if (item === null) return null
   /** Spec 237 (ADR-0094 §9.6): a ocorrência de recebimento ainda não tem conversa nem e-mail. */
   if (item.stage === TRIP_OCCURRENCE_STAGE.receiving) return null
+  const occurrenceTypeId = item.occurrenceTypeId ?? null
   return {
+    /** Spec 321 (D2): o envio manual não lê o tipo; a marca vem junto do alvo para a guarda do caso de uso. */
+    blocksContractorNotice: await findOccurrenceTypeBlocksContractorNotice(queryable, {
+      companyId: params.companyId,
+      occurrenceTypeId,
+    }),
     contractorId: item.document?.contractor?.contractorId ?? null,
     contractorName: item.document?.contractor?.name ?? '',
     contractorTaxId: item.document?.contractor?.taxId ?? null,
     kind: item.source,
-    occurrenceTypeId: item.occurrenceTypeId ?? null,
+    occurrenceTypeId,
     stage: item.stage ?? 'stop',
   }
 }
@@ -621,6 +629,7 @@ export function createAutomaticOccurrenceMailReader(
       }
       const [type] = await database
         .select({
+          blocksContractorNotice: companyOccurrenceTypes.blocksContractorNotice,
           emailsContractor: companyOccurrenceTypes.emailsContractor,
           occurrenceTypeId: companyOccurrenceTypes.id,
         })
@@ -640,6 +649,19 @@ export function createAutomaticOccurrenceMailReader(
         )
         .limit(1)
       if (type === undefined) return null
+      /** Spec 321 (D2): o tipo que nunca avisa a contratante não lê contato, modelo nem grupo. */
+      if (occurrenceTypeNeverNotifiesContractor(type)) {
+        return {
+          blocksContractorNotice: true,
+          chosenContactIds: [],
+          emailsContractor: false,
+          groupChannel: null,
+          isRegisteredBeforeTemplate: false,
+          recipients: [],
+          stage: target.stage,
+          suggested: null,
+        }
+      }
       const emailsContractor = type.emailsContractor
       const contacts = emailsContractor
         ? await database
@@ -679,6 +701,7 @@ export function createAutomaticOccurrenceMailReader(
           })
         : null
       return {
+        blocksContractorNotice: false,
         chosenContactIds,
         emailsContractor,
         groupChannel,

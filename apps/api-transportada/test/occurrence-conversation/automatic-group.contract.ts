@@ -148,6 +148,17 @@ describe('o aviso da ocorrência no grupo da contratante (spec 318)', () => {
     expect(mails).toEqual([])
   })
 
+  test('spec 321 (D2, CA01/CA02): tipo que nunca avisa a contratante não reserva, não posta e não manda e-mail', async () => {
+    const { mails, posts, records, run } = setup({
+      plan: plan({ blocksContractorNotice: true, emailsContractor: true }),
+    })
+
+    expect(await run()).toEqual({ outcome: 'skipped', reason: 'contractor_notice_blocked' })
+    expect(posts).toEqual([])
+    expect(mails).toEqual([])
+    expect(records).toEqual([])
+  })
+
   test('RF3: reprocessar não duplica — a reserva já tomada não posta de novo', async () => {
     const { mails, posts, records, run } = setup({ claim: false, plan: plan() })
 

@@ -64,6 +64,8 @@ type Scenario = {
   /** Spec 271: o que o módulo de notificação tem para a chave escolhida no tipo; padrão `usable`. */
   readonly template?: TemplateShape
   readonly typeEmailsContractor?: boolean
+  /** Spec 321 (D2): o tipo que nunca avisa a contratante, mesmo com `emails_contractor` ligado. */
+  readonly typeBlocksContractorNotice?: boolean
   /** Spec 271: padrão `true`; `false` é o tipo sem modelo escolhido (chave nula). */
   readonly typeHasKey?: boolean
   /** Spec 271: quando a chave foi escolhida no tipo, em relação à ocorrência; padrão antes (`-MINUTE`). */
@@ -95,6 +97,7 @@ const SCENARIOS = {
   templateOtherChannel: { ageMilliseconds: 30 * MINUTE, template: 'otherChannel' },
   templateOtherLocale: { ageMilliseconds: 30 * MINUTE, template: 'otherLocale' },
   tooOld: { ageMilliseconds: OCCURRENCE_AUTOMATIC_MAIL_LOOKBACK_MILLISECONDS + 60 * MINUTE },
+  typeBlocksContractorNotice: { ageMilliseconds: 30 * MINUTE, typeBlocksContractorNotice: true },
   typeOff: { ageMilliseconds: 30 * MINUTE, typeEmailsContractor: false },
   typeSelectedLater: { ageMilliseconds: 30 * MINUTE, typeSelectedOffsetMilliseconds: MINUTE },
 } as const satisfies Record<string, Scenario>
@@ -203,10 +206,11 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     const key = `ocorrencia.${typeId}`
     await db.execute(
       sql`insert into company_occurrence_types
-            (id, company_id, name, stage, emails_contractor, contractor_notification_template_key,
-             contractor_notification_template_selected_at)
+            (id, company_id, name, stage, emails_contractor, blocks_contractor_notice,
+             contractor_notification_template_key, contractor_notification_template_selected_at)
           values (${typeId}, ${company}, ${`Prorrogação ${typeId}`}, 'delivery',
             ${scenario.typeEmailsContractor ?? true},
+            ${scenario.typeBlocksContractorNotice ?? false},
             ${hasKey ? key : null},
             ${hasKey ? typeSelectedAt.toISOString() : null}::timestamptz)`,
     )
@@ -358,6 +362,13 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
         occurrenceIds.templateTextLooksUnsafe,
       ].sort(),
     )
+  })
+
+  it('never queues a type that never notifies the contractor, even with the automatic mail on (spec 321 CA01)', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    expect(listed).not.toContain(occurrenceIds.typeBlocksContractorNotice)
+    expect(listed).toContain(occurrenceIds.ripe)
   })
 
   it('leaves out a type with no key, and a key with no usable template in the notification module (spec 271)', async () => {

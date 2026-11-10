@@ -46,7 +46,10 @@ const TARGET: OccurrenceMailTarget = {
 }
 
 function createFake(
-  overrides: { audience?: { addresses: readonly string[]; taxId: string } | null } = {},
+  overrides: {
+    audience?: { addresses: readonly string[]; taxId: string } | null
+    target?: OccurrenceMailTarget
+  } = {},
 ) {
   const state = {
     conversations: [] as unknown[],
@@ -91,7 +94,7 @@ function createFake(
       }
     },
     async findOccurrenceTarget() {
-      return TARGET
+      return overrides.target ?? TARGET
     },
     async findOccurrenceThread(params: unknown) {
       state.threadLookups.push(params)
@@ -235,5 +238,15 @@ describe('o chat do cliente por e-mail (spec 287)', () => {
       await failure(() => createFake().useCase.send(input({ bodyText: '   ' }))),
     ).toBeInstanceOf(OccurrenceConversationMailInvalidError)
     expect(TripOccurrenceNotFoundError).toBeDefined()
+  })
+})
+
+describe('o tipo que nunca avisa a contratante não cala o cliente (spec 321 D2)', () => {
+  test('o chat com o cliente da nota segue enviando', async () => {
+    const { state, useCase } = createFake({ target: { ...TARGET, blocksContractorNotice: true } })
+
+    await useCase.send(input())
+
+    expect(state.mails).toHaveLength(1)
   })
 })

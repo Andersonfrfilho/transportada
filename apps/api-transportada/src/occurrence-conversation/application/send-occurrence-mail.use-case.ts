@@ -11,6 +11,7 @@
  */
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
 import type { ContractorMailCredentialSecretService } from '../../contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { occurrenceTypeNeverNotifiesContractor } from '../../trips/domain/occurrence-contractor-notice.policy.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import {
   OCCURRENCE_MAIL_LIMITS,
@@ -18,6 +19,7 @@ import {
 } from '../domain/occurrence-conversation.constant.js'
 import {
   ContractorReplyNotResendableError,
+  OccurrenceContractorNoticeBlockedError,
   ContractorReplyResendTooSoonError,
   OccurrenceConversationContractorUnknownError,
   OccurrenceConversationMailInvalidError,
@@ -317,6 +319,9 @@ async function executeSend(params: {
   })
   if (target === null) throw new TripOccurrenceNotFoundError()
   if (target.contractorId === null) throw new OccurrenceConversationContractorUnknownError()
+  /** Spec 321 (D2): vale para o manual, o reenvio da 248 e, como rede, o automático. */
+  if (occurrenceTypeNeverNotifiesContractor(target))
+    throw new OccurrenceContractorNoticeBlockedError()
   const { contractorId } = target
 
   const contactIds = [...new Set(input.contactIds)]

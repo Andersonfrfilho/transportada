@@ -7,9 +7,11 @@
  * portal. O reenvio da mesma chave devolve o gravado sem gravar nem avisar de novo.
  */
 import type { IdempotencyFingerprintPort } from '../../companies/application/company-settings.port.js'
+import { occurrenceTypeNeverNotifiesContractor } from '../../trips/domain/occurrence-contractor-notice.policy.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
 import { CONVERSATION_ATTACHMENTS_PER_MESSAGE } from '../domain/conversation-attachment.policy.js'
 import {
+  OccurrenceContractorNoticeBlockedError,
   OccurrenceConversationForwardInvalidError,
   OccurrenceConversationIdempotencyKeyReusedError,
   OccurrenceConversationPortalUnavailableError,
@@ -106,6 +108,10 @@ export function createSendContractorPortalMessageUseCase(dependencies: {
             occurrenceId: input.occurrenceId,
           })
           if (found.kind === 'not_found') throw new TripOccurrenceNotFoundError()
+          /** Spec 321 (D2): o tipo que nunca avisa a contratante não fala com ela nem pelo portal. */
+          if (found.kind === 'available' && occurrenceTypeNeverNotifiesContractor(found.audience)) {
+            throw new OccurrenceContractorNoticeBlockedError()
+          }
           if (found.kind === 'unavailable' || found.audience.userIds.length === 0) {
             throw new OccurrenceConversationPortalUnavailableError()
           }

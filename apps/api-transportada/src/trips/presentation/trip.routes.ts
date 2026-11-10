@@ -370,6 +370,9 @@ type SaveOccurrenceTypeInput = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
+  /** Spec 321 (D2, D4c): ausentes são "não mexa". */
+  readonly blocksContractorNotice?: boolean | undefined
+  readonly countsCargoOnPickupTrip?: boolean | undefined
   /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
   readonly contractorNotificationTemplateKey?: null | string | undefined
   /** Spec 271 (D10): os responsáveis em cópia do tipo; ausente é "não mexa". */
