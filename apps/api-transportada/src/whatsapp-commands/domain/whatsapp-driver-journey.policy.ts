@@ -237,6 +237,11 @@ function describeNextStopPreview(card: StopCard): string {
 }
 
 /** A chegada registrada: a frase, o bloco em citação, a prévia da próxima parada (sem pergunta) e o próximo passo. */
+/** O pedido de baixa da parada: com mais de uma nota em aberto, uma foto de canhoto por nota. */
+export function settleStepText(openDocuments: number): string {
+  return openDocuments > 1 ? JOURNEY_TEXT.nextSettleMany : JOURNEY_TEXT.nextSettle
+}
+
 export function describeArrivalReply(headline: string, view: StopCardView): string {
   return [
     headline,
