@@ -8,6 +8,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { buildFleetVehicleRoute } from '@/modules/fleet/shared/fleetRoute.service'
 
 import { usePendingItems } from '../hooks/usePendingItems.hook'
+import { FieldReportHoldList } from '../components/FieldReportHoldList.component'
 import { AddressSuggestionMap } from '../components/AddressSuggestionMap.component'
 import type {
   AddressSuggestionDecision,
@@ -93,6 +94,10 @@ export function PendingItemsWorkspacePage() {
           )}
         </>
       )}
+      <FieldReportHoldList
+        {...(companyId === undefined ? {} : { companyId })}
+        permissions={permissions}
+      />
     </main>
   )
 }
