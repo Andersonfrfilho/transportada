@@ -31,6 +31,7 @@ export const OCCURRENCE_STATEMENT_CHARGE_TYPE_LABELS = {
   other: 'Outros',
   parking: 'Estacionamento',
   platform: 'Plataforma',
+  receiving_charge: 'Cobrança no recebimento',
   returned_goods: 'Mercadoria devolvida',
   scheduling: 'Agendamento',
   unloading: 'Descarga',

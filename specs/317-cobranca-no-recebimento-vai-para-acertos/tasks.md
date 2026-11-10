@@ -4,8 +4,8 @@ Modelo por etapa (regra do projeto): o coordenador abre cada etapa numa thread c
 
 ## Etapa 1 — Banco · Modelo: padrão do projeto
 
-- [ ] T1 Teste de migration (antes): enum, colunas, tabelas, CHECK, índice único parcial, semeadura, renomeação só do nome padrão, rollback.
-- [ ] T2 Migration aditiva + `trip.schema.ts` / `delivery-client.schema.ts`; `make migration-test`.
+- [x] T1 Teste de migration (antes): enum, colunas, tabelas, CHECK, índice único parcial, semeadura, renomeação só do nome padrão, rollback.
+- [x] T2 Migration aditiva + `trip.schema.ts` / `delivery-client.schema.ts`; `make migration-test`.
 
 ## Etapa 2 — API · Modelo: opus (regra de dinheiro, transação e idempotência)
 
