@@ -1715,3 +1715,26 @@ export class MdfeAutoIssueDisabledError extends ApiError {
     this.name = 'MdfeAutoIssueDisabledError'
   }
 }
+
+/** Spec 320: a retenção não existe na empresa do contexto (ou nunca existiu). */
+export class FieldReportHoldNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FIELD_REPORT_HOLD_NOT_FOUND',
+      message: 'The held field report was not found.',
+      status: 404,
+    })
+  }
+}
+
+/** Spec 320: o escritório já decidiu de outro jeito — liberar um descartado (ou o contrário) é recusado. */
+export class FieldReportHoldAlreadyDecidedError extends ApiError {
+  public constructor(state: string) {
+    super({
+      code: 'FIELD_REPORT_HOLD_ALREADY_DECIDED',
+      details: [{ field: 'state', message: state }],
+      message: 'The held field report was already decided.',
+      status: 409,
+    })
+  }
+}
