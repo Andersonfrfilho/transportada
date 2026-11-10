@@ -5,6 +5,7 @@ import { NfeXmlImportError, type ImportedNfeXml } from '@adatechnology/fiscal-pr
 
 import type { NfeProcessingEnvelopeV1 } from '../../messaging/nfe-processing-envelope.schema.js'
 import { normalizeTaxId } from '../../shared/tax-id.service.js'
+import { isIssuedByLinkedContractor } from '../domain/linked-contractor-issuer.policy.js'
 
 type NfeImportSafeError = {
   readonly code: string
@@ -29,6 +30,7 @@ type PendingImportAggregate = {
   readonly companyCnpj: string
   readonly companyId: string
   readonly id: string
+  readonly isRestrictedContractorActive?: boolean
   readonly items: readonly PendingImportItem[]
   /** Spec 313: CNPJ do contratante a quem o domínio do e-mail pertence; só ele pode ser o emitente. */
   readonly restrictedContractorTaxId?: string
@@ -149,6 +151,7 @@ export function createNfeImportConsumer(input: {
           archiveExpander: input.archiveExpander,
           companyCnpj: pendingImport.companyCnpj,
           companyId: pendingImport.companyId,
+          isRestrictedContractorActive: pendingImport.isRestrictedContractorActive,
           restrictedContractorTaxId: pendingImport.restrictedContractorTaxId,
           finalStorage: input.finalStorage,
           repository: input.repository,
@@ -176,6 +179,7 @@ async function processItem(input: {
   readonly companyCnpj: string
   readonly companyId: string
   readonly finalStorage: NfeImportFinalStoragePort
+  readonly isRestrictedContractorActive: boolean | undefined
   readonly repository: NfeImportConsumerRepositoryPort
   readonly restrictedContractorTaxId: string | undefined
   readonly sourceStorage: NfeImportSourceStoragePort
@@ -210,6 +214,11 @@ async function processItem(input: {
         companyCnpj: input.companyCnpj,
         existingDocument,
         normalizedXml,
+      }) &&
+      !isIssuedByLinkedContractor({
+        accessKey,
+        contractorTaxId: input.restrictedContractorTaxId,
+        isContractorActive: input.isRestrictedContractorActive,
       })
     ) {
       await input.repository.completeItem({

@@ -4,6 +4,7 @@
 import './nfe-import-consumer/carton-gtin.contract.js'
 import './nfe-import-consumer/document-children.contract.js'
 import './nfe-import-consumer/handler.contract.js'
+import './nfe-import-consumer/linked-contractor-issuer.contract.js'
 import './nfe-import-consumer/mixed-batch.contract.js'
 import './nfe-import-consumer/package-box-backfill.contract.js'
 import './nfe-import-consumer/package-box-gtin-backfill.contract.js'

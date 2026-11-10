@@ -26,6 +26,7 @@ export const contractors = pgTable('contractors', {
   companyId: uuid('company_id').notNull(),
   taxId: text('tax_id').notNull(),
   displayName: text('display_name').notNull().default(''),
+  status: text().notNull().default('active'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

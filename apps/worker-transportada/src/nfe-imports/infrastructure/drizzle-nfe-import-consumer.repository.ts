@@ -142,9 +142,10 @@ export class DrizzleNfeImportConsumerRepository {
     }
 
     let restrictedContractorTaxId: string | undefined
+    let isRestrictedContractorActive: boolean | undefined
     if (importRow.restrictedContractorId !== null) {
       const [contractor] = await this.#database
-        .select({ taxId: contractors.taxId })
+        .select({ status: contractors.status, taxId: contractors.taxId })
         .from(contractors)
         .where(
           and(
@@ -155,6 +156,7 @@ export class DrizzleNfeImportConsumerRepository {
         .limit(1)
       // Contratante sumido (não deveria: FK restrict): fecha em vez de abrir — nenhuma nota passa.
       restrictedContractorTaxId = contractor?.taxId ?? ''
+      isRestrictedContractorActive = contractor?.status === 'active'
     }
 
     const itemRows = await this.#database
@@ -189,7 +191,9 @@ export class DrizzleNfeImportConsumerRepository {
       companyCnpj: profile.cnpj,
       companyId: input.companyId,
       id: input.importId,
-      ...(restrictedContractorTaxId === undefined ? {} : { restrictedContractorTaxId }),
+      ...(restrictedContractorTaxId === undefined
+        ? {}
+        : { isRestrictedContractorActive, restrictedContractorTaxId }),
       items: itemRows.map((row) => ({
         attempt: Number(row.attempt),
         id: row.id,
