@@ -18,8 +18,9 @@ Fase 1: tipo + garantia de não-aviso + liberação da nota (D4) + selo/lista. F
 5. **Painel** — selo na nota e filtro na lista de ocorrências com os componentes padrão do design system; sem input/botão novo.
 6. **App do motorista / WhatsApp** — o tipo aparece na lista de tipos de nota; observação obrigatória pelo resolvedor espelhado.
 
-7. **Liberação** — coluna `releases_document_for_pickup` no tipo (aditiva, padrão `false`) e, no registro, soltar a nota da parada/viagem de origem pelo caminho que a 164 e a 185 já usam; a nota entra em outra viagem pelo fluxo normal de acrescentar nota.
-8. **Carga da nota de coleta** — coluna `counts_cargo_on_pickup_trip` no tipo (aditiva, padrão `true`) lida pelos pontos que somam peso/volume/ocupação da viagem (T0 lista cada um: ocupação, planta, capacidade, excesso de peso); a nota liberada por retenção, quando a config é `false`, fica fora das somas, marcada pela ocorrência aberta do tipo.
+7. **Devolução da nota** — reusar `redelivery_policy = allowed` e o caminho de devolução/reentrega da 164 (sem coluna nova, se a T0 confirmar); tratativa nasce autorizada pelo tipo, sem etapa de contratante. A nota entra em outra viagem pelo fluxo normal de acrescentar nota.
+8. **Flag com tooltip (painel)** — selo "Coleta de canhoto" + tooltip na linha da nota da viagem nova; texto no locale.
+9. **Carga da nota de coleta** — coluna `counts_cargo_on_pickup_trip` no tipo (aditiva, padrão `true`) lida pelos pontos que somam peso/volume/ocupação da viagem (T0 lista cada um: ocupação, planta, capacidade, excesso de peso); a nota liberada por retenção, quando a config é `false`, fica fora das somas, marcada pela ocorrência aberta do tipo.
 
 ## Riscos
 

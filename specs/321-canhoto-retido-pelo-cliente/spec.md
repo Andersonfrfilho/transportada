@@ -43,11 +43,12 @@ do escritório, até alguém trazer o canhoto. Quando a foto chega por qualquer 
   modelo de e-mail. Um **teste de contrato** falha se a entrada do catálogo trouxer qualquer um ligado, e a cobrança
   automática da 143/269/271 e o canal de grupo da 318 recebem a mesma guarda (o tipo é lido por nome estável no catálogo
   `CANHOTO_RETAINED_OCCURRENCE_TYPE_NAME`; renomeado no painel, a guarda continua pelo id gravado — ver T2).
-- **D4 — A retenção libera a nota para outra viagem (regra do Anderson, 10/11/2026).** Registrar o tipo **solta a nota da
-  viagem de origem** e a deixa disponível para entrar em outra viagem, como a nota devolvida/reentrega (164 §4: a nota não é
-  presa). A viagem de origem fecha normalmente; a entrega ao cliente vale como feita, o que falta é o canhoto. O tipo **não**
-  usa `leaves_document_behind` (que é de separação, 185); a liberação é um efeito próprio do tipo, coluna
-  `releases_document_for_pickup` (padrão `false`, nenhum tipo existente muda), desenhada em T0/T2.
+- **D4 — É uma ocorrência que devolve a nota para ir a outra viagem (Anderson, 10/11/2026).** Reusa o mecanismo de devolução e
+  reentrega que já existe (164: `redelivery_policy = allowed`, a nota "não é presa", reentrega vai para outra viagem). Registrar
+  o tipo **devolve a nota** da viagem de origem, que fecha normalmente, e a deixa elegível para entrar em outra viagem. **Sem
+  coluna de liberação nova** se a T0 confirmar que o caminho da 164 basta. Ponto de conflito a resolver na T0: a tratativa da 164
+  passa pela decisão **da contratante** no portal; aqui isso não pode acontecer (nada vai à SPANI), então a reentrega nasce
+  **autorizada pelo próprio tipo**, sem etapa de contratante nem aviso (ver Dúvidas).
 - **D4b — Quem finaliza é o motorista da outra viagem (regra do Anderson).** A nota entra na nova viagem como **item de
   coleta de canhoto** no endereço do cliente; o motorista dessa viagem a **finaliza coletando o canhoto** (foto do canhoto,
   pelo caminho da 294/222). Só então a ocorrência resolve (D6). Sem encaixe em viagem de coleta (297 ainda é rascunho),
@@ -57,7 +58,11 @@ do escritório, até alguém trazer o canhoto. Quando a foto chega por qualquer 
   é cadastrado com `false`). Com `false`, a nota que entra na outra viagem por causa da retenção **não soma** peso, volume,
   dimensões nem ocupação/planta da viagem nova (a mercadoria já foi entregue; só o papel volta). Vale para a ocupação da viagem,
   a conta de capacidade e o aviso de excesso de peso, e a nota continua visível na lista como "coletar canhoto". A config
-  aparece na aba Tipos só para tipos que liberam a nota (D4), com o seletor padrão do painel.
+  aparece na aba Tipos só para tipos que devolvem a nota (D4), com o seletor padrão do painel.
+- **D4d — Flag com tooltip no painel (Anderson).** A nota de coleta aparece com uma **flag** "Coleta de canhoto" na viagem
+  nova (linha da nota, lista de notas e ocupação), e quando o peso/dimensão não conta a flag diz isso num **tooltip
+  explicativo** ("Esta nota volta só para buscar o canhoto; peso e dimensão não entram na carga desta viagem"). O texto vem do
+  locale, componentes padrão do design system (selo + tooltip já usados no painel), prints claro/escuro, desktop/celular.
 - **D5 — Exigências do registro.** Foto opcional (mostra o cliente/recibo, se houver), observação **obrigatória** (quem
   ficou com o canhoto e o combinado), sem itens, sem valor, sem localização obrigatória. Todos via modos da 246, sem
   campo novo.
@@ -78,6 +83,7 @@ do escritório, até alguém trazer o canhoto. Quando a foto chega por qualquer 
 - **RF3** — A nota com ocorrência aberta do tipo aparece como "canhoto retido" na viagem e na lista (D7).
 - **RF4** — Chegada do canhoto resolve; reprovação reabre (D6).
 - **RF5** — Registrar o tipo solta a nota da viagem de origem e a deixa elegível para outra viagem (D4); a viagem de origem fecha sem ela pendente.
+- **RF5d** — Flag "Coleta de canhoto" com tooltip na viagem nova, explicando que peso e dimensão não contam quando a config está `false` (D4d).
 - **RF5c** — Com `counts_cargo_on_pickup_trip = false`, a nota de coleta não entra no peso, volume, dimensão nem ocupação da viagem nova, e não dispara trava de capacidade (D4c).
 - **RF5b** — A nota na nova viagem aparece como "coletar canhoto" e o motorista a finaliza com a foto do canhoto (D4b, D8).
 - **RF6** — Ocorrência do tipo não conta como "problema na entrega" para o painel de pendências de entrega (a mercadoria
@@ -101,12 +107,16 @@ do escritório, até alguém trazer o canhoto. Quando a foto chega por qualquer 
 - **CA02** Registrar o tipo numa nota de contratante com envio automático ligado **não** gera e-mail nem mensagem de grupo.
 - **CA03** Registrar o tipo solta a nota; a viagem de origem fecha e a nota pode ser acrescentada a outra viagem, onde aparece como "coletar canhoto".
 - **CA03b** A viagem nova com a nota de coleta mantém peso, volume e ocupação iguais aos de antes de acrescentá-la; com a config `true`, soma como nota comum.
+- **CA03c** A flag e o tooltip aparecem na linha da nota da viagem nova, em tema claro e escuro, desktop e celular.
 - **CA04** O motorista da nova viagem fotografa o canhoto, a nota se finaliza e a ocorrência resolve; `rejected` reabre.
 - **CA05** Em staging, prints claro/escuro, desktop/celular da aba Tipos e da lista, comparados com outra tela do painel.
 
 ## Dúvidas
 
-Respondidas pelo Anderson em 10/11/2026: a entrega vale como feita; a retenção **libera a nota** para outra viagem; o motorista
+- [NEEDS CLARIFICATION: **Reentrega sem a contratante.** A tratativa da 164 pede decisão da contratante no portal. Para este tipo recomendo
+  reentrega **autorizada automaticamente pelo tipo**, sem etapa de contratante, sem aviso e sem cobrança. Confirma?]
+
+Respondidas pelo Anderson em 10/11/2026: a entrega vale como feita; a ocorrência **devolve a nota** para ir a outra viagem; o motorista
 dessa viagem a finaliza coletando o canhoto (D4, D4b).
 
 - [NEEDS CLARIFICATION: **Aviso à contratante na retenção e na coleta.** Pelo pedido, nenhum dos dois vai à SPANI. Confirma que
