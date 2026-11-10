@@ -30,6 +30,7 @@ import type {
   OccurrenceResolutionTransactionPort,
   RecordDriverPayoutReceiptOutcome,
 } from '../../src/trips/application/occurrence-resolution.port.js'
+import { resolveFieldOccurrenceTypes } from '../../src/trips/application/list-field-occurrence-types.use-case.js'
 import { createResolveOccurrenceUseCase } from '../../src/trips/application/resolve-occurrence.use-case.js'
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import {
@@ -816,5 +817,39 @@ describe('o comprovante do PIX ao concluir (spec 317 E13, T5b)', () => {
       ),
     ).toBe('STOP_OCCURRENCE_PAYOUT_NOT_APPLICABLE')
     expect(documentKind.calls).toEqual([])
+  })
+})
+
+describe('o app lê as vagas de foto do servidor (spec 317 RF8)', () => {
+  const baseType = {
+    active: true,
+    allowsMultipleItems: true,
+    emailTemplateKey: null,
+    flow: 'stop',
+    id: 'type-1',
+    name: 'Cobrança no recebimento',
+    notifies: true,
+    stage: 'delivery',
+    stopKind: 'unexpected_charge',
+  } as unknown as OccurrenceTypeRecord
+
+  test('o tipo com vagas as devolve rotuladas; o tipo sem vagas não ganha a chave', () => {
+    const slots = [
+      { label: 'Foto da placa de cobrança', position: 0, required: true, slotKey: 'charge_sign' },
+      {
+        label: 'Foto do comprovante de pagamento',
+        position: 1,
+        required: true,
+        slotKey: 'payment_receipt',
+      },
+    ]
+    const [withSlots, withoutSlots] = resolveFieldOccurrenceTypes({
+      types: [
+        { ...baseType, photoSlots: slots },
+        { ...baseType, id: 'type-2', name: 'Outro' },
+      ],
+    })
+    expect(withSlots?.photoSlots).toEqual(slots)
+    expect(withoutSlots !== undefined && 'photoSlots' in withoutSlots).toBe(false)
   })
 })

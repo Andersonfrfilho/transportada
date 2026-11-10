@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 
 import type { DriverOccurrenceType } from '../shared/driverTrip.types'
 import { resolveOccurrenceAttachmentMode } from '../shared/occurrenceRegistration.service'
+import { isReceivingChargeType } from '../shared/receivingCharge.service'
 import {
   buildOccurrenceTypeList,
   readOccurrenceTypeUsage,
@@ -51,6 +52,15 @@ export function OccurrenceTypePicker({
 
   const selectedType = types.find((type) => type.id === selectedTypeId)
 
+  /** Spec 317: o tipo com vagas diz quantas fotos pede (as do servidor), em vez do "Sem foto" da foto única. */
+  function describeAttachment(type: DriverOccurrenceType): string {
+    if (isReceivingChargeType(type)) {
+      const required = (type.photoSlots ?? []).filter((slot) => slot.required).length
+      if (required > 0) return t('occurrenceRegistration.attachment.slots', { count: required })
+    }
+    return t(`occurrenceRegistration.attachment.${resolveOccurrenceAttachmentMode(type)}`)
+  }
+
   function renderChip(type: DriverOccurrenceType, keyPrefix: string) {
     const isSelected = type.id === selectedTypeId
     return (
@@ -66,9 +76,7 @@ export function OccurrenceTypePicker({
         <OccurrenceTypeIcon iconName={type.iconName} />
         <span className={styles.occurrenceChipLabel}>
           <span>{type.name}</span>
-          <span className={styles.occurrenceChipMode}>
-            {t(`occurrenceRegistration.attachment.${resolveOccurrenceAttachmentMode(type)}`)}
-          </span>
+          <span className={styles.occurrenceChipMode}>{describeAttachment(type)}</span>
         </span>
       </Button>
     )

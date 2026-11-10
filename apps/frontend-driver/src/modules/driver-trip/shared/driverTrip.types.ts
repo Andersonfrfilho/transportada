@@ -443,6 +443,23 @@ export type DriverFieldReport =
     }> &
       StopOccurrenceReportReference)
   /**
+   * Spec 317 (E1, E4, E11, RF4): a cobrança no recebimento — **um item só** com as fotos por vaga, o valor, as notas,
+   * quem pagou e o PIX. A API cobra todas as vagas obrigatórias no mesmo registro (`422 STOP_OCCURRENCE_PHOTO_SLOT_MISSING`),
+   * então a ocorrência não sobe antes das fotos: o `send` sobe cada foto pela rota da parada e faz **um** `POST` com
+   * `photos[{ slotKey, objectId }]` e `receivingCharge`. A chave do item é a do registro — o reenvio da fila não duplica.
+   */
+  | (Readonly<{
+      description: string
+      idempotencyKey: string
+      kind: 'stopOccurrenceCharge'
+      location: DriverReportedLocation | null
+      /** Uma foto por vaga; a chave é a `slotKey` que o servidor mandou. */
+      photos: readonly Readonly<{ photo: DriverOccurrencePhoto; slotKey: string }>[]
+      receivingCharge: ReceivingChargeBody
+      stopId: string
+    }> &
+      StopOccurrenceReportReference)
+  /**
    * Spec 193 D7: quem recebeu, chegado depois do anexo — anexo já enviado, ou editado durante o
    * envio (comparação no `sent`). Vira `PATCH .../documents/:documentId/proof/receiver`, idempotente
    * pela chave do toque. `null` em qualquer campo apaga o que estava gravado.
@@ -517,7 +534,48 @@ export type DriverOccurrenceType = Readonly<{
   /** O app mostra o campo opcional "nova data de vencimento"; ausente é API anterior ao campo. */
   asksNewDueDate?: boolean
   clientChannel?: 'both' | 'email' | 'off' | 'whatsapp'
+  /**
+   * Spec 317 (E1, RF8): as vagas de foto rotuladas do tipo (a cobrança no recebimento tem a placa e o comprovante).
+   * O servidor manda e recobra; ausente é o tipo sem vagas, que segue com a foto única da spec 209.
+   */
+  photoSlots?: readonly DriverPhotoSlot[]
 }>
+
+/** Spec 317: uma vaga de foto do tipo — a chave estável, o rótulo que o motorista lê e se trava o envio. */
+export type DriverPhotoSlot = Readonly<{
+  label: string
+  position: number
+  required: boolean
+  slotKey: string
+}>
+
+/** Spec 317 (E4, E11): os vocabulários do corpo da cobrança — cópia por valor da API. */
+export const RECEIVING_CHARGE_MODES = ['one_per_document', 'grouped'] as const
+export type ReceivingChargeMode = (typeof RECEIVING_CHARGE_MODES)[number]
+export const RECEIVING_CHARGE_PAID_BY = ['driver', 'company'] as const
+export type ReceivingChargePaidBy = (typeof RECEIVING_CHARGE_PAID_BY)[number]
+export const DRIVER_PIX_KEY_TYPES = ['cpf', 'cnpj', 'email', 'phone', 'random'] as const
+export type DriverPixKeyType = (typeof DRIVER_PIX_KEY_TYPES)[number]
+
+/** O corpo `receivingCharge` do registro da parada. Dinheiro é texto (`"12.34"`), nunca `number`. */
+export type ReceivingChargeBody = Readonly<{
+  amount?: string
+  documents?: readonly Readonly<{ amount?: string; documentId: string }>[]
+  driverPix?: Readonly<{ key: string; type: DriverPixKeyType }>
+  mode: ReceivingChargeMode
+  paidBy: ReceivingChargePaidBy
+}>
+
+function isDriverPhotoSlot(value: unknown): value is DriverPhotoSlot {
+  if (typeof value !== 'object' || value === null) return false
+  const slot = value as Partial<Record<keyof DriverPhotoSlot, unknown>>
+  return (
+    typeof slot.slotKey === 'string' &&
+    typeof slot.label === 'string' &&
+    typeof slot.required === 'boolean' &&
+    typeof slot.position === 'number'
+  )
+}
 
 /** ⚠️ Cópia por valor de `OCCURRENCE_TYPE_FLOWS` (spec 218 D1). */
 export const DRIVER_OCCURRENCE_FLOWS = ['document', 'stop'] as const
@@ -550,7 +608,12 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly asksClientContact?: unknown
     readonly asksNewDueDate?: unknown
     readonly clientChannel?: unknown
+    readonly photoSlots?: unknown
   }
+  /** Spec 317: ausente é a API anterior; presente, uma lista de vagas bem formadas (vaga torta derruba o tipo, não o app). */
+  const hasKnownPhotoSlots =
+    candidate.photoSlots === undefined ||
+    (Array.isArray(candidate.photoSlots) && candidate.photoSlots.every(isDriverPhotoSlot))
   /** Ausente é a API anterior; presente, só no vocabulário — valor desconhecido não vira "sem exigência". */
   const hasKnownMode = [
     candidate.attachmentMode,
@@ -602,6 +665,7 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     hasKnownNewFields &&
     hasKnownIconName &&
     hasKnownContactFields &&
+    hasKnownPhotoSlots &&
     hasValidContractorReplyFields(value as Readonly<Record<string, unknown>>)
   )
 }

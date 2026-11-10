@@ -93,3 +93,49 @@ Branch `feat/317-etapa-3-painel`, sobre `staging` com a Etapa 2.
 
 - `test/extra-charges/receiving-charge.contract.ts` (tipo e traduções, leitura tolerante, marca do cliente, envio do
   comprovante); `bun run test` do painel: 0 fail; `tsc --noEmit`, `eslint --max-warnings 0` e `prettier` limpos nos arquivos tocados.
+
+## Etapa 4 — App do motorista (2026-11-10)
+
+Branch `feat/317-etapa-4-app`, sobre `staging` com as etapas 1 a 3. **T14a (selo no cartão da parada e interruptor no
+editor de tipos) ficou para um PR próprio**: ele atravessa API, painel e app.
+
+### O que mudou
+
+- **API (aditivo, RF8)**: o app só lê as vagas de foto do servidor, e a rota `GET /me/trips/current/occurrence-types`
+  não as devolvia. `listOccurrenceTypes` passou a ler `company_occurrence_type_photo_slots` numa consulta só
+  (`occurrence-type-photo-slots.query.ts`) e `photoSlots[]` (`slotKey`, `label`, `required`, `position`) sai no tipo
+  **só quando ele tem vagas**: o corpo dos demais tipos continua byte a byte o de hoje.
+- **T12** formulário (`OccurrenceReceivingChargeSection`, `useReceivingChargeForm`, `receivingCharge.service.ts`): para o
+  tipo de parada `unexpected_charge` com vagas, valor (máscara de centavos da 247, `0,00` é valor), notas e modo (por nota ou
+  agrupada, só com mais de uma nota na parada; uma só é assumida), "Quem pagou?", tipo e chave PIX quando foi o motorista,
+  e **uma foto por vaga com o rótulo do servidor**. Só componentes do design system (rótulo em cima, `Select`, botões e
+  chips padrão). "Registrar" só habilita com tudo, e a segunda trava está em `dispatchOccurrenceRegistration`.
+  Limite conhecido: o PIX não vem pré-preenchido, porque o snapshot do app não traz o PIX do cadastro do motorista.
+- **T13** fila: um item novo, `stopOccurrenceCharge`, com as fotos por vaga, o valor, as notas e o PIX. Não reaproveitei
+  `stopOccurrencePhoto` porque a API exige todas as vagas obrigatórias **no primeiro** registro (`422
+STOP_OCCURRENCE_PHOTO_SLOT_MISSING`), então a ocorrência não pode subir antes das fotos. O `send` sobe cada foto
+  pela rota da parada e faz um `POST` só com `photos[{ slotKey, objectId }]` e `receivingCharge`, com a chave do
+  registro (reenvio não duplica). Entra na cota de bytes das fotos, no carimbo de hora e no cancelamento da fila, e a
+  fila cheia devolve o toque inteiro (foto obrigatória nunca é derrubada). A mensagem do botão diz **qual** foto falta
+  ("Para registrar, falta: Foto da placa de cobrança, …"), e o chip do tipo diz "2 fotos obrigatórias".
+- **T14** contrato de paridade (`test/driver-trip/receiving-charge.contract.ts`, 17 testes): nenhuma `slotKey` fixa em
+  `src/` (a exigência é lida do servidor), foto faltando, valor, nota única × várias, agrupada, PIX, o item único na
+  fila e o `POST` com duas subidas e a mesma chave.
+
+### Testes
+
+- App: `bun run test` 2296 pass / 0 fail; `eslint`, `tsc --noEmit` e `prettier --check .` limpos.
+- API: `bun --env-file=../../.env.test test ./test/trip-occurrence.contract.test.ts` 923 pass / 0 fail (inclui o novo
+  contrato das vagas); `tsc --noEmit` limpo.
+- Não rodei a integração da API contra Postgres nesta máquina; a mudança de leitura é uma consulta de `SELECT`.
+
+### Prints (claro/escuro, desktop 1280 px e celular 375 px)
+
+`specs/317-*/prints/cobranca-completo-{light,dark}-{desktop,mobile}.png` e `cobranca-vazio-light-mobile.png`
+(`test/spec-317-prints.smoke.spec.ts`, fora da CI). Só o caso de uma nota: o dublê do smoke tem uma nota por parada, e
+o caso de várias notas está coberto por contrato.
+
+### ⚠️ Ordem de publicação
+
+Painel (Etapa 3, já em staging) → API (esta, aditiva) → app. O app novo com a API antiga cai no formulário de sempre, porque
+sem `photoSlots` o tipo não abre a cobrança.

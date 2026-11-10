@@ -14,6 +14,7 @@ import type {
 } from './occurrenceRequirements.service'
 import type { OccurrenceSignatureState } from '../hooks/useOccurrenceSignature.hook'
 import type { OccurrenceValuesForm } from '../hooks/useOccurrenceValues.hook'
+import type { ReceivingChargeForm } from '../hooks/useReceivingChargeForm.hook'
 
 /** O que acontece com a foto escolhida antes de ela entrar na fila. */
 export type OccurrencePhotoState = 'failed' | 'idle' | 'reading' | 'too-large'
@@ -50,6 +51,8 @@ export type OccurrenceRegistrationForm = Readonly<{
    * `null` dentro dela é "este motivo não gera aviso", e a tela diz isso.
    */
   preview: Readonly<{ notice: OccurrenceNoticePreview | null }> | undefined
+  /** Spec 317: o formulário da cobrança no recebimento; ausente é o tipo sem vagas de foto. */
+  receivingCharge: ReceivingChargeForm | undefined
   selectedType: DriverOccurrenceType | undefined
   signature: OccurrenceSignatureState
   types: readonly DriverOccurrenceType[]

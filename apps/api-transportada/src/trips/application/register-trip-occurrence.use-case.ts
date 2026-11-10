@@ -3,6 +3,7 @@
  *
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
+import type { StopOccurrencePhotoSlot } from '../domain/stop-occurrence-photo-slots.policy.js'
 import type {
   ClientChannel,
   ClientEmailSendMode,
@@ -195,6 +196,8 @@ export type OccurrenceTypeRecord = {
    */
   readonly noteMode?: DeliveryProofFieldMode
   readonly notifies: boolean
+  /** Spec 317 (E1, RF8): as vagas de foto do tipo; só o tipo que as tem as traz. Opcional por isso. */
+  readonly photoSlots?: readonly StopOccurrencePhotoSlot[]
   /**
    * Spec 246 (RF1c): a quantidade mínima de fotos (1..5), lida só com a foto `required`. Opcional só
    * para os dublês de teste; a leitura real sempre grava.

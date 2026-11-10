@@ -158,6 +158,7 @@ import {
   replaceOccurrenceTypeContractorScope,
   withOccurrenceTypeContractorIds,
 } from './occurrence-type-contractors.query.js'
+import { withOccurrenceTypePhotoSlots } from './occurrence-type-photo-slots.query.js'
 
 /**
  * Spec 156 T9 (D3): resolve o nome de quem gravou pela mesma janela do padrão já em produção
@@ -1185,9 +1186,14 @@ export async function listOccurrenceTypes(
     records,
   })
   /** Spec 270 (R7): só os ids por tipo, numa consulta; nome e CNPJ ficam no cadastro. */
-  return withOccurrenceTypeContractorIds(queryable, {
+  const withContractors = await withOccurrenceTypeContractorIds(queryable, {
     companyId: input.companyId,
     records: withMoments,
+  })
+  /** Spec 317 (RF8): as vagas de foto por tipo, numa consulta; só quem tem vaga ganha o campo. */
+  return withOccurrenceTypePhotoSlots(queryable, {
+    companyId: input.companyId,
+    records: withContractors,
   })
 }
 

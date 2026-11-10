@@ -104,6 +104,16 @@ const REPORT_BY_KIND = {
     photo: PHOTO,
     stopId: 'stop-1',
   },
+  stopOccurrenceCharge: {
+    description: '',
+    idempotencyKey: 'k-charge',
+    kind: 'stopOccurrenceCharge',
+    location: null,
+    occurrenceTypeId: 'type-3',
+    photos: [{ photo: PHOTO, slotKey: 'charge_sign' }],
+    receivingCharge: { amount: '12.50', mode: 'one_per_document', paidBy: 'company' },
+    stopId: 'stop-1',
+  },
 } as const satisfies Record<DriverFieldReport['kind'], DriverFieldReport>
 
 type SeenRequest = Readonly<{
@@ -149,6 +159,7 @@ const ACCEPTING_ROUTE_SUFFIX_BY_KIND: Readonly<Record<string, string>> = {
   documentOccurrence: '/occurrences',
   occurrence: '/occurrences',
   return: '/return',
+  stopOccurrenceCharge: '/occurrences',
   stopOccurrencePhoto: '/occurrences',
 }
 
@@ -170,6 +181,7 @@ describe('quais relatos levam tappedAt e clockOffsetMs (spec 234, esquemas .stri
       'documentOccurrence',
       'occurrence',
       'return',
+      'stopOccurrenceCharge',
       'stopOccurrencePhoto',
     ])
   })

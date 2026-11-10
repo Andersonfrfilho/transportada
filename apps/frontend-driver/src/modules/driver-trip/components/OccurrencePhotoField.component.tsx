@@ -19,6 +19,8 @@ type OccurrencePhotoFieldProps = Readonly<{
   photoCount: number
   photoState: OccurrencePhotoState
   previewUrl: string | undefined
+  /** Spec 317: o rótulo da vaga ("Foto da placa de cobrança"); ausente é o título de sempre. */
+  title?: string
 }>
 
 /** O mesmo texto da foto do "Não entreguei": é o mesmo bloco de captura, com a mesma redução. */
@@ -49,6 +51,7 @@ export function OccurrencePhotoField({
   photoCount,
   photoState,
   previewUrl,
+  title,
 }: OccurrencePhotoFieldProps) {
   const { t } = useTranslation('driverTrip')
   const cameraFieldRef = useCameraCaptureFieldRef()
@@ -58,7 +61,7 @@ export function OccurrencePhotoField({
 
   return (
     <div className={styles.proofCapture}>
-      <p className={styles.proofCaptureTitle}>{t('occurrencePhoto')}</p>
+      <p className={styles.proofCaptureTitle}>{title ?? t('occurrencePhoto')}</p>
       {previewUrl === undefined || photoCount === 0 ? null : (
         <div className={styles.proofCaptureAttached} role="status">
           <img

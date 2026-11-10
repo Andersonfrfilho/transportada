@@ -260,6 +260,7 @@ describe('confirmar sai por uma rota só, a do flow do tipo (D1, D3, D4)', () =>
     const handlers: OccurrenceRegistrationHandlers = {
       enqueueDocumentOccurrence: (input) =>
         calls.push({ input, name: 'enqueueDocumentOccurrence' }),
+      reportReceivingCharge: () => undefined,
       reportStopOccurrence: (input) => calls.push({ input, name: 'reportStopOccurrence' }),
     }
     return { calls, handlers }
