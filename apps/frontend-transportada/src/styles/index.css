@@ -102,9 +102,13 @@
   --color-slate-ink: #90a4ae;
   /* Mesma regra para o alerta: `--color-alert` sobre o próprio fundo diluído media 4,11:1 no tema claro. */
   --color-alert-ink: #ff6b63;
-  --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
-  --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
-  --font-utility: 'SFMono-Regular', Consolas, monospace;
+  --font-body: 'Inter Variable', system-ui, sans-serif;
+  --font-display: var(--font-body);
+  --font-utility: 'JetBrains Mono Variable', ui-monospace, monospace;
+  /* Título de página: um tamanho só para todas as telas do painel. */
+  --page-title-size: 1.75rem;
+  --page-title-weight: 800;
+  --page-title-line-height: 1.15;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -732,10 +736,6 @@ a {
   padding-left: var(--space-4);
 }
 
-.application-shell-sidebar-collapsed .application-header-copy > div {
-  padding-left: 3.25rem;
-}
-
 /* Alvo de toque de 44px do `web.md` §10 — abaixo do breakpoint de desktop é o único jeito de abrir
    a navegação no celular, então ele não pode ficar menor que o mínimo. */
 .application-shell-sidebar-collapsed .ui-button.mobile-sidebar-trigger {
@@ -969,26 +969,6 @@ a {
   stroke-width: 1.8;
 }
 
-.application-wordmark {
-  margin: 0;
-  max-width: none;
-  font-size: 2rem;
-  line-height: 1;
-  letter-spacing: 0;
-  overflow-wrap: anywhere;
-  text-transform: none;
-  color: color-mix(in srgb, var(--color-fog) 96%, white 4%);
-  text-wrap: balance;
-}
-
-.application-header-copy p {
-  margin: 0;
-  max-width: 42rem;
-  color: var(--color-slate-muted);
-  font-size: 0.95rem;
-  line-height: 1.45;
-}
-
 .workspace-shell {
   width: var(--layout-width);
   margin: 0 auto;
@@ -1030,8 +1010,6 @@ a {
 
 .workspace-hero h1 {
   margin: 0;
-  max-width: 12ch;
-  font-size: clamp(2.8rem, 10vw, 5.6rem);
 }
 
 .workspace-intro,
@@ -1410,14 +1388,15 @@ p {
 }
 
 h1 {
-  max-width: 12ch;
-  margin: var(--space-4) 0 var(--space-6);
-  font-family: var(--font-display);
-  font-size: clamp(3.5rem, 15vw, 9rem);
-  font-weight: 400;
-  letter-spacing: -0.035em;
-  line-height: 0.84;
-  text-transform: uppercase;
+  max-width: none;
+  margin: var(--space-4) 0 var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--page-title-size);
+  font-weight: var(--page-title-weight);
+  letter-spacing: -0.01em;
+  line-height: var(--page-title-line-height);
+  text-transform: none;
+  text-wrap: balance;
 }
 
 h2 {
@@ -1436,8 +1415,7 @@ h2 {
     display: none;
   }
 
-  .application-shell-sidebar-collapsed .application-header-copy,
-  .application-shell-sidebar-collapsed .application-header-copy > div {
+  .application-shell-sidebar-collapsed .application-header-copy {
     padding-left: 0;
   }
 
@@ -1653,10 +1631,6 @@ footer {
 
   .workspace-filter-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  h1 {
-    font-size: clamp(5rem, 11vw, 9rem);
   }
 }
 

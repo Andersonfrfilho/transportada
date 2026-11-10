@@ -9,6 +9,7 @@
 
 .panelHead {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
   align-items: center;
   justify-content: space-between;
