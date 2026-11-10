@@ -20,9 +20,9 @@ Causa lida no código (a confirmar com os dados de produção, T0.1):
 - **D4 — Retido não é recusado.** O servidor responde `202` com `held: true`. O app trata como entregue e tira da fila (recusa de negócio faria o motorista descartar; erro de rede faria reenviar para sempre) e mostra "enviado ao escritório para conferência".
 - **D5 — Duplicata provável.** Ao reter, procura o mesmo fato já registrado entre o toque e o recebimento, por qualquer canal: mesma parada e tipo de evento, ou mesma nota e mesmo tipo de ocorrência. Achando, o painel mostra "provável duplicata de <registro>" com Descartar sugerido. Liberar continua possível.
 - **D6 — O app manda a hora do toque também na ocorrência de nota** (`tappedAt` e `clockOffsetMs` opcionais). Sem o campo o servidor não retém (comportamento de hoje), para não quebrar build antigo.
-- **D7 — Liberar aplica com a hora original** (`occurredAt` = toque corrigido), pelo mesmo caminho do relato e a mesma chave de idempotência. Liberar duas vezes não duplica. Descartar guarda quem, quando e por quê.
+- **D7 — Liberar reaplica o relato** pelo mesmo caminho e com a mesma chave de idempotência. A hora original do toque fica na linha retida e na auditoria; a ocorrência nasce com a hora da liberação, porque a tabela de ocorrências não tem coluna para a hora do toque (guardá-la nela é a T2.8, fora desta primeira entrega). Liberar duas vezes não duplica. Descartar guarda quem, quando e por quê.
 - **D8 — Interruptor por empresa**, desligado por padrão. Primeiro staging; produção só com aprovação.
-- **D10 — Quem libera (decisão do Anderson): só o escritório.** Liberar e descartar exigem a permissão de gestão de viagens do escritório; atendente e motorista não liberam.
+- **D10 — Quem libera (decisão do Anderson): só o escritório.** Liberar e descartar exigem `occurrences.resolve` (administrador, operador e financeiro); separador, atendente e motorista não liberam.
 - **D9 — A liberação roda as validações da spec 315** com a hora do toque; falhou, o item continua retido com o motivo.
 
 ## Fora do escopo

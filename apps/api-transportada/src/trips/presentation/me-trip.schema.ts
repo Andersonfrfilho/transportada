@@ -156,7 +156,7 @@ function toOutOfOrderConfirmation(body: { readonly confirmOutOfOrder?: boolean |
   return body.confirmOutOfOrder === undefined ? {} : { confirmOutOfOrder: body.confirmOutOfOrder }
 }
 
-function toEventClock(body: {
+export function toEventClock(body: {
   readonly clockOffsetMs?: number | undefined
   readonly tappedAt?: string | undefined
 }): EventClockFields {
