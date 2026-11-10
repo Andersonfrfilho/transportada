@@ -15,7 +15,8 @@
     "audioTranscription": "Audio transcription",
     "occurrenceWatchers": "Occurrence owners",
     "whatsapp": "WhatsApp",
-    "automations": "Automations"
+    "automations": "Automations",
+    "salespeople": "Salespeople"
   },
   "entryKinds": {
     "title": "Entry kinds",
@@ -959,6 +960,53 @@
       "unauthenticated": "Your session expired. Sign in again.",
       "notFound": "The automation no longer exists.",
       "conflict": "An automation with this name already exists."
+    }
+  },
+  "salespeople": {
+    "title": "Salespeople",
+    "subtitle": "The contractors' salespeople. One salesperson can serve several contractors and, for each, a portfolio of clients of their own.",
+    "loading": "Loading the salespeople…",
+    "retry": "Try again",
+    "empty": "No salesperson registered.",
+    "inactive": "inactive",
+    "clientCount_one": "{{count}} client",
+    "clientCount_other": "{{count}} clients",
+    "edit": "Edit",
+    "new": "New salesperson",
+    "editing": "Edit salesperson",
+    "name": "Name",
+    "email": "Email",
+    "whatsapp": "WhatsApp",
+    "contactHint": "Give at least one: email or WhatsApp (with area code).",
+    "status": "Status",
+    "statusValue": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "linkContractor": "Link contractor",
+    "link": "Link",
+    "unlink": "Unlink",
+    "portfolio": "Portfolio",
+    "portfolioTitle": "Client portfolio",
+    "portfolioLabel": "Client tax IDs",
+    "portfolioHint": "One tax ID per line. Only clients already registered; saving replaces the whole list.",
+    "portfolioInvalid": "Invalid tax ID: {{list}}",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "formError": {
+      "name": "Enter the salesperson's name.",
+      "contactRequired": "Enter the email or the WhatsApp.",
+      "emailFormat": "The email is not valid."
+    },
+    "error": {
+      "failed": "Could not finish. Try again.",
+      "forbidden": "You do not have permission for salespeople.",
+      "invalid": "The data was not accepted. Check the fields.",
+      "unauthenticated": "Your session expired. Sign in again.",
+      "notFound": "The salesperson or the link no longer exists.",
+      "conflict": "A salesperson with that email or WhatsApp already exists.",
+      "unknownClient": "Some tax ID in the portfolio is not a registered client."
     }
   }
 }

@@ -10,3 +10,10 @@
   chave em outra empresa permitida, um vendedor em duas contratantes com carteiras independentes, cliente de outra empresa recusado (422), desvincular leva a
   carteira, empresa alheia não lê nem edita, banco recusa vendedor sem canal.
 - `tsc --noEmit` limpo; `eslint --max-warnings=0` limpo; prettier limpo.
+
+## T1.4 — tela de Vendedores no painel
+
+- Aba **Vendedores** em Configurações (`settings.manage`): lista, cadastro/edição, vincular e desvincular contratante, carteira (um CNPJ por linha, substitui a lista).
+  Componentes do design system (`Select`, `Button`, `Icon`, `Skeleton`), mesmos estilos do painel vizinho (Automações).
+- `apps/frontend-transportada/test/salespeople.contract.test.ts` (7 pass): formulário, cliente HTTP, recusas, registro da aba. Suíte `bun run test` do painel: 1493 pass; `tsc`, eslint e prettier limpos.
+- Prints (claro/escuro, desktop 1440/celular 375, lista e carteira): anexados à entrega.
