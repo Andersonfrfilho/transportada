@@ -1161,3 +1161,16 @@ Dica: o `ls` do Anderson tem alias; use `command ls` ao listar `tmp/ops/saidas/`
 ⚠️ **Eventos do Keycloak seguem desligados:** a conta de serviço da API recebe 403 em `/events/config` (falta `manage-events` do client `realm-management`, ou ligar à mão em _Realm settings → Events_). Sem eles, um 401 com token ainda válido não deixa rastro.
 
 **Bun SQL:** em `Bun.SQL`, lista em `IN` é `in ${sql(arr)}`; `any(${arr})` dá `malformed array literal`.
+
+## 5.26 Veículos com "Peso sem teto de carga" / "Volume sem carroceria cadastrada" (10/11/2026)
+
+Os avisos vêm da lista de viagens (ocupação): `capacity_kg = 0` dá o aviso de peso e `body_type = '00'` fora do
+cavalo dá o de volume (`resolveCapacityUnknownReason`). Dado faltando na ficha, não bug do painel.
+
+- Listar a frota e propor valores (somente leitura): `tmp/ops/producao-veiculos-pendentes.sh` — usa `railway ssh -s api -e production`,
+  script `bun` em base64, `sql.begin('read only')`; propõe por veículo igual (marca+modelo) ou referência do tipo.
+- Corrigir: `tmp/ops/producao-veiculos-corrigir.sh` (prévia por padrão, `--apply` grava em transação; só toca veículo ainda
+  com `body_type='00'` e `capacity_kg=0`; incrementa `version`). Valores aprovados pelo Anderson. Aplicado em 10/11/2026 nas placas
+  FLU7H32, FPA9H77, CAH8I08, FNG3980, FMN6C46 (tipo `other`→`van`), GFT4A58 e RFJ1B74 (tipo `other`→`utility`).
+- ⚠️ Medidas do Besta (CAH8I08) e do Ducato Maxicargo (FNG3980) foram derivadas do volume informado (5,2 m³ e ≈13 m³): conferir com fita.
+- Saídas ficam em `tmp/ops/saidas/veiculos-*.txt`.
