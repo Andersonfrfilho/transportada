@@ -3776,7 +3776,9 @@ function createApplicationRoutes({
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })
   const reprocessImport = createReprocessNfeImportUseCase({ unitOfWork: nfeImportRepository })
-  const previewReprocess = createPreviewNfeImportReprocessUseCase({ repository: nfeImportRepository })
+  const previewReprocess = createPreviewNfeImportReprocessUseCase({
+    repository: nfeImportRepository,
+  })
   const freightRules = createFreightRulesUseCase({
     fingerprintService,
     unitOfWork: freightRepository,
