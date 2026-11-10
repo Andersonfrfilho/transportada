@@ -266,7 +266,7 @@ domínio próprio (cria-se no painel) e carregar segredo (as variáveis viram `p
 bucket em produção lê `docs/runbooks/producao.md` antes e o atualiza depois** (passo novo, comando
 que mudou, erro novo). Scripts que a sessão deixa para o Anderson rodar não fixam caminho do
 repositório (`REPO="${REPO:-$(git rev-parse --show-toplevel)}"`), valem para Arch Linux e vão em
-`/home/miyazaki/Documents/personal/ativada/`. Correção passa por `staging` primeiro; só bug crítico
+`/home/miyazaki/Documents/personal/transportada/tmp/ops/` (saídas em `/home/miyazaki/Documents/personal/transportada/tmp/ops/saidas/`; a pasta `ativada/` é só histórico). Correção passa por `staging` primeiro; só bug crítico
 vai à `main`, por cherry-pick.
 
 ## Deploy trancado por job sem runner
