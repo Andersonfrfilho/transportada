@@ -9,8 +9,8 @@ Modelo por etapa: servidor e migration em Opus; app e painel em Sonnet.
 
 ## Fase 1 — Banco (Opus)
 
-- [ ] T1.1 Contrato da migration (aditiva, rollback) e migration `trip_field_report_holds`.
-- [ ] T1.2 Interruptor por empresa, desligado.
+- [x] T1.1 Contrato da migration (aditiva, rollback) e migration `trip_field_report_holds`.
+- [x] T1.2 Interruptor por empresa, desligado.
 
 ## Fase 2 — Servidor (Opus)
 

@@ -87,6 +87,7 @@ import { companyDriverAllowanceSettings } from './company-driver-allowance-setti
 import { companyDriverReminderSettings } from './company-driver-reminder-settings.schema.js'
 import { driverStopReminders } from './driver-stop-reminder.schema.js'
 import { companyLocationRetentionSettings } from './company-location-retention-settings.schema.js'
+import { companyFieldReportHoldSettings, tripFieldReportHolds } from './field-report-hold.schema.js'
 import { companyBusinessCalendarSettings } from './company-business-calendar-settings.schema.js'
 import { municipalHolidayRules } from './municipal-holiday-rule.schema.js'
 import { stateHolidays } from './state-holiday.schema.js'
@@ -228,6 +229,7 @@ export * from './company-driver-allowance-settings.schema.js'
 export * from './company-driver-reminder-settings.schema.js'
 export * from './driver-stop-reminder.schema.js'
 export * from './company-location-retention-settings.schema.js'
+export * from './field-report-hold.schema.js'
 export * from './company-business-calendar-settings.schema.js'
 export * from './municipal-holiday-rule.schema.js'
 export * from './state-holiday.schema.js'
@@ -332,6 +334,8 @@ export const databaseSchema = {
   companyDriverReminderSettings,
   driverStopReminders,
   companyLocationRetentionSettings,
+  companyFieldReportHoldSettings,
+  tripFieldReportHolds,
   companyBusinessCalendarSettings,
   municipalHolidayRules,
   stateHolidays,
