@@ -31,6 +31,8 @@ const OCCURRENCE_RESOLUTION_RATE_LIMIT = {
 
 const resolveOccurrenceBodySchema = z
   .object({
+    /** Spec 317 (E13): opcional; ausente é concluir como sempre. */
+    driverPayoutReceiptAttachmentId: z.uuid().optional(),
     note: z.string().trim().min(1).max(OCCURRENCE_RESOLUTION_NOTE_MAX_LENGTH),
   })
   .strict()
@@ -40,6 +42,7 @@ export type OccurrenceResolutionRoutesDependencies = {
 }
 
 type ResolveOccurrenceRouteInput = {
+  readonly driverPayoutReceiptAttachmentId?: string
   readonly note: string
   readonly occurrenceId: string
   readonly occurrenceKind: OccurrenceKind
@@ -70,7 +73,14 @@ export function createOccurrenceResolutionRoutes(
         const occurrenceKind = parseOccurrenceKind(pathParameters.kind)
         const occurrenceId = parseUuidPathIdentifier(pathParameters.id ?? '')
         const body = await parseBody(resolveOccurrenceBodySchema, request)
-        return { note: body.note, occurrenceId, occurrenceKind }
+        return {
+          ...(body.driverPayoutReceiptAttachmentId === undefined
+            ? {}
+            : { driverPayoutReceiptAttachmentId: body.driverPayoutReceiptAttachmentId }),
+          note: body.note,
+          occurrenceId,
+          occurrenceKind,
+        }
       },
       pathParameterFormat: 'raw',
       pathname: OCCURRENCE_RESOLUTION_PATH,

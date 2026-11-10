@@ -59,6 +59,8 @@ import {
   isExpressedByStageAndFlow,
   normalizeOccurrenceMoments,
 } from '../domain/occurrence-moment.policy.js'
+import { ReceivingChargeContractorMailNotAllowedError } from '../domain/receiving-charge.error.js'
+import { RECEIVING_CHARGE_STOP_KIND } from '../domain/receiving-charge.policy.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 import type {
   ContractorReplyAlertMode,
@@ -222,6 +224,7 @@ export type CurrentOccurrenceTypeShape = Partial<
     | 'itemsMinimumCount'
     | 'moments'
     | 'stage'
+    | 'stopKind'
   >
 > &
   Pick<OccurrenceTypeRecord, 'itemsMode' | 'redeliveryPolicy'>
@@ -257,6 +260,7 @@ export async function saveOccurrenceTypeWithTemplate(
   assertDeclaredAmountHasItems({ stored, values })
   assertMinWaitExcludesArrivalTime({ stored, values })
   assertContractorScopeValues(values)
+  assertReceivingChargeSendsNoContractorMail({ stored, values })
   await assertContractorTemplateIsUsable({
     companyId: input.companyId,
     templates: input.templates,
@@ -342,7 +346,8 @@ async function readStoredTypeWhenNeeded(
   } = input.values
   const isStoredStateNeeded =
     occurrenceTypeId !== null &&
-    (itemsMode === undefined ||
+    (input.values.emailsContractor === true ||
+      itemsMode === undefined ||
       declaredAmountMode === undefined ||
       declaredAmountScope === undefined ||
       itemsMinimumCount === undefined ||
@@ -353,6 +358,20 @@ async function readStoredTypeWhenNeeded(
   return isStoredStateNeeded
     ? input.findCurrentType({ companyId: input.companyId, occurrenceTypeId })
     : null
+}
+
+/**
+ * Spec 317 (D1, RF7, T7): a cobrança no recebimento é assunto entre transportadora e motorista — nada vai à
+ * contratante. O tipo de parada `unexpected_charge` recusa ligar o aviso automático; o tipo já gravado com ele ligado
+ * (cadastro anterior) não é reescrito, e o aviso nunca sai para parada mesmo assim (`not_document`).
+ */
+function assertReceivingChargeSendsNoContractorMail(params: {
+  readonly stored: CurrentOccurrenceTypeShape | null
+  readonly values: SaveOccurrenceTypeValues
+}): void {
+  if (params.values.emailsContractor !== true) return
+  if (params.stored?.stopKind !== RECEIVING_CHARGE_STOP_KIND) return
+  throw new ReceivingChargeContractorMailNotAllowedError()
 }
 
 type ResolveMomentsChangeParams = {

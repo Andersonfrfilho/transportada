@@ -1100,6 +1100,8 @@ import { createTripStopSchedulesUseCase } from './delivery-clients/application/t
 import { DrizzleTripStopScheduleRepository } from './delivery-clients/infrastructure/drizzle-trip-stop-schedule.repository.js'
 import { DrizzleDeliveryClientRepository } from './delivery-clients/infrastructure/drizzle-delivery-client.repository.js'
 import { createDeliveryClientRoutes } from './delivery-clients/presentation/delivery-client.routes.js'
+import { createDeliveryClientReceivingChargeFlagRoutes } from './delivery-clients/presentation/delivery-client-receiving-charge-flag.routes.js'
+import { DrizzleDeliveryClientReceivingChargeFlagRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-receiving-charge-flag.repository.js'
 import { createFreightRegionRoutes } from './freight-regions/presentation/freight-region.routes'
 import { DrizzleMigrationStatusRepository } from './database/drizzle-migration-status.repository'
 import { HealthService } from './health/health.service'
@@ -3290,7 +3292,15 @@ function createApplicationRoutes({
   })
   const businessCalendarClock = { now: () => new Date() }
   const deliveryChargeRepository = new DrizzleDeliveryChargeRepository(database)
+  const deliveryClientReceivingChargeFlags = new DrizzleDeliveryClientReceivingChargeFlagRepository(
+    database,
+  )
   const occurrenceChargeReport = createOccurrenceChargeReportUseCase({
+    /** Lido na chamada: o `storageGateway` é montado mais abaixo nesta composição. */
+    downloads: {
+      createDownloadUrl: (location) =>
+        createDeliveryProofDownloadGateway({ storage: storageGateway }).createDownloadUrl(location),
+    },
     report: new DrizzleOccurrenceChargeReportRepository(database),
   })
   const deliveryChargeRuleRepository = new DrizzleDeliveryChargeRuleRepository(database)
@@ -3963,7 +3973,6 @@ function createApplicationRoutes({
           locale: NOTIFICATION_DEFAULT_LOCALE,
         } as never),
     }),
-    suggestCharges: suggestDeliveryCharges,
   }
   /** Spec 156 T6/T15: o canhoto do escritório, igual em `field-delivery` e `field-proof`. */
   const officeDeliveryProofAttachment = {
@@ -5443,6 +5452,24 @@ function createApplicationRoutes({
       listPortalUsers: { execute: (input) => contractorPortalBindings.list(input) },
       unbindPortalUser: { execute: (input) => contractorPortalBindings.unbind(input) },
     }),
+    ...createDeliveryClientReceivingChargeFlagRoutes({
+      clearFlag: {
+        execute: (input) =>
+          deliveryClientReceivingChargeFlags.clear({
+            actorUserId: input.context.userId,
+            companyId: input.context.companyId,
+            correlationId: input.correlationId,
+            deliveryClientId: input.deliveryClientId,
+          }),
+      },
+      readFlag: {
+        execute: (input) =>
+          deliveryClientReceivingChargeFlags.read({
+            companyId: input.context.companyId,
+            deliveryClientId: input.deliveryClientId,
+          }),
+      },
+    }),
     ...createDeliveryClientRoutes({
       createClient: { execute: (input) => deliveryClients.create(input) },
       getByTaxId: { execute: (input) => deliveryClients.getByTaxId(input) },
@@ -5806,7 +5833,7 @@ function createApplicationRoutes({
             deliveryProofRepository.resolveProofFieldSettings(settings),
           unitOfWork: driverFieldReports,
         }),
-      /** Spec 156 T15 M5: o mesmo aviso e a mesma sugestão de cobrança da ocorrência do motorista. */
+      /** Spec 156 T15 M5: o mesmo aviso da ocorrência do motorista (spec 317 E10: sem a sugestão de cobrança). */
       reportOccurrence: (input) =>
         reportStopOccurrence({
           ...input,

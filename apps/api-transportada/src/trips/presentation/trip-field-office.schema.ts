@@ -12,6 +12,8 @@ import { ApiError } from '../../shared/api.error.js'
 import { parseBody, parseOptionalBody } from '../../http/request-parsing.service.js'
 import { TRIP_STOP_OCCURRENCE_KINDS } from '../../database/trip.schema.js'
 import { DRIVER_RETURN_REASONS } from '../domain/driver-return-reason.policy.js'
+import type { ReceivingChargeInput } from '../domain/receiving-charge.policy.js'
+import { receivingChargeSchema, toReceivingChargeInput } from './receiving-charge.schema.js'
 
 export const OCCURRENCE_DESCRIPTION_MAX_LENGTH = 500
 
@@ -38,6 +40,11 @@ const occurrenceBodySchema = z.object({
    * tem chegada e o tipo tem espera mínima; descartada quando a parada já tem.
    */
   arrivedAt: z.iso.datetime().optional(),
+  /**
+   * Spec 317 (E3, E4, E11): a cobrança no recebimento lançada pelo escritório — valor, notas e quem pagou. O
+   * escritório não manda foto (não tem o anexo da parada, spec 209), então as vagas não se cobram dele.
+   */
+  receivingCharge: receivingChargeSchema.optional(),
 })
 
 /**
@@ -86,6 +93,7 @@ export type OfficeStopOccurrenceRequest = {
   readonly distanceMeters: number | null
   readonly documentId: string | null
   readonly driverId: string | undefined
+  readonly receivingCharge?: ReceivingChargeInput
 } & (
   | {
       readonly kind: (typeof TRIP_STOP_OCCURRENCE_KINDS)[number]
@@ -104,6 +112,9 @@ export async function parseOfficeStopOccurrenceRequest(
     distanceMeters: body.distanceMeters ?? null,
     documentId: body.documentId ?? null,
     driverId: body.driverId,
+    ...(body.receivingCharge === undefined
+      ? {}
+      : { receivingCharge: toReceivingChargeInput(body.receivingCharge) }),
   }
 
   return 'occurrenceTypeId' in body

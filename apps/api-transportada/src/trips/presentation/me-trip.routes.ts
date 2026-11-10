@@ -41,6 +41,7 @@ import type { ReportStopArrivalResult } from '../application/report-stop-arrival
 import type { ReportStopDepartureResult } from '../application/report-stop-departure.use-case.js'
 import type { CancelStopDepartureResult } from '../application/cancel-stop-departure.use-case.js'
 import type {
+  ReportStopOccurrenceInput,
   ReportStopOccurrenceResult,
   StopOccurrenceReference,
 } from '../application/report-stop-occurrence.use-case.js'
@@ -208,6 +209,10 @@ export type MeTripDependencies = {
         readonly documentId: string | null
         readonly idempotencyKey: string
         readonly location: ReportedLocation | null
+        /** Spec 317 (E1, E2): uma foto por vaga do tipo. */
+        readonly photos?: ReportStopOccurrenceInput['photos']
+        /** Spec 317 (E3, E4, E11): a cobrança no recebimento. */
+        readonly receivingCharge?: ReportStopOccurrenceInput['receivingCharge']
         readonly stopId: string
       },
   ) => Promise<ReportStopOccurrenceResult>

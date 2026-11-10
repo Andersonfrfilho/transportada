@@ -9,6 +9,13 @@ import { DRIVER_RETURN_REASONS } from '../domain/driver-return-reason.policy.js'
 import { type EventClockFields } from '../domain/occurred-at.policy.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import { locationSchema, toReportedLocation } from './reported-location.schema.js'
+import {
+  receivingChargeSchema,
+  stopOccurrencePhotosSchema,
+  toReceivingChargeInput,
+} from './receiving-charge.schema.js'
+import type { ReceivingChargeInput } from '../domain/receiving-charge.policy.js'
+import type { StopOccurrenceSlotPhotoInput } from '../domain/stop-occurrence-photo-slots.policy.js'
 
 /**
  * A chave vem do aparelho e viaja no cabeçalho que o `apis.md` já exige em `POST` que cria recurso.
@@ -98,6 +105,10 @@ const occurrenceBodySchema = z.object({
   arrivedAt: z.iso.datetime().optional(),
   /** Spec 315 (D5): a chegada gravada junto passa pela ordem da parada (spec 294). */
   ...confirmOutOfOrderField,
+  /** Spec 317 (E1, E2): uma foto por vaga do tipo — o upload confirmado da 179, nunca o arquivo. */
+  photos: stopOccurrencePhotosSchema.optional(),
+  /** Spec 317 (E3, E4, E11): a cobrança no recebimento — valor, notas e quem pagou. */
+  receivingCharge: receivingChargeSchema.optional(),
 })
 
 /**
@@ -263,6 +274,8 @@ export type StopOccurrenceRequest = {
   readonly distanceMeters: number | null
   readonly documentId: string | null
   readonly location: ReportedLocation | null
+  readonly photos?: readonly StopOccurrenceSlotPhotoInput[]
+  readonly receivingCharge?: ReceivingChargeInput
 } & EventClockFields &
   (
     | {
@@ -284,6 +297,10 @@ export async function parseStopOccurrenceRequest(request: Request): Promise<Stop
     distanceMeters: body.distanceMeters ?? null,
     documentId: body.documentId ?? null,
     location: toReportedLocation(body.location),
+    ...(body.photos === undefined ? {} : { photos: body.photos }),
+    ...(body.receivingCharge === undefined
+      ? {}
+      : { receivingCharge: toReceivingChargeInput(body.receivingCharge) }),
   }
 
   return 'occurrenceTypeId' in body
