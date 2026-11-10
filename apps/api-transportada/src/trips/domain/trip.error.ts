@@ -1353,6 +1353,62 @@ export class TripOccurrenceNoteRequiredError extends ApiError {
 }
 
 /**
+ * Spec 315 (D3): o tipo de parada exige a localização e o registro chegou sem ponto. Distância e precisão nunca
+ * são porteiro (ADR-0057 §3): só a ausência recusa.
+ */
+export class TripOccurrenceLocationRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_LOCATION_REQUIRED',
+      message: 'This occurrence type requires the location of the stop.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 315 (D10): a espera mínima conta do toque em "Cheguei", então o tipo com espera mínima não pode pedir também o
+ * horário de chegada digitado. Validado sobre o estado resultante do `PUT`; a CHECK do banco é só a rede.
+ */
+export class OccurrenceTypeMinWaitConflictsWithArrivalTimeError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_MIN_WAIT_CONFLICTS_WITH_ARRIVAL_TIME',
+      message: 'A type with a minimum wait after arrival cannot ask for the arrival time.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 315 (D4): a parada não tem "Cheguei", o tipo pede o horário de chegada e o registro não o trouxe. */
+export class TripOccurrenceArrivalTimeRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ARRIVAL_TIME_REQUIRED',
+      message: 'This occurrence type requires the arrival time of the stop.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 315 (D10): a espera mínima depois do "Cheguei" ainda não passou (ou não há "Cheguei"). `availableAt` (ISO)
+ * diz quando abre; nulo é "marque Cheguei primeiro".
+ */
+export class TripOccurrenceMinWaitNotReachedError extends ApiError {
+  public constructor(input: { readonly availableAt: Date | null }) {
+    super({
+      code: 'TRIP_OCCURRENCE_MIN_WAIT_NOT_REACHED',
+      extraBody: {
+        availableAt: input.availableAt === null ? null : input.availableAt.toISOString(),
+      },
+      message: 'This occurrence type opens only after the minimum wait since the arrival.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * Spec 246 (RF8, CA06): o tipo efetivo da nota exige a assinatura de quem recusou e o registro chegou
  * sem ela. Código estável próprio — a tela diz qual dos campos falta. O WhatsApp do motorista não
  * colhe assinatura e devolve este mesmo erro (RF13).

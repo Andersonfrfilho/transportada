@@ -816,6 +816,10 @@ import {
   type AutomaticOccurrenceMailHook,
 } from './occurrence-conversation/application/automatic-occurrence-mail.hook.js'
 import { createSendAutomaticOccurrenceMailUseCase } from './occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
+import { createContractorOccurrenceGroupRepository } from './occurrence-conversation/infrastructure/contractor-occurrence-group.repository.js'
+import { createContractorOccurrenceChannelUseCase } from './occurrence-conversation/application/contractor-occurrence-channel.use-case.js'
+import { DrizzleContractorOccurrenceChannelRepository } from './occurrence-conversation/infrastructure/drizzle-contractor-occurrence-channel.repository.js'
+import { createContractorOccurrenceChannelRoutes } from './occurrence-conversation/presentation/contractor-occurrence-channel.routes.js'
 import {
   createDrizzleOccurrenceConversationUnassignedReader,
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
@@ -1265,7 +1269,26 @@ type NoAttachmentOccurrenceMailInput = {
 function buildSendAutomaticOccurrenceMailUseCase(
   input: NoAttachmentOccurrenceMailInput,
 ): ReturnType<typeof createSendAutomaticOccurrenceMailUseCase> {
+  /**
+   * Spec 318: a contratante com canal de grupo recebe o aviso no grupo do WhatsApp, pelo Evolution da empresa, no
+   * ritmo do número (spec 289) e marcando o número configurado.
+   */
+  const groupSender = createEvolutionDocumentSender({
+    pacer: createEvolutionSendPacer({
+      claimSlot: createDrizzleEvolutionSendSlotClaimer(input.database),
+      maxWaitMs: 60_000,
+    }),
+    repository: new DrizzleWhatsAppEvolutionRepository(input.database),
+    secrets: createWhatsAppEvolutionSecretService({
+      envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
+    }),
+  })
   return createSendAutomaticOccurrenceMailUseCase({
+    group: createContractorOccurrenceGroupRepository({
+      database: input.database,
+      send: ({ body, companyId, groupJid, mentionNumber }) =>
+        groupSender.sendText({ body, companyId, mentionNumber, number: groupJid }),
+    }),
     reader: createAutomaticOccurrenceMailReader(input.database),
     sendMail: buildNoAttachmentOccurrenceMail(input),
   })
@@ -4699,6 +4722,19 @@ function createApplicationRoutes({
       useCase: createDriverWhatsappGroupUseCase({
         listEvolutionGroups: (input) => whatsappEvolution.listGroups(input),
         repository: new DrizzleDriverWhatsappGroupRepository(database),
+      }),
+    }),
+    /** Spec 318 (T6): o canal do aviso de ocorrência da contratante (e-mail ou grupo de WhatsApp). */
+    ...createContractorOccurrenceChannelRoutes({
+      useCase: createContractorOccurrenceChannelUseCase({
+        listEvolutionGroups: (input) => whatsappEvolution.listGroups(input),
+        repository: new DrizzleContractorOccurrenceChannelRepository(database),
+        sendGroupText: ({ body, companyId, groupJid, mentionNumber }) =>
+          createEvolutionDocumentSender({
+            pacer: evolutionSendPacer,
+            repository: whatsappEvolutionRepository,
+            secrets: whatsappEvolutionSecrets,
+          }).sendText({ body, companyId, mentionNumber, number: groupJid }),
       }),
     }),
     ...createFleetDriverAttachmentRoutes({

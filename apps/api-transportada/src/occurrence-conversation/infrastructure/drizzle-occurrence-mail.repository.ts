@@ -59,6 +59,7 @@ import {
   blocksContractorMailSend,
 } from '../domain/occurrence-contractor-template.policy.js'
 import { findActiveContractorTemplate } from './notification-template.query.js'
+import { findContractorOccurrenceGroupChannel } from './contractor-occurrence-group.repository.js'
 import { toDisplayPersonName } from '../../shared/person-name.service.js'
 import { resolveSignerJobTitle } from '../domain/occurrence-mail-signer.policy.js'
 import type {
@@ -670,9 +671,17 @@ export function createAutomaticOccurrenceMailReader(
             occurrenceTypeId: type.occurrenceTypeId,
           })
         : []
+      /** Spec 318: o canal da contratante; só lido quando o tipo avisa. */
+      const groupChannel = emailsContractor
+        ? await findContractorOccurrenceGroupChannel(database, {
+            companyId: params.companyId,
+            contractorId: target.contractorId,
+          })
+        : null
       return {
         chosenContactIds,
         emailsContractor,
+        groupChannel,
         isRegisteredBeforeTemplate: planned.isRegisteredBeforeTemplate,
         recipients: contacts.map((contact) => ({
           contactId: contact.id,

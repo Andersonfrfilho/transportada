@@ -33,6 +33,11 @@ const occurrenceBodySchema = z.object({
   distanceMeters: z.int().min(0).nullish(),
   documentId: z.uuid().nullish(),
   driverId: z.uuid().optional(),
+  /**
+   * Spec 315 (D10): a hora exata em que o motorista chegou. Obrigatória (conferida no caso de uso) quando a parada não
+   * tem chegada e o tipo tem espera mínima; descartada quando a parada já tem.
+   */
+  arrivedAt: z.iso.datetime().optional(),
 })
 
 /**
@@ -76,6 +81,7 @@ export async function parseOfficeDriverSelection(
 }
 
 export type OfficeStopOccurrenceRequest = {
+  readonly arrivedAt: Date | undefined
   readonly description: string
   readonly distanceMeters: number | null
   readonly documentId: string | null
@@ -93,6 +99,7 @@ export async function parseOfficeStopOccurrenceRequest(
 ): Promise<OfficeStopOccurrenceRequest> {
   const body = await parseBody(occurrenceSchema, request)
   const common = {
+    arrivedAt: body.arrivedAt === undefined ? undefined : parseDeliveredAt(body.arrivedAt),
     description: body.description ?? '',
     distanceMeters: body.distanceMeters ?? null,
     documentId: body.documentId ?? null,

@@ -53,20 +53,23 @@ parada.
   `arrived`, e a hora do registro vai em `recordedAt` (mesma semântica da chegada informada pelo escritório, spec 156 A1). Passa
   por `performSequencedStopArrival`, então **a ordem da parada (spec 294) vale**: parada fora da ordem responde
   `409 TRIP_STOP_OUT_OF_ORDER` e o app repete com `confirmOutOfOrder`. Canal e autoria seguem os da ocorrência (`driver_app`).
-- **D6 — Validação do horário.** `arrivedAt` é `ISO-8601` com fuso; recusado com `422 TRIP_OCCURRENCE_ARRIVAL_TIME_INVALID`
-  quando é **futuro** (com a tolerância de relógio da 234), **mais velho que `OCCURRENCE_ARRIVAL_MAX_AGE_HOURS` (24 h)** ou
-  **anterior à saída da viagem** (`dispatched_at`). Sem localização do evento de chegada: a chegada herda o `location` da
-  ocorrência quando houver (é o mesmo ponto, mesmo dia).
+- **D6 — Validação do horário (como foi implementado).** `arrivedAt` é `ISO-8601` com fuso e passa pela janela que a
+  chegada informada pelo escritório já usa (spec 156 A1, `assertInformedTimeWithinWindow`): no futuro →
+  `400 ARRIVED_AT_IN_FUTURE`; antes do despacho da viagem → `400 ARRIVED_AT_BEFORE_DISPATCH`. Não há código novo nem teto de
+  idade à parte: o despacho já limita a janela. A chegada gravada **não herda a coordenada** da ocorrência (é de outro
+  momento e criaria sugestão de endereço errada, spec 294 RF14).
 - **D7 — Foto e observação na parada (revoga a D-d da 246 só para `stop`).** O registro de momento `stop` passa a conferir
   `attachment_mode` (+ `photo_minimum_count`) e `note_mode` com o mesmo guarda de `assertDriverOccurrenceRequirements`,
-  recusando com os erros que já existem (`TRIP_OCCURRENCE_ATTACHMENT_REQUIRED`, `…_PHOTO_MINIMUM_NOT_MET`,
+  recusando, **só no canal do motorista** (o escritório não tem o anexo da parada, spec 209), com os erros que já existem (`TRIP_OCCURRENCE_ATTACHMENT_REQUIRED`, `…_PHOTO_MINIMUM_NOT_MET`,
   `…_NOTE_REQUIRED`). A foto da parada pode chegar **depois** pela fila (spec 209 RF3): o servidor cobra a **referência**
   (`attachmentObjectId` presente) no registro, como o registro por nota faz. Tipo de parada hoje com `attachment_mode =
 'required'` (cadastro antigo) passa a ser cobrado — **T1 mede em staging quantos tipos ativos mudam de comportamento antes de
   qualquer deploy**.
-- **D8 — Um resolvedor só.** `resolveOccurrenceRequirements` ganha `locationMode` e `arrivalTimeMode` e continua sendo a fonte
-  nas três apps (API, painel, app do motorista). O snapshot do motorista entrega os dois modos já resolvidos; o app não reimplementa
-  regra (contrato de tabela espelhada, skill `contrato-de-paridade`).
+- **D8 — Os campos novos são só do tipo, e o app lê o que o servidor entrega.** Localização, horário de chegada e espera
+  mínima não têm exceção por contratante/destinatário, então **não entram** em `resolveOccurrenceRequirements` (que é
+  camadas tipo → exceções). O servidor os cobra de `stop-occurrence-requirements.policy.ts`, e a lista de tipos do motorista
+  (`FieldOccurrenceType`) os entrega prontos (`locationMode`, `arrivalTimeMode`, `minWaitAfterArrivalMinutes`). O app não
+  reimplementa regra: lê o modo e a espera, e o contrato de paridade (T8) prende os nomes e valores nas três apps.
 - **D9 — Publicação em etapas (ADR-0081 §9).** Painel tolerante (lê os campos novos, ignora ausência) → API (migration, cobrança
   e snapshot) → app do motorista (tela). Como o default é `off`, **nenhum tipo passa a exigir antes do app novo estar no
   aparelho**: o script de configuração da staging é o último passo, e a `main` só recebe depois de o app estar publicado.

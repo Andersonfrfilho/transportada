@@ -33,6 +33,9 @@ const TYPE: OccurrenceType = {
 }
 
 const NEW_FIELD_KEYS = [
+  'arrivalTimeMode',
+  'locationMode',
+  'minWaitAfterArrivalMinutes',
   'declaredAmountLabel',
   'declaredAmountMode',
   'declaredAmountScope',

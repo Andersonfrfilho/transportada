@@ -28,8 +28,9 @@ O negócio confirmou (Anderson, 10/11/2026) o desenho abaixo. Resultado:
   não vai direto à contratante" é comum, e aqui vale apenas para a cobrança no recebimento.
 - Gerar o lote/fatura ao contratante a partir da linha: continua o fluxo de Ressarcimentos já existente
   (spec 164), sem mudança.
-- Pagar ou reembolsar o motorista pelo sistema: o PIX do motorista só é **coletado e mostrado** ao
-  escritório (E11); a página de acertos continua cobrando apenas a contratante (E12).
+- Executar o PIX ao motorista pelo sistema: o PIX é **coletado e mostrado**
+  e o comprovante, se o atendente enviar, chega ao motorista (E11, E13); quem faz a transferência é o atendente fora do
+  sistema. A página de acertos cobra apenas a contratante (E12).
 - Reconhecer o valor por OCR do comprovante.
 - Tipos de **nota** (galpão/rua): continuam com a foto sem rótulo da 161/246.
 
@@ -56,26 +57,36 @@ O negócio confirmou (Anderson, 10/11/2026) o desenho abaixo. Resultado:
 - E3. **Valor pago** vira coluna `declared_amount numeric(14,4)` em `trip_stop_occurrences`, obrigatória
   para este tipo (usa o mesmo resolvedor da 247: `declared_amount_mode = required`, `0` é valor e não
   vazio; `bigint`/string, nunca float; valor **nunca** vem do payload de preço de item).
-- E4. **Escopo da cobrança: uma nota ou todas** (decisão do Anderson, 10/11). O motorista escolhe no
-  mesmo lugar onde a tela de cobranças já permite adicionar "cobrança por nota" ou "cobrança para todas
-  as notas": uma nota da parada, ou todas as notas da parada (um valor só). Parada com uma só nota
-  assume essa nota sem perguntar. O servidor confere que a(s) nota(s) pertencem à parada e à viagem
-  (`companyId` do contexto, nunca do payload).
+- E4. **Uma linha por nota ou uma linha para várias notas** (decisão do Anderson, 10/11, refinada). O
+  motorista escolhe o modo no formulário, no mesmo espírito da tela de cobranças que já permite
+  cobrança por nota ou para todas:
+  - **por nota** (`one_per_document`): marca as notas e informa o valor de **cada uma**; nasce uma
+    linha por nota, cada uma com o valor dela;
+  - **agrupada** (`grouped`): marca uma ou mais notas e informa **um valor só**; nasce uma linha, ligada
+    às notas pela tabela `delivery_charge_documents`.
+
+  Parada com uma só nota assume essa nota sem perguntar. O servidor confere que as notas pertencem à
+  parada e à viagem (`companyId` do contexto, nunca do payload). `declared_amount` da ocorrência é o
+  total (soma das linhas), calculado no servidor.
+
 - E5. A linha nasce em `delivery_charges` com `charge_type = 'receiving_charge'` (novo valor do enum),
   `origin = 'occurrence'`, `status = 'recorded'` (já é gente conferindo, como o ADR-0048 §5 aplicado na
-  164), `trip_id`, `trip_document_id` (nulo quando o escopo é "todas as notas", com
-  `applies_to_all_documents = true`), `delivery_client_id`, `contractor_id` resolvidos da nota,
+  164), `trip_id`, `trip_document_id` (a nota da linha por nota; nulo na linha agrupada,
+  com `grouped_documents = true` e as notas em `delivery_charge_documents`), `delivery_client_id`, `contractor_id` resolvidos da nota,
   `amount` = valor pago, e uma nova coluna `stop_occurrence_id` (FK para `trip_stop_occurrences`); cliente e contratante vêm da parada.
   `occurrence_id` segue sendo só de `trip_document_occurrences`. O comprovante principal também é
   gravado em `proof_object_id` (hoje sem escritor).
-- E6. **Idempotência**: um índice único parcial em `stop_occurrence_id` garante uma linha por
-  ocorrência; reenviar o registro (fila offline do motorista repete) não duplica.
+- E6. **Idempotência**: índice único parcial em (`stop_occurrence_id`, `trip_document_id`) para linhas
+  por nota, e em `stop_occurrence_id` para a linha agrupada (`trip_document_id` nulo); reenviar o
+  registro (a fila offline repete) não duplica linha, vínculo de nota nem foto.
 - E7. **Marca do cliente**: `delivery_clients` ganha `receiving_charge_flagged_at timestamptz` e
   `receiving_charge_source_stop_occurrence_id`. Marca na criação da linha (primeira vez grava;
   repetida só atualiza a data). O escritório limpa na ficha do cliente (`delivery.manage`).
-  O selo "Possível cobrança na entrega" aparece **para o escritório** (ficha e lista do cliente, com
-  link para a ocorrência) **e para o motorista** (aviso somente leitura no cartão da parada daquele
-  cliente, lido do servidor). Só o escritório limpa. Não cria regra recorrente sozinha.
+  O selo "Possível cobrança na entrega" aparece sempre **para o escritório** (ficha e lista do cliente,
+  com link para a ocorrência). **Para o motorista é configurável** (decisão do Anderson, 10/11): coluna
+  `show_client_charge_seal_to_driver boolean` (padrão `true`) no tipo, editada na aba Tipos de
+  `/ocorrencias`; ligada, o cartão da parada daquele cliente mostra um aviso somente leitura lido do
+  servidor. Só o escritório limpa. Não cria regra recorrente sozinha.
 - E8. Sem parada com nota resolvível (parada sem nota, nota inexistente) o registro **é recusado** `422`
   `STOP_OCCURRENCE_DOCUMENT_REQUIRED` neste tipo: sem nota não há cliente nem contratante, e a linha nunca nasce sem eles.
   (A ocorrência de parada sem nota dos outros tipos não muda.)
@@ -90,8 +101,15 @@ O negócio confirmou (Anderson, 10/11/2026) o desenho abaixo. Resultado:
   `driver_pix_key_type`. O PIX aparece ao escritório na linha de Ressarcimentos, só para quem tem
   `trip.financials`, e nunca vai em e-mail, log ou resposta ao app de outro motorista.
 - E12. **Só a contratante é cobrada na página existente** (decisão do Anderson, 10/11): a linha
-  `receiving_charge` entra no mesmo fluxo de lote/cobrança da 164. Devolver o dinheiro ao motorista
-  fica fora do sistema por ora; o escritório usa o PIX mostrado.
+  `receiving_charge` entra no mesmo fluxo de lote/cobrança da 164. O motorista **não** é cobrado nem
+  ressarcido por esta página.
+- E13. **O atendente conclui a ocorrência e, se quiser, envia o comprovante do PIX ao motorista**
+  (decisão do Anderson, 10/11). Concluir **não é bloqueado**: marcar como concluída (spec 266,
+  `occurrences.resolve`) funciona com ou sem comprovante. Quando `paid_by = driver`, a tela de concluir
+  mostra o valor e o PIX do motorista e oferece o campo **opcional** "Comprovante do PIX": se anexado,
+  é guardado em `trip_stop_occurrences.driver_payout_receipt_object_id` (com `driver_payout_sent_at` e
+  `driver_payout_sent_by_user_id`) e **enviado ao motorista** no chat da ocorrência (a conversa da 183
+  que o motorista já lê pela 266), com o aviso de sempre. O sistema não executa o PIX.
 
 ## Histórias priorizadas
 
@@ -104,8 +122,8 @@ pagamento, cada uma com seu rótulo, e só deixa enviar com as duas e o valor.
 
 **Given** uma parada com duas ou mais notas
 **When** o motorista registra a cobrança
-**Then** o formulário pergunta se é por uma nota (e qual) ou para todas as notas da parada, e a linha em
-Ressarcimentos fica no escopo escolhido.
+**Then** o formulário oferece **uma linha por nota** (valor de cada uma) ou **uma linha para várias
+notas** (um valor só), e Ressarcimentos recebe as linhas conforme a escolha.
 
 ### P1 — O escritório vê a cobrança em Ressarcimentos
 
@@ -128,12 +146,20 @@ no lote ao contratante quando o escritório a incluir (fluxo da 164).
 **Then** o formulário pede a chave PIX dele (pré-preenchida se cadastrada), e o escritório vê o PIX
 na linha de Ressarcimentos; se a empresa pagou, o PIX não é pedido.
 
+### P1 — O atendente conclui e pode enviar o comprovante do PIX
+
+**Given** uma cobrança paga pelo motorista
+**When** o atendente vai resolver a ocorrência
+**Then** a tela mostra o valor e o PIX do motorista, deixa concluir a qualquer momento e oferece anexar
+o comprovante do PIX (opcional), que chega ao motorista no chat da ocorrência.
+
 ### P2 — O cliente fica marcado
 
 **Given** a cobrança registrada
 **When** o escritório abre a ficha do cliente, ou o motorista abre a parada do mesmo cliente
-**Then** o selo "Possível cobrança na entrega" aparece (data e link da ocorrência para o escritório,
-aviso somente leitura para o motorista), e só o escritório pode limpar.
+**Then** o selo "Possível cobrança na entrega" aparece para o escritório (data e link da ocorrência) e,
+se o tipo estiver configurado para mostrar ao motorista, como aviso somente leitura para ele; só o
+escritório limpa.
 
 ### P2 — Reenvio da fila não duplica
 
@@ -145,11 +171,17 @@ aviso somente leitura para o motorista), e só o escritório pode limpar.
 
 - RF1. Migration aditiva (nada destrutivo, com rollback): enum `delivery_charge_type` ganha
   `receiving_charge`; `delivery_charges` ganha `stop_occurrence_id` (FK, nulo, único parcial) e
-  `applies_to_all_documents`; CHECK que amarra `receiving_charge`, `stop_occurrence_id`,
-  `origin = 'occurrence'` e (`trip_document_id` não nulo ou `applies_to_all_documents`);
+  `grouped_documents`; tabela `delivery_charge_documents`; CHECK que amarra `receiving_charge`,
+  `stop_occurrence_id`, `origin = 'occurrence'` e (`trip_document_id` não nulo ou `grouped_documents`);
+  colunas `driver_payout_receipt_object_id`, `driver_payout_sent_at` e `driver_payout_sent_by_user_id` em `trip_stop_occurrences`; `company_occurrence_types.show_client_charge_seal_to_driver`;
   `trip_stop_occurrences` ganha `declared_amount`, `paid_by`, `driver_pix_key` e `driver_pix_key_type`
   (PIX obrigatório com `paid_by = driver`); tabelas `company_occurrence_type_photo_slots` e
   `trip_stop_occurrence_photos`; colunas da marca em `delivery_clients`.
+- RF12. Ao concluir ocorrência de parada com `paid_by = driver`, o comprovante do PIX é **opcional**
+  (`driver_payout_receipt_object_id`): sem ele a conclusão funciona igual; com ele, é enviado ao
+  motorista no chat da ocorrência. A chave PIX fica visível só a `trip.financials`.
+- RF13. O editor de tipos grava `show_client_charge_seal_to_driver`; o app do motorista lê o valor do
+  servidor (RF8) e esconde o aviso quando desligado.
 - RF2. Semeadura por empresa: vagas `charge_sign` e `payment_receipt` (ambas `required`) para o tipo de
   `stopKind = unexpected_charge`; `declared_amount_mode = required`; `emails_contractor = false`;
   `contractor_notification_template_key = null`; renomear conforme E9.
@@ -168,7 +200,7 @@ aviso somente leitura para o motorista), e só o escritório pode limpar.
   (validação recusa a combinação para este tipo).
 - RF8. Paridade de exigência nas apps (`contrato-de-paridade`): o app lê do servidor as vagas e o modo do
   valor; o servidor recobra. Nunca reimplementar a precedência no app.
-- RF9. `frontend-driver`: formulário com campo de valor, seletor de escopo/nota (quando >1), "quem pagou" e PIX e uma vaga de foto por
+- RF9. `frontend-driver`: formulário com campo de valor, seletor de modo (por nota/agrupada) e notas (quando >1), "quem pagou" e PIX e uma vaga de foto por
   rótulo, componentes padrão do design system (rótulo em cima, campo/seletor/botões padrão).
 - RF10. `frontend-transportada`: Ressarcimentos mostra as fotos rotuladas; ficha do cliente mostra o selo
   e a ação de limpar; textos em `.locale.json`, componentes do design system.
@@ -211,6 +243,6 @@ aviso somente leitura para o motorista), e só o escritório pode limpar.
 
 ## Dúvidas
 
-Nenhuma aberta. As três dúvidas da primeira versão foram respondidas pelo Anderson em 10/11/2026 e
-estão em E4 (uma nota ou todas), E7/E11 (selo para escritório e motorista; PIX quando o motorista
-pagou) e E12 (só a contratante é cobrada na página existente).
+Nenhuma aberta. Respondidas pelo Anderson em 10/11/2026: uma linha por nota ou agrupada (E4), selo ao
+motorista configurável (E7), só a contratante na página de acertos (E12), comprovante do PIX opcional
+ao concluir (E13).

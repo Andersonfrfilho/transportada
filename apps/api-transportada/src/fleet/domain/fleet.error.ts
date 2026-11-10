@@ -155,6 +155,18 @@ export class FleetDriverWhatsappGroupTakenError extends ApiError {
   }
 }
 
+/** Spec 318 RF5: o grupo já é o canal de aviso de ocorrência de uma contratante. */
+export class FleetDriverWhatsappGroupTakenByContractorError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_DRIVER_WHATSAPP_GROUP_TAKEN_BY_CONTRACTOR',
+      details: [{ field: 'groupJid', message: 'already linked to a contractor' }],
+      message: 'This WhatsApp group is already linked to a contractor',
+      status: 409,
+    })
+  }
+}
+
 export class FleetDriverVersionConflictError extends ApiError {
   public constructor() {
     super({

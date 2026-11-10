@@ -233,6 +233,13 @@ export type OccurrenceTypeRecord = {
    * que ainda não conhecem a tratativa (`findOccurrenceType`, a implementação real, sempre grava).
    */
   readonly redeliveryPolicy?: RedeliveryPolicy
+  /**
+   * Spec 315 (D1, D10): o que o registro de parada pede de localização e de horário de chegada, e a espera mínima
+   * depois do "Cheguei" (nulo/ausente: sem espera). Opcionais só para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly arrivalTimeMode?: DeliveryProofFieldMode
+  readonly locationMode?: DeliveryProofFieldMode
+  readonly minWaitAfterArrivalMinutes?: null | number
   /** Spec 247 (RF1): o número do documento do cliente — modo (`'off'` ausente) e rótulo. */
   readonly referenceNumberLabel?: string
   readonly referenceNumberMode?: DeliveryProofFieldMode

@@ -186,6 +186,7 @@ import {
   contractorMailTemplates,
   contractorMailThreads,
 } from './contractor-mail.schema.js'
+import { contractorOccurrenceChannels } from './contractor-occurrence-channel.schema.js'
 import { whatsappChannels } from './whatsapp-channel.schema.js'
 import { whatsappEvolutionSettings } from './whatsapp-evolution.schema.js'
 import {
@@ -302,6 +303,7 @@ export * from './contractor-recipient-alias.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
 export * from './contractor-mail.schema.js'
+export * from './contractor-occurrence-channel.schema.js'
 export * from './whatsapp-channel.schema.js'
 export * from './whatsapp-evolution.schema.js'
 export * from './whatsapp-group-request.schema.js'
@@ -464,6 +466,7 @@ export const databaseSchema = {
   storedObjects,
   companyTaxSettings,
   contractorContacts,
+  contractorOccurrenceChannels,
   contractorInboundEmailOutbox,
   contractorMailMessages,
   contractorMailOutbox,

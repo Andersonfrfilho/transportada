@@ -118,6 +118,16 @@ export type OccurrenceTimelineSource =
    */
   | (SourceBase & { readonly kind: 'group.boleto_return'; readonly status: string })
   /**
+   * Spec 318 (RF6): o aviso automático no grupo de WhatsApp da contratante. `status` é `sent`, `email_fallback` (o grupo
+   * falhou e saiu o e-mail de reserva) ou `failed` (nada saiu); `reason` é a falha do grupo. Nunca o grupo, o número
+   * nem o texto.
+   */
+  | (SourceBase & {
+      readonly kind: 'contractor.group.whatsapp'
+      readonly reason: null | string
+      readonly status: string
+    })
+  /**
    * Spec 281 T9: uma tentativa de mandar o boleto ao cliente por WhatsApp (o alvo `client_boleto_whatsapp`). Só o
    * status e o motivo: nunca o número, o texto nem o anexo.
    */
@@ -213,6 +223,7 @@ const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> 
   'contractor.reply.delivery': 5,
   'contractor.reply.document': 5,
   'contractor.reply.driver_read': 5,
+  'contractor.group.whatsapp': 4,
   'group.boleto_return': 5,
   'occurrence.cancelled': 6,
   'occurrence.photo': 1,
@@ -311,6 +322,7 @@ function isKeyEvent(source: OccurrenceTimelineSource): boolean {
   if (source.kind === 'contractor.client.whatsapp') return source.status === 'sent'
   if (source.kind === 'contractor.client.email') return source.status === 'sent'
   if (source.kind === 'group.boleto_return') return source.status === 'posted_to_group'
+  if (source.kind === 'contractor.group.whatsapp') return source.status === 'sent'
   if (source.kind === 'resolution.resolved' || source.kind === 'resolution.reopened') return true
   return source.kind === 'case.transition' && source.toStatus === 'decided'
 }
@@ -403,6 +415,7 @@ function stageAfter(
     case 'contractor.reply.driver_read':
     case 'contractor.client.whatsapp':
     case 'contractor.client.email':
+    case 'contractor.group.whatsapp':
     case 'group.boleto_return':
       return undefined
   }

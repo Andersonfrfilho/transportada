@@ -959,6 +959,9 @@ export async function findOccurrenceType(
       photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      arrivalTimeMode: companyOccurrenceTypes.arrivalTimeMode,
+      locationMode: companyOccurrenceTypes.locationMode,
+      minWaitAfterArrivalMinutes: companyOccurrenceTypes.minWaitAfterArrivalMinutes,
       referenceNumberLabel: companyOccurrenceTypes.referenceNumberLabel,
       referenceNumberMode: companyOccurrenceTypes.referenceNumberMode,
       /** Spec 246 (RF1): a exigência da assinatura de quem recusou. */
@@ -1135,6 +1138,9 @@ export async function listOccurrenceTypes(
       notifies: companyOccurrenceTypes.notifies,
       photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      arrivalTimeMode: companyOccurrenceTypes.arrivalTimeMode,
+      locationMode: companyOccurrenceTypes.locationMode,
+      minWaitAfterArrivalMinutes: companyOccurrenceTypes.minWaitAfterArrivalMinutes,
       referenceNumberLabel: companyOccurrenceTypes.referenceNumberLabel,
       referenceNumberMode: companyOccurrenceTypes.referenceNumberMode,
       signatureMode: companyOccurrenceTypes.signatureMode,
@@ -1515,6 +1521,10 @@ async function writeOccurrenceTypeRow(
      * (`'unset'`) e o UPDATE omite a coluna, como `attachmentMode`.
      */
     readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+    /** Spec 315 (D1, D10): ausente é "não mexa"; a espera mínima `null` a limpa. */
+    readonly arrivalTimeMode?: DeliveryProofFieldMode | undefined
+    readonly locationMode?: DeliveryProofFieldMode | undefined
+    readonly minWaitAfterArrivalMinutes?: null | number | undefined
     readonly referenceNumberLabel?: string | undefined
     readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
     /** Spec 246 (RF1): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'off'`). */
@@ -1559,6 +1569,11 @@ async function writeOccurrenceTypeRow(
     ...(input.referenceNumberMode === undefined
       ? {}
       : { referenceNumberMode: input.referenceNumberMode }),
+    ...(input.arrivalTimeMode === undefined ? {} : { arrivalTimeMode: input.arrivalTimeMode }),
+    ...(input.locationMode === undefined ? {} : { locationMode: input.locationMode }),
+    ...(input.minWaitAfterArrivalMinutes === undefined
+      ? {}
+      : { minWaitAfterArrivalMinutes: input.minWaitAfterArrivalMinutes }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
     ...(input.contractorReplyAlertIntervalMinutes === undefined
       ? {}
@@ -1727,6 +1742,9 @@ async function writeOccurrenceTypeRow(
     notifies: saved.notifies,
     photoMinimumCount: saved.photoMinimumCount,
     redeliveryPolicy: saved.redeliveryPolicy,
+    arrivalTimeMode: saved.arrivalTimeMode,
+    locationMode: saved.locationMode,
+    minWaitAfterArrivalMinutes: saved.minWaitAfterArrivalMinutes,
     referenceNumberLabel: saved.referenceNumberLabel,
     referenceNumberMode: saved.referenceNumberMode,
     signatureMode: saved.signatureMode,

@@ -10,6 +10,10 @@ import {
   fleetDriverWhatsappGroups,
 } from '../../database/database.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
+import {
+  findWhatsappGroupContractorOwner,
+  lockWhatsappGroupIdentity,
+} from '../../database/whatsapp-group-identity.support.js'
 import type {
   DriverWhatsappGroup,
   DriverWhatsappGroupActor,
@@ -18,6 +22,7 @@ import type {
 } from '../application/driver-whatsapp-group.port.js'
 import {
   FleetDriverNotFoundError,
+  FleetDriverWhatsappGroupTakenByContractorError,
   FleetDriverWhatsappGroupTakenError,
 } from '../domain/fleet.error.js'
 
@@ -139,6 +144,12 @@ export class DrizzleDriverWhatsappGroupRepository implements DriverWhatsappGroup
           .for('update')
           .limit(1)
         if (driver === undefined) throw new FleetDriverNotFoundError()
+
+        // Spec 318 RF5: o grupo da contratante também é identidade; a trava serializa com a escrita do canal dela.
+        await lockWhatsappGroupIdentity(transaction, input)
+        if ((await findWhatsappGroupContractorOwner(transaction, input)) !== null) {
+          throw new FleetDriverWhatsappGroupTakenByContractorError()
+        }
 
         const [owner] = await transaction
           .select({ driverId: fleetDriverWhatsappGroups.driverId })
