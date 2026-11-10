@@ -21,10 +21,10 @@ novo. O que foi tentado e não funcionou entra na seção "Erros que não devem 
    letras (ver `producao-env-storage.sh` abaixo). Chaves se leem de dentro do script, em variável.
 3. **Quando a sessão não consegue sozinha** (sem `railway` logado, sem acesso à produção), ela deixa
    um script `.sh` pronto, com tudo (inclusive o `railway ssh` e a consulta), em
-   `/home/miyazaki/Documents/personal/ativada/` e passa só `bash /home/miyazaki/Documents/personal/ativada/<nome>.sh`.
+   `/home/miyazaki/Documents/personal/transportada/tmp/ops/` e passa só `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/<nome>.sh`.
    Nunca passar caminho que não exista na máquina dele.
    **Saída grande vai para arquivo**: o script grava a saída completa em
-   `/home/miyazaki/Documents/personal/ativada/saidas/<nome>-<data>.json` e imprime só o caminho, para o Anderson não
+   `/home/miyazaki/Documents/personal/transportada/tmp/ops/saidas/<nome>-<data>.json` e imprime só o caminho, para o Anderson não
    copiar logs; a sessão lê o arquivo direto (`device_stage_files`).
 4. **Scripts não assumem onde o repositório está.** Use `REPO="${REPO:-$(git rev-parse --show-toplevel)}"`
    e aborte com mensagem clara se não achar `.github/scripts/railway-deploy.sh`. Nada de
