@@ -1097,12 +1097,22 @@ export type TripFilters = Readonly<{
 export type TripPage = Readonly<{
   items: readonly Trip[]
   nextCursor: null | string
+  /** Cursor para voltar uma página; `null` na primeira (ou quando a API ainda não o manda). */
+  previousCursor: null | string
+  /** Quantas viagens vêm antes desta página (para numerá-la); `null` com API antiga. */
+  offset: null | number
+  /** Quantas viagens o filtro alcança; `null` com API antiga — aí não há contagem de páginas. */
+  total: null | number
 }>
 
 export type TripListInput = Readonly<{
   cursor: null | string
+  /** `backward` sem cursor é a última página; com cursor, a página anterior a ele. */
+  direction?: 'backward' | 'forward'
   filters?: TripFilters
   limit: number
+  /** Salto para a página N: pula tantas viagens. Não anda junto com `cursor`. */
+  offset?: number
 }>
 
 export type CreateTripBody = Readonly<{

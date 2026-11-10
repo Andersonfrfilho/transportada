@@ -913,7 +913,15 @@ export function createTripRoutes(
           ...(trip.occupancy === undefined ? {} : { occupancy: trip.occupancy }),
         }))
         return jsonResponse({
-          body: { data, page: { nextCursor: page.nextCursor } },
+          body: {
+            data,
+            page: {
+              nextCursor: page.nextCursor,
+              offset: page.offset ?? null,
+              previousCursor: page.previousCursor ?? null,
+              total: page.total ?? null,
+            },
+          },
           status: 200,
         })
       },

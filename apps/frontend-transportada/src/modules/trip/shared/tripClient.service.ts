@@ -613,11 +613,18 @@ function officeDriverSelectionBody(driverId: string | undefined): Readonly<{ bod
 }
 
 function buildSearch(
-  input: Readonly<{ cursor: null | string; limit: number }>,
+  input: Readonly<{
+    cursor: null | string
+    direction?: 'backward' | 'forward'
+    limit: number
+    offset?: number
+  }>,
   filters: Readonly<Record<string, string | undefined>>,
 ): string {
   const search = new URLSearchParams()
   if (input.cursor !== null) search.set('cursor', input.cursor)
+  if (input.direction === 'backward') search.set('direction', 'backward')
+  if (input.offset !== undefined) search.set('offset', String(input.offset))
   search.set('limit', String(input.limit))
   for (const key of Object.keys(filters).sort()) {
     const value = filters[key]

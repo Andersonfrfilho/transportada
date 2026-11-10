@@ -1254,7 +1254,12 @@ export function createTripResponseAdapters() {
       if (!isRecord(input) || !Array.isArray(input.data) || !isRecord(input.page)) throw invalid()
       const nextCursor = input.page.nextCursor
       if (!isNullableString(nextCursor)) throw invalid()
-      return { items: input.data.map(tripFromApi), nextCursor }
+      const previousCursor = input.page.previousCursor ?? null
+      if (!isNullableString(previousCursor)) throw invalid()
+      const offset = input.page.offset ?? null
+      const total = input.page.total ?? null
+      if (!isNullableCount(offset) || !isNullableCount(total)) throw invalid()
+      return { items: input.data.map(tripFromApi), nextCursor, offset, previousCursor, total }
     },
   }
 }
@@ -1264,6 +1269,10 @@ export function createTripResponseAdapters() {
  * prévia valida, porque ela desenha a partir do que chega e um `rows` estranho viraria um baú com
  * fileiras sem dono em vez de um erro.
  */
+function isNullableCount(value: unknown): value is null | number {
+  return value === null || (typeof value === 'number' && Number.isInteger(value) && value >= 0)
+}
+
 function isCargoLayout(value: unknown): boolean {
   if (!isRecord(value)) return false
   return (

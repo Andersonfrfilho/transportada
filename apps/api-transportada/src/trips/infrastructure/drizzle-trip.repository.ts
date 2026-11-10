@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, desc, eq, inArray, ne, notInArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, ne, notInArray, isNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
@@ -987,13 +987,17 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   public async list(input: {
     readonly companyId: string
     readonly cursor: string | null
+    readonly direction?: 'backward' | 'forward'
     readonly filters?: TripFilters
     readonly limit: number
+    readonly offset?: number
   }): Promise<TripPage> {
     const cursor = decodeKeysetCursor(input.cursor)
+    const isBackward = input.direction === 'backward'
     const conditions = buildTripListFilters({
       companyId: input.companyId,
       cursor,
+      direction: isBackward ? 'backward' : 'forward',
       ...(input.filters === undefined ? {} : { filters: input.filters }),
     })
 
@@ -1001,15 +1005,70 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       .select()
       .from(trips)
       .where(and(...conditions))
-      .orderBy(desc(trips.createdAt), desc(trips.id))
+      .orderBy(
+        ...(isBackward
+          ? [asc(trips.createdAt), asc(trips.id)]
+          : [desc(trips.createdAt), desc(trips.id)]),
+      )
       .limit(input.limit + 1)
+      .offset(input.offset ?? 0)
 
-    const page = records.slice(0, input.limit)
+    /**
+     * Voltar lê as mais novas em ordem crescente e inverte no fim: a tela sempre recebe a página na
+     * ordem de sempre (mais nova primeiro). Sem cursor, `backward` é a última página.
+     */
+    const hasMore = records.length > input.limit
+    const slice = records.slice(0, input.limit)
+    const page = isBackward ? slice.reverse() : slice
+    const first = page.at(0)
     const last = page.at(-1)
-    const nextCursor =
-      records.length > input.limit && last !== undefined
-        ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })
+    const keyOf = (record: { readonly createdAt: Date; readonly id: string }): string =>
+      encodeKeysetCursor({ createdAt: record.createdAt, id: record.id })
+    const nextCursor = isBackward
+      ? cursor !== null && last !== undefined
+        ? keyOf(last)
         : null
+      : hasMore && last !== undefined
+        ? keyOf(last)
+        : null
+    const previousCursor = isBackward
+      ? hasMore && first !== undefined
+        ? keyOf(first)
+        : null
+      : (cursor !== null || (input.offset ?? 0) > 0) && first !== undefined
+        ? keyOf(first)
+        : null
+
+    /**
+     * Para numerar a página: quantas viagens (mesmos filtros) são **mais novas** que a primeira
+     * desta página, e quantas o filtro alcança no total. Duas contagens por listagem — o volume de
+     * viagens de uma transportadora não pede mais que isso.
+     */
+    const filterScope = {
+      companyId: input.companyId,
+      ...(input.filters === undefined ? {} : { filters: input.filters }),
+    }
+    const [totalRow] = await this.database
+      .select({ total: count() })
+      .from(trips)
+      .where(and(...buildTripListFilters({ ...filterScope, cursor: null })))
+    const offset =
+      first === undefined
+        ? 0
+        : ((
+            await this.database
+              .select({ newer: count() })
+              .from(trips)
+              .where(
+                and(
+                  ...buildTripListFilters({
+                    ...filterScope,
+                    cursor: { createdAt: first.createdAt, id: first.id },
+                    direction: 'backward',
+                  }),
+                ),
+              )
+          )[0]?.newer ?? 0)
 
     /**
      * Uma consulta para a página inteira, nunca uma por linha: quem lê a listagem quer saber **quem
@@ -1034,6 +1093,9 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         estimatedFinishAt: finishByTrip.get(record.id) ?? null,
       })),
       nextCursor,
+      offset,
+      previousCursor,
+      total: totalRow?.total ?? 0,
     }
   }
 

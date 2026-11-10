@@ -81,6 +81,8 @@ export type GetTripInput = {
 export type ListTripsInput = {
   readonly context: TripCompanyContext
   readonly cursor: string | null
+  readonly direction?: 'backward' | 'forward'
+  readonly offset?: number
   readonly filters?: TripFilters
   /**
    * Spec 259: custo e margem só se calculam para quem pode vê-los (`trip.financials`). Ausente é
@@ -318,10 +320,12 @@ export function createTripUseCase(dependencies: {
       return { link, trip: await findTripOrThrow({ companyId, repository, tripId }) }
     },
 
-    async list({ context, cursor, filters, includeFinancials, limit }) {
+    async list({ context, cursor, direction, filters, includeFinancials, limit, offset }) {
       const page = await repository.list({
         companyId: context.companyId,
         cursor,
+        ...(direction === undefined ? {} : { direction }),
+        ...(offset === undefined ? {} : { offset }),
         ...(filters === undefined ? {} : { filters }),
         limit,
       })

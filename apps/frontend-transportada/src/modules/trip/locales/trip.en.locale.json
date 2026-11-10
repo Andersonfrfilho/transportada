@@ -388,6 +388,11 @@
     "status": "Status",
     "vehicleId": "Vehicle"
   },
+  "columnsMenu": {
+    "moveDown": "Move the column down",
+    "moveUp": "Move the column up",
+    "title": "Columns"
+  },
   "contact": {
     "contractor": "Contractor: {{name}}",
     "phone": "Phone: {{phone}}",
@@ -1656,7 +1661,12 @@
     }
   },
   "pagination": {
+    "first": "First page",
+    "goTo": "Go to page {{page}}",
+    "last": "Last page",
     "next": "Next page",
+    "pageSize": "Trips per page",
+    "position": "Page {{current}} of {{count}}",
     "previous": "Previous page"
   },
   "proposal": {
