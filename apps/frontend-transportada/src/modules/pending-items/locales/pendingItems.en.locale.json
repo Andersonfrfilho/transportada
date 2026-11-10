@@ -41,6 +41,11 @@
     "received": "Arrived on {{moment}}",
     "probableDuplicate": "Probably a duplicate: a similar occurrence already exists on this invoice.",
     "release": "Release",
-    "discard": "Discard"
+    "discard": "Discard",
+    "setting": {
+      "label": "Hold driver-app occurrences from another day",
+      "help": "Off, everything the driver app sends goes in at once. On, an occurrence tapped on another day (more than 3 hours before arriving) waits here for your decision.",
+      "error": "Could not read or save this setting."
+    }
   }
 }

@@ -11,6 +11,8 @@ import {
 
 const FIELD_REPORT_HOLDS_QUERY_KEY = 'field-report-holds'
 const RESOLVE_PERMISSION = 'occurrences.resolve'
+const SETTINGS_PERMISSION = 'settings.manage'
+const SETTINGS_QUERY_KEY = 'field-report-hold-settings'
 
 export function useFieldReportHolds(
   input: Readonly<{ companyId?: string; permissions: readonly string[] }>,
@@ -30,5 +32,26 @@ export function useFieldReportHolds(
     onSettled: () => queryClient.invalidateQueries({ queryKey }),
   })
 
-  return { canDecide, decisionMutation, holds: listQuery.data ?? [], listQuery }
+  const canManageSettings =
+    input.companyId !== undefined && input.permissions.includes(SETTINGS_PERMISSION)
+  const settingsKey = [SETTINGS_QUERY_KEY, input.companyId]
+  const settingsQuery = useQuery({
+    enabled: canManageSettings,
+    queryFn: () => client.readSettings(),
+    queryKey: settingsKey,
+  })
+  const settingsMutation = useMutation({
+    mutationFn: (enabled: boolean) => client.saveSettings(enabled),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKey }),
+  })
+
+  return {
+    canDecide,
+    canManageSettings,
+    decisionMutation,
+    holds: listQuery.data ?? [],
+    listQuery,
+    settingsMutation,
+    settingsQuery,
+  }
 }

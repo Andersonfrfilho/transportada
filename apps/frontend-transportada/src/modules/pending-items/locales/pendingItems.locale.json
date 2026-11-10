@@ -41,6 +41,11 @@
     "received": "Chegou em {{moment}}",
     "probableDuplicate": "Provável duplicada: já existe ocorrência parecida nesta nota.",
     "release": "Liberar",
-    "discard": "Descartar"
+    "discard": "Descartar",
+    "setting": {
+      "label": "Reter ocorrências do app de outro dia",
+      "help": "Desligado, tudo que o app do motorista envia entra na hora. Ligado, a ocorrência cujo toque foi de outro dia (mais de 3 horas antes de chegar) espera aqui a sua decisão.",
+      "error": "Não foi possível ler ou salvar esta configuração."
+    }
   }
 }

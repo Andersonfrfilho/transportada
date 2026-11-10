@@ -20,9 +20,13 @@ type Dependencies = Readonly<{
   getAccessToken: () => Promise<string>
 }>
 
+export type FieldReportHoldSettings = Readonly<{ enabled: boolean }>
+
 export type FieldReportHoldsClient = Readonly<{
   decide: (input: Readonly<{ decision: FieldReportHoldDecision; id: string }>) => Promise<void>
   list: () => Promise<readonly FieldReportHold[]>
+  readSettings: () => Promise<FieldReportHoldSettings>
+  saveSettings: (enabled: boolean) => Promise<FieldReportHoldSettings>
 }>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -60,11 +64,22 @@ export function parseFieldReportHolds(payload: unknown): readonly FieldReportHol
   return holds
 }
 
+export function parseFieldReportHoldSettings(payload: unknown): FieldReportHoldSettings {
+  if (!isRecord(payload) || !isRecord(payload.data) || typeof payload.data.enabled !== 'boolean') {
+    throw new Error('FIELD_REPORT_HOLDS_INVALID_RESPONSE')
+  }
+  return { enabled: payload.data.enabled }
+}
+
 export function createFieldReportHoldsClient(dependencies: Dependencies): FieldReportHoldsClient {
-  async function call(method: 'GET' | 'POST', path: string): Promise<unknown> {
+  async function call(
+    method: 'GET' | 'POST' | 'PUT',
+    path: string,
+    body: string = '{}',
+  ): Promise<unknown> {
     const accessToken = await dependencies.getAccessToken()
     const headers: Record<string, string> = { authorization: `Bearer ${accessToken}` }
-    if (method === 'POST') headers['content-type'] = 'application/json'
+    if (method !== 'GET') headers['content-type'] = 'application/json'
     let response: Response
     try {
       response = await dependencies.fetch(
@@ -72,7 +87,7 @@ export function createFieldReportHoldsClient(dependencies: Dependencies): FieldR
           cache: 'no-store',
           headers,
           method,
-          ...(method === 'POST' ? { body: '{}' } : {}),
+          ...(method === 'GET' ? {} : { body }),
         }),
       )
     } catch {
@@ -89,6 +104,14 @@ export function createFieldReportHoldsClient(dependencies: Dependencies): FieldR
   return {
     async decide(input) {
       await call('POST', `/field-report-holds/${encodeURIComponent(input.id)}/${input.decision}`)
+    },
+    async readSettings() {
+      return parseFieldReportHoldSettings(await call('GET', '/company-settings/field-report-hold'))
+    },
+    async saveSettings(enabled) {
+      return parseFieldReportHoldSettings(
+        await call('PUT', '/company-settings/field-report-hold', JSON.stringify({ enabled })),
+      )
     },
     async list() {
       return parseFieldReportHolds(await call('GET', '/field-report-holds'))
