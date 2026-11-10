@@ -100,9 +100,28 @@ export function cteAuthorizedExpression(): SQL {
 }
 
 function buildCursorCondition(cursor: KeysetCursor, direction: TripListDirection): SQL {
-  const before = direction === 'forward' ? lt : gt
+  if (direction === 'backward') return buildNewerThanCursorCondition(cursor)
   return or(
-    before(trips.createdAt, cursor.createdAt),
-    and(eq(trips.createdAt, cursor.createdAt), before(trips.id, cursor.id)),
+    lt(trips.createdAt, cursor.createdAt),
+    and(eq(trips.createdAt, cursor.createdAt), lt(trips.id, cursor.id)),
+  ) as SQL
+}
+
+/**
+ * ⚠️ O cursor carrega o `created_at` em **milissegundos** (é um `Date`), e a coluna guarda
+ * microssegundos. Comparar `created_at > cursor` fazia a própria linha do cursor contar como "mais
+ * nova" que ela mesma (`.123456 > .123`): a página de volta repetia a linha e a posição saía uma a
+ * mais. Por isso o "mais novo" olha o milissegundo inteiro: o milissegundo seguinte em diante, ou o
+ * mesmo milissegundo com id maior.
+ */
+function buildNewerThanCursorCondition(cursor: KeysetCursor): SQL {
+  const nextMillisecond = new Date(cursor.createdAt.getTime() + 1)
+  return or(
+    gte(trips.createdAt, nextMillisecond),
+    and(
+      gte(trips.createdAt, cursor.createdAt),
+      lt(trips.createdAt, nextMillisecond),
+      gt(trips.id, cursor.id),
+    ),
   ) as SQL
 }
