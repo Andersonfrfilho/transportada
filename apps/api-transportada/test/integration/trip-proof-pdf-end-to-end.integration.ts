@@ -256,8 +256,10 @@ describe('o PDF de canhotos pelo caminho HTTP inteiro (spec 253 T2.4)', () => {
 
         const { text } = await readPdfText(response)
         expect(text).toContain('12345')
-        expect(text).toContain('777')
-        expect(text).not.toContain('999')
+        expect(text).toContain('NF-e 777')
+        // A nota da outra empresa tem número 999, mas "999" solto casa com o prefixo aleatório do
+        // id da viagem ("Viagem 13999f27") e falhava de vez em quando: o marcador é o número da NF-e.
+        expect(text).not.toContain('NF-e 999')
         expect(text).toContain('Canhoto 1 de 2')
         expect(text).toContain('Canhoto 2 de 2')
       })
