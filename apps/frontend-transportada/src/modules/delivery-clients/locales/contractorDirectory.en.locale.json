@@ -164,7 +164,7 @@
     "currentGroup": "Current group",
     "hiddenTaken": "{{count}} group(s) are hidden because they already belong to a driver or another contractor.",
     "phone": "Number to tag in the group",
-    "phonePlaceholder": "(Area code) number",
+    "phonePlaceholder": "(11) 98765-4321",
     "phoneHint": "Phone with area code. The person must be in the group to be notified by the tag.",
     "phoneInvalid": "Enter a valid phone number with area code.",
     "emailFallback": "Send by email if the group fails",
