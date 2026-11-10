@@ -18,16 +18,15 @@ console.log(process.env.DRIVER_REMINDERS_ENABLED === "true" ? "true" : "false (a
 const sql = new Bun.SQL(process.env.DATABASE_URL)
 await sql`set transaction read only`.catch(() => {})
 const run = async (t, q) => { console.log("== " + t + " =="); try { console.table(await q) } catch (e) { console.log("erro:", String(e.message || e)) } }
-await run("interruptor da empresa (company_driver_reminder_settings)", sql`select co.name as empresa, s.enabled, s.updated_at from company_driver_reminder_settings s join companies co on co.id = s.company_id order by 1`)
+await run("interruptor da empresa (company_driver_reminder_settings)", sql`select s.company_id as empresa, s.enabled, s.updated_at from company_driver_reminder_settings s order by 1`)
 await run("viagens despachadas sem Iniciar rota, com parada aberta", sql`
-  select co.name as empresa, t.id as viagem, t.status, snap.dispatched_at as despachada_em,
+  select t.company_id as empresa, t.id as viagem, t.status, snap.dispatched_at as despachada_em,
     round(extract(epoch from now() - snap.dispatched_at) / 3600)::int as horas_desde_despacho,
     (select fd.name from trip_drivers d join fleet_drivers fd on fd.company_id = d.company_id and fd.id = d.driver_id
       where d.company_id = t.company_id and d.trip_id = t.id order by d.position limit 1) as motorista,
     (select count(*)::int from trip_stops s where s.company_id = t.company_id and s.trip_id = t.id and s.completed_at is null) as paradas_abertas,
     coalesce(c.enabled, false) as empresa_ligada
   from trips t
-  join companies co on co.id = t.company_id
   left join trip_dispatch_snapshots snap on snap.company_id = t.company_id and snap.trip_id = t.id
   left join company_driver_reminder_settings c on c.company_id = t.company_id
   where t.status in (${"dispatched"}, ${"in_transit"})
