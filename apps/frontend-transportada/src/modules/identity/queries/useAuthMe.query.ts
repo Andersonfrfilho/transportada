@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '../shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '../shared/KeycloakAuthProvider.provider'
+import { recoverFromRejectedToken } from '../shared/rejectedSessionRecovery.service'
 import { isSmokeAuthBypassEnabled } from '../shared/smokeAuthBypass.service'
 
 export const AUTH_ME_QUERY_KEY = ['identity', 'auth-me'] as const
@@ -199,6 +200,17 @@ async function fetchAuthMe(): Promise<AuthMeResponse> {
   const response = await fetch(`${apiBaseUrl}${AUTH_ME_PATH}`, {
     headers: { authorization: `Bearer ${accessToken}` },
   })
+
+  if (response.status === 401) {
+    /** Token recusado pela API: reautentica em vez de deixar o painel em "Indisponível". */
+    const provider = getKeycloakAuthProvider()
+    const restarted = await recoverFromRejectedToken({
+      now: () => Date.now(),
+      restartAuthentication: () => provider.restartAuthentication(),
+      storage: window.sessionStorage,
+    })
+    throw new Error(restarted ? 'IDENTITY_SESSION_REJECTED' : 'IDENTITY_AUTH_ME_UNAVAILABLE')
+  }
 
   if (!response.ok) {
     throw new Error('IDENTITY_AUTH_ME_UNAVAILABLE')
