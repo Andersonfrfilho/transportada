@@ -16,7 +16,8 @@
     "occurrenceWatchers": "Responsáveis por ocorrências",
     "whatsapp": "WhatsApp",
     "automations": "Automações",
-    "driverReminders": "Cobrança do motorista"
+    "driverReminders": "Cobrança do motorista",
+    "salespeople": "Vendedores"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -1029,5 +1030,52 @@
     "save": "Salvar cobrança",
     "saved": "Configuração da cobrança salva.",
     "error": "Não foi possível salvar a cobrança ({{code}})."
+  },
+  "salespeople": {
+    "title": "Vendedores",
+    "subtitle": "Os vendedores das contratantes. Um vendedor pode atender mais de uma contratante e, em cada uma, uma carteira de clientes própria.",
+    "loading": "Carregando os vendedores…",
+    "retry": "Tentar de novo",
+    "empty": "Nenhum vendedor cadastrado.",
+    "inactive": "inativo",
+    "clientCount_one": "{{count}} cliente",
+    "clientCount_other": "{{count}} clientes",
+    "edit": "Editar",
+    "new": "Novo vendedor",
+    "editing": "Editar vendedor",
+    "name": "Nome",
+    "email": "E-mail",
+    "whatsapp": "WhatsApp",
+    "contactHint": "Informe ao menos um: e-mail ou WhatsApp (com DDD).",
+    "status": "Situação",
+    "statusValue": {
+      "active": "Ativo",
+      "inactive": "Inativo"
+    },
+    "linkContractor": "Vincular contratante",
+    "link": "Vincular",
+    "unlink": "Desvincular",
+    "portfolio": "Carteira",
+    "portfolioTitle": "Carteira de clientes",
+    "portfolioLabel": "CNPJs dos clientes",
+    "portfolioHint": "Um CNPJ por linha. Só clientes já cadastrados; salvar substitui a lista inteira.",
+    "portfolioInvalid": "CNPJ inválido: {{list}}",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "cancel": "Cancelar",
+    "formError": {
+      "name": "Informe o nome do vendedor.",
+      "contactRequired": "Informe o e-mail ou o WhatsApp.",
+      "emailFormat": "O e-mail não é válido."
+    },
+    "error": {
+      "failed": "Não foi possível concluir. Tente de novo.",
+      "forbidden": "Você não tem permissão para os vendedores.",
+      "invalid": "Os dados não foram aceitos. Confira os campos.",
+      "unauthenticated": "Sua sessão expirou. Entre de novo.",
+      "notFound": "O vendedor ou o vínculo não existe mais.",
+      "conflict": "Já existe um vendedor com esse e-mail ou WhatsApp.",
+      "unknownClient": "Algum CNPJ da carteira não é de um cliente cadastrado."
+    }
   }
 }

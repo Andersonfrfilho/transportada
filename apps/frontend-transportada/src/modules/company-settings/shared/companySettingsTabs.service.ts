@@ -31,6 +31,7 @@ export const SETTINGS_PANELS = [
   'whatsappEvolution',
   'contractorAutomations',
   'driverStopReminders',
+  'salespeople',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -70,6 +71,7 @@ export type SettingsDataSource =
   | 'occurrenceTypeCatalog'
   | 'occurrenceWatchers'
   | 'quickReplies'
+  | 'salespeople'
   | 'scheduledDistribution'
   | 'settingsResolution'
   | 'tollBoothCharges'
@@ -246,6 +248,8 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
     source: 'driverStopReminderSettings',
     tab: 'driverReminders',
   },
+  /** Spec 316 T1.4: o cadastro dos vendedores da contratante — painel autocontido, aba própria, `settings.manage`. */
+  salespeople: { module: 'company-settings', source: 'salespeople', tab: 'salespeople' },
 }
 
 export function settingsPanelsOf(
@@ -305,6 +309,7 @@ export function resolveSettingsDataScope(
     occurrenceTypeCatalog: sources.has('occurrenceTypeCatalog'),
     occurrenceWatchers: sources.has('occurrenceWatchers'),
     quickReplies: sources.has('quickReplies'),
+    salespeople: sources.has('salespeople'),
     scheduledDistribution: sources.has('scheduledDistribution'),
     settingsResolution: sources.has('settingsResolution'),
     tollBoothCharges: sources.has('tollBoothCharges'),
@@ -327,6 +332,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'whatsapp',
   'automations',
   'driverReminders',
+  'salespeople',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]

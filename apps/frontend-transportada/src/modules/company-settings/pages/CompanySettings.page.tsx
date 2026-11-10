@@ -31,6 +31,7 @@ import {
   type WhatsAppEvolutionPanelProps,
 } from '../components/WhatsAppEvolutionPanel.component'
 import { ContractorAutomationsPanel } from '../components/ContractorAutomationsPanel.component'
+import { SalespeoplePanel } from '../components/SalespeoplePanel.component'
 import { useWhatsAppEvolutionPanel } from '../hooks/useWhatsAppEvolutionPanel.hook'
 import {
   CompanyEntryKindCatalogPanel,
@@ -267,6 +268,8 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   /** Spec 285: painel autocontido — busca a própria configuração, só com `settings.manage`. */
   if (tab === 'automations')
     return <ContractorAutomationsPanel canManage={props.canManageSettings} />
+  /** Spec 316 T1.4: painel autocontido — busca os próprios dados, só com `settings.manage`. */
+  if (tab === 'salespeople') return <SalespeoplePanel canManage={props.canManageSettings} />
   if (tab === 'entryKinds') return <CompanyEntryKindCatalogPanel {...props.entryKindCatalog} />
   /** Spec 218 RF-E1/RF-E2: painel autocontido — busca os próprios dados, como o de ocorrência acima. */
   if (tab === 'settingsResolution')
