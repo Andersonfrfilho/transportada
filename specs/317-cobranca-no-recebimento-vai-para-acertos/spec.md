@@ -143,11 +143,13 @@ aviso somente leitura para o motorista), e só o escritório pode limpar.
 
 ## Requisitos funcionais
 
-- RF1. Migration: enum `delivery_charge_type` ganha `receiving_charge`; `delivery_charges.stop_occurrence_id`
-  (FK, nulo, único parcial); CHECK que amarra `receiving_charge` + `stop_occurrence_id` + `origin='occurrence'`
-  - `trip_document_id` não nulo; `trip_stop_occurrences.declared_amount`; tabelas
-    `company_occurrence_type_photo_slots` e `trip_stop_occurrence_photos`; colunas da marca em
-    `delivery_clients`. Migration **aditiva** (nada destrutivo), com rollback.
+- RF1. Migration aditiva (nada destrutivo, com rollback): enum `delivery_charge_type` ganha
+  `receiving_charge`; `delivery_charges` ganha `stop_occurrence_id` (FK, nulo, único parcial) e
+  `applies_to_all_documents`; CHECK que amarra `receiving_charge`, `stop_occurrence_id`,
+  `origin = 'occurrence'` e (`trip_document_id` não nulo ou `applies_to_all_documents`);
+  `trip_stop_occurrences` ganha `declared_amount`, `paid_by`, `driver_pix_key` e `driver_pix_key_type`
+  (PIX obrigatório com `paid_by = driver`); tabelas `company_occurrence_type_photo_slots` e
+  `trip_stop_occurrence_photos`; colunas da marca em `delivery_clients`.
 - RF2. Semeadura por empresa: vagas `charge_sign` e `payment_receipt` (ambas `required`) para o tipo de
   `stopKind = unexpected_charge`; `declared_amount_mode = required`; `emails_contractor = false`;
   `contractor_notification_template_key = null`; renomear conforme E9.
