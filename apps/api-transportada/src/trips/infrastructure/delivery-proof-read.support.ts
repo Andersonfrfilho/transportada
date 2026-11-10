@@ -953,6 +953,7 @@ export async function findOccurrenceType(
       clientChannel: companyOccurrenceTypes.clientChannel,
       asksClientContact: companyOccurrenceTypes.asksClientContact,
       asksNewDueDate: companyOccurrenceTypes.asksNewDueDate,
+      showClientChargeSealToDriver: companyOccurrenceTypes.showClientChargeSealToDriver,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1145,6 +1146,7 @@ export async function listOccurrenceTypes(
       clientChannel: companyOccurrenceTypes.clientChannel,
       asksClientContact: companyOccurrenceTypes.asksClientContact,
       asksNewDueDate: companyOccurrenceTypes.asksNewDueDate,
+      showClientChargeSealToDriver: companyOccurrenceTypes.showClientChargeSealToDriver,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1519,6 +1521,7 @@ async function writeOccurrenceTypeRow(
     readonly clientChannel?: ClientChannel | undefined
     readonly asksClientContact?: boolean | undefined
     readonly asksNewDueDate?: boolean | undefined
+    readonly showClientChargeSealToDriver?: boolean | undefined
     readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
     readonly contractorReplyMode?: ContractorReplyMode | undefined
     readonly contractorReplyWaitHours?: null | number | undefined
@@ -1647,6 +1650,9 @@ async function writeOccurrenceTypeRow(
       ? {}
       : { asksClientContact: input.asksClientContact }),
     ...(input.asksNewDueDate === undefined ? {} : { asksNewDueDate: input.asksNewDueDate }),
+    ...(input.showClientChargeSealToDriver === undefined
+      ? {}
+      : { showClientChargeSealToDriver: input.showClientChargeSealToDriver }),
     ...(input.contractorReplyAcknowledgementQuickReplyId === undefined
       ? {}
       : {
@@ -1771,6 +1777,7 @@ async function writeOccurrenceTypeRow(
     clientChannel: saved.clientChannel,
     asksClientContact: saved.asksClientContact,
     asksNewDueDate: saved.asksNewDueDate,
+    showClientChargeSealToDriver: saved.showClientChargeSealToDriver,
     contractorReplyAcknowledgementQuickReplyId: saved.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: saved.contractorReplyMode,
     contractorReplyWaitHours: saved.contractorReplyWaitHours,

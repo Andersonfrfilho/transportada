@@ -139,3 +139,21 @@ o caso de várias notas está coberto por contrato.
 
 Painel (Etapa 3, já em staging) → API (esta, aditiva) → app. O app novo com a API antiga cai no formulário de sempre, porque
 sem `photoSlots` o tipo não abre a cobrança.
+
+## T14a — Selo no cartão da parada e interruptor no editor de tipos (2026-11-10)
+
+Publicação em etapas (ADR-0081 §9): painel tolerante → API → app. Tudo aditivo; sem migration (a coluna
+`company_occurrence_types.show_client_charge_seal_to_driver`, padrão `true`, já existe).
+
+- **Painel:** `showClientChargeSealToDriver` opcional no tipo, na guarda (chave aceita antes da API mandar) e no `PUT` ("ausente não mexe").
+  O interruptor "Mostrar ao motorista o aviso de possível cobrança" só aparece no tipo de parada `unexpected_charge`. O escritório vê o selo
+  sempre; o interruptor decide só o motorista. Teste: `test/trip/occurrence-type-client-email-type.contract.ts` (seção T14a).
+- **API:** o campo é gravado e lido no cadastro do tipo. `GET /me/trips/current` leva `stops[].clientChargeSeal { flaggedAt }` só em parada
+  aberta, lida em UMA consulta (`DrizzleDriverStopChargeSealRepository`: tipo ativo com o interruptor ligado + cliente destinatário com
+  `receiving_charge_flagged_at`), chamada pelo caso de uso depois do recorte pelo vínculo. Falha só tira o selo (`driver_charge_seal_unavailable`).
+  Teste: `test/trip-occurrence/charge-seal.contract.ts`. Suíte de contrato da API: 14922 pass / 0 fail.
+- **App do motorista:** `DriverChargeSealNotice`, somente leitura (sem botão, foco nem ação), mesmo véu neutro do aviso de feriado; guarda
+  tolerante (ausente/malformado some). Os dois avisos ficam num fragmento só para não deslocar os ids do React do golden do cartão.
+  Teste: `test/driver-trip/charge-seal-notice.contract.tsx`. App: 2299 pass; painel: 1496 pass.
+- **Prints** (claro/escuro, desktop/celular): `prints/selo-parada-*.png` (app) e `prints/tipo-selo-motorista-*.png` (editor de tipos),
+  conferidos contra os vizinhos da mesma tela.

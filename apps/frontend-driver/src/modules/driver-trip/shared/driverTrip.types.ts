@@ -137,6 +137,9 @@ export type DriverDeliveryProofSettings = Readonly<{
   signature: ProofFieldRequirement
 }>
 
+/** Spec 317 T14a: a data da marca vem do servidor; o app só decide se mostra o aviso. */
+export type DriverClientChargeSeal = Readonly<{ flaggedAt: string }>
+
 export type DriverTripStop = Readonly<{
   arrivedAt: string | null
   completedAt: string | null
@@ -154,6 +157,11 @@ export type DriverTripStop = Readonly<{
   enRouteSince?: string | null
   /** Spec 206 D9: a hora do TOQUE no aparelho — a 207 usa como âncora, com `enRouteSince` de reserva. */
   enRouteTappedAt?: string | null
+  /**
+   * Spec 317 (E7, RF13): o escritório marcou o cliente como "possível cobrança na entrega" e o tipo liga o aviso ao
+   * motorista. Acessório, somente leitura: ausente ou malformado = sem aviso.
+   */
+  clientChargeSeal?: DriverClientChargeSeal
   /** Spec 252 (ADR-0100 §6): avisos de feriado para a parada. Acessório: ausente ou malformado vira lista vazia. */
   holidayWarnings?: readonly HolidayWarning[]
   id: string

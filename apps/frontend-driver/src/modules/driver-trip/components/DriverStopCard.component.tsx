@@ -11,6 +11,7 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { DocumentConversationSlot } from '@/modules/conversation/components/DocumentConversationSlot.component'
 
 import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.component'
+import { DriverChargeSealNotice } from './DriverChargeSealNotice.component'
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { ARRIVED_HIGHLIGHT_MS, resolveStopPlace } from '../shared/stopPlace.service'
@@ -597,8 +598,13 @@ export function DriverStopCard({
         </p>
       ) : null}
 
-      {/* Spec 252 T5.4: fora do botão e do corpo recolhido — aparece com o cartão fechado e nunca decide ação. */}
-      <DriverHolidayNotice nowMs={readCorrectedNowMs()} warnings={stop.holidayWarnings} />
+      {/* Spec 252 T5.4 + 317 T14a: um fragmento só, para os avisos não deslocarem o caminho dos irmãos seguintes (ids do React). */}
+      <>
+        {stop.clientChargeSeal === undefined ? null : (
+          <DriverChargeSealNotice seal={stop.clientChargeSeal} />
+        )}
+        <DriverHolidayNotice nowMs={readCorrectedNowMs()} warnings={stop.holidayWarnings} />
+      </>
 
       {notice === undefined ? null : (
         <p className={styles.activityNotice} role="status">

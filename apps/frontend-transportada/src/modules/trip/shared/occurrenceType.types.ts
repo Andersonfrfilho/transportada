@@ -98,6 +98,10 @@ export type OccurrenceType = Readonly<{
   asksClientContact?: boolean
   /** O app do motorista oferece o campo opcional "nova data de vencimento". Ausente é API anterior ao campo. */
   asksNewDueDate?: boolean
+  /** Spec 317 T14a: o motorista vê o aviso "possível cobrança" no cartão da parada. Ausente é API anterior ao campo. */
+  showClientChargeSealToDriver?: boolean
+  /** O tipo de parada (`unexpected_charge` é a cobrança no recebimento); o painel só o lê. */
+  stopKind?: string | null
   contractorReplyAlertMode?: ContractorReplyAlertMode
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   contractorReplyMode?: ContractorReplyMode

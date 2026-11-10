@@ -360,6 +360,7 @@ type SaveOccurrenceTypeInput = {
   readonly clientChannels?: OccurrenceClientChannelMatrixChange | undefined
   readonly asksClientContact?: boolean | undefined
   readonly asksNewDueDate?: boolean | undefined
+  readonly showClientChargeSealToDriver?: boolean | undefined
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined

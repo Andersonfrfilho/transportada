@@ -1611,6 +1611,9 @@ function hasValidFieldOccurrenceTypeModes(value: Record<string, unknown>): boole
     value.asksClientContact === undefined || typeof value.asksClientContact === 'boolean'
   const isAsksNewDueDateValid =
     value.asksNewDueDate === undefined || typeof value.asksNewDueDate === 'boolean'
+  const isShowClientChargeSealValid =
+    value.showClientChargeSealToDriver === undefined ||
+    typeof value.showClientChargeSealToDriver === 'boolean'
   const isClientChannelValid =
     value.clientChannel === undefined ||
     isOneOf(value.clientChannel, ['off', 'email', 'whatsapp', 'both'] as const)
@@ -1618,6 +1621,7 @@ function hasValidFieldOccurrenceTypeModes(value: Record<string, unknown>): boole
   return (
     isAsksClientContactValid &&
     isAsksNewDueDateValid &&
+    isShowClientChargeSealValid &&
     isClientChannelValid &&
     isEveryModeValid &&
     isPhotoMinimumValid &&
@@ -2070,6 +2074,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         /** Spec 281 T8b: pedir o contato do cliente ao motorista na abertura, tolerado antes de a API mandá-lo. */
         'asksClientContact',
         'asksNewDueDate',
+        /** Spec 317 T14a: o aviso de possível cobrança ao motorista, tolerado antes de a API mandá-lo. */
+        'showClientChargeSealToDriver',
         'clientChannel',
         /** Até a etapa B a API ainda pode mandar o texto antigo do e-mail (rollback da API): tolerado e ignorado. */
         'emailBody',

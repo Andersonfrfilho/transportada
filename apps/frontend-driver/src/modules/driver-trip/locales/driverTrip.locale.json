@@ -28,6 +28,10 @@
     "detail": "Aqui você vê as paradas, as notas e o manifesto. Chegada, entrega, devolução e ocorrência são do motorista.",
     "title": "Você acompanha esta viagem como ajudante"
   },
+  "chargeSeal": {
+    "label": "Aviso de cobrança",
+    "text": "O escritório marcou este cliente como possível cobrança na entrega. Se pedirem algum valor, registre pela ocorrência de cobrança."
+  },
   "holidayWarning": {
     "future": "Dia {{date}} é feriado em {{city}} ({{reasons}}). Confirme com o cliente antes de ir.",
     "futureWithoutCity": "Dia {{date}} é feriado ({{reasons}}). Confirme com o cliente antes de ir.",

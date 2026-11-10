@@ -28,6 +28,8 @@ import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settin
 import type { DriverDocumentProduct } from '../domain/driver-document-products.policy.js'
 import type { ContractorReplyStatus } from '../../shared/occurrence-contractor-reply.constant.js'
 import { attachDriverDocumentContractorReplies } from './attach-driver-document-contractor-replies.service.js'
+import { attachDriverStopChargeSeal } from './attach-driver-stop-charge-seal.service.js'
+import type { DriverChargeSealDependency } from './driver-stop-charge-seal.port.js'
 import { attachDriverStopHolidayWarnings } from './attach-driver-stop-holiday-warnings.service.js'
 import type { DriverContractorRepliesDependency } from './driver-document-contractor-reply.port.js'
 import type { DriverHolidayWarningsDependency } from './driver-stop-holiday-warning.port.js'
@@ -125,6 +127,11 @@ export type DriverTripStop = {
    * nada. Ausente quando não há aviso (parada concluída, sem ETA, dia útil) ou quando o aviso falhou.
    */
   readonly holidayWarnings?: readonly HolidayWarning[]
+  /**
+   * Spec 317 (E7, RF13): o cliente da parada está marcado como "possível cobrança na entrega" e o tipo liga o selo ao
+   * motorista. Somente leitura; ausente quando não há selo.
+   */
+  readonly clientChargeSeal?: { readonly flaggedAt: string }
   readonly id: string
   /** Spec 294 RF12/RF13: sem coordenada, ou com precisão de CEP/município — o app avisa antes da rota. */
   readonly isAddressReliable: boolean
@@ -216,6 +223,8 @@ export type FindCurrentDriverTripInput = {
   readonly companyId: string
   /** Spec 248 T5.4: o estado do retorno da contratante nas notas. Ausente = sem o campo e sem consulta a mais. */
   readonly contractorReplies?: DriverContractorRepliesDependency
+  /** Spec 317 (E7): o selo "possível cobrança" nas paradas. Ausente = sem selo e sem consulta a mais. */
+  readonly chargeSeal?: DriverChargeSealDependency
   /** Spec 252 T4.3: o aviso de feriado nas paradas. Ausente = sem aviso e sem consulta a mais. */
   readonly holidayWarnings?: DriverHolidayWarningsDependency
   readonly membershipId: string
@@ -280,10 +289,17 @@ export async function findCurrentDriverTrip(
     trips: tripsWithWarnings,
   })
 
+  /** Também depois do recorte pelo vínculo: só as paradas das viagens dele entram na consulta. */
+  const tripsWithSeal = await attachDriverStopChargeSeal({
+    companyId: input.companyId,
+    ...(input.chargeSeal === undefined ? {} : { dependency: input.chargeSeal }),
+    trips: tripsWithReplies,
+  })
+
   return {
     isRegisteredDriver: true,
     pendingProofs,
     score: scores.get(driverId) ?? null,
-    trips: tripsWithReplies,
+    trips: tripsWithSeal,
   }
 }

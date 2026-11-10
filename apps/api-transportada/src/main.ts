@@ -924,6 +924,7 @@ import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery
 import { readSettingsResolution } from './trips/application/read-settings-resolution.use-case.js'
 import { createSettingsResolutionRoutes } from './trips/presentation/settings-resolution.routes.js'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverStopChargeSealRepository } from './trips/infrastructure/drizzle-driver-stop-charge-seal.repository.js'
 import { DrizzleDriverDocumentContractorReplyRepository } from './trips/infrastructure/drizzle-driver-document-contractor-reply.repository.js'
 import { DrizzleDriverStopHolidayContextRepository } from './trips/infrastructure/drizzle-driver-stop-holiday-context.repository.js'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
@@ -3526,6 +3527,11 @@ function createApplicationRoutes({
     logger,
     reader: new DrizzleDriverDocumentContractorReplyRepository(database),
   }
+  /** Spec 317 (E7, RF13): o selo "possível cobrança" nas paradas de `GET /me/trips/current` — só a rota do app o recebe. */
+  const driverChargeSeal = {
+    logger,
+    reader: new DrizzleDriverStopChargeSealRepository(database),
+  }
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   /**
    * Spec 079: o aviso configurável da ocorrência de nota, para quem despachou a viagem. Um só para
@@ -5764,6 +5770,7 @@ function createApplicationRoutes({
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({
           ...input,
+          chargeSeal: driverChargeSeal,
           contractorReplies: driverContractorReplies,
           holidayWarnings: driverHolidayWarnings,
           now: new Date(),
