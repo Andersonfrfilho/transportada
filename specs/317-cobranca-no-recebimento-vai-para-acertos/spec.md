@@ -28,7 +28,8 @@ O negócio confirmou (Anderson, 10/11/2026) o desenho abaixo. Resultado:
   não vai direto à contratante" é comum, e aqui vale apenas para a cobrança no recebimento.
 - Gerar o lote/fatura ao contratante a partir da linha: continua o fluxo de Ressarcimentos já existente
   (spec 164), sem mudança.
-- Mostrar o aviso "possível cobrança" no app do motorista ou no bot: só painel nesta spec.
+- Pagar ou reembolsar o motorista pelo sistema: o PIX do motorista só é **coletado e mostrado** ao
+  escritório (E11); a página de acertos continua cobrando apenas a contratante (E12).
 - Reconhecer o valor por OCR do comprovante.
 - Tipos de **nota** (galpão/rua): continuam com a foto sem rótulo da 161/246.
 
@@ -55,13 +56,16 @@ O negócio confirmou (Anderson, 10/11/2026) o desenho abaixo. Resultado:
 - E3. **Valor pago** vira coluna `declared_amount numeric(14,4)` em `trip_stop_occurrences`, obrigatória
   para este tipo (usa o mesmo resolvedor da 247: `declared_amount_mode = required`, `0` é valor e não
   vazio; `bigint`/string, nunca float; valor **nunca** vem do payload de preço de item).
-- E4. **Nota**: o motorista escolhe a nota da parada a que a cobrança se refere. Parada com uma
-  só nota: o servidor assume essa nota; com mais de uma: a escolha é obrigatória. O servidor confere
-  que a nota pertence à parada e à viagem (`companyId` do contexto, nunca do payload).
+- E4. **Escopo da cobrança: uma nota ou todas** (decisão do Anderson, 10/11). O motorista escolhe no
+  mesmo lugar onde a tela de cobranças já permite adicionar "cobrança por nota" ou "cobrança para todas
+  as notas": uma nota da parada, ou todas as notas da parada (um valor só). Parada com uma só nota
+  assume essa nota sem perguntar. O servidor confere que a(s) nota(s) pertencem à parada e à viagem
+  (`companyId` do contexto, nunca do payload).
 - E5. A linha nasce em `delivery_charges` com `charge_type = 'receiving_charge'` (novo valor do enum),
   `origin = 'occurrence'`, `status = 'recorded'` (já é gente conferindo, como o ADR-0048 §5 aplicado na
-  164), `trip_id`, `trip_document_id`, `delivery_client_id`, `contractor_id` resolvidos da nota,
-  `amount` = valor pago, e uma nova coluna `stop_occurrence_id` (FK para `trip_stop_occurrences`).
+  164), `trip_id`, `trip_document_id` (nulo quando o escopo é "todas as notas", com
+  `applies_to_all_documents = true`), `delivery_client_id`, `contractor_id` resolvidos da nota,
+  `amount` = valor pago, e uma nova coluna `stop_occurrence_id` (FK para `trip_stop_occurrences`); cliente e contratante vêm da parada.
   `occurrence_id` segue sendo só de `trip_document_occurrences`. O comprovante principal também é
   gravado em `proof_object_id` (hoje sem escritor).
 - E6. **Idempotência**: um índice único parcial em `stop_occurrence_id` garante uma linha por
@@ -69,16 +73,25 @@ O negócio confirmou (Anderson, 10/11/2026) o desenho abaixo. Resultado:
 - E7. **Marca do cliente**: `delivery_clients` ganha `receiving_charge_flagged_at timestamptz` e
   `receiving_charge_source_stop_occurrence_id`. Marca na criação da linha (primeira vez grava;
   repetida só atualiza a data). O escritório limpa na ficha do cliente (`delivery.manage`).
-  O painel mostra o selo "Possível cobrança na entrega" na ficha e na lista do cliente, com link para
-  a ocorrência. Não cria regra recorrente sozinha.
-- E8. Sem nota resolvível (parada sem nota, nota inexistente) o registro **é recusado** `422`
-  `STOP_OCCURRENCE_DOCUMENT_REQUIRED` neste tipo: sem nota não há cliente, contratante nem linha.
+  O selo "Possível cobrança na entrega" aparece **para o escritório** (ficha e lista do cliente, com
+  link para a ocorrência) **e para o motorista** (aviso somente leitura no cartão da parada daquele
+  cliente, lido do servidor). Só o escritório limpa. Não cria regra recorrente sozinha.
+- E8. Sem parada com nota resolvível (parada sem nota, nota inexistente) o registro **é recusado** `422`
+  `STOP_OCCURRENCE_DOCUMENT_REQUIRED` neste tipo: sem nota não há cliente nem contratante, e a linha nunca nasce sem eles.
   (A ocorrência de parada sem nota dos outros tipos não muda.)
 - E9. O tipo é renomeado para "Cobrança no recebimento" só onde o nome ainda é o padrão semeado
   ("Cobrança inesperada"); nome editado pela transportada não é tocado. `stopKind` fica
   `unexpected_charge` (histórico, chave da notificação `trip.occurrence-unexpected-charge`).
 - E10. A sugestão automática de 0 do `onDelivered` (spec 060 D4c) **deixa de ser chamada** para este
   tipo, porque a linha `recorded` com valor real a substitui.
+- E11. **Quem pagou e o PIX** (decisão do Anderson, 10/11): o formulário pergunta "Quem pagou?"
+  (`paid_by`: `driver` | `company`). Se foi o motorista, pede o **PIX do motorista** (chave e tipo),
+  pré-preenchido do cadastro quando houver, e grava em `trip_stop_occurrences.driver_pix_key` /
+  `driver_pix_key_type`. O PIX aparece ao escritório na linha de Ressarcimentos, só para quem tem
+  `trip.financials`, e nunca vai em e-mail, log ou resposta ao app de outro motorista.
+- E12. **Só a contratante é cobrada na página existente** (decisão do Anderson, 10/11): a linha
+  `receiving_charge` entra no mesmo fluxo de lote/cobrança da 164. Devolver o dinheiro ao motorista
+  fica fora do sistema por ora; o escritório usa o PIX mostrado.
 
 ## Histórias priorizadas
 
@@ -89,9 +102,10 @@ O negócio confirmou (Anderson, 10/11/2026) o desenho abaixo. Resultado:
 **Then** o formulário pede o valor pago, a foto da placa de cobrança e a foto do comprovante de
 pagamento, cada uma com seu rótulo, e só deixa enviar com as duas e o valor.
 
-**Given** uma parada com duas notas
+**Given** uma parada com duas ou mais notas
 **When** o motorista registra a cobrança
-**Then** o formulário exige escolher a nota, e a linha em Ressarcimentos fica na nota escolhida.
+**Then** o formulário pergunta se é por uma nota (e qual) ou para todas as notas da parada, e a linha em
+Ressarcimentos fica no escopo escolhido.
 
 ### P1 — O escritório vê a cobrança em Ressarcimentos
 
@@ -107,12 +121,19 @@ com rótulo, e a ocorrência abre a partir dela.
 **Then** não há e-mail, aviso de portal nem mensagem de bot para a contratante, e a linha só aparece
 no lote ao contratante quando o escritório a incluir (fluxo da 164).
 
+### P1 — Quem pagou e o PIX
+
+**Given** o motorista pagou a cobrança
+**When** registra a ocorrência
+**Then** o formulário pede a chave PIX dele (pré-preenchida se cadastrada), e o escritório vê o PIX
+na linha de Ressarcimentos; se a empresa pagou, o PIX não é pedido.
+
 ### P2 — O cliente fica marcado
 
 **Given** a cobrança registrada
-**When** o escritório abre a ficha do cliente
-**Then** o selo "Possível cobrança na entrega" aparece com a data e o link da ocorrência, e há ação
-para limpar.
+**When** o escritório abre a ficha do cliente, ou o motorista abre a parada do mesmo cliente
+**Then** o selo "Possível cobrança na entrega" aparece (data e link da ocorrência para o escritório,
+aviso somente leitura para o motorista), e só o escritório pode limpar.
 
 ### P2 — Reenvio da fila não duplica
 
@@ -145,7 +166,7 @@ para limpar.
   (validação recusa a combinação para este tipo).
 - RF8. Paridade de exigência nas apps (`contrato-de-paridade`): o app lê do servidor as vagas e o modo do
   valor; o servidor recobra. Nunca reimplementar a precedência no app.
-- RF9. `frontend-driver`: formulário com campo de valor, seletor de nota (quando >1) e uma vaga de foto por
+- RF9. `frontend-driver`: formulário com campo de valor, seletor de escopo/nota (quando >1), "quem pagou" e PIX e uma vaga de foto por
   rótulo, componentes padrão do design system (rótulo em cima, campo/seletor/botões padrão).
 - RF10. `frontend-transportada`: Ressarcimentos mostra as fotos rotuladas; ficha do cliente mostra o selo
   e a ação de limpar; textos em `.locale.json`, componentes do design system.
@@ -188,10 +209,6 @@ para limpar.
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: parada com mais de uma nota — uma linha só (nota escolhida) ou uma linha por
-  nota? Esta spec segue "uma linha, nota escolhida" (E4); mudar muda RF3 e o índice do E6.]
-- [NEEDS CLARIFICATION: o selo "possível cobrança" deve também aparecer para o motorista no cartão
-  da parada? Fora do escopo aqui; confirmar se vira spec própria.]
-- [NEEDS CLARIFICATION: "ressarcimento" aqui cobre o motorista que adiantou o dinheiro (reembolso
-  ao motorista) ou só a cobrança do valor à contratante? A linha serve aos dois, mas a tela hoje só
-  trata o segundo; confirmar se o reembolso ao motorista é outra tarefa.]
+Nenhuma aberta. As três dúvidas da primeira versão foram respondidas pelo Anderson em 10/11/2026 e
+estão em E4 (uma nota ou todas), E7/E11 (selo para escritório e motorista; PIX quando o motorista
+pagou) e E12 (só a contratante é cobrada na página existente).
