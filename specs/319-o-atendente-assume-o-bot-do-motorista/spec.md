@@ -16,20 +16,20 @@ atendente vê o histórico, **assume** o chat (o bot cala e não avança fluxo),
 
 ## O que já existe e será reaproveitado
 
-| Peça | Onde | Uso na 319 |
-| --- | --- | --- |
-| Grupos cadastrados por motorista | tabela `fleet_driver_whatsapp_groups`, `findGroupDriver` | Lista de grupos da caixa; nada de cadastro novo |
-| Motorista pelo telefone | `findDirectDriver` (308), `userWhatsAppPhones` | Nome e vínculo do chat privado |
-| Entrada do webhook | `whatsapp-evolution-webhook.use-case.ts`, `routeDirect`, `groupInbound.receive` | Só ganha a guarda de "assumido" |
-| Envio pelo número do bot | `groupReplies.send` + `evolution-send-pacer.service.ts` (289) | Envio do atendente, com o mesmo teto |
-| Instância e conexão do Evolution | `/company-settings/whatsapp-evolution`, `whatsapp_evolution_settings` | Estado de conexão exibido na caixa |
-| Respostas rápidas | `company_quick_replies`, `QuickReplyPicker` | Atalho no campo de envio |
-| Modelos de mensagem | notificações (spec 286) | Aviso "voltei" vem do modelo, não de texto fixo (spec 300) |
-| Botão Assumir/Devolver | SDK `@adatechnology/conversations-ui`, se já existir lá (Anderson, 10/11; a confirmar no spike T7b) | Usar o do SDK; só se faltar, vira pedido ao SDK e o painel usa uma faixa provisória, como nas faixas da ocorrência |
-| Fio, composer, menu, lido | SDK `@adatechnology/conversations-ui` 0.14 + `conversation-contracts` | Tela de conversa |
-| Componentes de tela | `src/components/ui/*` (select, filter-pills, count-badge, skeleton, icon, tooltip) | Lista e filtros |
-| Quadro de envios (290) | `operations/sent-messages` | O envio do atendente entra na contagem como categoria própria |
-| Permissões e auditoria | `settings.manage`/papéis de atendente, auditoria existente | RF7 |
+| Peça                             | Onde                                                                                                | Uso na 319                                                                                                         |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Grupos cadastrados por motorista | tabela `fleet_driver_whatsapp_groups`, `findGroupDriver`                                            | Lista de grupos da caixa; nada de cadastro novo                                                                    |
+| Motorista pelo telefone          | `findDirectDriver` (308), `userWhatsAppPhones`                                                      | Nome e vínculo do chat privado                                                                                     |
+| Entrada do webhook               | `whatsapp-evolution-webhook.use-case.ts`, `routeDirect`, `groupInbound.receive`                     | Só ganha a guarda de "assumido"                                                                                    |
+| Envio pelo número do bot         | `groupReplies.send` + `evolution-send-pacer.service.ts` (289)                                       | Envio do atendente, com o mesmo teto                                                                               |
+| Instância e conexão do Evolution | `/company-settings/whatsapp-evolution`, `whatsapp_evolution_settings`                               | Estado de conexão exibido na caixa                                                                                 |
+| Respostas rápidas                | `company_quick_replies`, `QuickReplyPicker`                                                         | Atalho no campo de envio                                                                                           |
+| Modelos de mensagem              | notificações (spec 286)                                                                             | Aviso "voltei" vem do modelo, não de texto fixo (spec 300)                                                         |
+| Botão Assumir/Devolver           | SDK `@adatechnology/conversations-ui`, se já existir lá (Anderson, 10/11; a confirmar no spike T7b) | Usar o do SDK; só se faltar, vira pedido ao SDK e o painel usa uma faixa provisória, como nas faixas da ocorrência |
+| Fio, composer, menu, lido        | SDK `@adatechnology/conversations-ui` 0.14 + `conversation-contracts`                               | Tela de conversa                                                                                                   |
+| Componentes de tela              | `src/components/ui/*` (select, filter-pills, count-badge, skeleton, icon, tooltip)                  | Lista e filtros                                                                                                    |
+| Quadro de envios (290)           | `operations/sent-messages`                                                                          | O envio do atendente entra na contagem como categoria própria                                                      |
+| Permissões e auditoria           | `settings.manage`/papéis de atendente, auditoria existente                                          | RF7                                                                                                                |
 
 **Realmente novo:** o estado "assumido" por chat, o histórico das mensagens livres do privado e do grupo (hoje o grupo não
 guarda conversa visível), as rotas da caixa e a página.
@@ -41,22 +41,27 @@ Provedor Meta; fluxo de comandos do bot (menu, parada, ocorrência) além de pau
 ## Histórias priorizadas
 
 ### P1 — Assumir e responder no privado
+
 **Given** um motorista conversa com o bot no privado **When** o atendente clica em Assumir e escreve **Then** o motorista
 recebe a mensagem do número do bot, e o que ele responder não aciona o bot, só aparece na caixa.
 
 ### P1 — Devolver ao bot
+
 **Given** um chat assumido **When** o atendente clica em Devolver (ou o prazo vence) **Then** o bot volta a atender, com um
 aviso opcional ("voltei").
 
 ### P1 — Grupo do motorista
+
 **Given** um grupo cadastrado **When** o atendente assume **Then** escreve no grupo pelo número do bot; o bot não
 responde marcações nem avança fluxo aberto no grupo enquanto assumido.
 
 ### P2 — Assumir pelo celular
+
 **Given** a mensagem chega com `fromMe` e não foi enviada pelo painel **When** o webhook a recebe **Then** o chat é
 assumido automaticamente pelo prazo padrão (opcional, ver dúvidas).
 
 ### P2 — Histórico
+
 **Given** um chat qualquer **When** o atendente abre a caixa **Then** vê as mensagens recebidas, as do bot e
 as do atendente, em ordem, com quem enviou.
 
