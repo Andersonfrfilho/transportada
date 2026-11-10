@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "5d9f752c-4823-4dde-9f49-cbee99fd5a54",
+  "id": "aaaed56e-1574-4b34-947d-3dbf7c1258c8",
   "prevIds": [
-    "7d70674c-2c47-443d-abee-3a744f38990f"
+    "69881c0a-1c7f-4587-ae9e-81afb8cd75b8"
   ],
   "ddl": [
     {
@@ -1605,6 +1605,24 @@
     {
       "isRlsEnabled": false,
       "name": "contractor_automations",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "contractor_salespeople",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "contractor_salesperson_clients",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "contractor_salesperson_links",
       "entityType": "tables",
       "schema": "public"
     },
@@ -45561,6 +45579,279 @@
       "table": "contractor_automations"
     },
     {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "email",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "whatsapp_e164",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "whatsapp_phone_key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'active'",
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "membership_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_by_user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salesperson_clients"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salesperson_clients"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "link_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salesperson_clients"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "tax_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salesperson_clients"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salesperson_clients"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salesperson_links"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "company_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salesperson_links"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "salesperson_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salesperson_links"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "contractor_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salesperson_links"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "contractor_salesperson_links"
+    },
+    {
       "nameExplicit": true,
       "columns": [
         {
@@ -54666,6 +54957,62 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "occurrence_conversation_audio_transcriptions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "tax_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "contractor_salesperson_clients_client_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "contractor_salesperson_clients"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "contractor_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "contractor_salesperson_links_contractor_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "contractor_salesperson_links"
     },
     {
       "nameExplicit": true,
@@ -66063,6 +66410,99 @@
       "table": "contractor_automations"
     },
     {
+      "nameExplicit": true,
+      "columns": [
+        "company_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "companies",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "contractor_salespeople_company_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "link_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractor_salesperson_links",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "contractor_salesperson_clients_link_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_salesperson_clients"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "tax_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "delivery_clients",
+      "columnsTo": [
+        "company_id",
+        "tax_id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "contractor_salesperson_clients_client_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_salesperson_clients"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "salesperson_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractor_salespeople",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "contractor_salesperson_links_salesperson_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_salesperson_links"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "contractor_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "contractors",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "CASCADE",
+      "name": "contractor_salesperson_links_contractor_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "contractor_salesperson_links"
+    },
+    {
       "columns": [
         "group_id",
         "permission"
@@ -68747,6 +69187,36 @@
       "name": "contractor_automations_pkey",
       "schema": "public",
       "table": "contractor_automations",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "contractor_salespeople_pkey",
+      "schema": "public",
+      "table": "contractor_salespeople",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "contractor_salesperson_clients_pkey",
+      "schema": "public",
+      "table": "contractor_salesperson_clients",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "contractor_salesperson_links_pkey",
+      "schema": "public",
+      "table": "contractor_salesperson_links",
       "entityType": "pks"
     },
     {
@@ -72642,6 +73112,78 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "contractor_automations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "contractor_salespeople_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "email"
+      ],
+      "nullsNotDistinct": false,
+      "name": "contractor_salespeople_company_email_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "whatsapp_phone_key"
+      ],
+      "nullsNotDistinct": false,
+      "name": "contractor_salespeople_company_phone_key_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "link_id",
+        "tax_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "contractor_salesperson_clients_link_tax_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_salesperson_clients"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "contractor_salesperson_links_company_id_id_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_salesperson_links"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "salesperson_id",
+        "contractor_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "contractor_salesperson_links_pair_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "contractor_salesperson_links"
     },
     {
       "nameExplicit": false,
@@ -81816,6 +82358,34 @@
       "entityType": "checks",
       "schema": "public",
       "table": "contractor_automations"
+    },
+    {
+      "value": "length(btrim(\"name\")) between 1 and 120",
+      "name": "contractor_salespeople_name_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "value": "\"status\" in ('active', 'inactive')",
+      "name": "contractor_salespeople_status_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "value": "\"email\" is not null or \"whatsapp_e164\" is not null",
+      "name": "contractor_salespeople_channel_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_salespeople"
+    },
+    {
+      "value": "(\"whatsapp_e164\" is null) = (\"whatsapp_phone_key\" is null)",
+      "name": "contractor_salespeople_whatsapp_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "contractor_salespeople"
     }
   ],
   "renames": []

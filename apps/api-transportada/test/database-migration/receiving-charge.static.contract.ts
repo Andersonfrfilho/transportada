@@ -72,7 +72,7 @@ describe('a cobrança no recebimento entra aditiva (spec 317 T1)', () => {
   test('o rollback recusa com dado gravado e sai do diário', async () => {
     const text = await read('rollback.sql')
     expect(text).toContain('refusing to roll back spec 317')
-    expect(text).toContain(`'20261110194614_receiving_charge_to_settlements'`)
+    expect(text).toContain(`'20261110194838_receiving_charge_to_settlements'`)
     expect(text).toContain('DROP TABLE "trip_stop_occurrence_photos"')
   })
 })

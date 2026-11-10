@@ -95,7 +95,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261110194614_receiving_charge_to_settlements';
+    WHERE "name" = '20261110194838_receiving_charge_to_settlements';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN
