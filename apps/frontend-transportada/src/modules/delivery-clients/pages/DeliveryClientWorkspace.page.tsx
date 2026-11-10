@@ -15,6 +15,7 @@ import { ContractorContactsPanel } from '../components/ContractorContactsPanel.c
 import { ContractorDirectoryPanel } from '../components/ContractorDirectoryPanel.component'
 import { ContractorMailSettingsRequestError } from '../shared/contractorMailSettingsClient.service'
 import { ContractorMailSettingsPanel } from '../components/ContractorMailSettingsPanel.component'
+import { DeliveryClientReceivingChargeFlag } from '../components/DeliveryClientReceivingChargeFlag.component'
 import { DeliveryClientEmailsPanel } from '../components/DeliveryClientEmailsPanel.component'
 import { DeliveryClientWhatsAppPanel } from '../components/DeliveryClientWhatsAppPanel.component'
 import { DeliveryClientForm } from '../components/DeliveryClientForm.component'
@@ -304,6 +305,11 @@ function ClientsListPanel({ controller, isReadOnly, t }: ClientsListPanelProps):
               controller.replaceWindows({ id: controller.selectedClient?.id ?? '', windows })
             }
             windows={controller.selectedClient.windows}
+          />
+          <DeliveryClientReceivingChargeFlag
+            deliveryClientId={controller.selectedClient.id}
+            isDisabled={isReadOnly}
+            key={`charge-flag-${controller.selectedClient.id}`}
           />
           <DeliveryClientEmailsPanel
             isDisabled={isReadOnly}

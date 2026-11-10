@@ -27,8 +27,12 @@ function row(overrides: Partial<OccurrenceChargeReportRow> = {}): OccurrenceChar
     noteNumber: '123',
     noteSeries: '1',
     occurrenceId: 'occurrence-1',
+    photos: [],
+    receivingCharge: null,
     status: 'approved',
+    stopOccurrenceId: null,
     tripDocumentId: 'document-1',
+    tripId: null,
     ...overrides,
   }
 }

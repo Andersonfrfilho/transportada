@@ -2430,7 +2430,9 @@
       "alreadyResolved": "Já estava resolvida. A tela foi atualizada.",
       "cancelled": "Esta ocorrência foi cancelada e não pode ser resolvida.",
       "generic": "Não foi possível resolver a ocorrência. Tente novamente."
-    }
+    },
+    "receiptMessage": "Comprovante do PIX",
+    "receiptFailed": "O comprovante do PIX não pôde ser enviado ao motorista; a ocorrência foi concluída sem ele."
   },
   "occurrenceSettlement": {
     "title": "Acerto dos produtos",

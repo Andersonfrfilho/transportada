@@ -14,6 +14,12 @@ export const DELIVERY_CHARGE_TYPES = [
    * saía com a chave de tradução crua.
    */
   'returned_goods',
+  /**
+   * Spec 317: a cobrança que o motorista pagou no recebimento (placa de cobrança + comprovante). Nasce do
+   * registro da parada no app, como `returned_goods` nasce da tratativa — nunca à mão. O painel que não a
+   * conhece lança erro na primeira linha, por isso entra aqui antes de qualquer tipo ser usado.
+   */
+  'receiving_charge',
 ] as const
 export type DeliveryChargeType = (typeof DELIVERY_CHARGE_TYPES)[number]
 
@@ -87,6 +93,22 @@ export const CONTRACTORS_PATH = '/contractors'
  * `GET /occurrence-charges/report`. Recorte de elegibilidade é `batchId is null` (spec 164
  * plan.md § "O fechamento é por seleção, com filtros"), nunca "do mês corrente".
  */
+/** Spec 317 (T6): a foto de uma vaga da ocorrência, com o link assinado de 5 min (nunca público). */
+export type OccurrenceChargeReportPhoto = Readonly<{
+  expiresAt: string
+  label: string
+  slotKey: string
+  url: string
+}>
+
+/** Spec 317 (E11): quem pagou e o PIX. ⚠️ O PIX é dado financeiro — só chega a quem tem `trip.financials`. */
+export type OccurrenceChargeReportReceivingCharge = Readonly<{
+  driverPayoutSentAt: string | null
+  driverPixKey: string | null
+  driverPixKeyType: string | null
+  paidBy: 'company' | 'driver' | null
+}>
+
 export type OccurrenceChargeReportRow = Readonly<{
   accessKey: string | null
   amount: string
@@ -98,8 +120,13 @@ export type OccurrenceChargeReportRow = Readonly<{
   noteNumber: string | null
   noteSeries: string | null
   occurrenceId: string | null
+  /** Spec 317: vazio nas cobranças de nota. */
+  photos: readonly OccurrenceChargeReportPhoto[]
+  receivingCharge: OccurrenceChargeReportReceivingCharge | null
   status: DeliveryChargeStatus
+  stopOccurrenceId: string | null
   tripDocumentId: string | null
+  tripId: string | null
 }>
 
 export type OccurrenceChargeReportTotals = Readonly<{
