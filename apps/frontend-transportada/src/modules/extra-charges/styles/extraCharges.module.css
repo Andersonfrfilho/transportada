@@ -15,28 +15,6 @@
   gap: var(--space-1);
 }
 
-/* "Ressarcimentos" em caixa alta tem ~370px no h1 global: no celular o título cabe na coluna e quebra. */
-.longTitle h1 {
-  max-width: none;
-  font-size: clamp(2rem, 13vw, 9rem);
-  overflow-wrap: anywhere;
-}
-
-/* Dos pontos de quebra em diante vale o h1 global (index.css), o mesmo da staging. */
-@media (min-width: 40rem) {
-  .longTitle h1 {
-    max-width: 12ch;
-    font-size: clamp(3.5rem, 15vw, 9rem);
-    overflow-wrap: normal;
-  }
-}
-
-@media (min-width: 64rem) {
-  .longTitle h1 {
-    font-size: clamp(5rem, 11vw, 9rem);
-  }
-}
-
 .hint {
   color: var(--color-slate);
   margin: 0;

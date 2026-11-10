@@ -20,12 +20,6 @@
   text-transform: uppercase;
 }
 
-.hero h1 {
-  max-width: 14ch;
-  margin-bottom: 1rem;
-  font-size: clamp(2.75rem, 9vw, 5.5rem);
-}
-
 .intro {
   max-width: 42rem;
   color: var(--color-slate);

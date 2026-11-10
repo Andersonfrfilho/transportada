@@ -18,6 +18,11 @@ Tokens de design em `:root` de `src/styles/index.css` (`--color-*`, `--font-*`, 
 tema escuro único. Design system caseiro em `src/components/ui/`. Estilos por módulo em
 `*.module.css`.
 
+**Fontes são do projeto, não do aparelho** (Inter e JetBrains Mono, pacotes `@fontsource-variable/*` importados em
+`main.tsx` e precacheadas no PWA). O título de página é o `h1` global de `index.css`, medido pelos tokens
+`--page-title-*`: módulo nenhum redefine tamanho, peso ou caixa dele. O tema de login do Keycloak (`deploy/keycloak/theme/`)
+ainda usa as fontes antigas e é outro deploy.
+
 ## Regras do design system que não se negociam
 
 Cada linha é um primitivo obrigatório — o cru correspondente é **proibido** em `src/**/*.tsx` fora

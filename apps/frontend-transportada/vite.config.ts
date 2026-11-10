@@ -218,6 +218,15 @@ export default defineConfig({
          * D14). Diferente do recorte, ele é servido do próprio domínio (`vendor/opencv/`), então
          * ganha `CacheFirst` próprio — o worker o busca uma vez e o Service Worker guarda.
          */
+        /**
+         * As fontes (Inter e JetBrains Mono, só os subconjuntos latinos) entram no precache: o
+         * motorista abre o app sem sinal e a tela não pode cair numa fonte do aparelho.
+         */
+        globPatterns: [
+          '**/*.{js,css,html}',
+          '**/*-latin-wght-normal-*.woff2',
+          '**/*-latin-ext-wght-normal-*.woff2',
+        ],
         globIgnores: ['**/background-removal/**', '**/canhoto-ocr/**', OPENCV_CHUNK_GLOB],
         navigateFallback: '/index.html',
         runtimeCaching: [

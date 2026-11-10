@@ -1,5 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { NotificationProvider } from '@adatechnology/notification-ui'
+import '@fontsource-variable/inter'
+import '@fontsource-variable/jetbrains-mono'
 import '@adatechnology/conversations-ui/styles.css'
 import '@adatechnology/notification-ui/styles.css'
 import { lazy, StrictMode, Suspense, useEffect, useRef, useState } from 'react'
