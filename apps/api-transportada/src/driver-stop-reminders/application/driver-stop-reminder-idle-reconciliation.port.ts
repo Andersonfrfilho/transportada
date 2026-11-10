@@ -12,7 +12,7 @@ export type IdleStopReminderCandidate = {
 
 export type DriverStopReminderIdleReconciliationRepository = {
   /**
-   * Viagem `on_delivery_route` de empresa com a chave ligada, sem parada a caminho nem com chegada em aberto: a próxima
+   * Viagem na rua (`dispatched`, `in_transit` ou `on_delivery_route`; emenda 2026-11-10) de empresa com a chave ligada, sem parada a caminho nem com chegada em aberto: a próxima
    * parada aberta na ordem da rota, com âncora na última baixa ou, sem baixa, no despacho. Some o ciclo que já teve
    * lembrete `idle` (de qualquer status) para a parada, com âncora a partir do início do ciclo.
    */
