@@ -82,6 +82,12 @@ parada.
   relógio do servidor (`serverNow` do snapshot, não o do aparelho). O WhatsApp passa a ser bloqueado pelo mesmo servidor; a
   mensagem do bot é trabalho separado (§ WhatsApp).
 
+  **O escritório não tem a trava** (pedido do Anderson, 10/11/2026): pelo painel ou pelo WhatsApp, o escritório registra o
+  tipo a qualquer momento, em nome do motorista. Se a parada não tem chegada, o escritório **informa o horário exato em que o
+  motorista chegou** (obrigatório, mesmas janelas de D6) e esse horário grava a chegada (D5, canal `office`, `recordedAt` do
+  servidor); se já tem, o horário é descartado como em D4. Vale para qualquer tipo com `min_wait_after_arrival_minutes`, mesmo
+  com `arrival_time_mode = 'off'`.
+
 ## Histórias priorizadas
 
 ### P1 — O operador declara a exigência no tipo
@@ -184,10 +190,12 @@ Anotados aqui para não se perderem; nenhum deles bloqueia a 315.
 - **Cobrança no recebimento com duas fotos distintas** (placa da cobrança e comprovante de pagamento). A 315/D7 já cobra o
   mínimo de fotos do tipo (`photo_minimum_count = 2`), mas **não distingue qual é qual**: é preciso foto com papel/rótulo
   (`placa`, `comprovante`) por tipo. Spec própria.
-- **Cobrança vai para a página de ressarcimentos e para a Spani.** Ligar a ocorrência de parada ao ressarcimento (hoje só a
-  sugestão de cobrança por nota, spec 060 D4c) e o envio direto à Spani é spec própria. Nenhum outro tipo vai direto à Spani.
-- **"Endereço incorreto" vai ao vendedor, com chat com o vendedor do cliente** (WhatsApp e e-mail). Exige cadastro de vendedor
-  por cliente e canal de conversa novo; spec própria. A 315 só entrega o tipo com localização, observação e horário.
+- **Cobrança vai para a página de cobranças extras/acertos** (confirmado pelo negócio), com viagem, ocorrência, nota e cliente,
+  e marca o cliente como possível cobrança na entrega. Ligar a ocorrência de parada a essa página (hoje só a sugestão de
+  cobrança por nota, spec 060 D4c) é spec própria. **Nenhum tipo vai direto à Spani.**
+- **Módulo de vendedores da contratante** ("Endereço incorreto" vai ao vendedor): chat com canais (WhatsApp e e-mail) e área
+  dos vendedores; um vendedor pode estar ligado a mais de uma contratante e atender vários clientes em cada. É outra
+  funcionalidade, inspirada nos chats existentes; spec própria. A 315 só entrega o tipo com localização, observação e horário.
 - **Mensagem do bot de WhatsApp para tipo bloqueado** ("só abre às 14:50"): depende de D10 estar no servidor; é a T9, agora com
   escopo fixo e não mais opcional.
 
