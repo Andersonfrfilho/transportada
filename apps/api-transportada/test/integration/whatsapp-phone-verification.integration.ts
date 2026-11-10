@@ -31,6 +31,8 @@ import type {
 } from '../../src/identity/domain/tenant-context.js'
 import { DrizzleMembershipRepository } from '../../src/identity/infrastructure/drizzle-membership.repository.js'
 import { maskPhone } from '../../src/logging/phone-mask.policy.js'
+import { createBindWhatsAppPhoneByAdministratorUseCase } from '../../src/whatsapp-commands/application/bind-whatsapp-phone-by-administrator.use-case.js'
+import { createReadCompanyUserWhatsAppPhoneStateUseCase } from '../../src/whatsapp-commands/application/read-company-user-whatsapp-phone-state.use-case.js'
 import { createReadWhatsAppPhoneStateUseCase } from '../../src/whatsapp-commands/application/read-whatsapp-phone-state.use-case.js'
 import { createRequestWhatsAppPhoneVerificationUseCase } from '../../src/whatsapp-commands/application/request-whatsapp-phone-verification.use-case.js'
 import { createResolveWhatsAppActorUseCase } from '../../src/whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
@@ -356,11 +358,21 @@ async function buildScenario(db: Database) {
   }).find((route) => route.method === 'POST')
   if (webhook === undefined) throw new Error('rota do webhook não registrada')
 
+  const readPhoneState = createReadWhatsAppPhoneStateUseCase({
+    clock: () => new Date(),
+    repository: phones,
+  })
   const phoneRoutes = createWhatsAppPhoneRoutes({
-    readState: createReadWhatsAppPhoneStateUseCase({
+    bindByAdministrator: createBindWhatsAppPhoneByAdministratorUseCase({
       clock: () => new Date(),
+      memberships,
       repository: phones,
     }),
+    readCompanyUserState: createReadCompanyUserWhatsAppPhoneStateUseCase({
+      memberships,
+      readState: readPhoneState,
+    }),
+    readState: readPhoneState,
     requestVerification: createRequestWhatsAppPhoneVerificationUseCase({
       clock: () => new Date(),
       repository: phones,

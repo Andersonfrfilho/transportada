@@ -8,6 +8,8 @@ import {
   API_ME_WHATSAPP_PHONE_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
+import type { BindWhatsAppPhoneByAdministrator } from '../application/bind-whatsapp-phone-by-administrator.use-case.js'
+import type { ReadCompanyUserWhatsAppPhoneState } from '../application/read-company-user-whatsapp-phone-state.use-case.js'
 import type { ReadWhatsAppPhoneState } from '../application/read-whatsapp-phone-state.use-case.js'
 import type { RequestWhatsAppPhoneVerification } from '../application/request-whatsapp-phone-verification.use-case.js'
 import type { UnbindWhatsAppPhoneUseCase } from '../application/unbind-whatsapp-phone.use-case.js'
@@ -22,6 +24,8 @@ const USERS_MANAGE_POLICY = { permission: 'users.manage', scope: 'company' } as 
 const NO_STORE = 'no-store'
 
 type Dependencies = {
+  readonly bindByAdministrator: BindWhatsAppPhoneByAdministrator
+  readonly readCompanyUserState: ReadCompanyUserWhatsAppPhoneState
   readonly readState: ReadWhatsAppPhoneState
   readonly requestVerification: RequestWhatsAppPhoneVerification
   readonly unbind: UnbindWhatsAppPhoneUseCase
@@ -41,24 +45,7 @@ export function createWhatsAppPhoneRoutes(
           companyId: context.scope.companyId,
           userId: context.scope.userId,
         })
-        return new Response(
-          JSON.stringify({
-            data: {
-              expiresAt: state.expiresAt?.toISOString(),
-              pendingRequest:
-                state.pendingRequest === undefined
-                  ? undefined
-                  : { expiresAt: state.pendingRequest.expiresAt.toISOString() },
-              phone: state.phone,
-              status: state.status,
-              verifiedAt: state.verifiedAt?.toISOString(),
-            },
-          }),
-          {
-            headers: { 'cache-control': NO_STORE, 'content-type': JSON_CONTENT_TYPE },
-            status: 200,
-          },
-        )
+        return stateResponse(state)
       },
       method: 'GET',
       parse: () => ({}),
@@ -126,7 +113,68 @@ export function createWhatsAppPhoneRoutes(
       pathParameterFormat: 'raw',
       policy: USERS_MANAGE_POLICY,
     }),
+    defineRoute<{ readonly userId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const state = await dependencies.readCompanyUserState({
+          companyId: context.scope.companyId,
+          userId: input.userId,
+        })
+        return stateResponse(state)
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({ userId: parseUuidPathIdentifier(pathParameters.id ?? '') }),
+      pathname: COMPANY_USER_WHATSAPP_PHONE_PATH,
+      pathParameterFormat: 'raw',
+      policy: USERS_MANAGE_POLICY,
+    }),
+    defineRoute<{
+      readonly correlationId: string
+      readonly phone: string
+      readonly userId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        await dependencies.bindByAdministrator({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          phone: input.phone,
+          userId: input.userId,
+        })
+        return noContent()
+      },
+      method: 'PUT',
+      parse: async ({ correlationId, pathParameters, request }) => ({
+        correlationId,
+        phone: (await parseWhatsAppPhoneVerificationRequest(request)).phone,
+        userId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: COMPANY_USER_WHATSAPP_PHONE_PATH,
+      pathParameterFormat: 'raw',
+      policy: USERS_MANAGE_POLICY,
+      rateLimit: { ...WHATSAPP_PHONE_VERIFICATION_REQUEST_LIMIT, store: 'memory' },
+    }),
   ]
+}
+
+function stateResponse(state: Awaited<ReturnType<ReadWhatsAppPhoneState>>): Response {
+  return new Response(
+    JSON.stringify({
+      data: {
+        expiresAt: state.expiresAt?.toISOString(),
+        pendingRequest:
+          state.pendingRequest === undefined
+            ? undefined
+            : { expiresAt: state.pendingRequest.expiresAt.toISOString() },
+        phone: state.phone,
+        status: state.status,
+        verifiedAt: state.verifiedAt?.toISOString(),
+      },
+    }),
+    {
+      headers: { 'cache-control': NO_STORE, 'content-type': JSON_CONTENT_TYPE },
+      status: 200,
+    },
+  )
 }
 
 function noContent(): Response {

@@ -855,6 +855,16 @@ por `railway ssh`. Script: `tmp/ops/staging-publica-grafo-whatsapp.sh <previa|ad
 3. `sobrescrever fala_a,fala_b` leva o texto do código a chaves `fala_*` editadas no painel (spec 299).
 4. Feito em 2026-11-07 em staging: versão 3 → 4 (21 falas regravadas, 2 nós novos da 299).
 
+## 5.27 Quem pode confirmar como atendente no grupo do WhatsApp (10/11/2026) — somente leitura
+
+O bot só reconhece como atendente o número de quem tem vínculo ativo, papel com `trip.report-on-behalf` (`company-admin`,
+`operator`, `finance`) e WhatsApp **verificado** (`user_whatsapp_phones.verified_at`, válido por 90 dias). Para listar, rode
+`bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-atendentes-confirmam-canhoto.sh` (cópia em
+`scripts/ops/`; grava `tmp/ops/saidas/producao-atendentes-confirmam-canhoto-<data>.json` e imprime só o caminho).
+Em 10/11/2026 havia 4 pessoas com o papel na AFR Fernandes e **nenhuma** com WhatsApp verificado: a baixa pelo escritório no
+grupo também não funcionava. O administrador grava o número de outra pessoa já verificado em Usuários → editar → WhatsApp
+(`PUT /company-users/:id/whatsapp-phone`, `users.manage`, trilha `whatsapp_phone.bound_by_administrator`).
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |

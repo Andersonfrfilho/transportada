@@ -942,6 +942,7 @@ pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigration
   `whatsapp/application/whatsapp-location-redact.service.ts`.
 - **`MembershipAuthorizationPolicy`** ("qualquer membership ativa") só existe sob `/me/` —
   `assertMembershipRoutesUnderMe` derruba o boot fora dali.
+- **O administrador grava o número já verificado** (decisão do dono, 10/11/2026; revê a regra A6 da spec 144): `PUT /company-users/:id/whatsapp-phone` (`users.manage`, corpo `{ phone }` `.strict()`, `204`) e `GET` do estado mascarado; vínculo de outra empresa é 404, número verificado de outra pessoa dentro da validade é 409, e a trilha `whatsapp_phone.bound_by_administrator` diz quem gravou (número mascarado). Tela: Usuários → editar → WhatsApp.
 - Rotas (`cache-control: no-store`): `GET`/`DELETE /me/whatsapp-phone`,
   `POST /me/whatsapp-phone/verification` (201, 409 `WHATSAPP_CHANNEL_NUMBER_MISSING`),
   `DELETE /company-users/:id/whatsapp-phone` (`users.manage`) e

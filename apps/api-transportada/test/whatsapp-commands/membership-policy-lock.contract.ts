@@ -94,6 +94,12 @@ describe('a política de membership fica presa a /me/ (spec 144 T005b M2)', () =
 
   test('as rotas com a política são exatamente as da allowlist', () => {
     const routes = createWhatsAppPhoneRoutes({
+      bindByAdministrator: async () => {
+        throw new Error('não chamado')
+      },
+      readCompanyUserState: async () => {
+        throw new Error('não chamado')
+      },
       readState: async () => {
         throw new Error('não chamado')
       },
