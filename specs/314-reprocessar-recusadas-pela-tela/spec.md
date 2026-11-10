@@ -21,7 +21,7 @@ Resultado: na fila de importações de NF-e, a importação com nota recusada po
 
 ### P1 — Reprocessar importação com notas recusadas
 
-**Given** uma importação com itens `rejected` por `NFE_IMPORT_UNRELATED_CNPJ **When** o operador com `invoices.import` abre a fila de importações
+**Given** uma importação com itens `rejected` por `NFE_IMPORT_UNRELATED_CNPJ` **When** o operador com `invoices.import` abre a fila de importações
 **Then** vê "Reprocessar" naquela importação, e ao clicar vê "N notas serão refeitas" com Confirmar e Cancelar; só Confirmar grava.
 
 ### P1 — A nota que já foi importada não vira duplicada
