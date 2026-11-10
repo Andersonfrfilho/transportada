@@ -19,7 +19,7 @@ grupo escolhido, com o número escolhido marcado (@). As outras contratantes con
 
 ## Fora do escopo
 
-- Produção: o Evolution só existe em staging; levar a produção (número dedicado) é decisão separada.
+- Produção: o Evolution também existe em produção (confirmado pelo Anderson, 10/11). Mesmo assim tudo vai primeiro a staging; a ida à main segue a regra do projeto (promoção de staging).
 - API oficial da Meta: não posta em grupo, não participa.
 - Resposta da contratante pelo grupo (o bot lendo respostas da Única). Só envio.
 - Outras contratantes além da Única (o mecanismo é genérico, a configuração é só da Única).
@@ -57,7 +57,7 @@ Escolher o canal, escolher o grupo (lista dos grupos do Evolution, como na ficha
   Texto vem do módulo de notificações (spec 286), não do código.
 - RF5. Um mesmo grupo não pode ser de dois motoristas nem de duas contratantes (regra de identidade do grupo).
 - RF6. Resultado do envio entra na linha do tempo da ocorrência (enviado, falhou, usou reserva), como o e-mail hoje.
-- RF7. Só a Única fica configurada, por migration/script de ops em staging; produção só depois da decisão do Evolution.
+- RF7. Só a Única fica configurada, por migration/script de ops em staging; produção só na promoção de staging.
 
 ## Requisitos não funcionais
 

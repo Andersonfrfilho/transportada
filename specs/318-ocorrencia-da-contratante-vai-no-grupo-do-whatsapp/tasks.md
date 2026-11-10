@@ -26,4 +26,4 @@ Modelo por etapa (regra do projeto): o coordenador abre cada etapa numa thread c
 ## Etapa 4 — Staging · Modelo: padrão do projeto
 
 - [ ] T9 Configurar a Única em staging (script em `tmp/ops`), roteiro de teste com grupo de teste, evidência.
-- [ ] T10 Registrar no runbook; decisão de levar o Evolution a produção fica separada.
+- [ ] T10 Registrar no runbook; a ida a produção segue a promoção normal de staging.

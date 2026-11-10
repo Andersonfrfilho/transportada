@@ -5,7 +5,7 @@
 - Aviso automático hoje: `occurrence-conversation/application/send-automatic-occurrence-mail.use-case.ts` (spec 183 T802).
   O contato já tem `preferredChannel: 'email' | 'whatsapp'`, mas WhatsApp "ainda não envia": cai no e-mail.
 - Envio em grupo com marca já existe: `whatsapp/infrastructure/evolution-mention-text.gateway.ts` (spec 292).
-- Evolution só em staging. Meta oficial não posta em grupo.
+- Evolution existe em staging e em produção (Anderson, 10/11). Meta oficial não posta em grupo.
 
 ## Arquitetura e arquivos afetados
 
@@ -47,4 +47,4 @@
 
 ## Riscos
 
-- Evolution é não oficial (risco de bloqueio do número; volume baixo). Dependência de staging até a decisão de produção.
+- Evolution é não oficial (risco de bloqueio do número; volume baixo). Conferir no runbook a instância e o bot de produção antes da promoção.
