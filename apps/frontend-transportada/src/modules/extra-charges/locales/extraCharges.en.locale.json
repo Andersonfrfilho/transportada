@@ -39,6 +39,7 @@
     "other": "Other",
     "parking": "Parking",
     "platform": "Platform",
+    "receiving_charge": "Receiving charge",
     "returned_goods": "Returned goods",
     "scheduling": "Scheduling",
     "unloading": "Unloading"
@@ -104,6 +105,24 @@
     "statement": {
       "action": "Download statement",
       "hint": "The statement belongs to the batch that just closed. Sending it to the contractor is a person's call — this screen never sends anything on its own."
+    },
+    "receiving": {
+      "photos": "Photos",
+      "openPhoto": "Open photo: {{label}}",
+      "paidBy": {
+        "driver": "Paid by the driver",
+        "company": "Paid by the company"
+      },
+      "pix": "Driver PIX",
+      "pixType": {
+        "cpf": "CPF",
+        "cnpj": "CNPJ",
+        "email": "e-mail",
+        "phone": "phone",
+        "random": "random key"
+      },
+      "payoutSent": "PIX receipt sent",
+      "openOccurrence": "Open occurrence"
     }
   },
   "queue": {
@@ -118,5 +137,13 @@
     "select": "Select the charge",
     "title": "Suggestions to review ({{count}})"
   },
-  "forbidden": "You do not have permission to review and send delivery charges."
+  "forbidden": "You do not have permission to review and send delivery charges.",
+  "payoutReceipt": {
+    "summary": "Paid by the driver: {{total}}.",
+    "label": "PIX receipt",
+    "optional": "optional",
+    "choose": "Choose file",
+    "placeholder": "Image or PDF",
+    "hint": "Sent to the driver in the occurrence chat. You can resolve without it."
+  }
 }

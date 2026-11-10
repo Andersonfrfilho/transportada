@@ -20,9 +20,9 @@ Modelo por etapa (regra do projeto): o coordenador abre cada etapa numa thread c
 
 ## Etapa 3 — Painel · Modelo: padrão do projeto
 
-- [ ] T9 Ressarcimentos: fotos rotuladas e link da ocorrência; locale; componentes do design system.
-- [ ] T10 Ficha/lista do cliente: selo "Possível cobrança na entrega" e ação de limpar; PIX do motorista na linha de Ressarcimentos (`trip.financials`); campo opcional do comprovante do PIX na tela de concluir.
-- [ ] T11 Prints claro/escuro, desktop/celular, comparados a outra tela do painel.
+- [x] T9 Ressarcimentos: fotos rotuladas e link da ocorrência; locale; componentes do design system.
+- [x] T10 Ficha/lista do cliente: selo "Possível cobrança na entrega" e ação de limpar; PIX do motorista na linha de Ressarcimentos (`trip.financials`); campo opcional do comprovante do PIX na tela de concluir.
+- [x] T11 Prints claro/escuro, desktop/celular, comparados a outra tela do painel.
 
 ## Etapa 4 — App do motorista · Modelo: padrão do projeto
 
