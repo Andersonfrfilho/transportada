@@ -2,9 +2,9 @@
 # PRODUCAO: recoloca na fila as importacoes de XML (e-mail/WhatsApp) cujos itens foram todos recusados
 # com NFE_IMPORT_UNRELATED_CNPJ, para o worker reler com a regra "emitente contratante conta como da empresa".
 # 1) SIMULA (somente leitura) e mostra as contagens; 2) so grava depois do seu "sim".
-# Uso: bash tmp/ops/producao-reprocessa-recusadas.sh [horas]   (padrao 72; railway CLI logado)
+# Uso: bash <caminho completo>/tmp/ops/producao-reprocessa-recusadas.sh [horas]   (padrao 72; railway CLI logado; roda de qualquer pasta)
 set -euo pipefail
-REPO="${REPO:-$(git rev-parse --show-toplevel)}"
+REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 HELPER="$REPO/tmp/ops/producao-reprocessa-recusadas.mjs"
 OUT_DIR="$REPO/tmp/ops/saidas"
 [ -f "$HELPER" ] || { echo "helper ausente: $HELPER" >&2; exit 1; }
