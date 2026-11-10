@@ -3,7 +3,15 @@
  */
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import type { EventClockFields } from '../domain/occurred-at.policy.js'
+import {
+  FIELD_INFORMED_TIME,
+  assertInformedTimeWithinWindow,
+} from '../domain/field-delivery-timing.policy.js'
 import { resolveStopOccurrenceKind } from '../domain/stop-occurrence-kind.policy.js'
+import {
+  assertStopOccurrenceRequirements,
+  type StopOccurrenceTypeRequirements,
+} from '../domain/stop-occurrence-requirements.policy.js'
 import {
   OccurrenceTypeNotStopError,
   TripDocumentNotReachableError,
@@ -17,6 +25,7 @@ import type {
   ReportedLocation,
 } from './driver-field-report.port.js'
 import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
+import { performSequencedStopArrival } from './recorded-together-steps.service.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
@@ -81,7 +90,17 @@ export type ReportStopOccurrenceInput = FieldTripLocator &
   EventClockFields &
   StopOccurrenceReference & {
     readonly actorUserId: string
+    /**
+     * Spec 315 (D4, D5, D10): o horário de chegada informado. O motorista o informa quando o tipo pede e a parada não tem
+     * "Cheguei"; o escritório, quando a parada não tem chegada e o tipo tem espera mínima. Com chegada já gravada, é
+     * descartado.
+     */
+    readonly arrivedAt?: Date
     readonly attachmentObjectId: string | null
+    /** Spec 315 (D5): a chegada gravada junto passa pela ordem da parada; o escritório nunca manda. */
+    readonly confirmOutOfOrder?: boolean
+    /** O relógio do servidor; só os testes o injetam. */
+    readonly now?: Date
     /** Spec 209: só o canal do motorista a recebe — sem ela, anexo é recusado, nunca ignorado. */
     readonly attachmentUploads?: StopOccurrenceAttachmentPort
     readonly companyId: string
@@ -105,7 +124,11 @@ export type ReportStopOccurrenceInput = FieldTripLocator &
     readonly unitOfWork: DriverFieldReportUnitOfWork
   }
 
-export type ReportStopOccurrenceResult = { readonly id: string }
+export type ReportStopOccurrenceResult = {
+  /** Spec 315 (RF4): o horário informado gravou a chegada da parada nesta ocorrência. */
+  readonly arrivalRecorded: boolean
+  readonly id: string
+}
 
 /**
  * Spec 209 RF2: o anexo só vale se o upload é desta empresa, desta viagem e deste motorista. Roda
@@ -140,8 +163,14 @@ async function assertStopAttachmentReachable(
 async function resolveStopOccurrenceReference(
   input: ReportStopOccurrenceInput,
   transaction: DriverFieldReportTransactionPort,
-): Promise<{ readonly kind: TripStopOccurrenceKind; readonly occurrenceTypeId: string | null }> {
-  if (input.occurrenceTypeId === undefined) return { kind: input.kind, occurrenceTypeId: null }
+): Promise<{
+  readonly kind: TripStopOccurrenceKind
+  readonly occurrenceTypeId: string | null
+  readonly requirements: StopOccurrenceTypeRequirements | null
+}> {
+  if (input.occurrenceTypeId === undefined) {
+    return { kind: input.kind, occurrenceTypeId: null, requirements: null }
+  }
 
   const type = await transaction.findStopOccurrenceType({
     companyId: input.companyId,
@@ -151,7 +180,67 @@ async function resolveStopOccurrenceReference(
   return {
     kind: resolveStopOccurrenceKind(type.stopKind),
     occurrenceTypeId: input.occurrenceTypeId,
+    requirements: type.requirements ?? null,
   }
+}
+
+type RecordInformedArrivalParams = {
+  readonly authorship: ReturnType<typeof deriveFieldAuthorship>
+  readonly input: ReportStopOccurrenceInput
+  readonly informedAt: Date
+  readonly now: Date
+  readonly transaction: DriverFieldReportTransactionPort
+}
+
+/**
+ * Spec 315 (D5): grava a chegada da parada na hora informada, pelo caminho que já existe. O escritório já informa a hora
+ * em `now` (spec 156 A1, janela conferida lá); o motorista passa pela ordem da parada (spec 294) e pela mesma janela
+ * (não no futuro, não antes do despacho). A coordenada da ocorrência **não** vai: é de outro momento e criaria sugestão
+ * de endereço errada.
+ */
+async function recordInformedArrival(params: RecordInformedArrivalParams): Promise<void> {
+  const { authorship, informedAt, input, now, transaction } = params
+  const isOffice = input.target !== undefined
+  if (!isOffice) {
+    const stop = await transaction.findStopForDriver({
+      companyId: input.companyId,
+      stopId: input.stopId,
+      target: toFieldTripTarget(input),
+    })
+    if (stop === null) throw new TripStopNotReachableError()
+    assertInformedTimeWithinWindow({
+      informedAt,
+      kind: FIELD_INFORMED_TIME.arrived,
+      now,
+      windowStart: await transaction.findInformedTimeWindowStart({
+        companyId: input.companyId,
+        tripId: stop.tripId,
+      }),
+    })
+  }
+  const locator: FieldTripLocator =
+    input.target === undefined
+      ? {
+          driverId: input.driverId,
+          ...(input.channel === undefined ? {} : { channel: input.channel }),
+        }
+      : { target: input.target }
+  await performSequencedStopArrival({
+    authorship,
+    input: {
+      ...locator,
+      actorUserId: input.actorUserId,
+      companyId: input.companyId,
+      ...(input.confirmOutOfOrder === undefined
+        ? {}
+        : { confirmOutOfOrder: input.confirmOutOfOrder }),
+      ...(isOffice ? { recordedAt: now } : { informedAt }),
+      location: null,
+      now: isOffice ? informedAt : now,
+      stopId: input.stopId,
+    },
+    transaction,
+  })
 }
 
 export async function reportStopOccurrence(
@@ -159,7 +248,9 @@ export async function reportStopOccurrence(
 ): Promise<ReportStopOccurrenceResult> {
   const authorship = deriveFieldAuthorship(input)
 
+  const now = input.now ?? new Date()
   const recorded = await input.unitOfWork.execute(async (transaction) => {
+    let arrivalRecorded = false
     const reference = await resolveStopOccurrenceReference(input, transaction)
     const occurrence = await withFieldReport({
       guard: {
@@ -186,6 +277,33 @@ export async function reportStopOccurrence(
             target: toFieldTripTarget(input),
           })
           if (document === null) throw new TripDocumentNotReachableError()
+        }
+
+        /**
+         * Spec 315: o tipo cobra o que declarou (espera mínima, localização, foto, observação, horário) **antes** de
+         * qualquer escrita. Só vale quando o corpo manda o tipo do catálogo; o corpo antigo (só o kind) não tem o que cobrar.
+         */
+        if (reference.requirements !== null) {
+          const decision = assertStopOccurrenceRequirements({
+            arrivedAt: stop.arrivedAt,
+            attachmentCount: input.attachmentObjectId === null ? 0 : 1,
+            hasLocation: input.location !== null && input.location !== undefined,
+            informedArrivalAt: input.arrivedAt ?? null,
+            isOffice: input.target !== undefined,
+            note: input.description,
+            now,
+            requirements: reference.requirements,
+          })
+          if (decision.kind === 'record') {
+            await recordInformedArrival({
+              authorship,
+              informedAt: decision.arrivalAt,
+              input,
+              now,
+              transaction,
+            })
+            arrivalRecorded = true
+          }
         }
 
         const audit = buildOfficeAuditEntry({
@@ -238,7 +356,7 @@ export async function reportStopOccurrence(
         return transaction.findOccurrenceById({ companyId: input.companyId, occurrenceId })
       },
     })
-    return { id: occurrence.id, kind: reference.kind }
+    return { arrivalRecorded, id: occurrence.id, kind: reference.kind }
   })
 
   /**
@@ -287,5 +405,5 @@ export async function reportStopOccurrence(
     stopId: input.stopId,
   })
 
-  return { id: recorded.id }
+  return { arrivalRecorded: recorded.arrivalRecorded, id: recorded.id }
 }

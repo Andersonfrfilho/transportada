@@ -7,6 +7,7 @@ import './database-migration/occurrence-type-requirement-modes.static.contract.j
 import './database-migration/occurrence-type-quantity-minimums.static.contract.js'
 import './database-migration/occurrence-type-moments.static.contract.js'
 import './database-migration/occurrence-declared-amount.static.contract.js'
+import './database-migration/occurrence-location-arrival.static.contract.js'
 import './database-migration/nfe-recipient-email.static.contract.js'
 import './database-migration/occurrence-contractor-reply.static.contract.js'
 import './database-migration/occurrence-type-icon.static.contract.js'

@@ -27,6 +27,12 @@ export type StopArrivalStepInput = FieldTripLocator &
     readonly companyId: string
     /** Spec 294 RF27: a tripulação confirmou gravar fora da ordem da parada; o escritório nunca manda. */
     readonly confirmOutOfOrder?: boolean
+    /**
+     * Spec 315 (D5): a hora em que o motorista disse ter chegado, informada na ocorrência de parada. Grava `arrived_at` e
+     * `occurred_at` nessa hora e `recorded_at` em `now`; como a chegada do escritório, é retroativa e não desloca a
+     * previsão das paradas pendentes. O escritório não usa: ele já informa a hora em `now`.
+     */
+    readonly informedAt?: Date
     readonly location: ReportedLocation | null
     readonly now: Date
     readonly officeAudit?: OfficeAuditRequest

@@ -176,7 +176,7 @@ export async function applyStopArrival(
      * retroativa e não diz onde ele está agora: zera só a própria parada.
      */
     await transaction.markStopArrived({
-      at: input.now,
+      at: input.informedAt ?? input.now,
       clearEnRoute: isOffice ? 'stop' : 'trip',
       companyId: input.companyId,
       stopId: input.stopId,
@@ -187,7 +187,7 @@ export async function applyStopArrival(
      * paradas pendentes pela diferença entre o plano e a hora digitada dias depois inventaria
      * um atraso que ninguém viveu.
      */
-    if (!isOffice && recordedTogether === undefined) {
+    if (!isOffice && recordedTogether === undefined && input.informedAt === undefined) {
       await shiftPendingStopsByDelay({ ...params, isOffice, stop })
     }
   }
@@ -210,15 +210,7 @@ export async function applyStopArrival(
   })
   if (audit !== undefined) await transaction.recordOfficeAudit(audit)
 
-  const clock = isOffice
-    ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
-    : (recordedTogether?.clock ??
-      resolveRecordedEventClock({
-        clockOffsetMs: input.clockOffsetMs,
-        hasLocation: input.location !== null,
-        receivedAt: input.now,
-        tappedAt: input.tappedAt,
-      }))
+  const clock = resolveArrivalClock({ input, isOffice, recordedTogether })
   const event = await transaction.recordEvent({
     actorUserId: input.actorUserId,
     authorship,
@@ -241,6 +233,34 @@ export async function applyStopArrival(
     })
   }
   return event
+}
+
+type ResolveArrivalClockParams = {
+  readonly input: ApplyStopArrivalParams['input']
+  readonly isOffice: boolean
+  readonly recordedTogether: ApplyStopArrivalParams['recordedTogether']
+}
+
+/**
+ * A hora do evento de chegada. Escritório: `now` é a hora informada (A1). Motorista com hora informada na ocorrência
+ * (spec 315): a informada é `occurred_at` e o servidor grava `recorded_at`. Senão, a do relógio do aparelho.
+ */
+function resolveArrivalClock(params: ResolveArrivalClockParams) {
+  const { input, isOffice, recordedTogether } = params
+  if (isOffice) return { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
+  if (input.informedAt !== undefined) {
+    return { occurredAt: input.informedAt, recordedAt: input.recordedAt ?? input.now }
+  }
+
+  return (
+    recordedTogether?.clock ??
+    resolveRecordedEventClock({
+      clockOffsetMs: input.clockOffsetMs,
+      hasLocation: input.location !== null,
+      receivedAt: input.now,
+      tappedAt: input.tappedAt,
+    })
+  )
 }
 
 /** ADR-0067 §3, spec 156 T15 A1: a mesma janela de "Entregue em", com os códigos da chegada. */

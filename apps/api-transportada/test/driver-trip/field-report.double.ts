@@ -9,6 +9,7 @@ import type {
   FieldReportClaim,
 } from '../../src/trips/application/driver-field-report.port.js'
 import type { TripStopOccurrenceKind } from '../../src/database/trip.schema.js'
+import type { StopOccurrenceTypeRequirements } from '../../src/trips/domain/stop-occurrence-requirements.policy.js'
 import type { EventLocationStampColumns } from '../../src/trips/domain/event-location-stamp.types.js'
 import type { TripFieldChannel } from '../../src/trips/domain/trip-field-channel.constant.js'
 import type { DriverDocumentOccurrence } from '../../src/trips/application/driver-document-occurrence.types.js'
@@ -43,7 +44,13 @@ export type FieldReportState = {
    * Spec 218 D2: `companyId:occurrenceTypeId` → o `stop_kind` do tipo. Só entra o que a consulta real
    * devolve — tipo da empresa, `flow: stop` e ativo; o resto é ausente.
    */
-  readonly stopOccurrenceTypes: Map<string, { readonly stopKind: TripStopOccurrenceKind | null }>
+  readonly stopOccurrenceTypes: Map<
+    string,
+    {
+      readonly requirements?: StopOccurrenceTypeRequirements
+      readonly stopKind: TripStopOccurrenceKind | null
+    }
+  >
   readonly proofsByAttachmentKey: Map<string, string>
   /** ADR-0070 §1, spec 159 T6: `eventId:kind` de todo comprovante gravado — para `proofPending`. */
   readonly proofsByEventKind: Set<string>

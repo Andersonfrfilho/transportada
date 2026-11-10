@@ -46,6 +46,7 @@ import {
   OCCURRENCE_TYPE_CONTRACTOR_SCOPE_ISSUE,
 } from '../domain/occurrence-type-contractor-scope.policy.js'
 import { assertDeclaredAmountHasItems } from '../domain/occurrence-declared-amount-shape.policy.js'
+import { assertMinWaitExcludesArrivalTime } from '../domain/occurrence-min-wait-shape.policy.js'
 import {
   assertItemsMinimumMatchesMode,
   assertItemsOffHasNoRedeliveryPolicy,
@@ -193,6 +194,10 @@ export type SaveOccurrenceTypeValues = {
   /** Spec 247 (RF1): o número do documento do cliente — modo e rótulo. Ausente é "não mexa". */
   readonly referenceNumberLabel?: string | undefined
   readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
+  /** Spec 315 (D1, D10): ausente é "não mexa"; a espera mínima `null` a limpa. */
+  readonly arrivalTimeMode?: DeliveryProofFieldMode | undefined
+  readonly locationMode?: DeliveryProofFieldMode | undefined
+  readonly minWaitAfterArrivalMinutes?: null | number | undefined
   /** Ausente é "não mexa" (spec 164 RF1) — o valor guardado fica; na criação vale `'unset'`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
   /** Spec 246 (RF1): a exigência da assinatura. Ausente é "não mexa" — nunca `'off'`. */
@@ -211,6 +216,8 @@ export type CurrentOccurrenceTypeShape = Partial<
     | 'contractorScope'
     | 'declaredAmountMode'
     | 'declaredAmountScope'
+    | 'arrivalTimeMode'
+    | 'minWaitAfterArrivalMinutes'
     | 'flow'
     | 'itemsMinimumCount'
     | 'moments'
@@ -248,6 +255,7 @@ export async function saveOccurrenceTypeWithTemplate(
   assertItemsOffHasNoRedeliveryPolicy({ stored, values })
   assertItemsMinimumMatchesMode({ stored, values })
   assertDeclaredAmountHasItems({ stored, values })
+  assertMinWaitExcludesArrivalTime({ stored, values })
   assertContractorScopeValues(values)
   await assertContractorTemplateIsUsable({
     companyId: input.companyId,
@@ -322,10 +330,12 @@ async function readStoredTypeWhenNeeded(
   input: SaveOccurrenceTypeWithTemplateInput,
 ): Promise<CurrentOccurrenceTypeShape | null> {
   const {
+    arrivalTimeMode,
     declaredAmountMode,
     declaredAmountScope,
     itemsMinimumCount,
     itemsMode,
+    minWaitAfterArrivalMinutes,
     moments,
     occurrenceTypeId,
     redeliveryPolicy,
@@ -336,6 +346,8 @@ async function readStoredTypeWhenNeeded(
       declaredAmountMode === undefined ||
       declaredAmountScope === undefined ||
       itemsMinimumCount === undefined ||
+      arrivalTimeMode === undefined ||
+      minWaitAfterArrivalMinutes === undefined ||
       redeliveryPolicy === undefined ||
       moments === undefined)
   return isStoredStateNeeded

@@ -402,6 +402,10 @@ type SaveOccurrenceTypeInput = {
   readonly photoMinimumCount?: number | undefined
   /** Spec 164 RF1/T21: ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+  /** Spec 315: localização, horário de chegada e espera mínima do registro de parada; ausente é "não mexa". */
+  readonly arrivalTimeMode?: DeliveryProofFieldMode | undefined
+  readonly locationMode?: DeliveryProofFieldMode | undefined
+  readonly minWaitAfterArrivalMinutes?: null | number | undefined
   /** Spec 247 (RF1): o número do documento do cliente; ausente é "não mexa". */
   readonly referenceNumberLabel?: string | undefined
   readonly referenceNumberMode?: DeliveryProofFieldMode | undefined

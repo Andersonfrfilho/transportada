@@ -372,7 +372,7 @@ describe('pela rota: os campos chegam à dependência como dado (spec 234 T1.4)'
         id: 'event-1',
         recordedTogether: ['departed', 'arrived'],
       } as never),
-      reportOccurrence: record('reportOccurrence', { id: 'event-1' }),
+      reportOccurrence: record('reportOccurrence', { arrivalRecorded: false, id: 'event-1' }),
       reportReturn: record('reportReturn', { id: 'event-1' } as never),
       resolveDriverId: async () => DRIVER_ID,
       startFieldTrip: NOT_CALLED,
