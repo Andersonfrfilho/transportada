@@ -61,31 +61,38 @@ export function NfeXmlAllowedDomainsPanel({
         </div>
         <p>{t('allowedDomains.subtitle')}</p>
       </div>
-      <form onSubmit={(event) => void handleSubmit(event)}>
-        <label htmlFor="nfe-xml-domain-input">{t('allowedDomains.domainLabel')}</label>
-        <input
-          id="nfe-xml-domain-input"
-          onChange={(event) => setDomain(event.target.value)}
-          placeholder={t('allowedDomains.domainPlaceholder')}
-          value={domain}
-        />
-        <SearchableSelect
-          ariaLabel={t('allowedDomains.contractorLabel')}
-          emptyLabel={t('allowedDomains.contractorEmpty')}
-          onChange={setContractorId}
-          options={contractors.map((contractor) => ({
-            label: contractor.label,
-            value: contractor.id,
-          }))}
-          placeholder={t('allowedDomains.contractorPlaceholder')}
-          searchPlaceholder={t('allowedDomains.contractorSearch')}
-          value={contractorId}
-        />
-        <Button disabled={!canSubmit} type="submit">
-          {t('allowedDomains.release')}
-        </Button>
+      <form className={styles.domainForm} onSubmit={(event) => void handleSubmit(event)}>
+        <label className={styles.domainField}>
+          <span>{t('allowedDomains.domainLabel')}</span>
+          <input
+            autoComplete="off"
+            onChange={(event) => setDomain(event.target.value)}
+            placeholder={t('allowedDomains.domainPlaceholder')}
+            value={domain}
+          />
+        </label>
+        <div className={styles.domainField}>
+          <span>{t('allowedDomains.contractorLabel')}</span>
+          <SearchableSelect
+            ariaLabel={t('allowedDomains.contractorLabel')}
+            emptyLabel={t('allowedDomains.contractorEmpty')}
+            onChange={setContractorId}
+            options={contractors.map((contractor) => ({
+              label: contractor.label,
+              value: contractor.id,
+            }))}
+            placeholder={t('allowedDomains.contractorPlaceholder')}
+            searchPlaceholder={t('allowedDomains.contractorSearch')}
+            value={contractorId}
+          />
+        </div>
+        <div className={styles.domainActions}>
+          <Button disabled={!canSubmit} type="submit">
+            {t('allowedDomains.release')}
+          </Button>
+        </div>
         {errorCode !== null && (
-          <p className={styles.cardError} role="alert">
+          <p className={`${styles.cardError} ${styles.domainFormError}`} role="alert">
             {t(`allowedDomains.error.${errorCode}`, {
               defaultValue: t('allowedDomains.error.unknown'),
             })}
