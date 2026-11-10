@@ -853,3 +853,30 @@ Execution Time: 0.049 ms
 - `lembreteOpcaoInvalida` agora é `…de 1 a {{ultimaOpcao}}`, com o último número calculado do cardápio da etapa/variante (arrival e settlement 4, idle início 3, idle rota 5). **Depois do merge, republicar com `--overwrite-nodes fala_lembrete_opcao_invalida`** (nó já publicado).
 
 **Gates depois do rebase** (apps/api-transportada, sequenciais): `tsc` limpo · `bun run lint` limpo · `bun run test` 14503 pass / 0 fail · contrato 14538 testes / 0 fail · integração: delivery 13, group-step 5, `driver-stop-reminders` 23, reconciliation 12, settings 5, idle 7, todos pass · `db:test` 206 pass / 0 fail · `db:generate` → `no_changes` · raiz `format:check` limpo. Worker não tocado.
+
+## Emenda D10 — viagem despachada sem "Iniciar rota" (T6.1, 2026-11-10)
+
+Pedido do dono (10/11/2026): "mesmo se não teve eventos do WhatsApp e eles têm entregas devem ser cobrados". Caso real:
+viagem despachada havia quase 24 h, 12 paradas, nenhum toque, nenhuma cobrança, porque a varredura do `idle` só lia
+`on_delivery_route`.
+
+**Mudança.** `DrizzleDriverStopReminderIdleReconciliationRepository` lê as viagens em `TRIP_ON_ROAD_STATUSES`
+(`dispatched`, `in_transit`, `on_delivery_route`). Âncora (despacho, senão a última baixa), `idleMinutes`, as duas chaves,
+tentativas, adiamentos, horário de funcionamento e escalada não mudam. O "1" da variante A já ia por
+`reportStopDeparture` (o mesmo caminho do "Iniciar rota" do app, ADR-0088 §2), que leva a viagem `dispatched`/`in_transit`
+a `on_delivery_route`; agora há teste ponta a ponta disso.
+
+**Vermelho antes do código** (`git stash push src`, testes novos mantidos, Postgres 16 local):
+
+```text
+(fail) … > viagem despachada sem "Iniciar rota" (emenda 2026-11-10): idle na primeira parada, ancorado no despacho
+(fail) … > variante A também na viagem só despachada (emenda 2026-11-10)
+(fail) … > viagem só despachada (emenda 2026-11-10): o idle cobra e "1" inicia a rota pelo mesmo caminho do "Iniciar rota"
+ 13 pass
+ 3 fail
+```
+
+**Verde depois:** integração `driver-stop-reminder-idle` + `driver-stop-reminder-group-step` 16 pass / 0 fail · `bun run test` 14876 pass / 35 skip / 0 fail · `tsc --noEmit` limpo · `bun run lint` limpo · `prettier --check` nos arquivos tocados limpo. Worker não tocado.
+
+Produção: nada foi feito. `scripts/ops/producao-lembrete-viagens-despachadas.sh` (somente leitura) lista as viagens que
+passam a ser cobradas, para conferir antes de promover a emenda à `main`.

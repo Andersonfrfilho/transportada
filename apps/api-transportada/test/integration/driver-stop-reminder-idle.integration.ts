@@ -50,9 +50,12 @@ const MINUTE = 60_000
 
 type World = Readonly<{ company: Company; database: TestDatabase; trip: SeededTrip }>
 
-async function seedWorld(database: TestDatabase): Promise<World> {
+async function seedWorld(
+  database: TestDatabase,
+  status: Parameters<typeof seedTrip>[2] = 'on_delivery_route',
+): Promise<World> {
   const company = await seedCompany(database)
-  const trip = await seedTrip(database, company, 'on_delivery_route')
+  const trip = await seedTrip(database, company, status)
   await database.db
     .update(fleetDrivers)
     .set({ phone: '16999990001' })
@@ -169,6 +172,43 @@ describe('a varredura da etapa idle contra o Postgres (spec 299 T2.7)', () => {
     },
   )
 
+  testWithPostgres(
+    'viagem despachada sem "Iniciar rota" (emenda 2026-11-10): idle na primeira parada, ancorado no despacho',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        for (const status of ['dispatched', 'in_transit'] as const) {
+          const world = await seedWorld(database, status)
+
+          expect(await reconcile(world)).toEqual({ openedCount: 1 })
+          const rows = await readReminders(world)
+          expect(rows).toHaveLength(1)
+          expect(rows[0]).toMatchObject({
+            anchorAt: DISPATCHED_AT,
+            driverId: world.company.firstDriverId,
+            stage: 'idle',
+            status: 'pending',
+            tripStopId: world.trip.stopId,
+          })
+          expect(rows[0]?.dueAt).toEqual(new Date(DISPATCHED_AT.getTime() + 30 * MINUTE))
+          expect(await reconcile(world)).toEqual({ openedCount: 0 })
+        }
+      })
+    },
+  )
+
+  testWithPostgres(
+    'viagem que ainda não saiu do barracão ou já terminou: nenhum idle',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        for (const status of ['loading', 'completed', 'cancelled'] as const) {
+          const world = await seedWorld(database, status)
+          expect(await reconcile(world)).toEqual({ openedCount: 0 })
+          expect(await readReminders(world)).toEqual([])
+        }
+      })
+    },
+  )
+
   testWithPostgres('depois da baixa da parada 1, o idle da parada 2 ancora na baixa', async () => {
     await withDisposableDatabase(async (database) => {
       const world = await seedWorld(database)
@@ -276,6 +316,25 @@ describe('a entrega da etapa idle contra o Postgres (spec 299 T2.7)', () => {
           '*3* - Ainda não vou sair',
         ].join('\n'),
       )
+    })
+  })
+
+  testWithPostgres('variante A também na viagem só despachada (emenda 2026-11-10)', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedWorld(database, 'dispatched')
+      await reconcile(world)
+      await database.db
+        .update(driverStopReminders)
+        .set({ dueAt: new Date(NOW.getTime() - MINUTE) })
+        .where(eq(driverStopReminders.companyId, world.company.companyId))
+
+      const { opened, result, sent } = await deliverIdle(world)
+
+      expect(result.outcome).toBe('sent')
+      expect(opened).toMatchObject([{ idleVariant: 'start', stage: 'idle' }])
+      expect(sent[0]).toMatchObject({ mentionNumber: DRIVER_WHATSAPP, number: GROUP })
+      expect(sent[0]?.body).toContain('Vamos iniciar a rota?')
+      expect(sent[0]?.body).toContain('*1* - Iniciar a rota por esta parada')
     })
   })
 
