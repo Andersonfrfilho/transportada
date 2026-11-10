@@ -1,8 +1,8 @@
-# Plano — Feature 316
+# Plano — Feature 317
 
 Leia antes (ordem): spec 060 (D4c/D5), 164 (ponte `returned_goods`, Ressarcimentos), 204 (valor da
 cobrança inesperada, nunca implementada), 209 (foto da parada), 218 (`stopKind`), 246/247 (exigência,
-valor declarado), 315 (localização e chegada obrigatórias — coordenar a ordem das migrations).
+valor declarado), 315 (localização e chegada obrigatórias, já em staging — a migration desta spec vem depois da dela; conferir o que ela mudou em `trip_stop_occurrences` antes do T1).
 
 ## Fatias
 
@@ -26,7 +26,7 @@ valor declarado), 315 (localização e chegada obrigatórias — coordenar a ord
   novo e a API sobem juntos para este tipo (tipo `active = false` até lá).
 - Fila offline com versão antiga do app: `slotKey` ausente + tipo com vagas = `422`; o app mostra o
   que falta em vez de descartar.
-- Conflito de numeração/ordem de migration com a spec 315: rebasear a migration depois do merge dela.
+- A 315 já está em staging: a migration desta spec usa timestamp posterior à última do diretório e herda as colunas que a 315 criou.
 
 ## Modelo por etapa
 

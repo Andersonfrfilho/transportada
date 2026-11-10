@@ -1,4 +1,4 @@
-# Feature 316 — A cobrança no recebimento vai para os acertos
+# Feature 317 — A cobrança no recebimento vai para os acertos
 
 ## Problema e resultado
 
@@ -23,7 +23,7 @@ O negócio confirmou (Anderson, 10/11/2026) o desenho abaixo. Resultado:
 
 ## Fora do escopo
 
-- Localização e chegada obrigatórias na ocorrência: é a spec 315 (esta spec só herda o que ela fizer).
+- Localização e chegada obrigatórias na ocorrência: é a spec 315, já em staging (esta spec só herda o que ela fez).
 - Espera longa, Endereço incorreto e o chat do vendedor: outras threads/specs. Só a regra "esse tipo
   não vai direto à contratante" é comum, e aqui vale apenas para a cobrança no recebimento.
 - Gerar o lote/fatura ao contratante a partir da linha: continua o fluxo de Ressarcimentos já existente
