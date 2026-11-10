@@ -438,6 +438,8 @@ import {
 } from './whatsapp-commands/infrastructure/whatsapp-command-hook.factory.js'
 import { createReadWhatsAppPhoneStateUseCase } from './whatsapp-commands/application/read-whatsapp-phone-state.use-case.js'
 import { createRequestWhatsAppPhoneVerificationUseCase } from './whatsapp-commands/application/request-whatsapp-phone-verification.use-case.js'
+import { createBindWhatsAppPhoneByAdministratorUseCase } from './whatsapp-commands/application/bind-whatsapp-phone-by-administrator.use-case.js'
+import { createReadCompanyUserWhatsAppPhoneStateUseCase } from './whatsapp-commands/application/read-company-user-whatsapp-phone-state.use-case.js'
 import { createUnbindWhatsAppPhoneUseCase } from './whatsapp-commands/application/unbind-whatsapp-phone.use-case.js'
 import { createVerifyWhatsAppPhoneUseCase } from './whatsapp-commands/application/verify-whatsapp-phone.use-case.js'
 import { createWhatsAppPhoneRoutes } from './whatsapp-commands/presentation/whatsapp-phone.routes.js'
@@ -5537,6 +5539,18 @@ function createApplicationRoutes({
       setConsent: (input) => tripLocationRepository.setConsent(input),
     }),
     ...createWhatsAppPhoneRoutes({
+      bindByAdministrator: createBindWhatsAppPhoneByAdministratorUseCase({
+        clock: () => new Date(),
+        memberships: new DrizzleMembershipRepository(database),
+        repository: new DrizzleWhatsAppPhoneRepository(database),
+      }),
+      readCompanyUserState: createReadCompanyUserWhatsAppPhoneStateUseCase({
+        memberships: new DrizzleMembershipRepository(database),
+        readState: createReadWhatsAppPhoneStateUseCase({
+          clock: () => new Date(),
+          repository: new DrizzleWhatsAppPhoneRepository(database),
+        }),
+      }),
       readState: createReadWhatsAppPhoneStateUseCase({
         clock: () => new Date(),
         repository: new DrizzleWhatsAppPhoneRepository(database),

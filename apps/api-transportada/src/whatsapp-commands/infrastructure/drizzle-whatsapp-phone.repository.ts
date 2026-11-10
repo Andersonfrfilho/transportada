@@ -287,6 +287,29 @@ export class DrizzleWhatsAppPhoneRepository implements WhatsAppPhoneRepositoryPo
     }
   }
 
+  public async bindVerifiedWithAudit(input: {
+    readonly audit: WhatsAppPhoneAuditInput
+    readonly phone: string
+    readonly userId: string
+    readonly verifiedAt: Date
+  }): Promise<void> {
+    try {
+      await this.database.transaction(async (transaction) => {
+        await releaseExpiredBindings(transaction, { ...input, requestId: '' })
+        await upsertVerified(transaction, input)
+        await transaction.insert(auditLogs).values(
+          buildAuditRow({
+            ...input,
+            action: WHATSAPP_PHONE_AUDIT.boundByAdministrator,
+            result: 'allowed',
+          }),
+        )
+      })
+    } catch (error) {
+      throw translateTaken(error)
+    }
+  }
+
   public async closeRequestAfterCollision(
     input: CompleteWhatsAppPhoneVerificationInput,
   ): Promise<void> {

@@ -27,6 +27,8 @@ export const WHATSAPP_PHONE_VERIFICATION_CODE_SPACE = 10 ** WHATSAPP_PHONE_VERIF
 export const WHATSAPP_PHONE_VERIFICATION_CODE_MESSAGE_PATTERN = /^\s*(\d{6})\s*$/
 
 export const WHATSAPP_PHONE_AUDIT = {
+  /** Decisão do dono (10/11/2026): o administrador grava o número já verificado, e a trilha diz quem. */
+  boundByAdministrator: 'whatsapp_phone.bound_by_administrator',
   collision: 'whatsapp_phone.verification_collision',
   entityType: 'user_whatsapp_phone',
   expiredReleased: 'whatsapp_phone.expired_released',

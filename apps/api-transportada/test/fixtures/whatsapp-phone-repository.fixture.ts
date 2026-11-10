@@ -223,6 +223,16 @@ export function createWhatsAppPhoneRepositoryFake(
     async saveVerified({ phone, userId, verifiedAt }) {
       bindings.set(userId, { phone, verifiedAt })
     },
+    async bindVerifiedWithAudit({ audit, phone, userId, verifiedAt }) {
+      bindings.set(userId, { phone, verifiedAt })
+      recordAudit({
+        action: WHATSAPP_PHONE_AUDIT.boundByAdministrator,
+        audit,
+        phone,
+        result: 'allowed',
+        userId,
+      })
+    },
     async unbindByUserId({ userId }) {
       bindings.delete(userId)
     },
