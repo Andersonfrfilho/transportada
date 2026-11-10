@@ -33,5 +33,5 @@ Modelo por etapa (regra do projeto): o coordenador abre cada etapa numa thread c
 
 ## Etapa 5 — Fechamento · Modelo: padrão do projeto
 
-- [ ] T15 Runbook de produção, `CLAUDE.md` da API/painel/app, `evidence.md`.
-- [ ] T16 Publicação em staging; conferir a ordem painel → API → app. Produção só com aprovação.
+- [x] T15 Runbook de produção, `CLAUDE.md` da API/painel/app, `evidence.md`.
+- [x] T16 Publicação em staging; conferir a ordem painel → API → app. Produção só com aprovação.

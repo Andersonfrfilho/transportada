@@ -543,3 +543,15 @@ contato novo passa pela **tela de confirmação** (número formatado) antes de i
 **A própria foto** (spec 295): `useOwnPicture` lê `GET /me/picture` (vira `blob:`, já aceito no `img-src`), troca por `PUT` e remove por `DELETE`; compressão no aparelho em `userPictureCompression.service.ts` (cópia do painel). `DriverAvatar` mostra a foto no cabeçalho e no Perfil e volta às iniciais se faltar ou quebrar.
 
 **A nota da CNH** (spec 295 Fase 4): `GET /me/picture` traz `x-picture-origin`; `ownPictureClient` o lê (`cnh|self|admin`, desconhecido vira `undefined`) e, enquanto a origem é `cnh`, o Perfil mostra o botão "Foto tirada da sua CNH — toque para trocar", que abre o seletor. Trocar grava `self` e a nota some.
+
+## Cobrança no recebimento (spec 317)
+
+Para o tipo de parada `unexpected_charge` **com `photoSlots` vindos do servidor**, `OccurrenceReceivingChargeSection` + `useReceivingChargeForm` pedem valor (máscara de centavos da 247, `0,00` é valor),
+notas e modo (por nota ou agrupada, só com mais de uma nota; uma só é assumida), "Quem pagou?", tipo e chave PIX se foi o motorista, e **uma foto por vaga com o rótulo do servidor**.
+Nenhuma `slotKey` fixa em `src/` (a exigência é lida do servidor; contrato de paridade em `test/driver-trip/receiving-charge.contract.ts`). "Registrar" só habilita com tudo e a segunda trava está em
+`dispatchOccurrenceRegistration`; a mensagem do botão diz **qual** foto falta. Sem `photoSlots` (API antiga) o tipo cai no formulário de sempre.
+
+- **Fila:** item `stopOccurrenceCharge` (fotos por vaga, valor, notas, PIX). Não reaproveita `stopOccurrencePhoto`: a API exige todas as vagas obrigatórias no **primeiro** registro. O `send` sobe cada foto
+  pela rota da parada e faz **um** `POST` com `photos[{ slotKey, objectId }]` e `receivingCharge`, com a chave do registro (reenvio não duplica). Entra na cota de bytes, no carimbo de hora e no cancelamento; fila cheia devolve o toque inteiro.
+- **Selo:** `DriverChargeSealNotice` no cartão da parada, somente leitura, só com `stops[].clientChargeSeal`; ausente/malformado some. Limite: o PIX não vem pré-preenchido (o snapshot não traz o PIX do cadastro).
+- Prints em `specs/317-*/prints/` (`test/spec-317-prints.smoke.spec.ts`, fora da CI). **Este app vai por último** (painel → API → app).
