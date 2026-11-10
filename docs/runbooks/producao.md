@@ -1147,15 +1147,17 @@ Dica: o `ls` do Anderson tem alias; use `command ls` ao listar `tmp/ops/saidas/`
 **Causa:** o realm de produção estava com o padrão do Keycloak: sessão morre com **30 min parada** (`ssoSessionIdleTimeout` 1800) e teto de 10 h. A renovação do token devolve `Token is not active` e a API (que só valida a assinatura, sem consultar o Keycloak) passa a responder 401. O "continuar conectado" só vale se a pessoa marcar a caixa.
 
 **Correção (10/11/2026):**
+
 - Produção ajustada à mão para ociosidade **8 h** (28800) e teto **7 dias** (604800) com `APLICAR_SESSAO=1 bash tmp/ops/producao-keycloak-eventos.sh` (PUT 204, conferido na leitura seguinte).
 - `deploy/keycloak/realm.json` e `.github/scripts/keycloak-reconcile.sh` passaram a declarar os mesmos prazos (PR #636), então staging e instalação nova não voltam ao padrão.
 - O painel, ao receber 401 com token que o navegador acha válido, reautentica uma vez por minuto (PR #634 na staging, #635 na `main`).
 
 **Scripts** (em `tmp/ops/`):
+
 - `producao-keycloak-sessao.sh` — somente leitura: prazos do realm, client `transportada-spa`, chaves e eventos.
 - `producao-keycloak-eventos.sh` — escreve: liga eventos de login/renovação (14 dias) e, com `APLICAR_SESSAO=1`, ajusta a sessão.
 - `producao-thiago-falhas.sh` — somente leitura: eventos de campo de um motorista (paradas, status, ocorrências) em 36 h.
 
-⚠️ **Eventos do Keycloak seguem desligados:** a conta de serviço da API recebe 403 em `/events/config` (falta `manage-events` do client `realm-management`, ou ligar à mão em *Realm settings → Events*). Sem eles, um 401 com token ainda válido não deixa rastro.
+⚠️ **Eventos do Keycloak seguem desligados:** a conta de serviço da API recebe 403 em `/events/config` (falta `manage-events` do client `realm-management`, ou ligar à mão em _Realm settings → Events_). Sem eles, um 401 com token ainda válido não deixa rastro.
 
 **Bun SQL:** em `Bun.SQL`, lista em `IN` é `in ${sql(arr)}`; `any(${arr})` dá `malformed array literal`.
