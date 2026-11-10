@@ -178,6 +178,25 @@ async function openChargeForm(
   return form
 }
 
+/** T14a: o cartão da parada com o aviso de possível cobrança (somente leitura) que o servidor manda. */
+async function openStopCardWithSeal(
+  page: Page,
+  viewport: keyof typeof VIEWPORTS,
+  theme: 'dark' | 'light',
+): Promise<Locator> {
+  await page.setViewportSize(VIEWPORTS[viewport])
+  await page.emulateMedia({ colorScheme: theme })
+  await mockDriverTripApi({
+    page,
+    scenario: { stopClientChargeSeal: { flaggedAt: '2026-11-01T12:00:00.000Z' } },
+  })
+  await loginWithMockedKeycloak(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'Minha viagem' })).toBeVisible()
+  const notice = page.getByRole('complementary', { name: 'Aviso de cobrança' })
+  await expect(notice).toBeVisible()
+  return notice.locator('xpath=..')
+}
+
 async function shot(locator: Locator, name: string): Promise<void> {
   await locator.evaluate((element) => element.scrollIntoView({ block: 'start' }))
   await locator.page().mouse.move(0, 0)
@@ -208,6 +227,15 @@ for (const theme of ['light', 'dark'] as const) {
         .setInputFiles({ buffer: PIXEL, mimeType: 'image/png', name: 'comprovante.png' })
       await expect(form.getByRole('button', { name: 'Registrar' })).toBeEnabled()
       await shot(form, `cobranca-completo-${theme}-${viewport}.png`)
+    })
+  }
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  for (const viewport of ['desktop', 'mobile'] as const) {
+    test(`print: selo de possível cobrança na parada, ${theme}, ${viewport}`, async ({ page }) => {
+      const card = await openStopCardWithSeal(page, viewport, theme)
+      await shot(card, `selo-parada-${theme}-${viewport}.png`)
     })
   }
 }

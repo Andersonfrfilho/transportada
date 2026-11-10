@@ -154,3 +154,6 @@ import './driver-trip/out-of-order-prompt.contract'
 import './driver-trip/canhoto-replace-prompt.contract'
 import './driver-trip/trip-created-at.contract'
 import './driver-trip/stop-card-conversation-golden.contract'
+// Por último: renderizar acima avança o contador global de ids do React e mexeria no golden do cartão.
+import './driver-trip/charge-seal-notice.contract'
+// Por último: renderizar acima avança o contador global de ids do React e mexeria no golden do cartão.

@@ -39,6 +39,10 @@
     "detail": "Here you can see the stops, the invoices and the manifest. Arrival, delivery, return and occurrences are the driver's.",
     "title": "You are following this trip as a helper"
   },
+  "chargeSeal": {
+    "label": "Charge notice",
+    "text": "The office flagged this client as a possible charge on delivery. If an amount is asked for, record it with the charge occurrence."
+  },
   "holidayWarning": {
     "future": "{{date}} is a holiday in {{city}} ({{reasons}}). Confirm with the customer before going.",
     "futureWithoutCity": "{{date}} is a holiday ({{reasons}}). Confirm with the customer before going.",

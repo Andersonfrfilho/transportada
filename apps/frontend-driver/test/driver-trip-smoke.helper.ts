@@ -82,6 +82,8 @@ export type DriverTripProofScenario = Readonly<{
   /** Spec 230: a viagem nasce `route_planned` e só vira `dispatched` depois do `POST /dispatch`. */
   startsPlanned?: boolean
   stopDeliveryProof?: Readonly<Record<string, string>>
+  /** Spec 317 T14a: o servidor manda o selo de possível cobrança na parada (só quando o tipo o liga ao motorista). */
+  stopClientChargeSeal?: Readonly<{ flaggedAt: string }>
   /** Spec 206: a API nova manda `enRouteSince`/`enRouteTappedAt` — sem eles a tela cai no modo legado (só "Cheguei"). */
   tracksEnRoute?: boolean
 }>
@@ -118,6 +120,9 @@ function buildSnapshot(input: {
           stops: [
             {
               arrivedAt: input.arrived ? '2026-08-26T13:00:00.000Z' : null,
+              ...(input.scenario?.stopClientChargeSeal === undefined
+                ? {}
+                : { clientChargeSeal: input.scenario.stopClientChargeSeal }),
               completedAt: null,
               deliveryWindowEnd: null,
               deliveryWindowStart: null,

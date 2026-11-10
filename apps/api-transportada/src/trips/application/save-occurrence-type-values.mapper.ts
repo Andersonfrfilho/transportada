@@ -30,6 +30,7 @@ export function toSaveOccurrenceTypeValues(
     clientChannels: input.clientChannels,
     asksClientContact: input.asksClientContact,
     asksNewDueDate: input.asksNewDueDate,
+    showClientChargeSealToDriver: input.showClientChargeSealToDriver,
     contractorReplyAcknowledgementQuickReplyId: input.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: input.contractorReplyMode,
     contractorReplyWaitHours: input.contractorReplyWaitHours,

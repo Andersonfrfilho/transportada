@@ -566,6 +566,8 @@ const occurrenceTypeSchema = z
     asksClientContact: z.boolean().optional(),
     /** Liga/desliga o campo opcional "nova data de vencimento" no app do motorista; ausente não mexe. */
     asksNewDueDate: z.boolean().optional(),
+    /** Spec 317 (E7, RF13): mostra ao motorista o selo "possível cobrança na entrega" do cliente; ausente não mexe. */
+    showClientChargeSealToDriver: z.boolean().optional(),
     /** Spec 276 T5: `null` desliga; ausente não mexe. */
     contractorReplyAcknowledgementQuickReplyId: z.string().uuid().nullable().optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),
