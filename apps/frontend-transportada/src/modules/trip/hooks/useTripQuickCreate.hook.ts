@@ -11,6 +11,7 @@ import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.ser
 import { AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY, TRIP_QUERY_KEY } from '../shared/trip.constant'
 
 import {
+  isCityOrderTouched,
   moveCity,
   reconcileCityOrder,
   resolveStopKey,
@@ -254,6 +255,7 @@ export function useTripQuickCreate(
     mutationFn: (variables: Readonly<{ asDraft: boolean }>): Promise<TripDetail> =>
       runQuickCreateTrip({
         cityOrder,
+        cityOrderTouched: isCityOrderTouched({ cityOrder, documents: staged }),
         client: getTripClient(),
         createBody: {
           /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */

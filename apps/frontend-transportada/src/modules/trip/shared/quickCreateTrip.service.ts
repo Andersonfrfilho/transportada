@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * A sequência da criação rápida: criar → vincular → reordenar → planejar. Pura sobre o cliente, para
+ * A sequência da criação rápida: criar → vincular → (reordenar, só se o operador mexeu no mapa) → planejar. Pura sobre o cliente, para
  * o contrato provar a ordem das requisições e o que cada falha faz.
  *
  * ⚠️ **Depois que a viagem existe, nada aqui falha para quem chamou.** Os passos não são atômicos no
@@ -21,6 +21,12 @@ export type QuickCreateTripClient = Pick<
 
 export type RunQuickCreateTripParams = Readonly<{
   cityOrder: AssemblyCityOrder
+  /**
+   * Spec 323 RF7: `true` só quando o operador mexeu na ordem das cidades no mapa. A ordem em linha reta do mapa **não é a
+   * proposta** — a API ordena as paradas pela estrada ao vincular. Mandá-la por cima desfaria isso e gravaria a ordem como
+   * manual. Ausente é `false`.
+   */
+  cityOrderTouched?: boolean
   client: QuickCreateTripClient
   createBody: CreateTripBody
   nfeDocumentIds: readonly string[]
@@ -54,7 +60,10 @@ async function completeQuickCreateTrip(
    * uma viagem de trezentas notas falhava no meio com a viagem já criada.
    */
   await client.linkTripDocumentsBatch({ nfeDocumentIds: input.nfeDocumentIds, tripId })
-  await reorderByMap({ client, cityOrder: input.cityOrder, tripId })
+  /** Spec 323 RF7: sem ajuste do operador no mapa, a ordem é a que a API calculou pela estrada. */
+  if (input.cityOrderTouched === true) {
+    await reorderByMap({ client, cityOrder: input.cityOrder, tripId })
+  }
   /** Spec 217 (RF1/D5): "Salvar rascunho" para na ordem — o operador planeja depois, pelo botão. */
   if (input.planRoute === false) return
   /**

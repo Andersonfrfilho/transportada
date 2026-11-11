@@ -114,6 +114,7 @@ import { TripSelectAllDocuments } from './TripSelectAllDocuments.component'
 import { TripStateActions } from './TripStateActions.component'
 import type { TripDocumentProofBadges } from '../shared/tripDocumentProofBadges.service'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
+import { TripStopOrderNotice } from './TripStopOrderNotice.component'
 import type { TripStopOccurrenceSubmission } from './TripStopOccurrenceDialog.component'
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
 import { useRouteSuggestion } from '@/modules/routing/hooks/useRouteSuggestion.hook'
@@ -656,6 +657,7 @@ export function TripDetail({
     workspace.releaseDocumentMutation.error,
     workspace.closeMutation.error,
     workspace.reorderStopsMutation.error,
+    workspace.autoOrderStopsMutation.error,
     workspace.transitionDocumentMutation.error,
     workspace.batchStatusMutation.error,
     workspace.batchFieldDeliverMutation.error,
@@ -857,6 +859,12 @@ export function TripDetail({
   function handleReorderStops(stopIds: readonly string[]): void {
     if (trip === undefined) return
     workspace.reorderStopsMutation.mutate({ stopIds, tripId: trip.id })
+  }
+
+  /** Spec 323 RF4: refaz a ordem pela estrada, inclusive a que o despachante tinha arrastado. */
+  function handleAutoOrderStops(): void {
+    if (trip === undefined) return
+    workspace.autoOrderStopsMutation.mutate({ tripId: trip.id })
   }
 
   function handleIssueMdfe(): void {
@@ -1378,6 +1386,14 @@ export function TripDetail({
             selection={selection}
           />
         </div>
+        <TripStopOrderNotice
+          canOrder={canManage && isEditable}
+          errorCode={trip.stopOrderErrorCode}
+          isOrdering={workspace.autoOrderStopsMutation.isPending}
+          onOrder={handleAutoOrderStops}
+          source={trip.stopOrderSource}
+          stopCount={trip.stops.length}
+        />
         <TripDeliveryDeadlineFilter scope={deadlineScope} />
         <TripStopList
           actions={documentActions}

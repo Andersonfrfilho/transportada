@@ -1098,6 +1098,15 @@ button.occurrenceCaseBadge {
   gap: var(--space-2);
 }
 
+/* Spec 323: a origem da ordem das paradas e o botão "Ordenar paradas" — texto à esquerda, ação à direita, quebra no celular. */
+.stopOrderRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
 .stopCard {
   min-width: 0;
   display: grid;

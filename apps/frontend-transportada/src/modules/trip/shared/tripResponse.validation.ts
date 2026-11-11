@@ -71,6 +71,9 @@ import {
   TRANSITION_RESULT_OPTIONAL_KEYS,
   TRIP_DETAIL_KEYS,
   TRIP_DETAIL_OPTIONAL_KEYS,
+  STOP_ORDER_ERROR_CODES,
+  STOP_ORDER_SOURCES,
+  AUTO_ORDER_STOPS_STATUSES,
   DELIVERY_PROOF_KEYS,
   DELIVERY_PROOF_RECEIVED_BY_KEYS,
   DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
@@ -146,6 +149,7 @@ import type {
   FieldTripStepResult,
   PlanTripRouteResult,
   ReportFieldDeliveryResult,
+  AutoOrderTripStopsResult,
   ReorderTripStopsResult,
   ScannedNfeDocument,
   LinkTripDocumentsBatchResult,
@@ -540,6 +544,11 @@ function isDetail(value: unknown): value is TripDetail {
       value.capacityUnknownVehicleId === null ||
       isString(value.capacityUnknownVehicleId)) &&
     (value.trailer === undefined || value.trailer === null || isTrailer(value.trailer)) &&
+    /** Spec 323: opcional, mas presente com valor fora do vocabulário reprova (D2). */
+    (value.stopOrderSource === undefined || isOneOf(value.stopOrderSource, STOP_ORDER_SOURCES)) &&
+    (value.stopOrderErrorCode === undefined ||
+      value.stopOrderErrorCode === null ||
+      isOneOf(value.stopOrderErrorCode, STOP_ORDER_ERROR_CODES)) &&
     isEveryItem(value.stops, isStopDetail)
   )
 }
@@ -978,6 +987,21 @@ export function createTripResponseAdapters() {
     planTripRouteResultFromApi(input: unknown): PlanTripRouteResult {
       if (!isTripStatusResult(input)) throw invalid()
       return { tripStatus: input.tripStatus }
+    },
+    autoOrderTripStopsResultFromApi(input: unknown): AutoOrderTripStopsResult {
+      if (
+        !isRecord(input) ||
+        !isOneOf(input.status, AUTO_ORDER_STOPS_STATUSES) ||
+        typeof input.excludedStopCount !== 'number' ||
+        !(input.errorCode === null || isOneOf(input.errorCode, STOP_ORDER_ERROR_CODES))
+      ) {
+        throw invalid()
+      }
+      return {
+        errorCode: input.errorCode,
+        excludedStopCount: input.excludedStopCount,
+        status: input.status,
+      }
     },
     reorderTripStopsResultFromApi(input: unknown): ReorderTripStopsResult {
       if (!isRecord(input) || !isOneOf(input.tripStatus, TRIP_STATUS)) throw invalid()
