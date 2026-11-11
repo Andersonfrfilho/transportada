@@ -13,6 +13,8 @@ import {
   companyOccurrenceTypes,
   contractorMailMessages,
   contractors,
+  nfeDocuments,
+  nfeParticipants,
   tripDocumentOccurrences,
 } from '../../src/database/database.schema.js'
 import { FleetDriverWhatsappGroupTakenByContractorError } from '../../src/fleet/domain/fleet.error.js'
@@ -71,6 +73,23 @@ async function prepare(
         eq(companyOccurrenceTypes.id, occurrence?.typeId ?? ''),
       ),
     )
+  const [emitter] = await database.db
+    .select({ documentId: nfeParticipants.documentId })
+    .from(nfeParticipants)
+    .where(and(eq(nfeParticipants.companyId, companyId), eq(nfeParticipants.role, 'emitter')))
+  const nfeDocumentId = emitter?.documentId ?? ''
+  await database.db.insert(nfeParticipants).values({
+    companyId,
+    documentId: nfeDocumentId,
+    id: crypto.randomUUID(),
+    legalName: 'Cliente Beta Ltda',
+    role: 'recipient',
+    taxId: '99888777000155',
+  })
+  await database.db
+    .update(nfeDocuments)
+    .set({ totalValue: '1250.00' })
+    .where(eq(nfeDocuments.id, nfeDocumentId))
   await new DrizzleContractorOccurrenceChannelRepository(database.db).save({
     actorUserId: userId,
     channel: 'whatsapp_group',
@@ -83,7 +102,7 @@ async function prepare(
     mentionPhone: MENTION_PHONE,
   })
   await seedNotificationTemplate(database, {
-    body: '⚠️ Ocorrência na {{momento}} — NF {{numeroNota}}\nTipo: {{tipoOcorrencia}}\n📝 {{observacao}}\n{{razaoSocial}}{{valorNota}}',
+    body: '⚠️ Ocorrência na {{momento}} — NF {{numeroNota}}\nTipo: {{tipoOcorrencia}}\nContratante: {{contratante}}\nCliente: {{cliente}}\nValor da nota: R$ {{valorNota}}\n📅 *Vencimento pedido:* {{novaData}}\nCNPJ: {{cnpjContratante}}\n📝 {{observacao}}',
     channel: 'whatsapp',
     companyId,
     key: CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY,
@@ -156,9 +175,12 @@ describe('o aviso da ocorrência no grupo da contratante contra Postgres (spec 3
         expect(body).toContain('Ocorrência na separação')
         expect(body).toContain('Tipo: Caixa violada')
         expect(body).toContain('📝 caixa com avaria visível')
-        // RF4: nada de CNPJ, destinatário nem valor, mesmo que o modelo peça
+        // RF4 (emenda de 11/11/2026): contratante, cliente e valor entram; CNPJ nunca, e a linha da data some
+        expect(body).toContain('Contratante: Contratante Alfa')
+        expect(body).toContain('Cliente: Cliente Beta Ltda')
+        expect(body).toContain('Valor da nota: R$ 1.250,00')
         expect(body).not.toContain(EMITTER_TAX_ID)
-        expect(body).not.toContain('R$')
+        expect(body).not.toContain('Vencimento pedido')
         expect(body.trim().endsWith('caixa com avaria visível')).toBe(true)
 
         expect(await mailCount(database, companyId)).toBe(0)
