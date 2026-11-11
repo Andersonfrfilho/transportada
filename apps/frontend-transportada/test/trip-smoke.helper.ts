@@ -840,6 +840,10 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
       : { cargoLayout: null, occupancy: null }),
     cargoWeight: null,
     trailer: null,
+    /** Spec 323: origem da ordem das paradas; o print de erro liga `SMOKE_STOP_ORDER_ERROR`. */
+    ...(process.env.SMOKE_STOP_ORDER_ERROR
+      ? { stopOrderErrorCode: process.env.SMOKE_STOP_ORDER_ERROR, stopOrderSource: 'unordered' }
+      : { stopOrderErrorCode: null, stopOrderSource: 'suggested' }),
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops: isDocumentCostMode(mode)
       ? DOCUMENT_COST_STOPS

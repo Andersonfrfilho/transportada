@@ -2210,6 +2210,20 @@
     "route_planned": "Roteiro planejado",
     "separating": "Separando"
   },
+  "stopOrder": {
+    "action": "Ordenar paradas",
+    "ordering": "Ordenando…",
+    "source": {
+      "manual": "Ordem ajustada por você. Uma nota nova é encaixada sem mexer nas outras.",
+      "suggested": "Ordem sugerida pela rota por estrada.",
+      "unordered": "Paradas na ordem em que as notas entraram."
+    },
+    "error": {
+      "ROUTING_DEPOT_NOT_GEOCODED": "Não foi possível ordenar agora: o endereço do barracão ainda não tem localização. As paradas ficam na ordem em que as notas entraram.",
+      "ROUTING_MATRIX_UNAVAILABLE": "Não foi possível ordenar agora: o serviço de rotas não respondeu. As paradas ficam na ordem em que as notas entraram.",
+      "ROUTING_TOO_MANY_STOPS": "Há paradas demais para ordenar de uma vez. As paradas ficam na ordem em que as notas entraram."
+    }
+  },
   "stops": {
     "arrivedAt": "Chegou às {{time}}",
     "cargoValue": "Mercadoria: {{amount}}",

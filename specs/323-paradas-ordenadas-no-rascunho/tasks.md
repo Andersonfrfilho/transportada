@@ -23,8 +23,8 @@ Modelo por etapa (regra do projeto): decisão e ordenador `opus`, plumbing `sonn
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T8 `quickCreateTrip`: tira a ordem em linha reta (RF7); detalhe da viagem com rótulo de origem, aviso e botão Ordenar paradas (componentes padrão).
-- [ ] T9 Prints claro/escuro × desktop/celular comparados com outra tela; textos em `.locale.json`.
+- [x] T8 `quickCreateTrip`: tira a ordem em linha reta (RF7); detalhe da viagem com rótulo de origem, aviso e botão Ordenar paradas (componentes padrão).
+- [x] T9 Prints claro/escuro × desktop/celular comparados com outra tela; textos em `.locale.json`.
 
 ## Fase D — Fecho
 

@@ -446,7 +446,28 @@ export const TRIP_DETAIL_OPTIONAL_KEYS = [
   'cargoWeight',
   /** Spec 147 D3/RF5: a carreta atrelada — campo novo, mesma regra do opcional acima. */
   'trailer',
+  /** Spec 323 D4: a origem da ordem das paradas — campo novo, mesma regra do opcional acima. */
+  'stopOrderErrorCode',
+  'stopOrderSource',
 ] as const
+
+/** Spec 323 D4: quem decidiu a ordem das paradas da viagem — o espelho de `STOP_ORDER_SOURCES` da API. */
+export const STOP_ORDER_SOURCE = {
+  manual: 'manual',
+  suggested: 'suggested',
+  unordered: 'unordered',
+} as const
+export const STOP_ORDER_SOURCES = Object.values(STOP_ORDER_SOURCE)
+
+/** Spec 323: os códigos estáveis da falha do ordenador — o espelho de `STOP_ORDER_ERROR_CODES` da API. */
+export const STOP_ORDER_ERROR_CODE = {
+  depotNotGeocoded: 'ROUTING_DEPOT_NOT_GEOCODED',
+  matrixUnavailable: 'ROUTING_MATRIX_UNAVAILABLE',
+  tooManyStops: 'ROUTING_TOO_MANY_STOPS',
+} as const
+export const STOP_ORDER_ERROR_CODES = Object.values(STOP_ORDER_ERROR_CODE)
+
+export const AUTO_ORDER_STOPS_STATUSES = ['ordered', 'skipped', 'unchanged', 'unordered'] as const
 
 export const TRIP_CARGO_LAYOUT_STATE_KEYS = [
   'computedAt',

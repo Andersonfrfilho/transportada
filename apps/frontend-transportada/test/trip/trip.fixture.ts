@@ -167,6 +167,8 @@ export type TripDetailContract = TripContract &
     /** T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason`. */
     capacityUnknownVehicleId: string | null
     /** Spec 147 D3/RF5: a carreta atrelada; `null` quando o cavalo não tem uma. */
+    stopOrderErrorCode?: null | string
+    stopOrderSource?: string
     trailer: Readonly<{ bodyType: string; id: string; plate: string }> | null
     stops: readonly TripStopDetailContract[]
   }>
@@ -250,6 +252,8 @@ export const TRIP_DETAIL = {
   estimatedArrivalFrozenAt: null,
   estimatedFinishAt: null,
   occupancy: null,
+  stopOrderErrorCode: null,
+  stopOrderSource: 'unordered',
   trailer: null,
   stops: [],
 } as const satisfies TripDetailContract

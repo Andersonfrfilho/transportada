@@ -2210,6 +2210,20 @@
     "route_planned": "Route planned",
     "separating": "Separating"
   },
+  "stopOrder": {
+    "action": "Order stops",
+    "ordering": "Ordering…",
+    "source": {
+      "manual": "Order adjusted by you. A new invoice is fitted in without moving the others.",
+      "suggested": "Order suggested by the road route.",
+      "unordered": "Stops in the order the invoices came in."
+    },
+    "error": {
+      "ROUTING_DEPOT_NOT_GEOCODED": "Could not order the stops now: the depot address has no location yet. Stops stay in the order the invoices came in.",
+      "ROUTING_MATRIX_UNAVAILABLE": "Could not order the stops now: the routing service did not answer. Stops stay in the order the invoices came in.",
+      "ROUTING_TOO_MANY_STOPS": "There are too many stops to order at once. Stops stay in the order the invoices came in."
+    }
+  },
   "stops": {
     "arrivedAt": "Arrived at {{time}}",
     "cargoValue": "Cargo: {{amount}}",

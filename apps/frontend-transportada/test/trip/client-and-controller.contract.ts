@@ -410,6 +410,8 @@ describe('criação rápida pela montagem', () => {
   const ROUTE_CHOICE: RouteChoice = { criterion: 'alternative', signature: 'sig-vista' }
   const QUICK_CREATE = {
     cityOrder: [OLINDA_KEY, RECIFE_KEY],
+    /** Spec 323 RF7: só o ajuste do operador no mapa manda a ordem; o padrão é a ordem que a API calculou. */
+    cityOrderTouched: true,
     createBody: CREATE_TRIP_BODY,
     nfeDocumentIds: [NFE_DOCUMENT_ID],
     routeChoice: ROUTE_CHOICE,
@@ -516,6 +518,26 @@ describe('criação rápida pela montagem', () => {
       `PATCH /trips/${TRIP_ID}/stops/order`,
     ])
     expect(describeRequests(requests)).not.toContain(`POST /trips/${TRIP_ID}/plan-route`)
+  })
+
+  /**
+   * Spec 323 RF7: a ordem em linha reta do mapa não é a proposta. Sem ajuste do operador a criação **não** manda
+   * `PATCH /stops/order` por cima da ordem por estrada que a API gravou ao vincular — nem lê a viagem à toa.
+   */
+  test('sem ajuste no mapa, não reordena: a ordem é a que a API calculou ao vincular', async () => {
+    const requests: Request[] = []
+
+    await runQuickCreateTrip({
+      ...QUICK_CREATE,
+      cityOrderTouched: false,
+      client: createQuickCreateClient({ requests }),
+    })
+
+    expect(describeRequests(requests)).toEqual([
+      'POST /trips',
+      `POST /trips/${TRIP_ID}/documents/batch`,
+      `POST /trips/${TRIP_ID}/plan-route`,
+    ])
   })
 
   /** A ordem é conveniência: sem ela a viagem ainda precisa da rota planejada. */

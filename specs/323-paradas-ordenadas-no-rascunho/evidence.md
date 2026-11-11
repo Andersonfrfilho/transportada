@@ -99,3 +99,20 @@ manual sobrevive à falha, encaixe da nota nova, nada a fazer, botão refaz a ma
 paradas, barracão sem geocodificação, despachada) e integração `test/integration/draft-stop-order.integration.ts` (CA1,
 CA2, CA3 e CA4 contra o banco; entrou na lista `test:integration`). Ajustes que a suíte cobrou: `reorder.contract.ts`
 (agora há `source` na chamada), `separator-role` e os payloads de `TRIP_DETAIL`.
+
+## Fase C — painel (T8, T9)
+
+```bash
+cd apps/frontend-transportada
+bunx tsc --noEmit && bunx eslint <alterados>     # sem achados
+bun run test                                     # trip.contract.test.ts: 3166 pass, 0 fail
+```
+
+- `quickCreateTrip` só chama a ordem em linha reta (`reorderByMap`) quando a pessoa mexeu na ordem das cidades
+  (`cityOrderTouched`, via `isCityOrderTouched`); sem ajuste, a API ordena por estrada ao vincular as notas.
+- Detalhe da viagem: `TripStopOrderNotice` (origem da ordem ou motivo da falha + botão "Ordenar paradas",
+  `POST /trips/:id/stops/auto-order`, só com `trip.manage` e viagem editável). Contrato novo
+  `test/trip/stop-order-source.contract.ts`.
+- Prints (`prints/t9-{suggested,error}-{desktop,mobile}-{light,dark}.png`, 1440 e 375), gerados por
+  `test/spec-323-stop-order-prints.smoke.spec.ts` (fora da CI; `PLAYWRIGHT_TEST_MATCH`). O botão tem a altura dos
+  botões vizinhos ("Corrigir ponto no mapa", "Desvincular") e o aviso usa o tom de alerta já existente.
