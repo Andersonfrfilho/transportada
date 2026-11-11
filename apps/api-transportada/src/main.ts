@@ -313,6 +313,9 @@ import { startCanhotoQuestionExpiryWatcher } from './whatsapp-commands/infrastru
 import { createWorkerCanhotoReader } from './whatsapp/infrastructure/worker-canhoto-reader.gateway.js'
 import { createWhatsAppDeliveryPreparations } from './whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { createWhatsAppPreparationProofAttacher } from './whatsapp-commands/infrastructure/whatsapp-delivery-preparation-proof.adapter.js'
+import { createWhatsAppCanhotoPickupPort } from './whatsapp-commands/infrastructure/whatsapp-canhoto-pickup.adapter.js'
+import { collectCanhotoPickupPhoto } from './trips/application/collect-canhoto-pickup-photo.use-case.js'
+import { createDrizzleCanhotoPickupCollection } from './trips/infrastructure/canhoto-pickup-collection.persistence.js'
 import { createDeliveryConfirmNoteReader } from './whatsapp-commands/infrastructure/whatsapp-delivery-confirm-note.adapter.js'
 import {
   createDrizzleWhatsAppDeliveryPreparationRepository,
@@ -1814,6 +1817,14 @@ export function bootstrap(): Bun.Server<undefined> {
           preparations: whatsappDeliveryPreparations,
           questions: whatsappCanhotoQuestions,
           reader: createWorkerCanhotoReader(canhotoReaderConfig),
+          /** Spec 321 T4 (D4b): a coleta de canhoto encaixada na viagem do motorista também recebe a foto. */
+          canhotoPickups: createWhatsAppCanhotoPickupPort({
+            bucket: whatsappStorageBucket,
+            collection: createDrizzleCanhotoPickupCollection(database.db),
+            logger,
+            repository: whatsappDeliveryProofRepository,
+            storage: whatsappStorageGateway,
+          }),
         })
   const whatsappDriverCollections = combineWhatsAppDriverCollections({
     canhoto: whatsappCanhotoRecognition,
@@ -5776,6 +5787,35 @@ function createApplicationRoutes({
             bucket: storageBucket,
             storage: storageGateway,
           }),
+        }),
+      /** Spec 321 T4 (D4b, CA04): a foto do canhoto retido vira o canhoto da entrega de origem. */
+      collectCanhotoPickupPhoto: ({ correlationId, ...input }) =>
+        collectCanhotoPickupPhoto({
+          ...input,
+          attach: (attach) =>
+            attachDeliveryProof({
+              actorUserId: input.actorUserId,
+              canhotoPickup: { originTripId: attach.originTripId },
+              channel: attach.channel,
+              companyId: input.companyId,
+              ...(correlationId === undefined ? {} : { correlationId }),
+              documentId: attach.documentId,
+              driverId: attach.driverId,
+              logger,
+              newObjectId: () => crypto.randomUUID(),
+              newProofId: () => crypto.randomUUID(),
+              now: new Date(),
+              repository: deliveryProofRepository,
+              sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
+              storage: createDeliveryProofStorage({
+                bucket: storageBucket,
+                storage: storageGateway,
+              }),
+              upload: attach.upload,
+            }),
+          channel: TRIP_FIELD_CHANNELS.driverApp,
+          collection: createDrizzleCanhotoPickupCollection(database),
+          now: new Date(),
         }),
       /** ADR-0058: o mesmo `dispatchTrip` do escritório, recortado pelo vínculo — sem `force`. */
       dispatchCurrentTrip: (input) =>

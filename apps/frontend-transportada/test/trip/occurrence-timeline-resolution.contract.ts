@@ -77,6 +77,21 @@ describe('spec 266 T3.3: linha do tempo da resolução', () => {
     ).toBe('occurrenceTimeline.event.resolvedAutomatic')
   })
 
+  test('fechada sozinha pelo canhoto coletado e aprovado (spec 321 T4) diz a causa', () => {
+    expect(
+      describeOccurrenceTimelineEvent({ ...RESOLVED_BY_SYSTEM, phraseKey: 'canhoto_collected' }),
+    ).toEqual({ key: 'occurrenceTimeline.event.resolvedCanhotoCollected', values: {} })
+  })
+
+  test('reaberta pelo sistema (canhoto coletado reprovado, spec 321 T4) não cita motorista', () => {
+    expect(
+      describeOccurrenceTimelineEvent({
+        ...REOPENED,
+        actor: { kind: 'system', name: null },
+      }),
+    ).toEqual({ key: 'occurrenceTimeline.event.reopenedAutomatic', values: {} })
+  })
+
   test('reaberta diz o motorista', () => {
     expect(describeOccurrenceTimelineEvent(REOPENED)).toEqual({
       key: 'occurrenceTimeline.event.reopened',

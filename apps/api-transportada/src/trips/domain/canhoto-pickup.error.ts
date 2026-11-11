@@ -72,3 +72,14 @@ export class CanhotoPickupNotScheduledError extends ApiError {
     })
   }
 }
+
+/** Spec 321 T4: a coleta só aceita a foto do canhoto (`photo`); assinatura e foto da carga não são o que se foi buscar. */
+export class CanhotoPickupProofKindError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CANHOTO_PICKUP_PROOF_KIND',
+      message: 'A canhoto pickup only accepts the canhoto photo.',
+      status: 400,
+    })
+  }
+}

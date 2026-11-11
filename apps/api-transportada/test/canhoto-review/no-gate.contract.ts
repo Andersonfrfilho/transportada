@@ -24,6 +24,9 @@ const CANHOTO_REVIEW_MENTION = /canhotoReview|canhoto_review/u
  * E a pendência de canhoto do escritório (spec 223 RF4), que lê a recusa para **cobrar** a foto de
  * novo — mesma leitura da fila do motorista: dívida aberta, não entrega barrada.
  *
+ * E o próprio caso de uso da conferência (spec 321 T4), que lê o veredito que acabou de gravar para fechar ou
+ * reabrir a coleta de canhoto da nota — o canhoto chegou ou não, nada é barrado.
+ *
  * Arquivo novo nesta lista é decisão de projeto, não descuido — por isso ela é exata.
  */
 const CONFERENCE_MODULE = [
@@ -31,6 +34,7 @@ const CONFERENCE_MODULE = [
   'main.ts',
   'trips/application/canhoto-review.port.ts',
   'trips/application/read-delivery-proof.use-case.ts',
+  'trips/application/review-canhoto-proof.use-case.ts',
   'trips/domain/canhoto-review-decision.policy.ts',
   'trips/domain/canhoto-review.policy.ts',
   'trips/infrastructure/drizzle-canhoto-review.repository.ts',

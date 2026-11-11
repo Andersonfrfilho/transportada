@@ -179,6 +179,7 @@ async function listResolutionSources(
       actorKind: tripOccurrenceResolutionEvents.actorKind,
       actorName: identityUserProfiles.name,
       caseStatus: tripOccurrenceCaseEvents.toStatus,
+      canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
       contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
       createdAt: tripOccurrenceResolutionEvents.createdAt,
       id: tripOccurrenceResolutionEvents.id,
@@ -208,7 +209,17 @@ async function listResolutionSources(
   return rows.map((row): OccurrenceTimelineSource => {
     const occurredAt = row.createdAt.toISOString()
     if (row.kind === 'reopened') {
-      /** O CHECK `reopen_check` da tabela garante a mensagem em todo `reopened`. */
+      /** Spec 321 T4: o sistema reabre quando o canhoto coletado é reprovado (o CHECK exige a coleta como causa). */
+      if (row.actorKind === 'system') {
+        return {
+          actor: { kind: 'system', name: null },
+          id: row.id,
+          kind: 'resolution.reopened',
+          messageId: null,
+          occurredAt,
+        }
+      }
+      /** O CHECK `reopen_check` da tabela garante a mensagem em todo `reopened` do motorista. */
       if (row.messageId === null) throw new Error('OCCURRENCE_REOPENED_EVENT_WITHOUT_MESSAGE')
       return {
         actor: { kind: 'driver', name: row.actorName ?? null },
@@ -231,6 +242,7 @@ async function listResolutionSources(
         ? (resolveSystemResolutionCausePhraseKey({
             caseEventStatus: row.caseStatus ?? undefined,
             ...(row.contractorReplyId === null ? {} : { causedByContractorReply: true as const }),
+            ...(row.canhotoPickupId === null ? {} : { causedByCanhotoPickup: true as const }),
           }) ?? null)
         : null,
     }
