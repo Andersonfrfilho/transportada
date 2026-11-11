@@ -97,7 +97,45 @@ export type WhatsAppChatExpired = {
   readonly userId: string
 }
 
+export type WhatsAppChatListFilter = {
+  readonly companyId: string
+  /** `iso::uuid` do último item da página anterior (mesmo formato do restante da API). */
+  readonly cursor?: string | null
+  readonly kind?: WhatsAppChatKind
+  readonly limit: number
+  readonly state?: WhatsAppChatState
+  /** Só os que o motorista escreveu e ninguém leu ainda. */
+  readonly unreadOnly?: boolean
+}
+
+export type WhatsAppChatAudit = {
+  readonly action: string
+  readonly actorUserId: string
+  readonly afterState: WhatsAppChatState
+  readonly beforeState: WhatsAppChatState
+  readonly chatId: string
+  readonly companyId: string
+  readonly correlationId: string
+}
+
+export type WhatsAppChatPage<TItem> = {
+  readonly items: readonly TItem[]
+  readonly nextCursor: string | null
+}
+
 export type WhatsAppChatRepositoryPort = {
+  /** Lista da caixa: mais recente primeiro, por empresa. */
+  readonly listChats: (input: WhatsAppChatListFilter) => Promise<WhatsAppChatPage<WhatsAppChat>>
+  /** Histórico do chat, mais recente primeiro (a tela inverte). */
+  readonly listMessages: (
+    input: WhatsAppChatKey & { readonly cursor?: string | null; readonly limit: number },
+  ) => Promise<WhatsAppChatPage<WhatsAppChatMessage>>
+  /** Marca o chat como lido (`read_at = now`); `null` se o chat não é da empresa. */
+  readonly markRead: (
+    input: WhatsAppChatKey & { readonly now: Date },
+  ) => Promise<WhatsAppChat | null>
+  /** Trilha de auditoria de assumir e devolver. */
+  readonly recordAudit: (input: WhatsAppChatAudit) => Promise<void>
   /** O chat do JID, criado com o bot se ainda não existe (idempotente, também sob concorrência). */
   readonly ensureChat: (input: {
     readonly chatJid: string

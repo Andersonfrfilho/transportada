@@ -2,7 +2,9 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
+
+import { auditLogs } from '../../database/database.schema.js'
 
 import { whatsappChatMessages, whatsappChats } from '../../database/whatsapp-chat.schema.js'
 import { whatsappEvolutionSettings } from '../../database/whatsapp-evolution.schema.js'
@@ -93,7 +95,114 @@ export function createDrizzleWhatsAppChatRepository(
     return row ?? null
   }
 
+  const cursorOf = (value: string | null | undefined): { at: Date; id: string } | null => {
+    if (value === null || value === undefined) return null
+    const [at, id] = value.split('::')
+    return at === undefined || id === undefined ? null : { at: new Date(at), id }
+  }
+
+  const sortKey = sql<Date>`coalesce(${whatsappChats.lastMessageAt}, ${whatsappChats.createdAt})`
+
   return {
+    async listChats(input) {
+      const after = cursorOf(input.cursor)
+      const rows = await database
+        .select(CHAT_COLUMNS)
+        .from(whatsappChats)
+        .where(
+          and(
+            eq(whatsappChats.companyId, input.companyId),
+            input.state === undefined ? undefined : eq(whatsappChats.state, input.state),
+            input.kind === undefined ? undefined : eq(whatsappChats.kind, input.kind),
+            input.unreadOnly === true
+              ? and(
+                  isNotNull(whatsappChats.lastInboundAt),
+                  or(
+                    sql`${whatsappChats.readAt} is null`,
+                    sql`${whatsappChats.readAt} < ${whatsappChats.lastInboundAt}`,
+                  ),
+                )
+              : undefined,
+            after === null
+              ? undefined
+              : or(
+                  lt(sortKey, after.at),
+                  and(eq(sortKey, after.at), lt(whatsappChats.id, after.id)),
+                ),
+          ),
+        )
+        .orderBy(desc(sortKey), desc(whatsappChats.id))
+        .limit(input.limit + 1)
+      const page = rows.slice(0, input.limit)
+      const last = page.at(-1)
+      const hasMore = rows.length > input.limit
+      return {
+        items: page,
+        nextCursor:
+          hasMore && last !== undefined
+            ? `${(last.lastMessageAt ?? last.createdAt).toISOString()}::${last.id}`
+            : null,
+      }
+    },
+
+    async listMessages(input) {
+      const after = cursorOf(input.cursor)
+      const rows = await database
+        .select(MESSAGE_COLUMNS)
+        .from(whatsappChatMessages)
+        .where(
+          and(
+            eq(whatsappChatMessages.companyId, input.companyId),
+            eq(whatsappChatMessages.chatId, input.chatId),
+            after === null
+              ? undefined
+              : or(
+                  lt(whatsappChatMessages.occurredAt, after.at),
+                  and(
+                    eq(whatsappChatMessages.occurredAt, after.at),
+                    lt(whatsappChatMessages.id, after.id),
+                  ),
+                ),
+          ),
+        )
+        .orderBy(desc(whatsappChatMessages.occurredAt), desc(whatsappChatMessages.id))
+        .limit(input.limit + 1)
+      const page = rows.slice(0, input.limit) as WhatsAppChatMessage[]
+      const last = page.at(-1)
+      return {
+        items: page,
+        nextCursor:
+          rows.length > input.limit && last !== undefined
+            ? `${last.occurredAt.toISOString()}::${last.id}`
+            : null,
+      }
+    },
+
+    async markRead(input) {
+      const [row] = await database
+        .update(whatsappChats)
+        .set({ readAt: input.now, updatedAt: sql`now()` })
+        .where(chatOf(input.companyId, input.chatId))
+        .returning(CHAT_COLUMNS)
+      return row ?? null
+    },
+
+    async recordAudit(input) {
+      await database.insert(auditLogs).values({
+        action: input.action,
+        actorUserId: input.actorUserId,
+        afterSnapshot: { state: input.afterState },
+        beforeSnapshot: { state: input.beforeState },
+        companyId: input.companyId,
+        correlationId: input.correlationId,
+        entityId: input.chatId,
+        entityType: 'whatsapp_chat',
+        permission: 'occurrences.resolve',
+        targetId: input.chatId,
+        targetType: 'whatsapp_chat',
+      })
+    },
+
     async appendMessage(input) {
       const status = initialWhatsAppChatMessageStatus(input.author)
       return database.transaction(async (transaction) => {
