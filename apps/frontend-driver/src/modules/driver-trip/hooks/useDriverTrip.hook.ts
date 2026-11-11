@@ -95,6 +95,7 @@ import {
   discardOwnPending,
   partitionPendingByOwner,
 } from '../shared/queueOwner.service'
+import { purgeConcludedTripQueue } from '../shared/concludedTripQueue.service'
 import { cancelQueuedOccurrence, discardRejectedQueueItem } from '../shared/queueDiscard.service'
 import {
   appendSentHistory,
@@ -405,6 +406,30 @@ export function useDriverTrip(
         }),
     queryFn: async () => {
       const snapshot = await getDriverTripClient().readCurrent()
+      /** Viagem concluída pelo escritório não deixa pendência no aparelho; a baixa vai ao histórico. */
+      await purgeConcludedTripQueue({
+        attachmentStore,
+        ownerSubHash: session.subHash,
+        store,
+        trips: snapshot.trips,
+      })
+        .then(async (purged) => {
+          if (purged.length === 0) return
+          await sentHistoryStore
+            .update((current) =>
+              appendSentHistory({
+                additions: purged.map((item) =>
+                  toSentHistoryEntry({ at: new Date().toISOString(), item, result: 'discarded' }),
+                ),
+                current,
+                nowMs: Date.now(),
+              }),
+            )
+            .then(setSentHistory)
+            .catch(() => undefined)
+          await refreshQueueView()
+        })
+        .catch(() => undefined)
       /** Falhar ao guardar não derruba a tela: o próximo boot sem rede só abre um snapshot mais velho. */
       await saveTripSnapshot({
         now: new Date(),
