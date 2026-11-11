@@ -902,6 +902,33 @@ endereços, produtos, volumes e os pais por chave estrangeira).
 - Saída completa em `tmp/ops/saidas/staging-copia-unica-<data>.txt` (e o JSON exportado ao lado); o script imprime só o caminho.
 - Depois: configurar o canal WhatsApp na ficha da Única em staging (grupo e número) e criar uma viagem com essas notas para registrar a ocorrência.
 
+## 5.31 Ordem das paradas no rascunho (spec 323, 11/11/2026)
+
+O rascunho da viagem nasce com as paradas na ordem da estrada (OSRM, a partir do barracão), sem clique. Fases B e C
+estão em staging (#720 e #721). **Produção não mudou nada nesta fase:** a promoção staging → main ainda não aconteceu.
+
+- **Migration aditiva:** `trips.stop_order_source` (`unordered` por padrão) e `trips.stop_order_error_code` (nulo sem
+  falha). A viagem que já existe fica `unordered` e **não é reordenada retroativamente**. Rollback no `rollback.sql` da pasta da migration.
+- **Dependência:** `ROUTING_MATRIX_URL` do `api` apontando para o OSRM. Sem ela o ordenador não é montado e tudo segue
+  como antes (linha de chegada, sem aviso). Falha do OSRM vira `ROUTING_MATRIX_UNAVAILABLE` gravado na viagem, nunca linha reta.
+- **Conferir a origem da ordem (somente leitura).** Use o `railway ssh` do serviço `api` e rode o `psql` do `DATABASE_URL`
+  (nunca cole o valor na tela):
+
+  ```sql
+  SELECT stop_order_source, stop_order_error_code, count(*)
+  FROM trips
+  GROUP BY 1, 2
+  ORDER BY 3 DESC;
+  ```
+
+  Depois de promover, o esperado é ver `suggested` nas viagens criadas depois do deploy. `ROUTING_MATRIX_UNAVAILABLE` em
+  muita viagem quer dizer OSRM fora do ar: confira `osrm` antes de mexer em qualquer coisa.
+
+- **Reordenar uma viagem específica** pelo painel (botão **Ordenar paradas**, `trip.manage`), não por SQL. Viagem despachada
+  responde 409 e não muda.
+- **Validação em staging (T11 da spec 323, pendente):** reproduzir pela tela o lote com Matão, Monte Alto e Jaboticabal
+  intercalados, conferir a ordem e o selo de origem. Anotar o resultado em `specs/323-paradas-ordenadas-no-rascunho/evidence.md`.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |

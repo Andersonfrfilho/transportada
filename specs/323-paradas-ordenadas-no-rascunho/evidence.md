@@ -116,3 +116,49 @@ bun run test                                     # trip.contract.test.ts: 3166 p
 - Prints (`prints/t9-{suggested,error}-{desktop,mobile}-{light,dark}.png`, 1440 e 375), gerados por
   `test/spec-323-stop-order-prints.smoke.spec.ts` (fora da CI; `PLAYWRIGHT_TEST_MATCH`). O botão tem a altura dos
   botões vizinhos ("Corrigir ponto no mapa", "Desvincular") e o aviso usa o tom de alerta já existente.
+
+## Fase D — fecho (T10–T12, haiku)
+
+### T10 — `make check` (sem Docker neste ambiente)
+
+`make check` passa por `config` (valida `.env` e o `docker compose`), e este ambiente não tem daemon Docker. Rodei os
+mesmos gates que `bun run check` executa, na ordem dele, de dentro de `transportada/` com `bun install --frozen-lockfile`:
+
+```bash
+bunx prettier --check .                         # All matched files use Prettier code style!
+bun run lint                                    # todas as apps: exit 0
+NODE_OPTIONS=--max-old-space-size=8192 bun run typecheck   # todas as apps: exit 0 (a API estoura o heap padrão)
+bun --env-file=../../.env.test test --timeout 120000       # contratos da API: 15086 pass, 0 fail, 26 skip
+DATABASE_URL=postgresql://…:55432/transportada bun test ./test/integration/draft-stop-order.integration.ts
+#  4 pass, 0 fail (CA1–CA4 da 323, Postgres 16 local)
+```
+
+O Postgres 16 é local, sem Docker (`initdb` + `pg_ctl`, usuário sem root). Ele substitui o `make up`, não a CI.
+
+- **Integração completa da API** (`test:integration`, 72 arquivos): rodada local, com um teste de canhoto (spec 321 T3,
+  `canhoto-pickup-schedule.integration.ts`, "encaixa numa parada nova no endereço da entrega") **vermelho**
+  (`sequence` esperado `2n`, recebido `"11"`). O mesmo teste também fica vermelho no commit anterior à Fase B
+  (`e273e63c^`, num worktree sem 323): **falha pré-existente, não é da 323**. Não corrigi nesta fase, porque é da 321.
+- **Apps:** `make check` também roda `build`, que não rodei aqui. Os frontends passaram em typecheck e lint.
+- Contrato do ordenador e o contrato anti-`haversine` (CA3) estão no conjunto de contratos verde acima.
+
+### Runbook e documentação
+
+- `docs/runbooks/producao.md` § 5.31 (ordem das paradas no rascunho): o que a migration muda, a dependência de `ROUTING_MATRIX_URL`,
+  a consulta somente leitura de `stop_order_source` / `stop_order_error_code` e o botão Ordenar paradas no lugar do SQL.
+- `apps/api-transportada/CLAUDE.md` § "A ordem das paradas nasce no rascunho (spec 323, ADR-0044 §1)": o núcleo normativo.
+
+### T11 — staging pela tela (CA6): **pendente**
+
+Não consegui reproduzir pela tela de staging daqui: não há navegador com sessão no painel de staging nem a conexão do
+Railway de staging logada nesta sessão. Fica para o Anderson ou para uma sessão com acesso ao staging, com o roteiro:
+
+1. Criar um rascunho e vincular notas de Matão, Monte Alto e Jaboticabal intercaladas (ou um lote equivalente).
+2. Conferir que as paradas saem na ordem da estrada, com o selo "Ordem sugerida pela rota".
+3. Arrastar uma parada, confirmar o selo "Ordem ajustada por você" e vincular uma nota nova: a parada manual deve ficar na sua ordem.
+4. Forçar a falha do OSRM (ou usar uma viagem sem matriz) e conferir o aviso "Não foi possível ordenar agora" e o botão **Ordenar paradas**.
+
+### T12 — spec 074 (T010/T011)
+
+Mesma dependência de T11 para a parte de staging. T010 (`make check` + integração da API) fica coberta pelas rodadas
+acima, com a mesma ressalva do canhoto. Os T010/T011 da 074 só fecham depois de T11 ser feito em staging.
