@@ -17,6 +17,7 @@ import {
 import type { SendOccurrenceMailInput } from '../../src/occurrence-conversation/application/send-occurrence-mail.use-case.js'
 import {
   CONTRACTOR_OCCURRENCE_GROUP_SUMMARY_MAX_LENGTH,
+  NEW_DUE_DATE_NOT_INFORMED,
   buildContractorOccurrenceGroupMessage,
   summarizeOccurrenceNote,
 } from '../../src/occurrence-conversation/domain/contractor-occurrence-group.policy.js'
@@ -71,12 +72,17 @@ function setup(input: {
           : {
               template: input.template ?? TEMPLATE,
               values: {
+                cliente: 'Mercado Exemplo Ltda',
+                contratante: 'Única Comércio Ltda',
                 data: '10/11/2026 10:35',
+                enderecoEntrega: 'RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
                 momento: 'entrega',
+                novaData: '',
                 numeroNota: '4512/1',
                 numeroNotaSemSerie: '4512',
                 observacao: 'Caixa violada',
                 tipoOcorrencia: 'Avaria',
+                valorNota: '1.250,00',
               },
             },
       record: async (call) => void records.push(call),
@@ -291,12 +297,17 @@ describe('o aviso da ocorrência no grupo da contratante (spec 318)', () => {
 
 describe('o texto do aviso no grupo (spec 318 RF2, RF4)', () => {
   const values = {
+    cliente: 'Mercado Exemplo Ltda',
+    contratante: 'Única Comércio Ltda',
     data: '10/11/2026 10:35',
+    enderecoEntrega: 'RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
     momento: 'separação',
+    novaData: '',
     numeroNota: '4512/1',
     numeroNotaSemSerie: '4512',
     observacao: '',
     tipoOcorrencia: 'Falta',
+    valorNota: '1.250,00',
   } as const
 
   test('modelo sem {{marcacao}} ganha a marca na primeira linha', () => {
@@ -319,14 +330,55 @@ describe('o texto do aviso no grupo (spec 318 RF2, RF4)', () => {
     expect(body).toBe(`Olá @${MENTION_PHONE}, NF 4512/1`)
   })
 
-  test('só a lista fechada entra: variável de valor, CNPJ ou destinatário sai vazia', () => {
+  test('contratante, cliente, endereço e valor da nota entram (Anderson, 11/11/2026)', () => {
     const body = buildContractorOccurrenceGroupMessage({
       mentionPhone: MENTION_PHONE,
-      template: '{{marcacao}} NF {{numeroNota}} {{valorNota}}{{cnpjContratante}}{{razaoSocial}}',
-      values: { ...values, valorNota: '7.840,64' } as typeof values,
+      template:
+        '*Contratante:* {{contratante}}\n*Cliente:* {{cliente}}\n*Endereço:* {{enderecoEntrega}}\n*Valor da nota:* R$ {{valorNota}}',
+      values,
+    })
+
+    expect(body).toBe(
+      `@${MENTION_PHONE}\n*Contratante:* Única Comércio Ltda\n*Cliente:* Mercado Exemplo Ltda\n*Endereço:* RUA DAS FLORES, 100, RIBEIRAO PRETO, SP\n*Valor da nota:* R$ 1.250,00`,
+    )
+  })
+
+  test('só a lista fechada entra: CNPJ, CPF, telefone e destinatário sem chave saem vazios', () => {
+    const body = buildContractorOccurrenceGroupMessage({
+      mentionPhone: MENTION_PHONE,
+      template: '{{marcacao}} NF {{numeroNota}} {{cnpjContratante}}{{razaoSocial}}{{telefone}}',
+      values,
     })
 
     expect(body).toBe(`@${MENTION_PHONE} NF 4512/1`)
+  })
+
+  test('a linha de rótulo com variável vazia some (tipo sem data pedida)', () => {
+    const body = buildContractorOccurrenceGroupMessage({
+      mentionPhone: MENTION_PHONE,
+      template: 'NF {{numeroNota}}\n📅 *Vencimento pedido:* {{novaData}}\nFim',
+      values,
+    })
+
+    expect(body).toBe(`@${MENTION_PHONE}\nNF 4512/1\nFim`)
+  })
+
+  test('o tipo com data pedida mostra a data, ou que o cliente não informou', () => {
+    const template = 'NF {{numeroNota}}\n📅 *Vencimento pedido:* {{novaData}}'
+    expect(
+      buildContractorOccurrenceGroupMessage({
+        mentionPhone: MENTION_PHONE,
+        template,
+        values: { ...values, novaData: '20/11/2026' },
+      }),
+    ).toBe(`@${MENTION_PHONE}\nNF 4512/1\n📅 *Vencimento pedido:* 20/11/2026`)
+    expect(
+      buildContractorOccurrenceGroupMessage({
+        mentionPhone: MENTION_PHONE,
+        template,
+        values: { ...values, novaData: NEW_DUE_DATE_NOT_INFORMED },
+      }),
+    ).toBe(`@${MENTION_PHONE}\nNF 4512/1\n📅 *Vencimento pedido:* cliente não informou data`)
   })
 
   test('linha de rótulo com emoji e variável vazia some', () => {
