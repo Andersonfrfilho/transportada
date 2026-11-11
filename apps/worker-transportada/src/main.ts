@@ -314,6 +314,9 @@ import { createDrizzlePurgeStaleCargoLayoutPreviews } from './trip-cargo-layout-
 import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/application/rate-limit-window-purge.routine.js'
 import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
 import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
+import { createWhatsAppInboxExpireRoutine } from './whatsapp-inbox-expire/application/whatsapp-inbox-expire.routine.js'
+import { WHATSAPP_INBOX_CHAT_EXPIRE_JOB } from './whatsapp-inbox-expire/domain/whatsapp-inbox-expire.constant.js'
+import { createDrizzleExpireDueWhatsAppChats } from './whatsapp-inbox-expire/infrastructure/drizzle-whatsapp-inbox-expire.repository.js'
 import { buildHolidayProviderPullRegistry } from './holiday-provider-pull/infrastructure/holiday-provider-pull.registry.js'
 import { createStorageAudioObjectReader } from './conversation-audio-transcription/storage-audio-object-reader.gateway.js'
 import { isAudioTranscriptionConfigured } from './conversation-audio-transcription/audio-transcription-configured.policy.js'
@@ -1656,6 +1659,14 @@ export async function startWorkerRuntime(
             purge: createDrizzlePurgeExpiredRateLimitWindows(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
+          }),
+          /** Spec 319 T7: sempre registrada — nasce pausada no relógio, e ligar é decisão do dono. */
+          [WHATSAPP_INBOX_CHAT_EXPIRE_JOB]: createWhatsAppInboxExpireRoutine({
+            expire: createDrizzleExpireDueWhatsAppChats(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            logger,
+            now: () => new Date(),
           }),
           /**
            * Spec 161 RF21: sempre registrada, como as outras retenções — a foto de ocorrência tem
