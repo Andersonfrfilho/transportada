@@ -39,6 +39,24 @@
     "detail": "Here you can see the stops, the invoices and the manifest. Arrival, delivery, return and occurrences are the driver's.",
     "title": "You are following this trip as a helper"
   },
+  "chargeSeal": {
+    "label": "Charge notice",
+    "text": "The office flagged this client as a possible charge on delivery. If an amount is asked for, record it with the charge occurrence."
+  },
+  "canhotoPickup": {
+    "explanation": "This invoice was already delivered. You are only picking up the signed receipt from the customer — do not take the goods.",
+    "failed": "Could not send the receipt. Check that this pickup is still yours and try again.",
+    "note": "Invoice {{number}} · series {{series}}",
+    "offline": "No signal. Your receipt was not sent — try again when you have a connection.",
+    "pending_one": "{{count}} receipt to pick up",
+    "pending_other": "{{count}} receipts to pick up",
+    "photoAttached": "Receipt photo attached",
+    "photoTitle": "Receipt photo",
+    "send": "Send receipt",
+    "sending": "Sending…",
+    "title": "Pick up receipt",
+    "waitingReview": "Photo sent. The office is checking the receipt."
+  },
   "holidayWarning": {
     "future": "{{date}} is a holiday in {{city}} ({{reasons}}). Confirm with the customer before going.",
     "futureWithoutCity": "{{date}} is a holiday ({{reasons}}). Confirm with the customer before going.",
@@ -136,6 +154,7 @@
       "occurrence": "Occurrence",
       "proof": "Proof",
       "proofReceiver": "Who received",
+      "stopOccurrenceCharge": "Charge paid on receiving (photos and amount)",
       "stopOccurrencePhoto": "Stop occurrence photo",
       "return": "Return"
     },
@@ -540,6 +559,13 @@
     "available": "New version available.",
     "waitingCapture": "Updates when the open capture is finished — photo, signature, crop, occurrence or a proof being filled in."
   },
+  "plate": {
+    "label": "Plate",
+    "copied": "Plate copied",
+    "copy": "Copy the plate",
+    "legacy": "Plate {{plate}}, old model",
+    "mercosul": "Plate {{plate}}, Mercosul model"
+  },
   "tripSelector": {
     "label": "Your trips",
     "option_one": "{{path}} · {{count}} stop",
@@ -677,7 +703,9 @@
     "attachment": {
       "off": "No photo",
       "optional": "Photo optional",
-      "required": "Photo required"
+      "required": "Photo required",
+      "slots_one": "1 photo required",
+      "slots_other": "{{count}} photos required"
     },
     "cancel": "Cancel",
     "changeType": "Change type",
@@ -772,7 +800,44 @@
       "title": "Signature (optional)",
       "titleRequired": "Signature (required)"
     },
-    "title": "Report an occurrence"
+    "title": "Report an occurrence",
+    "receivingCharge": {
+      "amount": "Amount paid",
+      "groupedAmount": "Amount paid (one for the selected invoices)",
+      "documents": "Invoices of the charge",
+      "documentsHint": "Select the invoices this charge refers to.",
+      "documentNumber": "Invoice {{number}}",
+      "documentAmount": "Amount paid for invoice {{number}}",
+      "mode": "How to record it",
+      "modeOption": {
+        "one_per_document": "One line per invoice",
+        "grouped": "One line for the invoices"
+      },
+      "paidBy": "Who paid?",
+      "paidByOption": {
+        "driver": "I paid",
+        "company": "The company paid"
+      },
+      "pixKeyType": "PIX key type",
+      "pixKeyTypePlaceholder": "Choose the type",
+      "pixKeyTypeOption": {
+        "cpf": "CPF",
+        "cnpj": "CNPJ",
+        "email": "E-mail",
+        "phone": "Mobile phone",
+        "random": "Random key"
+      },
+      "pixKey": "Your PIX key",
+      "pixKeyHint": "The office uses this key to pay back what you paid.",
+      "missing": {
+        "amount": "the amount paid",
+        "documentAmount": "the amount of invoice {{number}}",
+        "documents": "the invoices of the charge",
+        "paidBy": "who paid",
+        "pix": "the PIX key type and key",
+        "photo": "{{label}}"
+      }
+    }
   },
   "routeOccurrence": {
     "alert": {
@@ -900,6 +965,7 @@
     "more_other": "See {{count}} more occurrences for {{label}}",
     "noteLabel": "Invoice {{number}}",
     "phrase": {
+      "canhoto_collected": "The canhoto was collected and approved by the office.",
       "case_cancelled": "Case cancelled by the office",
       "case_closed": "Closed by the office",
       "case_returned_to_warehouse": "Goods returned to the warehouse",

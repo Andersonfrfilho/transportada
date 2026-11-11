@@ -12,6 +12,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   time,
   timestamp,
@@ -29,7 +30,7 @@ import { holidayProviderEntries } from './holiday-provider.schema.js'
 import { companies } from './identity.schema.js'
 import { municipalHolidayRules } from './municipal-holiday-rule.schema.js'
 import { storedObjects } from './storage.schema.js'
-import { tripDocumentOccurrences } from './trip.schema.js'
+import { tripDocumentOccurrences, tripDocuments, tripStopOccurrences } from './trip.schema.js'
 import { inList } from './schema-check.constant.js'
 
 /**
@@ -64,6 +65,13 @@ export const deliveryClients = pgTable(
     defaultServiceTimeMinutes: bigint('default_service_time_minutes', { mode: 'number' }),
     notes: text().notNull().default(''),
     status: text().$type<DeliveryClientStatus>().notNull().default('active'),
+    /**
+     * Spec 317 (E7): a marca "possível cobrança na entrega". Nasce quando uma cobrança no recebimento é
+     * registrada neste cliente (a primeira vez grava a ocorrência de origem; repetida só atualiza a data) e só o
+     * escritório limpa. Marca não cria regra recorrente sozinha.
+     */
+    receivingChargeFlaggedAt: timestamp('receiving_charge_flagged_at', { withTimezone: true }),
+    receivingChargeSourceStopOccurrenceId: uuid('receiving_charge_source_stop_occurrence_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -77,6 +85,18 @@ export const deliveryClients = pgTable(
       .onUpdate('cascade'),
     unique('delivery_clients_company_tax_id_unique').on(table.companyId, table.taxId),
     unique('delivery_clients_company_id_id_unique').on(table.companyId, table.id),
+    foreignKey({
+      columns: [table.companyId, table.receivingChargeSourceStopOccurrenceId],
+      foreignColumns: [tripStopOccurrences.companyId, tripStopOccurrences.id],
+      name: 'delivery_clients_receiving_charge_source_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** A origem só existe com a data da marca: marca sem data não diz desde quando. */
+    check(
+      'delivery_clients_receiving_charge_mark_check',
+      sql`${table.receivingChargeSourceStopOccurrenceId} is null or ${table.receivingChargeFlaggedAt} is not null`,
+    ),
     check(
       'delivery_clients_status_check',
       sql`${table.status} in (${sql.raw(inList(DELIVERY_CLIENT_STATUSES))})`,
@@ -388,6 +408,12 @@ export const DELIVERY_CHARGE_TYPES = [
    * preenchido pelo CHECK do banco.
    */
   'returned_goods',
+  /**
+   * Spec 317 (E5): o que o motorista pagou, ou foi cobrado, ao receber a carga no destino. Como
+   * `returned_goods`, **nunca lançável à mão**: só nasce do registro da parada, amarrada a
+   * `origin: 'occurrence'` e `stop_occurrence_id` pelo CHECK do banco.
+   */
+  'receiving_charge',
 ] as const
 export type DeliveryChargeType = (typeof DELIVERY_CHARGE_TYPES)[number]
 
@@ -398,7 +424,7 @@ export type DeliveryChargeType = (typeof DELIVERY_CHARGE_TYPES)[number]
  * proporia de novo todo mês, o que não faz sentido para um prejuízo que não se repete.
  */
 export const MANUAL_DELIVERY_CHARGE_TYPES = DELIVERY_CHARGE_TYPES.filter(
-  (type) => type !== 'returned_goods',
+  (type) => type !== 'returned_goods' && type !== 'receiving_charge',
 )
 export type ManualDeliveryChargeType = (typeof MANUAL_DELIVERY_CHARGE_TYPES)[number]
 
@@ -448,6 +474,16 @@ export const deliveryCharges = pgTable(
      * migration aditiva.
      */
     occurrenceId: uuid('occurrence_id'),
+    /**
+     * Spec 317 (E5): a ocorrência de **parada** que gerou a cobrança no recebimento. Coluna própria porque
+     * `occurrence_id` é só de `trip_document_occurrences` (spec 164).
+     */
+    stopOccurrenceId: uuid('stop_occurrence_id'),
+    /**
+     * Spec 317 (E4): a linha agrupada cobre várias notas de uma vez (ligadas em `delivery_charge_documents`);
+     * `trip_document_id` fica nulo nela.
+     */
+    groupedDocuments: boolean('grouped_documents').notNull().default(false),
     batchId: uuid('batch_id'),
     chargeType: text('charge_type').$type<DeliveryChargeType>().notNull(),
     amount: numeric({ precision: 14, scale: 4 }).notNull(),
@@ -488,6 +524,20 @@ export const deliveryCharges = pgTable(
       columns: [table.companyId, table.occurrenceId],
       foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
       name: 'delivery_charges_company_occurrence_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.stopOccurrenceId],
+      foreignColumns: [tripStopOccurrences.companyId, tripStopOccurrences.id],
+      name: 'delivery_charges_company_stop_occurrence_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.proofObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'delivery_charges_company_proof_object_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -544,10 +594,13 @@ export const deliveryCharges = pgTable(
      * **A sugestão é a exceção**, e ela é deliberada: a ocorrência do motorista diz que cobraram —
      * ele não sabe quanto, e o recibo está na foto. Zero aqui significa "o escritório preenche", e a
      * confirmação recusa sem valor. Sem esta brecha, o aviso do campo morreria por não ter número.
+     *
+     * Spec 317 (E3): a **cobrança no recebimento** é a segunda exceção — `0` é valor declarado pelo motorista
+     * (spec 247), a linha nasce `recorded` com `0` e o escritório confere.
      */
     check(
       'delivery_charges_amount_check',
-      sql`${table.amount} > 0 or ${table.status} = 'suggested'`,
+      sql`${table.amount} > 0 or ${table.status} = 'suggested' or ${table.chargeType} = 'receiving_charge'`,
     ),
     /**
      * Só o que nasceu automático pode estar `suggested`. Lançamento manual entra direto em
@@ -587,6 +640,69 @@ export const deliveryCharges = pgTable(
       'delivery_charges_occurrence_type_check',
       sql`${table.occurrenceId} is null or ${table.chargeType} = 'returned_goods'`,
     ),
+    /**
+     * Spec 317 (RF1): `receiving_charge` só existe amarrada à ocorrência de parada que a gerou, com a nota
+     * da linha por nota ou o marcador de linha agrupada — nunca solta, sem origem ou sem nota.
+     */
+    check(
+      'delivery_charges_receiving_charge_check',
+      sql`${table.chargeType} <> 'receiving_charge' or (${table.origin} = 'occurrence' and ${table.stopOccurrenceId} is not null and (${table.tripDocumentId} is not null or ${table.groupedDocuments}))`,
+    ),
+    /** O simétrico: `stop_occurrence_id` e a linha agrupada só fazem sentido para a cobrança no recebimento. */
+    check(
+      'delivery_charges_stop_occurrence_type_check',
+      sql`${table.stopOccurrenceId} is null or ${table.chargeType} = 'receiving_charge'`,
+    ),
+    check(
+      'delivery_charges_grouped_documents_check',
+      sql`not ${table.groupedDocuments} or (${table.chargeType} = 'receiving_charge' and ${table.tripDocumentId} is null)`,
+    ),
+    /**
+     * Spec 317 (E6): o reenvio da fila offline não duplica. Uma linha por nota por ocorrência, e uma linha
+     * agrupada por ocorrência (`trip_document_id` nulo — dois `null` não colidem, por isso o índice é parcial
+     * pelo marcador).
+     */
+    uniqueIndex('delivery_charges_stop_occurrence_document_unique')
+      .on(table.companyId, table.stopOccurrenceId, table.tripDocumentId)
+      .where(sql`${table.stopOccurrenceId} is not null and ${table.tripDocumentId} is not null`),
+    uniqueIndex('delivery_charges_stop_occurrence_grouped_unique')
+      .on(table.companyId, table.stopOccurrenceId)
+      .where(sql`${table.stopOccurrenceId} is not null and ${table.groupedDocuments}`),
+  ],
+)
+
+/**
+ * Spec 317 (E4/E5): as notas cobertas por uma linha **agrupada** de cobrança no recebimento. A linha por nota
+ * não usa esta tabela (tem `trip_document_id`). Apagada junto com a cobrança.
+ */
+export const deliveryChargeDocuments = pgTable(
+  'delivery_charge_documents',
+  {
+    companyId: uuid('company_id').notNull(),
+    chargeId: uuid('charge_id').notNull(),
+    tripDocumentId: uuid('trip_document_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.companyId, table.chargeId, table.tripDocumentId],
+      name: 'delivery_charge_documents_pk',
+    }),
+    foreignKey({
+      columns: [table.companyId, table.chargeId],
+      foreignColumns: [deliveryCharges.companyId, deliveryCharges.id],
+      name: 'delivery_charge_documents_company_charge_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'delivery_charge_documents_company_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    index('delivery_charge_documents_document_idx').on(table.companyId, table.tripDocumentId),
   ],
 )
 

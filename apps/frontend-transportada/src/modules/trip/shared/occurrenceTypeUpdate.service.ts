@@ -34,6 +34,10 @@ export type OccurrenceTypeSaveInput = Readonly<{
   allowsMultipleItems: boolean
   /** Spec 179 RF1: só tem efeito em tipo de rua — é o motorista quem tira a foto. */
   attachmentMode: OccurrenceAttachmentMode
+  /** Spec 315 RF6: `undefined` é "não mexe"; a espera mínima `null` a desliga. */
+  arrivalTimeMode?: OccurrenceAttachmentMode | undefined
+  locationMode?: OccurrenceAttachmentMode | undefined
+  minWaitAfterArrivalMinutes?: null | number | undefined
   /** Spec 247 RF1: o valor pago digitado — `undefined` é "não mexe", como todo campo opcional do tipo. */
   declaredAmountLabel?: string | undefined
   declaredAmountMode?: OccurrenceAttachmentMode | undefined
@@ -71,6 +75,12 @@ export type OccurrenceTypeSaveInput = Readonly<{
   asksClientContact?: boolean | undefined
   /** `undefined` é "não mexe". */
   asksNewDueDate?: boolean | undefined
+  /** Spec 317 T14a: o motorista vê o aviso de possível cobrança. `undefined` é "não mexe". */
+  showClientChargeSealToDriver?: boolean | undefined
+  /** Spec 321 T5: `undefined` é "não mexe". As três chaves vão juntas quando uma delas muda. */
+  blocksContractorNotice?: boolean | undefined
+  countsCargoOnPickupTrip?: boolean | undefined
+  createsCanhotoPickup?: boolean | undefined
   contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   contractorReplyMode?: ContractorReplyMode | undefined
@@ -124,6 +134,9 @@ export type OccurrenceTypeEdit = Readonly<
       | 'active'
       | 'allowsMultipleItems'
       | 'attachmentMode'
+      | 'arrivalTimeMode'
+      | 'locationMode'
+      | 'minWaitAfterArrivalMinutes'
       | 'declaredAmountLabel'
       | 'declaredAmountMode'
       | 'declaredAmountScope'
@@ -140,6 +153,10 @@ export type OccurrenceTypeEdit = Readonly<
       | 'clientChannels'
       | 'asksClientContact'
       | 'asksNewDueDate'
+      | 'showClientChargeSealToDriver'
+      | 'blocksContractorNotice'
+      | 'countsCargoOnPickupTrip'
+      | 'createsCanhotoPickup'
       | 'contractorReplyAlertMode'
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'

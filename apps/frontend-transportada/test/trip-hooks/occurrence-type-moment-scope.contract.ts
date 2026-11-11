@@ -161,12 +161,23 @@ describe('tipo só de parada: só a Foto vale (M2)', () => {
   test(
     '{stop} mostra só a Foto, sem mínimo de fotos, e a nota diz por quê; a exceção também declara só a foto',
     scenario(async () => {
-      await mount(buildType(['stop'], { flow: 'stop' }))
+      await mount(
+        buildType(['stop'], {
+          flow: 'stop',
+          locationMode: 'off',
+          arrivalTimeMode: 'off',
+          minWaitAfterArrivalMinutes: null,
+        }),
+      )
       expect(control('Foto') !== null).toBe(true)
-      for (const label of ['Observação', 'Assinatura', 'Produtos', 'Quantidade mínima de fotos']) {
+      // Spec 315: na parada o servidor também cobra a observação, e a tela a oferece junto com a localização e o horário.
+      for (const label of ['Observação', 'Localização', 'Horário de chegada']) {
+        expect(control(label) !== null).toBe(true)
+      }
+      for (const label of ['Assinatura', 'Produtos', 'Quantidade mínima de fotos']) {
         expect(control(label) === null).toBe(true)
       }
-      expect(pageText().includes('Em Motorista, na parada só a foto é cobrada')).toBe(true)
+      expect(pageText().includes('Em Motorista, na parada valem foto, observação')).toBe(true)
       const section = document.querySelector('section[aria-label^="Exceções por cliente"]')
       const labels = [...(section?.querySelectorAll('button[aria-label]') ?? [])].map((button) =>
         button.getAttribute('aria-label'),

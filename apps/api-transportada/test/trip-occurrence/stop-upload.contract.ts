@@ -416,7 +416,7 @@ describe('as rotas de upload por parada (spec 209 RF1)', () => {
       reportDelivery: NOT_CALLED,
       reportOccurrence: async (input) => {
         asked.push(input)
-        return { id: 'occurrence-1' }
+        return { arrivalRecorded: false, id: 'occurrence-1' }
       },
       reportReturn: NOT_CALLED,
       resolveDriverId: async () => DRIVER,

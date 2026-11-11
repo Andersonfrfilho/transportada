@@ -110,6 +110,12 @@ import {
   createGetAudioTranscriptionSettingsUseCase,
   createSaveAudioTranscriptionSettingsUseCase,
 } from './companies/application/audio-transcription-settings.use-case.js'
+import {
+  createGetDriverOccurrenceEmailSettingsUseCase,
+  createSaveDriverOccurrenceEmailSettingsUseCase,
+} from './companies/application/driver-occurrence-email-settings.use-case.js'
+import { DrizzleDriverOccurrenceEmailSettingsRepository } from './companies/infrastructure/drizzle-driver-occurrence-email-settings.repository.js'
+import { createDriverOccurrenceEmailSettingsRoutes } from './companies/presentation/driver-occurrence-email-settings.routes.js'
 import { DrizzleAudioTranscriptionSettingsRepository } from './companies/infrastructure/drizzle-audio-transcription-settings.repository.js'
 import { createAudioTranscriptionSettingsRoutes } from './companies/presentation/audio-transcription-settings.routes.js'
 import {
@@ -119,6 +125,17 @@ import {
 } from './contractor-automations/application/contractor-automation.use-case.js'
 import { DrizzleContractorAutomationRepository } from './contractor-automations/infrastructure/drizzle-contractor-automation.repository.js'
 import { createContractorAutomationRoutes } from './contractor-automations/presentation/contractor-automation.routes.js'
+import {
+  createCreateSalespersonUseCase,
+  createLinkSalespersonContractorUseCase,
+  createListSalespeopleUseCase,
+  createReadSalespersonPortfolioUseCase,
+  createReplaceSalespersonPortfolioUseCase,
+  createUnlinkSalespersonContractorUseCase,
+  createUpdateSalespersonUseCase,
+} from './salespeople/application/salesperson.use-case.js'
+import { DrizzleSalespersonRepository } from './salespeople/infrastructure/drizzle-salesperson.repository.js'
+import { createSalespersonRoutes } from './salespeople/presentation/salesperson.routes.js'
 import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastructure/drizzle-location-retention-settings.repository.js'
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
 import { createLocationRetentionSettingsRoutes } from './companies/presentation/location-retention-settings.routes.js'
@@ -177,6 +194,10 @@ import { createMetaWhatsAppSendingChannel } from './whatsapp/infrastructure/meta
 import { createWhatsAppNotificationDriver } from './whatsapp/application/whatsapp-notification-driver.service.js'
 import { normalizeEvolutionBaseUrl } from './whatsapp/domain/evolution-base-url.policy'
 import { createWhatsAppEvolutionRoutes } from './whatsapp/presentation/whatsapp-evolution.routes'
+import { createWhatsAppChatTakeoverService } from './whatsapp-inbox/application/whatsapp-chat-takeover.service.js'
+import { createWhatsAppInboxUseCase } from './whatsapp-inbox/application/whatsapp-inbox.use-case.js'
+import { createDrizzleWhatsAppChatRepository } from './whatsapp-inbox/infrastructure/drizzle-whatsapp-chat.repository.js'
+import { createWhatsAppInboxRoutes } from './whatsapp-inbox/presentation/whatsapp-inbox.routes.js'
 import { createWhatsAppEvolutionUseCase } from './whatsapp/application/whatsapp-evolution.use-case'
 import { createWhatsAppEvolutionSecretService } from './whatsapp/application/whatsapp-evolution-secret.service'
 import { createWhatsAppEvolutionWebhookSecretService } from './whatsapp/application/whatsapp-evolution-webhook-secret.service.js'
@@ -191,6 +212,7 @@ import {
 import { createWhatsAppXmlInbound } from './nfe-xml-receipts/application/receive-whatsapp-xml-document.service.js'
 import { createDrizzleWhatsAppXmlReceiptRepository } from './nfe-xml-receipts/infrastructure/drizzle-whatsapp-xml-receipt.repository.js'
 import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
+import { createWhatsAppChatTakeoverGuard } from './whatsapp-inbox/application/whatsapp-chat-takeover-guard.service.js'
 import { createEvolutionGroupIdentity } from './whatsapp/application/evolution-group-identity.service.js'
 import {
   createEvolutionGroupInbound,
@@ -291,6 +313,9 @@ import { startCanhotoQuestionExpiryWatcher } from './whatsapp-commands/infrastru
 import { createWorkerCanhotoReader } from './whatsapp/infrastructure/worker-canhoto-reader.gateway.js'
 import { createWhatsAppDeliveryPreparations } from './whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import { createWhatsAppPreparationProofAttacher } from './whatsapp-commands/infrastructure/whatsapp-delivery-preparation-proof.adapter.js'
+import { createWhatsAppCanhotoPickupPort } from './whatsapp-commands/infrastructure/whatsapp-canhoto-pickup.adapter.js'
+import { collectCanhotoPickupPhoto } from './trips/application/collect-canhoto-pickup-photo.use-case.js'
+import { createDrizzleCanhotoPickupCollection } from './trips/infrastructure/canhoto-pickup-collection.persistence.js'
 import { createDeliveryConfirmNoteReader } from './whatsapp-commands/infrastructure/whatsapp-delivery-confirm-note.adapter.js'
 import {
   createDrizzleWhatsAppDeliveryPreparationRepository,
@@ -421,6 +446,8 @@ import {
 } from './whatsapp-commands/infrastructure/whatsapp-command-hook.factory.js'
 import { createReadWhatsAppPhoneStateUseCase } from './whatsapp-commands/application/read-whatsapp-phone-state.use-case.js'
 import { createRequestWhatsAppPhoneVerificationUseCase } from './whatsapp-commands/application/request-whatsapp-phone-verification.use-case.js'
+import { createBindWhatsAppPhoneByAdministratorUseCase } from './whatsapp-commands/application/bind-whatsapp-phone-by-administrator.use-case.js'
+import { createReadCompanyUserWhatsAppPhoneStateUseCase } from './whatsapp-commands/application/read-company-user-whatsapp-phone-state.use-case.js'
 import { createUnbindWhatsAppPhoneUseCase } from './whatsapp-commands/application/unbind-whatsapp-phone.use-case.js'
 import { createVerifyWhatsAppPhoneUseCase } from './whatsapp-commands/application/verify-whatsapp-phone.use-case.js'
 import { createWhatsAppPhoneRoutes } from './whatsapp-commands/presentation/whatsapp-phone.routes.js'
@@ -469,6 +496,9 @@ import { createReadCargoLayoutUseCase } from './trips/application/read-cargo-lay
 import { createReopenCargoLayoutUseCase } from './trips/application/reopen-cargo-layout.use-case.js'
 import { DrizzleCargoLayoutLookupRepository } from './trips/infrastructure/drizzle-cargo-layout-lookup.repository.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
+import { holdOrRegisterDriverOccurrence } from './trips/application/field-report-hold.port.js'
+import { DrizzleFieldReportHoldRepository } from './trips/infrastructure/drizzle-field-report-hold.repository.js'
+import { createFieldReportHoldRoutes } from './trips/presentation/field-report-hold.routes.js'
 import {
   confirmReachableOccurrenceUpload,
   requestOccurrenceUpload,
@@ -715,6 +745,9 @@ import { createTripDocumentReviewRoutes } from './trips/presentation/trip-docume
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
 import { createTripOccurrenceDetailRoutes } from './trips/presentation/trip-occurrence-detail.routes.js'
 import { createOccurrenceResolutionRoutes } from './trips/presentation/occurrence-resolution.routes.js'
+import { createCanhotoPickupRoutes } from './trips/presentation/canhoto-pickup.routes.js'
+import { createCanhotoPickupScheduleUseCase } from './trips/application/canhoto-pickup-schedule.use-case.js'
+import { createDrizzleCanhotoPickupSchedule } from './trips/infrastructure/canhoto-pickup-schedule.persistence.js'
 import { createMeRouteOccurrenceRoutes } from './trips/presentation/me-route-occurrence.routes.js'
 import { createFindDriverRouteOccurrenceUseCase } from './trips/application/find-driver-route-occurrence.use-case.js'
 import { createSignDriverRouteOccurrenceFileUseCase } from './trips/application/sign-driver-route-occurrence-file.use-case.js'
@@ -813,6 +846,10 @@ import {
   type AutomaticOccurrenceMailHook,
 } from './occurrence-conversation/application/automatic-occurrence-mail.hook.js'
 import { createSendAutomaticOccurrenceMailUseCase } from './occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
+import { createContractorOccurrenceGroupRepository } from './occurrence-conversation/infrastructure/contractor-occurrence-group.repository.js'
+import { createContractorOccurrenceChannelUseCase } from './occurrence-conversation/application/contractor-occurrence-channel.use-case.js'
+import { DrizzleContractorOccurrenceChannelRepository } from './occurrence-conversation/infrastructure/drizzle-contractor-occurrence-channel.repository.js'
+import { createContractorOccurrenceChannelRoutes } from './occurrence-conversation/presentation/contractor-occurrence-channel.routes.js'
 import {
   createDrizzleOccurrenceConversationUnassignedReader,
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
@@ -858,7 +895,7 @@ import { DrizzleAutomaticManifestRepository } from './mdfe-manifests/infrastruct
 import { DrizzleTripFiscalReadinessQuery } from './trips/infrastructure/trip-fiscal-readiness.query'
 import { DrizzleDeliveryAddressOverrideRepository } from './trips/infrastructure/drizzle-delivery-address-override.repository'
 import { createTripRoutes } from './trips/presentation/trip.routes'
-import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
+import { createMeTripRoutes, type MeTripDependencies } from './trips/presentation/me-trip.routes'
 import { createTripFieldOfficeRoutes } from './trips/presentation/trip-field-office.routes'
 import { createTripFieldOfficeOccurrenceRoutes } from './trips/presentation/trip-field-office-occurrence.routes.js'
 import { createTripFieldDeliverySettingsRoutes } from './trips/presentation/trip-field-delivery-settings.routes.js'
@@ -898,6 +935,7 @@ import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery
 import { readSettingsResolution } from './trips/application/read-settings-resolution.use-case.js'
 import { createSettingsResolutionRoutes } from './trips/presentation/settings-resolution.routes.js'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverStopChargeSealRepository } from './trips/infrastructure/drizzle-driver-stop-charge-seal.repository.js'
 import { DrizzleDriverDocumentContractorReplyRepository } from './trips/infrastructure/drizzle-driver-document-contractor-reply.repository.js'
 import { DrizzleDriverStopHolidayContextRepository } from './trips/infrastructure/drizzle-driver-stop-holiday-context.repository.js'
 import { DrizzleDriverScoreRepository } from './fleet/infrastructure/drizzle-driver-score.repository'
@@ -1082,6 +1120,8 @@ import { createTripStopSchedulesUseCase } from './delivery-clients/application/t
 import { DrizzleTripStopScheduleRepository } from './delivery-clients/infrastructure/drizzle-trip-stop-schedule.repository.js'
 import { DrizzleDeliveryClientRepository } from './delivery-clients/infrastructure/drizzle-delivery-client.repository.js'
 import { createDeliveryClientRoutes } from './delivery-clients/presentation/delivery-client.routes.js'
+import { createDeliveryClientReceivingChargeFlagRoutes } from './delivery-clients/presentation/delivery-client-receiving-charge-flag.routes.js'
+import { DrizzleDeliveryClientReceivingChargeFlagRepository } from './delivery-clients/infrastructure/drizzle-delivery-client-receiving-charge-flag.repository.js'
 import { createFreightRegionRoutes } from './freight-regions/presentation/freight-region.routes'
 import { DrizzleMigrationStatusRepository } from './database/drizzle-migration-status.repository'
 import { HealthService } from './health/health.service'
@@ -1152,6 +1192,7 @@ import { createRouter, type RegisteredAnonymousRoute } from './http/router.servi
 import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
 import { createGetNfeImportUseCase } from './nfe-imports/application/get-nfe-import.use-case'
 import { createListNfeImportsUseCase } from './nfe-imports/application/list-nfe-imports.use-case'
+import { createPreviewNfeImportReprocessUseCase } from './nfe-imports/application/preview-nfe-import-reprocess.use-case'
 import { createReprocessNfeImportUseCase } from './nfe-imports/application/reprocess-nfe-import.use-case'
 import { createRequestNfeImportUseCase } from './nfe-imports/application/request-nfe-import.use-case'
 import { createGetLastJobRunUseCase } from './nfe-imports/application/get-last-job-run.use-case.js'
@@ -1261,7 +1302,26 @@ type NoAttachmentOccurrenceMailInput = {
 function buildSendAutomaticOccurrenceMailUseCase(
   input: NoAttachmentOccurrenceMailInput,
 ): ReturnType<typeof createSendAutomaticOccurrenceMailUseCase> {
+  /**
+   * Spec 318: a contratante com canal de grupo recebe o aviso no grupo do WhatsApp, pelo Evolution da empresa, no
+   * ritmo do número (spec 289) e marcando o número configurado.
+   */
+  const groupSender = createEvolutionDocumentSender({
+    pacer: createEvolutionSendPacer({
+      claimSlot: createDrizzleEvolutionSendSlotClaimer(input.database),
+      maxWaitMs: 60_000,
+    }),
+    repository: new DrizzleWhatsAppEvolutionRepository(input.database),
+    secrets: createWhatsAppEvolutionSecretService({
+      envelopeProvider: createSecretEnvelopeProvider(input.envelopeKeyRing),
+    }),
+  })
   return createSendAutomaticOccurrenceMailUseCase({
+    group: createContractorOccurrenceGroupRepository({
+      database: input.database,
+      send: ({ body, companyId, groupJid, mentionNumber }) =>
+        groupSender.sendText({ body, companyId, mentionNumber, number: groupJid }),
+    }),
     reader: createAutomaticOccurrenceMailReader(input.database),
     sendMail: buildNoAttachmentOccurrenceMail(input),
   })
@@ -1443,7 +1503,11 @@ export function bootstrap(): Bun.Server<undefined> {
    * Spec 275: o aviso interno da ocorrência que o motorista registra numa nota — app e WhatsApp, sempre, para os
    * responsáveis (267/271) e quem despachou. Reverte o "sem notificador" da 079.
    */
+  const driverOccurrenceEmailSettings = new DrizzleDriverOccurrenceEmailSettingsRepository(
+    database.db,
+  )
   const driverOccurrenceNotifier = createDriverOccurrenceNotifier({
+    emailSettings: driverOccurrenceEmailSettings,
     logger,
     reader: createDriverOccurrenceNotificationReader(database.db),
     send: (params) =>
@@ -1753,6 +1817,14 @@ export function bootstrap(): Bun.Server<undefined> {
           preparations: whatsappDeliveryPreparations,
           questions: whatsappCanhotoQuestions,
           reader: createWorkerCanhotoReader(canhotoReaderConfig),
+          /** Spec 321 T4 (D4b): a coleta de canhoto encaixada na viagem do motorista também recebe a foto. */
+          canhotoPickups: createWhatsAppCanhotoPickupPort({
+            bucket: whatsappStorageBucket,
+            collection: createDrizzleCanhotoPickupCollection(database.db),
+            logger,
+            repository: whatsappDeliveryProofRepository,
+            storage: whatsappStorageGateway,
+          }),
         })
   const whatsappDriverCollections = combineWhatsAppDriverCollections({
     canhoto: whatsappCanhotoRecognition,
@@ -2627,17 +2699,38 @@ function createEvolutionWebhook(input: {
    */
   /** Uma resposta por turno é uma mensagem: o remetente e a entrada do grupo dividem o mesmo turno. */
   const groupTurns = input.groupTurns ?? createWhatsAppTurnReplies({ logger })
+  // Spec 319 T3: chat assumido por um atendente não chega ao bot (privado e grupo); a mensagem só é gravada.
+  const whatsappChats = createDrizzleWhatsAppChatRepository(database)
+  const chatTakeover = createWhatsAppChatTakeoverGuard({
+    logger,
+    repository: whatsappChats,
+    service: createWhatsAppChatTakeoverService({
+      clock: () => new Date(),
+      repository: whatsappChats,
+    }),
+  })
+  const groupSendText = createEvolutionDocumentSender({
+    pacer: createEvolutionSendPacer({
+      claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
+      maxWaitMs: 120_000,
+    }),
+    repository: new DrizzleWhatsAppEvolutionRepository(database),
+    secrets: apiKeySecrets,
+  }).sendText
   const groupReplies = createEvolutionGroupReplySender({
     logger,
     turnReplies: groupTurns,
-    sendText: createEvolutionDocumentSender({
-      pacer: createEvolutionSendPacer({
-        claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
-        maxWaitMs: 120_000,
-      }),
-      repository: new DrizzleWhatsAppEvolutionRepository(database),
-      secrets: apiKeySecrets,
-    }).sendText,
+    sendText: async (call) => {
+      const sent = await groupSendText(call)
+      // Spec 319 T4: o que o bot disse fica no histórico do chat (grupo cadastrado ou motorista). Sem esperar.
+      void chatTakeover.recordBotMessage({
+        bodyText: call.body,
+        chatJid: call.number,
+        companyId: call.companyId,
+        providerMessageId: sent.providerMessageId,
+      })
+      return sent
+    },
   })
   const groupRequests = createDrizzleWhatsAppGroupRequestRepository(database)
   /** Spec 292 regra 5: o pedido que vence sem resposta é avisado (antes) e encerrado com aviso no grupo. */
@@ -2712,9 +2805,11 @@ function createEvolutionWebhook(input: {
   return createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets,
     apiPublicUrl: input.apiPublicUrl,
+    chatTakeover,
     gateway,
     // Spec 292 T3: o grupo do motorista chega ao bot; T4/T5: a sessão do pedido e o fluxo.
     groupInbound: createEvolutionGroupInbound({
+      chatTakeover,
       turnReplies: groupTurns,
       ...(groupAudio === undefined
         ? {}
@@ -3252,7 +3347,15 @@ function createApplicationRoutes({
   })
   const businessCalendarClock = { now: () => new Date() }
   const deliveryChargeRepository = new DrizzleDeliveryChargeRepository(database)
+  const deliveryClientReceivingChargeFlags = new DrizzleDeliveryClientReceivingChargeFlagRepository(
+    database,
+  )
   const occurrenceChargeReport = createOccurrenceChargeReportUseCase({
+    /** Lido na chamada: o `storageGateway` é montado mais abaixo nesta composição. */
+    downloads: {
+      createDownloadUrl: (location) =>
+        createDeliveryProofDownloadGateway({ storage: storageGateway }).createDownloadUrl(location),
+    },
     report: new DrizzleOccurrenceChargeReportRepository(database),
   })
   const deliveryChargeRuleRepository = new DrizzleDeliveryChargeRuleRepository(database)
@@ -3349,6 +3452,10 @@ function createApplicationRoutes({
     maxDurationMs: audioTranscriptionMaxDurationMs,
     settings: new DrizzleAudioTranscriptionSettingsRepository(database),
   }
+  const driverOccurrenceEmailDependencies = {
+    settings: new DrizzleDriverOccurrenceEmailSettingsRepository(database),
+  }
+  const salespersonDependencies = { salespeople: new DrizzleSalespersonRepository(database) }
   const contractorAutomationDependencies = {
     automations: new DrizzleContractorAutomationRepository(database),
   }
@@ -3461,6 +3568,11 @@ function createApplicationRoutes({
   const driverContractorReplies = {
     logger,
     reader: new DrizzleDriverDocumentContractorReplyRepository(database),
+  }
+  /** Spec 317 (E7, RF13): o selo "possível cobrança" nas paradas de `GET /me/trips/current` — só a rota do app o recebe. */
+  const driverChargeSeal = {
+    logger,
+    reader: new DrizzleDriverStopChargeSealRepository(database),
   }
   const fieldTripTargetRepository = new DrizzleFieldTripTargetRepository(database)
   /**
@@ -3775,6 +3887,9 @@ function createApplicationRoutes({
   const getImport = createGetNfeImportUseCase({ repository: nfeImportRepository })
   const listImports = createListNfeImportsUseCase({ repository: nfeImportRepository })
   const reprocessImport = createReprocessNfeImportUseCase({ unitOfWork: nfeImportRepository })
+  const previewReprocess = createPreviewNfeImportReprocessUseCase({
+    repository: nfeImportRepository,
+  })
   const freightRules = createFreightRulesUseCase({
     fingerprintService,
     unitOfWork: freightRepository,
@@ -3921,7 +4036,6 @@ function createApplicationRoutes({
           locale: NOTIFICATION_DEFAULT_LOCALE,
         } as never),
     }),
-    suggestCharges: suggestDeliveryCharges,
   }
   /** Spec 156 T6/T15: o canhoto do escritório, igual em `field-delivery` e `field-proof`. */
   const officeDeliveryProofAttachment = {
@@ -3993,6 +4107,25 @@ function createApplicationRoutes({
     secrets: createWhatsAppChannelSecretService({ envelopeProvider }),
   })
   const whatsappEvolutionRepository = new DrizzleWhatsAppEvolutionRepository(database)
+  /** Spec 319 T5: a caixa de conversas do WhatsApp (assumir/devolver o chat). */
+  const whatsappChatRepository = createDrizzleWhatsAppChatRepository(database)
+  const whatsappInbox = createWhatsAppInboxUseCase({
+    clock: () => new Date(),
+    repository: whatsappChatRepository,
+    /** Spec 319 T6: o atendente fala pelo Evolution da empresa, no ritmo do número (spec 289). */
+    sender: createEvolutionDocumentSender({
+      pacer: createEvolutionSendPacer({
+        claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
+        maxWaitMs: 20_000,
+      }),
+      repository: new DrizzleWhatsAppEvolutionRepository(database),
+      secrets: createWhatsAppEvolutionSecretService({ envelopeProvider }),
+    }),
+    takeover: createWhatsAppChatTakeoverService({
+      clock: () => new Date(),
+      repository: whatsappChatRepository,
+    }),
+  })
   /** Spec 289: o intervalo entre envios do número. Na API o envio é uma requisição: espera até 20 s, além disso recusa. */
   const evolutionSendPacer = createEvolutionSendPacer({
     claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
@@ -4275,6 +4408,48 @@ function createApplicationRoutes({
     repository: new DrizzleUserPictureRepository(database),
   })
 
+  type RegisterDriverOccurrenceFromApp = MeTripDependencies['registerDriverOccurrence']
+  const registerDriverOccurrenceFromApp: RegisterDriverOccurrenceFromApp = async (input) => {
+    const occurrence = await registerDriverOccurrence({
+      ...input,
+      repository: {
+        findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
+        findOccurrenceType: (query) => findOccurrenceType(database, query),
+        /** Spec 246 (RF6): a exceção do contratante/destinatário da nota vale no registro. */
+        findOccurrenceTypeOverrides: (query) =>
+          occurrenceAttachmentOverridesRepository.listOverridesForTypes({
+            companyId: query.companyId,
+            occurrenceTypeIds: [query.occurrenceTypeId],
+          }),
+        findReachableDocument: (query) => findDriverReachableDocument(database, query),
+        listDocumentProducts: (query) => listDocumentProducts(database, query),
+      },
+      notifier: driverOccurrenceNotifier,
+      /** Trava de uma viagem por vez: só o pedido do motorista no app; o escritório não passa por aqui. */
+      tripLock: {
+        enabled: driverTripLockEnabled,
+        listOnRoadTripIds: (query) => listDriverOnRoadTripIds(database, query),
+        minimumScore: driverTripLockMinScore,
+        readScore: async (query) =>
+          (
+            await driverScoreRepository.readScores({
+              companyId: query.companyId,
+              driverIds: [query.driverId],
+              now: new Date(),
+            })
+          ).get(query.driverId) ?? null,
+      },
+      unitOfWork: driverFieldReports,
+    })
+    /** Spec 183 T802: o aviso automático à contratante é do tipo, não do canal de registro. */
+    automaticOccurrenceMail.announce({
+      companyId: input.companyId,
+      occurrenceIds: [occurrence.id],
+    })
+    return occurrence
+  }
+  const fieldReportHoldRepository = new DrizzleFieldReportHoldRepository(database)
+
   return [
     ...createCompanySettingsRoutes({
       getSettings: createGetCompanySettingsUseCase({ repository: settingsRepository }),
@@ -4403,6 +4578,21 @@ function createApplicationRoutes({
       get: createGetAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
       resolveClientIp,
       save: createSaveAudioTranscriptionSettingsUseCase(audioTranscriptionDependencies),
+    }),
+    ...createDriverOccurrenceEmailSettingsRoutes({
+      get: createGetDriverOccurrenceEmailSettingsUseCase(driverOccurrenceEmailDependencies),
+      resolveClientIp,
+      save: createSaveDriverOccurrenceEmailSettingsUseCase(driverOccurrenceEmailDependencies),
+    }),
+    ...createSalespersonRoutes({
+      create: createCreateSalespersonUseCase(salespersonDependencies),
+      link: createLinkSalespersonContractorUseCase(salespersonDependencies),
+      list: createListSalespeopleUseCase(salespersonDependencies),
+      readPortfolio: createReadSalespersonPortfolioUseCase(salespersonDependencies),
+      replacePortfolio: createReplaceSalespersonPortfolioUseCase(salespersonDependencies),
+      resolveClientIp,
+      unlink: createUnlinkSalespersonContractorUseCase(salespersonDependencies),
+      update: createUpdateSalespersonUseCase(salespersonDependencies),
     }),
     ...createContractorAutomationRoutes({
       create: createCreateContractorAutomationUseCase(contractorAutomationDependencies),
@@ -4652,6 +4842,19 @@ function createApplicationRoutes({
         repository: new DrizzleDriverWhatsappGroupRepository(database),
       }),
     }),
+    /** Spec 318 (T6): o canal do aviso de ocorrência da contratante (e-mail ou grupo de WhatsApp). */
+    ...createContractorOccurrenceChannelRoutes({
+      useCase: createContractorOccurrenceChannelUseCase({
+        listEvolutionGroups: (input) => whatsappEvolution.listGroups(input),
+        repository: new DrizzleContractorOccurrenceChannelRepository(database),
+        sendGroupText: ({ body, companyId, groupJid, mentionNumber }) =>
+          createEvolutionDocumentSender({
+            pacer: evolutionSendPacer,
+            repository: whatsappEvolutionRepository,
+            secrets: whatsappEvolutionSecrets,
+          }).sendText({ body, companyId, mentionNumber, number: groupJid }),
+      }),
+    }),
     ...createFleetDriverAttachmentRoutes({
       resolveClientIp,
       attachments: createFleetDriverAttachmentUseCase({
@@ -4799,12 +5002,32 @@ function createApplicationRoutes({
         reader: { findSources: (input) => findTripOccurrenceTimelineSources(database, input) },
       }),
     }),
+    /** Spec 320: o escritório lista, libera e descarta os relatos do app retidos por serem de outro dia. */
+    ...createFieldReportHoldRoutes({
+      describeHolds: (input) => fieldReportHoldRepository.describe(input),
+      settings: fieldReportHoldRepository,
+      register: async (payload) => {
+        const occurrence = await registerDriverOccurrenceFromApp(
+          payload as unknown as Parameters<RegisterDriverOccurrenceFromApp>[0],
+        )
+        return { id: occurrence.id }
+      },
+      repository: fieldReportHoldRepository,
+    }),
     /** Spec 266 / ADR-0105: o escritório resolve a ocorrência (nota ou parada) com observação. */
     ...createOccurrenceResolutionRoutes({
       resolveOccurrence: createResolveOccurrenceUseCase({
         logger,
         notifier: occurrenceResolutionNotifier,
         unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
+      }),
+    }),
+    /** Spec 321 T3: o escritório encaixa a coleta de canhoto na viagem de outro motorista. */
+    ...createCanhotoPickupRoutes({
+      canhotoPickups: createCanhotoPickupScheduleUseCase({
+        logger,
+        repository: createDrizzleCanhotoPickupSchedule(database),
+        routeFreezer: tripRouteTollFreezer,
       }),
     }),
     /** Spec 266 / ADR-0105: o motorista lê as ocorrências da viagem atual dele. */
@@ -5324,6 +5547,24 @@ function createApplicationRoutes({
       listPortalUsers: { execute: (input) => contractorPortalBindings.list(input) },
       unbindPortalUser: { execute: (input) => contractorPortalBindings.unbind(input) },
     }),
+    ...createDeliveryClientReceivingChargeFlagRoutes({
+      clearFlag: {
+        execute: (input) =>
+          deliveryClientReceivingChargeFlags.clear({
+            actorUserId: input.context.userId,
+            companyId: input.context.companyId,
+            correlationId: input.correlationId,
+            deliveryClientId: input.deliveryClientId,
+          }),
+      },
+      readFlag: {
+        execute: (input) =>
+          deliveryClientReceivingChargeFlags.read({
+            companyId: input.context.companyId,
+            deliveryClientId: input.deliveryClientId,
+          }),
+      },
+    }),
     ...createDeliveryClientRoutes({
       createClient: { execute: (input) => deliveryClients.create(input) },
       getByTaxId: { execute: (input) => deliveryClients.getByTaxId(input) },
@@ -5373,6 +5614,18 @@ function createApplicationRoutes({
       setConsent: (input) => tripLocationRepository.setConsent(input),
     }),
     ...createWhatsAppPhoneRoutes({
+      bindByAdministrator: createBindWhatsAppPhoneByAdministratorUseCase({
+        clock: () => new Date(),
+        memberships: new DrizzleMembershipRepository(database),
+        repository: new DrizzleWhatsAppPhoneRepository(database),
+      }),
+      readCompanyUserState: createReadCompanyUserWhatsAppPhoneStateUseCase({
+        memberships: new DrizzleMembershipRepository(database),
+        readState: createReadWhatsAppPhoneStateUseCase({
+          clock: () => new Date(),
+          repository: new DrizzleWhatsAppPhoneRepository(database),
+        }),
+      }),
       readState: createReadWhatsAppPhoneStateUseCase({
         clock: () => new Date(),
         repository: new DrizzleWhatsAppPhoneRepository(database),
@@ -5460,45 +5713,17 @@ function createApplicationRoutes({
        * despachou. O aviso interno sai sempre, para os responsáveis (267/271) e quem despachou — sem olhar
        * `notifies`, que segue sendo a escolha do registro do escritório.
        */
-      registerDriverOccurrence: async (input) => {
-        const occurrence = await registerDriverOccurrence({
-          ...input,
-          repository: {
-            findConfirmedUpload: (query) => occurrenceUploadRepository.findConfirmedUpload(query),
-            findOccurrenceType: (query) => findOccurrenceType(database, query),
-            /** Spec 246 (RF6): a exceção do contratante/destinatário da nota vale no registro. */
-            findOccurrenceTypeOverrides: (query) =>
-              occurrenceAttachmentOverridesRepository.listOverridesForTypes({
-                companyId: query.companyId,
-                occurrenceTypeIds: [query.occurrenceTypeId],
-              }),
-            findReachableDocument: (query) => findDriverReachableDocument(database, query),
-            listDocumentProducts: (query) => listDocumentProducts(database, query),
-          },
-          notifier: driverOccurrenceNotifier,
-          /** Trava de uma viagem por vez: só o pedido do motorista no app; o escritório não passa por aqui. */
-          tripLock: {
-            enabled: driverTripLockEnabled,
-            listOnRoadTripIds: (query) => listDriverOnRoadTripIds(database, query),
-            minimumScore: driverTripLockMinScore,
-            readScore: async (query) =>
-              (
-                await driverScoreRepository.readScores({
-                  companyId: query.companyId,
-                  driverIds: [query.driverId],
-                  now: new Date(),
-                })
-              ).get(query.driverId) ?? null,
-          },
-          unitOfWork: driverFieldReports,
-        })
-        /** Spec 183 T802: o aviso automático à contratante é do tipo, não do canal de registro. */
-        automaticOccurrenceMail.announce({
-          companyId: input.companyId,
-          occurrenceIds: [occurrence.id],
-        })
-        return occurrence
-      },
+      registerDriverOccurrence: registerDriverOccurrenceFromApp,
+      /** Spec 320: a ocorrência do app cujo toque não é do dia em que chegou fica retida para o escritório. */
+      holdDriverOccurrence: ({ clockOffsetMs, input, tappedAt }) =>
+        holdOrRegisterDriverOccurrence({
+          clockOffsetMs,
+          hold: fieldReportHoldRepository,
+          input,
+          now: new Date(),
+          register: registerDriverOccurrenceFromApp,
+          tappedAt,
+        }),
       /**
        * Spec 179 T202 (RF2): o arquivo nunca chega até aqui — só o pedido da URL e, depois, a
        * confirmação. As duas passam pela mesma consulta de alcance de `registerDriverOccurrence`
@@ -5583,6 +5808,35 @@ function createApplicationRoutes({
             storage: storageGateway,
           }),
         }),
+      /** Spec 321 T4 (D4b, CA04): a foto do canhoto retido vira o canhoto da entrega de origem. */
+      collectCanhotoPickupPhoto: ({ correlationId, ...input }) =>
+        collectCanhotoPickupPhoto({
+          ...input,
+          attach: (attach) =>
+            attachDeliveryProof({
+              actorUserId: input.actorUserId,
+              canhotoPickup: { originTripId: attach.originTripId },
+              channel: attach.channel,
+              companyId: input.companyId,
+              ...(correlationId === undefined ? {} : { correlationId }),
+              documentId: attach.documentId,
+              driverId: attach.driverId,
+              logger,
+              newObjectId: () => crypto.randomUUID(),
+              newProofId: () => crypto.randomUUID(),
+              now: new Date(),
+              repository: deliveryProofRepository,
+              sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
+              storage: createDeliveryProofStorage({
+                bucket: storageBucket,
+                storage: storageGateway,
+              }),
+              upload: attach.upload,
+            }),
+          channel: TRIP_FIELD_CHANNELS.driverApp,
+          collection: createDrizzleCanhotoPickupCollection(database),
+          now: new Date(),
+        }),
       /** ADR-0058: o mesmo `dispatchTrip` do escritório, recortado pelo vínculo — sem `force`. */
       dispatchCurrentTrip: (input) =>
         dispatchDriverTrip({
@@ -5614,6 +5868,7 @@ function createApplicationRoutes({
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({
           ...input,
+          chargeSeal: driverChargeSeal,
           contractorReplies: driverContractorReplies,
           holidayWarnings: driverHolidayWarnings,
           now: new Date(),
@@ -5715,7 +5970,7 @@ function createApplicationRoutes({
             deliveryProofRepository.resolveProofFieldSettings(settings),
           unitOfWork: driverFieldReports,
         }),
-      /** Spec 156 T15 M5: o mesmo aviso e a mesma sugestão de cobrança da ocorrência do motorista. */
+      /** Spec 156 T15 M5: o mesmo aviso da ocorrência do motorista (spec 317 E10: sem a sugestão de cobrança). */
       reportOccurrence: (input) =>
         reportStopOccurrence({
           ...input,
@@ -6734,6 +6989,7 @@ function createApplicationRoutes({
       save: { execute: (input) => whatsappEvolution.save(input) },
     }),
     ...createWhatsAppEvolutionWebhookRoutes({ webhook: whatsappEvolutionWebhook }),
+    ...createWhatsAppInboxRoutes({ inbox: whatsappInbox }),
     ...createNfseProviderCredentialRoutes({
       readCredential: { execute: (input) => nfseProviderCredentials.read(input) },
       saveCredential: { execute: (input) => nfseProviderCredentials.save(input) },
@@ -6792,6 +7048,7 @@ function createApplicationRoutes({
       getLastJobRun,
       getScheduledDistribution,
       listImports,
+      previewReprocess: { execute: (input) => previewReprocess.execute(input) },
       reprocessImport: { execute: (input) => reprocessImport.execute(input) },
       requestDistribution: {
         execute: (input) =>

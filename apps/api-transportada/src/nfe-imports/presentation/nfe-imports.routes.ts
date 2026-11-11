@@ -19,6 +19,7 @@ import type {
   NfeImportListPage,
   NfeImportSummary,
 } from '../application/nfe-import.types.js'
+import type { NfeImportReprocessPreview } from '../application/preview-nfe-import-reprocess.use-case.js'
 import {
   parseDistributionRequest,
   parseIdempotencyKey,
@@ -159,6 +160,12 @@ type Dependencies = {
       readonly limit: number
     }): Promise<NfeImportListPage>
   }
+  readonly previewReprocess: {
+    execute(input: {
+      readonly context: CompanyContext
+      readonly importId: string
+    }): Promise<NfeImportReprocessPreview>
+  }
   readonly reprocessImport: {
     execute(input: {
       readonly context: CompanyContext
@@ -279,6 +286,21 @@ export function createNfeImportRoutes(
       }),
       pathname: `${API_NFE_IMPORTS_PATH}/:id/items`,
       policy: INVOICES_READ_POLICY,
+    }),
+    defineRoute<ImportIdentifierInput>({
+      async handle({ context, input }): Promise<Response> {
+        const preview = await dependencies.previewReprocess.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: preview }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }): ImportIdentifierInput => ({
+        importId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: `${API_NFE_IMPORTS_PATH}/:id/reprocess-preview`,
+      policy: INVOICES_IMPORT_POLICY,
     }),
     defineRoute<ReprocessImportInput>({
       async handle({ context, input }): Promise<Response> {

@@ -24,6 +24,7 @@ import {
   OCCURRENCE_AUTOMATIC_MAIL_LOOKBACK_MILLISECONDS,
   OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION,
   OCCURRENCE_AUTOMATIC_MAIL_SWEEP_JOB,
+  OCCURRENCE_CONTRACTOR_GROUP_SEND_OPERATION,
   UNSAFE_EMAIL_HTML_PATTERN,
 } from '../src/occurrence-automatic-mail-sweep/domain/occurrence-automatic-mail-sweep.constant.js'
 import { OCCURRENCE_MAIL_UNSAFE_HTML_CASES } from './fixtures/occurrence-mail-unsafe-html-cases.fixture.js'
@@ -56,11 +57,15 @@ type TemplateShape =
 type Scenario = {
   readonly ageMilliseconds: number
   readonly alreadySent?: boolean
+  /** Spec 318: o resultado do aviso no grupo de WhatsApp da contratante. */
+  readonly groupStatus?: 'completed' | 'failed' | 'processing'
   readonly cancelled?: boolean
   readonly hasContractor?: boolean
   /** Spec 271: o que o módulo de notificação tem para a chave escolhida no tipo; padrão `usable`. */
   readonly template?: TemplateShape
   readonly typeEmailsContractor?: boolean
+  /** Spec 321 (D2): o tipo que nunca avisa a contratante, mesmo com `emails_contractor` ligado. */
+  readonly typeBlocksContractorNotice?: boolean
   /** Spec 271: padrão `true`; `false` é o tipo sem modelo escolhido (chave nula). */
   readonly typeHasKey?: boolean
   /** Spec 271: quando a chave foi escolhida no tipo, em relação à ocorrência; padrão antes (`-MINUTE`). */
@@ -71,6 +76,8 @@ const SCENARIOS = {
   alreadySent: { ageMilliseconds: 30 * MINUTE, alreadySent: true },
   cancelled: { ageMilliseconds: 30 * MINUTE, cancelled: true },
   fresh: { ageMilliseconds: 2 * MINUTE },
+  groupFailed: { ageMilliseconds: 30 * MINUTE, groupStatus: 'failed' },
+  groupSent: { ageMilliseconds: 30 * MINUTE, groupStatus: 'completed' },
   noContractor: { ageMilliseconds: 30 * MINUTE, hasContractor: false },
   noKey: { ageMilliseconds: 30 * MINUTE, typeHasKey: false },
   older: { ageMilliseconds: 45 * MINUTE },
@@ -90,6 +97,7 @@ const SCENARIOS = {
   templateOtherChannel: { ageMilliseconds: 30 * MINUTE, template: 'otherChannel' },
   templateOtherLocale: { ageMilliseconds: 30 * MINUTE, template: 'otherLocale' },
   tooOld: { ageMilliseconds: OCCURRENCE_AUTOMATIC_MAIL_LOOKBACK_MILLISECONDS + 60 * MINUTE },
+  typeBlocksContractorNotice: { ageMilliseconds: 30 * MINUTE, typeBlocksContractorNotice: true },
   typeOff: { ageMilliseconds: 30 * MINUTE, typeEmailsContractor: false },
   typeSelectedLater: { ageMilliseconds: 30 * MINUTE, typeSelectedOffsetMilliseconds: MINUTE },
 } as const satisfies Record<string, Scenario>
@@ -198,10 +206,11 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     const key = `ocorrencia.${typeId}`
     await db.execute(
       sql`insert into company_occurrence_types
-            (id, company_id, name, stage, emails_contractor, contractor_notification_template_key,
-             contractor_notification_template_selected_at)
+            (id, company_id, name, stage, emails_contractor, blocks_contractor_notice,
+             contractor_notification_template_key, contractor_notification_template_selected_at)
           values (${typeId}, ${company}, ${`Prorrogação ${typeId}`}, 'delivery',
             ${scenario.typeEmailsContractor ?? true},
+            ${scenario.typeBlocksContractorNotice ?? false},
             ${hasKey ? key : null},
             ${hasKey ? typeSelectedAt.toISOString() : null}::timestamptz)`,
     )
@@ -217,6 +226,13 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
             ${scenario.cancelled === true ? 'lançada por engano' : null})`,
     )
     if (scenario.alreadySent === true) await recordSend(company, occurrenceId)
+    if (scenario.groupStatus !== undefined) {
+      await db.execute(
+        sql`insert into idempotency_records (company_id, operation, idempotency_key, request_fingerprint, status, response)
+            values (${company}, ${OCCURRENCE_CONTRACTOR_GROUP_SEND_OPERATION},
+              ${`${OCCURRENCE_AUTOMATIC_MAIL_KEY_PREFIX}${occurrenceId}`}, 'automatic', ${scenario.groupStatus}, '{}'::jsonb)`,
+      )
+    }
     ownIds.add(occurrenceId)
     return occurrenceId
   }
@@ -336,6 +352,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
 
     expect(pending.map((item) => item.occurrenceId).sort()).toEqual(
       [
+        occurrenceIds.groupFailed,
         occurrenceIds.older,
         occurrenceIds.otherCompany,
         occurrenceIds.ripe,
@@ -345,6 +362,13 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
         occurrenceIds.templateTextLooksUnsafe,
       ].sort(),
     )
+  })
+
+  it('never queues a type that never notifies the contractor, even with the automatic mail on (spec 321 CA01)', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    expect(listed).not.toContain(occurrenceIds.typeBlocksContractorNotice)
+    expect(listed).toContain(occurrenceIds.ripe)
   })
 
   it('leaves out a type with no key, and a key with no usable template in the notification module (spec 271)', async () => {
@@ -389,6 +413,14 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
       )) as unknown as { blocked: boolean }[]
       expect([entry.name, row?.blocked]).toEqual([entry.name, entry.worker === 'bloqueia'])
     }
+  })
+
+  /** Spec 318: o aviso que saiu no grupo não volta à fila; o que falhou (nada saiu) volta, e é a nova tentativa. */
+  it('leaves out what the contractor group already got, and keeps what failed there', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    expect(listed).not.toContain(occurrenceIds.groupSent)
+    expect(listed).toContain(occurrenceIds.groupFailed)
   })
 
   it('skips what was registered before the template was chosen on the type (spec 269, kept)', async () => {
@@ -446,6 +478,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
 
     expect(sent.sort()).toEqual(
       [
+        occurrenceIds.groupFailed,
         occurrenceIds.older,
         occurrenceIds.otherCompany,
         occurrenceIds.ripe,

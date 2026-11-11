@@ -4,12 +4,23 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
+import { TRIP_ON_ROAD_STATUSES } from '../../trips/domain/trip-state.policy.js'
+
 import type {
   DriverStopReminderIdleReconciliationRepository,
   IdleStopReminderCandidate,
 } from '../application/driver-stop-reminder-idle-reconciliation.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
+
+/**
+ * Emenda 2026-11-10 (D10/RF21): a viagem despachada em que o motorista nunca tocou "Iniciar rota" (`dispatched`, ou
+ * `in_transit` com a carga conferida) também é cobrada, não só a `on_delivery_route`.
+ */
+const IDLE_TRIP_STATUSES = sql.join(
+  TRIP_ON_ROAD_STATUSES.map((status) => sql`${status}`),
+  sql`, `,
+)
 
 type IdleRow = Readonly<{
   anchor_at: Date | string
@@ -49,7 +60,7 @@ export class DrizzleDriverStopReminderIdleReconciliationRepository
           on next_stop."company_id" = t."company_id" and next_stop."trip_id" = t."id"
             and next_stop."completed_at" is null
         where t."company_id" = ${params.companyId}::uuid
-          and t."status" = 'on_delivery_route'
+          and t."status" in (${IDLE_TRIP_STATUSES})
           and not exists (
             select 1 from trip_stops moving
             where moving."company_id" = t."company_id" and moving."trip_id" = t."id"

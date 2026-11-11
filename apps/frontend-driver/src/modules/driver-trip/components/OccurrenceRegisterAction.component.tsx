@@ -21,6 +21,8 @@ type OccurrenceRegisterActionProps = Readonly<{
   hasRequiredFields?: boolean
   /** O que falta, na ordem em que o formulário pergunta — vira o motivo do botão desabilitado. */
   missingFields: readonly OccurrenceMissingField[]
+  /** Spec 317: o que falta já em texto (a cobrança no recebimento diz **qual** foto); vale no lugar de `missingFields`. */
+  missingLabels?: readonly string[]
   onCancel: () => void
   onRegister: () => void
   /** Ausente é o formulário sem produtos, número e valor pago (a parada). */
@@ -39,6 +41,7 @@ export function OccurrenceRegisterAction({
   hasRequiredFields = false,
   missingContext,
   missingFields,
+  missingLabels,
   onCancel,
   onRegister,
   photoMinimumCount,
@@ -46,7 +49,7 @@ export function OccurrenceRegisterAction({
 }: OccurrenceRegisterActionProps) {
   const { t } = useTranslation('driverTrip')
   const missingId = useId()
-  const hasMissing = missingFields.length > 0
+  const hasMissing = (missingLabels ?? missingFields).length > 0
 
   /** `count` é o mínimo de fotos, ou o de produtos; `label` é o rótulo que o tipo deu ao campo. */
   function describeMissingField(field: OccurrenceMissingField): { count: number; label: string } {
@@ -67,11 +70,14 @@ export function OccurrenceRegisterAction({
           {hasMissing ? (
             <p className={styles.notDeliveredMissing} id={missingId}>
               {t('occurrenceRegistration.missingLead', {
-                fields: missingFields
-                  .map((field) =>
-                    t(`occurrenceRegistration.missing.${field}`, describeMissingField(field)),
-                  )
-                  .join(', '),
+                fields:
+                  missingLabels === undefined
+                    ? missingFields
+                        .map((field) =>
+                          t(`occurrenceRegistration.missing.${field}`, describeMissingField(field)),
+                        )
+                        .join(', ')
+                    : missingLabels.join(', '),
               })}
             </p>
           ) : null}

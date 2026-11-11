@@ -257,6 +257,9 @@ export const TRIP_DETAIL = {
 export const TRIP_PAGE = {
   items: [TRIP, SECOND_TRIP],
   nextCursor: SYNTHETIC_CURSOR,
+  offset: null,
+  previousCursor: null,
+  total: null,
 } as const
 
 export type StopAddressComponentsContract = Readonly<{

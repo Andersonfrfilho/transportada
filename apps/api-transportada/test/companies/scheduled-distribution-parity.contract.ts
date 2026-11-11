@@ -108,6 +108,7 @@ async function callImportsDistributionRoute(status = STATUS): Promise<Response> 
     getLastJobRun: { execute: async () => null },
     getScheduledDistribution: scheduledStatusUseCase(status),
     listImports: notCalled,
+    previewReprocess: notCalled,
     reprocessImport: notCalled,
     requestDistribution: notCalled,
     requestUpload: notCalled,

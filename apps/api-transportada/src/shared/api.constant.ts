@@ -59,6 +59,9 @@ export const API_COMPANY_SETTINGS_LOCATION_RETENTION_IMPACT_PATH =
   '/company-settings/location-retention/impact'
 /** Spec 264 RF17: a empresa liga ou desliga a transcrição dos áudios das conversas por assunto. */
 export const API_COMPANY_SETTINGS_AUDIO_TRANSCRIPTION_PATH = '/company-settings/audio-transcription'
+/** Spec 322: a empresa liga ou desliga o e-mail do aviso da ocorrência que o motorista registra. */
+export const API_COMPANY_SETTINGS_DRIVER_OCCURRENCE_EMAIL_PATH =
+  '/company-settings/driver-occurrence-email'
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
 /** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */
@@ -72,6 +75,8 @@ export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
 /** Spec 060: o cliente que tem hora e tem preço, e o embarcador que paga o repasse. */
 export const API_DELIVERY_CLIENTS_PATH = '/delivery-clients'
 export const API_CONTRACTORS_PATH = '/contractors'
+/** Spec 316: vendedor da contratante, ligação às contratantes e carteira de clientes. */
+export const API_SALESPEOPLE_PATH = '/salespeople'
 /** Spec 150 T301 (spec 143 T013): a lista de contatos de e-mail da contratante. */
 export const API_CONTRACTOR_CONTACTS_PATH = '/contractors/:id/contacts'
 export const API_CONTRACTOR_CONTACT_PATH = '/contractors/:id/contacts/:contactId'
@@ -85,6 +90,12 @@ export const API_CONTRACTOR_OCCURRENCE_WATCHER_PATH = '/contractors/:id/occurren
 /** Spec 237 (ADR-0094): as regras de recebimento do contratante, como dado. */
 export const API_CONTRACTOR_RECEIVING_PROFILE_PATH = '/contractors/:id/receiving-profile'
 export const API_CONTRACTOR_RECEIVING_PROFILES_PATH = '/contractor-receiving-profiles'
+/** Spec 318: o canal do aviso de ocorrência da contratante (e-mail ou grupo de WhatsApp). */
+export const API_CONTRACTOR_OCCURRENCE_CHANNEL_PATH = '/contractors/:id/occurrence-channel'
+export const API_CONTRACTOR_OCCURRENCE_CHANNEL_TEST_PATH =
+  '/contractors/:id/occurrence-channel/test'
+export const API_CONTRACTOR_OCCURRENCE_CHANNEL_GROUPS_PATH =
+  '/contractor-occurrence-channels/whatsapp-groups'
 /** Spec 237 T4.6b (ADR-0094 §10): a entrada da prévia por e-mail encaminhado, no perfil do contratante. */
 export const API_CONTRACTOR_PREVIEW_EMAIL_PATH = '/contractors/:id/receiving-profile/preview-email'
 export const API_CONTRACTOR_INBOUND_TOKEN_PATH = '/contractors/:id/receiving-profile/inbound-token'
@@ -267,6 +278,14 @@ export const API_WHATSAPP_EVOLUTION_PROVISION_PATH =
 export const API_WHATSAPP_EVOLUTION_WEBHOOK_PATH = '/company-settings/whatsapp-evolution/webhook'
 /** Spec 281 T6 (RF4): a entrega do Evolution, uma URL por empresa pelo `webhookId` opaco. */
 export const API_PUBLIC_WHATSAPP_EVOLUTION_WEBHOOK_PATH = '/public/whatsapp-evolution/:webhookId'
+/** Spec 319 T5: a caixa de conversas do WhatsApp (módulo próprio, separado de ocorrências). */
+export const API_WHATSAPP_INBOX_CHATS_PATH = '/whatsapp-inbox/chats'
+export const API_WHATSAPP_INBOX_CHAT_MESSAGES_PATH = '/whatsapp-inbox/chats/:id/messages'
+export const API_WHATSAPP_INBOX_CHAT_MESSAGE_RETRY_PATH =
+  '/whatsapp-inbox/chats/:id/messages/:messageId/retry'
+export const API_WHATSAPP_INBOX_CHAT_TAKE_OVER_PATH = '/whatsapp-inbox/chats/:id/take-over'
+export const API_WHATSAPP_INBOX_CHAT_RELEASE_PATH = '/whatsapp-inbox/chats/:id/release'
+export const API_WHATSAPP_INBOX_CHAT_READ_PATH = '/whatsapp-inbox/chats/:id/read'
 export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
 export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
 /** Spec 164 T9: a tratativa que chegou ao contratante — no molde das duas rotas acima. */

@@ -9,6 +9,7 @@ import {
   getDriverDiagnostics,
   getDriverTripClient,
   describeAttachmentFailure,
+  DriverTripRequestError,
   toAttachmentSendOutcome,
 } from '../shared/driverTripClient.service'
 import { traceBaixaTotal } from '../shared/baixaTotalTrace.service'
@@ -95,6 +96,7 @@ import {
   discardOwnPending,
   partitionPendingByOwner,
 } from '../shared/queueOwner.service'
+import { purgeConcludedTripQueue } from '../shared/concludedTripQueue.service'
 import { cancelQueuedOccurrence, discardRejectedQueueItem } from '../shared/queueDiscard.service'
 import {
   appendSentHistory,
@@ -180,8 +182,18 @@ export type DriverNotDeliveredOutcome = DriverReportOutcome | 'size-limit'
 /** Spec 209 (D3): a foto do "Deu problema" que não coube saiu — o relato entrou mesmo assim. */
 export type DriverStopOccurrenceOutcome = DriverReportOutcome | 'photo-dropped'
 
+/**
+ * Spec 321 T6: a foto do canhoto da coleta sai direto (sem fila): `sent` fechou o envio, `offline` pede para tentar de novo
+ * com sinal, `failed` é recusa do servidor (coleta que não é mais dele, por exemplo).
+ */
+export type DriverCanhotoPickupOutcome = 'failed' | 'offline' | 'sent'
+
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
+  sendCanhotoPickupPhoto: (input: {
+    file: File
+    pickupId: string
+  }) => Promise<DriverCanhotoPickupOutcome>
   /**
    * Spec 203/193: o motorista completou um campo depois do anexo já estar na fila — atualiza o(s)
    * item(ns) daquele documento in place. Sem grupo na fila (o anexo já subiu), vira `proofReceiver`
@@ -405,6 +417,30 @@ export function useDriverTrip(
         }),
     queryFn: async () => {
       const snapshot = await getDriverTripClient().readCurrent()
+      /** Viagem concluída pelo escritório não deixa pendência no aparelho; a baixa vai ao histórico. */
+      await purgeConcludedTripQueue({
+        attachmentStore,
+        ownerSubHash: session.subHash,
+        store,
+        trips: snapshot.trips,
+      })
+        .then(async (purged) => {
+          if (purged.length === 0) return
+          await sentHistoryStore
+            .update((current) =>
+              appendSentHistory({
+                additions: purged.map((item) =>
+                  toSentHistoryEntry({ at: new Date().toISOString(), item, result: 'discarded' }),
+                ),
+                current,
+                nowMs: Date.now(),
+              }),
+            )
+            .then(setSentHistory)
+            .catch(() => undefined)
+          await refreshQueueView()
+        })
+        .catch(() => undefined)
       /** Falhar ao guardar não derruba a tela: o próximo boot sem rede só abre um snapshot mais velho. */
       await saveTripSnapshot({
         now: new Date(),
@@ -887,6 +923,25 @@ export function useDriverTrip(
    * drenagem subir antes dela (rede rápida), a foto vai sem posição e conta como longe (ADR-0070
    * §4) — nunca perdida.
    */
+  async function sendCanhotoPickupPhoto(input: {
+    file: File
+    pickupId: string
+  }): Promise<DriverCanhotoPickupOutcome> {
+    try {
+      const clockOffsetMs = driverClockOffset.read()
+      await getDriverTripClient().sendCanhotoPickupPhoto({
+        capturedAt: new Date().toISOString(),
+        ...(clockOffsetMs === undefined ? {} : { clockOffsetMs }),
+        file: input.file,
+        pickupId: input.pickupId,
+      })
+      await queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY })
+      return 'sent'
+    } catch (error) {
+      return error instanceof DriverTripRequestError && error.isOffline ? 'offline' : 'failed'
+    }
+  }
+
   function attachProof(input: DriverProofInput): Promise<DriverProofOutcome> {
     return persistWhileOpen(captureRegistry, () => enqueueProof(input))
   }
@@ -1158,6 +1213,7 @@ export function useDriverTrip(
 
   return {
     attachProof,
+    sendCanhotoPickupPhoto,
     updateProofFields,
     removeProof,
     discardProofAwaitingDelivery,

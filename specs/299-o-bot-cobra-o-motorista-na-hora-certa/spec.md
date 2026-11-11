@@ -74,6 +74,11 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
   da viagem (viagem sem nenhum evento) ou o instante da baixa que fechou a parada anterior. **Vence** em
   `âncora + idleMinutes` (configuração nova da empresa: padrão 30, faixa 10–240). Mesmo relógio, tentativas, adiamentos,
   horário de funcionamento e duas chaves das outras etapas.
+  - **Emenda 2026-11-10 (dono): viagem despachada sem "Iniciar rota" também é cobrada.** "Mesmo sem eventos do WhatsApp,
+    quem tem entregas deve ser cobrado." A etapa `idle` vale para a viagem na rua em qualquer dos três estados
+    (`TRIP_ON_ROAD_STATUSES`: `dispatched`, `in_transit` e `on_delivery_route`), não só `on_delivery_route`. Caso que
+    motivou: viagem despachada havia quase 24 h, 12 paradas, nenhum toque e nenhuma cobrança. Âncora, relógio, duas
+    chaves, tentativas, adiamentos e escalada não mudam; a âncora da viagem só despachada é o despacho (variante A).
 
 ## Requisitos funcionais
 
@@ -177,7 +182,7 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 
 ### Etapa sem evento (T2.7, dono 2026-11-07)
 
-- **RF21** — Viagem `on_delivery_route` sem parada a caminho, sem chegada em aberto e com ao menos uma parada aberta tem
+- **RF21** — Viagem na rua (`dispatched`, `in_transit` ou `on_delivery_route`; emenda D10 de 2026-11-10) sem parada a caminho, sem chegada em aberto e com ao menos uma parada aberta tem
   lembrete `idle` na **próxima parada aberta na ordem da rota** (294), com `anchor_at` = despacho da viagem (nenhum evento) ou
   o instante da baixa que fechou a parada anterior, e `due_at = anchor_at + idleMinutes`. Todas as paradas fechadas → nada
   (o encerramento da viagem é da 223). Quem abre é a varredura (RF7); a baixa que fecha a parada abre o lembrete da próxima
@@ -199,7 +204,8 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
   *3* - Ainda não vou sair
   ```
 
-  1 → início da viagem e saída para a parada (o mesmo caminho do "Iniciar rota"/"saí"); 2 → a escolha de parada da 294 com a
+  1 → início da viagem e saída para a parada (o mesmo caminho do "Iniciar rota"/"saí": `reportStopDeparture` marca a
+  parada a caminho e leva a viagem `dispatched`/`in_transit` a `on_delivery_route`, ADR-0088 §2); 2 → a escolha de parada da 294 com a
   confirmação de saída fora de ordem; 3 → adia (RF13: não consome tentativa, no máximo 3, depois conta como sem resposta).
 
 - **RF24** — Mensagem `idle`, variante **B** (rota em andamento, já houve baixa), nó `fala_lembrete_sem_evento_rota`:
@@ -264,6 +270,9 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
 - Roteamento fora do ar → duração de reserva (plan.md); endereço sem coordenada → reserva.
 - Horário de funcionamento vazio → sempre aberto.
 - Viagem com todas as paradas fechadas: sem `idle` (223 encerra a viagem).
+- Viagem só despachada, sem nenhum toque (emenda D10, 2026-11-10): `idle` na primeira parada, ancorado no despacho; com o
+  despacho antigo (a viagem esquecida), a primeira cobrança sai na primeira rodada dentro do horário de funcionamento.
+  Viagem antes do despacho (`loading` e anteriores), concluída ou cancelada: nada.
 - Mensagem chega do motorista com hora antiga (fila do WhatsApp): vale o evento, e o lembrete fecha pelo evento.
 
 ## Fora do escopo
@@ -282,8 +291,10 @@ Tudo atrás de duas chaves: a da empresa (painel, padrão desligado) e a global 
    pelo painel tira a pendência.
 4. Com uma ocorrência aberta no grupo, o lembrete vencido espera; fechada a ocorrência, sai na próxima rodada.
 5. Chave global ou da empresa desligada → nenhuma linha nova e nenhuma mensagem.
-6. Conversa individual fora da janela de 24 h → sai o template aprovado; dentro → o texto livre.
-7. Log da rotina sem telefone, nome, cliente nem coordenada.
+6. (Emenda D10, 2026-11-10) Viagem despachada sem "Iniciar rota": 30 min depois do despacho o grupo recebe a variante A
+   do `idle`; "1" registra a saída para a parada e a viagem passa a `on_delivery_route`, como no botão do app.
+7. Conversa individual fora da janela de 24 h → sai o template aprovado; dentro → o texto livre.
+8. Log da rotina sem telefone, nome, cliente nem coordenada.
 
 ## Dúvidas
 

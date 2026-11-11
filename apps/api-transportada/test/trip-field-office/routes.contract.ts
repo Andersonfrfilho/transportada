@@ -311,7 +311,7 @@ describe('a ocorrência de parada do escritório (spec 156 T5)', () => {
       reportArrival: NOT_CALLED,
       reportOccurrence: async (input) => {
         occurrenceCalls.push(input)
-        return { id: 'occurrence-1' }
+        return { arrivalRecorded: false, id: 'occurrence-1' }
       },
       attachProof: NOT_CALLED,
       reportDelivery: NOT_CALLED,
@@ -355,7 +355,7 @@ describe('a ocorrência de parada do escritório (spec 156 T5)', () => {
       },
     ])
     expect(response.status).toBe(201)
-    expect(await response.json()).toEqual({ data: { id: 'occurrence-1' } })
+    expect(await response.json()).toEqual({ data: { arrivalRecorded: false, id: 'occurrence-1' } })
   })
 
   it('aceite 13: driverId fora da tripulação responde 422 DRIVER_NOT_ON_TRIP', async () => {

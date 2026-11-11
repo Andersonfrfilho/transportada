@@ -418,6 +418,8 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
     (value.openOccurrenceCase === undefined || isBoolean(value.openOccurrenceCase)) &&
     /** Spec 223: ausente é API anterior ao campo; presente tem de ser booleano. */
     (value.proofPending === undefined || isBoolean(value.proofPending)) &&
+    /** Spec 321 D4d: ausente é API anterior ao campo; presente tem de ser booleano. */
+    (value.canhotoRetained === undefined || isBoolean(value.canhotoRetained)) &&
     /** Spec 185 T6.1: mesma tolerância — ausente é API anterior ao campo (spec 078 D2). */
     (value.leavesBehindOnDispatch === undefined || isBoolean(value.leavesBehindOnDispatch)) &&
     /** Spec 176: ausente é API anterior à feature; presente segue a mesma regra de dinheiro/rótulo. */
@@ -1254,7 +1256,12 @@ export function createTripResponseAdapters() {
       if (!isRecord(input) || !Array.isArray(input.data) || !isRecord(input.page)) throw invalid()
       const nextCursor = input.page.nextCursor
       if (!isNullableString(nextCursor)) throw invalid()
-      return { items: input.data.map(tripFromApi), nextCursor }
+      const previousCursor = input.page.previousCursor ?? null
+      if (!isNullableString(previousCursor)) throw invalid()
+      const offset = input.page.offset ?? null
+      const total = input.page.total ?? null
+      if (!isNullableCount(offset) || !isNullableCount(total)) throw invalid()
+      return { items: input.data.map(tripFromApi), nextCursor, offset, previousCursor, total }
     },
   }
 }
@@ -1264,6 +1271,10 @@ export function createTripResponseAdapters() {
  * prévia valida, porque ela desenha a partir do que chega e um `rows` estranho viraria um baú com
  * fileiras sem dono em vez de um erro.
  */
+function isNullableCount(value: unknown): value is null | number {
+  return value === null || (typeof value === 'number' && Number.isInteger(value) && value >= 0)
+}
+
 function isCargoLayout(value: unknown): boolean {
   if (!isRecord(value)) return false
   return (
@@ -1602,6 +1613,9 @@ function hasValidFieldOccurrenceTypeModes(value: Record<string, unknown>): boole
     value.asksClientContact === undefined || typeof value.asksClientContact === 'boolean'
   const isAsksNewDueDateValid =
     value.asksNewDueDate === undefined || typeof value.asksNewDueDate === 'boolean'
+  const isShowClientChargeSealValid =
+    value.showClientChargeSealToDriver === undefined ||
+    typeof value.showClientChargeSealToDriver === 'boolean'
   const isClientChannelValid =
     value.clientChannel === undefined ||
     isOneOf(value.clientChannel, ['off', 'email', 'whatsapp', 'both'] as const)
@@ -1609,6 +1623,7 @@ function hasValidFieldOccurrenceTypeModes(value: Record<string, unknown>): boole
   return (
     isAsksClientContactValid &&
     isAsksNewDueDateValid &&
+    isShowClientChargeSealValid &&
     isClientChannelValid &&
     isEveryModeValid &&
     isPhotoMinimumValid &&
@@ -1956,6 +1971,9 @@ type RawOccurrenceType = Omit<
     declaredAmountMode?: unknown
     declaredAmountScope?: unknown
     declaredAmountLabel?: unknown
+    arrivalTimeMode?: unknown
+    locationMode?: unknown
+    minWaitAfterArrivalMinutes?: unknown
   }>
 
 function isPositiveInteger(value: unknown): value is number {
@@ -2041,6 +2059,10 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         'declaredAmountMode',
         'declaredAmountScope',
         'declaredAmountLabel',
+        /** Spec 315 (ADR-0081 §9): localização, horário de chegada e espera mínima, tolerados antes de a API mandá-los. */
+        'arrivalTimeMode',
+        'locationMode',
+        'minWaitAfterArrivalMinutes',
         /** Spec 271 (D14): a API ainda pode mandar a chave da 269 até a etapa B: tolerada e ignorada (não chega ao tipo). */
         'contractorMailTemplateId',
         /** Spec 270 T1.1 (ADR-0107, ADR-0081 §9): o escopo de contratantes do tipo, tolerado antes de a API mandá-lo. */
@@ -2054,6 +2076,8 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
         /** Spec 281 T8b: pedir o contato do cliente ao motorista na abertura, tolerado antes de a API mandá-lo. */
         'asksClientContact',
         'asksNewDueDate',
+        /** Spec 317 T14a: o aviso de possível cobrança ao motorista, tolerado antes de a API mandá-lo. */
+        'showClientChargeSealToDriver',
         'clientChannel',
         /** Até a etapa B a API ainda pode mandar o texto antigo do e-mail (rollback da API): tolerado e ignorado. */
         'emailBody',
@@ -2115,6 +2139,13 @@ function isOccurrenceType(value: unknown): value is RawOccurrenceType {
     (value.declaredAmountScope === undefined ||
       isOneOf(value.declaredAmountScope, ['item', 'occurrence'])) &&
     (value.declaredAmountLabel === undefined || isString(value.declaredAmountLabel)) &&
+    (value.locationMode === undefined ||
+      isOneOf(value.locationMode, ['off', 'optional', 'required'])) &&
+    (value.arrivalTimeMode === undefined ||
+      isOneOf(value.arrivalTimeMode, ['off', 'optional', 'required'])) &&
+    (value.minWaitAfterArrivalMinutes === undefined ||
+      value.minWaitAfterArrivalMinutes === null ||
+      Number.isInteger(value.minWaitAfterArrivalMinutes)) &&
     (value.iconName === undefined || value.iconName === null || isString(value.iconName)) &&
     hasValidContractorReplyTypeFields(value)
   )
@@ -2144,6 +2175,9 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     declaredAmountMode,
     declaredAmountScope,
     declaredAmountLabel,
+    arrivalTimeMode,
+    locationMode,
+    minWaitAfterArrivalMinutes,
     emailBody,
     emailItemLineTemplate,
     emailSubject,
@@ -2180,6 +2214,11 @@ function toOccurrenceType(raw: RawOccurrenceType): OccurrenceType {
     ...(isString(declaredAmountMode) ? { declaredAmountMode } : {}),
     ...(isString(declaredAmountScope) ? { declaredAmountScope } : {}),
     ...(isString(declaredAmountLabel) ? { declaredAmountLabel } : {}),
+    ...(isOneOf(locationMode, OCCURRENCE_ATTACHMENT_MODES) ? { locationMode } : {}),
+    ...(isOneOf(arrivalTimeMode, OCCURRENCE_ATTACHMENT_MODES) ? { arrivalTimeMode } : {}),
+    ...(typeof minWaitAfterArrivalMinutes === 'number' || minWaitAfterArrivalMinutes === null
+      ? { minWaitAfterArrivalMinutes }
+      : {}),
     ...(isString(iconName) ? { iconName } : {}),
     allowsMultipleItems: isBoolean(allowsMultipleItems) ? allowsMultipleItems : true,
     attachmentMode: isOneOf(attachmentMode, OCCURRENCE_ATTACHMENT_MODES) ? attachmentMode : 'off',

@@ -86,6 +86,13 @@ import { findCanhotoByHash } from './canhoto-duplicate.query.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import { insertTripFieldOfficeAudit } from './trip-field-office-audit.persistence.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
+import {
+  flagReceivingChargeClients,
+  listOccurrenceTypePhotoSlots,
+  listStopChargeDocuments,
+  recordReceivingCharges,
+  recordStopOccurrencePhotos,
+} from './receiving-charge.persistence.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -1118,8 +1125,14 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
   ) {
     const rows = await this.transaction
       .select({
+        arrivalTimeMode: companyOccurrenceTypes.arrivalTimeMode,
+        attachmentMode: companyOccurrenceTypes.attachmentMode,
         flow: companyOccurrenceTypes.flow,
         id: companyOccurrenceTypes.id,
+        locationMode: companyOccurrenceTypes.locationMode,
+        minWaitAfterArrivalMinutes: companyOccurrenceTypes.minWaitAfterArrivalMinutes,
+        noteMode: companyOccurrenceTypes.noteMode,
+        photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
         stage: companyOccurrenceTypes.stage,
         stopKind: companyOccurrenceTypes.stopKind,
       })
@@ -1139,7 +1152,18 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
     })
     if (type === undefined) return null
     if (!occurrenceTypeAcceptsMoment({ moment: OCCURRENCE_MOMENT.stop, type })) return null
-    return { stopKind: type.stopKind }
+    return {
+      photoSlots: await listOccurrenceTypePhotoSlots(this.transaction, input),
+      requirements: {
+        arrivalTimeMode: type.arrivalTimeMode,
+        attachmentMode: type.attachmentMode,
+        locationMode: type.locationMode,
+        minWaitAfterArrivalMinutes: type.minWaitAfterArrivalMinutes,
+        noteMode: type.noteMode,
+        photoMinimumCount: type.photoMinimumCount,
+      },
+      stopKind: type.stopKind,
+    }
   }
 
   public async recordOccurrence(
@@ -1160,12 +1184,44 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
         reportedDistanceMeters: input.distanceMeters,
         stopId: input.stopId,
         tripDocumentId: input.documentId,
+        ...(input.receivingCharge === undefined
+          ? {}
+          : {
+              declaredAmount: input.receivingCharge.declaredAmount,
+              driverPixKey: input.receivingCharge.driverPixKey,
+              driverPixKeyType: input.receivingCharge.driverPixKeyType,
+              paidBy: input.receivingCharge.paidBy,
+            }),
       })
       .returning({ id: tripStopOccurrences.id })
 
     if (occurrence === undefined) throw new Error('TRIP_STOP_OCCURRENCE_NOT_RECORDED')
 
     return occurrence
+  }
+
+  public listStopChargeDocuments(
+    input: Parameters<DriverFieldReportTransactionPort['listStopChargeDocuments']>[0],
+  ) {
+    return listStopChargeDocuments(this.transaction, input)
+  }
+
+  public recordStopOccurrencePhotos(
+    input: Parameters<DriverFieldReportTransactionPort['recordStopOccurrencePhotos']>[0],
+  ) {
+    return recordStopOccurrencePhotos(this.transaction, input)
+  }
+
+  public recordReceivingCharges(
+    input: Parameters<DriverFieldReportTransactionPort['recordReceivingCharges']>[0],
+  ) {
+    return recordReceivingCharges(this.transaction, input)
+  }
+
+  public flagReceivingChargeClients(
+    input: Parameters<DriverFieldReportTransactionPort['flagReceivingChargeClients']>[0],
+  ) {
+    return flagReceivingChargeClients(this.transaction, input)
   }
 
   public async findEventById(input: { readonly companyId: string; readonly eventId: string }) {

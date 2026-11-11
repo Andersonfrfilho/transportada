@@ -439,6 +439,17 @@ describe('Drizzle migrations', () => {
       '20261109163000_cte_profile_matcher_per_city',
       '20261109192917_nfe_xml_allowed_domain_contractor',
       '20261109222719_nfe_import_restricted_contractor',
+      '20261110172434_contractor_occurrence_channels',
+      '20261110180900_occurrence_location_arrival',
+      '20261110181442_field_report_holds',
+      '20261110191104_salespeople',
+      '20261110194838_receiving_charge_to_settlements',
+      '20261110210213_occurrence_contractor_notice_block',
+      '20261110214656_driver_occurrence_email_settings',
+      '20261110220029_canhoto_pickups',
+      '20261110224844_whatsapp_chats',
+      '20261111002237_canhoto_pickup_resolution',
+      '20261111003528_whatsapp_inbox_chat_expire_job',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

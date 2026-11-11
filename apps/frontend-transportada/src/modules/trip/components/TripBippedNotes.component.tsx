@@ -50,6 +50,7 @@ export function TripBippedNotes({ bipped, readerRef }: TripBippedNotesProps) {
           labels={{
             field: t('quickCreate.reader.field'),
             idle: t('quickCreate.reader.idle'),
+            placeholder: t('quickCreate.reader.placeholder'),
             ready: t('quickCreate.reader.ready'),
           }}
           onRead={bipped.read}
@@ -57,7 +58,7 @@ export function TripBippedNotes({ bipped, readerRef }: TripBippedNotesProps) {
           ref={readerRef}
         />
         {canScan ? (
-          <Button onClick={() => setIsScannerOpen(true)} size="sm" type="button">
+          <Button onClick={() => setIsScannerOpen(true)} type="button">
             <Icon name="camera" />
             {t('quickCreate.scan')}
           </Button>

@@ -62,6 +62,12 @@ const TYPE_FIELD_CHECKS = {
   asksClientContact: (value: unknown) => typeof value === 'boolean',
   /** O campo opcional "nova data de vencimento" no app do motorista. Aceito antes da API mandar. */
   asksNewDueDate: (value: unknown) => typeof value === 'boolean',
+  /** Spec 317 T14a: o aviso de possível cobrança ao motorista. Aceito antes da API mandar. */
+  showClientChargeSealToDriver: (value: unknown) => typeof value === 'boolean',
+  /** Spec 321 T5: o tipo nunca avisa a contratante, cria a coleta do canhoto e não soma a carga na viagem da coleta. Aceitos antes da API mandar. */
+  blocksContractorNotice: (value: unknown) => typeof value === 'boolean',
+  countsCargoOnPickupTrip: (value: unknown) => typeof value === 'boolean',
+  createsCanhotoPickup: (value: unknown) => typeof value === 'boolean',
   /** Spec 276 T5: o id da resposta rápida da resposta automática, ou `null`. Aceito antes da API mandar. */
   contractorReplyAcknowledgementQuickReplyId: allowingNull(isString),
   contractorReplyAlertMaxCount: (value: unknown) =>

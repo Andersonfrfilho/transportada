@@ -280,6 +280,8 @@ export type NfeWorkspaceClient = Readonly<{
   ) => Promise<NfeImportListPage>
   /** `GET /address-correction-requests/mail-template` (spec 286): o estado do modelo do módulo de notificação e a prévia com dados de exemplo. */
   readAddressCorrectionMailTemplate: () => Promise<AddressCorrectionMailTemplateState>
+  /** `GET /nfe-imports/:id/reprocess-preview` (spec 314): só conta o que o reprocesso refaria. */
+  previewReprocess: (input: Readonly<{ id: string }>) => Promise<NfeImportReprocessPreview>
   reprocessImport: (
     input: Readonly<{ id: string; idempotencyKey: string }>,
   ) => Promise<NfeImportSummary>
@@ -472,6 +474,34 @@ function pageNextCursor(value: unknown): null | string {
     throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
   }
   return nextCursor
+}
+
+/** O que o servidor refaria no reprocesso; a tela não reimplementa a regra de elegibilidade (spec 314 RF6). */
+export type NfeImportReprocessPreview = Readonly<{
+  busy: boolean
+  failedItems: number
+  reprocessable: boolean
+  rejectedItems: number
+  total: number
+}>
+
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+function mapReprocessPreview(value: unknown): NfeImportReprocessPreview {
+  if (
+    !isRecord(value) ||
+    typeof value.busy !== 'boolean' ||
+    typeof value.reprocessable !== 'boolean'
+  ) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  const { failedItems, rejectedItems, total } = value
+  if (!isCount(failedItems) || !isCount(rejectedItems) || !isCount(total)) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  return { busy: value.busy, failedItems, reprocessable: value.reprocessable, rejectedItems, total }
 }
 
 function mapImportSummary(value: unknown): NfeImportSummary {
@@ -940,6 +970,14 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       path: buildImportSearchPath(input),
     })
     return mapImportListPage(response)
+  },
+  async previewReprocess(input) {
+    const response = await requestJson({
+      dependencies,
+      init: { method: 'GET' },
+      path: `/nfe-imports/${input.id}/reprocess-preview`,
+    })
+    return mapReprocessPreview(envelopeData(response))
   },
   async reprocessImport(input) {
     const response = await requestJson({

@@ -24,6 +24,8 @@ export type OpenNote = {
   readonly documentId: string
   readonly documentNumber: string
   readonly label: string
+  /** Spec 321 T4 (D4b): o canhoto retido de uma coleta encaixada na viagem do motorista (a nota é da entrega de origem). */
+  readonly pickupId?: string
 }
 
 export type CanhotoRecognitionDecision =

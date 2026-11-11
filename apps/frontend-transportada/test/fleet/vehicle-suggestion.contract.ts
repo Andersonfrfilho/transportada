@@ -581,3 +581,74 @@ describe('porta lateral não vem do tipo', () => {
     expect(source).not.toContain('suggestionEnabled: vehicle === undefined')
   })
 })
+
+describe('carga útil publicada por modelo', () => {
+  /** Sem igual medido e sem linha no catálogo para o tipo, só o peso do modelo é sugerido. */
+  test('sugere só o peso quando o tipo não tem referência', () => {
+    const suggestion = resolveVehicleSuggestion({
+      bodyType: '02',
+      brand: 'Fiat',
+      model: 'Ducato Cargo 2.2 Diesel (E6)',
+      references: [],
+      vehicles: [],
+      vehicleType: 'other',
+    })
+
+    expect(suggestion).toEqual({
+      capacityKilograms: '1.540,00',
+      cargoHeightMeters: '',
+      cargoLengthMeters: '',
+      cargoWidthMeters: '',
+      loadingAccess: '',
+      origin: { kind: 'model', model: 'Ducato' },
+    })
+  })
+
+  test('a medida da frota vence o peso do modelo', () => {
+    const suggestion = resolveVehicleSuggestion({
+      bodyType: '02',
+      brand: 'Renault',
+      model: 'Master 2.5 dCi',
+      references: [],
+      vehicles: [
+        buildVehicle({
+          ...MEASURED_ACCELO,
+          brand: 'Renault',
+          capacityKilograms: '1200.00',
+          id: 'master',
+          model: 'Master 2.5 dCi',
+          plate: 'AAA1A11',
+        }),
+      ],
+      vehicleType: 'van',
+    })
+
+    expect(suggestion?.origin).toEqual({ kind: 'vehicle', plate: 'AAA1A11' })
+  })
+
+  test('modelo sem linha na tabela não sugere nada', () => {
+    expect(
+      resolveVehicleSuggestion({
+        bodyType: '02',
+        brand: 'Volvo',
+        model: 'FH 540',
+        references: [],
+        vehicles: [],
+        vehicleType: 'other',
+      }),
+    ).toBeNull()
+  })
+
+  test('marca diferente não herda o peso do modelo', () => {
+    expect(
+      resolveVehicleSuggestion({
+        bodyType: '02',
+        brand: 'Peugeot',
+        model: 'Ducato',
+        references: [],
+        vehicles: [],
+        vehicleType: 'other',
+      }),
+    ).toBeNull()
+  })
+})

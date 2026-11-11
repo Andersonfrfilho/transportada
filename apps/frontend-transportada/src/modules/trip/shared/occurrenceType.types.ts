@@ -98,6 +98,16 @@ export type OccurrenceType = Readonly<{
   asksClientContact?: boolean
   /** O app do motorista oferece o campo opcional "nova data de vencimento". Ausente é API anterior ao campo. */
   asksNewDueDate?: boolean
+  /** Spec 317 T14a: o motorista vê o aviso "possível cobrança" no cartão da parada. Ausente é API anterior ao campo. */
+  showClientChargeSealToDriver?: boolean
+  /** Spec 321 T5: nunca avisa a contratante, em canal algum. Ausente é API anterior ao campo. */
+  blocksContractorNotice?: boolean
+  /** Spec 321 T5: a viagem da coleta soma peso e dimensão da nota? Na fase 1 a API só aceita `false`. Ausente é API anterior. */
+  countsCargoOnPickupTrip?: boolean
+  /** Spec 321 T5: registrar o tipo cria uma coleta de canhoto. Ausente é API anterior ao campo. */
+  createsCanhotoPickup?: boolean
+  /** O tipo de parada (`unexpected_charge` é a cobrança no recebimento); o painel só o lê. */
+  stopKind?: string | null
   contractorReplyAlertMode?: ContractorReplyAlertMode
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   contractorReplyMode?: ContractorReplyMode
@@ -147,6 +157,13 @@ export type OccurrenceType = Readonly<{
   notifies: boolean
   /** Spec 246 RF1c: de 1 a 5, lida só com a foto `required`. Ausente é API anterior ao campo (mesma regra). */
   photoMinimumCount?: number
+  /**
+   * Spec 315 RF6: o que o registro de parada pede de localização e de horário de chegada (só quando a parada não tem
+   * "Cheguei"), e a espera mínima depois do "Cheguei" em minutos (`null`: sem espera). Ausente é API anterior.
+   */
+  arrivalTimeMode?: OccurrenceAttachmentMode
+  locationMode?: OccurrenceAttachmentMode
+  minWaitAfterArrivalMinutes?: null | number
   /** Spec 247 RF1: o número do documento do cliente (ex.: a NFD) — rótulo e modo. Ausente é API anterior. */
   referenceNumberLabel?: string
   referenceNumberMode?: OccurrenceAttachmentMode

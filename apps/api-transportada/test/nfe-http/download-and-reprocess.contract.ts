@@ -15,6 +15,7 @@ import {
   importItemsRequest,
   invalidDocumentXmlRequest,
   reprocessImportRequest,
+  reprocessPreviewRequest,
   responseApiError,
 } from '../fixtures/nfe-http-request.fixture'
 import { COMPANY_CONTEXT, IMPORT_ID } from '../fixtures/nfe-import-application.fixture'
@@ -102,6 +103,26 @@ describe('nfe http download and reprocess contract', () => {
         importId: IMPORT_ID,
       },
     ])
+  })
+
+  test('previews a reprocess without writing anything', async () => {
+    const fixture = await createNfeHttpFixture()
+
+    const response = await fixture.handle(reprocessPreviewRequest())
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      data: {
+        busy: false,
+        failedItems: 0,
+        reprocessable: true,
+        reprocessableRejectionCodes: ['NFE_IMPORT_UNRELATED_CNPJ'],
+        rejectedItems: 3,
+        total: 3,
+      },
+    })
+    expect(fixture.previewCalls).toEqual([{ context: COMPANY_CONTEXT, importId: IMPORT_ID }])
+    expect(fixture.reprocessCalls).toEqual([])
   })
 
   test('returns import items through the explicit items route without XML payloads', async () => {

@@ -60,6 +60,8 @@ import { assertOccurrenceContractorReplyRollback } from './occurrence-contractor
 import { assertOccurrenceContractorReplyConstraints } from './occurrence-contractor-reply-constraints.assertion.js'
 import { assertNfeRecipientEmailRollback } from './nfe-recipient-email.assertion.js'
 import { assertOccurrenceDeclaredAmountRollback } from './occurrence-declared-amount.assertion.js'
+import { assertReceivingCharge } from './receiving-charge.assertion.js'
+import { assertContractorOccurrenceChannel } from './contractor-occurrence-channel.assertion.js'
 import { assertOccurrenceTypeIconRollback } from './occurrence-type-icon.assertion.js'
 import { assertOccurrenceStopFlowBackfill } from './occurrence-stop-flow.assertion.js'
 import { assertOccurrenceStopKindBackfill } from './occurrence-stop-kind.assertion.js'
@@ -169,6 +171,20 @@ describe('Drizzle migration integration', () => {
          * Spec 276 antes de qualquer rollback: os rollbacks antigos recriam a CHECK estreita do anexo com o
          * diário da 276 ainda gravado, e o reapply não a alarga de novo.
          */
+        /** Spec 317 T1: a cobrança no recebimento; a mais nova de todas, antes de qualquer rollback antigo. */
+        const receivingChargeTripId = crypto.randomUUID()
+        await database`
+          insert into trips (id, company_id, vehicle_id)
+          values (${receivingChargeTripId}, ${identityFixture.companyId}, ${fleetFixture.vehicleId})
+        `
+        await assertReceivingCharge({
+          companyId: identityFixture.companyId,
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          tripId: receivingChargeTripId,
+          userId: identityFixture.userId,
+        })
         /** Spec 287: o participante `client_email`; a mais nova de todas. */
         await assertClientEmailConversation({
           connectionString,
@@ -373,6 +389,13 @@ describe('Drizzle migration integration', () => {
         })
 
         await assertNfeRecipientEmailRollback({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+
+        await assertContractorOccurrenceChannel({
+          companyId: identityFixture.companyId,
           connectionString,
           database,
           directories: migrationDirectories,

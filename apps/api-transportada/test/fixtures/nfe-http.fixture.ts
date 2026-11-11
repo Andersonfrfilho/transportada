@@ -101,6 +101,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
   readonly importGetCalls: GetImportCall[]
   readonly importListCalls: ListImportsCall[]
   readonly logs: Array<Record<string, unknown>>
+  readonly previewCalls: Array<{ readonly context: unknown; readonly importId: string }>
   readonly reprocessCalls: ReprocessImportCall[]
   readonly requestDistributionCalls: RequestDistributionCall[]
   readonly requestUploadCalls: RequestUploadCall[]
@@ -115,6 +116,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
   const importGetCalls: GetImportCall[] = []
   const importListCalls: ListImportsCall[] = []
   const logs: Array<Record<string, unknown>> = []
+  const previewCalls: Array<{ readonly context: unknown; readonly importId: string }> = []
   const reprocessCalls: ReprocessImportCall[] = []
   const requestDistributionCalls: RequestDistributionCall[] = []
   const requestUploadCalls: RequestUploadCall[] = []
@@ -213,6 +215,19 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
         )
       },
     },
+    previewReprocess: {
+      async execute(input) {
+        previewCalls.push(structuredClone(input))
+        return {
+          busy: false,
+          failedItems: 0,
+          reprocessable: true,
+          reprocessableRejectionCodes: ['NFE_IMPORT_UNRELATED_CNPJ'],
+          rejectedItems: 3,
+          total: 3,
+        }
+      },
+    },
     reprocessImport: {
       async execute(input) {
         reprocessCalls.push(structuredClone(input))
@@ -283,6 +298,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
     importGetCalls,
     importListCalls,
     logs,
+    previewCalls,
     reprocessCalls,
     requestDistributionCalls,
     requestUploadCalls,

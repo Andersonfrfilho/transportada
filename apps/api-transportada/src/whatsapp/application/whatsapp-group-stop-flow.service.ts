@@ -52,6 +52,7 @@ import {
   enRouteStopActions,
   JOURNEY_STEP,
   JOURNEY_TEXT,
+  settleStepText,
   nextRouteActions,
   pendingSettlementActions,
   cardFromRouteOfferStop,
@@ -615,7 +616,13 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
         driverId: turn.request.driverId,
       })
       if (findStopEnRoute(stops) !== undefined) return JOURNEY_TEXT.nextArrive
-      if (findStopAwaitingSettlement(stops) !== undefined) return JOURNEY_TEXT.nextSettle
+      const awaiting = findStopAwaitingSettlement(stops)
+      if (awaiting !== undefined)
+        return settleStepText(
+          awaiting.documents.filter(
+            (document) => !['delivered', 'returned'].includes(document.separationStatus),
+          ).length,
+        )
       return findNextPendingStop(stops) === undefined
         ? routeCompleted(turn)
         : JOURNEY_TEXT.nextDepart

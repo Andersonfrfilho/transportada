@@ -110,6 +110,7 @@ Regras que já custaram tempo:
 | `ops/producao-devolucao-notas.sh`                                       | vínculos, status da viagem e eventos de uma lista de NFs (03/11/2026)                                                                                                                                                                                                                                                                                                                                                                           | leitura                         |
 | `ops/producao-soltar-notas-devolvidas.sh [--confirm]`                   | solta (`released_at`) NFs devolvidas pelo escritório para entrarem em outra viagem; sem `--confirm` só simula                                                                                                                                                                                                                                                                                                                                   | escrita                         |
 | `ops/producao-parada-cheguei-rafa.sh`                                   | viagens ativas do motorista Rafa (paradas e sequências) e últimos pedidos do grupo do WhatsApp (09/11/2026, bug da lista de paradas do "cheguei")                                                                                                                                                                                                                                                                                               | leitura                         |
+| `scripts/ops/producao-lembrete-viagens-despachadas.sh`                  | viagens `dispatched`/`in_transit` sem "Iniciar rota" que passam a receber o lembrete "sem evento" (spec 299, emenda D10 de 10/11/2026), interruptor da empresa e `DRIVER_REMINDERS_ENABLED` (só true/false); rodar antes de promover a emenda à `main`                                                                                                                                                                                          | leitura                         |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
 
@@ -855,6 +856,51 @@ por `railway ssh`. Script: `tmp/ops/staging-publica-grafo-whatsapp.sh <previa|ad
 3. `sobrescrever fala_a,fala_b` leva o texto do código a chaves `fala_*` editadas no painel (spec 299).
 4. Feito em 2026-11-07 em staging: versão 3 → 4 (21 falas regravadas, 2 nós novos da 299).
 
+## 5.27 Quem pode confirmar como atendente no grupo do WhatsApp (10/11/2026) — somente leitura
+
+O bot só reconhece como atendente o número de quem tem vínculo ativo, papel com `trip.report-on-behalf` (`company-admin`,
+`operator`, `finance`) e WhatsApp **verificado** (`user_whatsapp_phones.verified_at`, válido por 90 dias). Para listar, rode
+`bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-atendentes-confirmam-canhoto.sh` (cópia em
+`scripts/ops/`; grava `tmp/ops/saidas/producao-atendentes-confirmam-canhoto-<data>.json` e imprime só o caminho).
+Em 10/11/2026 havia 4 pessoas com o papel na AFR Fernandes e **nenhuma** com WhatsApp verificado: a baixa pelo escritório no
+grupo também não funcionava. O administrador grava o número de outra pessoa já verificado em Usuários → editar → WhatsApp
+(`PUT /company-users/:id/whatsapp-phone`, `users.manage`, trilha `whatsapp_phone.bound_by_administrator`).
+
+## 5.28 Cobrança no recebimento vai para Ressarcimentos (spec 317, 10/11/2026) — só staging, nada mudou em produção
+
+O tipo de parada `unexpected_charge` ("Cobrança no recebimento") grava uma linha `receiving_charge` em Ressarcimentos, marca o cliente
+(`delivery_clients.receiving_charge_flagged_at`) e não manda nada à contratante. A migration `20261110194838_receiving_charge_to_settlements`
+é **aditiva** (enum, `delivery_charges.stop_occurrence_id`, `trip_stop_occurrences.declared_amount`, vagas e fotos, colunas da marca) e a
+`main` ainda não a tem. **Produção só com aval do Anderson.**
+
+- **Ordem de publicação (ADR-0081 §9):** painel → API → app do motorista. O painel antigo lança erro em `chargeType` desconhecido
+  (`readChargeType`), então ele tem de estar publicado antes de qualquer tipo de cobrança no recebimento ser usado. O app novo com API antiga
+  cai no formulário de sempre (sem `photoSlots` o tipo não abre a cobrança).
+- **Promoção à `main`:** a migration roda sozinha no deploy da API (item 4, conferir o job `migrate`). Depois da promoção, o tipo só
+  é usado se a empresa o tiver ativo; a semeadura renomeia apenas o nome padrão antigo.
+- **Conferir depois de publicar (somente leitura):** no banco da API (item 2) `select count(*) from delivery_charges where charge_type = 'receiving_charge'`
+  e `select count(*) from delivery_clients where receiving_charge_flagged_at is not null`. Antes do primeiro uso real, ambos dão 0.
+  Qualquer script novo vai em `tmp/ops/` (saída em `tmp/ops/saidas/`), como o resto deste arquivo.
+- **Limpar a marca de um cliente:** pelo painel (ficha do cliente → "Limpar a marca", `fleet.manage`) ou `DELETE /delivery-clients/:id/receiving-charge-flag`;
+  a limpeza é auditada (`delivery-client.receiving-charge-flag.cleared`). Não limpe por SQL.
+- **Linha duplicada ou foto faltando:** o reenvio pela mesma chave faz replay (índices únicos parciais), e foto obrigatória faltando devolve
+  `422 STOP_OCCURRENCE_PHOTO_SLOT_MISSING` sem gravar nada. Motorista com app antigo vê o que falta em vez de perder a fila.
+- **Desligar sem migration reversa:** desativar o tipo na aba Tipos de `/ocorrencias` (`active = false`); as linhas já criadas ficam em Ressarcimentos.
+- Em produção **nada foi lido nem alterado** por esta spec até esta data.
+
+## 5.26 Copiar a Única de produção para staging, para testar a ocorrência (spec 318, 10/11/2026)
+
+Staging não tinha a contratante Única nem notas dela. `scripts/ops/staging-copia-unica-de-producao.sh [--confirm]` copia a
+contratante (CNPJ 26344834000108), os contatos e as `NOTES` notas mais recentes (padrão 5) com o que elas precisam (participantes,
+endereços, produtos, volumes e os pais por chave estrangeira).
+
+- **Produção: somente leitura** (`set transaction read only`). **Staging:** sem `--confirm` roda tudo numa transação e desfaz (simulação).
+- Anonimiza contatos (e-mail, telefone, nome), destinatários (nome, CPF, endereço, telefone, e-mail) e o texto livre da nota. O emitente (a Única) fica como é.
+- Usuários viram o `anderson.fernandes` de staging e a empresa segue a de staging. Se a Única já existe em staging, usa a de lá.
+- O XML das notas não é copiado (o balde de produção não é lido): a linha existe, o download do XML não.
+- Saída completa em `tmp/ops/saidas/staging-copia-unica-<data>.txt` (e o JSON exportado ao lado); o script imprime só o caminho.
+- Depois: configurar o canal WhatsApp na ficha da Única em staging (grupo e número) e criar uma viagem com essas notas para registrar a ocorrência.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
@@ -1136,6 +1182,54 @@ Dica: o `ls` do Anderson tem alias; use `command ls` ao listar `tmp/ops/saidas/`
 - **Domínio liberado** (tela de NF-e, bloco "E-mails liberados a enviar XML"): cada domínio fica amarrado a um contratante. Nota de remetente daquele domínio só entra se o emitente (CNPJ da chave) for o contratante amarrado; senão a recusa é `NFE_IMPORT_ISSUER_NOT_CONTRACTOR`. Coluna `nfe_imports.restricted_contractor_id`.
 - **Emitente contratante conta como da empresa**: o consumidor aceita a nota cujo emitente é contratante ativo da empresa mesmo sem o CNPJ da empresa no XML (a SEFAZ não entrega essas notas). Emitente desconhecido segue recusado com `NFE_IMPORT_UNRELATED_CNPJ`.
 - **Por que um recibo diz "com problema"**: `ops-scripts/notas-com-problema-xml.sh <ambiente> <horas>` (somente leitura) agrupa os itens por status e código de erro; grava em `tmp/ops/saidas/`.
-- **Reprocesso**: a rota de reprocesso só refaz item `failed`. Item `rejected` não volta pela rota. Para as notas recusadas com `NFE_IMPORT_UNRELATED_CNPJ` (emitente contratante, antes do #626): `bash tmp/ops/producao-reprocessa-recusadas.sh [horas]` (padrão 72). Simula primeiro (só conta) e só grava depois do "sim": põe a importação em `queued` e republica `transportada.nfe.import.requested` no `processing_outbox`; o consumidor relê todos os itens. Só entram importações em que **todos** os itens são essa recusa (senão uma nota já importada viraria "duplicada"). Saída em `tmp/ops/saidas/reprocessa-recusadas-<data>.txt`; confira depois com `notas-com-problema-xml.sh`.
+- **Reprocesso**: a rota de reprocesso só refaz item `failed`. Item `rejected` não volta pela rota. Pela tela (spec 314, na staging): o botão "Reprocessar" da fila de processamentos também vale para nota recusada com `NFE_IMPORT_UNRELATED_CNPJ`, mostra quantas serão refeitas e só grava no "Confirmar". O script abaixo segue como plano B em lote. Para as notas recusadas com `NFE_IMPORT_UNRELATED_CNPJ` (emitente contratante, antes do #626): `bash tmp/ops/producao-reprocessa-recusadas.sh [horas]` (padrão 72). Simula primeiro (só conta) e só grava depois do "sim": põe a importação em `queued` e republica `transportada.nfe.import.requested` no `processing_outbox`; o consumidor relê todos os itens. Só entram importações em que **todos** os itens são essa recusa (senão uma nota já importada viraria "duplicada"). Saída em `tmp/ops/saidas/reprocessa-recusadas-<data>.txt`; confira depois com `notas-com-problema-xml.sh`.
 
 ⚠️ **Script de operação que roda no container do worker não importa de `dist/` além dos entrypoints.** O build empacota (`bun build … --packages=external`) só `main.js` e os `*.main.js`/workers listados no `package.json`; não existe `dist/database/*.js` nem `dist/config/*.js`. Um `import(`${DIST}/database/nfe.schema.js`)` falha com `Cannot find module` (foi o primeiro erro do `producao-reprocessa-recusadas`, 10/11/2026). Use SQL cru com `drizzle-orm` (`sql`) e os nomes de coluna do banco; `producao-consulta-por-chave.mjs` ainda importa de `dist/` e precisa da mesma troca antes de ser usado.
+
+## 5.25 Painel em "Indisponível" com 401: sessão do Keycloak vencida (10/11/2026)
+
+**Sintoma:** Workspace NF-e e notificações em "Indisponível / Não foi possível carregar"; no console, 401 em `/auth/me`, `/v1/notifications/unread-count` e `/view-preferences`. A API e o Keycloak estavam saudáveis.
+
+**Causa:** o realm de produção estava com o padrão do Keycloak: sessão morre com **30 min parada** (`ssoSessionIdleTimeout` 1800) e teto de 10 h. A renovação do token devolve `Token is not active` e a API (que só valida a assinatura, sem consultar o Keycloak) passa a responder 401. O "continuar conectado" só vale se a pessoa marcar a caixa.
+
+**Correção (10/11/2026):**
+
+- Produção ajustada à mão para ociosidade **8 h** (28800) e teto **7 dias** (604800) com `APLICAR_SESSAO=1 bash tmp/ops/producao-keycloak-eventos.sh` (PUT 204, conferido na leitura seguinte).
+- `deploy/keycloak/realm.json` e `.github/scripts/keycloak-reconcile.sh` passaram a declarar os mesmos prazos (PR #636), então staging e instalação nova não voltam ao padrão.
+- O painel, ao receber 401 com token que o navegador acha válido, reautentica uma vez por minuto (PR #634 na staging, #635 na `main`).
+
+**Scripts** (em `tmp/ops/`):
+
+- `producao-keycloak-sessao.sh` — somente leitura: prazos do realm, client `transportada-spa`, chaves e eventos.
+- `producao-keycloak-eventos.sh` — escreve: liga eventos de login/renovação (14 dias) e, com `APLICAR_SESSAO=1`, ajusta a sessão.
+- `producao-thiago-falhas.sh` — somente leitura: eventos de campo de um motorista (paradas, status, ocorrências) em 36 h.
+
+⚠️ **Eventos do Keycloak seguem desligados:** a conta de serviço da API recebe 403 em `/events/config` (falta `manage-events` do client `realm-management`, ou ligar à mão em _Realm settings → Events_). Sem eles, um 401 com token ainda válido não deixa rastro.
+
+**Bun SQL:** em `Bun.SQL`, lista em `IN` é `in ${sql(arr)}`; `any(${arr})` dá `malformed array literal`.
+
+## 5.26 Veículos com "Peso sem teto de carga" / "Volume sem carroceria cadastrada" (10/11/2026)
+
+Os avisos vêm da lista de viagens (ocupação): `capacity_kg = 0` dá o aviso de peso e `body_type = '00'` fora do
+cavalo dá o de volume (`resolveCapacityUnknownReason`). Dado faltando na ficha, não bug do painel.
+
+- Listar a frota e propor valores (somente leitura): `tmp/ops/producao-veiculos-pendentes.sh` — usa `railway ssh -s api -e production`,
+  script `bun` em base64, `sql.begin('read only')`; propõe por veículo igual (marca+modelo) ou referência do tipo.
+- Corrigir: `tmp/ops/producao-veiculos-corrigir.sh` (prévia por padrão, `--apply` grava em transação; só toca veículo ainda
+  com `body_type='00'` e `capacity_kg=0`; incrementa `version`). Valores aprovados pelo Anderson. Aplicado em 10/11/2026 nas placas
+  FLU7H32, FPA9H77, CAH8I08, FNG3980, FMN6C46 (tipo `other`→`van`), GFT4A58 e RFJ1B74 (tipo `other`→`utility`).
+- Completar só as medidas do baú de 6 veículos que já tinham carroceria e peso: `tmp/ops/producao-veiculos-medidas.sh [--apply]`
+  (Fiorinas DGC4I33, HIC2C79, FVB5I89 e Masters FFV2D95, PFM6A08 a partir de veículo igual já medido; Ducato Cargo IUZ9D73 pela referência da van).
+  Só toca veículo com as três medidas zeradas e incrementa `version`.
+- ⚠️ Medidas do Besta (CAH8I08) e do Ducato Maxicargo (FNG3980) foram derivadas do volume informado (5,2 m³ e ≈13 m³): conferir com fita.
+- Saídas ficam em `tmp/ops/saidas/veiculos-*.txt`.
+
+## 5.27 Eventos velhos do app do motorista (spec 320, 10/11/2026) — leitura em produção, nada alterado
+
+O motorista 87 reenviou pelo app, em 10/11/2026 às 17:34 UTC, uma fila velha de toques. Duas leituras **somente de consulta** no banco de produção (`railway ssh -s api -e production`, `bun` com `DATABASE_URL` do próprio serviço), scripts em `tmp/ops/producao-motorista-eventos-atrasados.sh` e `producao-motorista-paradas-atrasadas.sh`:
+
+- Os toques atrasados eram **saiu, chegou e entregou** de três paradas (`tapped_at` de 09/11 e 10/11, gravados em 10/11 às 17:34 UTC), todos do canal `driver_app`. A etapa pulada foi gravada junto, com a mesma hora do toque.
+- Nessas três paradas não há evento de outro canal e nenhuma ocorrência de nota nos documentos delas: **não há duplicata para limpar**, e nada foi apagado ou alterado.
+- A trava da spec 320 retém só **ocorrência de nota** (decisão do dono); saiu, chegou e entregou atrasados continuam entrando. Estender é uma mudança pequena, mas pede decisão.
+- Armadilha do script: `railway ssh` precisa rodar de dentro da pasta do repositório (projeto ligado); o script agora entra nela sozinho. Lista de ids no `bun` SQL é `in ${sql(lista)}`, não `= any(${lista}::uuid[])`.
+- Interruptor da trava: `GET`/`PUT /company-settings/field-report-hold` (`settings.manage`) e a caixa em Pendências. Desligado por padrão em toda empresa; ligar em produção pede aprovação humana.

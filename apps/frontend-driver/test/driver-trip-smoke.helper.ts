@@ -13,6 +13,8 @@ const CORS_HEADERS = {
   'access-control-allow-methods': 'GET, POST, PUT, OPTIONS',
 }
 
+/** Spec 321 T6: a coleta de canhoto do cenário `canhotoPickupStop`. */
+export const SMOKE_CANHOTO_PICKUP_ID = '00000000-0000-4000-8000-000000000301'
 export const DRIVER_STOP_ID = '00000000-0000-4000-8000-000000000101'
 /** Spec 179: o caminho do dublê do bucket, na origem da API. */
 const OBJECT_STORAGE_PATH = '/__object-storage/'
@@ -82,6 +84,13 @@ export type DriverTripProofScenario = Readonly<{
   /** Spec 230: a viagem nasce `route_planned` e só vira `dispatched` depois do `POST /dispatch`. */
   startsPlanned?: boolean
   stopDeliveryProof?: Readonly<Record<string, string>>
+  /** Spec 317 T14a: o servidor manda o selo de possível cobrança na parada (só quando o tipo o liga ao motorista). */
+  stopClientChargeSeal?: Readonly<{ flaggedAt: string }>
+  /**
+   * Spec 321 T6: uma segunda parada só de coleta de canhoto (sem nota), como a API manda depois que o escritório encaixa
+   * a coleta na viagem. `photoSent` a mostra já fotografada.
+   */
+  canhotoPickupStop?: Readonly<{ photoSent: boolean }>
   /** Spec 206: a API nova manda `enRouteSince`/`enRouteTappedAt` — sem eles a tela cai no modo legado (só "Cheguei"). */
   tracksEnRoute?: boolean
 }>
@@ -96,6 +105,7 @@ function buildSnapshot(input: {
   readonly isDispatched: boolean
   readonly deliveredDocumentIds: ReadonlySet<string>
   readonly provedDocumentIds: ReadonlySet<string>
+  readonly pickupPhotoSent?: boolean
   readonly scenario: DriverTripProofScenario | undefined
 }) {
   return {
@@ -118,6 +128,9 @@ function buildSnapshot(input: {
           stops: [
             {
               arrivedAt: input.arrived ? '2026-08-26T13:00:00.000Z' : null,
+              ...(input.scenario?.stopClientChargeSeal === undefined
+                ? {}
+                : { clientChargeSeal: input.scenario.stopClientChargeSeal }),
               completedAt: null,
               deliveryWindowEnd: null,
               deliveryWindowStart: null,
@@ -151,6 +164,36 @@ function buildSnapshot(input: {
               longitude: null,
               sequence: 1,
             },
+            ...(input.scenario?.canhotoPickupStop === undefined
+              ? []
+              : [
+                  {
+                    arrivedAt: null,
+                    canhotoPickups: [
+                      {
+                        documentNumber: '106187',
+                        documentSeries: '1',
+                        id: SMOKE_CANHOTO_PICKUP_ID,
+                        photoSentAt:
+                          input.scenario.canhotoPickupStop.photoSent ||
+                          input.pickupPhotoSent === true
+                            ? '2026-08-26T14:00:00.000Z'
+                            : null,
+                        recipientDisplayName: 'Mercado Central',
+                      },
+                    ],
+                    completedAt: null,
+                    deliveryProof: null,
+                    deliveryWindowEnd: null,
+                    deliveryWindowStart: null,
+                    documents: [],
+                    id: '00000000-0000-4000-8000-000000000201',
+                    label: 'Rua das Flores, 200',
+                    latitude: null,
+                    longitude: null,
+                    sequence: 2,
+                  },
+                ]),
           ],
           vehiclePlate: 'GCQ8E47',
         },
@@ -215,6 +258,7 @@ export async function mockDriverTripApi(
   const deliveredDocumentIds = new Set<string>()
   let occurrenceTypesFailing = input.occurrenceTypesFailing === true
   let tripReadFailing = false
+  let pickupPhotoSent = false
   let serverClockOffsetMs = input.scenario?.serverClockOffsetMs
 
   await input.page.route(/\/me\/trips\/current$/, async (route) => {
@@ -232,11 +276,26 @@ export async function mockDriverTripApi(
         arrived,
         deliveredDocumentIds,
         isDispatched,
+        pickupPhotoSent,
         provedDocumentIds,
         scenario: input.scenario,
       }),
       200,
       buildServerClockHeaders(serverClockOffsetMs),
+    )
+  })
+
+  /** Spec 321 T6: a foto do canhoto da coleta; a leitura seguinte já a mostra enviada. */
+  await input.page.route(/\/me\/trips\/current\/canhoto-pickups\/[^/]+\/proof$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    pickupPhotoSent = true
+    await fulfillJson(
+      route,
+      { data: { id: 'proof-1', stopClosed: true, tripCompleted: false } },
+      201,
     )
   })
 

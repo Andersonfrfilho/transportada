@@ -38,6 +38,10 @@ export const JOURNEY_TEXT = {
   nextArrive: formatNextStep('quando chegar, mande *cheguei*.'),
   nextDepart: formatNextStep('quando for sair, mande *saí*.'),
   nextSettle: formatNextStep('depois da entrega, mande a *foto do canhoto*, ou *não entreguei*.'),
+  /** Parada com mais de uma nota: o canhoto é por nota, então são fotos separadas (a mesma foto não vale para duas NFs). */
+  nextSettleMany: formatNextStep(
+    'depois da entrega, mande uma *foto do canhoto de cada nota*, ou *não entreguei*.',
+  ),
   nothingRecorded: NOTHING_RECORDED_TEXT,
   question: '*O que você quer fazer agora?*',
   sendCanhoto: (documentNumber: string) =>
@@ -233,6 +237,11 @@ function describeNextStopPreview(card: StopCard): string {
 }
 
 /** A chegada registrada: a frase, o bloco em citação, a prévia da próxima parada (sem pergunta) e o próximo passo. */
+/** O pedido de baixa da parada: com mais de uma nota em aberto, uma foto de canhoto por nota. */
+export function settleStepText(openDocuments: number): string {
+  return openDocuments > 1 ? JOURNEY_TEXT.nextSettleMany : JOURNEY_TEXT.nextSettle
+}
+
 export function describeArrivalReply(headline: string, view: StopCardView): string {
   return [
     headline,
@@ -242,7 +251,7 @@ export function describeArrivalReply(headline: string, view: StopCardView): stri
       ? []
       : ['', `🔜 *Depois desta:* ${describeNextStopPreview(view.next)}`]),
     '',
-    JOURNEY_TEXT.nextSettle,
+    view.card.documentNumbers.length > 1 ? JOURNEY_TEXT.nextSettleMany : JOURNEY_TEXT.nextSettle,
   ].join('\n')
 }
 

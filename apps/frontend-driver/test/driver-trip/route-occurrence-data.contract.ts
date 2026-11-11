@@ -386,7 +386,7 @@ describe('o cliente das rotas de leitura (spec 266 T4.2)', () => {
 })
 
 describe('as frases fixas da tratativa no locale (spec 266 T4.2b)', () => {
-  it('as quatro existem em pt-BR e en (a da 276 T3b inclusa)', () => {
+  it('as cinco existem em pt-BR e en (a da 276 T3b e a da 321 T4 inclusas)', () => {
     for (const file of ['driverTrip.locale.json', 'driverTrip.en.locale.json']) {
       const locale = JSON.parse(
         readFileSync(
@@ -395,6 +395,7 @@ describe('as frases fixas da tratativa no locale (spec 266 T4.2b)', () => {
         ),
       ) as { routeOccurrence: { phrase: Record<string, string> } }
       expect(Object.keys(locale.routeOccurrence.phrase).sort()).toEqual([
+        'canhoto_collected',
         'case_cancelled',
         'case_closed',
         'case_returned_to_warehouse',

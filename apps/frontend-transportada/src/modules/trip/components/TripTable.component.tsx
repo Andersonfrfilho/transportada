@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState, type MouseEvent } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,9 @@ import {
 import { bulkActionableSelection, isSelectableForBulk } from '../shared/tripSelection.service'
 import { TripCancelDialog } from './TripCancelDialog.component'
 import { TripCloseBulkDialog, type TripCloseBulkFailure } from './TripCloseBulkDialog.component'
+import { TripColumnsMenu } from './TripColumnsMenu.component'
 import { TripOccupancyBars } from './TripOccupancyBars.component'
+import { TripPagination } from './TripPagination.component'
 import { TripResultCell } from './TripResultCell.component'
 import { TripReportExportButton } from './TripReportExportButton.component'
 import { TripProofPdfExportButton } from './TripProofPdfExportButton.component'
@@ -83,6 +85,11 @@ export function TripTable({
   const formatMoment = useMomentFormatter()
   const [confirming, setConfirming] = useState(false)
   const [closing, setClosing] = useState(false)
+  /** Encerrou tudo: a seleção esvazia e o diálogo fecha sozinho, em vez de ficar em "Encerrar 0 viagens". */
+  const closeableCount = table.closeableSelection.length
+  useEffect(() => {
+    if (closing && closeableCount === 0) setClosing(false)
+  }, [closing, closeableCount])
   const { t: tFleet } = useTranslation('fleet')
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
 
@@ -275,6 +282,7 @@ export function TripTable({
           não diz de quantas. As duas convivem, e a seleção é que ganha destaque.
         */}
         <p className={styles.counter}>{t('resultCounter', { shown: table.visibleItems.length })}</p>
+        <TripColumnsMenu table={table} />
         {/* Spec 102: a barra só existe com seleção — barra vazia permanente é ruído. */}
         {(canCancel && table.cancellableSelection.length > 0) ||
         (canClose && table.closeableSelection.length > 0) ||
@@ -437,30 +445,7 @@ export function TripTable({
         vehicleLabelOf={vehicleLabel}
       />
 
-      <div className={styles.toolbar}>
-        <Button
-          aria-label={t('pagination.previous')}
-          disabled={!table.canGoToPreviousPage}
-          onClick={table.goToPreviousPage}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <Icon name="page-previous" />
-          {t('pagination.previous')}
-        </Button>
-        <Button
-          aria-label={t('pagination.next')}
-          disabled={!table.hasNextPage}
-          onClick={table.goToNextPage}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          {t('pagination.next')}
-          <Icon name="page-next" />
-        </Button>
-      </div>
+      <TripPagination table={table} />
     </section>
   )
 }

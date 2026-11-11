@@ -63,6 +63,7 @@ function buildRoute(state: FakeState) {
       input.companyId === COMPANY_ID && input.occurrenceId === OCCURRENCE_ID
         ? { cancelledAt: state.cancelledAt }
         : undefined,
+    recordDriverPayoutReceipt: async () => 'not_found',
   }
   const resolveOccurrence = createResolveOccurrenceUseCase({
     logger: {

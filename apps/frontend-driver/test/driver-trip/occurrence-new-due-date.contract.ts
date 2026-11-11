@@ -55,6 +55,7 @@ function dispatch(input: { readonly asks?: boolean; readonly text: string }): {
     draft: { description: '', photo: undefined, values },
     handlers: {
       enqueueDocumentOccurrence: (occurrence) => enqueued.push(occurrence),
+      reportReceivingCharge: () => undefined,
       reportStopOccurrence: () => undefined,
     },
     stopId: 'stop-1',

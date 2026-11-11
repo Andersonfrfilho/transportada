@@ -11,7 +11,12 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 
-import { tripOccurrenceResolutionEvents } from '../../database/occurrence-conversation.schema.js'
+import {
+  occurrenceConversationAttachments,
+  occurrenceConversationMessages,
+  occurrenceConversations,
+  tripOccurrenceResolutionEvents,
+} from '../../database/occurrence-conversation.schema.js'
 import {
   tripDocumentOccurrences,
   tripOccurrenceCaseEvents,
@@ -25,6 +30,8 @@ import type {
   OccurrenceResolutionTransactionPort,
   OccurrenceResolutionUnitOfWork,
   OccurrenceTarget,
+  RecordDriverPayoutReceiptInput,
+  RecordDriverPayoutReceiptOutcome,
 } from '../application/occurrence-resolution.port.js'
 import type { OccurrenceResolutionEventFact } from '../domain/occurrence-resolution.types.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -63,7 +70,69 @@ function createOccurrenceResolutionTransactionPort(
         })
       ).get(input.occurrenceId) ?? [],
     lockOccurrence: (input) => lockOccurrenceRow(queryable, input),
+    recordDriverPayoutReceipt: (input) => recordDriverPayoutReceipt(queryable, input),
   }
+}
+
+const DRIVER_PAID = 'driver'
+const DRIVER_PARTICIPANT = 'driver'
+const OUTBOUND_DIRECTION = 'outbound'
+
+/**
+ * Spec 317 (E13, T5b): grava o comprovante do PIX na ocorrência de parada já travada pelo caso de uso. O anexo só
+ * vale se for de mensagem **enviada** (escritório → motorista) na conversa do motorista **desta** ocorrência e desta
+ * empresa — o `id` do corpo nunca alcança anexo de outra conversa (BOLA).
+ */
+async function recordDriverPayoutReceipt(
+  queryable: TripQueryable,
+  input: RecordDriverPayoutReceiptInput,
+): Promise<RecordDriverPayoutReceiptOutcome> {
+  const [attachment] = await queryable
+    .select({ storedObjectId: occurrenceConversationAttachments.storedObjectId })
+    .from(occurrenceConversationAttachments)
+    .innerJoin(
+      occurrenceConversationMessages,
+      and(
+        eq(occurrenceConversationMessages.companyId, occurrenceConversationAttachments.companyId),
+        eq(occurrenceConversationMessages.id, occurrenceConversationAttachments.messageId),
+      ),
+    )
+    .innerJoin(
+      occurrenceConversations,
+      and(
+        eq(occurrenceConversations.companyId, occurrenceConversationMessages.companyId),
+        eq(occurrenceConversations.id, occurrenceConversationMessages.conversationId),
+      ),
+    )
+    .where(
+      and(
+        eq(occurrenceConversationAttachments.companyId, input.companyId),
+        eq(occurrenceConversationAttachments.id, input.attachmentId),
+        eq(occurrenceConversationMessages.direction, OUTBOUND_DIRECTION),
+        eq(occurrenceConversations.occurrenceKind, 'stop'),
+        eq(occurrenceConversations.occurrenceId, input.occurrenceId),
+        eq(occurrenceConversations.participant, DRIVER_PARTICIPANT),
+      ),
+    )
+    .limit(1)
+  if (attachment === undefined) return 'not_found'
+
+  const [updated] = await queryable
+    .update(tripStopOccurrences)
+    .set({
+      driverPayoutReceiptObjectId: attachment.storedObjectId,
+      driverPayoutSentAt: new Date(),
+      driverPayoutSentByUserId: input.actorUserId,
+    })
+    .where(
+      and(
+        eq(tripStopOccurrences.companyId, input.companyId),
+        eq(tripStopOccurrences.id, input.occurrenceId),
+        eq(tripStopOccurrences.paidBy, DRIVER_PAID),
+      ),
+    )
+    .returning({ id: tripStopOccurrences.id })
+  return updated === undefined ? 'not_driver_paid' : 'recorded'
 }
 
 /** Trava a linha e devolve o que o estado precisa dela. Ocorrência de recebimento (sem viagem) não é desta rota. */
@@ -144,6 +213,7 @@ export async function listLatestResolutionEventsByOccurrence(
     .selectDistinctOn([ownerColumn, tripOccurrenceResolutionEvents.kind], {
       actorKind: tripOccurrenceResolutionEvents.actorKind,
       caseEventStatus: tripOccurrenceCaseEvents.toStatus,
+      canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
       contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
       createdAt: tripOccurrenceResolutionEvents.createdAt,
       id: tripOccurrenceResolutionEvents.id,
@@ -179,6 +249,7 @@ export async function listLatestResolutionEventsByOccurrence(
       actorKind: row.actorKind,
       caseEventStatus: row.caseEventStatus ?? undefined,
       ...(row.contractorReplyId === null ? {} : { causedByContractorReply: true as const }),
+      ...(row.canhotoPickupId === null ? {} : { causedByCanhotoPickup: true as const }),
       createdAt: row.createdAt.toISOString(),
       id: row.id,
       kind: row.kind,
@@ -206,6 +277,7 @@ export async function listAllResolutionEventsByOccurrence(
     .select({
       actorKind: tripOccurrenceResolutionEvents.actorKind,
       caseEventStatus: tripOccurrenceCaseEvents.toStatus,
+      canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
       contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
       createdAt: tripOccurrenceResolutionEvents.createdAt,
       id: tripOccurrenceResolutionEvents.id,
@@ -237,6 +309,7 @@ export async function listAllResolutionEventsByOccurrence(
       actorKind: row.actorKind,
       caseEventStatus: row.caseEventStatus ?? undefined,
       ...(row.contractorReplyId === null ? {} : { causedByContractorReply: true as const }),
+      ...(row.canhotoPickupId === null ? {} : { causedByCanhotoPickup: true as const }),
       createdAt: row.createdAt.toISOString(),
       id: row.id,
       kind: row.kind,

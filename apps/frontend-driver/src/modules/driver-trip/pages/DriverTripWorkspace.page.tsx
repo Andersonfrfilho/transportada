@@ -84,6 +84,7 @@ import {
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
+  DriverFieldReport,
   DriverOccurrenceTypesState,
   DriverReportedLocation,
   DriverReturnReason,
@@ -105,6 +106,7 @@ import {
 } from '../shared/occurrenceTypesCache.service'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.service'
+import { DriverVehiclePlate } from '../components/DriverVehiclePlate.component'
 import { formatShortTripId, formatTripCreatedAt } from '../shared/tripIdentifier.service'
 import {
   applyLocalDeliveries,
@@ -705,6 +707,37 @@ export function DriverTripWorkspacePage() {
     )
   }
 
+  /**
+   * Spec 317: a cobrança no recebimento entra na fila como **um** item, com as fotos por vaga. Foto de vaga obrigatória
+   * nunca é derrubada pela fila cheia: ou entra tudo, ou o toque inteiro volta e a tela diz.
+   */
+  async function reportReceivingCharge(
+    input: Parameters<OccurrenceRegistrationHandlers['reportReceivingCharge']>[0],
+  ): Promise<void> {
+    setOccurrencePhotoDropped(false)
+    setAttachmentLimit(undefined)
+    const report: DriverFieldReport = {
+      description: input.description,
+      idempotencyKey: createIdempotencyKey(),
+      kind: 'stopOccurrenceCharge',
+      location: null,
+      occurrenceTypeId: input.occurrenceTypeId,
+      photos: input.photos,
+      receivingCharge: input.receivingCharge,
+      stopId: input.stopId,
+    }
+    const outcome = await driverTrip.reportAllOrNothing([report])
+    if (outcome === 'count-limit') setEventLimitReached(true)
+    if (outcome === 'size-limit') setAttachmentLimit('size-limit')
+    if (outcome !== 'queued') return
+    setStopOccurrenceKeyByStopId((current) =>
+      new Map(current).set(input.stopId, {
+        at: new Date().toISOString(),
+        key: report.idempotencyKey,
+      }),
+    )
+  }
+
   /** Spec 218 D3 + 226: a ocorrência de nota — o item da 179, que sobe a foto (se há) antes do registro. */
   async function reportDocumentOccurrence(
     input: Parameters<OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']>[0],
@@ -815,7 +848,8 @@ export function DriverTripWorkspacePage() {
           <h1>{t('title')}</h1>
           {trip === undefined ? null : (
             <p className={styles.vehicle}>
-              {t('vehicle', { plate: trip.vehiclePlate })}
+              <span className={styles.tripCodeLabelFirst}>{t('plate.label')}</span>
+              <DriverVehiclePlate plate={trip.vehiclePlate} />
               {/*
                * Pedido do usuário (01/10): o identificador curto da viagem, o MESMO que a listagem
                * do escritório mostra — é por ele que motorista e escritório falam da mesma viagem
@@ -1272,12 +1306,14 @@ export function DriverTripWorkspacePage() {
                     onFocusStop={focusStop}
                     onHeaderRef={registerStopHeaderRef}
                     onProof={handleProof}
+                    onSendCanhotoPickup={driverTrip.sendCanhotoPickupPhoto}
                     onProofFieldsUpdate={handleProofFieldsUpdate}
                     onRemoveProof={handleRemoveProof}
                     occurrenceTypes={occurrenceTypes}
                     onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
                     onToggle={() => stopExpansion.toggle(stop.id)}
                     onQueuedDocumentOccurrence={(input) => void reportDocumentOccurrence(input)}
+                    onReceivingCharge={(input) => void reportReceivingCharge(input)}
                     onStopOccurrence={(input) => void reportStopOccurrence(input)}
                     notDeliveredKeyByDocumentId={notDeliveredKeyByDocumentId}
                     notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}

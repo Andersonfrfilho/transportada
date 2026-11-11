@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq, gte, inArray, lte, lt, or, sql, type SQL } from 'drizzle-orm'
+import { and, eq, gt, gte, inArray, lte, lt, or, sql, type SQL } from 'drizzle-orm'
 
 import { cteBatchItems } from '../../database/cte-batch.schema.js'
 import { cteFiscalDocuments } from '../../database/cte-issuance.schema.js'
@@ -16,18 +16,23 @@ const AUTHORIZED_CTE_DOCUMENT_STATUS = 'authorized'
 
 type CompanyScope = { readonly companyId: string }
 
+/** `backward` lê as viagens **mais novas** que o cursor — o caminho de volta da paginação. */
+export type TripListDirection = 'backward' | 'forward'
+
 type TripListScope = CompanyScope & {
   readonly cursor: KeysetCursor | null
+  readonly direction?: TripListDirection
   readonly filters?: TripFilters
 }
 
 export function buildTripListFilters({
   companyId,
   cursor,
+  direction,
   filters,
 }: TripListScope): readonly SQL[] {
   const conditions: SQL[] = [eq(trips.companyId, companyId)]
-  if (cursor !== null) conditions.push(buildCursorCondition(cursor))
+  if (cursor !== null) conditions.push(buildCursorCondition(cursor, direction ?? 'forward'))
   if (filters?.statusEq !== undefined) conditions.push(eq(trips.status, filters.statusEq))
   if (filters?.statusIn !== undefined) conditions.push(inArray(trips.status, filters.statusIn))
   if (filters?.vehicleIdEq !== undefined) conditions.push(eq(trips.vehicleId, filters.vehicleIdEq))
@@ -94,9 +99,29 @@ export function cteAuthorizedExpression(): SQL {
   )})`
 }
 
-function buildCursorCondition(cursor: KeysetCursor): SQL {
+function buildCursorCondition(cursor: KeysetCursor, direction: TripListDirection): SQL {
+  if (direction === 'backward') return buildNewerThanCursorCondition(cursor)
   return or(
     lt(trips.createdAt, cursor.createdAt),
     and(eq(trips.createdAt, cursor.createdAt), lt(trips.id, cursor.id)),
+  ) as SQL
+}
+
+/**
+ * ⚠️ O cursor carrega o `created_at` em **milissegundos** (é um `Date`), e a coluna guarda
+ * microssegundos. Comparar `created_at > cursor` fazia a própria linha do cursor contar como "mais
+ * nova" que ela mesma (`.123456 > .123`): a página de volta repetia a linha e a posição saía uma a
+ * mais. Por isso o "mais novo" olha o milissegundo inteiro: o milissegundo seguinte em diante, ou o
+ * mesmo milissegundo com id maior.
+ */
+function buildNewerThanCursorCondition(cursor: KeysetCursor): SQL {
+  const nextMillisecond = new Date(cursor.createdAt.getTime() + 1)
+  return or(
+    gte(trips.createdAt, nextMillisecond),
+    and(
+      gte(trips.createdAt, cursor.createdAt),
+      lt(trips.createdAt, nextMillisecond),
+      gt(trips.id, cursor.id),
+    ),
   ) as SQL
 }

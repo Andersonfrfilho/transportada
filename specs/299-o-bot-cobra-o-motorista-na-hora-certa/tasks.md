@@ -110,6 +110,13 @@ Pré-requisito externo: o suporte de menção do grupo (entregue antes desta spe
 - [ ] **T5.3** Revisão final (`code-reviewer` `sonnet`) e publicação em etapas: painel tolerante → API
       com migration A → worker. Ligar a chave global em staging e a da empresa de teste só com aprovação do dono.
 
+## Emenda D10 — viagem despachada sem "Iniciar rota" (dono, 2026-11-10)
+
+- [x] **T6.1** A varredura do `idle` (`DrizzleDriverStopReminderIdleReconciliationRepository`) passa a ler as viagens em
+      `TRIP_ON_ROAD_STATUSES` (`dispatched`, `in_transit`, `on_delivery_route`). Mesmo relógio, chaves e escalada; o "1"
+      da variante A já ia por `reportStopDeparture` (o caminho do "Iniciar rota"). Aceite: integração `-idle` e
+      `-group-step` com casos da viagem só despachada, vermelhos antes do código. Evidência em `evidence.md` § Emenda D10.
+
 ## Prompt de execução
 
 > Q1 e Q2 respondidas. A Fase 2 (T2.1) espera o suporte de menção do grupo (PR `group-mention`) em `origin/staging`.

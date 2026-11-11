@@ -52,6 +52,7 @@
   "./test/integration/contractor-mail-settings-repository.integration.ts": 20,
   "./test/integration/contractor-mail-template-repository.integration.ts": 3,
   "./test/integration/contractor-mail-test-email-thread.integration.ts": 14,
+  "./test/integration/contractor-occurrence-group.integration.ts": 16,
   "./test/integration/contractor-portal-end-to-end.integration.ts": 3,
   "./test/integration/contractor-portal.integration.ts": 3,
   "./test/integration/contractor-preview-email.integration.ts": 37,
@@ -256,7 +257,6 @@
   "./test/integration/whatsapp-command-repository.integration.ts": 17,
   "./test/integration/whatsapp-command-settlement.integration.ts": 4,
   "./test/integration/whatsapp-delivery-preparation-repository.integration.ts": 4,
-  "./test/integration/whatsapp-occurrence-draft-repository.integration.ts": 4,
   "./test/integration/whatsapp-driver-flow-actions.integration.ts": 4,
   "./test/integration/whatsapp-evolution-settings.integration.ts": 3,
   "./test/integration/whatsapp-flow-graph-publish.integration.ts": 6,
@@ -265,6 +265,7 @@
   "./test/integration/whatsapp-issuance-confirm.integration.ts": 3,
   "./test/integration/whatsapp-issuance-preview.integration.ts": 3,
   "./test/integration/whatsapp-location-redact.integration.ts": 6,
+  "./test/integration/whatsapp-occurrence-draft-repository.integration.ts": 4,
   "./test/integration/whatsapp-operator-flow-actions.integration.ts": 4,
   "./test/integration/whatsapp-phone-repository.integration.ts": 20,
   "./test/integration/whatsapp-phone-verification.integration.ts": 3

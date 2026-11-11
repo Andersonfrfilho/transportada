@@ -14,6 +14,7 @@ import type {
   ReportStopOccurrenceResult,
   StopOccurrenceReference,
 } from '../application/report-stop-occurrence.use-case.js'
+import type { ReceivingChargeInput } from '../domain/receiving-charge.policy.js'
 import {
   FIELD_TRIP_STEP,
   type FieldTripStep,
@@ -73,10 +74,14 @@ export type TripFieldOfficeTripDependencies = {
   readonly reportOccurrence: (
     input: OfficeContextInput &
       StopOccurrenceReference & {
+        /** Spec 315 (D10): a hora em que o motorista chegou, já validada na forma; a janela é do caso de uso. */
+        readonly arrivedAt?: Date
         readonly description: string
         readonly distanceMeters: number | null
         readonly documentId: string | null
         readonly idempotencyKey: string
+        /** Spec 317 (E3, E4, E11): a cobrança no recebimento. */
+        readonly receivingCharge?: ReceivingChargeInput
         readonly stopId: string
         readonly target: ResolvedTripFieldTarget
       },
@@ -225,10 +230,12 @@ function createStopOccurrenceRoute(
           correlationId: input.correlationId,
           ipAddress: input.ipAddress,
         }),
+        ...(input.arrivedAt === undefined ? {} : { arrivedAt: input.arrivedAt }),
         description: input.description,
         distanceMeters: input.distanceMeters,
         documentId: input.documentId,
         idempotencyKey: input.idempotencyKey,
+        ...(input.receivingCharge === undefined ? {} : { receivingCharge: input.receivingCharge }),
         /** Spec 218 D2: o mesmo par que a rota do motorista manda — nunca os dois juntos. */
         ...(input.occurrenceTypeId === undefined
           ? { kind: input.kind }
@@ -237,7 +244,10 @@ function createStopOccurrenceRoute(
         target,
       })
 
-      return officeJsonResponse({ body: { data: { id: result.id } }, status: 201 })
+      return officeJsonResponse({
+        body: { data: { arrivalRecorded: result.arrivalRecorded, id: result.id } },
+        status: 201,
+      })
     },
     method: 'POST',
     async parse({ correlationId, pathParameters, request }) {

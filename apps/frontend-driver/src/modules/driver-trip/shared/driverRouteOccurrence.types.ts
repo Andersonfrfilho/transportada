@@ -16,6 +16,8 @@ export const ROUTE_OCCURRENCE_PHRASE_KEYS = [
   'case_cancelled',
   /** Spec 276 T3b: o documento da contratante chegou ao motorista e o tipo fecha sozinho. */
   'contractor_reply_delivered',
+  /** Spec 321 T4: o canhoto retido foi coletado e aprovado na conferência. */
+  'canhoto_collected',
 ] as const
 export type RouteOccurrencePhraseKey = (typeof ROUTE_OCCURRENCE_PHRASE_KEYS)[number]
 

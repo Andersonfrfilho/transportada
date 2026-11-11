@@ -965,6 +965,21 @@ async function registerEmptyListMock(
 }
 
 /**
+ * Spec 321: o detalhe da viagem sempre consulta `GET /trip-canhoto-pickups` (coletas de canhoto).
+ * Sem dublê a chamada vira `ERR_FAILED` e todo smoke que afirma `failures()` vazio reprova. Fila
+ * vazia por padrão; quem precisa de coletas registra a rota depois (o mais recente vence).
+ */
+async function registerEmptyCanhotoPickupsMock(page: Page): Promise<void> {
+  await page.route(/\/trip-canhoto-pickups(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
+  })
+}
+
+/**
  * Spec 148 T7: o painel de carga abre a fila de revisão da viagem. A rota real devolve só
  * `{ data: [...] }`, sem `page` — fila vazia não pede `swap-suggestions`.
  */
@@ -1433,6 +1448,7 @@ export async function mockTripWorkspaceApi(
     registerEmptyListMock({ page: input.page, pattern: /\/fleet\/vehicles(?:\?.*)?$/ }),
     registerEmptyListMock({ page: input.page, pattern: /\/fleet\/drivers(?:\?.*)?$/ }),
     registerEmptyReviewQueueMock(input.page),
+    registerEmptyCanhotoPickupsMock(input.page),
   ])
   return {
     failures: () => state.failures,

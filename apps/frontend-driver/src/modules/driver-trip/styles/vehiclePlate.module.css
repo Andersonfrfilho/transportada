@@ -1,0 +1,15 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.plate {
+  display: block;
+  flex: none;
+  height: auto;
+  width: 4.75rem;
+}
+
+.plainPlate {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  font-family: var(--font-utility);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0 var(--space-2);
+}

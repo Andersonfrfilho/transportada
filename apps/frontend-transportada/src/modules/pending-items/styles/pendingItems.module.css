@@ -98,3 +98,18 @@
   margin: 0;
   color: var(--color-slate);
 }
+
+.holds {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+}
+
+.duplicateNote {
+  color: var(--color-alert-ink);
+}
+
+.holdSetting {
+  display: grid;
+  gap: var(--space-2);
+}

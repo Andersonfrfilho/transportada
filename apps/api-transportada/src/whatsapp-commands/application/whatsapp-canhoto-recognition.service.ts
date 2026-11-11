@@ -118,6 +118,28 @@ export type WhatsAppCanhotoRecognitionPorts = {
     readonly companyId: string
     readonly driverId: string
   }) => Promise<readonly WhatsAppStopCandidate[]>
+  /**
+   * Spec 321 T4 (D4b): as coletas de canhoto encaixadas nas viagens do motorista, ainda sem foto. Entram como notas
+   * abertas (a nota da entrega de origem) e a foto delas vai por `collectPickupPhoto`. Ausentes, nada muda.
+   */
+  readonly canhotoPickups?: {
+    readonly collect: (input: {
+      readonly actor: WhatsAppDriverActor
+      readonly bytes: Uint8Array
+      readonly mimeType: string
+      readonly pickupId: string
+      readonly providerMessageId: string
+    }) => Promise<void>
+    readonly list: (input: { readonly companyId: string; readonly driverId: string }) => Promise<
+      readonly {
+        readonly city: string | undefined
+        readonly documentNumber: string
+        readonly originTripDocumentId: string
+        readonly pickupId: string
+        readonly recipientName: string | undefined
+      }[]
+    >
+  }
   readonly logger?: Pick<ApiLogger, 'info' | 'warn'>
   readonly media: WhatsAppDeliveryPreparationMediaPort
   readonly preparations: Required<Pick<WhatsAppDeliveryPreparations, 'receiveCanhotoPhoto'>>
@@ -132,6 +154,14 @@ export type WhatsAppCanhotoRecognition = {
     readonly driverId: string
   }): Promise<boolean>
   hasOpenQuestion(scope: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<boolean>
+  /**
+   * O motorista já chegou numa parada e ainda falta a baixa de alguma nota dela? Nesse momento a foto dele no grupo é quase
+   * sempre o canhoto, então vale lê-la mesmo sem marcar o bot.
+   */
+  hasStopAwaitingSettlement(scope: {
     readonly companyId: string
     readonly driverId: string
   }): Promise<boolean>
@@ -191,11 +221,36 @@ export function createWhatsAppCanhotoRecognition(
     readonly companyId: string
     readonly driverId: string
   }): Promise<{ readonly inProgress: readonly OpenNote[]; readonly notes: readonly OpenNote[] }> {
-    const stops = await ports.listStops(scope)
+    const [stops, pickups] = await Promise.all([
+      ports.listStops(scope),
+      ports.canhotoPickups?.list(scope) ?? [],
+    ])
     const current = findStopAwaitingSettlement(stops) ?? findStopEnRoute(stops)
     const currentIds = new Set(current?.documents.flatMap((document) => document.id ?? []) ?? [])
-    const notes = toOpenNotes(stops)
+    const notes = [...toOpenNotes(stops), ...pickups.map(toPickupNote)]
     return { inProgress: notes.filter((note) => currentIds.has(note.documentId)), notes }
+  }
+
+  /** Spec 321 T4: a coleta aparece como a nota da entrega de origem, marcada como canhoto a buscar. */
+  function toPickupNote(pickup: {
+    readonly city: string | undefined
+    readonly documentNumber: string
+    readonly originTripDocumentId: string
+    readonly pickupId: string
+    readonly recipientName: string | undefined
+  }): OpenNote {
+    const number = stripZeros(pickup.documentNumber)
+    const client = pickup.recipientName?.trim()
+    return {
+      city: pickup.city,
+      clientName: client,
+      documentId: pickup.originTripDocumentId,
+      documentNumber: number,
+      label: client
+        ? `NF ${number} · ${client} (canhoto a buscar)`
+        : `NF ${number} (canhoto a buscar)`,
+      pickupId: pickup.pickupId,
+    }
   }
 
   function toOpenNotes(stops: readonly WhatsAppStopCandidate[]): readonly OpenNote[] {
@@ -280,6 +335,16 @@ export function createWhatsAppCanhotoRecognition(
   }): Promise<WhatsAppDeliveryPreparationReply> {
     const { actor, note } = input
     ports.logger?.info(LOG.attached, { companyId: actor.companyId })
+    if (note.pickupId !== undefined && ports.canhotoPickups !== undefined) {
+      await ports.canhotoPickups.collect({
+        actor,
+        bytes: input.bytes,
+        mimeType: input.mimeType,
+        pickupId: note.pickupId,
+        providerMessageId: input.providerMessageId,
+      })
+      return reply([CANHOTO_RECOGNITION_SPEECH.pickupCollected(note.documentNumber)])
+    }
     return ports.preparations.receiveCanhotoPhoto({
       actor,
       bytes: input.bytes,
@@ -492,6 +557,10 @@ export function createWhatsAppCanhotoRecognition(
       return (await findLiveQuestion(scope)) !== null
     },
 
+    async hasStopAwaitingSettlement(scope) {
+      return findStopAwaitingSettlement(await ports.listStops(scope)) !== undefined
+    },
+
     async receivePhoto({ actor, bytes, channel, mimeType, providerMessageId }) {
       if ((await findLiveQuestion(actor)) !== null) {
         return reply([CANHOTO_RECOGNITION_SPEECH.busy], { awaitingText: true })
@@ -555,6 +624,7 @@ const toCandidate = (note: OpenNote): WhatsAppCanhotoQuestionCandidate => ({
   documentId: note.documentId,
   documentNumber: note.documentNumber,
   label: note.label,
+  ...(note.pickupId === undefined ? {} : { pickupId: note.pickupId }),
 })
 
 const fromCandidate = (

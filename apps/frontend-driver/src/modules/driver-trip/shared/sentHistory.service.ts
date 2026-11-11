@@ -56,6 +56,7 @@ export function toSentHistoryEntry(input: {
     ...(report.kind === 'arrive' ||
     report.kind === 'depart' ||
     report.kind === 'cancelDeparture' ||
+    report.kind === 'stopOccurrenceCharge' ||
     report.kind === 'stopOccurrencePhoto'
       ? { stopId: report.stopId }
       : {}),

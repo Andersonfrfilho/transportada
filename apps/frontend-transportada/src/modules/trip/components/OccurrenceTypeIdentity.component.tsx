@@ -288,6 +288,57 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
             />
           </Tooltip>
         )}
+        {/* Spec 317 T14a: só o tipo de cobrança no recebimento; o escritório sempre vê o selo, o interruptor é do motorista. */}
+        {type.showClientChargeSealToDriver === undefined ||
+        type.stopKind !== 'unexpected_charge' ? null : (
+          <Tooltip
+            dismissOnActivate
+            label={t('occurrenceTypeCatalog.showClientChargeSealToDriverHint')}
+          >
+            <Checkbox
+              checked={type.showClientChargeSealToDriver}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.showClientChargeSealToDriver')}
+              onChange={(value) => onEdit({ showClientChargeSealToDriver: value })}
+            />
+          </Tooltip>
+        )}
+        {/* Spec 321 T5 (RF1, D2, D4c): só com a API que já manda os campos; as três chaves vão juntas no PUT. */}
+        {type.blocksContractorNotice === undefined ? null : (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.blocksContractorNoticeHint')}>
+            <Checkbox
+              checked={type.blocksContractorNotice}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.blocksContractorNotice')}
+              onChange={(value) => onEdit({ blocksContractorNotice: value })}
+            />
+          </Tooltip>
+        )}
+        {type.createsCanhotoPickup === undefined ? null : (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.createsCanhotoPickupHint')}>
+            <Checkbox
+              checked={type.createsCanhotoPickup}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.createsCanhotoPickup')}
+              onChange={(value) =>
+                onEdit({
+                  createsCanhotoPickup: value,
+                  ...(value ? { countsCargoOnPickupTrip: false } : {}),
+                })
+              }
+            />
+          </Tooltip>
+        )}
+        {type.countsCargoOnPickupTrip === undefined || type.createsCanhotoPickup !== true ? null : (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.countsCargoOnPickupTripHint')}>
+            <Checkbox
+              checked={type.countsCargoOnPickupTrip}
+              disabled
+              label={t('occurrenceTypeCatalog.countsCargoOnPickupTrip')}
+              onChange={() => undefined}
+            />
+          </Tooltip>
+        )}
       </div>
       <OccurrenceTypeHiddenFieldsHint isItemsOff={!hasItems} isSeparationOnlyHidden={isDelivery} />
     </section>

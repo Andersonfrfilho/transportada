@@ -40,6 +40,7 @@
     "other": "Outra",
     "parking": "Estacionamento",
     "platform": "Plataforma",
+    "receiving_charge": "Cobrança no recebimento",
     "returned_goods": "Produtos devolvidos",
     "scheduling": "Agendamento",
     "unloading": "Descarga"
@@ -105,6 +106,24 @@
     "statement": {
       "action": "Baixar demonstrativo",
       "hint": "O demonstrativo é do lote que acabou de fechar. Quem manda para a contratante é a pessoa — esta tela não envia nada sozinha."
+    },
+    "receiving": {
+      "photos": "Fotos da cobrança",
+      "openPhoto": "Abrir foto: {{label}}",
+      "paidBy": {
+        "driver": "Pago pelo motorista",
+        "company": "Pago pela empresa"
+      },
+      "pix": "PIX do motorista",
+      "pixType": {
+        "cpf": "CPF",
+        "cnpj": "CNPJ",
+        "email": "e-mail",
+        "phone": "telefone",
+        "random": "chave aleatória"
+      },
+      "payoutSent": "Comprovante do PIX enviado",
+      "openOccurrence": "Abrir a ocorrência"
     }
   },
   "queue": {
@@ -118,5 +137,13 @@
     "missingAmount": "Há uma sugestão selecionada sem valor. Preencha antes de confirmar.",
     "select": "Selecionar a taxa",
     "title": "Sugestões a conferir ({{count}})"
+  },
+  "payoutReceipt": {
+    "summary": "Pago pelo motorista: {{total}}.",
+    "label": "Comprovante do PIX",
+    "optional": "opcional",
+    "choose": "Escolher arquivo",
+    "placeholder": "Imagem ou PDF",
+    "hint": "Vai ao motorista no chat da ocorrência. Dá para concluir sem ele."
   }
 }

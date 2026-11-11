@@ -61,6 +61,27 @@ export function createAutomaticOccurrenceMailHook(dependencies: {
           })
           return
         }
+        if (result.outcome === 'sent_to_group') {
+          dependencies.logger.info('occurrence_contractor_group_sent', {
+            attempts: result.attempts,
+            companyId,
+            occurrenceId,
+          })
+          return
+        }
+        if (result.outcome === 'group_failed') {
+          /** Spec 318 (P2): a operação é alertada; grupo e número nunca vão a log. */
+          dependencies.logger.error('occurrence_contractor_group_failed', {
+            companyId,
+            failure: result.failure,
+            fallback: result.fallback === null ? 'off' : result.fallback.outcome,
+            ...(result.fallback?.outcome === 'skipped'
+              ? { fallbackReason: result.fallback.reason }
+              : {}),
+            occurrenceId,
+          })
+          return
+        }
         dependencies.logger.info('occurrence_automatic_mail_skipped', {
           companyId,
           occurrenceId,

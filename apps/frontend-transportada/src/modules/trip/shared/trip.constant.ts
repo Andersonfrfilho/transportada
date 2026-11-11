@@ -70,7 +70,9 @@ export const DATABASE_UNAVAILABLE_ERROR_CODE = 'DATABASE_UNAVAILABLE'
 /** Viagem grande leva segundos para montar o mapa de carga — o aviso só aparece depois deste prazo. */
 export const SLOW_LOAD_NOTICE_DELAY_MS = 4000
 
-export const TRIP_PAGE_SIZE = 25
+/** Tamanhos oferecidos no seletor — o mesmo conjunto das outras listas do painel (NFS-e). */
+export const TRIP_PAGE_SIZES = [25, 50, 100] as const
+export type TripPageSize = (typeof TRIP_PAGE_SIZES)[number]
 
 export const CANHOTO_REVIEW_ALREADY_RESOLVED_CODE = 'CANHOTO_REVIEW_ALREADY_RESOLVED'
 export const CANHOTO_REVIEW_OUTCOME = {
@@ -310,6 +312,8 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
   'leavesBehindOnDispatch',
   /** Spec 223 RF4: ausente é API anterior ao campo — o selo só aparece com `true`. */
   'proofPending',
+  /** Spec 321 D4d: a nota de origem do canhoto retido. Ausente é API anterior ao campo — o selo só aparece com `true`. */
+  'canhotoRetained',
   'contact',
   'nfeIssuedAt',
   'nfeNumber',
@@ -568,7 +572,10 @@ export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   /** Spec 281 T8b: pedir o contato do cliente ao motorista na abertura; esta tela só o tolera. */
   'asksClientContact',
   /** O campo opcional "nova data de vencimento" no app do motorista; esta tela só o tolera. */
+  'arrivalTimeMode',
   'asksNewDueDate',
+  /** Spec 317 T14a: o aviso de possível cobrança ao motorista; esta tela só o tolera. */
+  'showClientChargeSealToDriver',
   'attachmentMode',
   'clientChannel',
   /** Spec 247 TP.1 (ADR-0081 §9): os requisitos efetivos da devolução. */
@@ -580,6 +587,8 @@ export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   'iconName',
   'itemsMinimumCount',
   'itemsMode',
+  'locationMode',
+  'minWaitAfterArrivalMinutes',
   'noteMode',
   'photoMinimumCount',
   'photoMode',

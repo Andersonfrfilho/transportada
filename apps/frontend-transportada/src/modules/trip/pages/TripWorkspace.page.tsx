@@ -186,7 +186,13 @@ export function TripWorkspacePage() {
     useReplaceDeliveryProofContractorOverridesMutation()
   const saveCanhotoOcrEnabledMutation = useSaveCanhotoOcrEnabledMutation()
 
-  const table = useTripTable({ canReadTrips: workspace.controller.canReadTrips, ...tenant })
+  const table = useTripTable({
+    canReadTrips: workspace.controller.canReadTrips,
+    ...tenant,
+    ...(authQuery.data?.data.identity.userId === undefined
+      ? {}
+      : { userId: authQuery.data.data.identity.userId }),
+  })
   const fleet = useFleet(tenant)
   /**
    * Spec 107 D3: a placa de quem fica livre, para a frase da sobra nomear o caminhão. A frota já é

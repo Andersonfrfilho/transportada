@@ -55,6 +55,14 @@ function buildWorld() {
     stopKind: 'unexpected_charge',
   })
   state.stopOccurrenceTypes.set(`${COMPANY_ID}:${OPERATOR_STOP_TYPE_ID}`, { stopKind: null })
+  state.stopChargeDocuments.set(STOP_ID, [
+    {
+      contractorId: '00000000-0000-4000-8000-0000000000e1',
+      deliveryClientId: '00000000-0000-4000-8000-0000000000e2',
+      documentId: DOCUMENT_ID,
+      tripId: TRIP_ID,
+    },
+  ])
   return createFieldReportUnitOfWork(state)
 }
 
@@ -99,9 +107,8 @@ describe('o corpo da ocorrência de parada aceita o tipo do catálogo (spec 218 
 })
 
 describe('o "qual dos 5" sai do stop_kind do tipo, nunca do nome (spec 218 D2)', () => {
-  test('grava o tipo e o kind dele, e a cobrança e o aviso leem esse kind', async () => {
+  test('grava o tipo e o kind dele, e o aviso lê esse kind (spec 317 E10: sem a sugestão de 0)', async () => {
     const world = buildWorld()
-    const suggested: string[] = []
     const notified: string[] = []
 
     await reportStopOccurrence({
@@ -112,35 +119,25 @@ describe('o "qual dos 5" sai do stop_kind do tipo, nunca do nome (spec 218 D2)',
         },
       },
       occurrenceTypeId: CHARGE_TYPE_ID,
-      suggestCharges: {
-        async onDelivered(input) {
-          suggested.push(input.tripDocumentId)
-        },
-      },
+      receivingCharge: { amount: '35.00', paidBy: 'company' },
     })
 
     expect(world.state.calls).toContain('recordOccurrence:unexpected_charge')
     expect(world.state.recordedOccurrenceTypeIds).toEqual([CHARGE_TYPE_ID])
-    expect(suggested).toEqual([DOCUMENT_ID])
+    expect(world.state.calls).toContain('recordReceivingCharges:1')
     expect(notified).toEqual(['unexpected_charge'])
   })
 
-  test('tipo de parada criado pelo operador, sem stop_kind, vale como "other"', async () => {
+  test('tipo de parada criado pelo operador, sem stop_kind, vale como "other" e não cobra', async () => {
     const world = buildWorld()
-    const suggested: string[] = []
 
     await reportStopOccurrence({
       ...baseInput(world, 'chave-2'),
       occurrenceTypeId: OPERATOR_STOP_TYPE_ID,
-      suggestCharges: {
-        async onDelivered(input) {
-          suggested.push(input.tripDocumentId)
-        },
-      },
     })
 
     expect(world.state.calls).toContain('recordOccurrence:other')
-    expect(suggested).toEqual([])
+    expect(world.state.receivingChargeLines.size).toBe(0)
   })
 
   test('tipo que não é de parada ativo desta empresa é recusado, e nada é gravado', async () => {

@@ -162,6 +162,26 @@
         "whatsappTag": "WhatsApp",
         "whatsappHint": "The WhatsApp mark is recorded for when notifications choose a channel — it does not change delivery yet.",
         "fromProfile": "comes from the record above"
+      },
+      "whatsapp": {
+        "title": "WhatsApp",
+        "intro": "The number is valid immediately, with no code request, and the audit trail records that you did it. Use only the person's own number: it is what identifies them as an attendant in the bot group.",
+        "status": {
+          "none": "No WhatsApp linked.",
+          "pending": "A code is pending, waiting for the person's own message.",
+          "verified": "Linked: {{phone}}. Valid until {{date}}.",
+          "expired": "The link for {{phone}} expired. Save the number again."
+        },
+        "label": "WhatsApp number",
+        "placeholder": "(11) 98765-4321",
+        "save": "Save as verified",
+        "unlink": "Unlink",
+        "saved": "WhatsApp saved and verified.",
+        "removed": "WhatsApp unlinked.",
+        "errors": {
+          "WHATSAPP_PHONE_INVALID": "Check the number you typed.",
+          "WHATSAPP_PHONE_TAKEN": "That number is already verified for someone else."
+        }
       }
     },
     "removeDialog": {

@@ -21,6 +21,8 @@ export type OccurrenceResolutionEventFact = {
   readonly caseEventStatus: TripOccurrenceCaseStatus | undefined
   /** Spec 276 T3b: o evento `system` veio da entrega do retorno da contratante ao motorista. */
   readonly causedByContractorReply?: true
+  /** Spec 321 T4 (D5): o evento `system` veio da coleta de canhoto (aprovado resolve, reprovado reabre). */
+  readonly causedByCanhotoPickup?: true
 }
 
 export type ResolveOccurrenceResolutionStateParams = {
@@ -34,6 +36,7 @@ export type OccurrenceLastResolution = {
   readonly note: string | undefined
   readonly caseEventStatus: TripOccurrenceCaseStatus | undefined
   readonly causedByContractorReply?: true
+  readonly causedByCanhotoPickup?: true
 }
 
 export type ResolveOccurrenceResolutionStateResult = {
@@ -48,6 +51,8 @@ export type SystemResolutionPhraseKey =
   | 'case_returned_to_warehouse'
   | 'case_cancelled'
   | 'contractor_reply_delivered'
+  /** Spec 321 T4 (D5): o canhoto retido pelo cliente foi coletado e aprovado na conferência. */
+  | 'canhoto_collected'
 
 /** O estado de um item do feed; `open` é a ausência do objeto (`resolution: null`). */
 export type FeedResolutionView = {

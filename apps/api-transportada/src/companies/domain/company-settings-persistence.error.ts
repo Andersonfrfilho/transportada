@@ -5,6 +5,8 @@ import { DiagnosableError } from '../../shared/diagnosable.error.js'
 
 export const COMPANY_SETTINGS_PERSISTENCE_FAILURE = {
   audioTranscriptionNotPersisted: 'Company audio transcription settings could not be persisted',
+  driverOccurrenceEmailNotPersisted:
+    'Company driver occurrence email settings could not be persisted',
   locationRetentionNotPersisted: 'Company location retention settings could not be persisted',
   profileNotPersisted: 'Company fiscal settings could not be persisted',
   sequenceNotPersisted: 'Company fiscal sequence could not be persisted',

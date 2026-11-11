@@ -172,6 +172,9 @@ export const TRIP_TABLES = [
   'trip_document_link_events',
   /** Spec 265 RF4: o pedido de tratamento do comprovante enviado sem redução, gravado com ele. */
   'delivery_proof_outbox',
+  /** Spec 317 E1/E2: as vagas de foto do tipo de ocorrência e a foto de cada vaga no registro da parada. */
+  'company_occurrence_type_photo_slots',
+  'trip_stop_occurrence_photos',
 ] as const
 
 /** Spec 248 D6: o retorno da contratante ao motorista — uma linha por ocorrência, entregas e histórico. */
@@ -205,6 +208,8 @@ export const DELIVERY_CLIENT_TABLES = [
   /** Spec 279 T1: os e-mails do cliente, por tipo. Spec 281 T3b: a tabela é a de contatos; o nome antigo é visão. */
   'delivery_client_contacts',
   'delivery_client_emails',
+  /** Spec 317 E4: as notas cobertas pela linha agrupada de cobrança no recebimento. */
+  'delivery_charge_documents',
 ] as const
 
 /**
@@ -285,7 +290,7 @@ export async function listMigrationDirectories(): Promise<readonly string[]> {
     .toSorted()
 }
 
-type PostgresSqlState = '23001' | '23502' | '23503' | '23505' | '23514' | '55000'
+type PostgresSqlState = 'P0001' | '23001' | '23502' | '23503' | '23505' | '23514' | '55000'
 
 export async function expectQueryToFail(
   query: PromiseLike<unknown>,

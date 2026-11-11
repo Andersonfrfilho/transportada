@@ -9,6 +9,7 @@ import type { SQL } from 'bun'
 import { join } from 'node:path'
 
 import { migrationsDirectory, readMigrationNames } from './support.js'
+import { rollbackWhatsAppInboxChatExpireJobIfApplied } from './whatsapp-inbox-chat-expire-job-rollback.assertion.js'
 
 const MIGRATION_SUFFIX = '_driver_stop_reminders'
 const IDLE_STAGE_MIGRATION_SUFFIX = '_driver_stop_reminder_idle_stage'
@@ -17,6 +18,9 @@ export async function rollbackDriverStopRemindersIfApplied(
   database: SQL,
   directories: readonly string[],
 ): Promise<void> {
+  // Spec 319 T7: a rotina da caixa é a mais nova e sai antes, pelo mesmo motivo.
+  await rollbackWhatsAppInboxChatExpireJobIfApplied(database, directories)
+
   const directory = directories.find((name) => name.endsWith(MIGRATION_SUFFIX))
   if (directory === undefined) return
   if (!(await readMigrationNames(database)).includes(directory)) return

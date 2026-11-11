@@ -25,12 +25,7 @@
 }
 
 .header h1 {
-  /* O h1 global limita a 12ch (título curto); aqui o nome do contratante cabe na linha. */
-  max-width: none;
   margin: 0;
-  font-size: 1.75rem;
-  font-weight: 800;
-  line-height: 1.15;
 }
 
 .kicker {

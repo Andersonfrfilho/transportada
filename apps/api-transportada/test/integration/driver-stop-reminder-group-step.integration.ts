@@ -14,13 +14,17 @@ import { companyDriverReminderSettings } from '../../src/database/company-driver
 import { runAllDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { driverStopReminders } from '../../src/database/driver-stop-reminder.schema.js'
 import { fleetDriverWhatsappGroups } from '../../src/database/fleet.schema.js'
+import { trips as tripsTable } from '../../src/database/trip.schema.js'
 import { whatsappGroupRequests } from '../../src/database/whatsapp-group-request.schema.js'
 import { createDeliverDriverStopReminderUseCase } from '../../src/driver-stop-reminders/application/deliver-driver-stop-reminder.use-case.js'
+import { createReconcileIdleDriverStopRemindersUseCase } from '../../src/driver-stop-reminders/application/reconcile-idle-driver-stop-reminders.use-case.js'
 import { createPostponeDriverStopReminderUseCase } from '../../src/driver-stop-reminders/application/postpone-driver-stop-reminder.use-case.js'
 import { createDriverNumberReader } from '../../src/driver-stop-reminders/infrastructure/current-trip-driver.query.js'
 import { createDriverStopReminderRuntime } from '../../src/driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
 import { DrizzleDriverStopReminderDeliveryRepository } from '../../src/driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-delivery.repository.js'
+import { DrizzleDriverStopReminderIdleReconciliationRepository } from '../../src/driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-idle-reconciliation.repository.js'
 import { DrizzleDriverStopReminderPostponementRepository } from '../../src/driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-postponement.repository.js'
+import { DrizzleDriverStopReminderRepository } from '../../src/driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder.repository.js'
 import { createGroupReminderPromptOpener } from '../../src/driver-stop-reminders/infrastructure/group-reminder-prompt-opener.js'
 import { createStopNoteNumberReader } from '../../src/driver-stop-reminders/infrastructure/stop-note-number.query.js'
 import type { ApiLogger } from '../../src/shared/api.types.js'
@@ -70,7 +74,12 @@ const CLOSED_QUESTIONS = {
   hasPendingPrompt: false,
 }
 
-type BuildOptions = { readonly clock?: () => Date; readonly realOpenQuestions?: boolean }
+type BuildOptions = {
+  readonly clock?: () => Date
+  /** Ausente ou `true`: a parada 1 sai antes (lembrete `arrival`). `false`: a viagem fica só despachada. */
+  readonly departFirst?: boolean
+  readonly realOpenQuestions?: boolean
+}
 
 async function build(db: JourneyDatabase, world: JourneyWorld, options: BuildOptions = {}) {
   const clock = options.clock ?? (() => new Date())
@@ -86,18 +95,25 @@ async function build(db: JourneyDatabase, world: JourneyWorld, options: BuildOpt
   })
   const unitOfWork = new DrizzleDriverFieldReportUnitOfWork(db, 'test-bucket', undefined, runtime)
   const first = world.stops[0]
-  await reportStopDeparture({
-    actorUserId: world.userId,
-    channel: TRIP_FIELD_CHANNELS.whatsapp,
-    companyId: world.companyId,
-    driverId: world.driverId,
-    idempotencyKey: crypto.randomUUID(),
-    location: null,
-    now: new Date(),
-    stopId: first.stopId,
-    tappedAt: new Date(),
-    unitOfWork,
-  })
+  if (options.departFirst !== false)
+    await reportStopDeparture({
+      actorUserId: world.userId,
+      channel: TRIP_FIELD_CHANNELS.whatsapp,
+      companyId: world.companyId,
+      driverId: world.driverId,
+      idempotencyKey: crypto.randomUUID(),
+      location: null,
+      now: new Date(),
+      stopId: first.stopId,
+      tappedAt: new Date(),
+      unitOfWork,
+    })
+  else
+    await createReconcileIdleDriverStopRemindersUseCase({
+      isEnabled: true,
+      reconciliation: new DrizzleDriverStopReminderIdleReconciliationRepository(db),
+      reminders: new DrizzleDriverStopReminderRepository(db),
+    }).execute({ companyId: world.companyId })
   await runtime.idle()
 
   const requests = createDrizzleWhatsAppGroupRequestRepository(db)
@@ -241,7 +257,7 @@ async function build(db: JourneyDatabase, world: JourneyWorld, options: BuildOpt
   }
   const deliverNow = async () =>
     deliver.execute({ companyId: world.companyId, reminderId: (await reminder()).id })
-  return { deliverNow, receive, reminder, reminderSent, request }
+  return { deliverNow, receive, reminder, reminderSent, request, runtime }
 }
 
 async function inDatabase(operation: (db: JourneyDatabase) => Promise<void>): Promise<void> {
@@ -407,6 +423,44 @@ describe('passo reminder.stage pelo caminho real do grupo (spec 299 T2.3, Postgr
           lastSentAt: null,
           status: 'pending',
         })
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'viagem só despachada (emenda 2026-11-10): o idle cobra e "1" inicia a rota pelo mesmo caminho do "Iniciar rota"',
+    async () => {
+      await inDatabase(async (db) => {
+        const world = await seedJourneyTrip(db, { driverPhone: '16988887777' })
+        const harness = await build(db, world, { departFirst: false })
+        expect(await harness.reminder()).toMatchObject({ stage: 'idle', status: 'pending' })
+        expect(await harness.deliverNow()).toMatchObject({ outcome: 'sent' })
+        expect(harness.reminderSent[0]).toContain('Vamos iniciar a rota?')
+        expect(await harness.request()).toMatchObject({
+          state: { idleVariant: 'start', stage: 'idle', tripStopId: world.stops[0].stopId },
+          status: 'open',
+          step: 'reminder.stage',
+        })
+
+        await harness.receive('1')
+        await harness.runtime.idle()
+
+        expect(await readJourneyEvents(db, world)).toContain('parada 1: departed')
+        const [trip] = await db
+          .select({ status: tripsTable.status })
+          .from(tripsTable)
+          .where(eq(tripsTable.id, world.tripId))
+        expect(trip?.status).toBe('on_delivery_route')
+        const rows = await db
+          .select()
+          .from(driverStopReminders)
+          .where(eq(driverStopReminders.tripId, world.tripId))
+        expect(rows.find((row) => row.stage === 'idle')).toMatchObject({
+          closedReason: 'superseded',
+          status: 'cancelled',
+        })
+        expect(rows.find((row) => row.stage === 'arrival')).toMatchObject({ status: 'pending' })
       })
     },
     120_000,

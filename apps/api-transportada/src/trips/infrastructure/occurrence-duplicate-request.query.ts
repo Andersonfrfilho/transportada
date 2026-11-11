@@ -5,6 +5,10 @@
  * não o vínculo com a viagem: a nota que volta numa viagem nova continua com o pedido em aberto. A trava advisory por
  * empresa, nota e tipo serializa dois registros simultâneos (o segundo lê o primeiro já gravado). A política é lida do
  * tipo na hora, não do payload.
+ *
+ * Spec 321 T2 (D6): no tipo com coleta de canhoto a política vale `until_resolved` sempre, a ocorrência está aberta
+ * enquanto a coleta está `pending | scheduled`, e qualquer coleta aberta da mesma nota (de outro tipo com coleta, inclusive)
+ * também bloqueia. A trava advisory desse tipo é por nota, não por tipo, para dois tipos com coleta não correrem juntos.
  */
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
 
@@ -16,10 +20,21 @@ import {
   tripDocuments,
 } from '../../database/trip.schema.js'
 import { findBlockingDuplicateRequest } from '../domain/occurrence-duplicate-request.policy.js'
+import {
+  effectiveDuplicateRequestPolicy,
+  isCanhotoPickupOpen,
+} from '../domain/canhoto-pickup.policy.js'
+import {
+  findOpenCanhotoPickupOccurrenceId,
+  readCanhotoPickupStatuses,
+} from './canhoto-pickup.query.js'
 import { OccurrenceDuplicateRequestError } from '../domain/trip.error.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
-/** Recusa com `OccurrenceDuplicateRequestError` (id da ocorrência que já existe) quando o tipo não aceita o repetido. */
+/**
+ * Recusa com `OccurrenceDuplicateRequestError` (id da ocorrência que já existe) quando o tipo não aceita o repetido.
+ * Devolve se o tipo cria coleta de canhoto (spec 321 T2), lido na mesma consulta, para o registro não reler o tipo.
+ */
 export async function assertNoDuplicateOccurrenceRequest(
   queryable: TripQueryable,
   input: {
@@ -27,9 +42,12 @@ export async function assertNoDuplicateOccurrenceRequest(
     readonly occurrenceTypeId: string
     readonly tripDocumentId: string
   },
-): Promise<void> {
+): Promise<{ readonly createsCanhotoPickup: boolean }> {
   const [type] = await queryable
-    .select({ policy: companyOccurrenceTypes.duplicateRequestPolicy })
+    .select({
+      createsCanhotoPickup: companyOccurrenceTypes.createsCanhotoPickup,
+      policy: companyOccurrenceTypes.duplicateRequestPolicy,
+    })
     .from(companyOccurrenceTypes)
     .where(
       and(
@@ -38,7 +56,10 @@ export async function assertNoDuplicateOccurrenceRequest(
       ),
     )
     .limit(1)
-  if (type === undefined || type.policy === 'allow') return
+  if (type === undefined) return { createsCanhotoPickup: false }
+  const { createsCanhotoPickup } = type
+  const policy = effectiveDuplicateRequestPolicy({ createsCanhotoPickup, policy: type.policy })
+  if (policy === 'allow') return { createsCanhotoPickup }
 
   const [link] = await queryable
     .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
@@ -48,9 +69,21 @@ export async function assertNoDuplicateOccurrenceRequest(
     )
     .limit(1)
   const noteKey = link?.nfeDocumentId ?? input.tripDocumentId
+  const lockScope = createsCanhotoPickup ? 'canhoto-pickup' : input.occurrenceTypeId
   await queryable.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`occurrence-duplicate-request:${input.companyId}:${noteKey}:${input.occurrenceTypeId}`}, 0))`,
+    sql`select pg_advisory_xact_lock(hashtextextended(${`occurrence-duplicate-request:${input.companyId}:${noteKey}:${lockScope}`}, 0))`,
   )
+
+  if (createsCanhotoPickup) {
+    const openPickupOccurrenceId = await findOpenCanhotoPickupOccurrenceId(queryable, {
+      companyId: input.companyId,
+      nfeDocumentId: link?.nfeDocumentId ?? null,
+      tripDocumentId: input.tripDocumentId,
+    })
+    if (openPickupOccurrenceId !== null) {
+      throw new OccurrenceDuplicateRequestError(openPickupOccurrenceId)
+    }
+  }
 
   const sameNote =
     link?.nfeDocumentId === null || link?.nfeDocumentId === undefined
@@ -97,13 +130,28 @@ export async function assertNoDuplicateOccurrenceRequest(
     )
     .orderBy(desc(tripDocumentOccurrences.createdAt), desc(tripDocumentOccurrences.id))
 
+  /** D6: com coleta, o estado é o da coleta; ocorrência sem coleta (anterior à marca) segue o andamento da 266. */
+  const pickupStatuses = createsCanhotoPickup
+    ? await readCanhotoPickupStatuses(queryable, {
+        companyId: input.companyId,
+        occurrenceIds: candidates.map((candidate) => candidate.id),
+      })
+    : new Map()
   const blocking = findBlockingDuplicateRequest(
-    type.policy,
-    candidates.map((candidate) => ({
-      id: candidate.id,
-      replyStatus: candidate.replyStatus,
-      resolutionState: candidate.lastResolutionKind === 'resolved' ? 'resolved' : 'open',
-    })),
+    policy,
+    candidates.map((candidate) => {
+      const pickupStatus = pickupStatuses.get(candidate.id)
+      const isOpen =
+        pickupStatus === undefined
+          ? candidate.lastResolutionKind !== 'resolved'
+          : isCanhotoPickupOpen(pickupStatus)
+      return {
+        id: candidate.id,
+        replyStatus: candidate.replyStatus,
+        resolutionState: isOpen ? ('open' as const) : ('resolved' as const),
+      }
+    }),
   )
   if (blocking !== null) throw new OccurrenceDuplicateRequestError(blocking.id)
+  return { createsCanhotoPickup }
 }

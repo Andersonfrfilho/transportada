@@ -352,6 +352,16 @@ export const JOB_CATALOG = [
     job: 'driver.stop-reminder.dispatch',
     minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
   },
+  {
+    /**
+     * Spec 319 T7: devolve ao bot a conversa do WhatsApp que o atendente deixou vencer. A guarda já trata o prazo
+     * vencido como bot na leitura; o ciclo só grava a devolução (`release_reason = 'expired'`) para a caixa e a
+     * auditoria. Toca só o próprio banco. Nasce **pausada** (a migration a semeia desligada).
+     */
+    failureOutcomes: [],
+    job: 'whatsapp-inbox.chat.expire',
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

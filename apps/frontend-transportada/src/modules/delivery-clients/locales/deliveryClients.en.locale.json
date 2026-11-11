@@ -272,5 +272,12 @@
       "load": "Could not load the client numbers.",
       "generic": "Could not save. Try again shortly."
     }
+  },
+  "receivingChargeFlag": {
+    "seal": "Possible charge on delivery",
+    "hint": "A driver reported a charge at this client on {{date}}. Clear it once it no longer applies.",
+    "openOccurrence": "Open occurrence",
+    "clear": "Clear the flag",
+    "clearFailed": "Could not clear the flag. Try again."
   }
 }

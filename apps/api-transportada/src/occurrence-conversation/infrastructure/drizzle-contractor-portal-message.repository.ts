@@ -15,6 +15,7 @@ import {
   occurrenceConversationMessages,
   occurrenceConversations,
 } from '../../database/database.schema.js'
+import { findOccurrenceTypeBlocksContractorNotice } from '../../trips/infrastructure/occurrence-contractor-notice.query.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type {
   ContractorPortalChatAudienceReaderPort,
@@ -74,6 +75,11 @@ async function findPortalAudience(
   )
   return {
     audience: {
+      /** Spec 321 (D2): a marca do tipo, para o envio do escritório recusar. */
+      blocksContractorNotice: await findOccurrenceTypeBlocksContractorNotice(queryable, {
+        companyId,
+        occurrenceTypeId: item.occurrenceTypeId ?? null,
+      }),
       contractorId: audience.contractorId,
       occurrenceKind: item.source,
       occurrenceLabel: describeOccurrenceLabel(item),

@@ -613,11 +613,18 @@ function officeDriverSelectionBody(driverId: string | undefined): Readonly<{ bod
 }
 
 function buildSearch(
-  input: Readonly<{ cursor: null | string; limit: number }>,
+  input: Readonly<{
+    cursor: null | string
+    direction?: 'backward' | 'forward'
+    limit: number
+    offset?: number
+  }>,
   filters: Readonly<Record<string, string | undefined>>,
 ): string {
   const search = new URLSearchParams()
   if (input.cursor !== null) search.set('cursor', input.cursor)
+  if (input.direction === 'backward') search.set('direction', 'backward')
+  if (input.offset !== undefined) search.set('offset', String(input.offset))
   search.set('limit', String(input.limit))
   for (const key of Object.keys(filters).sort()) {
     const value = filters[key]
@@ -1041,9 +1048,28 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             ? {}
             : { asksClientContact: input.asksClientContact }),
           ...(input.asksNewDueDate === undefined ? {} : { asksNewDueDate: input.asksNewDueDate }),
+          ...(input.showClientChargeSealToDriver === undefined
+            ? {}
+            : { showClientChargeSealToDriver: input.showClientChargeSealToDriver }),
+          ...(input.blocksContractorNotice === undefined
+            ? {}
+            : { blocksContractorNotice: input.blocksContractorNotice }),
+          ...(input.countsCargoOnPickupTrip === undefined
+            ? {}
+            : { countsCargoOnPickupTrip: input.countsCargoOnPickupTrip }),
+          ...(input.createsCanhotoPickup === undefined
+            ? {}
+            : { createsCanhotoPickup: input.createsCanhotoPickup }),
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
+          ...(input.arrivalTimeMode === undefined
+            ? {}
+            : { arrivalTimeMode: input.arrivalTimeMode }),
+          ...(input.locationMode === undefined ? {} : { locationMode: input.locationMode }),
+          ...(input.minWaitAfterArrivalMinutes === undefined
+            ? {}
+            : { minWaitAfterArrivalMinutes: input.minWaitAfterArrivalMinutes }),
           ...(input.driverLockMinutes === undefined
             ? {}
             : { driverLockMinutes: input.driverLockMinutes }),

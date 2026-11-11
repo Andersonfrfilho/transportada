@@ -257,6 +257,16 @@ export type DriverTripClient = Readonly<{
    * aqui não desfaz nada. Enfileirar arquivo é outro problema — tamanho, expurgo, cota do aparelho —
    * e está declarado como pendência em vez de resolvido pela metade.
    */
+  /**
+   * Spec 321 T6 (D4b): a foto do canhoto da coleta — `POST .../canhoto-pickups/:pickupId/proof`, só `kind=photo`.
+   * Vai direto (sem fila): a coleta já está encaixada e a falha volta como erro para a tela mandar de novo.
+   */
+  sendCanhotoPickupPhoto: (input: {
+    capturedAt?: string
+    clockOffsetMs?: number
+    file: File
+    pickupId: string
+  }) => Promise<Readonly<{ stopClosed: boolean; tripCompleted: boolean }>>
   attachProof: (input: {
     /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — opcional, e nunca bloqueia o anexo. */
     accuracyMeters?: number
@@ -365,12 +375,17 @@ export type LocationConsent = Readonly<{ acceptedAt: string | null }>
 
 type DocumentOccurrenceReport = Extract<DriverFieldReport, { kind: 'documentOccurrence' }>
 type StopOccurrencePhotoReport = Extract<DriverFieldReport, { kind: 'stopOccurrencePhoto' }>
+/** Spec 317: a cobrança no recebimento — fotos por vaga e o corpo da cobrança num `POST` só. */
+type StopOccurrenceChargeReport = Extract<DriverFieldReport, { kind: 'stopOccurrenceCharge' }>
 /** Spec 193 D7: o PATCH `.../proof/receiver` — tem caminho e método próprios, fora do POST comum. */
 type ProofReceiverReport = Extract<DriverFieldReport, { kind: 'proofReceiver' }>
 /** Os relatos que são um `POST` JSON só — os que levam foto ou usam outro método têm caminho próprio. */
 type JsonFieldReport = Exclude<
   DriverFieldReport,
-  DocumentOccurrenceReport | StopOccurrencePhotoReport | ProofReceiverReport
+  | DocumentOccurrenceReport
+  | StopOccurrenceChargeReport
+  | StopOccurrencePhotoReport
+  | ProofReceiverReport
 >
 
 /** Spec 206: exportada — `stop-departure.contract.ts` prova o caminho de `depart`/`cancelDeparture`. */
@@ -538,6 +553,24 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       })
       return toProofAttachResult(payload)
     },
+    async sendCanhotoPickupPhoto(input) {
+      const form = new FormData()
+      form.set('file', input.file)
+      form.set('kind', 'photo')
+      if (input.capturedAt !== undefined) form.set('capturedAt', input.capturedAt)
+      if (input.clockOffsetMs !== undefined) form.set('clockOffsetMs', String(input.clockOffsetMs))
+      const payload = await request({
+        dependencies,
+        form,
+        method: 'POST',
+        path: `${CURRENT_TRIP_PATH}/canhoto-pickups/${input.pickupId}/proof`,
+      })
+      const data = ((payload as { readonly data?: unknown } | null)?.data ?? {}) as {
+        readonly stopClosed?: unknown
+        readonly tripCompleted?: unknown
+      }
+      return { stopClosed: data.stopClosed === true, tripCompleted: data.tripCompleted === true }
+    },
     async listOccurrenceTypes() {
       /**
        * ⚠️ Falha vira **estado**, nunca exceção: rede fora do ar, recusa do servidor e corpo
@@ -690,6 +723,7 @@ async function sendReport(input: {
         reportKind: report.kind,
       },
       report,
+      stamp,
     })
     return undefined
   }
@@ -699,6 +733,19 @@ async function sendReport(input: {
       diagnostics: {
         attempt: options?.attempt,
         idempotencyKey: report.occurrenceKey,
+        reportKind: report.kind,
+      },
+      report,
+      stamp,
+    })
+    return undefined
+  }
+  if (report.kind === 'stopOccurrenceCharge') {
+    await sendStopOccurrenceCharge({
+      dependencies,
+      diagnostics: {
+        attempt: options?.attempt,
+        idempotencyKey: report.idempotencyKey,
         reportKind: report.kind,
       },
       report,
@@ -735,8 +782,9 @@ async function sendDocumentOccurrence(input: {
   readonly dependencies: ClientDependencies
   readonly diagnostics: StepContext
   readonly report: DocumentOccurrenceReport
+  readonly stamp: EventClockStamp | undefined
 }): Promise<void> {
-  const { dependencies, diagnostics, report } = input
+  const { dependencies, diagnostics, report, stamp } = input
   const observer = dependencies.occurrenceUpload
   const key = report.idempotencyKey
   const photos = listDocumentOccurrencePhotos(report)
@@ -755,7 +803,7 @@ async function sendDocumentOccurrence(input: {
   }
   observer?.start(key)
   try {
-    await sendDocumentOccurrenceBody({ dependencies, diagnostics, report, reportProgress })
+    await sendDocumentOccurrenceBody({ dependencies, diagnostics, report, reportProgress, stamp })
     observer?.done(key)
   } catch (error) {
     const failure = describeAttachmentFailure(error)
@@ -770,8 +818,9 @@ async function sendDocumentOccurrenceBody(input: {
   readonly diagnostics: StepContext
   readonly report: DocumentOccurrenceReport
   readonly reportProgress: (index: number, progress: UploadProgress) => void
+  readonly stamp: EventClockStamp | undefined
 }): Promise<void> {
-  const { dependencies, diagnostics, report, reportProgress } = input
+  const { dependencies, diagnostics, report, reportProgress, stamp } = input
   const uploadsPath = `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`
   const photos = listDocumentOccurrencePhotos(report)
   /** Spec 246: fotos e assinatura sobem pelo mesmo par de upload, em paralelo — a ordem das fotos é a da lista. */
@@ -801,6 +850,8 @@ async function sendDocumentOccurrenceBody(input: {
   await request({
     body: JSON.stringify({
       ...buildAttachmentFields(attachmentObjectIds),
+      /** Spec 320: a API retém a ocorrência cujo toque foi de outro dia (`202 held`, que `request` já trata como sucesso). */
+      ...buildClockFields({ kind: report.kind, stamp }),
       ...(report.declaredAmount === undefined ? {} : { declaredAmount: report.declaredAmount }),
       ...(report.items === undefined ? {} : { items: report.items }),
       location: report.location,
@@ -869,6 +920,49 @@ async function sendStopOccurrencePhoto(input: {
     }),
     dependencies,
     idempotencyKey: report.occurrenceKey,
+    method: 'POST',
+    path: `${stopPath}/occurrences`,
+  })
+}
+
+/**
+ * Spec 317 (RF3, RF4): a cobrança no recebimento. Cada foto sobe pela rota da parada (par `occurrence-uploads` +
+ * `confirm`, sem o token no `PUT`), e só com **todas** confirmadas sai o `POST` único com `photos[{ slotKey, objectId }]`
+ * e `receivingCharge`: a API cobra as vagas obrigatórias e grava ocorrência, fotos, linhas de Ressarcimentos e a marca do
+ * cliente numa transação. A chave do item é a do registro — o reenvio da fila (queda no meio dos uploads) repete o `POST`
+ * com a mesma chave e não duplica linha nem foto.
+ */
+async function sendStopOccurrenceCharge(input: {
+  readonly dependencies: ClientDependencies
+  readonly diagnostics: StepContext
+  readonly report: StopOccurrenceChargeReport
+  readonly stamp: EventClockStamp | undefined
+}): Promise<void> {
+  const { dependencies, diagnostics, report, stamp } = input
+  const stopPath = `${CURRENT_TRIP_PATH}/stops/${report.stopId}`
+  const photos: { objectId: string; slotKey: string }[] = []
+  for (const entry of report.photos) {
+    const objectId = await uploadOccurrencePhoto({
+      dependencies,
+      diagnostics,
+      onProgress: () => undefined,
+      photo: entry.photo.blob,
+      uploadsPath: `${stopPath}/occurrence-uploads`,
+    })
+    photos.push({ objectId, slotKey: entry.slotKey })
+  }
+
+  await request({
+    body: JSON.stringify({
+      ...buildClockFields({ kind: report.kind, stamp }),
+      description: report.description,
+      location: report.location,
+      photos,
+      receivingCharge: report.receivingCharge,
+      ...stopOccurrenceReference(report),
+    }),
+    dependencies,
+    idempotencyKey: report.idempotencyKey,
     method: 'POST',
     path: `${stopPath}/occurrences`,
   })

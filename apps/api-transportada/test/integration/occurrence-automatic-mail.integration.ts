@@ -193,6 +193,63 @@ describe('o aviso automático à contratante contra Postgres (spec 183 T802)', (
   )
 
   testWithPostgres(
+    'spec 321 (CA01/CA02): tipo que nunca avisa a contratante, com o automático ligado, não manda nada — nem à mão',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId, userId } = seeded.company
+        await setEmailsContractor(database, seeded, true)
+        const [occurrence] = await database.db
+          .select({ typeId: tripDocumentOccurrences.occurrenceTypeId })
+          .from(tripDocumentOccurrences)
+          .where(eq(tripDocumentOccurrences.id, seeded.occurrenceId))
+        await database.db
+          .update(companyOccurrenceTypes)
+          .set({ blocksContractorNotice: true })
+          .where(
+            and(
+              eq(companyOccurrenceTypes.companyId, companyId),
+              eq(companyOccurrenceTypes.id, occurrence?.typeId ?? ''),
+            ),
+          )
+
+        expect(
+          await automaticMail(database).send({
+            companyId,
+            correlationId: 'correlation-auto-321',
+            occurrenceId: seeded.occurrenceId,
+          }),
+        ).toEqual({ outcome: 'skipped', reason: 'contractor_notice_blocked' })
+
+        await expect(
+          createOccurrenceMailUseCase(database).send({
+            actorUserId: userId,
+            bodyText: 'Canhoto retido pelo cliente.',
+            companyId,
+            contactIds: [...seeded.contactIds],
+            correlationId: 'correlation-manual-321',
+            idempotencyKey: 'manual-321',
+            occurrenceId: seeded.occurrenceId,
+            subject: 'Canhoto retido',
+          }),
+        ).rejects.toMatchObject({ code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED', status: 409 })
+
+        const mails = await database.db
+          .select({ id: contractorMailMessages.id })
+          .from(contractorMailMessages)
+          .where(eq(contractorMailMessages.companyId, companyId))
+        expect(mails).toEqual([])
+        const messages = await database.db
+          .select({ id: occurrenceConversationMessages.id })
+          .from(occurrenceConversationMessages)
+          .where(eq(occurrenceConversationMessages.companyId, companyId))
+        expect(messages).toEqual([])
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
     'o banco recusa a enviada sem autor que não é aviso automático',
     async () => {
       await withConversationDatabase(async (database) => {

@@ -146,6 +146,8 @@ export type TripDocumentDetail = TripDocument & {
    * Alimenta o diálogo "leva todas" (RF9), que conta só as notas que o botão vai carregar.
    */
   readonly leavesBehindOnDispatch: boolean
+  /** Spec 321 T7 (D4d): a nota tem canhoto retido pelo cliente (coleta aberta). Derivado na leitura, nunca gravado. */
+  readonly canhotoRetained: boolean
   /**
    * Spec 223 RF4: derivado na leitura, nunca gravado — a nota foi baixada, o evento de entrega não
    * tem foto e a configuração resolvida do destinatário exige canhoto (foto ou assinatura).
@@ -408,6 +410,12 @@ export type TripFilters = {
 export type TripPage = {
   readonly items: readonly Trip[]
   readonly nextCursor: string | null
+  /** Cursor para voltar uma página (`direction=backward`); `null` na primeira página. */
+  readonly previousCursor?: string | null
+  /** Quantas viagens (já com os filtros) vêm antes desta página — a posição, para numerar a página. */
+  readonly offset?: number
+  /** Quantas viagens o filtro alcança, sem cursor — o total de páginas sai daqui. */
+  readonly total?: number
 }
 
 export type TripRepositoryPort = {
@@ -477,8 +485,12 @@ export type TripRepositoryPort = {
   list(input: {
     readonly companyId: string
     readonly cursor: string | null
+    /** `backward` lê as viagens mais novas que o cursor (a página anterior). */
+    readonly direction?: 'backward' | 'forward'
     readonly filters?: TripFilters
     readonly limit: number
+    /** Salto de página: pula tantas viagens a partir da mais nova. Exclui `cursor`. */
+    readonly offset?: number
   }): Promise<TripPage>
   listDrivers(input: {
     readonly companyId: string

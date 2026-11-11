@@ -30,8 +30,16 @@ function formatReceivedFrom(item: NfeImportSummary): string {
   return `****${item.receivedFrom.replaceAll(/\D/gu, '').slice(-4)}`
 }
 
+/**
+ * Só decide se o botão aparece habilitado. A conta real (quais recusas valem, importação ocupada)
+ * é do servidor e chega na simulação do diálogo (spec 314 RF6).
+ */
 function isReprocessable(item: NfeImportSummary): boolean {
-  return (item.status === 'failed' || item.status === 'partially_processed') && item.failedCount > 0
+  const busy = item.status === 'pending' || item.status === 'queued' || item.status === 'processing'
+  if (busy) return false
+  const hasRetry =
+    (item.status === 'failed' || item.status === 'partially_processed') && item.failedCount > 0
+  return hasRetry || item.rejectedCount > 0
 }
 
 const STATUS_TONE: Readonly<Record<NfeImportSummary['status'], string | undefined>> = {

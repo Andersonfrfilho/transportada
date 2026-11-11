@@ -99,6 +99,12 @@ const MODAL_DIALOG_SHAPES: readonly DialogShape[] = [
     filePath: 'src/modules/nfe-workspace/styles/nfeWorkspace.module.css',
     overlay: '.cteEmissionOverlay',
   },
+  /** Spec 314: a confirmação de reprocessar a importação com nota recusada. */
+  {
+    dialog: '.reprocessDialog',
+    filePath: 'src/modules/nfe-workspace/styles/nfeWorkspace.module.css',
+    overlay: '.reprocessOverlay',
+  },
   {
     dialog: '.dialog',
     filePath: 'src/modules/nfe-workspace/styles/packageBoxCameraFlow.module.css',

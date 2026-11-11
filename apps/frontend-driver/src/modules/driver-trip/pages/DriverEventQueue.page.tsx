@@ -79,6 +79,8 @@ const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   occurrence: 'eventQueue.kind.occurrence',
   /** Spec 209: a foto do "Deu problema", atrás da ocorrência — pendente sem segurar o relato. */
   stopOccurrencePhoto: 'eventQueue.kind.stopOccurrencePhoto',
+  /** Spec 317: a cobrança no recebimento — as fotos por vaga e o valor sobem juntos. */
+  stopOccurrenceCharge: 'eventQueue.kind.stopOccurrenceCharge',
   /** Grupo de anexos cujo evento já subiu — só os arquivos aguardam. */
   proof: 'eventQueue.kind.proof',
   /** Spec 193 D7: quem recebeu chegado depois do anexo — o PATCH `.../proof/receiver`. */

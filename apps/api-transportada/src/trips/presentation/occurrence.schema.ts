@@ -41,6 +41,7 @@ import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import {
   OCCURRENCE_DECLARED_AMOUNT_FIELD,
   OCCURRENCE_DECLARED_AMOUNT_SCOPES,
+  OCCURRENCE_MIN_WAIT_MINUTES,
   OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX,
   OCCURRENCE_MOMENTS,
   OCCURRENCE_TYPE_CONTRACTOR_SCOPE_MAX_CONTRACTORS,
@@ -128,6 +129,12 @@ const registerOccurrenceSchema = z
      * "sem anexo", recusado pelo caso de uso quando o tipo exige (`attachmentMode = 'required'`).
      */
     attachmentObjectId: z.string().uuid().optional(),
+    /**
+     * Spec 320 (D6): a hora do toque e o desvio do relógio (os mesmos campos da spec 234). Opcionais: o app antigo
+     * não os manda e então a ocorrência nunca é retida. Só a rota do motorista os lê; o escritório os ignora.
+     */
+    clockOffsetMs: z.int().optional(),
+    tappedAt: z.iso.datetime().optional(),
     /**
      * Spec 246 (T2.7): a **lista** de uploads confirmados (1 a 5, sem repetir), para o tipo que exige mais
      * de uma foto. Retrocompatível: o app antigo manda só o campo único acima, e mandar os dois juntos é
@@ -498,6 +505,15 @@ const occurrenceTypeSchema = z
     iconName: z.enum(OCCURRENCE_TYPE_ICON_NAMES).nullable().optional(),
     referenceNumberLabel: requirementLabelSchema.optional(),
     referenceNumberMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    /** Spec 315 (D1, D10): ausente mantém; a espera mínima `null` a limpa. */
+    arrivalTimeMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    locationMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    minWaitAfterArrivalMinutes: z
+      .int()
+      .min(OCCURRENCE_MIN_WAIT_MINUTES.min)
+      .max(OCCURRENCE_MIN_WAIT_MINUTES.max)
+      .nullable()
+      .optional(),
     /**
      * Spec 269 D9: o painel antigo ainda manda o texto antigo do e-mail durante a publicação em etapas. Aceito
      * e descartado antes do mapeador, sem conferir marcador, até a etapa B tirar as chaves.
@@ -550,6 +566,8 @@ const occurrenceTypeSchema = z
     asksClientContact: z.boolean().optional(),
     /** Liga/desliga o campo opcional "nova data de vencimento" no app do motorista; ausente não mexe. */
     asksNewDueDate: z.boolean().optional(),
+    /** Spec 317 (E7, RF13): mostra ao motorista o selo "possível cobrança na entrega" do cliente; ausente não mexe. */
+    showClientChargeSealToDriver: z.boolean().optional(),
     /** Spec 276 T5: `null` desliga; ausente não mexe. */
     contractorReplyAcknowledgementQuickReplyId: z.string().uuid().nullable().optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),
@@ -624,6 +642,17 @@ const occurrenceTypeSchema = z
      * mesmo motivo do `attachmentMode`: ausente é "não mexa", nunca desligar o aviso de carona.
      */
     emailsContractor: z.boolean().optional(),
+    /**
+     * Spec 321 (D2): o tipo nunca avisa a contratante, em canal nenhum. Ausente é "não mexa".
+     */
+    blocksContractorNotice: z.boolean().optional(),
+    /**
+     * Spec 321 (D4c): se a coleta de canhoto soma peso e dimensão na viagem que a busca. Ausente é "não mexa"; no tipo
+     * com coleta a fase 1 recusa `true` (422 `OCCURRENCE_TYPE_PICKUP_CARGO_UNSUPPORTED`).
+     */
+    countsCargoOnPickupTrip: z.boolean().optional(),
+    /** Spec 321 T2 (D4): o tipo cria a coleta de canhoto ao ser registrado. Ausente é "não mexa". */
+    createsCanhotoPickup: z.boolean().optional(),
     /**
      * Spec 271 (D14): a chave da 269 (modelo do cadastro da 150, por id) é **aceita e ignorada** até as telas novas
      * estarem em produção — o painel antigo ainda a manda; depois disso sai daqui e o `.strict()` a recusa (T5.5).

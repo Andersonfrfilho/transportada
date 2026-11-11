@@ -388,6 +388,11 @@
     "status": "Situação",
     "vehicleId": "Veículo"
   },
+  "columnsMenu": {
+    "moveDown": "Descer a coluna",
+    "moveUp": "Subir a coluna",
+    "title": "Colunas"
+  },
   "contact": {
     "contractor": "Contratante: {{name}}",
     "phone": "Telefone: {{phone}}",
@@ -1379,6 +1384,41 @@
       "overdueWithDays_other": "Vencida há {{count}} dias úteis"
     }
   },
+  "canhotoPickup": {
+    "availableList": "Coletas de canhoto que podem ser encaixadas nesta viagem",
+    "availableTitle": "Coletas pendentes",
+    "document": "NF {{number}}",
+    "errors": {
+      "CANHOTO_PICKUP_CHANGED": "A coleta mudou enquanto você mexia. Atualize a tela e tente de novo.",
+      "CANHOTO_PICKUP_CLOSED": "Esta coleta já foi concluída ou cancelada.",
+      "CANHOTO_PICKUP_NOT_FOUND": "Coleta não encontrada.",
+      "CANHOTO_PICKUP_NOT_SCHEDULED": "Esta coleta não está encaixada em nenhuma viagem.",
+      "CANHOTO_PICKUP_ORIGIN_TRIP": "O canhoto que volta ao próprio motorista é a foto na viagem de origem, não uma coleta.",
+      "CANHOTO_PICKUP_TRIP_CLOSED": "Esta viagem já terminou e não recebe coleta.",
+      "CANHOTO_PICKUP_WITHOUT_ADDRESS": "A entrega de origem não tem endereço de parada para a coleta.",
+      "NETWORK": "Sem conexão com o servidor. Tente de novo.",
+      "REQUEST_FAILED": "Não foi possível concluir a ação. Tente de novo.",
+      "RESPONSE_INVALID": "O servidor respondeu algo inesperado. Atualize a tela.",
+      "TRIP_NOT_FOUND": "Viagem não encontrada."
+    },
+    "flag": {
+      "pickup": {
+        "badge": "Coleta de canhoto",
+        "hint": "Esta nota volta só para buscar o canhoto; peso e dimensão não entram na carga desta viagem."
+      },
+      "retained": {
+        "badge": "Canhoto retido",
+        "hint": "O cliente reteve o canhoto desta nota. A entrega vale como feita; outro motorista busca o canhoto em outra viagem."
+      }
+    },
+    "hint": "O cliente reteve o canhoto. Encaixe a coleta na viagem de outro motorista; o peso e a dimensão da nota não entram na carga desta viagem.",
+    "noDocument": "Nota sem número",
+    "noOriginStop": "Parada de origem sem rótulo",
+    "schedule": "Encaixar nesta viagem",
+    "scheduledList": "Coletas de canhoto encaixadas nesta viagem",
+    "title": "Coletas de canhoto",
+    "unschedule": "Desencaixar"
+  },
   "proofPending": {
     "badge": "Canhoto pendente",
     "hint": "Nota baixada sem canhoto, e a configuração da empresa exige o canhoto. A cobrança segue pendente até o canhoto chegar."
@@ -1656,7 +1696,12 @@
     }
   },
   "pagination": {
+    "first": "Primeira página",
+    "goTo": "Ir para a página {{page}}",
+    "last": "Última página",
     "next": "Próxima página",
+    "pageSize": "Viagens por página",
+    "position": "Página {{current}} de {{count}}",
     "previous": "Página anterior"
   },
   "proposal": {
@@ -1759,7 +1804,8 @@
     },
     "reader": {
       "field": "Chave da nota",
-      "idle": "Clique aqui para voltar a ler",
+      "idle": "Ativar o leitor",
+      "placeholder": "Bipe a chave de 44 dígitos ou digite o número da nota",
       "ready": "Leitor pronto"
     },
     "movesFromTrip": "Esta nota está em outra viagem. Ao acrescentar, ela sai de lá e vem para esta, e a troca fica registrada no histórico das duas.",
@@ -1976,6 +2022,7 @@
     "clear": "Limpar seleção",
     "closeTrips": "Encerrar {{count}} viagem",
     "closeTrips_other": "Encerrar {{count}} viagens",
+    "closeTrips_zero": "Encerrar {{count}} viagens",
     "count_one": "{{count}} viagem selecionada",
     "count_other": "{{count}} viagens selecionadas",
     "selectAll": "Selecionar as viagens da página que aceitam ação em lote",
@@ -2419,7 +2466,9 @@
       "alreadyResolved": "Já estava resolvida. A tela foi atualizada.",
       "cancelled": "Esta ocorrência foi cancelada e não pode ser resolvida.",
       "generic": "Não foi possível resolver a ocorrência. Tente novamente."
-    }
+    },
+    "receiptMessage": "Comprovante do PIX",
+    "receiptFailed": "O comprovante do PIX não pôde ser enviado ao motorista; a ocorrência foi concluída sem ele."
   },
   "occurrenceSettlement": {
     "title": "Acerto dos produtos",
@@ -2689,7 +2738,9 @@
       "resolvedInternal": "Resolvida por {{name}}: {{note}}",
       "resolvedAutomatic": "Resolvida automaticamente ao encerrar a tratativa",
       "resolvedOnDelivery": "Resolvida automaticamente ao entregar o documento ao motorista",
+      "resolvedCanhotoCollected": "Resolvida automaticamente: o canhoto coletado foi aprovado na conferência",
       "reopened": "Reaberta pelo motorista {{name}}",
+      "reopenedAutomatic": "Reaberta automaticamente: o canhoto coletado foi reprovado na conferência",
       "contractorReply": "Retorno da contratante: {{status}}",
       "documentConfirmed": "Boleto conferido",
       "documentNotConfirmed": "Boleto não conferido",
@@ -2786,7 +2837,8 @@
     "reasonLabel": "Motivo do encerramento",
     "subtitle": "As notas sem baixa ficam como pendência de canhoto — o encerramento não espera por elas.",
     "title": "Encerrar {{count}} viagem",
-    "title_other": "Encerrar {{count}} viagens"
+    "title_other": "Encerrar {{count}} viagens",
+    "title_zero": "Encerrar {{count}} viagens"
   },
   "proofPdfExport": {
     "planning": "Contando os canhotos para dividir o PDF…",

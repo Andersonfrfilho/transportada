@@ -18,6 +18,8 @@ import type {
   CompanyContext,
   PlatformContext,
 } from '../../src/identity/domain/tenant-context.js'
+import { createBindWhatsAppPhoneByAdministratorUseCase } from '../../src/whatsapp-commands/application/bind-whatsapp-phone-by-administrator.use-case.js'
+import { createReadCompanyUserWhatsAppPhoneStateUseCase } from '../../src/whatsapp-commands/application/read-company-user-whatsapp-phone-state.use-case.js'
 import { createReadWhatsAppPhoneStateUseCase } from '../../src/whatsapp-commands/application/read-whatsapp-phone-state.use-case.js'
 import { createRequestWhatsAppPhoneVerificationUseCase } from '../../src/whatsapp-commands/application/request-whatsapp-phone-verification.use-case.js'
 import { createUnbindWhatsAppPhoneUseCase } from '../../src/whatsapp-commands/application/unbind-whatsapp-phone.use-case.js'
@@ -78,11 +80,22 @@ function createScenario(
   const fake = createWhatsAppPhoneRepositoryFake({
     companyNumber: options.companyNumber ?? '551633334444',
   })
+  const memberships = { findStanding: async () => options.targetStanding ?? 'suspended' } as const
+  const readState = createReadWhatsAppPhoneStateUseCase({
+    clock: () => NOW,
+    repository: fake.repository,
+  })
   const routes = createWhatsAppPhoneRoutes({
-    readState: createReadWhatsAppPhoneStateUseCase({
+    bindByAdministrator: createBindWhatsAppPhoneByAdministratorUseCase({
       clock: () => NOW,
+      memberships,
       repository: fake.repository,
     }),
+    readCompanyUserState: createReadCompanyUserWhatsAppPhoneStateUseCase({
+      memberships,
+      readState,
+    }),
+    readState,
     requestVerification: createRequestWhatsAppPhoneVerificationUseCase({
       clock: () => NOW,
       repository: fake.repository,
@@ -375,17 +388,92 @@ describe('DELETE do vínculo (spec 144 T004)', () => {
     expect(scenario.bindings.has(TARGET_USER_ID)).toBe(true)
   })
 
-  test('nenhuma rota verifica o número fora da mensagem', () => {
-    const signatures = createScenario()
-      .routes.map((route) => `${route.method} ${route.pathname}`)
-      .sort()
+  test('só a rota do administrador grava verificado, e ela exige users.manage', () => {
+    const routes = createScenario().routes
+    const signatures = routes.map((route) => `${route.method} ${route.pathname}`).sort()
 
     expect(signatures).toEqual([
       'DELETE /company-users/:id/whatsapp-phone',
       'DELETE /me/whatsapp-phone',
+      'GET /company-users/:id/whatsapp-phone',
       'GET /me/whatsapp-phone',
       'POST /me/whatsapp-phone/verification',
+      'PUT /company-users/:id/whatsapp-phone',
     ])
+    const own = routes.filter((route) => route.pathname.startsWith('/me/'))
+    expect(own.every((route) => route.method !== 'PUT')).toBe(true)
+  })
+})
+
+describe('o administrador grava o WhatsApp de outra pessoa já verificado (decisão de 10/11/2026)', () => {
+  const path = `/company-users/${TARGET_USER_ID}/whatsapp-phone`
+
+  test('PUT com users.manage é 204, grava verificado e a trilha diz quem gravou', async () => {
+    const scenario = createScenario({ permissions: ['users.manage'] })
+
+    const response = await scenario.handle({
+      body: { phone: '(16) 99999-1234' },
+      method: 'PUT',
+      path,
+    })
+
+    expect(response.status).toBe(204)
+    expect(scenario.bindings.get(TARGET_USER_ID)).toEqual({ phone: PHONE, verifiedAt: NOW })
+    expect(scenario.audits[0]).toMatchObject({
+      action: 'whatsapp_phone.bound_by_administrator',
+      actorUserId: USER_ID,
+      targetId: TARGET_USER_ID,
+    })
+    expect(JSON.stringify(scenario.audits)).not.toContain(PHONE)
+  })
+
+  test('sem users.manage é 403 e nada é gravado', async () => {
+    const scenario = createScenario()
+
+    const response = await scenario.handle({ body: { phone: PHONE }, method: 'PUT', path })
+
+    expect(response.status).toBe(403)
+    expect(scenario.bindings.size).toBe(0)
+  })
+
+  test('pessoa de fora da empresa do administrador é 404 e nada é gravado', async () => {
+    const scenario = createScenario({ permissions: ['users.manage'], targetStanding: 'absent' })
+
+    const response = await scenario.handle({ body: { phone: PHONE }, method: 'PUT', path })
+
+    expect(response.status).toBe(404)
+    expect(scenario.bindings.size).toBe(0)
+  })
+
+  test('telefone inválido é 400 WHATSAPP_PHONE_INVALID e corpo com chave a mais é recusado', async () => {
+    const scenario = createScenario({ permissions: ['users.manage'] })
+
+    const invalid = await scenario.handle({ body: { phone: '16a99991234' }, method: 'PUT', path })
+    const extra = await scenario.handle({
+      body: { phone: PHONE, verified: false },
+      method: 'PUT',
+      path,
+    })
+
+    expect(invalid.status).toBe(400)
+    expect((await readJson(invalid)).error?.code).toBe('WHATSAPP_PHONE_INVALID')
+    expect(extra.status).toBe(400)
+    expect(scenario.bindings.size).toBe(0)
+  })
+
+  test('GET devolve o estado com o número mascarado; sem users.manage é 403', async () => {
+    const admin = createScenario({ permissions: ['users.manage'] })
+    await admin.repository.saveVerified({ phone: PHONE, userId: TARGET_USER_ID, verifiedAt: NOW })
+    const comum = createScenario()
+
+    const response = await admin.handle({ method: 'GET', path })
+    const denied = await comum.handle({ method: 'GET', path })
+
+    expect(response.status).toBe(200)
+    const { data } = await readJson(response)
+    expect(data?.status).toBe('verified')
+    expect(String(data?.phone)).not.toContain(PHONE)
+    expect(denied.status).toBe(403)
   })
 })
 

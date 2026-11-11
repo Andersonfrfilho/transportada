@@ -388,6 +388,11 @@
     "status": "Status",
     "vehicleId": "Vehicle"
   },
+  "columnsMenu": {
+    "moveDown": "Move the column down",
+    "moveUp": "Move the column up",
+    "title": "Columns"
+  },
   "contact": {
     "contractor": "Contractor: {{name}}",
     "phone": "Phone: {{phone}}",
@@ -1379,6 +1384,41 @@
       "overdueWithDays_other": "Overdue by {{count}} business days"
     }
   },
+  "canhotoPickup": {
+    "availableList": "Receipt pickups that can be scheduled on this trip",
+    "availableTitle": "Pending pickups",
+    "document": "Invoice {{number}}",
+    "errors": {
+      "CANHOTO_PICKUP_CHANGED": "The pickup changed while you were working. Refresh and try again.",
+      "CANHOTO_PICKUP_CLOSED": "This pickup is already done or cancelled.",
+      "CANHOTO_PICKUP_NOT_FOUND": "Pickup not found.",
+      "CANHOTO_PICKUP_NOT_SCHEDULED": "This pickup is not scheduled on any trip.",
+      "CANHOTO_PICKUP_ORIGIN_TRIP": "A receipt that goes back to the same driver is the photo on the origin trip, not a pickup.",
+      "CANHOTO_PICKUP_TRIP_CLOSED": "This trip has ended and takes no pickups.",
+      "CANHOTO_PICKUP_WITHOUT_ADDRESS": "The origin delivery has no stop address for the pickup.",
+      "NETWORK": "No connection to the server. Try again.",
+      "REQUEST_FAILED": "The action could not be completed. Try again.",
+      "RESPONSE_INVALID": "The server answered something unexpected. Refresh the page.",
+      "TRIP_NOT_FOUND": "Trip not found."
+    },
+    "flag": {
+      "pickup": {
+        "badge": "Receipt pickup",
+        "hint": "This invoice comes back only to collect the receipt; its weight and size do not count in this trip's load."
+      },
+      "retained": {
+        "badge": "Receipt retained",
+        "hint": "The client kept this invoice's receipt. The delivery counts as done; another driver collects the receipt on another trip."
+      }
+    },
+    "hint": "The client kept the receipt. Schedule the pickup on another driver's trip; the invoice's weight and size do not count in this trip's load.",
+    "noDocument": "Invoice without number",
+    "noOriginStop": "Origin stop without a label",
+    "schedule": "Schedule on this trip",
+    "scheduledList": "Receipt pickups scheduled on this trip",
+    "title": "Receipt pickups",
+    "unschedule": "Unschedule"
+  },
   "proofPending": {
     "badge": "Receipt pending",
     "hint": "Document delivered without its receipt, and the company settings require it. It stays pending until the receipt arrives."
@@ -1656,7 +1696,12 @@
     }
   },
   "pagination": {
+    "first": "First page",
+    "goTo": "Go to page {{page}}",
+    "last": "Last page",
     "next": "Next page",
+    "pageSize": "Trips per page",
+    "position": "Page {{current}} of {{count}}",
     "previous": "Previous page"
   },
   "proposal": {
@@ -1759,7 +1804,8 @@
     },
     "reader": {
       "field": "Invoice key",
-      "idle": "Click here to read again",
+      "idle": "Enable the reader",
+      "placeholder": "Scan the 44-digit key or type the invoice number",
       "ready": "Reader ready"
     },
     "movesFromTrip": "This note is on another trip. Adding it takes it off that trip and onto this one, and the change is recorded in both trips' history.",
@@ -1976,6 +2022,7 @@
     "clear": "Clear selection",
     "closeTrips": "Close {{count}} trip",
     "closeTrips_other": "Close {{count}} trips",
+    "closeTrips_zero": "Close {{count}} trips",
     "count_one": "{{count}} trip selected",
     "count_other": "{{count}} trips selected",
     "selectAll": "Select every trip on this page that accepts a bulk action",
@@ -2419,7 +2466,9 @@
       "alreadyResolved": "It was already resolved. The screen was refreshed.",
       "cancelled": "This occurrence was cancelled and cannot be resolved.",
       "generic": "Could not resolve the occurrence. Try again."
-    }
+    },
+    "receiptMessage": "PIX receipt",
+    "receiptFailed": "The PIX receipt could not be sent to the driver; the occurrence was resolved without it."
   },
   "occurrenceSettlement": {
     "title": "Goods settlement",
@@ -2689,7 +2738,9 @@
       "resolvedInternal": "Resolved by {{name}}: {{note}}",
       "resolvedAutomatic": "Resolved automatically when the case was closed",
       "resolvedOnDelivery": "Resolved automatically when the document was delivered to the driver",
+      "resolvedCanhotoCollected": "Resolved automatically: the collected canhoto was approved in the review",
       "reopened": "Reopened by the driver {{name}}",
+      "reopenedAutomatic": "Reopened automatically: the collected canhoto was rejected in the review",
       "contractorReply": "Contractor reply: {{status}}",
       "documentConfirmed": "Boleto checked",
       "documentNotConfirmed": "Boleto not confirmed",
@@ -2786,7 +2837,8 @@
     "reasonLabel": "Reason for closing",
     "subtitle": "Documents without delivery stay as a pending receipt — closing does not wait for them.",
     "title": "Close {{count}} trip",
-    "title_other": "Close {{count}} trips"
+    "title_other": "Close {{count}} trips",
+    "title_zero": "Close {{count}} trips"
   },
   "proofPdfExport": {
     "planning": "Counting the stubs to split the PDF…",

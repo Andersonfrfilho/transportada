@@ -360,6 +360,7 @@ type SaveOccurrenceTypeInput = {
   readonly clientChannels?: OccurrenceClientChannelMatrixChange | undefined
   readonly asksClientContact?: boolean | undefined
   readonly asksNewDueDate?: boolean | undefined
+  readonly showClientChargeSealToDriver?: boolean | undefined
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined
@@ -370,6 +371,11 @@ type SaveOccurrenceTypeInput = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
+  /** Spec 321 (D2, D4c): ausentes são "não mexa". */
+  readonly blocksContractorNotice?: boolean | undefined
+  readonly countsCargoOnPickupTrip?: boolean | undefined
+  /** Spec 321 T2 (D4): o tipo cria a coleta de canhoto; ausente é "não mexa". */
+  readonly createsCanhotoPickup?: boolean | undefined
   /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
   readonly contractorNotificationTemplateKey?: null | string | undefined
   /** Spec 271 (D10): os responsáveis em cópia do tipo; ausente é "não mexa". */
@@ -402,6 +408,10 @@ type SaveOccurrenceTypeInput = {
   readonly photoMinimumCount?: number | undefined
   /** Spec 164 RF1/T21: ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+  /** Spec 315: localização, horário de chegada e espera mínima do registro de parada; ausente é "não mexa". */
+  readonly arrivalTimeMode?: DeliveryProofFieldMode | undefined
+  readonly locationMode?: DeliveryProofFieldMode | undefined
+  readonly minWaitAfterArrivalMinutes?: null | number | undefined
   /** Spec 247 (RF1): o número do documento do cliente; ausente é "não mexa". */
   readonly referenceNumberLabel?: string | undefined
   readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
@@ -909,7 +919,15 @@ export function createTripRoutes(
           ...(trip.occupancy === undefined ? {} : { occupancy: trip.occupancy }),
         }))
         return jsonResponse({
-          body: { data, page: { nextCursor: page.nextCursor } },
+          body: {
+            data,
+            page: {
+              nextCursor: page.nextCursor,
+              offset: page.offset ?? null,
+              previousCursor: page.previousCursor ?? null,
+              total: page.total ?? null,
+            },
+          },
           status: 200,
         })
       },
@@ -2569,6 +2587,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
     fiscalStatus: TripDocumentDetail['fiscalStatus']
     freightAmount: TripDocumentDetail['freightAmount']
     freightRuleName: TripDocumentDetail['freightRuleName']
+    canhotoRetained: TripDocumentDetail['canhotoRetained']
     freightSource: TripDocumentDetail['freightSource']
     leavesBehindOnDispatch: TripDocumentDetail['leavesBehindOnDispatch']
     nfeIssuedAt: TripDocumentDetail['nfeIssuedAt']
@@ -2589,6 +2608,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
 const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
   cargoGrossWeight: 'safe',
   cargoWeightSource: 'safe',
+  canhotoRetained: 'safe',
   contact: 'safe',
   createdAt: 'safe',
   cteAuthorized: 'safe',
@@ -2631,6 +2651,7 @@ function serializeTripDocumentDetail(input: {
     ...serializeTripDocument(document),
     cargoGrossWeight: document.cargoGrossWeight,
     cargoWeightSource: document.cargoWeightSource,
+    canhotoRetained: document.canhotoRetained,
     contact: document.contact === null ? null : { ...document.contact },
     cteAuthorized: document.cteAuthorized,
     /** Spec 236: só no detalhe — o `TripDocument` do painel tem chaves exatas. */

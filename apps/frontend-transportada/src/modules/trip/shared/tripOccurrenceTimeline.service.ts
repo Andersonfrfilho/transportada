@@ -248,7 +248,9 @@ export function describeOccurrenceTimelineEvent(
           key:
             event.phraseKey === 'contractor_reply_delivered'
               ? 'occurrenceTimeline.event.resolvedOnDelivery'
-              : 'occurrenceTimeline.event.resolvedAutomatic',
+              : event.phraseKey === 'canhoto_collected'
+                ? 'occurrenceTimeline.event.resolvedCanhotoCollected'
+                : 'occurrenceTimeline.event.resolvedAutomatic',
           values: {},
         }
       }
@@ -257,6 +259,10 @@ export function describeOccurrenceTimelineEvent(
         values: { name: formatPersonName(event.actor.name ?? ''), note: event.note ?? '' },
       }
     case 'resolution.reopened':
+      // Spec 321 T4: o canhoto coletado reprovado na conferência reabre sozinho (ator do sistema).
+      if (event.actor.kind === 'system') {
+        return { key: 'occurrenceTimeline.event.reopenedAutomatic', values: {} }
+      }
       return {
         key: 'occurrenceTimeline.event.reopened',
         values: { name: formatPersonName(event.actor.name ?? '') },

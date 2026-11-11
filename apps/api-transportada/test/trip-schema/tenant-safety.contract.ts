@@ -9,6 +9,7 @@ import {
   companyOccurrenceTypeClientChannels,
   companyOccurrenceTypeMoments,
   mdfeManifests,
+  tripCanhotoPickups,
   tripCargoLayouts,
   tripDeliveryProofs,
   tripDocumentEvents,
@@ -480,5 +481,108 @@ describe('trip valuation batch reads tenant safety (spec 259 T2.1)', () => {
 
   test('reads only the trips the company owns: later reads use the ids the database confirmed', () => {
     expect(batchMethod).toContain('tripIds: tripRows.map((row) => row.tripId)')
+  })
+})
+
+/**
+ * Spec 321 T2 (D4): a coleta de canhoto alcança a ocorrência, a entrega de origem, a NF-e e a viagem/parada da coleta
+ * sempre por `(company_id, id)` — nunca pelo id sozinho, senão a coleta de uma empresa poderia apontar a viagem de
+ * outra. Viagem e parada são `restrict`: numa FK composta, `set null` zeraria `company_id`.
+ */
+describe('canhoto pickup tenant safety (spec 321 T2)', () => {
+  test('reaches every parent through the tenant', () => {
+    const keys = foreignKeys(tripCanhotoPickups)
+    expect(keys).toContainEqual({
+      columns: ['company_id', 'occurrence_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_document_occurrences',
+      name: 'trip_canhoto_pickups_company_occurrence_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
+    for (const [column, table, name] of [
+      [
+        'origin_trip_document_id',
+        'trip_documents',
+        'trip_canhoto_pickups_company_origin_document_fk',
+      ],
+      ['nfe_document_id', 'nfe_documents', 'trip_canhoto_pickups_company_nfe_document_fk'],
+      ['pickup_trip_id', 'trips', 'trip_canhoto_pickups_company_pickup_trip_fk'],
+      ['pickup_stop_id', 'trip_stops', 'trip_canhoto_pickups_company_pickup_stop_fk'],
+    ] as const) {
+      expect(keys).toContainEqual({
+        columns: ['company_id', column],
+        foreignColumns: ['company_id', 'id'],
+        foreignTable: table,
+        name,
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      })
+    }
+  })
+
+  const source = readFileSync(
+    new URL('../../src/trips/infrastructure/canhoto-pickup.query.ts', import.meta.url),
+    'utf8',
+  )
+
+  test('carries the company through every join and every filter', () => {
+    const joins = source.split('.innerJoin(').slice(1)
+    expect(joins.length).toBeGreaterThan(0)
+    for (const join of joins) {
+      expect(join.slice(0, join.indexOf('),'))).toInclude('companyId')
+    }
+    const wheres = source.split('.where(').slice(1)
+    expect(wheres.length).toBeGreaterThan(0)
+    for (const where of wheres) {
+      expect(where.slice(0, 200)).toInclude('companyId')
+    }
+    expect(source).toInclude('where ${tripDocuments.companyId} = ${input.companyId}')
+  })
+})
+
+describe('spec 321 T3: o encaixe da coleta de canhoto leva a empresa em toda junção e filtro', () => {
+  const source = readFileSync(
+    new URL(
+      '../../src/trips/infrastructure/canhoto-pickup-schedule.persistence.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  test('every join and every filter carries companyId', () => {
+    const joins = source.split(/\.(?:innerJoin|leftJoin)\(/).slice(1)
+    expect(joins.length).toBeGreaterThan(2)
+    for (const join of joins) {
+      expect(join.slice(0, join.indexOf('),'))).toInclude('companyId')
+    }
+    const wheres = source.split('.where(').slice(1)
+    expect(wheres.length).toBeGreaterThan(5)
+    for (const where of wheres) {
+      expect(where.slice(0, 200)).toInclude('companyId')
+    }
+  })
+})
+
+describe('spec 321 T4: a coleta pela foto e pela conferência leva a empresa em toda junção e filtro', () => {
+  const source = readFileSync(
+    new URL(
+      '../../src/trips/infrastructure/canhoto-pickup-collection.persistence.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  test('every join and every filter carries companyId', () => {
+    const joins = source.split(/\.(?:innerJoin|leftJoin)\(/).slice(1)
+    expect(joins.length).toBeGreaterThan(5)
+    for (const join of joins) {
+      expect(join.slice(0, join.indexOf('),'))).toInclude('companyId')
+    }
+    const wheres = source.split('.where(').slice(1)
+    expect(wheres.length).toBeGreaterThan(10)
+    for (const where of wheres) {
+      expect(where.slice(0, 200)).toInclude('companyId')
+    }
   })
 })

@@ -20,6 +20,7 @@ import {
 } from '../../mdfe-manifests/application/read-mdfe-document.port.js'
 import type { CanhotoDuplicate } from '../application/canhoto-attachment.types.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
+import type { CollectedCanhotoPickupPhoto } from '../application/collect-canhoto-pickup-photo.use-case.js'
 import type { DriverDeliveryProofView } from '../application/read-driver-delivery-proof.use-case.js'
 import {
   DRIVER_FIELD_MOMENTS,
@@ -41,6 +42,7 @@ import type { ReportStopArrivalResult } from '../application/report-stop-arrival
 import type { ReportStopDepartureResult } from '../application/report-stop-departure.use-case.js'
 import type { CancelStopDepartureResult } from '../application/cancel-stop-departure.use-case.js'
 import type {
+  ReportStopOccurrenceInput,
   ReportStopOccurrenceResult,
   StopOccurrenceReference,
 } from '../application/report-stop-occurrence.use-case.js'
@@ -60,6 +62,7 @@ import {
   parseStopArrivalRequest,
   parseIdempotencyKey,
   parseStopOccurrenceRequest,
+  toEventClock,
   type StopOccurrenceRequest,
 } from './me-trip.schema.js'
 
@@ -75,6 +78,8 @@ const STOP_OCCURRENCES_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/occurre
 const DOCUMENT_DELIVER_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/deliver`
 const DOCUMENT_RETURN_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/return`
 const DOCUMENT_PROOF_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/proof`
+/** Spec 321 T4: a foto do canhoto retido, pela coleta encaixada na viagem do motorista. */
+const CANHOTO_PICKUP_PROOF_PATH = `${API_ME_CURRENT_TRIP_PATH}/canhoto-pickups/:pickupId/proof`
 /**
  * Spec 079: a ocorrência que o motorista registra do próprio celular.
  *
@@ -196,6 +201,9 @@ export type MeTripDependencies = {
     input: DriverContextInput &
       EventClockFields &
       StopOccurrenceReference & {
+        /** Spec 315 (D4, D5): o horário de chegada informado e a confirmação de ordem da chegada gravada junto. */
+        readonly arrivedAt?: Date
+        readonly confirmOutOfOrder?: boolean
         /** Spec 209 RF2: o upload confirmado da foto — `null` é a ocorrência sem foto. */
         readonly attachmentObjectId: string | null
         readonly description: string
@@ -204,6 +212,10 @@ export type MeTripDependencies = {
         readonly documentId: string | null
         readonly idempotencyKey: string
         readonly location: ReportedLocation | null
+        /** Spec 317 (E1, E2): uma foto por vaga do tipo. */
+        readonly photos?: ReportStopOccurrenceInput['photos']
+        /** Spec 317 (E3, E4, E11): a cobrança no recebimento. */
+        readonly receivingCharge?: ReportStopOccurrenceInput['receivingCharge']
         readonly stopId: string
       },
   ) => Promise<ReportStopOccurrenceResult>
@@ -238,6 +250,18 @@ export type MeTripDependencies = {
     /** Spec 246 (RF9): a assinatura já confirmada — nunca o arquivo. */
     readonly signatureObjectId?: string | null | undefined
   }) => Promise<TripOccurrence>
+  /**
+   * Spec 320: ocorrência do app cujo toque não é do dia em que chegou fica retida para o escritório. Ausente é o
+   * comportamento de antes (registra sempre); a composição liga com o interruptor da empresa.
+   */
+  readonly holdDriverOccurrence?: (input: {
+    readonly clockOffsetMs?: number | undefined
+    readonly input: Parameters<MeTripDependencies['registerDriverOccurrence']>[0]
+    readonly tappedAt?: Date | undefined
+  }) => Promise<
+    | { readonly id: string; readonly kind: 'held' }
+    | { readonly kind: 'registered'; readonly occurrence: TripOccurrence }
+  >
   /** Spec 179 T202 (RF2): a URL assinada — o arquivo nunca passa por aqui. */
   readonly createOccurrenceUpload: (input: {
     readonly companyId: string
@@ -275,6 +299,14 @@ export type MeTripDependencies = {
     readonly processingState?: TripDeliveryProofProcessingState
     readonly punctuality: ProofPunctuality
   }>
+  /** Spec 321 T4 (D4b): a foto do canhoto retido, pela coleta encaixada na viagem do motorista. Ausente, sem rota. */
+  readonly collectCanhotoPickupPhoto?: (
+    input: DriverContextInput & {
+      readonly correlationId?: string
+      readonly pickupId: string
+      readonly upload: DeliveryProofUpload
+    },
+  ) => Promise<CollectedCanhotoPickupPhoto>
   /** Pedido do usuário (01/10): rever o canhoto já enviado, pela nota da viagem dele. */
   readonly readDeliveryProofs: (input: {
     readonly companyId: string
@@ -691,6 +723,57 @@ export function createMeTripRoutes(
       policy: DRIVER_REPORT_POLICY,
     }),
     /**
+     * Spec 321 T4 (D4b, CA04): a foto do canhoto retido, tirada pelo motorista da viagem da coleta. Vira o canhoto da
+     * entrega de origem; quem confere que a coleta é dele é o caso de uso (404 para a alheia).
+     */
+    ...(dependencies.collectCanhotoPickupPhoto === undefined
+      ? []
+      : [
+          defineRoute<{
+            readonly correlationId: string
+            readonly pickupId: string
+            readonly upload: DeliveryProofUpload
+          }>({
+            async handle({ context, input }): Promise<Response> {
+              const driverId = await resolveDriver(context.scope)
+              const collect = dependencies.collectCanhotoPickupPhoto
+              if (collect === undefined) throw new DriverNotRegisteredError()
+              const result = await collect({
+                actorUserId: context.scope.userId,
+                companyId: context.scope.companyId,
+                correlationId: input.correlationId,
+                driverId,
+                pickupId: input.pickupId,
+                upload: input.upload,
+              })
+              const { proof } = result
+              return jsonResponse({
+                body: {
+                  data: {
+                    ...(proof.duplicate === undefined ? {} : { duplicate: proof.duplicate }),
+                    documentId: result.documentId,
+                    id: proof.id,
+                    processingState: resolveDeliveryProofProcessingState(proof.processingState),
+                    stopClosed: result.stopClosed,
+                    tripCompleted: result.tripCompleted,
+                  },
+                },
+                status: proof.duplicate === undefined ? 201 : 200,
+              })
+            },
+            method: 'POST',
+            async parse({ correlationId, pathParameters, request }) {
+              return {
+                correlationId,
+                pickupId: parseUuidPathIdentifier(pathParameters.pickupId ?? ''),
+                upload: await parseDeliveryProofUpload(request),
+              }
+            },
+            pathname: CANHOTO_PICKUP_PROOF_PATH,
+            policy: DRIVER_REPORT_POLICY,
+          }),
+        ]),
+    /**
      * Pedido do usuário (01/10): o motorista rever o canhoto que já subiu. `trip.read` é da empresa
      * inteira — quem recorta é a consulta da nota alcançável dentro das viagens **dele**, dentro do
      * caso de uso. Lista vazia é resposta legítima: entrega sem canhoto existe.
@@ -716,6 +799,7 @@ export function createMeTripRoutes(
     defineRoute<{
       readonly attachmentObjectId?: string | undefined
       readonly attachmentObjectIds?: readonly string[] | undefined
+      readonly clockOffsetMs?: number | undefined
       readonly declaredAmount?: string | undefined
       readonly documentId: string
       readonly idempotencyKey: string
@@ -727,10 +811,11 @@ export function createMeTripRoutes(
       readonly productCode: string
       readonly referenceNumber?: string | undefined
       readonly signatureObjectId?: string | null | undefined
+      readonly tappedAt?: Date | undefined
     }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
-        const occurrence = await dependencies.registerDriverOccurrence({
+        const registerInput = {
           actorUserId: context.scope.userId,
           attachmentObjectId: input.attachmentObjectId,
           attachmentObjectIds: input.attachmentObjectIds,
@@ -747,16 +832,33 @@ export function createMeTripRoutes(
           productCode: input.productCode,
           referenceNumber: input.referenceNumber,
           signatureObjectId: input.signatureObjectId,
-        })
+        }
+        if (dependencies.holdDriverOccurrence !== undefined) {
+          const result = await dependencies.holdDriverOccurrence({
+            clockOffsetMs: input.clockOffsetMs,
+            input: registerInput,
+            tappedAt: input.tappedAt,
+          })
+          if (result.kind === 'held') {
+            /** Retido não é recusado: o app tira o item da fila e o escritório decide (spec 320 D4). */
+            return jsonResponse({ body: { data: { held: true, id: result.id } }, status: 202 })
+          }
+
+          return jsonResponse({ body: { data: result.occurrence }, status: 201 })
+        }
+        const occurrence = await dependencies.registerDriverOccurrence(registerInput)
 
         return jsonResponse({ body: { data: occurrence }, status: 201 })
       },
       method: 'POST',
       async parse({ pathParameters, request }) {
         const body = await parseRegisterOccurrenceRequest(request)
+        const clock = toEventClock(body)
         return {
           attachmentObjectId: body.attachmentObjectId,
           attachmentObjectIds: body.attachmentObjectIds,
+          ...(clock.clockOffsetMs === undefined ? {} : { clockOffsetMs: clock.clockOffsetMs }),
+          ...(clock.tappedAt === undefined ? {} : { tappedAt: clock.tappedAt }),
           declaredAmount: body.declaredAmount,
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           idempotencyKey: parseIdempotencyKey(request),
@@ -917,7 +1019,10 @@ export function createMeTripRoutes(
           driverId,
         })
 
-        return jsonResponse({ body: { data: { id: result.id } }, status: 201 })
+        return jsonResponse({
+          body: { data: { arrivalRecorded: result.arrivalRecorded, id: result.id } },
+          status: 201,
+        })
       },
       method: 'POST',
       async parse({ pathParameters, request }) {

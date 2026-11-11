@@ -28,6 +28,24 @@
     "detail": "Aqui você vê as paradas, as notas e o manifesto. Chegada, entrega, devolução e ocorrência são do motorista.",
     "title": "Você acompanha esta viagem como ajudante"
   },
+  "chargeSeal": {
+    "label": "Aviso de cobrança",
+    "text": "O escritório marcou este cliente como possível cobrança na entrega. Se pedirem algum valor, registre pela ocorrência de cobrança."
+  },
+  "canhotoPickup": {
+    "explanation": "Esta nota já foi entregue. Você só busca o canhoto com o cliente — não leve a mercadoria.",
+    "failed": "Não foi possível enviar o canhoto. Confira se a coleta ainda é sua e tente de novo.",
+    "note": "NF {{number}} · série {{series}}",
+    "offline": "Sem sinal. Seu canhoto não foi enviado — tente de novo quando tiver rede.",
+    "pending_one": "{{count}} canhoto para coletar",
+    "pending_other": "{{count}} canhotos para coletar",
+    "photoAttached": "Foto do canhoto anexada",
+    "photoTitle": "Foto do canhoto",
+    "send": "Enviar canhoto",
+    "sending": "Enviando…",
+    "title": "Coletar canhoto",
+    "waitingReview": "Foto enviada. O escritório confere o canhoto."
+  },
   "holidayWarning": {
     "future": "Dia {{date}} é feriado em {{city}} ({{reasons}}). Confirme com o cliente antes de ir.",
     "futureWithoutCity": "Dia {{date}} é feriado ({{reasons}}). Confirme com o cliente antes de ir.",
@@ -123,6 +141,7 @@
       "occurrence": "Ocorrência",
       "proof": "Comprovante",
       "proofReceiver": "Quem recebeu",
+      "stopOccurrenceCharge": "Cobrança no recebimento (fotos e valor)",
       "stopOccurrencePhoto": "Foto da ocorrência da parada",
       "return": "Devolução"
     },
@@ -554,6 +573,13 @@
     "available": "Nova versão disponível.",
     "waitingCapture": "Atualiza ao terminar a captura aberta — foto, assinatura, recorte, ocorrência ou comprovante em preenchimento."
   },
+  "plate": {
+    "label": "Placa",
+    "copied": "Placa copiada",
+    "copy": "Copiar a placa",
+    "legacy": "Placa {{plate}}, modelo antigo",
+    "mercosul": "Placa {{plate}}, modelo Mercosul"
+  },
   "tripSelector": {
     "label": "Suas viagens",
     "option_one": "{{path}} · {{count}} parada",
@@ -695,7 +721,9 @@
     "attachment": {
       "off": "Sem foto",
       "optional": "Foto opcional",
-      "required": "Foto obrigatória"
+      "required": "Foto obrigatória",
+      "slots_one": "1 foto obrigatória",
+      "slots_other": "{{count}} fotos obrigatórias"
     },
     "cancel": "Cancelar",
     "changeType": "Trocar tipo",
@@ -790,7 +818,44 @@
       "title": "Assinatura (opcional)",
       "titleRequired": "Assinatura (obrigatória)"
     },
-    "title": "Registrar ocorrência"
+    "title": "Registrar ocorrência",
+    "receivingCharge": {
+      "amount": "Valor pago",
+      "groupedAmount": "Valor pago (um só para as notas marcadas)",
+      "documents": "Notas da cobrança",
+      "documentsHint": "Marque as notas a que esta cobrança se refere.",
+      "documentNumber": "NF {{number}}",
+      "documentAmount": "Valor pago da NF {{number}}",
+      "mode": "Como registrar",
+      "modeOption": {
+        "one_per_document": "Uma linha por nota",
+        "grouped": "Uma linha para as notas"
+      },
+      "paidBy": "Quem pagou?",
+      "paidByOption": {
+        "driver": "Eu paguei",
+        "company": "A empresa pagou"
+      },
+      "pixKeyType": "Tipo da chave PIX",
+      "pixKeyTypePlaceholder": "Escolha o tipo",
+      "pixKeyTypeOption": {
+        "cpf": "CPF",
+        "cnpj": "CNPJ",
+        "email": "E-mail",
+        "phone": "Celular",
+        "random": "Chave aleatória"
+      },
+      "pixKey": "Sua chave PIX",
+      "pixKeyHint": "O escritório usa esta chave para devolver o que você pagou.",
+      "missing": {
+        "amount": "o valor pago",
+        "documentAmount": "o valor da NF {{number}}",
+        "documents": "as notas da cobrança",
+        "paidBy": "quem pagou",
+        "pix": "o tipo e a chave PIX",
+        "photo": "{{label}}"
+      }
+    }
   },
   "routeOccurrence": {
     "alert": {
@@ -918,6 +983,7 @@
     "more_other": "Ver mais {{count}} ocorrências de {{label}}",
     "noteLabel": "NF {{number}}",
     "phrase": {
+      "canhoto_collected": "O canhoto foi coletado e aprovado pelo escritório.",
       "case_cancelled": "Tratativa cancelada pelo escritório",
       "case_closed": "Encerrada pelo escritório",
       "case_returned_to_warehouse": "Mercadoria devolvida ao armazém",

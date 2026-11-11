@@ -12,10 +12,21 @@ import type {
   TripStatus,
   TripStopEventKind,
   TripStopOccurrenceKind,
+  StopOccurrencePaidBy,
 } from '../../database/trip.schema.js'
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
 import type { ArrivalLocationSource } from '../domain/address-arrival-correction.policy.js'
 import type { CorrectedClock } from '../domain/occurred-at.policy.js'
+import type { StopOccurrenceTypeRequirements } from '../domain/stop-occurrence-requirements.policy.js'
+import type {
+  ReceivingChargeLine,
+  ReceivingChargeStopDocument,
+} from '../domain/receiving-charge.policy.js'
+import type {
+  StopOccurrencePhotoSlot,
+  StopOccurrenceSlotPhoto,
+} from '../domain/stop-occurrence-photo-slots.policy.js'
+import type { PixKeyType } from '../../shared/pix-key-type.constant.js'
 import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
@@ -400,7 +411,47 @@ export type DriverFieldReportTransactionPort = {
   findStopOccurrenceType(input: {
     readonly companyId: string
     readonly occurrenceTypeId: string
-  }): Promise<{ readonly stopKind: TripStopOccurrenceKind | null } | null>
+  }): Promise<{
+    /** Spec 317 (E1): as vagas de foto do tipo, na ordem; vazio é o tipo sem vagas. Ausente só nos dublês antigos. */
+    readonly photoSlots?: readonly StopOccurrencePhotoSlot[]
+    /** Spec 315: o que o tipo cobra do registro de parada. Ausente só nos dublês de teste antigos. */
+    readonly requirements?: StopOccurrenceTypeRequirements
+    readonly stopKind: TripStopOccurrenceKind | null
+  } | null>
+  /**
+   * Spec 317 (E4, E5, E8): as notas ainda na parada (nunca as liberadas), com cliente e contratante lidos da
+   * própria nota no servidor — destinatário → `delivery_clients`, emitente → `contractors`. Uma consulta só.
+   */
+  listStopChargeDocuments(input: {
+    readonly companyId: string
+    readonly stopId: string
+  }): Promise<readonly ReceivingChargeStopDocument[]>
+  /** Spec 317 (E2, E6): uma linha por vaga em `trip_stop_occurrence_photos`; o reenvio não duplica. */
+  recordStopOccurrencePhotos(input: {
+    readonly companyId: string
+    readonly photos: readonly StopOccurrenceSlotPhoto[]
+    readonly stopOccurrenceId: string
+  }): Promise<void>
+  /**
+   * Spec 317 (E4, E5, E6): as linhas `receiving_charge` em `delivery_charges` (`recorded`, origem `occurrence`), e as
+   * notas da linha agrupada em `delivery_charge_documents`. Os índices únicos parciais seguram o reenvio.
+   */
+  recordReceivingCharges(input: {
+    readonly actorUserId: string
+    /** A data civil do registro (`charged_on`). */
+    readonly chargedOn: string
+    readonly companyId: string
+    readonly lines: readonly ReceivingChargeLine[]
+    /** O comprovante principal (`proof_object_id`): a foto do comprovante de pagamento, quando há. */
+    readonly proofObjectId: null | string
+    readonly stopOccurrenceId: string
+  }): Promise<void>
+  /** Spec 317 (E7): marca o cliente; a primeira vez grava a origem, a repetida só atualiza a data. */
+  flagReceivingChargeClients(input: {
+    readonly companyId: string
+    readonly deliveryClientIds: readonly string[]
+    readonly stopOccurrenceId: string
+  }): Promise<void>
   recordOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
@@ -415,6 +466,13 @@ export type DriverFieldReportTransactionPort = {
     readonly locationStamp: EventLocationStampColumns
     /** Spec 218 D2: o tipo do catálogo; `null` no corpo antigo, que só manda `kind`. */
     readonly occurrenceTypeId: string | null
+    /** Spec 317 (E3, E11): o total pago e quem pagou; ausente em todo tipo que não é a cobrança no recebimento. */
+    readonly receivingCharge?: {
+      readonly declaredAmount: string
+      readonly driverPixKey: null | string
+      readonly driverPixKeyType: null | PixKeyType
+      readonly paidBy: StopOccurrencePaidBy
+    }
     readonly stopId: string
   }): Promise<{ readonly id: string }>
   findEventById(input: {

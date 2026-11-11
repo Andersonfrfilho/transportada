@@ -10,6 +10,8 @@ import type { OccurrencePhotoState } from '../hooks/useOccurrenceRegistrationFor
 import styles from '../styles/driverTrip.module.css'
 
 type OccurrencePhotoFieldProps = Readonly<{
+  /** Spec 321 T6: o texto de "anexada" quando a foto não é de ocorrência (a do canhoto da coleta). */
+  attachedLabel?: string
   /** A foto obrigatória que ainda não existe ganha o asterisco do botão. */
   isMissing: boolean
   /** Quantas fotos o tipo aceita: 1 (a de sempre, "Refazer") ou até o teto (RF1c). */
@@ -19,6 +21,8 @@ type OccurrencePhotoFieldProps = Readonly<{
   photoCount: number
   photoState: OccurrencePhotoState
   previewUrl: string | undefined
+  /** Spec 317: o rótulo da vaga ("Foto da placa de cobrança"); ausente é o título de sempre. */
+  title?: string
 }>
 
 /** O mesmo texto da foto do "Não entreguei": é o mesmo bloco de captura, com a mesma redução. */
@@ -42,6 +46,7 @@ function resolvePhotoCaptureKey(input: {
  * última pode ser removida.
  */
 export function OccurrencePhotoField({
+  attachedLabel,
   isMissing,
   limit,
   onRemoveLast,
@@ -49,6 +54,7 @@ export function OccurrencePhotoField({
   photoCount,
   photoState,
   previewUrl,
+  title,
 }: OccurrencePhotoFieldProps) {
   const { t } = useTranslation('driverTrip')
   const cameraFieldRef = useCameraCaptureFieldRef()
@@ -58,7 +64,7 @@ export function OccurrencePhotoField({
 
   return (
     <div className={styles.proofCapture}>
-      <p className={styles.proofCaptureTitle}>{t('occurrencePhoto')}</p>
+      <p className={styles.proofCaptureTitle}>{title ?? t('occurrencePhoto')}</p>
       {previewUrl === undefined || photoCount === 0 ? null : (
         <div className={styles.proofCaptureAttached} role="status">
           <img
@@ -70,7 +76,7 @@ export function OccurrencePhotoField({
             <Icon name="check" />
             {limit > 1
               ? t('occurrenceRegistration.photoCount', { count: photoCount, limit })
-              : t('notDelivered.photoAttached')}
+              : (attachedLabel ?? t('notDelivered.photoAttached'))}
           </span>
         </div>
       )}

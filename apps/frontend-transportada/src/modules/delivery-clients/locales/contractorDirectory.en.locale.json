@@ -143,5 +143,46 @@
   "watchers": {
     "title": "Owners of this contractor — replaces the company list",
     "description": "The fixed attendant for this contractor. With any active owner here, only they are copied on this contractor's e-mails; with none active, the company list applies."
+  },
+  "occurrenceChannel": {
+    "title": "Occurrence notice — how it reaches the contractor",
+    "description": "Choose whether this contractor's automatic occurrence notice goes out by email or is posted to a WhatsApp group. Which types notify the contractor, and the text, stay defined on the occurrence type.",
+    "loading": "Loading the notice channel",
+    "loadError": "Could not load the notice channel ({{code}}).",
+    "channel": "Notify occurrences by",
+    "kinds": {
+      "email": "Email",
+      "whatsapp_group": "WhatsApp (group)"
+    },
+    "emailHint": "The notice goes out by email to the contractor's contacts, like the others.",
+    "groupHint": "The bot posts the notice in the chosen group, tagging the number given. No email goes out, except the fallback.",
+    "group": "WhatsApp group",
+    "groupPlaceholder": "Choose the group",
+    "groupSearch": "Search groups",
+    "noGroups": "No free group found",
+    "loadingGroups": "Loading WhatsApp groups",
+    "currentGroup": "Current group",
+    "hiddenTaken": "{{count}} group(s) are hidden because they already belong to a driver or another contractor.",
+    "phone": "Number to tag in the group",
+    "phonePlaceholder": "(11) 98765-4321",
+    "phoneHint": "Phone with area code. The person must be in the group to be notified by the tag.",
+    "phoneInvalid": "Enter a valid phone number with area code.",
+    "emailFallback": "Send by email if the group fails",
+    "emailFallbackHint": "If sending to the group fails after the retries, the notice goes out by email to the contractor's contacts.",
+    "save": "Save the channel",
+    "saving": "Saving",
+    "saved": "Channel saved.",
+    "test": "Send test message",
+    "testing": "Sending the test",
+    "testSent": "Test message sent to the group.",
+    "saveBeforeTest": "Save the changes to be able to send the test.",
+    "errors": {
+      "default": "Could not complete. Try again.",
+      "CONTRACTOR_OCCURRENCE_GROUP_TAKEN": "This group already belongs to a driver or another contractor. Choose another.",
+      "CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_MISSING": "The WhatsApp template for the occurrence notice is missing in Notifications.",
+      "CONTRACTOR_OCCURRENCE_GROUP_NOT_CONFIGURED": "Save the channel as a WhatsApp group before testing.",
+      "CONTRACTOR_OCCURRENCE_GROUP_TEST_FAILED": "The test message did not reach the group. Check that WhatsApp is connected and the bot is in the group.",
+      "VALIDATION_ERROR": "Check the group and the number entered."
+    }
   }
 }

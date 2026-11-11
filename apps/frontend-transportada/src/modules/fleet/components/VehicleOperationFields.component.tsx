@@ -57,7 +57,9 @@ export function VehicleOperationFields({
       hint:
         suggestionOrigin.kind === 'vehicle'
           ? t('cargoSuggestionFromVehicle', { plate: suggestionOrigin.plate })
-          : t('cargoSuggestionFromReference'),
+          : suggestionOrigin.kind === 'model'
+            ? t('cargoSuggestionFromModel', { model: suggestionOrigin.model })
+            : t('cargoSuggestionFromReference'),
     }
   }
   /**

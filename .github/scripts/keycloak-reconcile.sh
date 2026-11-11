@@ -98,7 +98,9 @@ fi
 # O "Continuar conectado" da tela de senha só existe com `rememberMe` ligado, e os dois prazos vão no
 # mesmo PUT: zerados, o Keycloak cai nos da sessão comum e a sessão lembrada morre em 30 minutos. Os
 # valores saem do `realm.json`, a mesma fonte da instalação nova — nunca uma segunda cópia aqui.
-readonly REMEMBER_ME_FIELDS='{rememberMe, ssoSessionIdleTimeoutRememberMe, ssoSessionMaxLifespanRememberMe}'
+# A sessão comum entra no mesmo grupo: o padrão do Keycloak (30 min parada, 10 h de teto) derrubava o
+# painel de quem saía da mesa e voltava, com `REFRESH_TOKEN_ERROR "Token is not active"` (10/11/2026).
+readonly REMEMBER_ME_FIELDS='{rememberMe, ssoSessionIdleTimeout, ssoSessionMaxLifespan, ssoSessionIdleTimeoutRememberMe, ssoSessionMaxLifespanRememberMe}'
 declared_remember_me="$(jq --compact-output --sort-keys "$REMEMBER_ME_FIELDS" "$REALM_FILE")"
 current_remember_me="$(curl --silent --show-error --fail --max-time 30 \
   --header "Authorization: Bearer $token" \

@@ -15,7 +15,9 @@
     "audioTranscription": "Transcrição de áudios",
     "occurrenceWatchers": "Responsáveis por ocorrências",
     "whatsapp": "WhatsApp",
-    "automations": "Automações"
+    "automations": "Automações",
+    "driverReminders": "Cobrança do motorista",
+    "salespeople": "Vendedores"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -336,8 +338,16 @@
     "clientChannel": "Canal com o cliente",
     "asksClientContact": "Pedir o contato do cliente ao motorista",
     "asksClientContactHint": "Quando o cliente da nota não tem contato guardado para este canal, o app do motorista pede o WhatsApp ou o e-mail na abertura da ocorrência, para ele não precisar mandar pelo chat. O cliente pode ter vários números e e-mails.",
+    "blocksContractorNotice": "Nunca avisar a contratante",
+    "blocksContractorNoticeHint": "Esta ocorrência não gera e-mail, chat nem mensagem de grupo para a contratante, em nenhum canal. A equipe interna continua sendo avisada.",
+    "createsCanhotoPickup": "Cria coleta de canhoto",
+    "createsCanhotoPickupHint": "Ao registrar, a nota continua entregue e nasce uma coleta de canhoto pendente, que o escritório encaixa na viagem de outro motorista.",
+    "countsCargoOnPickupTrip": "Somar peso e dimensão na viagem da coleta",
+    "countsCargoOnPickupTripHint": "Nesta fase a viagem da coleta não soma o peso nem a dimensão da nota, e o valor não pode ser alterado.",
     "asksNewDueDate": "Pedir a nova data de vencimento ao motorista",
     "asksNewDueDateHint": "O app do motorista mostra o campo opcional \"Nova data de vencimento\" ao abrir a ocorrência (por exemplo, quando o cliente pede a prorrogação do boleto). Se ele preencher, a data sai no e-mail à contratante; em branco, o e-mail sai como sempre.",
+    "showClientChargeSealToDriver": "Mostrar ao motorista o aviso de possível cobrança",
+    "showClientChargeSealToDriverHint": "No cartão da parada, o motorista vê um aviso somente leitura quando o cliente da nota foi marcado como possível cobrança na entrega. Desligado, só o escritório vê o selo. Quem limpa a marca é sempre o escritório.",
     "clientChannelHint": "Por onde a ocorrência fala com o cliente. E-mail é o padrão e segue o tipo de e-mail ao lado. WhatsApp usa o número do cliente e, se falhar, o e-mail guardado. Desligado não envia nada ao cliente.",
     "clientChannelOptions": {
       "off": "Desligado",
@@ -435,14 +445,16 @@
       "title": "O que exige",
       "legend": "Obrigatório quer dizer: a ocorrência não é registrada sem aquilo. Foto é a imagem capturada no aparelho; Observação é o texto do motorista; Assinatura é a de quem deu a negativa; Produtos são os itens da nota que a ocorrência aponta.",
       "mixedScope": "As exigências abaixo valem só quando o motorista registra (Motorista, numa nota e Motorista, na parada). No galpão a regra é fixa.",
-      "stopOnlyScope": "Em Motorista, na parada só a foto é cobrada: observação, assinatura e produtos valem em Motorista, numa nota.",
+      "stopOnlyScope": "Em Motorista, na parada valem foto, observação, localização e horário de chegada, como estiver configurado abaixo: assinatura e produtos valem em Motorista, numa nota.",
       "fields": {
         "photo": "Foto",
         "note": "Observação",
         "signature": "Assinatura",
         "items": "Produtos",
         "referenceNumber": "Número do documento do cliente",
-        "declaredAmount": "Valor pago"
+        "declaredAmount": "Valor pago",
+        "location": "Localização",
+        "arrivalTime": "Horário de chegada"
       },
       "modes": {
         "off": "Desligado",
@@ -455,7 +467,9 @@
         "signature": "Desligado: não pede assinatura. Opcional: o motorista pode colher a de quem deu a negativa. Obrigatório: a ocorrência só sai com a assinatura desenhada.",
         "items": "Desligado: a ocorrência não carrega produtos — o registro não mostra o seletor, a reentrega não se aplica e Corrigir só aparece nas ocorrências que já têm produtos ou já foram corrigidas. Opcional: quem registra pode apontar os produtos. Obrigatório: a ocorrência só sai com produto apontado.",
         "referenceNumber": "Desligado: a tela de registro não pede. Opcional: pede e aceita vazio. Obrigatório: o botão de registrar só libera com o número preenchido (ex.: o da NFD da loja).",
-        "declaredAmount": "Desligado: a tela não mostra. Opcional: mostra e aceita vazio. Obrigatório: o botão de registrar só libera preenchido. Sem valor pago digitado, vale a soma calculada da NF-e."
+        "declaredAmount": "Desligado: a tela não mostra. Opcional: mostra e aceita vazio. Obrigatório: o botão de registrar só libera preenchido. Sem valor pago digitado, vale a soma calculada da NF-e.",
+        "location": "Desligado: não pede o ponto. Opcional: o app manda o ponto se o GPS tiver. Obrigatório: o motorista só registra com a localização capturada no aparelho.",
+        "arrivalTime": "Pedido só quando o motorista não marcou Cheguei. Obrigatório: ele informa a hora em que chegou e o sistema grava a chegada da parada com essa hora. Não vale junto da espera mínima."
       },
       "record": {
         "referenceLabel": "Rótulo do número na tela de registro",
@@ -479,6 +493,12 @@
         "count": "Quantidade mínima de produtos",
         "hint": "Só vale quando Produtos é Obrigatório. Todos os itens da nota serve à recusa total: o app do motorista só libera o registro com todos os produtos marcados. Ao menos N libera com N produtos marcados.",
         "allItemsHint": "Sem mínimo, o motorista marca todos os produtos da nota. Defina \"Ao menos N\" para aceitar devolução parcial."
+      },
+      "minWait": {
+        "title": "Espera mínima depois do Cheguei",
+        "hint": "O motorista só abre este tipo depois do tempo escolhido, contado do toque em Cheguei, e vê um contador. O escritório abre a qualquer momento, informando a hora em que o motorista chegou. Não vale junto do horário de chegada.",
+        "off": "Sem espera mínima",
+        "option": "{{count}} minutos"
       }
     },
     "summary": {
@@ -949,6 +969,121 @@
       "unauthenticated": "Sua sessão expirou. Entre de novo.",
       "notFound": "A automação não existe mais.",
       "conflict": "Já existe uma automação com esse nome."
+    }
+  },
+  "driverStopReminders": {
+    "kicker": "WhatsApp",
+    "title": "Cobrança do motorista",
+    "hint": "O bot pergunta ao motorista pelo WhatsApp quando uma parada passa do horário sem registro de chegada ou de entrega. Sem resposta, o escritório é avisado.",
+    "origin": {
+      "company": "Configuração gravada pela empresa.",
+      "default": "Nada gravado ainda: valem o padrão do sistema e a cobrança desligada."
+    },
+    "rules": {
+      "title": "Quando e quanto cobrar"
+    },
+    "enabledLabel": "Cobrar o motorista pelo WhatsApp",
+    "enabledOn": "Ligada: o bot cobra o motorista conforme os prazos abaixo, se a chave do ambiente também estiver ligada.",
+    "enabledOff": "Desligada: o bot não cobra ninguém.",
+    "fields": {
+      "maxAttempts": {
+        "label": "Cobranças",
+        "hint": "De {{min}} a {{max}}. Depois da última sem resposta, o escritório é avisado."
+      },
+      "intervalMinutes": {
+        "label": "Intervalo (min)",
+        "hint": "De {{min}} a {{max}} minutos."
+      },
+      "graceMinMinutes": {
+        "label": "Folga mínima (min)",
+        "hint": "De {{min}} a {{max}} minutos de espera depois do horário previsto."
+      },
+      "gracePercent": {
+        "label": "Folga (%)",
+        "hint": "De {{min}} a {{max}}% do tempo de deslocamento, somado à folga mínima."
+      },
+      "dwellMinutes": {
+        "label": "Permanência (min)",
+        "hint": "De {{min}} a {{max}} minutos entre a chegada e a cobrança da entrega."
+      },
+      "idleMinutes": {
+        "label": "Sem evento (min)",
+        "hint": "De {{min}} a {{max}} minutos sem nenhum registro da viagem antes de cobrar."
+      }
+    },
+    "hours": {
+      "title": "Horário de funcionamento",
+      "hint": "O bot só cobra dentro destas faixas. Dia sem faixa fica fechado. Até 3 faixas por dia.",
+      "alwaysOpen": "Sem nenhuma faixa, o bot cobra a qualquer hora, todos os dias.",
+      "closed": "Fechado",
+      "add": "Adicionar faixa",
+      "startLabel": "Início, {{day}}",
+      "endLabel": "Fim, {{day}}",
+      "remove": "Remover faixa, {{day}}",
+      "issue": {
+        "start_must_precede_end": "O início tem de ser antes do fim.",
+        "ranges_overlap": "As faixas do mesmo dia não podem se sobrepor.",
+        "too_many_ranges_in_weekday": "No máximo 3 faixas por dia."
+      }
+    },
+    "weekday": {
+      "0": "Domingo",
+      "1": "Segunda-feira",
+      "2": "Terça-feira",
+      "3": "Quarta-feira",
+      "4": "Quinta-feira",
+      "5": "Sexta-feira",
+      "6": "Sábado"
+    },
+    "save": "Salvar cobrança",
+    "saved": "Configuração da cobrança salva.",
+    "error": "Não foi possível salvar a cobrança ({{code}})."
+  },
+  "salespeople": {
+    "title": "Vendedores",
+    "subtitle": "Os vendedores das contratantes. Um vendedor pode atender mais de uma contratante e, em cada uma, uma carteira de clientes própria.",
+    "loading": "Carregando os vendedores…",
+    "retry": "Tentar de novo",
+    "empty": "Nenhum vendedor cadastrado.",
+    "inactive": "inativo",
+    "clientCount_one": "{{count}} cliente",
+    "clientCount_other": "{{count}} clientes",
+    "edit": "Editar",
+    "new": "Novo vendedor",
+    "editing": "Editar vendedor",
+    "name": "Nome",
+    "email": "E-mail",
+    "whatsapp": "WhatsApp",
+    "contactHint": "Informe ao menos um: e-mail ou WhatsApp (com DDD).",
+    "status": "Situação",
+    "statusValue": {
+      "active": "Ativo",
+      "inactive": "Inativo"
+    },
+    "linkContractor": "Vincular contratante",
+    "link": "Vincular",
+    "unlink": "Desvincular",
+    "portfolio": "Carteira",
+    "portfolioTitle": "Carteira de clientes",
+    "portfolioLabel": "CNPJs dos clientes",
+    "portfolioHint": "Um CNPJ por linha. Só clientes já cadastrados; salvar substitui a lista inteira.",
+    "portfolioInvalid": "CNPJ inválido: {{list}}",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "cancel": "Cancelar",
+    "formError": {
+      "name": "Informe o nome do vendedor.",
+      "contactRequired": "Informe o e-mail ou o WhatsApp.",
+      "emailFormat": "O e-mail não é válido."
+    },
+    "error": {
+      "failed": "Não foi possível concluir. Tente de novo.",
+      "forbidden": "Você não tem permissão para os vendedores.",
+      "invalid": "Os dados não foram aceitos. Confira os campos.",
+      "unauthenticated": "Sua sessão expirou. Entre de novo.",
+      "notFound": "O vendedor ou o vínculo não existe mais.",
+      "conflict": "Já existe um vendedor com esse e-mail ou WhatsApp.",
+      "unknownClient": "Algum CNPJ da carteira não é de um cliente cadastrado."
     }
   }
 }

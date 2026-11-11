@@ -63,6 +63,7 @@ function dispatch(input: {
     draft: { description: '', photo: undefined, values },
     handlers: {
       enqueueDocumentOccurrence: (occurrence) => enqueued.push(occurrence),
+      reportReceivingCharge: () => undefined,
       reportStopOccurrence: () => undefined,
     },
     stopId: 'stop-1',

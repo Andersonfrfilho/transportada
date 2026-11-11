@@ -101,7 +101,12 @@ export function CompanyUserBulkRoleBar({
           summaryLabel={(count) => t('users.bulk.rolesSummary', { count })}
           values={roles}
         />
-        <Button disabled={roles.length === 0 || isPending} onClick={handleApply} type="button">
+        <Button
+          disabled={roles.length === 0 || isPending}
+          onClick={handleApply}
+          size="sm"
+          type="button"
+        >
           <Icon name="check" />
           {t('users.bulk.apply', { count: selectedUsers.length })}
         </Button>
@@ -126,6 +131,7 @@ export function CompanyUserBulkRoleBar({
           <Button
             disabled={groupIds.length === 0 || isPending}
             onClick={handleApplyGroups}
+            size="sm"
             type="button"
           >
             <Icon name="check" />
