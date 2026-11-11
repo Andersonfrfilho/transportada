@@ -12,6 +12,10 @@ import type { EvolutionConversationInbound } from '../../src/occurrence-conversa
 import type { ApiLogger } from '../../src/shared/api.types.js'
 import type { WhatsAppXmlInbound } from '../../src/nfe-xml-receipts/application/receive-whatsapp-xml-document.service.js'
 import type { EvolutionGroupInbound } from '../../src/whatsapp/application/evolution-group-inbound.service.js'
+import type {
+  WhatsAppChatHeldMessage,
+  WhatsAppChatTakeoverGuard,
+} from '../../src/whatsapp-inbox/application/whatsapp-chat-takeover-guard.service.js'
 import { createWhatsAppEvolutionSecretService } from '../../src/whatsapp/application/whatsapp-evolution-secret.service.js'
 import type {
   WhatsAppEvolutionWebhookGatewayPort,
@@ -80,6 +84,8 @@ type LogEntry = { level: string; message: string; fields: unknown }
 async function setup(
   options: {
     apiPublicUrl?: string | undefined
+    /** Spec 319 T3: os JIDs de privado assumidos por um atendente; ausente, o webhook não tem a guarda. */
+    takenOver?: readonly string[]
     /** Spec 308: os telefones de motorista ativo; ausente, o webhook não tem a entrada direta. */
     directDrivers?: readonly string[]
     /** Spec 308 D2.4: os telefones com envio de XML liberado (`findImportSender`). */
@@ -115,6 +121,8 @@ async function setup(
 
   const state = {
     deliveries: [] as unknown[],
+    held: [] as { chatJid: string; message: WhatsAppChatHeldMessage }[],
+    limitCalls: 0,
     direct: [] as Parameters<NonNullable<EvolutionGroupInbound['receiveDirect']>>[0][],
     importerReplies: [] as string[],
     findCalls: 0,
@@ -175,9 +183,17 @@ async function setup(
     info: (message: string, fields: unknown) => state.logs.push({ fields, level: 'info', message }),
     warn: (message: string, fields: unknown) => state.logs.push({ fields, level: 'warn', message }),
   } as unknown as ApiLogger
+  const chatTakeover: WhatsAppChatTakeoverGuard = {
+    async holdIfTakenOver({ chatJid, message }) {
+      if (options.takenOver?.includes(chatJid) !== true) return false
+      state.held.push({ chatJid, message: await message() })
+      return true
+    },
+  }
   const useCase = createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets,
     apiPublicUrl: 'apiPublicUrl' in options ? options.apiPublicUrl : API_PUBLIC_URL,
+    ...(options.takenOver === undefined ? {} : { chatTakeover }),
     gateway: {
       async setWebhook(input) {
         state.gatewayCalls.push(input)
@@ -214,7 +230,10 @@ async function setup(
           }),
     },
     inbound: {
-      consumeDirectLimit: () => options.directLimited !== true,
+      consumeDirectLimit: () => {
+        state.limitCalls += 1
+        return options.directLimited !== true
+      },
       async quotesConversation() {
         return options.quotesPanel === true
       },
@@ -825,5 +844,85 @@ describe('spec 308: o chat direto do motorista vai ao bot', () => {
 
     expect(state.importerReplies).toEqual([])
     expect(state.messages).toHaveLength(1)
+  })
+})
+
+describe('spec 319 T3: o privado do motorista assumido por um atendente', () => {
+  const DIRECT_JID = `${PHONE}@s.whatsapp.net`
+  const body = (overrides: { replyTo?: string; text?: string } = {}) =>
+    upsert({
+      key: { fromMe: false, id: 'D1', remoteJid: DIRECT_JID },
+      message:
+        overrides.replyTo === undefined
+          ? { conversation: overrides.text ?? '2' }
+          : {
+              extendedTextMessage: {
+                contextInfo: { stanzaId: overrides.replyTo },
+                text: overrides.text ?? '2',
+              },
+            },
+    })
+
+  test('assumido: o bot não recebe, a mensagem é gravada antes do teto e contada à parte', async () => {
+    const { state, useCase } = await setup({ directDrivers: [PHONE], takenOver: [DIRECT_JID] })
+
+    await useCase.receive(receiveWith({ rawBody: body() }))
+
+    expect(state.direct).toEqual([])
+    expect(state.messages).toEqual([])
+    expect(state.limitCalls).toBe(0)
+    expect(state.held).toEqual([
+      {
+        chatJid: DIRECT_JID,
+        message: {
+          author: 'driver',
+          bodyText: '2',
+          contentKind: 'text',
+          occurredAt: undefined,
+          providerMessageId: 'D1',
+          senderPhone: PHONE,
+        },
+      },
+    ])
+    expect(
+      state.logs.find((log) => log.message === 'whatsapp_evolution.direct_message')?.fields,
+    ).toMatchObject({ outcome: 'taken_over' })
+    const received = state.logs.find((log) => log.message === 'whatsapp_evolution.webhook.received')
+    expect(received?.fields).toMatchObject({ direct: 0, ignored: 0, takenOver: 1 })
+    expect(JSON.stringify(state.logs)).not.toContain(PHONE)
+  })
+
+  test('sem assumir, o motorista segue no bot como antes', async () => {
+    const { state, useCase } = await setup({ directDrivers: [PHONE], takenOver: [] })
+
+    await useCase.receive(receiveWith({ rawBody: body() }))
+
+    expect(state.held).toEqual([])
+    expect(state.direct).toHaveLength(1)
+  })
+
+  test('a citação da conversa da ocorrência continua no painel, mesmo assumido (RF8)', async () => {
+    const { state, useCase } = await setup({
+      directDrivers: [PHONE],
+      quotesPanel: true,
+      takenOver: [DIRECT_JID],
+    })
+
+    await useCase.receive(receiveWith({ rawBody: body({ replyTo: 'SENT-1' }) }))
+
+    expect(state.held).toEqual([])
+    expect(state.messages).toHaveLength(1)
+  })
+
+  test('quem não é motorista não tem chat na caixa: segue no painel', async () => {
+    const { state, useCase } = await setup({
+      directDrivers: ['5516911112222'],
+      takenOver: [DIRECT_JID],
+    })
+
+    await useCase.receive(receiveWith({ rawBody: body() }))
+
+    expect(state.held).toEqual([])
+    expect(state.messages.map(({ message }) => message.from)).toEqual([PHONE])
   })
 })

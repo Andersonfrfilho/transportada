@@ -7,7 +7,7 @@ Uma task por vez, PR para staging, merge com CI verde. Contratos vermelhos antes
   > 🤖 Modelo: `opus`
 - [x] **T2 🧠** Domínio e migration: `whatsapp_chats`, `whatsapp_chat_messages`, assumir atômico, vencimento. Contratos.
   > 🤖 Modelo: `opus`
-- [ ] **T3 🧠** Guarda nos dois trilhos (privado 308 e grupo): chat assumido não responde nem avança fluxo, só grava.
+- [x] **T3 🧠** Guarda nos dois trilhos (privado 308 e grupo): chat assumido não responde nem avança fluxo, só grava.
   > 🤖 Modelo: `opus`
 - [ ] **T4** Registrar no histórico as mensagens do motorista, do bot e do grupo cadastrado.
   > 🤖 Modelo: `sonnet`
