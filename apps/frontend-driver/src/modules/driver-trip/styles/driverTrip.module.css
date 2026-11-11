@@ -40,16 +40,66 @@
   gap: var(--space-2);
 }
 
-.tripSelectorButton {
-  justify-content: flex-start;
-  width: 100%;
+/* O cartão da viagem: faixa de identificação em cima, trajeto embaixo, separados por uma linha. */
+.tripCard,
+.tripCardSelected {
+  background: var(--color-graphite);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+  display: grid;
 }
 
-/* O caminho em cima, a placa — linha de apoio, menor — embaixo. */
-.tripSelectorOption {
-  display: grid;
-  gap: 0;
+/* A escolha é a borda cobre, não um fundo cheio: o fundo cheio brigava com as cores da placa. */
+.tripCardSelected {
+  border-color: var(--color-copper);
+  box-shadow: inset 0 0 0 1px var(--color-copper);
+}
+
+.tripCardHead {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-slate) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+}
+
+.tripCardSelected .tripCardHead {
+  background: color-mix(in srgb, var(--color-copper) 16%, transparent);
+}
+
+.tripCardId,
+.tripCardPlate {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
   min-width: 0;
+}
+
+.tripCardHead button {
+  border-color: transparent;
+  /* O alvo de 44 px segue; a margem negativa o deixa invadir o respiro da faixa em vez de engordá-la. */
+  margin-block: calc(var(--space-2) * -1);
+  margin-inline: calc(var(--space-2) * -1) 0;
+}
+
+.tripCardIdText {
+  display: grid;
+  font-size: var(--field-font-size-compact);
+  line-height: 1.25;
+}
+
+.tripCardBody {
+  background: transparent;
+  border: 0;
+  color: var(--color-fog);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: var(--space-1);
+  min-height: var(--touch-target);
+  min-width: 0;
+  padding: var(--space-3);
   text-align: left;
   width: 100%;
 }
@@ -64,10 +114,13 @@
   white-space: normal;
 }
 
-.tripSelectorPlate {
-  color: inherit;
+/* As cidades da rota numa linha só: cabe o que couber, o resto vira reticências. */
+.tripCardCities {
+  color: var(--color-slate);
   font-size: var(--field-font-size-compact);
-  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* RF15: o aviso de que a posição está subindo — à vista, nunca rastreamento invisível. */
@@ -1258,6 +1311,10 @@
  * O identificador curto da viagem, ao lado da placa: monoespaçado porque é código para ditar ao
  * telefone — proporcional embaralha 0/O e 1/l justamente em quem está dirigindo.
  */
+.tripCodeLabelFirst {
+  margin-right: var(--space-2);
+}
+
 .tripCodeLabel {
   margin-left: var(--space-3);
 }

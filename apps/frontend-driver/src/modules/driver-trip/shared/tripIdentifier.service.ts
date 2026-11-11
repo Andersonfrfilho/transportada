@@ -25,3 +25,15 @@ export function formatTripCreatedAt(createdAt: string): string {
   const moment = new Date(createdAt)
   return Number.isNaN(moment.getTime()) ? '' : TRIP_CREATED_AT_FORMATTER.format(moment)
 }
+
+const TRIP_CREATED_DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+
+/** Só o dia (`10/11/2026`): na listagem a hora é ruído. Data inválida: vazio, como acima. */
+export function formatTripCreatedDate(createdAt: string): string {
+  const moment = new Date(createdAt)
+  return Number.isNaN(moment.getTime()) ? '' : TRIP_CREATED_DATE_FORMATTER.format(moment)
+}

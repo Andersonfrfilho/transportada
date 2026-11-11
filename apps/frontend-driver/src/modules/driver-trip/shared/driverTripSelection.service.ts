@@ -104,3 +104,20 @@ export function describeTripSelectorPath(trip: DriverTrip): TripSelectorPathView
   const last = shortStopLabel(lastStop.label)
   return { path: `${first} → ${last}`, stopCount }
 }
+
+const STOP_LABEL_CITY = /,\s*([^,]+?),\s*[A-Za-z]{2}\s*$/
+
+/**
+ * Pedido do usuário (10/11): sob o endereço, as cidades da rota. O rótulo da parada termina em
+ * `…, CIDADE, UF`; rótulo fora desse formato não contribui (melhor omitir que chutar). A ordem é a
+ * das paradas e a cidade repetida entra uma vez só.
+ */
+export function listTripSelectorCities(trip: DriverTrip): readonly string[] {
+  const cities: string[] = []
+  for (const stop of trip.stops) {
+    const match = STOP_LABEL_CITY.exec(shortStopLabel(stop.label))
+    const city = match?.[1]?.trim()
+    if (city !== undefined && city !== '' && !cities.includes(city)) cities.push(city)
+  }
+  return cities
+}

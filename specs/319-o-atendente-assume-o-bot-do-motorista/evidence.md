@@ -302,3 +302,23 @@ Bun 1.4.4, sem Postgres neste ambiente (a integração roda na CI).
   `toll-booth-catalog-repository.integration.ts`, que precisa de Postgres (`ERR_POSTGRES_CONNECTION_REFUSED`), sem
   relação com a task.
 - `tsc --noEmit`, `eslint` dos arquivos tocados e `prettier --check` limpos.
+
+## T5 — Rotas da caixa de conversas (sonnet)
+
+Postgres 16 local, Bun 1.4.4.
+
+- Rotas (`GET /whatsapp-inbox/chats`, `GET …/chats/:id/messages`, `POST …/take-over|release|read`) com a permissão
+  `occurrences.resolve`, a mesma de quem atende a conversa da ocorrência: a caixa não criou permissão nova para não
+  mexer na lista de papéis (que o painel compara em ordem). `companyId` e `userId` vêm só do contexto.
+- A resposta é de formato fechado: a lista não leva JID nem telefone, o histórico não leva `provider_message_id` nem
+  `sender_phone` (a tela endereça pelo id interno, como a T7b recomendou). `unread` é derivado
+  (`last_inbound_at > read_at`).
+- Query e cursor com o mesmo padrão do resto da API (`readListQuery`, `readPaging`); chave desconhecida ou valor fora da
+  lista é 400, `:id` que não é uuid canônico nem casa a rota (404, do roteador).
+- Auditoria (`whatsapp_chat.taken_over` / `whatsapp_chat.released`, antes/depois do estado) só quando o estado muda:
+  renovar o próprio prazo e devolver o que já está com o bot não gravam.
+- `test/whatsapp-inbox/inbox-routes.contract.ts` (8 testes) e `test/integration/whatsapp-inbox-list.integration.ts`
+  (4 testes: lista da empresa com filtro e cursor, não lido, histórico paginado, auditoria) — ambos nas listas do
+  `package.json`. Rodada inteira da API: **14 975 pass, 35 skip, 0 fail**; `tsc`, `eslint` e `prettier` limpos.
+- Fica para a T8 (a tela): nome do motorista/grupo e prévia da última mensagem na lista, que hoje só traz o chat.
+  Fica para a T6: o envio (`POST …/messages`).

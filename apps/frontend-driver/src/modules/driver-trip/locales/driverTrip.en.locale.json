@@ -545,6 +545,13 @@
     "available": "New version available.",
     "waitingCapture": "Updates when the open capture is finished — photo, signature, crop, occurrence or a proof being filled in."
   },
+  "plate": {
+    "label": "Plate",
+    "copied": "Plate copied",
+    "copy": "Copy the plate",
+    "legacy": "Plate {{plate}}, old model",
+    "mercosul": "Plate {{plate}}, Mercosul model"
+  },
   "tripSelector": {
     "label": "Your trips",
     "option_one": "{{path}} · {{count}} stop",

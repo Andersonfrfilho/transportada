@@ -715,7 +715,8 @@
     "subtitle": "Scan each note's key: a note already in the system is only counted, an unknown one is searched at SEFAZ and imported automatically.",
     "reader": {
       "field": "Note key",
-      "idle": "Click here to resume reading",
+      "idle": "Enable the reader",
+      "placeholder": "Scan the invoice 44-digit key",
       "ready": "Reader ready"
     },
     "scan": "Read with camera",
