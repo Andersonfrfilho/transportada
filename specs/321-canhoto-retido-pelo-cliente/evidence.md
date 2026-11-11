@@ -302,3 +302,5 @@ Prints (claro/escuro, desktop 1280 e celular 375; vazio, com foto, enviada) em `
 ## T7 (API) — filtro `typeIdIn` e `canhotoRetained`
 
 Contrato `test/trip-occurrence/feed.contract.ts` (typeIdIn aceita UUID, recusa o resto), marcador em `test/integration/canhoto-pickup-registration.integration.ts`. `tsc` limpo; API: 15030 contratos, 0 fail. **Ainda aberto na T7:** tipo no script de staging (dry-run), publicação painel → API → app e conferência de CA01–CA05 em staging, que pedem acesso ao ambiente.
+
+**Tipo em staging.** `apps/api-transportada/scripts/canhoto-retido-type-publish.ts` (simula sem `--confirm`; só cria, nunca reescreve) e o invólucro `ops-scripts/staging-canhoto-retido-tipo.sh` (simula, pede "sim", grava a saída em `tmp/ops/saidas/`). Só roda depois que o PR da T7 estiver publicado em staging.
