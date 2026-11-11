@@ -608,8 +608,7 @@ export function createWhatsAppCanhotoRecognition(
        */
       const [current] = inProgress
       const verdict = read === 'busy' ? undefined : read
-      const decision =
-        read === 'busy' ? undefined : decideCanhotoRecognition({ notes, verdict })
+      const decision = read === 'busy' ? undefined : decideCanhotoRecognition({ notes, verdict })
       if (awaitingSettlement && inProgress.length === 1 && current !== undefined) {
         const pointsElsewhere =
           decision?.kind === 'attach' ||
