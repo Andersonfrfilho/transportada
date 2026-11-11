@@ -37,3 +37,35 @@ export class WhatsAppChatJidInvalidError extends ApiError {
     })
   }
 }
+
+/** Só quem segura o chat (e dentro do prazo) escreve por ele; vencido ou devolvido, o bot já voltou. */
+export class WhatsAppChatNotHeldError extends ApiError {
+  public constructor() {
+    super({
+      code: 'WHATSAPP_CHAT_NOT_HELD',
+      message: 'Take over the WhatsApp chat before sending a message through it.',
+      status: 409,
+    })
+  }
+}
+
+export class WhatsAppChatMessageNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'WHATSAPP_CHAT_MESSAGE_NOT_FOUND',
+      message: 'The message does not exist in this WhatsApp chat.',
+      status: 404,
+    })
+  }
+}
+
+/** Reenviar só vale para a mensagem do atendente que falhou antes de sair. */
+export class WhatsAppChatMessageNotRetryableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'WHATSAPP_CHAT_MESSAGE_NOT_RETRYABLE',
+      message: 'Only a failed message sent by an attendant can be sent again.',
+      status: 409,
+    })
+  }
+}

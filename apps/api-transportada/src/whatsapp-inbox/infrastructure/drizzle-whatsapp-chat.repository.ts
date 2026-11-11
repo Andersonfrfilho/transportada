@@ -328,6 +328,21 @@ export function createDrizzleWhatsAppChatRepository(
       return findChatByJid(input.companyId, input.chatJid)
     },
 
+    async findMessage(input) {
+      const [row] = await database
+        .select(MESSAGE_COLUMNS)
+        .from(whatsappChatMessages)
+        .where(
+          and(
+            eq(whatsappChatMessages.companyId, input.companyId),
+            eq(whatsappChatMessages.chatId, input.chatId),
+            eq(whatsappChatMessages.id, input.messageId),
+          ),
+        )
+        .limit(1)
+      return (row as WhatsAppChatMessage | undefined) ?? null
+    },
+
     async findTakeoverTimeoutSeconds(input) {
       const [row] = await database
         .select({ seconds: whatsappEvolutionSettings.chatTakeoverTimeoutSeconds })

@@ -15,7 +15,7 @@ Uma task por vez, PR para staging, merge com CI verde. Contratos vermelhos antes
       Feito: `src/whatsapp-inbox/presentation/whatsapp-inbox.routes.ts` e `application/whatsapp-inbox.use-case.ts`;
       evidência em `evidence.md` § T5.
   > 🤖 Modelo: `sonnet`
-- [ ] **T6** Envio do atendente pelo Evolution com pacer, status e reenvio.
+- [x] **T6** Envio do atendente pelo Evolution com pacer, status e reenvio.
   > 🤖 Modelo: `sonnet`
 - [ ] **T6b** Prévia de confirmação antes de enviar ao motorista (RF3b), no padrão do diálogo de envio existente.
   > 🤖 Modelo: `sonnet`

@@ -334,3 +334,21 @@ Postgres 16 local, Bun 1.4.4.
   `whatsapp-inbox-expire.integration.test.ts` contra Postgres migrado 2 pass; tsc e eslint limpos nas duas apps.
 - **Fora desta task, por decisão:** o aviso "voltei" ao motorista. Ele precisa do envio pelo Evolution (T6) e do modelo de
   notificação; a rotina já devolve o estado, e o aviso entra na T6 chamando o mesmo caminho. A rotina nasce pausada: ligar em staging/produção é decisão do dono.
+
+## T6 — Envio do atendente pelo Evolution (sonnet)
+
+- `POST /whatsapp-inbox/chats/:id/messages` (`occurrences.resolve`, corpo `{ text }` `.strict()`, texto aparado de 1 a 4000 caracteres, 201) e
+  `POST …/messages/:messageId/retry` (200). Destino nunca vem do corpo: o chat resolve (privado pelos dígitos, grupo pelo JID).
+- Só quem segura o chat envia: `takeover.touch` empurra o prazo (RF6) e devolve `null` se vencido ou de outro atendente →
+  `409 WHATSAPP_CHAT_NOT_HELD`. Duas fases: grava a linha `queued` (autor `operator`, usuário e hora), chama o `sendText` do gateway
+  Evolution da empresa (mesmo pacer da spec 289, espera de até 20 s) e fecha `sent` com o id do provedor ou `failed` com o motivo fechado
+  (`disconnected`, `number_not_found`, `failed`). A resposta é sempre a mensagem; falha de envio não é erro HTTP.
+- Reenvio: só mensagem `operator` em `failed` (`409 WHATSAPP_CHAT_MESSAGE_NOT_RETRYABLE` no resto, `404 WHATSAPP_CHAT_MESSAGE_NOT_FOUND`);
+  `failed → queued` é atômico, então duas tentativas simultâneas não enviam duas vezes. A resposta não leva JID, telefone nem id do provedor.
+- Novo método de porta `findMessage`. O gateway é ligado em `main.ts` por duck typing (`failure` do erro), sem importar nada do módulo de ocorrência
+  (contrato de separação segue verde).
+- Provas: `test/whatsapp-inbox/send-messages.contract.ts` (12 casos); `whatsapp-inbox-list.integration.ts` com o ciclo falha → reenvio → `sent`
+  contra Postgres; suíte de contrato da API inteira 15023 pass / 0 fail; tsc e eslint limpos.
+- **Fora desta task, por decisão:** a prévia de confirmação (T6b) é diálogo do painel e entra com a página (T8); o aviso "voltei" ao motorista
+  usa este mesmo caminho, mas depende do modelo de notificação e fica para a T11; sem `rateLimit` de Postgres na rota porque o pacer do número
+  já recusa acima de 20 s de espera e o envio é gesto humano; categoria própria no quadro 290 fica com a T11.

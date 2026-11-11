@@ -89,6 +89,9 @@ function createFixture(permissions: CompanyContext['permissions'] = RESOLVE) {
     async findChatByJid() {
       return null
     },
+    async findMessage() {
+      return null
+    },
     async findTakeoverTimeoutSeconds() {
       return null
     },

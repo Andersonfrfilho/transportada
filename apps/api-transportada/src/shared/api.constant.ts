@@ -281,6 +281,8 @@ export const API_PUBLIC_WHATSAPP_EVOLUTION_WEBHOOK_PATH = '/public/whatsapp-evol
 /** Spec 319 T5: a caixa de conversas do WhatsApp (módulo próprio, separado de ocorrências). */
 export const API_WHATSAPP_INBOX_CHATS_PATH = '/whatsapp-inbox/chats'
 export const API_WHATSAPP_INBOX_CHAT_MESSAGES_PATH = '/whatsapp-inbox/chats/:id/messages'
+export const API_WHATSAPP_INBOX_CHAT_MESSAGE_RETRY_PATH =
+  '/whatsapp-inbox/chats/:id/messages/:messageId/retry'
 export const API_WHATSAPP_INBOX_CHAT_TAKE_OVER_PATH = '/whatsapp-inbox/chats/:id/take-over'
 export const API_WHATSAPP_INBOX_CHAT_RELEASE_PATH = '/whatsapp-inbox/chats/:id/release'
 export const API_WHATSAPP_INBOX_CHAT_READ_PATH = '/whatsapp-inbox/chats/:id/read'

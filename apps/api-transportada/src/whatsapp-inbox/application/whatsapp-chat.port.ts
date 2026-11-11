@@ -180,6 +180,10 @@ export type WhatsAppChatRepositoryPort = {
   }) => Promise<readonly WhatsAppChatExpired[]>
   /** Grava no histórico e atualiza `last_message_at`/`last_inbound_at` do chat, na mesma transação. */
   readonly appendMessage: (input: NewWhatsAppChatMessage) => Promise<WhatsAppChatAppendResult>
+  /** Uma mensagem do histórico, da empresa e do chat; `null` se não achou. */
+  readonly findMessage: (
+    input: WhatsAppChatKey & { readonly messageId: string },
+  ) => Promise<WhatsAppChatMessage | null>
   /** Avança o status só para a frente (`canAdvanceWhatsAppChatMessageStatus`); `null` se não achou ou não avançou. */
   readonly updateMessageStatus: (
     input: WhatsAppChatMessageStatusUpdate,
