@@ -6,9 +6,9 @@ Modelo por etapa (regra do projeto): decisão e ordenador `opus`, plumbing `sonn
 
 > 🤖 Modelo: `opus`
 
-- [ ] T1 Contrato antes do código: `orderStopsByRoad` (permutação, determinismo, não-pior, desempate, sem coordenada ao fim, inserção barata para origem `manual`), proibição de `haversine` no módulo.
-- [ ] T2 Implementar o ordenador (vizinho mais próximo + 2-opt, caminho aberto) em `trips/domain`.
-- [ ] T3 Porta `RoadMatrixPort` (N×N) + gateway OSRM `/table` com schema, timeout 5 s, falha = `null`; contrato do gateway.
+- [x] T1 Contrato antes do código: `orderStopsByRoad` (permutação, determinismo, não-pior, desempate, sem coordenada ao fim, inserção barata para origem `manual`), proibição de `haversine` no módulo.
+- [x] T2 Implementar o ordenador (vizinho mais próximo + 2-opt, caminho aberto) em `trips/domain`.
+- [x] T3 Porta `RoadMatrixPort` (N×N) + gateway OSRM `/table` com schema, timeout 5 s, falha = `null`; contrato do gateway.
 
 ## Fase B — API
 
