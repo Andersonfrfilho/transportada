@@ -902,6 +902,14 @@ endereços, produtos, volumes e os pais por chave estrangeira).
 - Saída completa em `tmp/ops/saidas/staging-copia-unica-<data>.txt` (e o JSON exportado ao lado); o script imprime só o caminho.
 - Depois: configurar o canal WhatsApp na ficha da Única em staging (grupo e número) e criar uma viagem com essas notas para registrar a ocorrência.
 
+### Aviso no grupo falha com `template_missing` (spec 318, 11/11/2026)
+
+O aviso de ocorrência no grupo da contratante precisa de um modelo de canal **WhatsApp**, pt-BR, em Notificações: primeiro a chave
+do tipo (ex.: `ocorrencia.prorrogacao-boleto`), depois `ocorrencia.contratante-grupo`. Sem nenhum dos dois, o envio falha com
+`template_missing` em `idempotency_records` (operação `occurrence-contractor-group.send`) e a ocorrência não vai ao grupo. Conferir
+com `scripts/ops/staging-confere-ocorrencia-unica.sh` (somente leitura) e publicar o modelo com
+`scripts/ops/staging-publica-modelo-grupo-ocorrencia.sh [--confirm]` (staging; sem `--confirm` só simula; sempre versão nova).
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
