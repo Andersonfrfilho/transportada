@@ -82,6 +82,8 @@ function setup(
     readonly pickups?: boolean
     /** A parada 2 (NF 17300) chegou e falta a baixa: é a parada em andamento. */
     readonly secondStopArrived?: boolean
+    /** OCR desligado (produção): o reconhecimento existe sem leitor. */
+    readonly noReader?: boolean
   } = {},
 ) {
   const rows = new Map<string, WhatsAppDeliveryPreparation & { status: string }>()
@@ -275,7 +277,7 @@ function setup(
         if (row !== undefined) questionRows.set(id, { ...row, candidates, kind })
       },
     },
-    reader,
+    ...(options.noReader === true ? {} : { reader }),
   })
   const facade = combineWhatsAppDriverCollections({
     canhoto: recognition,
@@ -721,6 +723,21 @@ describe('foto sem pergunta aberta: a parada em andamento vem primeiro (nunca ba
     })
     await t.photo()
     expect((await t.answer('2'))?.texts).toEqual([CONFIRM_17300])
+  })
+
+  test('sem OCR, a parada que chegou baixa a nota com a foto, sem marcar o bot nem perguntar', async () => {
+    const t = setup({ noReader: true, secondStopArrived: true })
+    expect(await t.facade.acceptsPhotoFromStopInProgress?.(ACTOR)).toBe(true)
+    expect((await t.photo())?.texts[0]).toBe('📸 *Li o canhoto da NF `17300`.*')
+    expect(t.readCalls()).toBe(0)
+    expect([...t.rows.values()].map((row) => row.documentId)).toEqual(['DOC-B'])
+  })
+
+  test('sem OCR e sem parada que chegou, a foto segue calada', async () => {
+    const t = setup({ noReader: true })
+    expect(await t.photo()).toBeNull()
+    expect(t.questionRows.size).toBe(0)
+    expect(t.rows.size).toBe(0)
   })
 
   test('sem parada em andamento, a lista da viagem como antes', async () => {
