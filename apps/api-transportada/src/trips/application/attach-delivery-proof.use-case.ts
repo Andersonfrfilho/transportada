@@ -61,6 +61,7 @@ import type { AttachedCanhoto, CanhotoDuplicate } from './canhoto-attachment.typ
 import { CanhotoDuplicateError } from './canhoto-duplicate.error.js'
 import {
   deriveFieldAuthorship,
+  FIELD_TRIP_TARGET_KIND,
   toFieldTripTarget,
   type FieldAuthorship,
   type FieldTripLocator,
@@ -263,6 +264,13 @@ export type DeliveryProofPort = {
 
 export type AttachDeliveryProofInput = FieldTripLocator & {
   readonly actorUserId: string
+  /**
+   * Spec 321 T4 (D4b): a foto do canhoto colhida pelo motorista de **outra** viagem (a da coleta). Ela vira o canhoto
+   * da entrega de origem: o evento é procurado na viagem de origem (o motorista que coleta não está nela), troca o
+   * canhoto que a nota já tinha (é o que se foi buscar) e não classifica pontualidade (a foto não é da entrega). Quem
+   * confere que a coleta é dele é o caso de uso da coleta, antes daqui.
+   */
+  readonly canhotoPickup?: { readonly originTripId: string }
   readonly companyId: string
   /** Spec 265 RF13: a correlação da requisição — vai no log e no pedido ao worker. Ausente cai no `proofId`. */
   readonly correlationId?: string
@@ -418,7 +426,10 @@ async function attachDeliveryProofUnlogged(
   const eventId = await input.repository.findDeliveryEventId({
     companyId: input.companyId,
     documentId: input.documentId,
-    target: toFieldTripTarget(input),
+    target:
+      input.canhotoPickup === undefined
+        ? toFieldTripTarget(input)
+        : { kind: FIELD_TRIP_TARGET_KIND.trip, tripId: input.canhotoPickup.originTripId },
   })
   if (eventId === null) throw new TripDocumentNotReachableError()
 
@@ -589,7 +600,7 @@ async function resolveCanhotoConflict(params: {
   })
   if (found !== null) return toDuplicateProof(found)
   if (authorship.channel === TRIP_FIELD_CHANNELS.office) return undefined
-  if (input.upload.replaceCanhoto === true) return undefined
+  if (input.upload.replaceCanhoto === true || input.canhotoPickup !== undefined) return undefined
 
   const attached = await input.repository.countProofsForEvent({
     companyId: input.companyId,
@@ -667,6 +678,8 @@ async function classifyUploadPunctuality(params: {
   const unclassified = { clockOffsetMs: null, punctuality: PROOF_PUNCTUALITY.notRequired }
   if (kind !== PHOTO_PROOF_KIND && kind !== CARGO_PROOF_KIND) return unclassified
   if (params.authorship.channel === TRIP_FIELD_CHANNELS.office) return unclassified
+  // Spec 321 T4: a foto da coleta não é da entrega; não pune nem lava o motorista de origem.
+  if (params.input.canhotoPickup !== undefined) return unclassified
 
   return classifyPhotoPunctuality(params)
 }

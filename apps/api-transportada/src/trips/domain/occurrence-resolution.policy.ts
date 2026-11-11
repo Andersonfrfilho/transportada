@@ -28,12 +28,17 @@ export function resolveSystemResolutionPhraseKey(
   return SYSTEM_RESOLUTION_PHRASE_KEYS[status]
 }
 
-/** Spec 276 T3b: a frase do evento `system` pela causa — o retorno entregue, senão o status da tratativa. */
+/**
+ * Spec 276 T3b: a frase do evento `system` pela causa — o retorno entregue, senão o status da tratativa. Spec 321 T4
+ * (D5): a coleta de canhoto aprovada é `canhoto_collected`.
+ */
 export function resolveSystemResolutionCausePhraseKey(cause: {
   readonly caseEventStatus: TripOccurrenceCaseStatus | undefined
+  readonly causedByCanhotoPickup?: true
   readonly causedByContractorReply?: true
 }): SystemResolutionPhraseKey | undefined {
   if (cause.causedByContractorReply === true) return 'contractor_reply_delivered'
+  if (cause.causedByCanhotoPickup === true) return 'canhoto_collected'
   return cause.caseEventStatus === undefined
     ? undefined
     : resolveSystemResolutionPhraseKey(cause.caseEventStatus)
@@ -59,6 +64,9 @@ export function resolveOccurrenceResolutionState(
         caseEventStatus: lastResolved.caseEventStatus,
         ...(lastResolved.causedByContractorReply === true
           ? { causedByContractorReply: true as const }
+          : {}),
+        ...(lastResolved.causedByCanhotoPickup === true
+          ? { causedByCanhotoPickup: true as const }
           : {}),
         note: lastResolved.note,
       }

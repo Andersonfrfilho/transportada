@@ -20,6 +20,7 @@ import {
 } from '../../mdfe-manifests/application/read-mdfe-document.port.js'
 import type { CanhotoDuplicate } from '../application/canhoto-attachment.types.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
+import type { CollectedCanhotoPickupPhoto } from '../application/collect-canhoto-pickup-photo.use-case.js'
 import type { DriverDeliveryProofView } from '../application/read-driver-delivery-proof.use-case.js'
 import {
   DRIVER_FIELD_MOMENTS,
@@ -77,6 +78,8 @@ const STOP_OCCURRENCES_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/occurre
 const DOCUMENT_DELIVER_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/deliver`
 const DOCUMENT_RETURN_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/return`
 const DOCUMENT_PROOF_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/proof`
+/** Spec 321 T4: a foto do canhoto retido, pela coleta encaixada na viagem do motorista. */
+const CANHOTO_PICKUP_PROOF_PATH = `${API_ME_CURRENT_TRIP_PATH}/canhoto-pickups/:pickupId/proof`
 /**
  * Spec 079: a ocorrência que o motorista registra do próprio celular.
  *
@@ -296,6 +299,14 @@ export type MeTripDependencies = {
     readonly processingState?: TripDeliveryProofProcessingState
     readonly punctuality: ProofPunctuality
   }>
+  /** Spec 321 T4 (D4b): a foto do canhoto retido, pela coleta encaixada na viagem do motorista. Ausente, sem rota. */
+  readonly collectCanhotoPickupPhoto?: (
+    input: DriverContextInput & {
+      readonly correlationId?: string
+      readonly pickupId: string
+      readonly upload: DeliveryProofUpload
+    },
+  ) => Promise<CollectedCanhotoPickupPhoto>
   /** Pedido do usuário (01/10): rever o canhoto já enviado, pela nota da viagem dele. */
   readonly readDeliveryProofs: (input: {
     readonly companyId: string
@@ -711,6 +722,57 @@ export function createMeTripRoutes(
       pathname: DOCUMENT_PROOF_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
+    /**
+     * Spec 321 T4 (D4b, CA04): a foto do canhoto retido, tirada pelo motorista da viagem da coleta. Vira o canhoto da
+     * entrega de origem; quem confere que a coleta é dele é o caso de uso (404 para a alheia).
+     */
+    ...(dependencies.collectCanhotoPickupPhoto === undefined
+      ? []
+      : [
+          defineRoute<{
+            readonly correlationId: string
+            readonly pickupId: string
+            readonly upload: DeliveryProofUpload
+          }>({
+            async handle({ context, input }): Promise<Response> {
+              const driverId = await resolveDriver(context.scope)
+              const collect = dependencies.collectCanhotoPickupPhoto
+              if (collect === undefined) throw new DriverNotRegisteredError()
+              const result = await collect({
+                actorUserId: context.scope.userId,
+                companyId: context.scope.companyId,
+                correlationId: input.correlationId,
+                driverId,
+                pickupId: input.pickupId,
+                upload: input.upload,
+              })
+              const { proof } = result
+              return jsonResponse({
+                body: {
+                  data: {
+                    ...(proof.duplicate === undefined ? {} : { duplicate: proof.duplicate }),
+                    documentId: result.documentId,
+                    id: proof.id,
+                    processingState: resolveDeliveryProofProcessingState(proof.processingState),
+                    stopClosed: result.stopClosed,
+                    tripCompleted: result.tripCompleted,
+                  },
+                },
+                status: proof.duplicate === undefined ? 201 : 200,
+              })
+            },
+            method: 'POST',
+            async parse({ correlationId, pathParameters, request }) {
+              return {
+                correlationId,
+                pickupId: parseUuidPathIdentifier(pathParameters.pickupId ?? ''),
+                upload: await parseDeliveryProofUpload(request),
+              }
+            },
+            pathname: CANHOTO_PICKUP_PROOF_PATH,
+            policy: DRIVER_REPORT_POLICY,
+          }),
+        ]),
     /**
      * Pedido do usuário (01/10): o motorista rever o canhoto que já subiu. `trip.read` é da empresa
      * inteira — quem recorta é a consulta da nota alcançável dentro das viagens **dele**, dentro do

@@ -250,6 +250,8 @@ describe('a coleta não é vínculo de viagem (spec 321 D3, CA03)', () => {
         'nfe_document_id',
         'occurrence_id',
         'origin_trip_document_id',
+        // Spec 321 T4 (D4b): a foto do canhoto já chegou e espera a conferência.
+        'photo_sent_at',
         'pickup_stop_id',
         'pickup_trip_id',
         'status',
@@ -258,6 +260,9 @@ describe('a coleta não é vínculo de viagem (spec 321 D3, CA03)', () => {
     )
     expect(config.indexes.map((index) => index.config.name)).toContain(
       'trip_canhoto_pickups_open_origin_unique',
+    )
+    expect(config.checks.map((check) => check.name)).toContain(
+      'trip_canhoto_pickups_photo_sent_check',
     )
   })
 })

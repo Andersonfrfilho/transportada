@@ -147,7 +147,8 @@ export async function listStopsWithScheduledCanhotoPickup(
 
 /**
  * Spec 321 T3 (casos extremos): a viagem que cancela ou conclui com a coleta ainda encaixada devolve a coleta a
- * `pending` — o canhoto não veio, a ocorrência segue aberta e o escritório encaixa de novo. A parada fica (é o
+ * `pending` — o canhoto não veio, a ocorrência segue aberta e o escritório encaixa de novo. Spec 321 T4: a coleta cuja
+ * foto já veio (`photo_sent_at`) fica encaixada, esperando a conferência do canhoto. A parada fica (é o
  * histórico da viagem; cancelar também não apaga parada). Chamado pelo escritor único de `trip_status_events`
  * (`recordTripStatusChange`), então vale para todo caminho que finaliza a viagem.
  */
@@ -163,6 +164,8 @@ export async function returnScheduledCanhotoPickupsOfTrip(
         eq(tripCanhotoPickups.companyId, input.companyId),
         eq(tripCanhotoPickups.pickupTripId, input.tripId),
         eq(tripCanhotoPickups.status, 'scheduled'),
+        /** Spec 321 T4 (D4b): a foto já veio e espera a conferência; o fim da viagem não a desfaz. */
+        isNull(tripCanhotoPickups.photoSentAt),
       ),
     )
     .returning({ id: tripCanhotoPickups.id })

@@ -73,8 +73,11 @@ export type OccurrenceTimelineSource =
       readonly note: null | string
       readonly phraseKey: null | SystemResolutionPhraseKey
     })
-  /** Spec 266 / ADR-0105: o motorista reabriu respondendo; `messageId` é a mensagem que reabriu. */
-  | (SourceBase & { readonly kind: 'resolution.reopened'; readonly messageId: string })
+  /**
+   * Spec 266 / ADR-0105: o motorista reabriu respondendo; `messageId` é a mensagem que reabriu. Spec 321 T4 (D5): o
+   * sistema reabre quando o canhoto coletado é reprovado — sem mensagem (`null`), ator `system`.
+   */
+  | (SourceBase & { readonly kind: 'resolution.reopened'; readonly messageId: null | string })
   /**
    * Spec 276 T3: o retorno da contratante (248) mudou de status — a abertura do retorno entra como
    * `awaiting_contractor`. Só o status e o motivo, nunca o anexo nem a nota do operador.

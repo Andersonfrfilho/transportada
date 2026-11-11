@@ -73,6 +73,12 @@ export const CANHOTO_RECOGNITION_SPEECH = {
       formatOptions(CONFIRM_OPTIONS),
     ].join('\n'),
   discarded: DISCARDED_TEXT,
+  /** Spec 321 T4: o canhoto retido chegou pela coleta; quem fecha é a conferência do escritório. */
+  pickupCollected: (documentNumber: string): string =>
+    [
+      `🧾 *Recebi o canhoto da NF \`${documentNumber}\`.*`,
+      formatNextStep('o escritório confere e a coleta fica concluída.'),
+    ].join('\n'),
   expired:
     '⏳ *A pergunta sobre a foto venceu.*\nA foto foi descartada. Mande a foto do canhoto de novo.',
   /** O "não entendi" repete as opções da pergunta aberta, por tipo. */

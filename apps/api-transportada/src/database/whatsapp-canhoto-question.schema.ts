@@ -41,6 +41,8 @@ export type WhatsAppCanhotoQuestionCandidate = {
   readonly documentId: string
   readonly documentNumber: string
   readonly label: string
+  /** Spec 321 T4 (D4b): a nota é o canhoto retido de uma coleta encaixada na viagem; a foto vai pela coleta. */
+  readonly pickupId?: string
 }
 
 /**

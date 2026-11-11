@@ -189,3 +189,60 @@ detalhe da viagem ainda não traz a flag (T5, painel tolerante antes).
   desencaixar apagam a parada só de coleta, e soltar a última nota de uma parada com coleta não a apaga; retirar a parada leva a coleta; cancelar e
   encerrar a viagem devolvem a `pending`; recusas (origem, concluída, inexistente, outra empresa, coletada, não encaixada).
 - `bun run test`: 14945 pass, 0 fail. `tsc --noEmit` e `eslint` limpos.
+
+## T4 — o canhoto colhido fecha a coleta (11/11/2026)
+
+**A foto da coleta é o canhoto da entrega de origem.** A parada só de coleta não tem nota, então a foto não pode ter comprovante próprio: o
+motorista da viagem nova manda a foto e ela vira o comprovante `photo` do evento de entrega da nota **na viagem de origem**, pelo mesmo
+`attachDeliveryProof` de sempre, com a opção nova `canhotoPickup: { originTripId }`. Com ela o evento é procurado na viagem de origem (o motorista
+que coleta não está nela), a foto troca o canhoto que a nota já tinha (é o que se foi buscar, sem `replaceCanhoto`) e não classifica pontualidade
+(`not_required`: não pune nem lava o motorista de origem). Daí em diante é o caminho de qualquer canhoto: a gravação zera o veredito para `pending`,
+a rotina `trip.canhoto.read` do worker o lê (a fila não filtra viagem concluída, e casa o código de barras contra as notas da viagem do
+comprovante, onde a nota de origem está) e a conferência decide. **O worker não mudou.**
+
+**Entradas.** App: `POST /me/trips/current/canhoto-pickups/:pickupId/proof` (multipart do comprovante, `trip.report`, só `kind=photo`, senão
+`400 CANHOTO_PICKUP_PROOF_KIND`). Bot: as coletas `scheduled` ainda sem foto das viagens não finalizadas em que o motorista está na tripulação
+entram como notas abertas (a nota de origem, rótulo "canhoto a buscar", `pickupId` na candidata da pergunta), e a foto casada (direto ou pela
+resposta) vai pela coleta, com a fala `pickupCollected`. Os dois chamam `collectCanhotoPickupPhoto`. BOLA: a coleta precisa estar `scheduled`
+numa viagem (não cancelada) com o motorista em `trip_drivers`; o resto é `404 CANHOTO_PICKUP_NOT_FOUND`, antes de qualquer gravação.
+
+**Depois da foto** (`recordCanhotoPickupPhotoSent`, transação própria; travas viagem da coleta `FOR NO KEY UPDATE` → coleta `FOR UPDATE`, a ordem
+da T3): `photo_sent_at` uma vez, a parada só de coleta fecha (sem nota viva nem outra coleta à espera; chegada que ninguém tocou vira a hora do
+fechamento) e, se era a última aberta, a viagem conclui por `completeTripIfSettled` (que grava `trip_status_events`). A mesma imagem que já é o
+canhoto desta nota conta como reenvio; de outra nota, não fecha nada. `returnScheduledCanhotoPickupsOfTrip` (T3) agora pula a coleta com foto: o
+fim da viagem não desfaz uma foto que espera a conferência. CHECK novo: `photo_sent_at` só com `scheduled`/`collected`.
+
+**A conferência decide (D5, RF6).** `reviewCanhotoProof` chama `settleCanhotoPickup` na mesma transação, depois de gravar um veredito que mudou:
+
+- **aprovado** (automático que casa ou pessoa): a coleta aberta da nota vira `collected` (`collected_at`), a parada só de coleta fecha se ainda
+  aberta, e a ocorrência (travada `FOR NO KEY UPDATE`, estado lido depois da trava, por `seq`) recebe `resolved` do `system` com
+  `canhoto_pickup_id`, a não ser que esteja cancelada ou já resolvida;
+- **reprovado** (pessoa; também sobrepõe a aprovação automática): a coleta `collected` (ou a `scheduled` com foto) volta a esperar o canhoto —
+  `scheduled` se a viagem dela segue aberta, `pending` sem viagem/parada se já acabou —, com `photo_sent_at`/`collected_at` zerados; outra coleta
+  já aberta da mesma entrega impede reabrir a antiga. Ocorrência resolvida recebe `reopened` do `system`;
+- `pending` (leitura sem casamento) e decisão repetida não mexem na coleta.
+
+**Andamento 266.** Migration `20261111002237_canhoto_pickup_resolution` (aditiva): `trip_occurrence_resolution_events.canhoto_pickup_id` (FK
+composta `restrict`, índice parcial, só em ocorrência de nota), os CHECKs de causa única do `system` passam a contar três causas e o de reabrir
+aceita `system` com a coleta. `rollback.sql` recusa enquanto houver evento ligado a coleta ou coleta com foto. Frase `canhoto_collected`
+(`SystemResolutionPhraseKey`); o `reopened` do `system` sai na linha do tempo com ator `system` e `messageId: null`. Espelhos: app do motorista
+(`ROUTE_OCCURRENCE_PHRASE_KEYS` + pt/en) e painel (`resolvedCanhotoCollected`, `reopenedAutomatic` + pt/en). Os dois já toleravam a chave
+desconhecida e o ator `system`, então não há ordem de publicação a respeitar. A parada "Coletar canhoto" no app é da T6; a rota está pronta.
+
+**Testes.**
+
+- Contrato: `test/trip-occurrence/canhoto-pickup-collection.contract.ts` (caso de uso: nota e viagem de origem, BOLA 404 sem gravar, só `photo`,
+  reenvio da mesma imagem, imagem de outra nota); `test/canhoto-review/use-case.contract.ts` (aprovar pessoa/robô fecha, reprovar reabre,
+  `pending` e repetição não mexem); `test/whatsapp-commands/canhoto-recognition.contract.ts` (a coleta entra nas candidatas, a foto casada e a
+  resposta vão pela coleta, motorista só com coleta ainda recebe foto); frase em `occurrence-resolution-policy.contract.ts`; coluna e CHECK em
+  `canhoto-pickup.contract.ts`; migration e rollback em `canhoto-pickup-resolution.static.contract.ts`; empresa em toda junção do arquivo novo
+  (`tenant-safety.contract.ts`); `no-gate.contract.ts` aceita o caso de uso da conferência lendo o veredito que gravou (fecha coleta, não barra
+  nada). Painel e app: frase e reaberto do sistema.
+- Postgres `test/integration/canhoto-pickup-collection.integration.ts` (4 testes, CA04): foto do motorista 2 vira o canhoto `pending` da nota de
+  origem, `photo_sent_at`, parada fechada, a coleta some da lista do bot; leitura automática que casa → `collected` + `resolved`/`system`/coleta e
+  estado `resolved` com a causa; reprovação → `scheduled` na mesma viagem + `reopened`/`system`; última parada fechada pela foto conclui a viagem e
+  a coleta fotografada não volta a `pending` (reprovada depois, vai a `pending`, sem `reopened` porque nunca resolveu); motorista fora da viagem
+  404 sem gravar; reenvio converge; aprovar duas vezes grava um `resolved` só.
+- `bun --env-file=../../.env.test test`: 14972 pass, 0 fail. Integração relacionada (coleta T2/T3/T4, conferência do canhoto, `me-trip`,
+  andamento, resumo, retorno da contratante): 98 pass. `db:test` contra Postgres (migration e rollback): 256 pass. Painel `bun run test` 1496
+  pass, app do motorista 2299 pass. `tsc`, `eslint` e `prettier --check` limpos.
