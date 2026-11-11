@@ -1264,3 +1264,12 @@ O motorista 87 reenviou pelo app, em 10/11/2026 às 17:34 UTC, uma fila velha de
 - A trava da spec 320 retém só **ocorrência de nota** (decisão do dono); saiu, chegou e entregou atrasados continuam entrando. Estender é uma mudança pequena, mas pede decisão.
 - Armadilha do script: `railway ssh` precisa rodar de dentro da pasta do repositório (projeto ligado); o script agora entra nela sozinho. Lista de ids no `bun` SQL é `in ${sql(lista)}`, não `= any(${lista}::uuid[])`.
 - Interruptor da trava: `GET`/`PUT /company-settings/field-report-hold` (`settings.manage`) e a caixa em Pendências. Desligado por padrão em toda empresa; ligar em produção pede aprovação humana.
+
+## 5.30 Lembrete "Vamos iniciar a rota?" repetindo sem parar (11/11/2026)
+
+Sintoma: o bot reenviava a cada ~30 min o lembrete `idle` ("Vamos iniciar a rota?") a motoristas de viagens `dispatched` sem toque (ex.: d5fe956c, 12 paradas, parada há 2 dias) e de viagem já `completed`.
+
+- **Causa 1:** a varredura do `idle` (`drizzle-driver-stop-reminder-idle-reconciliation.repository.ts`) comparava `r.anchor_at >= idle_stage.anchor_at`. O Postgres tem microssegundos, o lembrete grava a âncora em milissegundos (`Date`), então a âncora nunca "alcançava" e um lembrete novo nascia assim que o anterior escalava (3 tentativas, ~2 h por ciclo). O #710 (preparo esquecido deixou de segurar o lembrete) fez o problema aparecer. Correção: `date_trunc('milliseconds', idle_stage.anchor_at)`.
+- **Causa 2:** o portão só fechava o lembrete com a parada baixada; viagem `completed`/cancelada com parada em aberto continuava cobrando. Correção: `readStop` considera fechada a parada de viagem fora de `TRIP_ON_ROAD_STATUSES`.
+- **Freio em produção (11/11/2026, 16:02 BRT):** `DRIVER_REMINDERS_ENABLED=false` no serviço `api` (script `tmp/ops/producao-lembrete-rota-freio-variavel.sh pausar`; `religar` volta). Religar só depois da correção em produção. O script `producao-lembrete-rota-freio.sh` (ssh + `UPDATE` em `company_driver_reminder_settings`) travou no `railway ssh`; prefira o da variável.
+- **Diagnóstico (somente leitura):** `tmp/ops/producao-lembrete-rota-diagnostico.sh` lista os lembretes pendentes/recentes com o status da viagem e das paradas.
