@@ -559,6 +559,13 @@
     "available": "Nova versão disponível.",
     "waitingCapture": "Atualiza ao terminar a captura aberta — foto, assinatura, recorte, ocorrência ou comprovante em preenchimento."
   },
+  "plate": {
+    "label": "Placa",
+    "copied": "Placa copiada",
+    "copy": "Copiar a placa",
+    "legacy": "Placa {{plate}}, modelo antigo",
+    "mercosul": "Placa {{plate}}, modelo Mercosul"
+  },
   "tripSelector": {
     "label": "Suas viagens",
     "option_one": "{{path}} · {{count}} parada",
