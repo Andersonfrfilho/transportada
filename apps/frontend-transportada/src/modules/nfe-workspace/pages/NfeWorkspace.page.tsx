@@ -438,10 +438,17 @@ export function NfeWorkspacePage() {
 
   return (
     <main className={styles.workspaceShell}>
-      <NfeWorkspaceHeader status={viewModel.status} />
-      {viewModel.status === 'loading' ? null : (
-        <NfeImportByScanShortcut canImport={workspace.canImport} onOpen={handleOpenImportByScan} />
-      )}
+      <NfeWorkspaceHeader
+        action={
+          viewModel.status === 'loading' ? null : (
+            <NfeImportByScanShortcut
+              canImport={workspace.canImport}
+              onOpen={handleOpenImportByScan}
+            />
+          )
+        }
+        status={viewModel.status}
+      />
 
       {viewModel.status === 'loading' ? (
         <SkeletonGroup

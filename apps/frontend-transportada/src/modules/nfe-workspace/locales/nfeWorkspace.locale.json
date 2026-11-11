@@ -891,7 +891,8 @@
     "subtitle": "Bipe a chave de cada nota: a que já está no sistema é só contada, a desconhecida é buscada na SEFAZ e importada sozinha.",
     "reader": {
       "field": "Chave da nota",
-      "idle": "Clique aqui para voltar a ler",
+      "idle": "Ativar o leitor",
+      "placeholder": "Bipe a chave de 44 dígitos da nota",
       "ready": "Leitor pronto"
     },
     "scan": "Ler com a câmera",

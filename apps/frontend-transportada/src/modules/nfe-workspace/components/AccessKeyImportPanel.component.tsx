@@ -56,6 +56,7 @@ export function AccessKeyImportPanel({
           labels={{
             field: t('accessKeyImport.reader.field'),
             idle: t('accessKeyImport.reader.idle'),
+            placeholder: t('accessKeyImport.reader.placeholder'),
             ready: t('accessKeyImport.reader.ready'),
           }}
           onRead={importer.read}
@@ -63,7 +64,7 @@ export function AccessKeyImportPanel({
           ref={readerRef}
         />
         {canScan ? (
-          <Button onClick={() => setIsScannerOpen(true)} size="sm" type="button">
+          <Button onClick={() => setIsScannerOpen(true)} type="button">
             <Icon name="camera" />
             {t('accessKeyImport.scan')}
           </Button>

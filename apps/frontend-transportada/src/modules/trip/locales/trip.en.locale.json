@@ -1769,7 +1769,8 @@
     },
     "reader": {
       "field": "Invoice key",
-      "idle": "Click here to read again",
+      "idle": "Enable the reader",
+      "placeholder": "Scan the 44-digit key or type the invoice number",
       "ready": "Reader ready"
     },
     "movesFromTrip": "This note is on another trip. Adding it takes it off that trip and onto this one, and the change is recorded in both trips' history.",

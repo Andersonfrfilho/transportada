@@ -18,7 +18,7 @@ export function NfeImportByScanShortcut({ canImport, onOpen }: NfeImportByScanSh
 
   return (
     <div className={styles.importByScanShortcut}>
-      <Button onClick={onOpen} size="sm" type="button">
+      <Button onClick={onOpen} type="button">
         <Icon name="camera" />
         {t('importByScan.action')}
       </Button>

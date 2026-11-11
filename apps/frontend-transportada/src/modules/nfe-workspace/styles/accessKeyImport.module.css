@@ -4,7 +4,13 @@
   gap: var(--space-4);
 }
 
-.readerRow,
+.readerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2) var(--space-3);
+}
+
 .filters,
 .notice {
   display: flex;
