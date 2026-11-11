@@ -19,7 +19,7 @@ Uma task por vez, PR para staging, merge com CI verde. Contratos vermelhos antes
   > 🤖 Modelo: `sonnet`
 - [ ] **T6b** Prévia de confirmação antes de enviar ao motorista (RF3b), no padrão do diálogo de envio existente.
   > 🤖 Modelo: `sonnet`
-- [ ] **T7** Job de vencimento e devolução (aviso "voltei" conforme decisão).
+- [x] **T7** Job de vencimento e devolução (aviso "voltei" conforme decisão).
   > 🤖 Modelo: `sonnet`
 - [x] **T7b 🧠** Spike do SDK: o que o `conversations-ui` 0.14 já cobre para um chat por JID (fio, composer, menu, lido/enviado) e o que falta; incluindo se o botão Assumir/Devolver já existe (e qual é o contrato dele); lista de pedidos ao SDK. Aceite: nota em `evidence.md`.
   > 🤖 Modelo: `opus`

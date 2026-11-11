@@ -322,3 +322,15 @@ Postgres 16 local, Bun 1.4.4.
   `package.json`. Rodada inteira da API: **14 975 pass, 35 skip, 0 fail**; `tsc`, `eslint` e `prettier` limpos.
 - Fica para a T8 (a tela): nome do motorista/grupo e prévia da última mensagem na lista, que hoje só traz o chat.
   Fica para a T6: o envio (`POST …/messages`).
+
+## T7 — Job de vencimento e devolução (sonnet)
+
+- Rotina `whatsapp-inbox.chat.expire` (batida de 5 min, vocabulário de falha vazio) no worker: `src/whatsapp-inbox-expire/`.
+  Devolve em lotes de 100 (teto de 20 lotes por ciclo) as conversas `state = 'operator'` com `expires_at` vencido, com
+  `release_reason = 'expired'` e sem autor. SQL espelha o `expireDue` da API; `test/whatsapp-inbox-expire/sql-parity.contract.ts` cobra a paridade.
+- Catálogo nas quatro cópias (API, cron, worker, painel) + `test/job-catalog/catalog.contract.ts` das três apps; migration
+  `20261111003528_whatsapp_inbox_chat_expire_job` (aditiva: nome nas duas CHECK + linha do relógio **pausada**, origem `system`) com rollback.
+- Provas: contrato do worker (`bun run test`) verde; `database-migration.contract.test.ts` contra Postgres 16 (aplica, faz rollback e reaplica) 215 pass / 0 fail;
+  `whatsapp-inbox-expire.integration.test.ts` contra Postgres migrado 2 pass; tsc e eslint limpos nas duas apps.
+- **Fora desta task, por decisão:** o aviso "voltei" ao motorista. Ele precisa do envio pelo Evolution (T6) e do modelo de
+  notificação; a rotina já devolve o estado, e o aviso entra na T6 chamando o mesmo caminho. A rotina nasce pausada: ligar em staging/produção é decisão do dono.

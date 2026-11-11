@@ -186,6 +186,12 @@ const CATALOG = [
     job: 'driver.stop-reminder.dispatch',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 319 T7: devolve ao bot a conversa do WhatsApp vencida; toca só o próprio banco. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'whatsapp-inbox.chat.expire',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -214,6 +220,7 @@ const SEED_MIGRATIONS = [
   '20261012154238_conversation_audio_transcribe_job',
   '20261013010226_occurrence_contractor_reply_alert_job',
   '20261106232509_driver_stop_reminders',
+  '20261111003528_whatsapp_inbox_chat_expire_job',
 ] as const
 
 describe('job catalog', () => {
