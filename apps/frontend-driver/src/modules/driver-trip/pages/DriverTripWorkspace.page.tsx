@@ -106,6 +106,7 @@ import {
 } from '../shared/occurrenceTypesCache.service'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.service'
+import { DriverVehiclePlate } from '../components/DriverVehiclePlate.component'
 import { formatShortTripId, formatTripCreatedAt } from '../shared/tripIdentifier.service'
 import {
   applyLocalDeliveries,
@@ -847,7 +848,8 @@ export function DriverTripWorkspacePage() {
           <h1>{t('title')}</h1>
           {trip === undefined ? null : (
             <p className={styles.vehicle}>
-              {t('vehicle', { plate: trip.vehiclePlate })}
+              <span className={styles.tripCodeLabelFirst}>{t('plate.label')}</span>
+              <DriverVehiclePlate plate={trip.vehiclePlate} />
               {/*
                * Pedido do usuário (01/10): o identificador curto da viagem, o MESMO que a listagem
                * do escritório mostra — é por ele que motorista e escritório falam da mesma viagem
