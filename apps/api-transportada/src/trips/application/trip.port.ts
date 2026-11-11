@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { StopOrderErrorCode, StopOrderSource } from '../../shared/trip-stop-order.constant.js'
 import type { HolidayWarning } from '../../business-calendar/domain/holiday-warning.policy.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { MdfeBodyType } from '../../database/fleet.schema.js'
@@ -369,6 +370,10 @@ export type TripDetail = Omit<Trip, 'occupancy'> & {
   readonly stops: readonly TripStopDetail[]
   /** Feature 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */
   readonly trailer: TripTrailerView | null
+  /** Spec 323 D4: por que `stopOrderSource` está `unordered` quando o ordenador tentou e falhou; senão `null`. */
+  readonly stopOrderErrorCode?: StopOrderErrorCode | null
+  /** Spec 323 D4: quem decidiu a ordem das paradas — o ordenador, o despachante ou ninguém ainda. */
+  readonly stopOrderSource?: StopOrderSource
 }
 
 export type CreateTripRecord = {

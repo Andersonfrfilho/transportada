@@ -58,6 +58,7 @@ type RouteDependencies = {
   readonly planTripRoute: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly releaseTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
   readonly reorderStops: { execute(input: ExecuteCall): Promise<TripStatusResult> }
+  readonly autoOrderStops: { execute(input: ExecuteCall): Promise<unknown> }
   readonly separateTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly readTripDeliveryProofs: { execute(input: ExecuteCall): Promise<unknown> }
   readonly readValuation: { execute(input: ExecuteCall): Promise<unknown> }
@@ -562,6 +563,11 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         releaseTripDocumentCalls.push(structuredClone(input))
         if (params.releaseTripDocumentError) throw params.releaseTripDocumentError
         return { ...TRIP_DOCUMENT, releasedAt: '2026-08-05T09:00:00.000Z' }
+      },
+    },
+    autoOrderStops: {
+      async execute() {
+        return { errorCode: null, excludedStopCount: 0, status: 'ordered' }
       },
     },
     reorderStops: {

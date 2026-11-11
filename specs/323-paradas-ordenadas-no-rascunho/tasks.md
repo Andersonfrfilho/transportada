@@ -14,10 +14,10 @@ Modelo por etapa (regra do projeto): decisão e ordenador `opus`, plumbing `sonn
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T4 Migration aditiva + rollback: `trips.stop_order_source`, `trips.stop_order_error_code`.
-- [ ] T5 Serviço `orderDraftTripStops` (lê coordenadas por `address_key`, barracão, escreve via `reorderTripStops`) e ligação em `linkDocument`/`linkDocumentsBatch`, sem derrubar o vínculo.
-- [ ] T6 `POST /trips/:id/stops/auto-order`; reordenar manual grava `manual`; aceite da 058 grava `suggested`; DTO do detalhe expõe origem e código.
-- [ ] T7 Integração com Postgres (CA1–CA5), incluída na lista do `package.json` e rodada com `--env-file`.
+- [x] T4 Migration aditiva + rollback: `trips.stop_order_source`, `trips.stop_order_error_code`.
+- [x] T5 Serviço `orderDraftTripStops` (lê coordenadas por `address_key`, barracão, escreve via `reorderTripStops`) e ligação em `linkDocument`/`linkDocumentsBatch`, sem derrubar o vínculo.
+- [x] T6 `POST /trips/:id/stops/auto-order`; reordenar manual grava `manual`; aceite da 058 grava `suggested`; DTO do detalhe expõe origem e código.
+- [x] T7 Integração com Postgres (CA1–CA5), incluída na lista do `package.json` e rodada com `--env-file`.
 
 ## Fase C — Painel
 

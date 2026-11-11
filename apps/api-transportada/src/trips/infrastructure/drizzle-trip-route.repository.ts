@@ -14,6 +14,7 @@ import {
   type TripStatus,
 } from '../../database/trip.schema.js'
 import { fleetVehicles } from '../../database/database.schema.js'
+import type { StopOrderSource } from '../domain/draft-stop-order.constant.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { stopHasLiveDocument } from './trip-stop-coordinates.support.js'
 import type {
@@ -423,10 +424,16 @@ export class DrizzleTripRouteRepository
   public async reorderStops(input: {
     readonly companyId: string
     readonly orderedStopIds: readonly string[]
+    readonly source: StopOrderSource
     readonly tripId: string
   }): Promise<void> {
     await this.database.transaction(async (transaction) => {
       await writeStopOrder(transaction, input)
+      /** Spec 323 D4: a origem da ordem vai junto, na mesma transação, e a falha anterior do ordenador deixa de valer. */
+      await transaction
+        .update(trips)
+        .set({ stopOrderErrorCode: null, stopOrderSource: input.source })
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
 
       /**
        * T704 M1: a ordem mudou, então a rota gravada descreve uma sequência que não existe mais.
