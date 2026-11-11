@@ -667,29 +667,27 @@ describe('foto sem pergunta aberta: a parada em andamento vem primeiro (nunca ba
   const CONFIRM_17300 =
     '📸 *Este canhoto é da NF `17300`?*\n\n*1* - ✅ Sim, é dessa nota\n*2* - 🔄 Não, é de outra'
 
-  test('canhoto sem número legível: pergunta pela nota da parada que chegou, não pela lista da viagem', async () => {
+  test('chegou na parada e mandou o canhoto sem número legível: baixa a nota da parada, sem pergunta', async () => {
     const t = setup({
       read: async () => ({ ambiguous: false, candidates: [], markers: 3 }),
       secondStopArrived: true,
     })
-    expect((await t.photo())?.texts).toEqual([CONFIRM_17300])
-    expect(t.attached).toEqual([])
-    const confirmed = await t.answer('1')
-    expect(confirmed?.texts[0]).toBe('📸 *Li o canhoto da NF `17300`.*')
+    const first = await t.photo()
+    expect(first?.texts[0]).toBe('📸 *Li o canhoto da NF `17300`.*')
     expect([...t.rows.values()].map((row) => row.documentId)).toEqual(['DOC-B'])
   })
 
-  test('leitor ocupado: pergunta pela nota da parada em andamento', async () => {
+  test('leitor ocupado: a foto do canhoto da parada que chegou baixa a nota da parada', async () => {
     const t = setup({
       read: async () => {
         throw Object.assign(new Error('busy'), { reason: 'busy' })
       },
       secondStopArrived: true,
     })
-    expect((await t.photo())?.texts).toEqual([CONFIRM_17300])
+    expect((await t.photo())?.texts[0]).toBe('📸 *Li o canhoto da NF `17300`.*')
   })
 
-  test('leitura ambígua entre notas: a da parada em andamento é a perguntada', async () => {
+  test('leitura ambígua entre notas: baixa a nota da parada que chegou', async () => {
     const t = setup({
       read: async () => ({
         ambiguous: true,
@@ -701,7 +699,19 @@ describe('foto sem pergunta aberta: a parada em andamento vem primeiro (nunca ba
       }),
       secondStopArrived: true,
     })
-    expect((await t.photo())?.texts).toEqual([CONFIRM_17300])
+    expect((await t.photo())?.texts[0]).toBe('📸 *Li o canhoto da NF `17300`.*')
+  })
+
+  test('leitura com certeza de outra nota: não baixa a nota da parada, pergunta', async () => {
+    const t = setup({
+      read: async () => ({
+        ambiguous: false,
+        candidates: [{ documentId: 'DOC-A', match: 'exact' }],
+        markers: 3,
+      }),
+      secondStopArrived: true,
+    })
+    expect((await t.photo())?.texts[0]).not.toBe('📸 *Li o canhoto da NF `17300`.*')
   })
 
   test('"é o canhoto" depois de "não parece canhoto": pergunta pela nota da parada em andamento', async () => {
@@ -711,15 +721,6 @@ describe('foto sem pergunta aberta: a parada em andamento vem primeiro (nunca ba
     })
     await t.photo()
     expect((await t.answer('2'))?.texts).toEqual([CONFIRM_17300])
-  })
-
-  test('"não, é de outra" abre a lista inteira da viagem', async () => {
-    const t = setup({
-      read: async () => ({ ambiguous: false, candidates: [], markers: 3 }),
-      secondStopArrived: true,
-    })
-    await t.photo()
-    expect((await t.answer('2'))?.texts[0]).toBe(CHOOSE_BOTH)
   })
 
   test('sem parada em andamento, a lista da viagem como antes', async () => {
