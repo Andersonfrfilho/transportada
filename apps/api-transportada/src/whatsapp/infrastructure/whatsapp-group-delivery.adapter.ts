@@ -21,7 +21,10 @@ import type {
   GroupDeliveryDocument,
   GroupDeliveryFlowPorts,
 } from '../application/whatsapp-group-delivery-flow.service.js'
-import type { ResolveWhatsAppSenderRole } from '../application/whatsapp-sender-role.service.js'
+import {
+  isMediaSenderAllowed,
+  type ResolveWhatsAppSenderRole,
+} from '../application/whatsapp-sender-role.service.js'
 import type { GroupProofIntakePorts } from '../application/whatsapp-group-proof-intake.service.js'
 import { findDriverUserId } from './whatsapp-group-occurrence.adapter.js'
 import { sameBrazilianPhone } from './whatsapp-group-sender.adapter.js'
@@ -148,10 +151,9 @@ export function createGroupDeliveryWiring(dependencies: {
         .where(and(eq(fleetDrivers.companyId, companyId), eq(fleetDrivers.id, driverId)))
         .limit(1)
       if (row !== undefined && sameBrazilianPhone(row.phone, sender)) return true
-      // Spec 294 RF18: a mídia do atendente também é prova (baixa pelo escritório).
-      return (
-        (await dependencies.resolveSenderRole({ companyId, driverId, phone: sender })).kind ===
-        'attendant'
+      // Spec 294 RF18: a mídia da tripulação (ajudante ou segundo motorista) e a do atendente também são prova.
+      return isMediaSenderAllowed(
+        await dependencies.resolveSenderRole({ companyId, driverId, phone: sender }),
       )
     },
   }
