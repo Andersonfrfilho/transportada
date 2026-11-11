@@ -167,6 +167,7 @@ import type {
 import { markCargoLayoutRequested } from '../domain/cargo-layout-state.policy.js'
 import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
+import type { DraftStopOrderOutcome } from '../application/order-draft-trip-stops.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
 import type { ListDeliveryAddressHistoryResult } from '../application/list-delivery-address-history.use-case.js'
 import type { DeliveryAddressOverrideRecord } from '../application/override-delivery-address.use-case.js'
@@ -495,6 +496,8 @@ const TRIP_OCCURRENCE_FEED_PATH = '/trip-occurrences'
 const TRIP_OCCURRENCE_RESOLUTION_SUMMARY_PATH = '/trip-occurrence-resolution-summary'
 const TRIP_OCCURRENCE_FEED_ATTACHMENTS_PATH = `${TRIP_OCCURRENCE_FEED_PATH}/:id/attachments`
 const TRIP_STOPS_ORDER_PATH = `${TRIP_STOPS_PATH}/order`
+/** Spec 323 RF4: o botão "Ordenar paradas" do rascunho. */
+const TRIP_STOPS_AUTO_ORDER_PATH = `${TRIP_STOPS_PATH}/auto-order`
 /**
  * Spec 060 D3: pedir, confirmar ou registrar a recusa do agendamento daquela parada. É `trip.manage`
  * porque quem fala com o cliente é quem monta a viagem — o motorista só **lê** a hora e o protocolo.
@@ -818,6 +821,10 @@ type Dependencies = {
   }
   readonly reorderStops: {
     execute(input: TenantInput<ReorderStopsInput>): Promise<ReorderTripStopsResult>
+  }
+  /** Spec 323 RF4: ordena as paradas do rascunho pela estrada, refazendo inclusive a ordem manual. */
+  readonly autoOrderStops: {
+    execute(input: TenantInput<TripIdInput>): Promise<DraftStopOrderOutcome>
   }
   readonly separateTripDocument: {
     execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
@@ -2264,6 +2271,21 @@ export function createTripRoutes(
       pathname: TRIP_STOPS_ORDER_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
+    defineRoute<{ readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const outcome = await dependencies.autoOrderStops.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: outcome }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_STOPS_AUTO_ORDER_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
     defineRoute<Omit<OverrideDeliveryAddressInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.overrideDeliveryAddress.execute({
@@ -2531,6 +2553,8 @@ function serializeTripDetail(input: {
     occupancy: trip.occupancy === null ? null : { ...trip.occupancy },
     /** Spec 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */
     trailer: trip.trailer === null ? null : { ...trip.trailer },
+    stopOrderErrorCode: trip.stopOrderErrorCode ?? null,
+    stopOrderSource: trip.stopOrderSource ?? 'unordered',
     stops: trip.stops.map((stop) =>
       serializeTripStopDetail({ canReadFinancials: input.canReadFinancials, stop }),
     ),

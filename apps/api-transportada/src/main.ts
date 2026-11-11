@@ -680,6 +680,9 @@ import { createTripUseCase } from './trips/application/trip.use-case'
 import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
 import { listReturnedWithActiveCte } from './trips/application/list-returned-with-active-cte.use-case'
 import { createLinkTripDocumentsBatchUseCase } from './trips/application/link-trip-documents-batch.use-case.js'
+import { createOrderDraftTripStops } from './trips/application/order-draft-trip-stops.use-case.js'
+import { createDrizzleDraftStopOrderRepository } from './trips/infrastructure/drizzle-draft-stop-order.repository.js'
+import { createOsrmRoadMatrixGateway } from './trips/infrastructure/osrm-road-matrix.gateway.js'
 import { previewTripCargo } from './trips/application/preview-trip-cargo.use-case.js'
 import { readCargoPreviewContext } from './trips/infrastructure/trip-cargo-preview.query.js'
 import { previewTripValuation } from './trips/application/read-trip-valuation.use-case.js'
@@ -3752,6 +3755,30 @@ function createApplicationRoutes({
     },
     repository: contractorPortalRepository,
   })
+  /**
+   * Spec 323: a ordem das paradas do rascunho pela estrada. Sem `ROUTING_MATRIX_URL` o ordenador não existe e as
+   * paradas ficam na ordem de chegada, como antes. O vínculo recongela a rota depois (sem congelador aqui); o botão
+   * "Ordenar paradas" passa o congelador.
+   */
+  const draftStopOrderRepository = createDrizzleDraftStopOrderRepository(database)
+  const roadMatrix =
+    routingMatrixUrl === undefined
+      ? undefined
+      : createOsrmRoadMatrixGateway({ baseUrl: routingMatrixUrl })
+  const draftStopOrderBase = {
+    depot: {
+      readDepot: (input: { readonly companyId: string }) => routeDepotQuery.readDepot(input),
+    },
+    logger,
+    matrix: roadMatrix,
+    reorder: tripRouteRepository,
+    repository: draftStopOrderRepository,
+  }
+  const draftStopOrderer = createOrderDraftTripStops(draftStopOrderBase)
+  const draftStopOrdererWithFreeze = createOrderDraftTripStops({
+    ...draftStopOrderBase,
+    routeFreezer: tripRouteTollFreezer,
+  })
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,
@@ -3960,6 +3987,7 @@ function createApplicationRoutes({
     repository: mdfeIssuanceRepository,
   })
   const trips = createTripUseCase({
+    stopOrderer: draftStopOrderer,
     /**
      * A coluna de valores de `/trips`: uma consulta para as notas da página inteira, e a busca de
      * regra de frete memoizada por chave. Ver `readTripRevenueTotals` — chamar `readTripValuation`
@@ -4725,7 +4753,7 @@ function createApplicationRoutes({
                */
               findLiveTripIdForDocuments: (input) =>
                 tripRepository.findLiveTripIdForDocuments(input),
-              link: (input) => trips.linkDocument(input),
+              link: (input) => trips.linkDocument({ ...input, orderStops: false }),
               /**
                * A leitura vai direto ao caso de uso de listar parada, e não ao ciclo de vida com um
                * contexto meia-boca: aqui só o `companyId` importa, e é o que `listTripStops` recebe.
@@ -4733,7 +4761,8 @@ function createApplicationRoutes({
               listStops: async (input) =>
                 (await listTripStops({ ...input, repository: tripStopLookupRepository })).stops,
               planRoute: (input) => tripLifecycle.planRoute.execute(input),
-              reorder: (input) => tripLifecycle.reorderStops.execute(input),
+              reorder: (input) =>
+                tripLifecycle.reorderStops.execute({ ...input, source: 'suggested' }),
               /** Spec 148 T7: o aceite que vincula e solta as notas que não couberam na prévia. */
               readReleasePlan: (input) =>
                 tripDocumentReviewRepository.readReleasePlan({
@@ -6797,6 +6826,7 @@ function createApplicationRoutes({
         logger,
         repository: tripRepository,
         routeFreezer: tripRouteTollFreezer,
+        stopOrderer: draftStopOrderer,
       }),
       previewCargo: {
         execute: (input) =>
@@ -6872,6 +6902,15 @@ function createApplicationRoutes({
       releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
       retireTripStop: { execute: (input) => trips.retireStop(input) },
       reorderStops: { execute: (input) => tripLifecycle.reorderStops.execute(input) },
+      autoOrderStops: {
+        execute: (input) =>
+          draftStopOrdererWithFreeze.execute({
+            companyId: input.context.companyId,
+            intent: 'reorder_all',
+            strict: true,
+            tripId: input.tripId,
+          }),
+      },
       separateTripDocument: { execute: (input) => tripLifecycle.separate.execute(input) },
     }),
     ...createCteEmissionProfileRoutes({

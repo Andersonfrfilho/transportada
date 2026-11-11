@@ -479,6 +479,11 @@ describe('separator role contract', () => {
       'POST /trips/:id/revenues',
       'POST /trips/:id/stops/:stopId/retire',
       'POST /trips/:id/stops/:stopId/schedule',
+      /**
+       * Spec 323 RF4: "Ordenar paradas" do rascunho. Mesma `trip.manage` do reordenar manual (`PATCH .../stops/order`)
+       * acima: quem monta a viagem ordena as paradas, e a rota só escreve a ordem pelo mesmo caso de uso.
+       */
+      'POST /trips/:id/stops/auto-order',
       // Spec 263 T2.4b: abrir, escrever, anexar e encerrar são `trip.manage`; marcar como lida é `fleet.read`.
       'POST /trips/:tripId/conversations/:subjectType/:subjectId/close',
       'POST /trips/:tripId/conversations/:subjectType/:subjectId/messages',

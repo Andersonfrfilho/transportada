@@ -51,3 +51,51 @@ bunx tsc --noEmit              # sem erros (NODE_OPTIONS=--max-old-space-size=81
 ```
 
 Ainda nada liga o ordenador: o serviço `orderDraftTripStops`, a migration e a rota são da Fase B.
+
+## Fase B (sonnet)
+
+### T4 — Migration
+
+`apps/api-transportada/drizzle/20261111193708_trip_stop_order_source/`: `trips.stop_order_source` (`unordered` por padrão,
+CHECK em `unordered|suggested|manual`) e `trips.stop_order_error_code` (nulo, CHECK nos três códigos). Aditiva; a viagem
+existente nasce `unordered` e não é reordenada. Rollback remove as colunas e a linha do diário (`ROW_COUNT = 1`). Os
+vocabulários moraram em `src/shared/trip-stop-order.constant.ts`: o pre-deploy importa `database/trip.schema.ts` e a imagem
+de runtime só copia `database/` e `shared/` (o contrato `a imagem de runtime copia todo o grafo de imports` reprovou a
+primeira versão, que importava de `trips/domain`).
+
+### T5 — Serviço e ligação
+
+`createOrderDraftTripStops` (`trips/application/order-draft-trip-stops.use-case.ts`): lê o estado, o barracão (`readDepot`) e
+as coordenadas de `geocoded_addresses` (só `rooftop|street|postal_code` entram; `city` fica de fora), pede a matriz única,
+chama `orderStopsByRoad` e escreve por `reorderTripStops` (a porta de não-retorno). Falhas gravam o código e deixam a ordem
+de chegada: `ROUTING_MATRIX_UNAVAILABLE`, `ROUTING_DEPOT_NOT_GEOCODED`, `ROUTING_TOO_MANY_STOPS`. ⚠️ **Decisão da
+implementação:** numa falha, a origem `manual` **continua `manual`** (só o código é gravado); `unordered` só substitui
+`unordered` e `suggested`. Ligado em `linkDocumentsBatch` e `linkDocument` (depois do vínculo e antes do congelamento da
+rota, sem nunca derrubá-lo; `order-draft-trip-stops-gracefully.ts` loga só `tripId`, fase e nome do erro). O aceite da
+sugestão multiveículo vincula com `orderStops: false` e grava `suggested` ao reordenar, para não pedir uma matriz por nota.
+Sem `ROUTING_MATRIX_URL` o ordenador não é montado e tudo segue como antes.
+
+### T6 — Rota e origem
+
+`POST /trips/:id/stops/auto-order` (`trip.manage`, 409 em viagem despachada): refaz inclusive a ordem manual e recongela a
+rota. `reorderTripStops` ganhou `source` (padrão `manual`, a rota do despachante); o repositório grava
+`stop_order_source` e limpa `stop_order_error_code` **na mesma transação** da escrita. A 058 (`createTripStopOrderWriter`)
+e o aceite multiveículo passam `suggested`. O detalhe da viagem devolve `stopOrderSource` e `stopOrderErrorCode`. A rota
+entrou na lista do separador (`separator-role`, mesma `trip.manage` do reordenar manual).
+
+### T7 — Verificação
+
+```bash
+cd apps/api-transportada
+bun --env-file=../../.env.test run test                       # contratos: 15111 testes, 0 fail depois dos ajustes abaixo
+DATABASE_URL=postgresql://…/transportada bun test ./test/integration/draft-stop-order.integration.ts
+#  4 pass, 0 fail (Postgres 16 real, matriz falsa pela longitude)
+bunx tsc --noEmit             # sem erros
+bunx eslint <arquivos alterados e novos>   # sem achados
+```
+
+Contrato novo `test/trip-stops/order-draft-trip-stops.contract.ts` (11 casos: ordem da estrada, já ordenada, OSRM fora,
+manual sobrevive à falha, encaixe da nota nova, nada a fazer, botão refaz a manual, parada sem coordenada, limite de
+paradas, barracão sem geocodificação, despachada) e integração `test/integration/draft-stop-order.integration.ts` (CA1,
+CA2, CA3 e CA4 contra o banco; entrou na lista `test:integration`). Ajustes que a suíte cobrou: `reorder.contract.ts`
+(agora há `source` na chamada), `separator-role` e os payloads de `TRIP_DETAIL`.
