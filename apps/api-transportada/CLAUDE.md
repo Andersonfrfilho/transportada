@@ -1399,3 +1399,21 @@ ficam de fora. Nome do tipo como no feed (cadastrado, ou o `kind` da parada). `t
 **A pessoa troca a própria foto** (spec 295). `GET/PUT/DELETE /me/picture` (`me-picture.routes.ts`, política de membership ativa, travada a `/me/` pelo `membership-policy-lock`) reaproveitam `user-picture.use-case.ts`; o alvo é sempre `context.scope.userId`, a rota não tem id. Mesma validação da rota administrativa (assinatura, 256 KiB).
 
 **A foto da CNH vira foto inicial** (spec 295 Fase 4). `identity_user_pictures.origin` (`cnh|self|admin`; `PUT /me/picture` grava `self`, a rota administrativa `admin`, foto anterior à coluna é `admin`); `GET /me/picture` devolve `x-picture-origin` (exposto no CORS). `PUT /fleet/driver-attachments/:attachmentId/cnh-picture` é do robô do worker (permissão só-serviço `driver.cnh-picture`): resolve o usuário pelo anexo `cnh` e aplica com `saveFromCnh`, um `ON CONFLICT … WHERE origin = 'cnh'` — `self`/`admin` nunca são sobrescritos (`applied: false`). Contrato em `test/driver-cnh-picture.contract.ts`, SQL em `test/integration/user-picture-cnh-origin.integration.ts`.
+
+## Cobrança no recebimento vai para os acertos (spec 317)
+
+Tipo de parada `stop_kind = 'unexpected_charge'` com vagas de foto (`company_occurrence_type_photo_slots`). `report-stop-occurrence` grava, na **mesma
+transação** do `trip_field_reports`: ocorrência, fotos por vaga (`trip_stop_occurrence_photos`), linhas `delivery_charges` `receiving_charge`/`recorded`/`occurrence`
+(`stop_occurrence_id`; por nota = uma linha por nota, agrupada = uma linha com `grouped_documents` e `delivery_charge_documents`) e a marca do cliente
+(`delivery_clients.receiving_charge_flagged_at`). Políticas puras: `stop-occurrence-photo-slots.policy.ts` (vaga desconhecida/repetida 400, obrigatória faltando
+422 `STOP_OCCURRENCE_PHOTO_SLOT_MISSING` com `slotKey`) e `receiving-charge.policy.ts`; persistência em `receiving-charge.persistence.ts` com `ON CONFLICT DO NOTHING` (reenvio = replay).
+Valor exato em `bigint`, `0` é valor; "quem pagou" obrigatório e `driver` exige PIX; partes da nota lidas no servidor, nunca do payload.
+
+- **RF7:** o registro da parada não importa e-mail, portal, bot nem a sugestão `onDelivered`; `PUT /company-settings/occurrence-types` recusa `emailsContractor` em `unexpected_charge`.
+- **Leituras:** `GET /occurrence-charges/report` lista `receiving_charge` com `photos[]` (URL assinada de 5 min) e `receivingCharge` (PIX só com `trip.financials`);
+  `GET`/`DELETE /delivery-clients/:id/receiving-charge-flag` (`fleet.read`/`fleet.manage`, limpar audita); `POST /trip-occurrences/stop/:id/resolution` aceita
+  `driverPayoutReceiptAttachmentId` opcional (anexo de mensagem enviada no chat do motorista desta ocorrência; concluir nunca bloqueia).
+- **Ao motorista:** `GET /me/trips/current/occurrence-types` leva `photoSlots[]` só no tipo que tem vagas (o corpo dos outros não muda); `GET /me/trips/current` leva
+  `stops[].clientChargeSeal { flaggedAt }` em parada aberta, só se `show_client_charge_seal_to_driver`; falha só tira o selo.
+- **Testes:** `test/trip-occurrence/receiving-charge.contract.ts`, `charge-seal.contract.ts`, `test/delivery-clients-http/receiving-charge.contract.ts`,
+  `test/integration/receiving-charge.integration.ts` (na lista do `package.json`). Publicação: painel → API → app (runbook de produção, 5.28).

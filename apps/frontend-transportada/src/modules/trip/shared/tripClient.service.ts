@@ -1048,6 +1048,9 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             ? {}
             : { asksClientContact: input.asksClientContact }),
           ...(input.asksNewDueDate === undefined ? {} : { asksNewDueDate: input.asksNewDueDate }),
+          ...(input.showClientChargeSealToDriver === undefined
+            ? {}
+            : { showClientChargeSealToDriver: input.showClientChargeSealToDriver }),
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),

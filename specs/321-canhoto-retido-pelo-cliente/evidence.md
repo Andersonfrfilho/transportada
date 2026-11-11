@@ -135,3 +135,57 @@ e a resolução pela 266. Até lá nenhum escritor põe a coleta em `scheduled`/
   `contractor-notice-block.contract.ts` trocou a tabela da recusa da T1 pela regra do tipo sem coleta.
 - `bun run test`: 14909 pass, 0 fail. `db:test` (migration + rollback em Postgres descartável): 253 pass. `tsc --noEmit`, `eslint` e
   `prettier --check .` limpos.
+
+## T3 — o escritório encaixa a coleta (10/11/2026)
+
+Base: `origin/staging` @ 03427e3 (T2 mergeada, PR #674). Caminhos relativos a `apps/api-transportada/`.
+
+**Rotas (RF4, D7).** `GET /trip-canhoto-pickups?status=&tripId=&limit=` (status repetível, até 200), `POST /trip-canhoto-pickups/:pickupId/schedule`
+`{ tripId }` e `POST /trip-canhoto-pickups/:pickupId/unschedule`, todas `trip.report-on-behalf` (encaixar mexe em viagem que pode estar na
+rua, como a 257; o separador não alcança). Resposta `{ data: CanhotoPickupView }` com `id`, `status`, `occurrenceId`, `nfeDocumentId`,
+`documentNumber`, `originTripId`, `originTripDocumentId`, `originStopLabel`, `pickupTripId`, `pickupStopId`, `createdAt`. Corpo e query
+fechados (`.strict()`, parâmetro desconhecido é 400). Composição em `main.ts`, use case `canhoto-pickup-schedule.use-case.ts`, escrita em
+`trips/infrastructure/canhoto-pickup-schedule.persistence.ts`.
+
+**Regra (`decideCanhotoPickupSchedule`).** Só coleta aberta (`collected`/`cancelled` → `409 CANHOTO_PICKUP_CLOSED`); nunca a viagem de origem
+(`422 CANHOTO_PICKUP_ORIGIN_TRIP`: o canhoto que volta ao próprio motorista é a foto na viagem de origem, T4); nunca viagem `completed`/`cancelled`
+(`409 CANHOTO_PICKUP_TRIP_CLOSED`); qualquer outro estado serve, inclusive na rua. A entrega precisa de parada (`422 CANHOTO_PICKUP_WITHOUT_ADDRESS`).
+Mesma viagem é no-op; outra viagem **move** a coleta na mesma transação. Leitura escolhida para "viagem de outro motorista": recusar só a viagem de
+origem; o mesmo motorista numa viagem nova é aceito (ele pode voltar ao cliente noutro dia). Viagem de outra empresa é `404 TRIP_NOT_FOUND`;
+coleta de outra empresa, `404 CANHOTO_PICKUP_NOT_FOUND`; desencaixar o que não está encaixado, `409 CANHOTO_PICKUP_NOT_SCHEDULED`; corrida,
+`409 CANHOTO_PICKUP_CHANGED`.
+
+**A parada.** A coleta vai para a parada **aberta** (sem chegada nem baixa) da viagem com a mesma `address_key` da parada de origem (o lugar onde o
+cliente segurou o canhoto), ou para uma parada nova no fim da sequência, com o rótulo da origem. Antes do despacho a parada nova mata a rota
+planejada na transação (`clearPlannedRoute`) e o use case recongela depois do commit, best-effort (spec 153 T704); depois do despacho a rota
+congelada fica (como a 257).
+
+**A coleta ocupa a parada.** Como a parada é derivada e a FK da coleta é `restrict`, os dois escritores que apagam parada vazia passaram a contar a
+coleta `scheduled` (`listStopsWithScheduledCanhotoPickup`): o port do reconciliador (`countLiveDocumentsAtStop`, usado por desvincular, retirar e
+desvio de endereço) e a liberação das notas deixadas para trás no despacho (`drizzle-trip-route.repository.ts`). Desencaixar ou mover apaga a parada
+que ficou vazia **e intocada** (sem chegada, baixa nem "a caminho"; parada tocada fica para não apagar eventos em cascata). Retirar a parada do
+rascunho (`retireStop`) devolve a coleta encaixada nela a `pending` e apaga a parada.
+
+**Volta a `pending` (casos extremos).** Viagem cancelada ou concluída devolve a coleta encaixada a `pending` (`returnScheduledCanhotoPickupsOfTrip`),
+chamada por `recordTripStatusChange`, o escritor único de transição (ADR-0068): todo caminho que finaliza a viagem (cancelar, encerrar, derivação
+pelas notas, conclusão pelas paradas) passa por ali na mesma transação. A parada fica no histórico.
+
+**Carga (D4c, CA03b).** Nada a somar: a coleta não é linha de `trip_documents`. Contrato estático de que nenhum leitor de T0 §8–9 lê a tabela.
+
+**Trilha.** `audit_logs` `canhoto_pickup.scheduled|unscheduled`, com viagem/parada antes e depois, na mesma transação. Travas: viagens
+`FOR NO KEY UPDATE` em ordem de id, depois a coleta `FOR UPDATE` (a mesma ordem do fechamento da viagem).
+
+**Para a T4/T6.** A parada só de coleta não tem nota: ela fica aberta até a T4/T6 a fecharem com a foto do canhoto. Enquanto isso a viagem conclui
+pelas notas (a derivação) ou pelo botão encerrar, e a coleta volta a `pending`. O app ainda não mostra a parada como "Coletar canhoto" (T6), e o
+detalhe da viagem ainda não traz a flag (T5, painel tolerante antes).
+
+**Testes.**
+
+- Contrato `test/trip-occurrence/canhoto-pickup-schedule.contract.ts`: tabela da regra, códigos e status das recusas, rotas (política, query e corpo
+  fechados, empresa e ator do token), recongelamento só das viagens que mudaram e falha do congelamento que só avisa, e CA03b estático (12 leitores).
+  `test/trip-schema/tenant-safety.contract.ts`: `companyId` em toda junção e filtro do arquivo novo.
+- Postgres `test/integration/canhoto-pickup-schedule.integration.ts` (6 testes): encaixe em parada nova com o endereço da origem, `occupancy` e
+  `cargoWeight` da viagem nova iguais e `trip_documents` intocada (CA03b), trilha, no-op; reaproveita a parada aberta do mesmo endereço; mover e
+  desencaixar apagam a parada só de coleta, e soltar a última nota de uma parada com coleta não a apaga; retirar a parada leva a coleta; cancelar e
+  encerrar a viagem devolvem a `pending`; recusas (origem, concluída, inexistente, outra empresa, coletada, não encaixada).
+- `bun run test`: 14945 pass, 0 fail. `tsc --noEmit` e `eslint` limpos.

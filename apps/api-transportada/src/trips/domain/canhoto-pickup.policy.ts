@@ -65,3 +65,52 @@ export function effectiveDuplicateRequestPolicy(params: {
 }): DuplicateRequestPolicy {
   return params.createsCanhotoPickup ? 'until_resolved' : params.policy
 }
+
+/**
+ * Spec 321 T3 (D7, RF4): a viagem que recebe a coleta. Qualquer estado não finalizado serve — antes do despacho a
+ * parada entra no rascunho; depois, entra no fim da sequência sem ETA, como a nota acrescentada à viagem na rua (257).
+ */
+export function isTripOpenForCanhotoPickup(tripStatus: string): boolean {
+  return tripStatus !== 'completed' && tripStatus !== 'cancelled'
+}
+
+export type CanhotoPickupScheduleRefusal =
+  | 'closed_pickup'
+  | 'origin_trip'
+  | 'trip_closed'
+  | 'without_origin_address'
+
+export type CanhotoPickupScheduleDecision =
+  | { readonly kind: 'refuse'; readonly reason: CanhotoPickupScheduleRefusal }
+  | { readonly kind: 'unchanged' }
+  /** `detachFromTripId`: a coleta já encaixada em outra viagem sai de lá na mesma transação (re-encaixe). */
+  | { readonly detachFromTripId: null | string; readonly kind: 'schedule' }
+
+/**
+ * Spec 321 T3: encaixar a coleta numa viagem. Só coleta aberta se encaixa (`collected`/`cancelled` são o fim dela);
+ * a viagem de origem é recusada (o canhoto que volta ao próprio motorista é a foto na viagem de origem, T4); a viagem
+ * finalizada também; e a coleta precisa do endereço da entrega (a parada de origem), porque é lá que o cliente está.
+ * Encaixar de novo na mesma viagem não muda nada; noutra viagem, move.
+ */
+export function decideCanhotoPickupSchedule(params: {
+  readonly hasOriginAddress: boolean
+  readonly originTripId: string
+  readonly pickupStatus: CanhotoPickupStatus
+  readonly pickupTripId: null | string
+  readonly targetTripId: string
+  readonly targetTripStatus: string
+}): CanhotoPickupScheduleDecision {
+  if (!isCanhotoPickupOpen(params.pickupStatus)) return { kind: 'refuse', reason: 'closed_pickup' }
+  if (params.targetTripId === params.originTripId) return { kind: 'refuse', reason: 'origin_trip' }
+  if (!isTripOpenForCanhotoPickup(params.targetTripStatus)) {
+    return { kind: 'refuse', reason: 'trip_closed' }
+  }
+  if (params.pickupStatus === 'scheduled' && params.pickupTripId === params.targetTripId) {
+    return { kind: 'unchanged' }
+  }
+  if (!params.hasOriginAddress) return { kind: 'refuse', reason: 'without_origin_address' }
+  return {
+    detachFromTripId: params.pickupStatus === 'scheduled' ? params.pickupTripId : null,
+    kind: 'schedule',
+  }
+}

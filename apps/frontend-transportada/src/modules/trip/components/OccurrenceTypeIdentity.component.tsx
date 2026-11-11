@@ -288,6 +288,21 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
             />
           </Tooltip>
         )}
+        {/* Spec 317 T14a: só o tipo de cobrança no recebimento; o escritório sempre vê o selo, o interruptor é do motorista. */}
+        {type.showClientChargeSealToDriver === undefined ||
+        type.stopKind !== 'unexpected_charge' ? null : (
+          <Tooltip
+            dismissOnActivate
+            label={t('occurrenceTypeCatalog.showClientChargeSealToDriverHint')}
+          >
+            <Checkbox
+              checked={type.showClientChargeSealToDriver}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.showClientChargeSealToDriver')}
+              onChange={(value) => onEdit({ showClientChargeSealToDriver: value })}
+            />
+          </Tooltip>
+        )}
       </div>
       <OccurrenceTypeHiddenFieldsHint isItemsOff={!hasItems} isSeparationOnlyHidden={isDelivery} />
     </section>

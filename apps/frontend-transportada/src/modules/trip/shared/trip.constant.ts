@@ -572,6 +572,8 @@ export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   /** O campo opcional "nova data de vencimento" no app do motorista; esta tela só o tolera. */
   'arrivalTimeMode',
   'asksNewDueDate',
+  /** Spec 317 T14a: o aviso de possível cobrança ao motorista; esta tela só o tolera. */
+  'showClientChargeSealToDriver',
   'attachmentMode',
   'clientChannel',
   /** Spec 247 TP.1 (ADR-0081 §9): os requisitos efetivos da devolução. */

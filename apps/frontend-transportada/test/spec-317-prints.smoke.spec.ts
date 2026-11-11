@@ -238,3 +238,61 @@ for (const theme of THEMES) {
     })
   }
 }
+
+/** T14a: o interruptor "Mostrar ao motorista o aviso de possível cobrança" no editor do tipo da cobrança no recebimento. */
+const CHARGE_TYPE = {
+  active: true,
+  allowsMultipleItems: false,
+  attachmentMode: 'off',
+  asksNewDueDate: false,
+  emailTemplateKey: null,
+  flow: 'stop',
+  id: '00000000-0000-4000-8000-0000000000f7',
+  leavesDocumentBehind: false,
+  moments: ['stop'],
+  name: 'Cobrança no recebimento',
+  notifies: false,
+  redeliveryPolicy: 'unset',
+  showClientChargeSealToDriver: true,
+  stage: 'delivery',
+  stopKind: 'unexpected_charge',
+}
+
+for (const theme of THEMES) {
+  for (const [viewport, size] of [
+    ['desktop', { height: 1000, width: 1440 }],
+    ['mobile', { height: 844, width: 375 }],
+  ] as const) {
+    test(`print: interruptor do aviso ao motorista no tipo (${theme}, ${viewport})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: theme })
+      await page.setViewportSize(size)
+      await mockTripWorkspaceApi({
+        mode: 'all-authorized',
+        page,
+        permissions: ['fleet.read', 'settings.manage', 'occurrences.resolve'],
+      })
+      await page.route(/\/company-settings\/occurrence-types(?:\?.*)?$/, (route) =>
+        fulfill(route, { data: [CHARGE_TYPE] }),
+      )
+      await page.route(
+        /\/company-settings\/occurrence-types\/attachment-overrides(?:\?.*)?$/,
+        (route) => fulfill(route, { data: [] }),
+      )
+      await loginAsLocalUser(page)
+      await closeMenuWhenOpen(page)
+      await navigateTo(page, '/ocorrencias')
+      await closeMenuWhenOpen(page)
+      await page.getByRole('tab', { name: 'Tipos' }).click()
+      await page.getByText('Cobrança no recebimento').first().click()
+      const toggle = page.getByLabel('Mostrar ao motorista o aviso de possível cobrança')
+      await expect(toggle).toBeVisible()
+      await toggle.scrollIntoViewIfNeeded()
+      await page.screenshot({
+        fullPage: false,
+        path: resolve(PRINTS_DIRECTORY, `tipo-selo-motorista-${theme}-${viewport}.png`),
+      })
+    })
+  }
+}

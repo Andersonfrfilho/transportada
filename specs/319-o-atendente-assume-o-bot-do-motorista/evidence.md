@@ -1,5 +1,102 @@
 # Evidência — 319
 
+## T1 — Spike: envio livre pelo número do bot e o `fromMe` do webhook (lido em `origin/staging` `4f4ce8f`)
+
+Somente leitura: código da API, SDK `@adatechnology/evolution-whatsapp-provider` 0.3.0 (`dist/index.js`) e logs de staging
+(serviços `evolution-api` e `api`, Evolution 2.3.7) lidos pela ferramenta do Railway em 10/11/2026. Nada foi enviado.
+
+### Conclusão
+
+1. **O envio de texto livre funciona para grupo e para privado, pelo mesmo caminho do bot.** O destino passa por
+   `resolveEvolutionDestination` do SDK: `…@g.us` vai como está; qualquer outro valor vira só dígitos. Então
+   `<grupo>@g.us` e `<número>@s.whatsapp.net` servem, e o ritmo do número (spec 289) vale igual.
+2. **`groupReplies.send` não serve como está para o atendente.** Ele é "dispara e esquece": não devolve o id do
+   provedor, engole o erro (só `whatsapp_group_request.reply_failed` em log) e junta o texto no turno do bot. A T6 deve
+   chamar o `sendText` de `createEvolutionDocumentSender` direto, com o mesmo pacer.
+3. **A mensagem digitada no celular do bot chega ao nosso webhook como `messages.upsert` com `fromMe: true`** (visto em
+   staging). Hoje o webhook a descarta: no privado sem log do id, no grupo com `outcome: from_me`.
+4. **Ainda não confirmado: se o envio feito pela API volta como `messages.upsert`.** O SDK não assina `SEND_MESSAGE`,
+   e os logs não deram prova nos dois sentidos. O desenho abaixo não depende disso. O script de leitura no fim desta
+   nota responde de vez.
+
+### 1. Envio (RF3, T6)
+
+| Peça                       | Onde                                                                                    | O que vale para a 319                                                                                                                                                                                                  |
+| -------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Destino                    | SDK `resolveEvolutionDestination` (`isEvolutionGroupJid` = `^\d+(-\d+)?@g\.us$`)        | Grupo vai como JID; privado vira dígitos (`5516…@s.whatsapp.net` → `5516…`).                                                                                                                                           |
+| Texto com o id do provedor | `evolution-document-sender.gateway.ts` `sendText`                                       | Devolve `{ providerMessageId }` (`key.id`) e lança `ContractorReplyWhatsAppSendError` com `disconnected` (401/403/404, rede, instância fora de `active`), `number_not_found` (400) ou `failed` (5xx e pacer sem vaga). |
+| Ritmo do número (289)      | `createEvolutionSendPacer` + `createDrizzleEvolutionSendSlotClaimer`                    | Vaga em `whatsapp_evolution_settings.next_send_at`, dividida entre API e worker. O bot no grupo usa `maxWaitMs: 120_000` (`main.ts`); as rotas do painel usam `20_000`.                                                |
+| Resposta do bot            | `evolution-group-reply.gateway.ts` (`createEvolutionGroupReplySender`)                  | `send` devolve `void`, fila por empresa, erro só em log, corte em 4000 caracteres (`chunkWhatsAppTexts`), turno com chave `${companyId}\|${groupJid}` e marca `@número` só em `@g.us`.                                 |
+| Marca no grupo             | `evolution-mention-text.gateway.ts`                                                     | Só se o atendente quiser marcar alguém; o envio livre não precisa.                                                                                                                                                     |
+| Status depois do envio     | webhook `messages.update` → `inbound.receiveStatus` (`applyProviderMessageStatus`, 281) | Chega pelo `key.id`. Staging mostra o par: cada envio gera um `webhook.received` com `statuses: 1`.                                                                                                                    |
+
+**Recomendação para a T6:**
+
+- Porta própria `sendOperatorText({ companyId, chatJid, body })` sobre `createEvolutionDocumentSender({ pacer, repository, secrets }).sendText`, com o mesmo `createDrizzleEvolutionSendSlotClaimer`. Não reaproveitar `groupReplies.send`, pelo item 2.
+- Duas fases, como no boleto da 281 T5. Primeiro grava a mensagem `queued` no histórico. Depois envia fora da transação e fecha `sent` com o `providerMessageId`, ou `failed` com o motivo. O reenvio usa a mesma linha.
+- O pacer pode segurar o envio por segundos. A rota responde 202 com a linha `queued`, e o envio corre depois da resposta (o mesmo motivo do bot: o envio sai fora do webhook).
+- Teto de 4000 caracteres no schema da rota, porque o `sendText` direto não corta o texto.
+- O status (`messages.update`) precisa casar também com `whatsapp_chat_messages.provider_message_id`, além das tabelas da 281.
+
+**Armadilha: o privado tem que ser endereçado pelo número, nunca pelo `@lid`.** Um JID `…@lid` viraria "só dígitos"
+no SDK e iria para um número que não existe, ou para o de outra pessoa. A chave do chat privado é o número que o
+SDK já resolve (`senderOf`: `remoteJidAlt`/`senderPn` quando o `remoteJid` é `@lid`). O chat que chega só com
+`@lid` (contador `lidOnly` do webhook) não entra na caixa.
+
+### 2. O `fromMe` no webhook (RF2, RF4, P2/T9)
+
+**Eventos assinados:** `DEFAULT_WEBHOOK_EVENTS` do SDK = `MESSAGES_UPSERT`, `MESSAGES_UPDATE`, `CONNECTION_UPDATE`
+(`setWebhook` sem `events`). `SEND_MESSAGE` **não** é assinado.
+
+**Como o parser entrega:** `parseEvolutionWebhook` lê `fromMe` de `key.fromMe`, o `chat` do `remoteJid` (com troca de
+`@lid` por `remoteJidAlt`/`senderPn`) e **descarta `source`** (`android`/`ios`/`web`/`unknown`). Para ler `source`, seria
+preciso ler o corpo cru, como `readGroupMedia` já faz.
+
+**O que o webhook faz hoje com `fromMe`** (`whatsapp-evolution-webhook.use-case.ts`):
+
+- Privado (`chat === 'user'`): os dois ramos exigem `!event.fromMe`, então a mensagem cai no `else` e conta em
+  `ignored`, sem log do id.
+- Grupo: não há guarda de `fromMe` no ramo; `groupInbound.receive` devolve `from_me` antes de `findGroupDriver`, e o
+  log `whatsapp_evolution.group_message` sai com `outcome: from_me` e o `providerMessageId`.
+- `receiveDirect` e `receiveDirectImporter` também devolvem `from_me` logo de início.
+
+**Observado em staging (04/11/2026 14:09:38 UTC):** uma mensagem digitada no celular do número do bot (Android), num
+chat privado, apareceu no `evolution-api` com `fromMe: true`, `source: 'android'`, `remoteJid` `…@s.whatsapp.net` com
+`remoteJidAlt` igual e `key.id` de 32 hexadecimais (`AC37…`). No mesmo segundo a `api` registrou um
+`whatsapp_evolution.webhook.received` com `ignored: 1` (o `fromMe` do privado), seguido de um com `statuses: 1`.
+Conclusão: o que o atendente digita no celular (ou no WhatsApp Web do número do bot) chega como `messages.upsert`
+`fromMe: true`.
+
+**`source` não separa o painel do humano.** Os ids gerados pelo Baileys (envio pela API) começam com `3EB0`, e o
+Evolution os rotula `source: 'web'`. É o mesmo rótulo do WhatsApp Web usado por uma pessoa. Em staging, mensagens
+`3EB0…` com `source: 'web'` vinham do WhatsApp Web do Anderson (`fromMe: false`).
+
+**Recomendação para T3, T4 e T9:**
+
+- **Histórico (T4):** gravar a mensagem do bot e a do atendente **na hora do envio**, com o `providerMessageId`, e não
+  esperar o eco do webhook. O eco, se vier, é deduplicado pelo `provider_message_id` (único por empresa), como o plano já prevê.
+- **Webhook (T3/T4):** o ramo do privado precisa de um caminho para `fromMe` (hoje vai para o `else`). No grupo, gravar
+  antes do `return 'from_me'`, só para grupo cadastrado.
+- **Assumir pelo celular (T9):** "`fromMe` que não saiu do painel" = `fromMe: true` cujo `key.id` **não** está em
+  `whatsapp_chat_messages.provider_message_id` da empresa. Isso vale com ou sem eco do envio da API. Corrida: o eco
+  pode chegar antes de o envio gravar o id. Por isso a fase 1 da T6 grava a linha `queued` antes de chamar o Evolution,
+  e a T9 deve tratar `fromMe` de um chat com envio `queued` recente como do painel. Não usar `source`.
+- **Respostas do próprio bot:** o fluxo já ignora `fromMe` em todos os trilhos. A guarda de "assumido" (T3) não muda isso.
+
+### 3. Pendente: o eco do envio da API
+
+Os logs de staging não provaram nem um lado nem o outro. A busca `fromMe: true` no `evolution-api` desde 03/11 achou
+uma única ocorrência (a do celular, acima), e a do grupo não apareceu com `from_me` nas janelas lidas. O Evolution v2
+costuma avisar o envio pela API só em `SEND_MESSAGE`, que não assinamos. Para fechar a dúvida, há um script de leitura
+para staging, `staging-319-t1-envio-livre.sh`. Ele roda `GET /webhook/find` e `POST /chat/findMessages` com
+`fromMe: true`, de dentro do container da `api`, e mostra id, `source`, tipo do chat e status, sem texto nem número. Com
+os ids, procura-se no log da `api` se algum `3EB0…` do bot aparece como `group_message` `from_me`.
+
+- Se aparecer: o eco existe, e a deduplicação por `provider_message_id` (já no plano) basta.
+- Se não aparecer: o histórico do bot só existe se for gravado no envio (o que a recomendação acima já manda).
+
+Nenhum dos dois resultados muda T2–T6. Só muda um teste da T9 (o eco que chega antes da gravação).
+
 ## T7b — Spike do SDK `@adatechnology/conversations-ui` 0.14.0
 
 Fonte lida: o pacote publicado `@adatechnology/conversations-ui@0.14.0` (a última versão no npm em 10/11/2026, a

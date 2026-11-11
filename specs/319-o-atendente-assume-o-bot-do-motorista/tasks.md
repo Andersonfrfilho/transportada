@@ -2,7 +2,7 @@
 
 Uma task por vez, PR para staging, merge com CI verde. Contratos vermelhos antes do código.
 
-- [ ] **T1 🧠** Spike: confirmar que `groupReplies`/pacer enviam texto livre a JID de grupo e individual, e como o webhook
+- [x] **T1 🧠** Spike: confirmar que `groupReplies`/pacer enviam texto livre a JID de grupo e individual, e como o webhook
       entrega `fromMe` do celular. Aceite: nota em `evidence.md`.
   > 🤖 Modelo: `opus`
 - [x] **T2 🧠** Domínio e migration: `whatsapp_chats`, `whatsapp_chat_messages`, assumir atômico, vencimento. Contratos.

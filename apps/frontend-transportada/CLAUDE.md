@@ -689,3 +689,16 @@ recolhida (`ClientConversationStrip`) e o composer (`ClientReplyComposer`) leem 
   e de desktop em `specs/283-*/evidence.md`.
 - **Log sem dado do cliente.** O módulo não grava número ou e-mail em console nem em telemetria. A API tem o teste
   `apps/api-transportada/test/occurrence-conversation/client-log-privacy.contract.ts`, que reprova log com esses campos crus.
+
+## Cobrança no recebimento em Ressarcimentos (spec 317)
+
+- `extra-charges`: `receiving_charge` está em `DELIVERY_CHARGE_TYPES` (sem isso `readChargeType` lança na primeira linha). O relatório lê `photos[]`, `receivingCharge`,
+  `tripId` e `stopOccurrenceId` de forma **tolerante** (API antiga, foto malformada). `ReceivingChargeDetail` é a linha abaixo da cobrança: fotos rotuladas, quem pagou,
+  PIX do motorista (a tela já exige `trip.financials`) e "Abrir a ocorrência".
+- `delivery-clients`: `DeliveryClientReceivingChargeFlag` na ficha (selo "Possível cobrança na entrega", data, link da ocorrência, "Limpar a marca" só com `fleet.manage`).
+  A lista **não** mostra o selo (seriam N chamadas).
+- `trip`: `OccurrenceResolutionPanel` oferece o "Comprovante do PIX" (opcional, `DriverPayoutReceiptField`, dono `extra-charges`) nas ocorrências pagas pelo motorista; o arquivo
+  sobe pelo chat do motorista e o id vai em `driverPayoutReceiptAttachmentId`; falha no envio não impede concluir.
+- Editor de tipos: o interruptor "Mostrar ao motorista o aviso de possível cobrança" só aparece em `unexpected_charge`; `showClientChargeSealToDriver` é opcional ("ausente não mexe").
+- Só componentes do design system. Contratos: `test/extra-charges/receiving-charge.contract.ts`, `test/trip/occurrence-type-client-email-type.contract.ts`.
+  Prints em `specs/317-*/prints/` (`test/spec-317-prints.smoke.spec.ts`, fora da CI). **Este painel vai antes da API** (ordem de publicação).

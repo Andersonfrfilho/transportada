@@ -7,6 +7,7 @@
  * `completeTripIfSettled` repetido sobre uma viagem já concluída).
  */
 import { TRIP_STATUS_EVENT_KINDS, tripStatusEvents } from '../../database/trip.schema.js'
+import { returnScheduledCanhotoPickupsOfTrip } from './canhoto-pickup.query.js'
 import type { TripTransaction } from './trip-queryable.type.js'
 import type {
   RecordTripCreationParams,
@@ -36,6 +37,18 @@ export async function recordTripStatusChange(
     ...params.locationStamp,
     ...(params.occurredAt === undefined ? {} : { occurredAt: params.occurredAt }),
   })
+
+  /**
+   * Spec 321 T3: a viagem que finaliza (cancelada ou concluída) devolve a coleta de canhoto ainda encaixada a
+   * `pending`. Mora aqui porque este é o único escritor de transição: todo caminho que finaliza a viagem passa por
+   * ele, na mesma transação do `UPDATE trips`, e nenhum caminho novo esquece a coleta.
+   */
+  if (params.toStatus === 'cancelled' || params.toStatus === 'completed') {
+    await returnScheduledCanhotoPickupsOfTrip(transaction, {
+      companyId: params.companyId,
+      tripId: params.tripId,
+    })
+  }
 }
 
 /**

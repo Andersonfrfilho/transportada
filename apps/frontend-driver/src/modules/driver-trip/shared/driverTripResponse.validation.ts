@@ -16,6 +16,7 @@ import {
   type DriverTripDocument,
   type DriverTripManifest,
   type DriverTripSnapshot,
+  type DriverClientChargeSeal,
   type DriverTripStop,
   type PendingProofDocument,
   type ProofFieldRequirement,
@@ -284,14 +285,21 @@ function readHolidayWarnings(value: unknown): readonly Readonly<{
   })
 }
 
+export function readClientChargeSeal(value: unknown): DriverClientChargeSeal | undefined {
+  if (!isRecord(value) || typeof value.flaggedAt !== 'string') return undefined
+  return { flaggedAt: value.flaggedAt }
+}
+
 function toStop(value: unknown): DriverTripStop {
   if (!isRecord(value) || !Array.isArray(value.documents)) throw new DriverTripResponseError()
   if (typeof value.sequence !== 'number') throw new DriverTripResponseError()
 
   const holidayWarnings = readHolidayWarnings(value.holidayWarnings)
+  const clientChargeSeal = readClientChargeSeal(value.clientChargeSeal)
 
   return {
     arrivedAt: readNullableString(value.arrivedAt),
+    ...(clientChargeSeal === undefined ? {} : { clientChargeSeal }),
     completedAt: readNullableString(value.completedAt),
     deliveryProof: toDeliveryProof(value.deliveryProof),
     deliveryWindowEnd: readNullableString(value.deliveryWindowEnd),

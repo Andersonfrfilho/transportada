@@ -340,6 +340,8 @@
     "asksClientContactHint": "Quando o cliente da nota não tem contato guardado para este canal, o app do motorista pede o WhatsApp ou o e-mail na abertura da ocorrência, para ele não precisar mandar pelo chat. O cliente pode ter vários números e e-mails.",
     "asksNewDueDate": "Pedir a nova data de vencimento ao motorista",
     "asksNewDueDateHint": "O app do motorista mostra o campo opcional \"Nova data de vencimento\" ao abrir a ocorrência (por exemplo, quando o cliente pede a prorrogação do boleto). Se ele preencher, a data sai no e-mail à contratante; em branco, o e-mail sai como sempre.",
+    "showClientChargeSealToDriver": "Mostrar ao motorista o aviso de possível cobrança",
+    "showClientChargeSealToDriverHint": "No cartão da parada, o motorista vê um aviso somente leitura quando o cliente da nota foi marcado como possível cobrança na entrega. Desligado, só o escritório vê o selo. Quem limpa a marca é sempre o escritório.",
     "clientChannelHint": "Por onde a ocorrência fala com o cliente. E-mail é o padrão e segue o tipo de e-mail ao lado. WhatsApp usa o número do cliente e, se falhar, o e-mail guardado. Desligado não envia nada ao cliente.",
     "clientChannelOptions": {
       "off": "Desligado",

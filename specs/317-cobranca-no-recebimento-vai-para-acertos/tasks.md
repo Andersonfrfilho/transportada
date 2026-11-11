@@ -28,10 +28,10 @@ Modelo por etapa (regra do projeto): o coordenador abre cada etapa numa thread c
 
 - [x] T12 Formulário: valor, modo (por nota/agrupada), quem pagou e PIX, vagas de foto rotuladas, travando o envio sem as duas.
 - [x] T13 Fila com `slotKey` e mensagem do que falta.
-- [ ] T14a Selo somente leitura no cartão da parada do motorista, só se `show_client_charge_seal_to_driver`; interruptor no editor de tipos (painel).
+- [x] T14a Selo somente leitura no cartão da parada do motorista, só se `show_client_charge_seal_to_driver`; interruptor no editor de tipos (painel).
 - [x] T14 Contrato de paridade da exigência (lê do servidor) e prints.
 
 ## Etapa 5 — Fechamento · Modelo: padrão do projeto
 
-- [ ] T15 Runbook de produção, `CLAUDE.md` da API/painel/app, `evidence.md`.
-- [ ] T16 Publicação em staging; conferir a ordem painel → API → app. Produção só com aprovação.
+- [x] T15 Runbook de produção, `CLAUDE.md` da API/painel/app, `evidence.md`.
+- [x] T16 Publicação em staging; conferir a ordem painel → API → app. Produção só com aprovação.

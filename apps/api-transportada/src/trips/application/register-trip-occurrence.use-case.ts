@@ -231,6 +231,8 @@ export type OccurrenceTypeRecord = {
   /** Spec 281 T8b: o app pede o contato do cliente na abertura; ausente é desligado. */
   readonly asksClientContact?: boolean
   readonly asksNewDueDate?: boolean
+  /** Spec 317 (E7, RF13): o motorista vê o selo "possível cobrança" do cliente. Opcional só para os dublês; a leitura real sempre traz. */
+  readonly showClientChargeSealToDriver?: boolean
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string
   readonly contractorReplyMode?: ContractorReplyMode
   readonly contractorReplyWaitHours?: null | number

@@ -58,6 +58,7 @@ import {
 } from './drizzle-trip-document-batch.repository.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import { closePendingStopReminders } from '../../driver-stop-reminders/infrastructure/close-pending-stop-reminders.persistence.js'
+import { listStopsWithScheduledCanhotoPickup } from './canhoto-pickup.query.js'
 import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import { TRACTOR_UNIT_VEHICLE_TYPE } from '../../shared/vehicle-type.constant.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
@@ -948,7 +949,14 @@ async function releaseUnloadedDocuments(
   const occupiedStopIds = new Set(
     stillOccupied.map((row) => row.stopId).filter((stopId): stopId is string => stopId !== null),
   )
-  const emptiedStopIds = affectedStopIds.filter((stopId) => !occupiedStopIds.has(stopId))
+  /** Spec 321 T3: a coleta de canhoto encaixada também ocupa a parada (e a FK dela é `restrict`). */
+  const withPickup = await listStopsWithScheduledCanhotoPickup(transaction, {
+    companyId: input.companyId,
+    stopIds: affectedStopIds,
+  })
+  const emptiedStopIds = affectedStopIds.filter(
+    (stopId) => !occupiedStopIds.has(stopId) && !withPickup.has(stopId),
+  )
   if (emptiedStopIds.length === 0) return releasedDocumentIds
 
   await transaction

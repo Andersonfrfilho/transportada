@@ -75,6 +75,8 @@ export type OccurrenceTypeSaveInput = Readonly<{
   asksClientContact?: boolean | undefined
   /** `undefined` é "não mexe". */
   asksNewDueDate?: boolean | undefined
+  /** Spec 317 T14a: o motorista vê o aviso de possível cobrança. `undefined` é "não mexe". */
+  showClientChargeSealToDriver?: boolean | undefined
   contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   contractorReplyMode?: ContractorReplyMode | undefined
@@ -147,6 +149,7 @@ export type OccurrenceTypeEdit = Readonly<
       | 'clientChannels'
       | 'asksClientContact'
       | 'asksNewDueDate'
+      | 'showClientChargeSealToDriver'
       | 'contractorReplyAlertMode'
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'

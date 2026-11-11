@@ -866,6 +866,41 @@ Em 10/11/2026 havia 4 pessoas com o papel na AFR Fernandes e **nenhuma** com Wha
 grupo também não funcionava. O administrador grava o número de outra pessoa já verificado em Usuários → editar → WhatsApp
 (`PUT /company-users/:id/whatsapp-phone`, `users.manage`, trilha `whatsapp_phone.bound_by_administrator`).
 
+## 5.28 Cobrança no recebimento vai para Ressarcimentos (spec 317, 10/11/2026) — só staging, nada mudou em produção
+
+O tipo de parada `unexpected_charge` ("Cobrança no recebimento") grava uma linha `receiving_charge` em Ressarcimentos, marca o cliente
+(`delivery_clients.receiving_charge_flagged_at`) e não manda nada à contratante. A migration `20261110194838_receiving_charge_to_settlements`
+é **aditiva** (enum, `delivery_charges.stop_occurrence_id`, `trip_stop_occurrences.declared_amount`, vagas e fotos, colunas da marca) e a
+`main` ainda não a tem. **Produção só com aval do Anderson.**
+
+- **Ordem de publicação (ADR-0081 §9):** painel → API → app do motorista. O painel antigo lança erro em `chargeType` desconhecido
+  (`readChargeType`), então ele tem de estar publicado antes de qualquer tipo de cobrança no recebimento ser usado. O app novo com API antiga
+  cai no formulário de sempre (sem `photoSlots` o tipo não abre a cobrança).
+- **Promoção à `main`:** a migration roda sozinha no deploy da API (item 4, conferir o job `migrate`). Depois da promoção, o tipo só
+  é usado se a empresa o tiver ativo; a semeadura renomeia apenas o nome padrão antigo.
+- **Conferir depois de publicar (somente leitura):** no banco da API (item 2) `select count(*) from delivery_charges where charge_type = 'receiving_charge'`
+  e `select count(*) from delivery_clients where receiving_charge_flagged_at is not null`. Antes do primeiro uso real, ambos dão 0.
+  Qualquer script novo vai em `tmp/ops/` (saída em `tmp/ops/saidas/`), como o resto deste arquivo.
+- **Limpar a marca de um cliente:** pelo painel (ficha do cliente → "Limpar a marca", `fleet.manage`) ou `DELETE /delivery-clients/:id/receiving-charge-flag`;
+  a limpeza é auditada (`delivery-client.receiving-charge-flag.cleared`). Não limpe por SQL.
+- **Linha duplicada ou foto faltando:** o reenvio pela mesma chave faz replay (índices únicos parciais), e foto obrigatória faltando devolve
+  `422 STOP_OCCURRENCE_PHOTO_SLOT_MISSING` sem gravar nada. Motorista com app antigo vê o que falta em vez de perder a fila.
+- **Desligar sem migration reversa:** desativar o tipo na aba Tipos de `/ocorrencias` (`active = false`); as linhas já criadas ficam em Ressarcimentos.
+- Em produção **nada foi lido nem alterado** por esta spec até esta data.
+
+## 5.26 Copiar a Única de produção para staging, para testar a ocorrência (spec 318, 10/11/2026)
+
+Staging não tinha a contratante Única nem notas dela. `scripts/ops/staging-copia-unica-de-producao.sh [--confirm]` copia a
+contratante (CNPJ 26344834000108), os contatos e as `NOTES` notas mais recentes (padrão 5) com o que elas precisam (participantes,
+endereços, produtos, volumes e os pais por chave estrangeira).
+
+- **Produção: somente leitura** (`set transaction read only`). **Staging:** sem `--confirm` roda tudo numa transação e desfaz (simulação).
+- Anonimiza contatos (e-mail, telefone, nome), destinatários (nome, CPF, endereço, telefone, e-mail) e o texto livre da nota. O emitente (a Única) fica como é.
+- Usuários viram o `anderson.fernandes` de staging e a empresa segue a de staging. Se a Única já existe em staging, usa a de lá.
+- O XML das notas não é copiado (o balde de produção não é lido): a linha existe, o download do XML não.
+- Saída completa em `tmp/ops/saidas/staging-copia-unica-<data>.txt` (e o JSON exportado ao lado); o script imprime só o caminho.
+- Depois: configurar o canal WhatsApp na ficha da Única em staging (grupo e número) e criar uma viagem com essas notas para registrar a ocorrência.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
