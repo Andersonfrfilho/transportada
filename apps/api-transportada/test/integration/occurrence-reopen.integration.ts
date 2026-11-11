@@ -275,7 +275,10 @@ describe('o motorista reabre a ocorrência respondendo (spec 266 T2.7)', () => {
         code: 'OCCURRENCE_NOT_RESOLVED',
       })
       expect(await t.messages()).toHaveLength(1)
-      expect((await t.events()).map((event) => event.kind)).toEqual(['resolved', 'reopened'])
+      const events = [...(await t.events())].sort(
+        (first, second) => first.sequence - second.sequence,
+      )
+      expect(events.map((event) => event.kind)).toEqual(['resolved', 'reopened'])
     })
   })
 
