@@ -4052,6 +4052,12 @@ export const tripCanhotoPickups = pgTable(
     pickupStopId: uuid('pickup_stop_id'),
     status: varchar({ length: 16 }).notNull().default('pending').$type<CanhotoPickupStatus>(),
     collectedAt: timestamp('collected_at', { withTimezone: true }),
+    /**
+     * Spec 321 T4 (D4b): quando o motorista da viagem da coleta mandou a foto do canhoto. A foto vira o canhoto da nota de
+     * origem e espera a conferência (220/222); até ela decidir, a coleta segue `scheduled`, e o fim da viagem da coleta não
+     * a devolve a `pending` (o canhoto já veio). Reprovar a foto zera a marca e reabre a coleta.
+     */
+    photoSentAt: timestamp('photo_sent_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -4116,6 +4122,10 @@ export const tripCanhotoPickups = pgTable(
     check(
       'trip_canhoto_pickups_stop_needs_trip_check',
       sql`${table.pickupStopId} is null or ${table.pickupTripId} is not null`,
+    ),
+    check(
+      'trip_canhoto_pickups_photo_sent_check',
+      sql`${table.photoSentAt} is null or ${table.status} in ('scheduled', 'collected')`,
     ),
     check(
       'trip_canhoto_pickups_collected_at_check',

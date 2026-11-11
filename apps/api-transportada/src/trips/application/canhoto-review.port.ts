@@ -89,6 +89,17 @@ export type CanhotoReviewTransaction = {
     readonly companyId: string
     readonly proofId: string
   }) => Promise<CanhotoReviewView>
+  /**
+   * Spec 321 T4 (D5, CA04): o veredito do canhoto da nota fecha ou reabre a coleta de canhoto dela, na mesma transação.
+   * Aprovado: a coleta aberta vira `collected` e a ocorrência resolve; reprovado: a coleta volta a esperar e a
+   * ocorrência resolvida reabre. Opcional para os dublês antigos.
+   */
+  readonly settleCanhotoPickup?: (params: {
+    readonly at: Date
+    readonly companyId: string
+    readonly documentId: string
+    readonly review: TripDeliveryProofCanhotoReview
+  }) => Promise<void>
 }
 
 export type CanhotoReviewUnitOfWork = {

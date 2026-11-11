@@ -42,6 +42,7 @@ import { occurrenceContractorReplies } from './occurrence-contractor-reply.schem
 import { inList } from './schema-check.constant.js'
 import { storedObjects } from './storage.schema.js'
 import {
+  tripCanhotoPickups,
   tripDocumentOccurrences,
   tripOccurrenceCaseEvents,
   tripStopOccurrences,
@@ -823,6 +824,11 @@ export const tripOccurrenceResolutionEvents = pgTable(
      */
     caseEventId: uuid('case_event_id'),
     contractorReplyId: uuid('contractor_reply_id'),
+    /**
+     * Spec 321 T4 (D5): o evento `system` causado pela coleta de canhoto — `resolved` quando o canhoto da nota é
+     * aprovado, `reopened` quando é reprovado. Sem índice único: a mesma coleta resolve e reabre mais de uma vez.
+     */
+    canhotoPickupId: uuid('canhoto_pickup_id'),
     note: text(),
     conversationMessageId: uuid('conversation_message_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -872,6 +878,13 @@ export const tripOccurrenceResolutionEvents = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.canhotoPickupId],
+      foreignColumns: [tripCanhotoPickups.companyId, tripCanhotoPickups.id],
+      name: 'trip_occurrence_resolution_events_company_canhoto_pickup_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     uniqueIndex('trip_occurrence_resolution_events_case_event_unique')
       .on(table.companyId, table.caseEventId)
       .where(sql`${table.caseEventId} is not null`),
@@ -899,11 +912,11 @@ export const tripOccurrenceResolutionEvents = pgTable(
     ),
     check(
       'trip_occurrence_resolution_events_system_case_event_check',
-      sql`(${table.actorKind} = 'system') = (num_nonnulls(${table.caseEventId}, ${table.contractorReplyId}) = 1)`,
+      sql`(${table.actorKind} = 'system') = (num_nonnulls(${table.caseEventId}, ${table.contractorReplyId}, ${table.canhotoPickupId}) = 1)`,
     ),
     check(
       'trip_occurrence_resolution_events_system_cause_check',
-      sql`num_nonnulls(${table.caseEventId}, ${table.contractorReplyId}) <= 1`,
+      sql`num_nonnulls(${table.caseEventId}, ${table.contractorReplyId}, ${table.canhotoPickupId}) <= 1`,
     ),
     check(
       'trip_occurrence_resolution_events_internal_note_check',
@@ -911,8 +924,16 @@ export const tripOccurrenceResolutionEvents = pgTable(
     ),
     check(
       'trip_occurrence_resolution_events_reopen_check',
-      sql`${table.kind} <> 'reopened' or (${table.actorKind} = 'driver' and ${table.conversationMessageId} is not null)`,
+      sql`${table.kind} <> 'reopened' or (${table.actorKind} = 'driver' and ${table.conversationMessageId} is not null) or (${table.actorKind} = 'system' and ${table.canhotoPickupId} is not null)`,
     ),
+    /** Spec 321 T4: a causa `canhoto_pickup_id` é só da ocorrência de nota (a coleta nasce de uma). */
+    check(
+      'trip_occurrence_resolution_events_canhoto_pickup_owner_check',
+      sql`${table.canhotoPickupId} is null or ${table.documentOccurrenceId} is not null`,
+    ),
+    index('trip_occurrence_resolution_events_canhoto_pickup_idx')
+      .on(table.companyId, table.canhotoPickupId)
+      .where(sql`${table.canhotoPickupId} is not null`),
     index('trip_occurrence_resolution_events_document_latest_idx')
       .on(table.companyId, table.documentOccurrenceId, table.createdAt.desc(), table.id)
       .where(sql`${table.documentOccurrenceId} is not null`),

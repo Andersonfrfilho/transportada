@@ -38,6 +38,7 @@ function createFixture(proof: LockedCanhotoProof | null = PENDING_PROOF) {
   const applied: unknown[] = []
   const audits: CanhotoReviewAuditEntry[] = []
   const locked: unknown[] = []
+  const settled: { documentId: string; review: string }[] = []
   const unitOfWork: CanhotoReviewUnitOfWork = {
     execute: (run) =>
       run({
@@ -51,6 +52,9 @@ function createFixture(proof: LockedCanhotoProof | null = PENDING_PROOF) {
           locked.push(params)
           return proof
         },
+        settleCanhotoPickup: async (params) => {
+          settled.push({ documentId: params.documentId, review: params.review })
+        },
         readReviewView: async () => ({
           canhotoReadNumber: null,
           canhotoReadSeries: null,
@@ -63,7 +67,7 @@ function createFixture(proof: LockedCanhotoProof | null = PENDING_PROOF) {
         }),
       }),
   }
-  return { applied, audits, locked, unitOfWork }
+  return { applied, audits, locked, settled, unitOfWork }
 }
 
 function run(
@@ -274,5 +278,62 @@ describe('a trilha por comprovante do canal do robô (spec 222 CA19)', () => {
     await expect(run(fixture, READING, 'service')).rejects.toThrow(CanhotoReviewProofNotFoundError)
     expect(fixture.applied).toEqual([])
     expect(fixture.audits).toEqual([])
+  })
+})
+
+/**
+ * Spec 321 T4 (D5, CA04): o veredito que muda o canhoto fecha ou reabre a coleta de canhoto da nota, na mesma
+ * transação. O comportamento contra Postgres está em `test/integration/canhoto-pickup-collection.integration.ts`.
+ */
+describe('o veredito do canhoto fecha ou reabre a coleta (spec 321 T4)', () => {
+  test('aprovar (pessoa ou leitura que casa) fecha a coleta da nota', async () => {
+    const manual = createFixture()
+    await run(manual, { action: 'approve' })
+    expect(manual.settled).toEqual([{ documentId: DOCUMENT_ID, review: 'approved' }])
+
+    const automatic = createFixture()
+    await run(
+      automatic,
+      {
+        action: 'automatic',
+        readDocumentId: DOCUMENT_ID,
+        readNumber: DOCUMENT_NUMBER,
+        readSeries: '1',
+        readSource: 'barcode',
+      },
+      'service',
+    )
+    expect(automatic.settled).toEqual([{ documentId: DOCUMENT_ID, review: 'approved' }])
+  })
+
+  test('recusar reabre a coleta da nota', async () => {
+    const fixture = createFixture()
+    await run(fixture, {
+      action: 'reject',
+      note: 'assinatura ilegível no canhoto coletado',
+      reason: 'other',
+    })
+    expect(fixture.settled).toEqual([{ documentId: DOCUMENT_ID, review: 'rejected' }])
+  })
+
+  test('leitura que não casa (pendente) e decisão repetida não mexem na coleta', async () => {
+    const pending = createFixture()
+    await run(pending, {
+      action: 'automatic',
+      readDocumentId: DOCUMENT_ID,
+      readNumber: '67890',
+      readSeries: '1',
+      readSource: 'barcode',
+    })
+    expect(pending.settled).toEqual([])
+
+    const repeated = createFixture({
+      documentNumber: DOCUMENT_NUMBER,
+      id: PROOF_ID,
+      review: 'approved',
+      reviewOrigin: 'manual',
+    })
+    await run(repeated, { action: 'approve' })
+    expect(repeated.settled).toEqual([])
   })
 })

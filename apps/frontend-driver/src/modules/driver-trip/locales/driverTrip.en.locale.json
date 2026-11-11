@@ -951,6 +951,7 @@
     "more_other": "See {{count}} more occurrences for {{label}}",
     "noteLabel": "Invoice {{number}}",
     "phrase": {
+      "canhoto_collected": "The canhoto was collected and approved by the office.",
       "case_cancelled": "Case cancelled by the office",
       "case_closed": "Closed by the office",
       "case_returned_to_warehouse": "Goods returned to the warehouse",

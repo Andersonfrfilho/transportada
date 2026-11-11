@@ -213,6 +213,7 @@ export async function listLatestResolutionEventsByOccurrence(
     .selectDistinctOn([ownerColumn, tripOccurrenceResolutionEvents.kind], {
       actorKind: tripOccurrenceResolutionEvents.actorKind,
       caseEventStatus: tripOccurrenceCaseEvents.toStatus,
+      canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
       contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
       createdAt: tripOccurrenceResolutionEvents.createdAt,
       id: tripOccurrenceResolutionEvents.id,
@@ -248,6 +249,7 @@ export async function listLatestResolutionEventsByOccurrence(
       actorKind: row.actorKind,
       caseEventStatus: row.caseEventStatus ?? undefined,
       ...(row.contractorReplyId === null ? {} : { causedByContractorReply: true as const }),
+      ...(row.canhotoPickupId === null ? {} : { causedByCanhotoPickup: true as const }),
       createdAt: row.createdAt.toISOString(),
       id: row.id,
       kind: row.kind,
@@ -275,6 +277,7 @@ export async function listAllResolutionEventsByOccurrence(
     .select({
       actorKind: tripOccurrenceResolutionEvents.actorKind,
       caseEventStatus: tripOccurrenceCaseEvents.toStatus,
+      canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
       contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
       createdAt: tripOccurrenceResolutionEvents.createdAt,
       id: tripOccurrenceResolutionEvents.id,
@@ -306,6 +309,7 @@ export async function listAllResolutionEventsByOccurrence(
       actorKind: row.actorKind,
       caseEventStatus: row.caseEventStatus ?? undefined,
       ...(row.contractorReplyId === null ? {} : { causedByContractorReply: true as const }),
+      ...(row.canhotoPickupId === null ? {} : { causedByCanhotoPickup: true as const }),
       createdAt: row.createdAt.toISOString(),
       id: row.id,
       kind: row.kind,

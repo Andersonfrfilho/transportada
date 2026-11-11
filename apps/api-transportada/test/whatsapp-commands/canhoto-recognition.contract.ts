@@ -78,6 +78,8 @@ function setup(
     readonly now?: () => Date
     readonly read?: (input: Parameters<WhatsAppCanhotoReaderPort['read']>[0]) => Promise<Verdict>
     readonly stops?: boolean
+    /** Spec 321 T4: a coleta de canhoto encaixada na viagem do motorista (a NF 9001 da entrega de origem). */
+    readonly pickups?: boolean
     /** A parada 2 (NF 17300) chegou e falta a baixa: é a parada em andamento. */
     readonly secondStopArrived?: boolean
   } = {},
@@ -87,6 +89,7 @@ function setup(
   const delivered: WhatsAppDocumentEventInput[] = []
   const attached: { readonly documentId: string; readonly kind: string }[] = []
   const removed: string[] = []
+  const collected: { readonly pickupId: string; readonly providerMessageId: string }[] = []
   let readCalls = 0
   let sequence = 0
   let failPreparationStores = options.failPreparationStores ?? 0
@@ -222,6 +225,24 @@ function setup(
           }),
         }),
     listStops,
+    ...(options.pickups === true
+      ? {
+          canhotoPickups: {
+            collect: async ({ pickupId, providerMessageId }) => {
+              collected.push({ pickupId, providerMessageId })
+            },
+            list: async () => [
+              {
+                city: 'Campinas',
+                documentNumber: '009001',
+                originTripDocumentId: 'DOC-ORIGIN',
+                pickupId: 'PK1',
+                recipientName: 'Loja Norte',
+              },
+            ],
+          },
+        }
+      : {}),
     media,
     preparations,
     questions: {
@@ -288,6 +309,7 @@ function setup(
   return {
     answer,
     attached,
+    collected,
     delivered,
     facade,
     photo,
@@ -703,5 +725,53 @@ describe('foto sem pergunta aberta: a parada em andamento vem primeiro (nunca ba
   test('sem parada em andamento, a lista da viagem como antes', async () => {
     const t = setup({ read: async () => ({ ambiguous: false, candidates: [], markers: 3 }) })
     expect((await t.photo())?.texts[0]).toBe(CHOOSE_BOTH)
+  })
+})
+
+describe('a coleta de canhoto também recebe a foto pelo bot (spec 321 T4, D4b)', () => {
+  test('o canhoto lido da coleta vai para a coleta, nunca para a entrega em preparo', async () => {
+    const t = setup({ pickups: true, read: async () => exact('DOC-ORIGIN') })
+    const reply = await t.photo(ACTOR, 'M9')
+    expect(reply?.texts[0]).toBe(CANHOTO_RECOGNITION_SPEECH.pickupCollected('9001'))
+    expect(t.collected).toEqual([{ pickupId: 'PK1', providerMessageId: 'M9' }])
+    expect(t.rows.size).toBe(0)
+    expect(t.delivered).toEqual([])
+  })
+
+  test('a coleta entra nas candidatas da leitura com o número da nota de origem', async () => {
+    const seen: string[] = []
+    const t = setup({
+      pickups: true,
+      read: async (input) => {
+        seen.push(...input.candidates.map((candidate) => candidate.number))
+        return exact('DOC-ORIGIN')
+      },
+    })
+    await t.photo()
+    expect(seen).toContain('9001')
+  })
+
+  test('só a coleta, sem nota aberta na viagem: o bot ainda aceita a foto', async () => {
+    const t = setup({ pickups: true, read: async () => exact('DOC-ORIGIN'), stops: false })
+    const reply = await t.photo(ACTOR, 'M7')
+    expect(reply?.texts[0]).toBe(CANHOTO_RECOGNITION_SPEECH.pickupCollected('9001'))
+    expect(t.collected).toEqual([{ pickupId: 'PK1', providerMessageId: 'M7' }])
+  })
+
+  test('a resposta "sim" à pergunta sobre a coleta também vai pela coleta', async () => {
+    const t = setup({
+      pickups: true,
+      read: async () => ({
+        ambiguous: false,
+        candidates: [{ documentId: 'DOC-ORIGIN', match: 'near' }],
+        markers: 1,
+      }),
+    })
+    await t.photo(ACTOR, 'M5')
+    const open = [...t.questionRows.values()][0]
+    expect(open?.candidates.map((candidate) => candidate.pickupId)).toEqual(['PK1'])
+    const done = await t.answer('1')
+    expect(done?.texts[0]).toBe(CANHOTO_RECOGNITION_SPEECH.pickupCollected('9001'))
+    expect(t.collected).toEqual([{ pickupId: 'PK1', providerMessageId: 'M5' }])
   })
 })

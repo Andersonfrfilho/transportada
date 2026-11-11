@@ -563,3 +563,26 @@ describe('spec 321 T3: o encaixe da coleta de canhoto leva a empresa em toda jun
     }
   })
 })
+
+describe('spec 321 T4: a coleta pela foto e pela conferência leva a empresa em toda junção e filtro', () => {
+  const source = readFileSync(
+    new URL(
+      '../../src/trips/infrastructure/canhoto-pickup-collection.persistence.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  test('every join and every filter carries companyId', () => {
+    const joins = source.split(/\.(?:innerJoin|leftJoin)\(/).slice(1)
+    expect(joins.length).toBeGreaterThan(5)
+    for (const join of joins) {
+      expect(join.slice(0, join.indexOf('),'))).toInclude('companyId')
+    }
+    const wheres = source.split('.where(').slice(1)
+    expect(wheres.length).toBeGreaterThan(10)
+    for (const where of wheres) {
+      expect(where.slice(0, 200)).toInclude('companyId')
+    }
+  })
+})

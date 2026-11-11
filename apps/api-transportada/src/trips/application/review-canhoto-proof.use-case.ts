@@ -98,6 +98,16 @@ export async function reviewCanhotoProof(
       })
       const auditEntry = buildAuditEntry(input, proof.id)
       if (auditEntry !== undefined) await transaction.insertAudit(auditEntry)
+      // Spec 321 T4 (D5): o veredito que mudou fecha ou reabre a coleta de canhoto da nota, na mesma transação.
+      const review = decision.update.canhotoReview
+      if (review === 'approved' || review === 'rejected') {
+        await transaction.settleCanhotoPickup?.({
+          at: reviewedAt,
+          companyId: input.companyId,
+          documentId: input.documentId,
+          review,
+        })
+      }
     }
 
     return transaction.readReviewView({ companyId: input.companyId, proofId: proof.id })
