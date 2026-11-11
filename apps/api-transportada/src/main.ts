@@ -213,8 +213,6 @@ import { createWhatsAppXmlInbound } from './nfe-xml-receipts/application/receive
 import { createDrizzleWhatsAppXmlReceiptRepository } from './nfe-xml-receipts/infrastructure/drizzle-whatsapp-xml-receipt.repository.js'
 import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
 import { createWhatsAppChatTakeoverGuard } from './whatsapp-inbox/application/whatsapp-chat-takeover-guard.service.js'
-import { createWhatsAppChatTakeoverService } from './whatsapp-inbox/application/whatsapp-chat-takeover.service.js'
-import { createDrizzleWhatsAppChatRepository } from './whatsapp-inbox/infrastructure/drizzle-whatsapp-chat.repository.js'
 import { createEvolutionGroupIdentity } from './whatsapp/application/evolution-group-identity.service.js'
 import {
   createEvolutionGroupInbound,
