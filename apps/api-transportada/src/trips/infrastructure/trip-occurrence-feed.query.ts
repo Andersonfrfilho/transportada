@@ -361,6 +361,9 @@ async function listDocumentOccurrenceRows(
   if (query.filters?.typeIn !== undefined && query.filters.typeIn.length > 0) {
     conditions.push(inArray(companyOccurrenceTypes.name, query.filters.typeIn))
   }
+  if (query.filters?.typeIdIn !== undefined && query.filters.typeIdIn.length > 0) {
+    conditions.push(inArray(tripDocumentOccurrences.occurrenceTypeId, query.filters.typeIdIn))
+  }
   if (query.filters?.plateIn !== undefined && query.filters.plateIn.length > 0) {
     conditions.push(inArray(fleetVehicles.plate, query.filters.plateIn))
   }
@@ -592,6 +595,8 @@ async function listStopOccurrenceRows(
 ): Promise<readonly FeedRow[]> {
   if (!stopOccurrencesMatchCaseFilter(query.filters)) return []
   if (!stopOccurrencesMatchContractorReplyFilter(query.filters)) return []
+  // Spec 321 T7: a parada não tem tipo cadastrado; filtro por id exclui a parada inteira.
+  if (query.filters?.typeIdIn !== undefined && query.filters.typeIdIn.length > 0) return []
 
   const conditions: SQL[] = [
     eq(tripStopOccurrences.companyId, query.companyId),

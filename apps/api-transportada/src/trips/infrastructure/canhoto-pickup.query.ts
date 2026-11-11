@@ -171,3 +171,34 @@ export async function returnScheduledCanhotoPickupsOfTrip(
     .returning({ id: tripCanhotoPickups.id })
   return returned.length
 }
+
+/**
+ * Spec 321 T7 (D4d, D6): as notas de origem com canhoto retido, ou seja, com coleta aberta (`pending | scheduled`) de
+ * ocorrência não cancelada. Uma leitura fixa para a viagem inteira (nunca por nota), alimentando `canhotoRetained` no
+ * detalhe do documento. Não escreve nada (D3).
+ */
+export async function loadCanhotoRetainedDocumentIds(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly tripDocumentIds: readonly string[] },
+): Promise<ReadonlySet<string>> {
+  if (input.tripDocumentIds.length === 0) return new Set()
+  const rows = await queryable
+    .select({ tripDocumentId: tripCanhotoPickups.originTripDocumentId })
+    .from(tripCanhotoPickups)
+    .innerJoin(
+      tripDocumentOccurrences,
+      and(
+        eq(tripDocumentOccurrences.companyId, tripCanhotoPickups.companyId),
+        eq(tripDocumentOccurrences.id, tripCanhotoPickups.occurrenceId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        inArray(tripCanhotoPickups.status, [...CANHOTO_PICKUP_OPEN_STATUSES]),
+        isNull(tripDocumentOccurrences.cancelledAt),
+        inArray(tripCanhotoPickups.originTripDocumentId, [...input.tripDocumentIds]),
+      ),
+    )
+  return new Set(rows.map((row) => row.tripDocumentId))
+}

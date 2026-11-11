@@ -194,6 +194,8 @@ export type TripOccurrenceFeedFilters = {
   /** Spec 277 RF1: texto livre, já aparado; casa em qualquer campo da linha (nota, motorista, veículo, empresas, cidade, andamento). */
   readonly search?: string
   readonly stageIn?: readonly TripOccurrenceFeedStage[]
+  /** Spec 321 T7: id do tipo cadastrado. Só ocorrência de nota tem tipo cadastrado; a de parada não casa. */
+  readonly typeIdIn?: readonly string[]
   readonly typeIn?: readonly string[]
 }
 

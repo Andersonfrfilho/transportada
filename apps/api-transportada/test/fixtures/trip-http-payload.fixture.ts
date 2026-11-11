@@ -186,6 +186,7 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
   nfeSeries: '1',
   nfeTotalValue: '1500.0000',
   openOccurrenceCase: false,
+  canhotoRetained: false,
   proofPending: false,
   volumeCount: 12,
   cargoGrossWeight: '108.6700',

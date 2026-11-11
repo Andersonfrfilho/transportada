@@ -1417,3 +1417,9 @@ Valor exato em `bigint`, `0` é valor; "quem pagou" obrigatório e `driver` exig
   `stops[].clientChargeSeal { flaggedAt }` em parada aberta, só se `show_client_charge_seal_to_driver`; falha só tira o selo.
 - **Testes:** `test/trip-occurrence/receiving-charge.contract.ts`, `charge-seal.contract.ts`, `test/delivery-clients-http/receiving-charge.contract.ts`,
   `test/integration/receiving-charge.integration.ts` (na lista do `package.json`). Publicação: painel → API → app (runbook de produção, 5.28).
+
+## Canhoto retido pelo cliente (spec 321, T7)
+
+- **Filtro por id do tipo.** `GET /trip-occurrences?typeIdIn=<uuid>,<uuid>` filtra a ocorrência de nota por `occurrence_type_id` (o `typeIn` segue sendo por nome/`kind`). Valor que não é UUID é `400`, nunca lista vazia; ocorrência de parada não tem tipo cadastrado e fica fora quando o filtro vem.
+- **`canhotoRetained` no detalhe do documento.** `GET /trips/:id` leva `documents[].canhotoRetained` (derivado, nunca gravado): a nota de origem tem coleta de canhoto aberta (`pending | scheduled`, D6) de ocorrência não cancelada. Uma leitura fixa para a viagem (`loadCanhotoRetainedDocumentIds`, `canhoto-pickup.query.ts`). O painel já o lê como opcional.
+- Contratos: `test/trip-occurrence/feed.contract.ts` (`typeIdIn`) e `test/integration/canhoto-pickup-registration.integration.ts` (marcador).

@@ -298,3 +298,7 @@ sem coleta, cliente com fetch falso: rota, `kind=photo`, relógio, recusa do ser
 `tsc`, `eslint` e `prettier --check` limpos. API: 15064 contratos, 0 fail; integração relacionada contra Postgres 16 (coleta T4, `me-trip`, custo fixo).
 Prints (claro/escuro, desktop 1280 e celular 375; vazio, com foto, enviada) em `specs/321-*/prints/coleta-*.png` pelo `test/spec-321-prints.smoke.spec.ts`
 (fora da CI; os componentes são os padrão do app, comparados com a ocorrência e o "Não entreguei").
+
+## T7 (API) — filtro `typeIdIn` e `canhotoRetained`
+
+Contrato `test/trip-occurrence/feed.contract.ts` (typeIdIn aceita UUID, recusa o resto), marcador em `test/integration/canhoto-pickup-registration.integration.ts`. `tsc` limpo; API: 15030 contratos, 0 fail. **Ainda aberto na T7:** tipo no script de staging (dry-run), publicação painel → API → app e conferência de CA01–CA05 em staging, que pedem acesso ao ambiente.

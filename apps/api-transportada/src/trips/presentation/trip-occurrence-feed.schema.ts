@@ -53,6 +53,7 @@ const ALLOWED_KEYS = new Set([
   'resolutionStateIn',
   'search',
   'stageIn',
+  'typeIdIn',
   'typeIn',
 ])
 
@@ -88,6 +89,14 @@ function parseMultiValue(value: null | string): readonly string[] | undefined {
     .map((part) => part.trim())
     .filter((part) => part.length > 0)
   if (parts.length === 0) throw invalidRequest()
+  return parts
+}
+
+/** Spec 321 T7: filtro por id do tipo (não por nome); id que não é UUID é 400, nunca "zero resultados". */
+function parseUuidMultiValue(value: null | string): readonly string[] | undefined {
+  const parts = parseMultiValue(value)
+  if (parts === undefined) return undefined
+  if (parts.some((part) => !UUID.safeParse(part).success)) throw invalidRequest()
   return parts
 }
 
@@ -169,6 +178,7 @@ export function parseTripOccurrenceFeedList(url: URL): {
   const plateIn = parseMultiValue(url.searchParams.get('plateIn'))
   const stageIn = parseStageIn(url.searchParams.get('stageIn'))
   const typeIn = parseMultiValue(url.searchParams.get('typeIn'))
+  const typeIdIn = parseUuidMultiValue(url.searchParams.get('typeIdIn'))
   const caseStatusIn = parseCaseStatusIn(url.searchParams.get('caseStatusIn'))
   const contractorReplyStatusIn = parseContractorReplyStatusIn(
     url.searchParams.get('contractorReplyStatusIn'),
@@ -186,6 +196,7 @@ export function parseTripOccurrenceFeedList(url: URL): {
     ...(resolutionStateIn === undefined ? {} : { resolutionStateIn }),
     ...(search === undefined ? {} : { search }),
     ...(stageIn === undefined ? {} : { stageIn }),
+    ...(typeIdIn === undefined ? {} : { typeIdIn }),
     ...(typeIn === undefined ? {} : { typeIn }),
   }
   const hasFilters = Object.keys(filters).length > 0
