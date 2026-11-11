@@ -979,6 +979,20 @@ async function registerEmptyReviewQueueMock(page: Page): Promise<void> {
 }
 
 /**
+ * Spec 321 T5: o detalhe da viagem lista as coletas de canhoto de quem tem `trip.report-on-behalf`. A rota real
+ * devolve só `{ data: [...] }`; sem este mock a requisição escapa para a API, que não sobe no smoke.
+ */
+async function registerEmptyCanhotoPickupsMock(page: Page): Promise<void> {
+  await page.route(/\/trip-canhoto-pickups(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
+  })
+}
+
+/**
  * Spec 059: o detalhe da viagem consulta a prontidão ao abrir. Sem este mock a requisição escapa
  * para a API real, que não sobe no smoke — e o `requestfailed` entra em `failures()`.
  */
@@ -1433,6 +1447,7 @@ export async function mockTripWorkspaceApi(
     registerEmptyListMock({ page: input.page, pattern: /\/fleet\/vehicles(?:\?.*)?$/ }),
     registerEmptyListMock({ page: input.page, pattern: /\/fleet\/drivers(?:\?.*)?$/ }),
     registerEmptyReviewQueueMock(input.page),
+    registerEmptyCanhotoPickupsMock(input.page),
   ])
   return {
     failures: () => state.failures,
