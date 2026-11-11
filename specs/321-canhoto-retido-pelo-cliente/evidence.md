@@ -243,6 +243,6 @@ desconhecida e o ator `system`, então não há ordem de publicação a respeita
   estado `resolved` com a causa; reprovação → `scheduled` na mesma viagem + `reopened`/`system`; última parada fechada pela foto conclui a viagem e
   a coleta fotografada não volta a `pending` (reprovada depois, vai a `pending`, sem `reopened` porque nunca resolveu); motorista fora da viagem
   404 sem gravar; reenvio converge; aprovar duas vezes grava um `resolved` só.
-- `bun --env-file=../../.env.test test`: 14972 pass, 0 fail. Integração relacionada (coleta T2/T3/T4, conferência do canhoto, `me-trip`,
-  andamento, resumo, retorno da contratante): 98 pass. `db:test` contra Postgres (migration e rollback): 256 pass. Painel `bun run test` 1496
+- `bun --env-file=../../.env.test test` (depois do rebase sobre a 319 T2): 15020 testes, 0 fail. Integração relacionada (coleta T2/T3/T4, conferência do canhoto, `me-trip`,
+  andamento, resumo, retorno da contratante): 98 pass. `db:test` contra Postgres (migration e rollback): 261 pass. Painel `bun run test` 1496
   pass, app do motorista 2299 pass. `tsc`, `eslint` e `prettier --check` limpos.
