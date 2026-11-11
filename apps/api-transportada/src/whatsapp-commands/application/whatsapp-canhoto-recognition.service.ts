@@ -144,7 +144,11 @@ export type WhatsAppCanhotoRecognitionPorts = {
   readonly media: WhatsAppDeliveryPreparationMediaPort
   readonly preparations: Required<Pick<WhatsAppDeliveryPreparations, 'receiveCanhotoPhoto'>>
   readonly questions: WhatsAppCanhotoQuestionRepositoryPort
-  readonly reader: WhatsAppCanhotoReaderPort
+  /**
+   * Ausente (OCR desligado, como em produção): a foto não é lida. Só vale a parada em que o motorista já chegou e falta a
+   * baixa — o bot mesmo pediu "a foto do canhoto" ali —, e a foto baixa a nota dela sem pergunta.
+   */
+  readonly reader?: WhatsAppCanhotoReaderPort
 }
 
 export type WhatsAppCanhotoRecognition = {
@@ -313,8 +317,10 @@ export function createWhatsAppCanhotoRecognition(
   }): Promise<'busy' | 'disabled' | CanhotoReadVerdict | undefined> {
     // Spec 294 S6: só imagem pelos bytes vai ao decodificador do worker.
     if (detectDeliveryProofMimeType(input.bytes) === null) return undefined
+    const { reader } = ports
+    if (reader === undefined) return undefined
     try {
-      return await ports.reader.read({
+      return await reader.read({
         bytes: input.bytes,
         candidates: input.notes.map((note) => ({
           documentId: note.documentId,
@@ -619,6 +625,8 @@ export function createWhatsAppCanhotoRecognition(
         const looksLikeCargo = decision?.kind === 'photo_kind' && verdict !== undefined
         if (!pointsElsewhere && !looksLikeCargo) return attachRead({ ...common, note: current })
       }
+      // Sem leitor, fora da parada que chegou, a foto segue calada; na que chegou com várias notas, pergunta por elas.
+      if (ports.reader === undefined) return awaitingSettlement ? askAmong(notes) : null
       if (read === 'busy' || decision === undefined) return askAmong(notes)
       if (decision.kind === 'attach') return attachRead({ ...common, note: decision.note })
       if (decision.kind === 'confirm_note') {
