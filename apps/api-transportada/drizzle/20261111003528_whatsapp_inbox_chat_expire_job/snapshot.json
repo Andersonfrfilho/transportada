@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "09939aa6-9dd7-4093-8258-3ac2c09bda8b",
+  "id": "46fe665e-14cb-4650-9939-3c8823f5d083",
   "prevIds": [
-    "cb69aae7-4075-4aa3-bff6-dde8cca46764"
+    "223a7a73-e873-4f4a-99aa-63684e324b37"
   ],
   "ddl": [
     {
@@ -35716,6 +35716,19 @@
     {
       "type": "timestamp with time zone",
       "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "photo_sent_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_canhoto_pickups"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
       "notNull": true,
       "dimensions": 0,
       "default": "now()",
@@ -45091,6 +45104,19 @@
       "generated": null,
       "identity": null,
       "name": "contractor_reply_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "trip_occurrence_resolution_events"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "canhoto_pickup_id",
       "entityType": "columns",
       "schema": "public",
       "table": "trip_occurrence_resolution_events"
@@ -55593,6 +55619,34 @@
       "method": "btree",
       "concurrently": false,
       "name": "trip_occurrence_resolution_events_message_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "trip_occurrence_resolution_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "company_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "canhoto_pickup_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": "\"canhoto_pickup_id\" is not null",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "trip_occurrence_resolution_events_canhoto_pickup_idx",
       "entityType": "indexes",
       "schema": "public",
       "table": "trip_occurrence_resolution_events"
@@ -67219,6 +67273,25 @@
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
       "name": "trip_occurrence_resolution_events_company_message_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "trip_occurrence_resolution_events"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "company_id",
+        "canhoto_pickup_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "trip_canhoto_pickups",
+      "columnsTo": [
+        "company_id",
+        "id"
+      ],
+      "onUpdate": "CASCADE",
+      "onDelete": "RESTRICT",
+      "name": "trip_occurrence_resolution_events_company_canhoto_pickup_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "trip_occurrence_resolution_events"
@@ -81308,6 +81381,13 @@
       "table": "trip_canhoto_pickups"
     },
     {
+      "value": "\"photo_sent_at\" is null or \"status\" in ('scheduled', 'collected')",
+      "name": "trip_canhoto_pickups_photo_sent_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_canhoto_pickups"
+    },
+    {
       "value": "(\"status\" = 'collected') = (\"collected_at\" is not null)",
       "name": "trip_canhoto_pickups_collected_at_check",
       "entityType": "checks",
@@ -83548,14 +83628,14 @@
       "table": "trip_occurrence_resolution_events"
     },
     {
-      "value": "(\"actor_kind\" = 'system') = (num_nonnulls(\"case_event_id\", \"contractor_reply_id\") = 1)",
+      "value": "(\"actor_kind\" = 'system') = (num_nonnulls(\"case_event_id\", \"contractor_reply_id\", \"canhoto_pickup_id\") = 1)",
       "name": "trip_occurrence_resolution_events_system_case_event_check",
       "entityType": "checks",
       "schema": "public",
       "table": "trip_occurrence_resolution_events"
     },
     {
-      "value": "num_nonnulls(\"case_event_id\", \"contractor_reply_id\") <= 1",
+      "value": "num_nonnulls(\"case_event_id\", \"contractor_reply_id\", \"canhoto_pickup_id\") <= 1",
       "name": "trip_occurrence_resolution_events_system_cause_check",
       "entityType": "checks",
       "schema": "public",
@@ -83569,8 +83649,15 @@
       "table": "trip_occurrence_resolution_events"
     },
     {
-      "value": "\"kind\" <> 'reopened' or (\"actor_kind\" = 'driver' and \"conversation_message_id\" is not null)",
+      "value": "\"kind\" <> 'reopened' or (\"actor_kind\" = 'driver' and \"conversation_message_id\" is not null) or (\"actor_kind\" = 'system' and \"canhoto_pickup_id\" is not null)",
       "name": "trip_occurrence_resolution_events_reopen_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "trip_occurrence_resolution_events"
+    },
+    {
+      "value": "\"canhoto_pickup_id\" is null or \"document_occurrence_id\" is not null",
+      "name": "trip_occurrence_resolution_events_canhoto_pickup_owner_check",
       "entityType": "checks",
       "schema": "public",
       "table": "trip_occurrence_resolution_events"
