@@ -48,3 +48,12 @@ export function createWhatsAppSenderRoleResolver(
       : { actorUserId: attendant.actorUserId, kind: 'attendant' }
   }
 }
+
+/**
+ * A foto e a localização do grupo valem como prova de quem é tripulação **ou** atendente. Só o número
+ * desconhecido fica de fora. (Antes só o atendente puro passava: o ajudante da viagem, que é tripulação e vence o
+ * atendente na resolução, tinha a foto do canhoto descartada como `not_driver`.)
+ */
+export function isMediaSenderAllowed(role: WhatsAppSenderRole): boolean {
+  return role.kind !== 'unknown'
+}
