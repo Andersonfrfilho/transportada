@@ -1,19 +1,37 @@
 .reader {
-  align-items: center;
+  align-items: end;
   display: flex;
   flex-wrap: wrap;
+  flex: 1 1 20rem;
   gap: var(--space-3);
-}
-
-.input {
-  flex: 1 1 12rem;
   min-width: 0;
 }
 
-/* O campo do leitor não tem rótulo pai (`label input`), então não herdava a altura do campo: ficava
-   uma faixa achatada ao lado do botão. A altura é a do controle vizinho (`size="sm"`). */
+/* Rótulo em cima e campo na altura padrão, como os campos vizinhos da tela (`docs/frontend/fields.md`). */
+.field {
+  display: grid;
+  flex: 1 1 14rem;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.label {
+  font-size: 0.85rem;
+}
+
 .input {
-  min-height: var(--field-height-compact);
-  padding: var(--field-padding-compact);
-  font-size: var(--field-font-size-compact);
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+/* O botão e o selo de estado ficam na altura do campo, alinhados pela base. */
+.status {
+  align-items: center;
+  display: inline-flex;
+  min-height: var(--control-height);
 }

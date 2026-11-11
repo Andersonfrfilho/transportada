@@ -1769,7 +1769,8 @@
     },
     "reader": {
       "field": "Chave da nota",
-      "idle": "Clique aqui para voltar a ler",
+      "idle": "Ativar o leitor",
+      "placeholder": "Bipe a chave de 44 dígitos ou digite o número da nota",
       "ready": "Leitor pronto"
     },
     "movesFromTrip": "Esta nota está em outra viagem. Ao acrescentar, ela sai de lá e vem para esta, e a troca fica registrada no histórico das duas.",

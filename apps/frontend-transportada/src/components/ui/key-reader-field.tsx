@@ -12,7 +12,7 @@ import { useKeyReaderFocus } from './useKeyReaderFocus.hook'
 export type KeyReaderFieldHandle = Readonly<{ focus: () => void }>
 
 export type KeyReaderFieldProps = Readonly<{
-  labels: Readonly<{ field: string; idle: string; ready: string }>
+  labels: Readonly<{ field: string; idle: string; placeholder?: string; ready: string }>
   onRead: (accessKey: string) => void
   /** Leitura sem chave (código de embalagem, etiqueta de volume): quem hospeda decide se conta. */
   onUnreadable?: (scanned: string) => void
@@ -58,23 +58,26 @@ export function KeyReaderField({ labels, onRead, onUnreadable, ref }: KeyReaderF
 
   return (
     <div className={styles.reader}>
-      <input
-        aria-label={labels.field}
-        autoComplete="off"
-        className={styles.input}
-        onKeyDown={handleKeyDown}
-        ref={inputRef}
-        spellCheck={false}
-        type="text"
-      />
+      <label className={styles.field}>
+        <span className={styles.label}>{labels.field}</span>
+        <input
+          autoComplete="off"
+          className={styles.input}
+          onKeyDown={handleKeyDown}
+          placeholder={labels.placeholder}
+          ref={inputRef}
+          spellCheck={false}
+          type="text"
+        />
+      </label>
       {isFocused ? (
-        <Badge role="status" variant="success">
+        <Badge className={styles.status} role="status" variant="success">
           {labels.ready}
         </Badge>
       ) : (
         <Button
+          className={styles.status}
           onClick={() => inputRef.current?.focus()}
-          size="sm"
           type="button"
           variant="secondary"
         >
