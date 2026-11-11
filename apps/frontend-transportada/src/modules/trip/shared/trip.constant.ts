@@ -312,6 +312,8 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
   'leavesBehindOnDispatch',
   /** Spec 223 RF4: ausente é API anterior ao campo — o selo só aparece com `true`. */
   'proofPending',
+  /** Spec 321 D4d: a nota de origem do canhoto retido. Ausente é API anterior ao campo — o selo só aparece com `true`. */
+  'canhotoRetained',
   'contact',
   'nfeIssuedAt',
   'nfeNumber',

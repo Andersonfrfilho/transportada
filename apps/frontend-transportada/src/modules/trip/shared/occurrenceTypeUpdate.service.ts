@@ -77,6 +77,10 @@ export type OccurrenceTypeSaveInput = Readonly<{
   asksNewDueDate?: boolean | undefined
   /** Spec 317 T14a: o motorista vê o aviso de possível cobrança. `undefined` é "não mexe". */
   showClientChargeSealToDriver?: boolean | undefined
+  /** Spec 321 T5: `undefined` é "não mexe". As três chaves vão juntas quando uma delas muda. */
+  blocksContractorNotice?: boolean | undefined
+  countsCargoOnPickupTrip?: boolean | undefined
+  createsCanhotoPickup?: boolean | undefined
   contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   contractorReplyMode?: ContractorReplyMode | undefined
@@ -150,6 +154,9 @@ export type OccurrenceTypeEdit = Readonly<
       | 'asksClientContact'
       | 'asksNewDueDate'
       | 'showClientChargeSealToDriver'
+      | 'blocksContractorNotice'
+      | 'countsCargoOnPickupTrip'
+      | 'createsCanhotoPickup'
       | 'contractorReplyAlertMode'
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'

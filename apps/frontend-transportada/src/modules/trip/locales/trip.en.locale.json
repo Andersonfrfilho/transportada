@@ -1384,6 +1384,41 @@
       "overdueWithDays_other": "Overdue by {{count}} business days"
     }
   },
+  "canhotoPickup": {
+    "availableList": "Receipt pickups that can be scheduled on this trip",
+    "availableTitle": "Pending pickups",
+    "document": "Invoice {{number}}",
+    "errors": {
+      "CANHOTO_PICKUP_CHANGED": "The pickup changed while you were working. Refresh and try again.",
+      "CANHOTO_PICKUP_CLOSED": "This pickup is already done or cancelled.",
+      "CANHOTO_PICKUP_NOT_FOUND": "Pickup not found.",
+      "CANHOTO_PICKUP_NOT_SCHEDULED": "This pickup is not scheduled on any trip.",
+      "CANHOTO_PICKUP_ORIGIN_TRIP": "A receipt that goes back to the same driver is the photo on the origin trip, not a pickup.",
+      "CANHOTO_PICKUP_TRIP_CLOSED": "This trip has ended and takes no pickups.",
+      "CANHOTO_PICKUP_WITHOUT_ADDRESS": "The origin delivery has no stop address for the pickup.",
+      "NETWORK": "No connection to the server. Try again.",
+      "REQUEST_FAILED": "The action could not be completed. Try again.",
+      "RESPONSE_INVALID": "The server answered something unexpected. Refresh the page.",
+      "TRIP_NOT_FOUND": "Trip not found."
+    },
+    "flag": {
+      "pickup": {
+        "badge": "Receipt pickup",
+        "hint": "This invoice comes back only to collect the receipt; its weight and size do not count in this trip's load."
+      },
+      "retained": {
+        "badge": "Receipt retained",
+        "hint": "The client kept this invoice's receipt. The delivery counts as done; another driver collects the receipt on another trip."
+      }
+    },
+    "hint": "The client kept the receipt. Schedule the pickup on another driver's trip; the invoice's weight and size do not count in this trip's load.",
+    "noDocument": "Invoice without number",
+    "noOriginStop": "Origin stop without a label",
+    "schedule": "Schedule on this trip",
+    "scheduledList": "Receipt pickups scheduled on this trip",
+    "title": "Receipt pickups",
+    "unschedule": "Unschedule"
+  },
   "proofPending": {
     "badge": "Receipt pending",
     "hint": "Document delivered without its receipt, and the company settings require it. It stays pending until the receipt arrives."

@@ -78,6 +78,7 @@ import {
 import { buildChangeTripCrewInput } from '../shared/tripCrewDialog.service'
 import type { DriverReturnReason } from '../shared/tripReturnReason.types'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
+import { TripCanhotoPickups } from './TripCanhotoPickups.component'
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
@@ -1419,6 +1420,13 @@ export function TripDetail({
           <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
         ) : null}
       </section>
+
+      {/* Spec 321 T5 (RF4): o escritório encaixa a coleta do canhoto retido nesta viagem. */}
+      <TripCanhotoPickups
+        canSchedule={workspace.controller.canReportOnBehalf}
+        isTripOpen={!isCompleted && trip.status !== 'cancelled'}
+        tripId={trip.id}
+      />
 
       {/* Spec 263 T3.1/T3.2: a conversa com o motorista — a da viagem e a de cada nota. */}
       <TripConversationsPanel

@@ -13,7 +13,7 @@ nada para `main` (não é bug crítico). **Nenhuma task começa com `[NEEDS CLAR
       contrato de que carga não a soma (CA03b). — Modelo: opus
 - [x] **T4** [contrato primeiro] Casamento do canhoto da coleta no worker e no bot; andamento 266 (migration que relaxa os CHECKs,
       frase `canhoto_collected`, resolve e reabre); CA04. — Modelo: opus
-- [ ] **T5** Painel, tolerante primeiro: seletores na aba Tipos, encaixe da coleta, filtro por id do tipo, flag e tooltip (CA03c,
+- [x] **T5** Painel, tolerante primeiro: seletores na aba Tipos, encaixe da coleta, filtro por id do tipo, flag e tooltip (CA03c,
       CA05). — Modelo: sonnet
 - [ ] **T6** App do motorista: parada "Coletar canhoto", foto, frase espelhada (paridade nas três apps); prints. — Modelo: sonnet
 - [ ] **T7** Staging: tipo no script de configuração (dry-run primeiro), runbook, `apps/api-transportada/CLAUDE.md`,

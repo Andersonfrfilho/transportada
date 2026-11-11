@@ -33,6 +33,7 @@ import type {
   TripDocumentSeparationStatus,
   TripStopDetail,
 } from '../shared/trip.types'
+import { hasCanhotoRetainedMarker } from '../shared/canhotoPickup.service'
 import { hasProofPendingMarker } from '../shared/proofPendingMarker.service'
 import type { TripDocumentProofBadges as TripDocumentProofBadgesValue } from '../shared/tripDocumentProofBadges.service'
 import {
@@ -46,6 +47,7 @@ import {
 import { TripArrivalDialog } from './TripArrivalDialog.component'
 import { TripDeliveryDeadlineBadge } from './TripDeliveryDeadlineBadge.component'
 import { TripDocumentData } from './TripDocumentData.component'
+import { CanhotoPickupFlag } from './CanhotoPickupFlag.component'
 import { TripDocumentProofBadges } from './TripDocumentProofBadges.component'
 import { TripStopHolidayBadge } from './TripStopHolidayBadge.component'
 import {
@@ -629,6 +631,8 @@ function TripStopDocumentRow({
               </span>
             </Tooltip>
           ) : null}
+          {/* Spec 321 D4d: o cliente reteve o canhoto; a entrega vale e outro motorista o busca. */}
+          {hasCanhotoRetainedMarker(document) ? <CanhotoPickupFlag variant="retained" /> : null}
           {/*
            * Spec 174 RF1/RF2/RF6: o estado fiscal é **da nota** — ícone e texto na linha dela,
            * nunca só a cor, com a explicação pelo tooltip do design system. Nota pronta ou que não

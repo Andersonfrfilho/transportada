@@ -1051,6 +1051,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.showClientChargeSealToDriver === undefined
             ? {}
             : { showClientChargeSealToDriver: input.showClientChargeSealToDriver }),
+          ...(input.blocksContractorNotice === undefined
+            ? {}
+            : { blocksContractorNotice: input.blocksContractorNotice }),
+          ...(input.countsCargoOnPickupTrip === undefined
+            ? {}
+            : { countsCargoOnPickupTrip: input.countsCargoOnPickupTrip }),
+          ...(input.createsCanhotoPickup === undefined
+            ? {}
+            : { createsCanhotoPickup: input.createsCanhotoPickup }),
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
