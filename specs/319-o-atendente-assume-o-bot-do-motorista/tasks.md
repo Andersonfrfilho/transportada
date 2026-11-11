@@ -11,7 +11,9 @@ Uma task por vez, PR para staging, merge com CI verde. Contratos vermelhos antes
   > 🤖 Modelo: `opus`
 - [ ] **T4** Registrar no histórico as mensagens do motorista, do bot e do grupo cadastrado.
   > 🤖 Modelo: `sonnet`
-- [ ] **T5** Rotas: listar chats, mensagens, assumir, devolver, ler; permissão e auditoria.
+- [x] **T5** Rotas: listar chats, mensagens, assumir, devolver, ler; permissão e auditoria.
+      Feito: `src/whatsapp-inbox/presentation/whatsapp-inbox.routes.ts` e `application/whatsapp-inbox.use-case.ts`;
+      evidência em `evidence.md` § T5.
   > 🤖 Modelo: `sonnet`
 - [ ] **T6** Envio do atendente pelo Evolution com pacer, status e reenvio.
   > 🤖 Modelo: `sonnet`

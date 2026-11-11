@@ -194,6 +194,10 @@ import { createMetaWhatsAppSendingChannel } from './whatsapp/infrastructure/meta
 import { createWhatsAppNotificationDriver } from './whatsapp/application/whatsapp-notification-driver.service.js'
 import { normalizeEvolutionBaseUrl } from './whatsapp/domain/evolution-base-url.policy'
 import { createWhatsAppEvolutionRoutes } from './whatsapp/presentation/whatsapp-evolution.routes'
+import { createWhatsAppChatTakeoverService } from './whatsapp-inbox/application/whatsapp-chat-takeover.service.js'
+import { createWhatsAppInboxUseCase } from './whatsapp-inbox/application/whatsapp-inbox.use-case.js'
+import { createDrizzleWhatsAppChatRepository } from './whatsapp-inbox/infrastructure/drizzle-whatsapp-chat.repository.js'
+import { createWhatsAppInboxRoutes } from './whatsapp-inbox/presentation/whatsapp-inbox.routes.js'
 import { createWhatsAppEvolutionUseCase } from './whatsapp/application/whatsapp-evolution.use-case'
 import { createWhatsAppEvolutionSecretService } from './whatsapp/application/whatsapp-evolution-secret.service'
 import { createWhatsAppEvolutionWebhookSecretService } from './whatsapp/application/whatsapp-evolution-webhook-secret.service.js'
@@ -4068,6 +4072,16 @@ function createApplicationRoutes({
     secrets: createWhatsAppChannelSecretService({ envelopeProvider }),
   })
   const whatsappEvolutionRepository = new DrizzleWhatsAppEvolutionRepository(database)
+  /** Spec 319 T5: a caixa de conversas do WhatsApp (assumir/devolver o chat). */
+  const whatsappChatRepository = createDrizzleWhatsAppChatRepository(database)
+  const whatsappInbox = createWhatsAppInboxUseCase({
+    clock: () => new Date(),
+    repository: whatsappChatRepository,
+    takeover: createWhatsAppChatTakeoverService({
+      clock: () => new Date(),
+      repository: whatsappChatRepository,
+    }),
+  })
   /** Spec 289: o intervalo entre envios do número. Na API o envio é uma requisição: espera até 20 s, além disso recusa. */
   const evolutionSendPacer = createEvolutionSendPacer({
     claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
@@ -6902,6 +6916,7 @@ function createApplicationRoutes({
       save: { execute: (input) => whatsappEvolution.save(input) },
     }),
     ...createWhatsAppEvolutionWebhookRoutes({ webhook: whatsappEvolutionWebhook }),
+    ...createWhatsAppInboxRoutes({ inbox: whatsappInbox }),
     ...createNfseProviderCredentialRoutes({
       readCredential: { execute: (input) => nfseProviderCredentials.read(input) },
       saveCredential: { execute: (input) => nfseProviderCredentials.save(input) },

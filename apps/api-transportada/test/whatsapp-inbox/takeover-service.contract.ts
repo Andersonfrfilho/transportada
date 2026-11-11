@@ -29,6 +29,18 @@ function createFakeRepository(timeoutSeconds: number | null) {
     async appendMessage() {
       throw new Error('not used')
     },
+    async listChats() {
+      throw new Error('not used')
+    },
+    async listMessages() {
+      throw new Error('not used')
+    },
+    async markRead() {
+      throw new Error('not used')
+    },
+    async recordAudit() {
+      throw new Error('not used')
+    },
     async ensureChat(input) {
       const existing = [...chats.values()].find(
         (chat) => chat.companyId === input.companyId && chat.chatJid === input.chatJid,

@@ -278,6 +278,12 @@ export const API_WHATSAPP_EVOLUTION_PROVISION_PATH =
 export const API_WHATSAPP_EVOLUTION_WEBHOOK_PATH = '/company-settings/whatsapp-evolution/webhook'
 /** Spec 281 T6 (RF4): a entrega do Evolution, uma URL por empresa pelo `webhookId` opaco. */
 export const API_PUBLIC_WHATSAPP_EVOLUTION_WEBHOOK_PATH = '/public/whatsapp-evolution/:webhookId'
+/** Spec 319 T5: a caixa de conversas do WhatsApp (módulo próprio, separado de ocorrências). */
+export const API_WHATSAPP_INBOX_CHATS_PATH = '/whatsapp-inbox/chats'
+export const API_WHATSAPP_INBOX_CHAT_MESSAGES_PATH = '/whatsapp-inbox/chats/:id/messages'
+export const API_WHATSAPP_INBOX_CHAT_TAKE_OVER_PATH = '/whatsapp-inbox/chats/:id/take-over'
+export const API_WHATSAPP_INBOX_CHAT_RELEASE_PATH = '/whatsapp-inbox/chats/:id/release'
+export const API_WHATSAPP_INBOX_CHAT_READ_PATH = '/whatsapp-inbox/chats/:id/read'
 export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
 export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
 /** Spec 164 T9: a tratativa que chegou ao contratante — no molde das duas rotas acima. */
