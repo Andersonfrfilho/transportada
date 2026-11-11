@@ -133,6 +133,7 @@ const documentDetail = (overrides: Partial<TripDocument> = {}): TripDocumentDeta
   nfeSeries: null,
   nfeTotalValue: null,
   openOccurrenceCase: false,
+  canhotoRetained: false,
   proofPending: false,
   volumeCount: null,
   cargoGrossWeight: null,

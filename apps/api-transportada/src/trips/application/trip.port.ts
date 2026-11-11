@@ -146,6 +146,8 @@ export type TripDocumentDetail = TripDocument & {
    * Alimenta o diálogo "leva todas" (RF9), que conta só as notas que o botão vai carregar.
    */
   readonly leavesBehindOnDispatch: boolean
+  /** Spec 321 T7 (D4d): a nota tem canhoto retido pelo cliente (coleta aberta). Derivado na leitura, nunca gravado. */
+  readonly canhotoRetained: boolean
   /**
    * Spec 223 RF4: derivado na leitura, nunca gravado — a nota foi baixada, o evento de entrega não
    * tem foto e a configuração resolvida do destinatário exige canhoto (foto ou assinatura).

@@ -3933,3 +3933,7 @@ a 183 RF14, a 263 T5.2-C e a ADR-0073 (aviso do portal).
 ## Spec 294 — a ordem da parada
 
 Ver `apps/api-transportada/CLAUDE.md` § "A ordem da parada (spec 294)" e `specs/294-o-motorista-segue-a-ordem-da-parada/evidence.md`. O painel lista as sugestões de endereço em `/pendencias` (`modules/pending-items`, mapa atual x sugerido, aplicar/descartar só com `trip.manage`).
+
+## Spec 321 T7 — filtro `typeIdIn` e `canhotoRetained`
+
+`/trip-occurrences` aceita `typeIdIn` (UUIDs separados por vírgula; não-UUID é 400; ocorrência de parada não casa). O detalhe do documento da viagem devolve `canhotoRetained` (coleta de canhoto aberta na nota de origem), pela leitura fixa `loadCanhotoRetainedDocumentIds`. Ver `apps/api-transportada/CLAUDE.md` § "Canhoto retido pelo cliente".

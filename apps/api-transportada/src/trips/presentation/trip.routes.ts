@@ -2587,6 +2587,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
     fiscalStatus: TripDocumentDetail['fiscalStatus']
     freightAmount: TripDocumentDetail['freightAmount']
     freightRuleName: TripDocumentDetail['freightRuleName']
+    canhotoRetained: TripDocumentDetail['canhotoRetained']
     freightSource: TripDocumentDetail['freightSource']
     leavesBehindOnDispatch: TripDocumentDetail['leavesBehindOnDispatch']
     nfeIssuedAt: TripDocumentDetail['nfeIssuedAt']
@@ -2607,6 +2608,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
 const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
   cargoGrossWeight: 'safe',
   cargoWeightSource: 'safe',
+  canhotoRetained: 'safe',
   contact: 'safe',
   createdAt: 'safe',
   cteAuthorized: 'safe',
@@ -2649,6 +2651,7 @@ function serializeTripDocumentDetail(input: {
     ...serializeTripDocument(document),
     cargoGrossWeight: document.cargoGrossWeight,
     cargoWeightSource: document.cargoWeightSource,
+    canhotoRetained: document.canhotoRetained,
     contact: document.contact === null ? null : { ...document.contact },
     cteAuthorized: document.cteAuthorized,
     /** Spec 236: só no detalhe — o `TripDocument` do painel tem chaves exatas. */

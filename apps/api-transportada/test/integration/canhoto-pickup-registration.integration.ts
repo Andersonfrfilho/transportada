@@ -23,6 +23,7 @@ import {
   listDocumentProducts,
   saveOccurrenceType,
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
+import { loadCanhotoRetainedDocumentIds } from '../../src/trips/infrastructure/canhoto-pickup.query.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleOccurrenceCorrectionUnitOfWork } from '../../src/trips/infrastructure/drizzle-occurrence-correction.repository.js'
 import {
@@ -188,6 +189,12 @@ describe('o registro do tipo com coleta de canhoto (spec 321 T2)', () => {
           pickupTripId: null,
           status: 'pending',
         })
+        /** Spec 321 T7 (D4d): a nota de origem sai marcada `canhotoRetained` enquanto a coleta está aberta. */
+        const retained = await loadCanhotoRetainedDocumentIds(database.db, {
+          companyId: world.company.companyId,
+          tripDocumentIds: [world.trip.documentId],
+        })
+        expect(retained.has(world.trip.documentId)).toBe(true)
         expect(await readDocumentRow(world)).toEqual(before)
         const [tripAfter] = await database.db
           .select({ status: trips.status })

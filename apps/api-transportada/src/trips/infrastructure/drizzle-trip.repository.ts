@@ -111,6 +111,7 @@ import {
 } from './trip-delivery-deadline.support.js'
 import { readTripStopHolidayWarnings } from './trip-holiday-warning.support.js'
 import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
+import { loadCanhotoRetainedDocumentIds } from './canhoto-pickup.query.js'
 import { loadProofPendingDocumentIds } from './proof-pending.query.js'
 import { loadTripDocumentVolumeCounts } from './trip-document-volume.query.js'
 import { readDispatchReadinessDocuments } from './dispatch-readiness.query.js'
@@ -1733,6 +1734,11 @@ async function readTripDetail(
     companyId: input.companyId,
     tripDocumentIds: documentRecords.map((row) => row.document.id),
   })
+  /** Spec 321 T7 (D4d): uma leitura fixa para a viagem inteira; a nota de origem com coleta de canhoto aberta. */
+  const canhotoRetainedDocumentIds = await loadCanhotoRetainedDocumentIds(queryable, {
+    companyId: input.companyId,
+    tripDocumentIds: documentRecords.map((row) => row.document.id),
+  })
   /**
    * Spec 185 T6.1: uma consulta a mais, fixa para a viagem inteira (nunca por nota) — o mesmo
    * `readDispatchReadinessDocuments` que o despacho usa, alimentando a mesma conta pura
@@ -1830,6 +1836,7 @@ async function readTripDetail(
               },
         rules: activeFreightRules,
       }),
+      canhotoRetained: canhotoRetainedDocumentIds.has(row.document.id),
       leavesBehindOnDispatch: leavesBehindOnDispatchIds.has(row.document.id),
       openOccurrenceCase: openOccurrenceCaseDocumentIds.has(row.document.id),
       proofPending: proofPendingDocumentIds.has(row.document.id),
