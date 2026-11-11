@@ -103,7 +103,12 @@ describe('sonda headless: img-src real bloqueia data: e permite blob: (T14 item 
     const qualityApp = workflow.split('  quality-app:')[1]?.split('\n  quality:')[0] ?? ''
 
     expect(qualityApp).toContain("if: matrix.app == 'frontend-transportada'")
-    expect(qualityApp).toContain('playwright install --with-deps chromium')
+    // O download do Chromium e as bibliotecas de sistema (apt) são passos separados: o apt pode
+    // estar fora do ar (DNS do runner, 11/11/2026), e o passo seguinte cobra com `ldd` que o
+    // navegador abre de qualquer jeito.
+    expect(qualityApp).toContain('playwright install chromium')
+    expect(qualityApp).toContain('playwright install-deps chromium')
+    expect(qualityApp).toContain('ldd "$bin"')
   })
 
   it('a diretiva real de produção não contém data: em img-src', () => {
