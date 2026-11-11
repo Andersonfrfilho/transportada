@@ -189,6 +189,7 @@ import {
 import { contractorOccurrenceChannels } from './contractor-occurrence-channel.schema.js'
 import { whatsappChannels } from './whatsapp-channel.schema.js'
 import { whatsappEvolutionSettings } from './whatsapp-evolution.schema.js'
+import { whatsappChatMessages, whatsappChats } from './whatsapp-chat.schema.js'
 import {
   whatsappGroupRequestMessages,
   whatsappGroupRequests,
@@ -306,6 +307,7 @@ export * from './contractor-mail.schema.js'
 export * from './contractor-occurrence-channel.schema.js'
 export * from './whatsapp-channel.schema.js'
 export * from './whatsapp-evolution.schema.js'
+export * from './whatsapp-chat.schema.js'
 export * from './whatsapp-group-request.schema.js'
 export * from './whatsapp-canhoto-question.schema.js'
 export * from './whatsapp-delivery-preparation.schema.js'
@@ -479,6 +481,8 @@ export const databaseSchema = {
   tripLocationPings,
   whatsappChannels,
   whatsappEvolutionSettings,
+  whatsappChats,
+  whatsappChatMessages,
   whatsappGroupRequestMessages,
   whatsappGroupRequests,
   whatsappCanhotoQuestions,
