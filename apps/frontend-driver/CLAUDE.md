@@ -561,3 +561,9 @@ Nenhuma `slotKey` fixa em `src/` (a exigência é lida do servidor; contrato de 
 Na drenagem (`drainQueueWithAttachments`), recusa do servidor em `occurrence`, `documentOccurrence`, `stopOccurrencePhoto` e `stopOccurrenceCharge` tira o item e os anexos dele da fila na hora
 (`isClearedOnRejection`); a recusa fica no histórico "Enviados" (`remember(..., 'rejected')`). Entrega, chegada, devolução e despacho recusados **continuam à vista** (spec 227: o motorista precisa saber que não foram
 registrados; o despacho recusado explica "NF … não carregadas"). `test/driver-trip/occurrence-cleared-on-rejection.contract.ts`.
+
+## Viagem concluída não deixa pendência (pedido de 10/11/2026)
+
+A cada leitura de `GET /me/trips/current`, `purgeConcludedTripQueue` (`concludedTripQueue.service.ts`) tira da fila e dos anexos o item do dono que aponta (`documentId`, `stopId` ou `tripId`) para viagem
+`completed`/`cancelled` **da resposta**, e grava `discarded` no histórico. A API manda a viagem concluída só por 15 min (spec 225): item cuja viagem já saiu da resposta não é reconhecido. Referência que também
+aparece numa viagem aberta fica. `test/driver-trip/concluded-trip-queue.contract.ts`.
