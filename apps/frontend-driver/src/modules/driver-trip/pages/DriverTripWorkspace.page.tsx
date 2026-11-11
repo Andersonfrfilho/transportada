@@ -1306,6 +1306,7 @@ export function DriverTripWorkspacePage() {
                     onFocusStop={focusStop}
                     onHeaderRef={registerStopHeaderRef}
                     onProof={handleProof}
+                    onSendCanhotoPickup={driverTrip.sendCanhotoPickupPhoto}
                     onProofFieldsUpdate={handleProofFieldsUpdate}
                     onRemoveProof={handleRemoveProof}
                     occurrenceTypes={occurrenceTypes}

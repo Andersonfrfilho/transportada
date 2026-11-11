@@ -257,6 +257,16 @@ export type DriverTripClient = Readonly<{
    * aqui não desfaz nada. Enfileirar arquivo é outro problema — tamanho, expurgo, cota do aparelho —
    * e está declarado como pendência em vez de resolvido pela metade.
    */
+  /**
+   * Spec 321 T6 (D4b): a foto do canhoto da coleta — `POST .../canhoto-pickups/:pickupId/proof`, só `kind=photo`.
+   * Vai direto (sem fila): a coleta já está encaixada e a falha volta como erro para a tela mandar de novo.
+   */
+  sendCanhotoPickupPhoto: (input: {
+    capturedAt?: string
+    clockOffsetMs?: number
+    file: File
+    pickupId: string
+  }) => Promise<Readonly<{ stopClosed: boolean; tripCompleted: boolean }>>
   attachProof: (input: {
     /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — opcional, e nunca bloqueia o anexo. */
     accuracyMeters?: number
@@ -542,6 +552,24 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         step: STEP_UPLOAD_PUT,
       })
       return toProofAttachResult(payload)
+    },
+    async sendCanhotoPickupPhoto(input) {
+      const form = new FormData()
+      form.set('file', input.file)
+      form.set('kind', 'photo')
+      if (input.capturedAt !== undefined) form.set('capturedAt', input.capturedAt)
+      if (input.clockOffsetMs !== undefined) form.set('clockOffsetMs', String(input.clockOffsetMs))
+      const payload = await request({
+        dependencies,
+        form,
+        method: 'POST',
+        path: `${CURRENT_TRIP_PATH}/canhoto-pickups/${input.pickupId}/proof`,
+      })
+      const data = ((payload as { readonly data?: unknown } | null)?.data ?? {}) as {
+        readonly stopClosed?: unknown
+        readonly tripCompleted?: unknown
+      }
+      return { stopClosed: data.stopClosed === true, tripCompleted: data.tripCompleted === true }
     },
     async listOccurrenceTypes() {
       /**

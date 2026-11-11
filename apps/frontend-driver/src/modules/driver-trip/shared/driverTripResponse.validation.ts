@@ -16,6 +16,7 @@ import {
   type DriverTripDocument,
   type DriverTripManifest,
   type DriverTripSnapshot,
+  type DriverCanhotoPickup,
   type DriverClientChargeSeal,
   type DriverTripStop,
   type PendingProofDocument,
@@ -290,15 +291,37 @@ export function readClientChargeSeal(value: unknown): DriverClientChargeSeal | u
   return { flaggedAt: value.flaggedAt }
 }
 
+/**
+ * Spec 321 T6: a coleta malformada some sozinha (o resto do snapshot vale); só entra a que tem id e foi lida inteira.
+ */
+export function readCanhotoPickups(value: unknown): readonly DriverCanhotoPickup[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item: unknown) => {
+    if (!isRecord(item) || typeof item.id !== 'string' || item.id === '') return []
+    return [
+      {
+        documentNumber: typeof item.documentNumber === 'string' ? item.documentNumber : '',
+        documentSeries: typeof item.documentSeries === 'string' ? item.documentSeries : '',
+        id: item.id,
+        photoSentAt: typeof item.photoSentAt === 'string' ? item.photoSentAt : null,
+        recipientDisplayName:
+          typeof item.recipientDisplayName === 'string' ? item.recipientDisplayName : '',
+      },
+    ]
+  })
+}
+
 function toStop(value: unknown): DriverTripStop {
   if (!isRecord(value) || !Array.isArray(value.documents)) throw new DriverTripResponseError()
   if (typeof value.sequence !== 'number') throw new DriverTripResponseError()
 
   const holidayWarnings = readHolidayWarnings(value.holidayWarnings)
   const clientChargeSeal = readClientChargeSeal(value.clientChargeSeal)
+  const canhotoPickups = readCanhotoPickups(value.canhotoPickups)
 
   return {
     arrivedAt: readNullableString(value.arrivedAt),
+    ...(canhotoPickups.length === 0 ? {} : { canhotoPickups }),
     ...(clientChargeSeal === undefined ? {} : { clientChargeSeal }),
     completedAt: readNullableString(value.completedAt),
     deliveryProof: toDeliveryProof(value.deliveryProof),

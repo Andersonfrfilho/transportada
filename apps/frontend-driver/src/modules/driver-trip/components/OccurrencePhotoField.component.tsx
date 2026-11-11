@@ -10,6 +10,8 @@ import type { OccurrencePhotoState } from '../hooks/useOccurrenceRegistrationFor
 import styles from '../styles/driverTrip.module.css'
 
 type OccurrencePhotoFieldProps = Readonly<{
+  /** Spec 321 T6: o texto de "anexada" quando a foto não é de ocorrência (a do canhoto da coleta). */
+  attachedLabel?: string
   /** A foto obrigatória que ainda não existe ganha o asterisco do botão. */
   isMissing: boolean
   /** Quantas fotos o tipo aceita: 1 (a de sempre, "Refazer") ou até o teto (RF1c). */
@@ -44,6 +46,7 @@ function resolvePhotoCaptureKey(input: {
  * última pode ser removida.
  */
 export function OccurrencePhotoField({
+  attachedLabel,
   isMissing,
   limit,
   onRemoveLast,
@@ -73,7 +76,7 @@ export function OccurrencePhotoField({
             <Icon name="check" />
             {limit > 1
               ? t('occurrenceRegistration.photoCount', { count: photoCount, limit })
-              : t('notDelivered.photoAttached')}
+              : (attachedLabel ?? t('notDelivered.photoAttached'))}
           </span>
         </div>
       )}
