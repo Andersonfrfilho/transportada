@@ -94,6 +94,9 @@ function createFakeRepository(timeoutSeconds: number | null) {
         ) ?? null
       )
     },
+    async findMessage() {
+      return null
+    },
     async findTakeoverTimeoutSeconds() {
       return timeoutSeconds
     },

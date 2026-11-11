@@ -4,15 +4,19 @@
  * Spec 319 T5: as rotas da caixa de conversas do WhatsApp. Quem atende o painel (`occurrences.resolve`) lê e assume;
  * a empresa vem sempre do contexto, nunca do corpo. Nada aqui toca a conversa da ocorrência (RF8).
  */
+import { z } from 'zod'
+
 import { defineRoute } from '../../http/router.service.js'
 import {
   invalidRequest,
+  parseBody,
   parseOption,
   parseUuidPathIdentifier,
   readListQuery,
   readPaging,
 } from '../../http/request-parsing.service.js'
 import {
+  API_WHATSAPP_INBOX_CHAT_MESSAGE_RETRY_PATH,
   API_WHATSAPP_INBOX_CHAT_MESSAGES_PATH,
   API_WHATSAPP_INBOX_CHAT_READ_PATH,
   API_WHATSAPP_INBOX_CHAT_RELEASE_PATH,
@@ -27,12 +31,21 @@ import type {
   WhatsAppChatPage,
 } from '../application/whatsapp-chat.port.js'
 import type { WhatsAppInboxUseCase } from '../application/whatsapp-inbox.use-case.js'
-import { WHATSAPP_CHAT_KINDS, WHATSAPP_CHAT_STATES } from '../domain/whatsapp-chat.constant.js'
+import {
+  WHATSAPP_CHAT_KINDS,
+  WHATSAPP_CHAT_OPERATOR_TEXT_MAX_LENGTH,
+  WHATSAPP_CHAT_STATES,
+} from '../domain/whatsapp-chat.constant.js'
 
 const INBOX_POLICY = { permission: 'occurrences.resolve', scope: 'company' } as const
 const LIST_QUERY_KEYS: ReadonlySet<string> = new Set(['cursor', 'kind', 'limit', 'state', 'unread'])
 const PAGE_QUERY_KEYS: ReadonlySet<string> = new Set(['cursor', 'limit'])
 const NO_QUERY_KEYS: ReadonlySet<string> = new Set()
+
+/** `.strict()`: o corpo é só o texto. Destino, número e remetente nunca vêm do cliente (o chat resolve o destino). */
+const SEND_BODY_SCHEMA = z
+  .object({ text: z.string().trim().min(1).max(WHATSAPP_CHAT_OPERATOR_TEXT_MAX_LENGTH) })
+  .strict()
 
 export type WhatsAppInboxRoutesDependencies = {
   readonly inbox: WhatsAppInboxUseCase
@@ -82,6 +95,45 @@ export function createWhatsAppInboxRoutes(
         return { chatId: parseUuidPathIdentifier(pathParameters.id ?? ''), cursor, limit }
       },
       pathname: API_WHATSAPP_INBOX_CHAT_MESSAGES_PATH,
+      policy: INBOX_POLICY,
+    }),
+    defineRoute<ChatId & Actor & { readonly text: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const message = await inbox.send({
+          ...input,
+          companyId: context.scope.companyId,
+          userId: context.scope.userId,
+        })
+        return json(201, { data: serializeMessage(message) })
+      },
+      method: 'POST',
+      parse: async ({ correlationId, pathParameters, request }) => {
+        readListQuery(new URL(request.url), NO_QUERY_KEYS)
+        const { text } = await parseBody(SEND_BODY_SCHEMA, request)
+        return { chatId: parseUuidPathIdentifier(pathParameters.id ?? ''), correlationId, text }
+      },
+      pathname: API_WHATSAPP_INBOX_CHAT_MESSAGES_PATH,
+      policy: INBOX_POLICY,
+    }),
+    defineRoute<ChatId & Actor & { readonly messageId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const message = await inbox.retry({
+          ...input,
+          companyId: context.scope.companyId,
+          userId: context.scope.userId,
+        })
+        return json(200, { data: serializeMessage(message) })
+      },
+      method: 'POST',
+      parse: ({ correlationId, pathParameters, request }) => {
+        readListQuery(new URL(request.url), NO_QUERY_KEYS)
+        return {
+          chatId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          correlationId,
+          messageId: parseUuidPathIdentifier(pathParameters.messageId ?? ''),
+        }
+      },
+      pathname: API_WHATSAPP_INBOX_CHAT_MESSAGE_RETRY_PATH,
       policy: INBOX_POLICY,
     }),
     defineRoute<ChatId & Actor>({

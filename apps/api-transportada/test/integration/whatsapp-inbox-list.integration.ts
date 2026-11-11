@@ -32,7 +32,16 @@ const jid = (n: number) => `55169910000${String(n).padStart(2, '0')}@s.whatsapp.
 const T0 = new Date('2026-11-10T22:00:00.000Z')
 const at = (seconds: number) => new Date(T0.getTime() + seconds * 1000)
 
-async function seed(database: TestDatabase) {
+async function seed(
+  database: TestDatabase,
+  sender?: {
+    sendText: (input: {
+      body: string
+      companyId: string
+      number: string
+    }) => Promise<{ providerMessageId: string | null }>
+  },
+) {
   const companyId = crypto.randomUUID()
   const foreignCompanyId = crypto.randomUUID()
   const ana = crypto.randomUUID()
@@ -47,7 +56,12 @@ async function seed(database: TestDatabase) {
   const repository = createDrizzleWhatsAppChatRepository(database.db)
   const clock = { now: T0 }
   const takeover = createWhatsAppChatTakeoverService({ clock: () => clock.now, repository })
-  const inbox = createWhatsAppInboxUseCase({ clock: () => clock.now, repository, takeover })
+  const inbox = createWhatsAppInboxUseCase({
+    clock: () => clock.now,
+    repository,
+    ...(sender === undefined ? {} : { sender }),
+    takeover,
+  })
   return { ana, clock, companyId, foreignCompanyId, inbox, repository }
 }
 
@@ -199,6 +213,55 @@ describe('caixa de conversas do WhatsApp, lista e histórico (spec 319 T5)', () 
       expect(rows.every((row) => row.actor === ana)).toBe(true)
     })
   })
+
+  testWithPostgres(
+    'o envio do atendente grava, falha, reenvia e fecha sent contra o banco',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        let failNext = true
+        const calls: string[] = []
+        const { ana, companyId, inbox, repository } = await seed(database, {
+          async sendText(input) {
+            calls.push(input.number)
+            if (failNext) throw Object.assign(new Error('x'), { failure: 'disconnected' })
+            return { providerMessageId: 'WAID-REAL-1' }
+          },
+        })
+        const chat = await repository.ensureChat({ chatJid: jid(7), companyId, kind: 'direct' })
+        await expect(
+          inbox.send({ chatId: chat.id, companyId, correlationId: 'c', text: 'oi', userId: ana }),
+        ).rejects.toMatchObject({ code: 'WHATSAPP_CHAT_NOT_HELD' })
+
+        await inbox.takeOver({ chatId: chat.id, companyId, correlationId: 'c', userId: ana })
+        const failed = await inbox.send({
+          chatId: chat.id,
+          companyId,
+          correlationId: 'c',
+          text: 'Bom dia',
+          userId: ana,
+        })
+        expect(failed).toMatchObject({ failureReason: 'disconnected', status: 'failed' })
+
+        failNext = false
+        const sent = await inbox.retry({
+          chatId: chat.id,
+          companyId,
+          correlationId: 'c',
+          messageId: failed.id,
+          userId: ana,
+        })
+        expect(sent).toMatchObject({ failureReason: null, id: failed.id, status: 'sent' })
+        const digits = jid(7).replace('@s.whatsapp.net', '')
+        expect(calls).toEqual([digits, digits])
+        const stored = await repository.findMessage({
+          chatId: chat.id,
+          companyId,
+          messageId: failed.id,
+        })
+        expect(stored).toMatchObject({ author: 'operator', providerMessageId: 'WAID-REAL-1' })
+      })
+    },
+  )
 })
 
 async function withDisposableDatabase(

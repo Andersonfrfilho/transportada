@@ -4101,6 +4101,15 @@ function createApplicationRoutes({
   const whatsappInbox = createWhatsAppInboxUseCase({
     clock: () => new Date(),
     repository: whatsappChatRepository,
+    /** Spec 319 T6: o atendente fala pelo Evolution da empresa, no ritmo do número (spec 289). */
+    sender: createEvolutionDocumentSender({
+      pacer: createEvolutionSendPacer({
+        claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
+        maxWaitMs: 20_000,
+      }),
+      repository: new DrizzleWhatsAppEvolutionRepository(database),
+      secrets: createWhatsAppEvolutionSecretService({ envelopeProvider }),
+    }),
     takeover: createWhatsAppChatTakeoverService({
       clock: () => new Date(),
       repository: whatsappChatRepository,
