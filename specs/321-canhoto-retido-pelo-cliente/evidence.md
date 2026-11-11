@@ -246,3 +246,22 @@ desconhecida e o ator `system`, então não há ordem de publicação a respeita
 - `bun --env-file=../../.env.test test` (depois do rebase sobre a 319 T2): 15020 testes, 0 fail. Integração relacionada (coleta T2/T3/T4, conferência do canhoto, `me-trip`,
   andamento, resumo, retorno da contratante): 98 pass. `db:test` contra Postgres (migration e rollback): 261 pass. Painel `bun run test` 1496
   pass, app do motorista 2299 pass. `tsc`, `eslint` e `prettier --check` limpos.
+
+## T5 — o painel da coleta de canhoto (11/11/2026)
+
+Base: `origin/staging` @ 9ee26ef. Caminhos relativos a `apps/frontend-transportada/src/modules/`. Painel **tolerante**: vai antes da API (ADR-0081 §9).
+
+**Aba Tipos (RF1).** `blocksContractorNotice`, `createsCanhotoPickup` e `countsCargoOnPickupTrip` são opcionais no tipo e nas guardas (`TYPE_FIELD_CHECKS`) e só aparecem com a API que já os manda; o `PUT` não os manda sem edição.
+Ligar "Cria coleta de canhoto" manda junto `countsCargoOnPickupTrip: false` (D4c) e o "Somar peso e dimensão na viagem da coleta" aparece travado, com a dica de que na fase 1 não se altera. Checkbox e tooltip do design system, ao lado dos vizinhos (`OccurrenceTypeIdentity`).
+
+**Encaixe (RF4, D7).** `TripCanhotoPickups` no detalhe da viagem: lista as coletas encaixadas nesta viagem (com "Desencaixar") e as que ela pode receber (pendentes ou de outra viagem; nunca a de origem), com "Encaixar nesta viagem". Cliente próprio das rotas da T3
+(`GET/POST /trip-canhoto-pickups…`, guarda de chaves exatas, código de erro nomeado em pt-BR/en), só com `trip.report-on-behalf`; viagem concluída ou cancelada não oferece encaixe. Encaixar/desencaixar invalida o detalhe da viagem.
+
+**Flag e tooltip (D4d).** `CanhotoPickupFlag` ("Coleta de canhoto" na coleta; "Canhoto retido" na nota de origem), tooltip "Esta nota volta só para buscar o canhoto; peso e dimensão não entram na carga desta viagem." A nota de origem lê `documents[].canhotoRetained` **opcional** (molde do `proofPending`: só `true` marca; ausente é API anterior).
+O nome do campo é o contrato que a API deve seguir.
+
+**Fora desta task (precisa da API).** O filtro da lista de ocorrências por **id do tipo** (D6): o feed só aceita `typeIn` por nome e recusa parâmetro desconhecido com 400, então o painel não pode mandar um `typeIdIn` antes da API. Fica para a T7 (API + painel).
+A API também ainda não manda `canhotoRetained` no detalhe da viagem.
+
+**Testes.** Contrato `test/trip/canhoto-pickup.contract.ts` (guarda, divisão por viagem, marcador tolerante, cliente com fetch falso, locales, edição do tipo). `bun run test` 0 fail (3157 no `trip.contract`), `tsc`, `eslint` e `prettier --check` limpos.
+Prints (claro/escuro, desktop 1440 e celular 375) em `specs/321-*/prints/` pelo `test/spec-321-prints.smoke.spec.ts` (fora da CI).

@@ -560,6 +560,8 @@ export type TripDocumentDetail = TripDocument &
     openOccurrenceCase?: boolean
     /** Spec 223 RF4: baixada sem canhoto que a configuração exige. Ausente é API anterior. */
     proofPending?: boolean
+    /** Spec 321 D4d: o cliente reteve o canhoto desta nota (coleta aberta). Ausente é API anterior. */
+    canhotoRetained?: boolean
     /**
      * Spec 185 T6.1 (D1, ADR-0074 §4): esta nota sairia da viagem se despachasse agora — ocorrência
      * de separação, de tipo "segue sem a nota", sobre a nota inteira, e ainda não carregada. Ausente
