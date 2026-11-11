@@ -18,7 +18,7 @@ await sql`set transaction read only`.catch(() => {})
 const out = {}
 out.tipos = await sql`select name, stage, flow, active, attachment_mode, note_mode, location_mode, arrival_time_mode,
   declared_amount_mode, creates_canhoto_pickup, notifies, emails_contractor from company_occurrence_types order by stage, name`.catch((e) => String(e.message))
-out.ocorrenciasPorTipo = await sql`select t.name, count(o.*)::int as n from company_occurrence_types t left join trip_document_occurrences o on o.type = t.id group by t.name order by n desc`.catch((e) => String(e.message))
+out.ocorrenciasPorTipo = await sql`select t.name, count(o.*)::int as n from company_occurrence_types t left join trip_document_occurrences o on o.occurrence_type_id = t.id group by t.name order by n desc`.catch((e) => String(e.message))
 console.log('__RESULT__' + JSON.stringify(out, null, 2))
 await sql.close()
 process.exit(0)
