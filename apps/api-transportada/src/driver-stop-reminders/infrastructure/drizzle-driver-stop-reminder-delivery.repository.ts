@@ -8,10 +8,11 @@ import { driverStopReminders } from '../../database/driver-stop-reminder.schema.
 import { fleetDriverWhatsappGroups, fleetDrivers } from '../../database/fleet.schema.js'
 import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import { companyRouteOptimizationSettings } from '../../database/route-suggestion.schema.js'
-import { tripDocuments, tripStops } from '../../database/trip.schema.js'
+import { tripDocuments, tripStops, trips } from '../../database/trip.schema.js'
 import { whatsappEvolutionSettings } from '../../database/whatsapp-evolution.schema.js'
 import { resolveRecipientDisplayName } from '../../trips/domain/delivery-contact.policy.js'
 import { RECIPIENT_PARTICIPANT_ROLE } from '../../trips/domain/delivery-event.constant.js'
+import { TRIP_ON_ROAD_STATUSES } from '../../trips/domain/trip-state.policy.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 import type {
   CloseDeliveredStopReminderParams,
@@ -229,8 +230,13 @@ export class DrizzleDriverStopReminderDeliveryRepository
         arrivedAt: tripStops.arrivedAt,
         completedAt: tripStops.completedAt,
         enRouteSince: tripStops.enRouteSince,
+        tripStatus: trips.status,
       })
       .from(tripStops)
+      .innerJoin(
+        trips,
+        and(eq(trips.companyId, tripStops.companyId), eq(trips.id, tripStops.tripId)),
+      )
       .where(
         and(eq(tripStops.companyId, reminder.companyId), eq(tripStops.id, reminder.tripStopId)),
       )
@@ -238,7 +244,11 @@ export class DrizzleDriverStopReminderDeliveryRepository
     return {
       hasArrived: row?.arrivedAt != null,
       hasDeparted: row?.enRouteSince != null,
-      isClosed: row?.completedAt != null,
+      // Viagem que saiu da rua (concluída, cancelada, devolvida ao planejamento) não cobra mais ninguém, mesmo com a parada em aberto.
+      isClosed:
+        row?.completedAt != null ||
+        (row !== undefined &&
+          !(TRIP_ON_ROAD_STATUSES as readonly string[]).includes(row.tripStatus)),
     }
   }
 
