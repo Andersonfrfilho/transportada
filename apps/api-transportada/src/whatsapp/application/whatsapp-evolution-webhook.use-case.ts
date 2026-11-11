@@ -301,25 +301,27 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         // Spec 319 T3: antes do teto, para a mensagem do motorista assumido nunca se perder do histórico. Só o motorista
         // tem chat na caixa; quem só importa XML segue como antes.
         const chatJid = driver === null ? null : directWhatsAppChatJid(event.from)
-        if (
+        const describeInbound = () => {
+          groupMedia ??= readGroupMedia(payload)
+          groupAudio ??= readGroupAudio(payload)
+          return describeHeldMessage({
+            audio: groupAudio.get(event.externalMessageId) ?? null,
+            author: 'driver',
+            event,
+            media: groupMedia.get(event.externalMessageId) ?? null,
+            sender: event.from,
+          })
+        }
+        const chatTakeover = chatJid === null ? undefined : dependencies.chatTakeover
+        const taken =
           chatJid !== null &&
-          dependencies.chatTakeover !== undefined &&
-          (await dependencies.chatTakeover.holdIfTakenOver({
-            chatJid,
-            companyId,
-            message: () => {
-              groupMedia ??= readGroupMedia(payload)
-              groupAudio ??= readGroupAudio(payload)
-              return describeHeldMessage({
-                audio: groupAudio.get(event.externalMessageId) ?? null,
-                author: 'driver',
-                event,
-                media: groupMedia.get(event.externalMessageId) ?? null,
-                sender: event.from,
-              })
-            },
-          }))
-        ) {
+          chatTakeover !== undefined &&
+          (await chatTakeover.holdIfTakenOver({ chatJid, companyId, message: describeInbound }))
+        // Spec 319 T4: o bot atende, mas a conversa fica no histórico. Sem esperar: o trilho não depende disso.
+        if (!taken && chatJid !== null && chatTakeover !== undefined) {
+          void chatTakeover.observeInbound({ chatJid, companyId, message: describeInbound })
+        }
+        if (taken) {
           outcome = 'taken_over'
         } else if (inbound.consumeDirectLimit?.({ companyId, from: event.from }) === false) {
           outcome = 'rate_limited'

@@ -725,6 +725,31 @@ export function createEvolutionGroupInbound(
       ) {
         return 'taken_over'
       }
+      // Spec 319 T4: o bot atende, mas o grupo cadastrado fica no histórico. Sem esperar e sem chamar o Evolution:
+      // o número de quem escreveu é só o `participant` que já veio (o `@lid` sem tradução entra como membro sem número).
+      if (dependencies.chatTakeover !== undefined) {
+        void dependencies.chatTakeover.observeInbound({
+          chatJid: groupJid,
+          companyId,
+          message: async () => {
+            const sender = event.participant
+            const isDriver =
+              sender !== '' &&
+              (await dependencies.isGroupDriver?.({
+                companyId,
+                driverId: owner.driverId,
+                sender,
+              })) === true
+            return describeHeldMessage({
+              audio,
+              author: isDriver ? 'driver' : 'member',
+              event,
+              media,
+              sender: sender === '' ? null : sender,
+            })
+          },
+        })
+      }
       if (audio !== null) {
         if (dependencies.audio === undefined) return 'no_text'
         return receiveAudio({

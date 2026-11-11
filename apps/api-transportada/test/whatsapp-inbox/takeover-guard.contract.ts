@@ -259,6 +259,78 @@ describe('spec 319 T3: a guarda do chat assumido', () => {
   })
 })
 
+describe('spec 319 T4: o histórico do que o bot atende', () => {
+  test('a recebida que o bot atende é gravada, sem segurar nada', async () => {
+    const { appended, guard } = createGuard()
+
+    await guard.observeInbound({ chatJid: GROUP, companyId: COMPANY_ID, message: () => held })
+
+    expect(appended).toEqual([
+      {
+        author: 'driver',
+        bodyText: TEXT,
+        chatId: `chat-${GROUP}`,
+        companyId: COMPANY_ID,
+        contentKind: 'text',
+        providerMessageId: 'P1',
+        senderPhone: DRIVER,
+      },
+    ])
+  })
+
+  test('número fora de 8 a 15 dígitos vira nulo e falha de gravação só vai ao log, sem texto nem número', async () => {
+    const { appended, guard, logs, state } = createGuard()
+    await guard.observeInbound({
+      chatJid: GROUP,
+      companyId: COMPANY_ID,
+      message: () => ({ ...held, senderPhone: '98765432101234567' }),
+    })
+    expect(appended.map(({ senderPhone }) => senderPhone)).toEqual([null])
+
+    state.failAppend = true
+    await guard.observeInbound({ chatJid: GROUP, companyId: COMPANY_ID, message: () => held })
+    expect(logs).toEqual([
+      {
+        fields: { companyId: COMPANY_ID, errorName: 'Error' },
+        level: 'warn',
+        message: WHATSAPP_CHAT_TAKEOVER_GUARD_LOG.observeFailed,
+      },
+    ])
+    expect(JSON.stringify(logs)).not.toContain(TEXT)
+  })
+
+  test('a fala do bot entra com autor bot e o id do provedor; falha só vai ao log', async () => {
+    const { appended, guard, logs, state } = createGuard()
+
+    await guard.recordBotMessage({
+      bodyText: 'Qual nota?',
+      chatJid: GROUP,
+      companyId: COMPANY_ID,
+      providerMessageId: 'B1',
+    })
+    expect(appended).toEqual([
+      {
+        author: 'bot',
+        bodyText: 'Qual nota?',
+        chatId: `chat-${GROUP}`,
+        companyId: COMPANY_ID,
+        providerMessageId: 'B1',
+      },
+    ])
+
+    state.failAppend = true
+    await guard.recordBotMessage({
+      bodyText: 'x',
+      chatJid: GROUP,
+      companyId: COMPANY_ID,
+      providerMessageId: null,
+    })
+    expect(logs.map(({ message }) => message)).toEqual([
+      WHATSAPP_CHAT_TAKEOVER_GUARD_LOG.recordBotFailed,
+    ])
+  })
+})
+
 describe('spec 319 T3: o que vai ao histórico', () => {
   const event = (overrides: Partial<EvolutionMessageEvent> = {}): EvolutionMessageEvent => ({
     chat: 'group',
@@ -380,11 +452,10 @@ describe('spec 319 T3: o grupo assumido não chega ao bot', () => {
   }
 
   test('sem assumir, a mensagem marcando o bot segue para o pedido, como antes', async () => {
-    const { appended, handled, receive } = setup()
+    const { handled, receive } = setup()
 
     expect(await receive()).toBe('admitted')
     expect(handled).toHaveLength(1)
-    expect(appended).toEqual([])
   })
 
   test('assumido: nem a resposta ao pedido aberto chega ao bot, e a mensagem do motorista é gravada', async () => {
@@ -434,6 +505,18 @@ describe('spec 319 T3: o grupo assumido não chega ao bot', () => {
     ).toBe('taken_over')
     expect(handled).toEqual([])
     expect(appended.map(({ contentKind }) => contentKind)).toEqual(['audio', 'image'])
+  })
+
+  test('sem assumir, a mensagem que o bot atende também entra no histórico', async () => {
+    const { appended, handled, receive } = setup()
+
+    expect(await receive()).toBe('admitted')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(handled).toHaveLength(1)
+    expect(appended.map(({ author, senderPhone }) => ({ author, senderPhone }))).toEqual([
+      { author: 'driver', senderPhone: DRIVER },
+    ])
   })
 
   test('grupo fora da ficha nem pergunta quem atende', async () => {
