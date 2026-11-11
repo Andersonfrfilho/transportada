@@ -43,6 +43,20 @@
     "label": "Charge notice",
     "text": "The office flagged this client as a possible charge on delivery. If an amount is asked for, record it with the charge occurrence."
   },
+  "canhotoPickup": {
+    "explanation": "This invoice was already delivered. You are only picking up the signed receipt from the customer — do not take the goods.",
+    "failed": "Could not send the receipt. Check that this pickup is still yours and try again.",
+    "note": "Invoice {{number}} · series {{series}}",
+    "offline": "No signal. Your receipt was not sent — try again when you have a connection.",
+    "pending_one": "{{count}} receipt to pick up",
+    "pending_other": "{{count}} receipts to pick up",
+    "photoAttached": "Receipt photo attached",
+    "photoTitle": "Receipt photo",
+    "send": "Send receipt",
+    "sending": "Sending…",
+    "title": "Pick up receipt",
+    "waitingReview": "Photo sent. The office is checking the receipt."
+  },
   "holidayWarning": {
     "future": "{{date}} is a holiday in {{city}} ({{reasons}}). Confirm with the customer before going.",
     "futureWithoutCity": "{{date}} is a holiday ({{reasons}}). Confirm with the customer before going.",

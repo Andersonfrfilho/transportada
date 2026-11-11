@@ -21,6 +21,7 @@ import {
   nfeVolumes,
 } from '../../database/nfe.schema.js'
 import {
+  tripCanhotoPickups,
   tripDeliveryProofs,
   tripDocuments,
   tripDrivers,
@@ -38,6 +39,7 @@ import { MILLISECONDS_PER_DAY } from '../../shared/time.constant.js'
 import { FIELD_TRIP_TARGET_KIND } from '../application/field-trip-target.types.js'
 import type {
   CurrentDriverTripPort,
+  DriverCanhotoPickup,
   DriverPendingProof,
   DriverStopSchedule,
   DriverTrip,
@@ -317,6 +319,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       schedulesByStop,
       proofSettings,
       occurrenceTypes,
+      pickupsByStop,
     ] = await Promise.all([
       this.listStops({ companyId: input.companyId, tripIds }),
       this.listDocuments({ companyId: input.companyId, tripIds }),
@@ -331,6 +334,8 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
        * comprovante, que são o caminho crítico do motorista.
        */
       this.readFieldOccurrenceTypes({ companyId: input.companyId }).catch(() => null),
+      /** Spec 321 T6: refinamento isolado, como `occurrenceTypes` — sem a coleta o snapshot segue de pé. */
+      this.listCanhotoPickups({ companyId: input.companyId, tripIds }).catch(() => null),
     ])
 
     /**
@@ -378,7 +383,14 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       manifest: manifestsByTrip.get(trip.id) ?? null,
       status: trip.status,
       stops: (stopsByTrip.get(trip.id) ?? []).map((stop) =>
-        toDriverStop(stop, documentsByStop, schedulesByStop, proofSettings, occurrenceTypes),
+        toDriverStop(
+          stop,
+          documentsByStop,
+          schedulesByStop,
+          proofSettings,
+          occurrenceTypes,
+          pickupsByStop?.get(stop.id),
+        ),
       ),
       vehiclePlate: trip.plate,
     }))
@@ -963,6 +975,67 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
   }
 
   /**
+   * Spec 321 T6 (D4b): as coletas `scheduled` encaixadas nas viagens do motorista, por parada. A nota de origem entra só
+   * por número, série e nome do destinatário; o recorte pela viagem já é o do vínculo do motorista (`tripIds`).
+   */
+  private async listCanhotoPickups(input: {
+    readonly companyId: string
+    readonly tripIds: string[]
+  }): Promise<Map<string, DriverCanhotoPickup[]>> {
+    const rows = await this.database
+      .select({
+        id: tripCanhotoPickups.id,
+        number: nfeDocuments.number,
+        photoSentAt: tripCanhotoPickups.photoSentAt,
+        recipientName: nfeParticipants.legalName,
+        recipientTradeName: nfeParticipants.tradeName,
+        series: nfeDocuments.series,
+        stopId: tripCanhotoPickups.pickupStopId,
+      })
+      .from(tripCanhotoPickups)
+      .leftJoin(
+        nfeDocuments,
+        and(
+          eq(nfeDocuments.companyId, tripCanhotoPickups.companyId),
+          eq(nfeDocuments.id, tripCanhotoPickups.nfeDocumentId),
+        ),
+      )
+      .leftJoin(
+        nfeParticipants,
+        and(
+          eq(nfeParticipants.companyId, tripCanhotoPickups.companyId),
+          eq(nfeParticipants.documentId, tripCanhotoPickups.nfeDocumentId),
+          eq(nfeParticipants.role, RECIPIENT_ROLE),
+        ),
+      )
+      .where(
+        and(
+          eq(tripCanhotoPickups.companyId, input.companyId),
+          inArray(tripCanhotoPickups.pickupTripId, input.tripIds),
+          eq(tripCanhotoPickups.status, 'scheduled'),
+        ),
+      )
+      .orderBy(asc(tripCanhotoPickups.createdAt))
+
+    const byStop = new Map<string, DriverCanhotoPickup[]>()
+    for (const row of rows) {
+      if (row.stopId === null) continue
+      const pickup: DriverCanhotoPickup = {
+        documentNumber: row.number ?? '',
+        documentSeries: row.series ?? '',
+        id: row.id,
+        photoSentAt: row.photoSentAt?.toISOString() ?? null,
+        recipientDisplayName: resolveRecipientDisplayName({
+          legalName: row.recipientName ?? '',
+          tradeName: row.recipientTradeName ?? '',
+        }),
+      }
+      byStop.set(row.stopId, [...(byStop.get(row.stopId) ?? []), pickup])
+    }
+    return byStop
+  }
+
+  /**
    * Nota liberada do romaneio saiu da viagem — mostrá-la ao motorista seria pedir a entrega de algo
    * que o escritório já tirou dali. O nome do destinatário entra por `left join` porque nota sem
    * participante é importação incompleta, não motivo para a parada sumir da tela.
@@ -1079,9 +1152,11 @@ function toDriverStop(
   schedulesByStop: Map<string, DriverStopSchedule>,
   proofSettings: ProofSettingsLookup,
   occurrenceTypes: FieldOccurrenceTypesLookup | null,
+  canhotoPickups: readonly DriverCanhotoPickup[] | undefined,
 ): DriverTripStop {
   return {
     arrivedAt: stop.arrivedAt?.toISOString() ?? null,
+    ...(canhotoPickups === undefined || canhotoPickups.length === 0 ? {} : { canhotoPickups }),
     completedAt: stop.completedAt?.toISOString() ?? null,
     deliveryWindowEnd: stop.deliveryWindowEnd?.toISOString() ?? null,
     deliveryWindowStart: stop.deliveryWindowStart?.toISOString() ?? null,

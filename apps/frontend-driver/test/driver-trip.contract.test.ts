@@ -160,3 +160,4 @@ import './driver-trip/stop-card-conversation-golden.contract'
 // Por último: renderizar acima avança o contador global de ids do React e mexeria no golden do cartão.
 import './driver-trip/charge-seal-notice.contract'
 // Por último: renderizar acima avança o contador global de ids do React e mexeria no golden do cartão.
+import './driver-trip/canhoto-pickup.contract'

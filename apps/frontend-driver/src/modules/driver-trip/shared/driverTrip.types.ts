@@ -140,8 +140,22 @@ export type DriverDeliveryProofSettings = Readonly<{
 /** Spec 317 T14a: a data da marca vem do servidor; o app só decide se mostra o aviso. */
 export type DriverClientChargeSeal = Readonly<{ flaggedAt: string }>
 
+/**
+ * Spec 321 T6 (D4b): a coleta de canhoto encaixada na parada. O motorista da viagem nova a conclui fotografando o canhoto;
+ * `photoSentAt` preenchido é a foto que espera a conferência do escritório.
+ */
+export type DriverCanhotoPickup = Readonly<{
+  documentNumber: string
+  documentSeries: string
+  id: string
+  photoSentAt: string | null
+  recipientDisplayName: string
+}>
+
 export type DriverTripStop = Readonly<{
   arrivedAt: string | null
+  /** Spec 321 T6: acessório — ausente (API anterior) ou malformado vira sem coleta. */
+  canhotoPickups?: readonly DriverCanhotoPickup[]
   completedAt: string | null
   /** `null` quando o snapshot ainda não traz configuração — o app aplica o padrão. */
   deliveryProof: DriverDeliveryProofSettings | null

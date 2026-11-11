@@ -15,6 +15,6 @@ nada para `main` (não é bug crítico). **Nenhuma task começa com `[NEEDS CLAR
       frase `canhoto_collected`, resolve e reabre); CA04. — Modelo: opus
 - [x] **T5** Painel, tolerante primeiro: seletores na aba Tipos, encaixe da coleta, filtro por id do tipo, flag e tooltip (CA03c,
       CA05). — Modelo: sonnet
-- [ ] **T6** App do motorista: parada "Coletar canhoto", foto, frase espelhada (paridade nas três apps); prints. — Modelo: sonnet
+- [x] **T6** App do motorista: parada "Coletar canhoto", foto, frase espelhada (paridade nas três apps); prints. — Modelo: sonnet
 - [ ] **T7** Staging: tipo no script de configuração (dry-run primeiro), runbook, `apps/api-transportada/CLAUDE.md`,
       `docs/ai-context/api-transportada.md`, publicação painel → API → app e conferência de CA01–CA05. — Modelo: sonnet

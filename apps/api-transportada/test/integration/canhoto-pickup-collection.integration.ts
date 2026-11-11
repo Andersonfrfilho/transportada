@@ -26,6 +26,7 @@ import { reportDocumentDelivery } from '../../src/trips/application/report-docum
 import type { CanhotoReviewCommand } from '../../src/trips/application/canhoto-review.port.js'
 import { reviewCanhotoProof } from '../../src/trips/application/review-canhoto-proof.use-case.js'
 import { createDrizzleCanhotoPickupCollection } from '../../src/trips/infrastructure/canhoto-pickup-collection.persistence.js'
+import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
 import { createDrizzleCanhotoPickupSchedule } from '../../src/trips/infrastructure/canhoto-pickup-schedule.persistence.js'
 import {
   findDriverReachableDocument,
@@ -273,7 +274,26 @@ describe('a coleta de canhoto se fecha pelo canhoto da nota de origem (spec 321 
           world.origin.documentId,
         )
 
+        /** Spec 321 T6: o snapshot do motorista traz a coleta na parada dela, sem foto ainda. */
+        const snapshotPickups = async () => {
+          const trips = await new DrizzleCurrentDriverTripRepository(database.db).listActiveTrips({
+            companyId: world.company.companyId,
+            driverId: world.company.secondDriverId,
+          })
+          return trips
+            .flatMap((trip) => trip.stops)
+            .filter((stop) => stop.id === pickupStopId)
+            .flatMap((stop) => stop.canhotoPickups ?? [])
+        }
+        const beforePhoto = await snapshotPickups()
+        expect(beforePhoto).toHaveLength(1)
+        expect(beforePhoto[0]).toMatchObject({
+          documentNumber: await originNumber(world),
+          id: world.pickupId,
+          photoSentAt: null,
+        })
         const sent = await sendPhoto(world)
+        expect((await snapshotPickups())[0]?.photoSentAt).not.toBeNull()
         expect(await listFor(world.company.secondDriverId)).toEqual([])
         expect(sent.documentId).toBe(world.origin.documentId)
         expect(sent.stopClosed).toBe(true)

@@ -265,3 +265,36 @@ A API também ainda não manda `canhotoRetained` no detalhe da viagem.
 
 **Testes.** Contrato `test/trip/canhoto-pickup.contract.ts` (guarda, divisão por viagem, marcador tolerante, cliente com fetch falso, locales, edição do tipo). `bun run test` 0 fail (3157 no `trip.contract`), `tsc`, `eslint` e `prettier --check` limpos.
 Prints (claro/escuro, desktop 1440 e celular 375) em `specs/321-*/prints/` pelo `test/spec-321-prints.smoke.spec.ts` (fora da CI).
+
+## T6 — a parada "Coletar canhoto" no app do motorista (11/11/2026)
+
+Base: `origin/staging` @ 5c3d2dd. A API **não mandava a coleta ao motorista** (T3/T4 deixaram só a rota da foto), então a T6 tem uma
+fatia pequena de API e a do app. Caminhos relativos a `apps/`.
+
+**API (aditiva, tolerante).** `DriverTripStop.canhotoPickups?` no snapshot de `GET /me/trips/current`: as coletas `scheduled` encaixadas nas viagens
+**do motorista** (o recorte é o vínculo de tripulação que `listActiveTrips` já faz), com `id`, `documentNumber`, `documentSeries`, `recipientDisplayName`
+e `photoSentAt` — nada de valor, peso nem chave da nota de origem. Uma consulta só para todas as paradas, **isolada do `Promise.all`** como o
+`occurrenceTypes` (`.catch(() => null)`: sem a coleta o snapshot segue de pé). A leitura de custo fixo subiu de 26 para 27 consultas
+(`driver-current-trip-query-count.integration.ts`, medida contra Postgres). Integração (`canhoto-pickup-collection.integration.ts`, CA04): o snapshot
+traz a coleta na parada da viagem nova sem foto e, depois da foto, com `photoSentAt`.
+
+**App (`frontend-driver`).** Tipos e leitura tolerante (`readCanhotoPickups`: ausente, malformado ou item sem id some, o resto do snapshot vale).
+`DriverCanhotoPickupList` no cartão da parada: título "Coletar canhoto", **explicação escrita** (não em tooltip: no celular não há passar o mouse), nota
+e cliente de origem, a foto (o mesmo bloco de captura da ocorrência, reduzido a JPEG no aparelho pela redução do canhoto) e "Enviar canhoto". O envio
+vai **direto** pela rota da T4 (`POST /me/trips/current/canhoto-pickups/:pickupId/proof`, multipart `kind=photo` com `capturedAt` e o desvio do relógio),
+**sem fila offline**: a coleta já existe no servidor e a conferência decide; sem sinal o cartão diz que não enviou e deixa tentar de novo
+(`offline` x `failed` x `sent`). Depois da foto o cartão mostra "Foto enviada. O escritório confere o canhoto." O ajudante vê a coleta, sem câmera
+nem envio. `isStopResolved` não dá a parada só de coleta por resolvida enquanto não há foto (antes, parada sem nota contava como resolvida e a barra
+mentia); o resumo da parada diz "N canhoto para coletar" em vez de "0 nota para entregar". `OccurrencePhotoField` ganhou o `attachedLabel` opcional.
+
+**Golden do cartão.** `driver-stop-card.golden.html` foi regravado (`GOLDEN_WRITE=1`): a única diferença são os dois `aria-controls` do React
+(`useId` é por posição na árvore e o cartão ganhou um irmão novo); o markup é o mesmo.
+
+**Fora desta task (T7, API + painel).** Filtro da lista de ocorrências por id do tipo (`/trip-occurrences` ainda recusa o parâmetro) e o campo opcional
+`canhotoRetained` no detalhe do documento (o painel já o lê tolerante).
+
+**Testes.** `test/driver-trip/canhoto-pickup.contract.tsx` (leitura tolerante, parada só de coleta, cartão pt/en com foto pendente, enviada, ajudante e
+sem coleta, cliente com fetch falso: rota, `kind=photo`, relógio, recusa do servidor, barra de progresso). `bun run test` no app: 2317 pass, 0 fail;
+`tsc`, `eslint` e `prettier --check` limpos. API: 15064 contratos, 0 fail; integração relacionada contra Postgres 16 (coleta T4, `me-trip`, custo fixo).
+Prints (claro/escuro, desktop 1280 e celular 375; vazio, com foto, enviada) em `specs/321-*/prints/coleta-*.png` pelo `test/spec-321-prints.smoke.spec.ts`
+(fora da CI; os componentes são os padrão do app, comparados com a ocorrência e o "Não entreguei").

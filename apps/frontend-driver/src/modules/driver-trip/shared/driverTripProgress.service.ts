@@ -23,10 +23,14 @@ export type DriverTripProgress = Readonly<{
 /**
  * Resolvida é a parada em que **toda** nota saiu do eixo do campo — `delivered` ou `returned`.
  * Parada sem nota (não deveria existir: parada é derivada do vínculo) conta como resolvida, porque
- * não há nada ali para o motorista fazer.
+ * não há nada ali para o motorista fazer — exceto a parada só de coleta de canhoto (spec 321), que espera a foto.
  */
 export function isStopResolved(stop: DriverTripStop): boolean {
-  return stop.documents.every(isDocumentSettled)
+  /** Spec 321 T6: a parada só de coleta não está resolvida enquanto o canhoto não foi fotografado. */
+  const isEveryPickupPhotographed = (stop.canhotoPickups ?? []).every(
+    (pickup) => pickup.photoSentAt !== null,
+  )
+  return stop.documents.every(isDocumentSettled) && isEveryPickupPhotographed
 }
 
 /**

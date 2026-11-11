@@ -32,6 +32,20 @@
     "label": "Aviso de cobrança",
     "text": "O escritório marcou este cliente como possível cobrança na entrega. Se pedirem algum valor, registre pela ocorrência de cobrança."
   },
+  "canhotoPickup": {
+    "explanation": "Esta nota já foi entregue. Você só busca o canhoto com o cliente — não leve a mercadoria.",
+    "failed": "Não foi possível enviar o canhoto. Confira se a coleta ainda é sua e tente de novo.",
+    "note": "NF {{number}} · série {{series}}",
+    "offline": "Sem sinal. Seu canhoto não foi enviado — tente de novo quando tiver rede.",
+    "pending_one": "{{count}} canhoto para coletar",
+    "pending_other": "{{count}} canhotos para coletar",
+    "photoAttached": "Foto do canhoto anexada",
+    "photoTitle": "Foto do canhoto",
+    "send": "Enviar canhoto",
+    "sending": "Enviando…",
+    "title": "Coletar canhoto",
+    "waitingReview": "Foto enviada. O escritório confere o canhoto."
+  },
   "holidayWarning": {
     "future": "Dia {{date}} é feriado em {{city}} ({{reasons}}). Confirme com o cliente antes de ir.",
     "futureWithoutCity": "Dia {{date}} é feriado ({{reasons}}). Confirme com o cliente antes de ir.",

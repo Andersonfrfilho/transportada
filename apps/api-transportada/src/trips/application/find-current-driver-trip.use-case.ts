@@ -112,8 +112,26 @@ export type DriverStopSchedule = {
   readonly status: string
 }
 
+/**
+ * Spec 321 T6 (D4b): a coleta de canhoto encaixada nesta parada. O motorista da viagem nova a conclui fotografando o
+ * canhoto (`POST /me/trips/current/canhoto-pickups/:id/proof`); `photoSentAt` preenchido é a foto que espera a conferência.
+ * Só o necessário para a tela: nenhuma nota, valor nem peso da entrega de origem sai daqui.
+ */
+export type DriverCanhotoPickup = {
+  readonly documentNumber: string
+  readonly documentSeries: string
+  readonly id: string
+  readonly photoSentAt: string | null
+  readonly recipientDisplayName: string
+}
+
 export type DriverTripStop = {
   readonly arrivedAt: string | null
+  /**
+   * Spec 321 T6: as coletas de canhoto `scheduled` desta parada. Ausente quando não há coleta ou a leitura falhou
+   * (refinamento isolado: o snapshot não cai junto).
+   */
+  readonly canhotoPickups?: readonly DriverCanhotoPickup[]
   readonly completedAt: string | null
   readonly deliveryWindowEnd: string | null
   readonly deliveryWindowStart: string | null

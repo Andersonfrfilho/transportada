@@ -298,3 +298,11 @@ nacionais estáveis, escopos), `DriverHolidayNotice.component.tsx`, `holidayNoti
   `PLAYWRIGHT_TEST_MATCH=conversation-audio.smoke.spec.ts` com as mesmas variáveis do script (inclui `VITE_OBJECT_STORAGE_URL`).
 - **Ambiente.** Chromium headless no macOS: `getUserMedia` de áudio pendente e relógio do `<audio>` travado; o smoke injeta o microfone
   (helper) e afirma "tocando" por estado, não por `currentTime`. Detalhe em `apps/frontend-driver/CLAUDE.md`.
+
+## Coletar canhoto (spec 321, T6)
+
+- A parada só de coleta chega em `stop.canhotoPickups` (acessório: ausente = sem coleta; a leitura é `readCanhotoPickups`). O cartão
+  (`DriverCanhotoPickupList`) fotografa e envia **direto** (`sendCanhotoPickupPhoto`, sem fila offline): `POST .../canhoto-pickups/:id/proof`,
+  `kind=photo`. Sem sinal volta `offline` e o cartão deixa tentar de novo; `photoSentAt` preenchido é "aguardando conferência".
+- `isStopResolved` conta a coleta sem foto como parada aberta; a explicação do caso é texto na tela, não tooltip. Contrato:
+  `test/driver-trip/canhoto-pickup.contract.tsx`; prints: `test/spec-321-prints.smoke.spec.ts`.

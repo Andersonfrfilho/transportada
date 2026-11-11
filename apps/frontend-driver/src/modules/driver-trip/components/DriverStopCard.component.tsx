@@ -11,6 +11,8 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { DocumentConversationSlot } from '@/modules/conversation/components/DocumentConversationSlot.component'
 
 import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.component'
+import type { DriverCanhotoPickupOutcome } from '../hooks/useDriverTrip.hook'
+import { DriverCanhotoPickupList } from './DriverCanhotoPickupList.component'
 import { DriverChargeSealNotice } from './DriverChargeSealNotice.component'
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
@@ -197,6 +199,11 @@ export type DriverProofFieldsUpdate = Readonly<{
 }>
 
 type DriverStopCardProps = Readonly<{
+  /** Spec 321 T6: a foto do canhoto da coleta encaixada na parada; ausente (listas antigas) não mostra o envio. */
+  onSendCanhotoPickup?: (input: {
+    file: File
+    pickupId: string
+  }) => Promise<DriverCanhotoPickupOutcome>
   /**
    * Spec 206 D9: o número da parada bloqueante — o cartão só tem a própria parada, nunca a lista
    * inteira; sem isto o motivo não teria "N" para nomear (D6).
@@ -314,6 +321,7 @@ export function DriverStopCard({
   occurrenceTypes,
   onNotDelivered,
   onProof,
+  onSendCanhotoPickup,
   onQueuedDocumentOccurrence,
   onProofFieldsUpdate,
   onRemoveProof,
@@ -555,6 +563,9 @@ export function DriverStopCard({
                 <Icon aria-hidden="true" name="check" size="sm" />
                 {t('stopCompleted')}
               </>
+            ) : stop.documents.length === 0 && (stop.canhotoPickups?.length ?? 0) > 0 ? (
+              /** Spec 321 T6: parada só de coleta — "0 nota para entregar" seria mentira. */
+              t('canhotoPickup.pending', { count: stop.canhotoPickups?.length ?? 0 })
             ) : (
               t('documentsPending', { count: countPendingDocuments(stop) })
             )}
@@ -764,6 +775,19 @@ export function DriverStopCard({
             />
           ))}
         </ul>
+        {onSendCanhotoPickup === undefined ? (
+          <DriverCanhotoPickupList
+            isReadOnly
+            onSend={() => Promise.resolve('failed')}
+            pickups={stop.canhotoPickups}
+          />
+        ) : (
+          <DriverCanhotoPickupList
+            isReadOnly={isReadOnly}
+            onSend={onSendCanhotoPickup}
+            pickups={stop.canhotoPickups}
+          />
+        )}
 
         {/*
          * Pedido do usuário (25/09): quem não tocou "Cheguei" na hora ainda registra a entrega —

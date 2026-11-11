@@ -9,6 +9,7 @@ import {
   getDriverDiagnostics,
   getDriverTripClient,
   describeAttachmentFailure,
+  DriverTripRequestError,
   toAttachmentSendOutcome,
 } from '../shared/driverTripClient.service'
 import { traceBaixaTotal } from '../shared/baixaTotalTrace.service'
@@ -181,8 +182,18 @@ export type DriverNotDeliveredOutcome = DriverReportOutcome | 'size-limit'
 /** Spec 209 (D3): a foto do "Deu problema" que não coube saiu — o relato entrou mesmo assim. */
 export type DriverStopOccurrenceOutcome = DriverReportOutcome | 'photo-dropped'
 
+/**
+ * Spec 321 T6: a foto do canhoto da coleta sai direto (sem fila): `sent` fechou o envio, `offline` pede para tentar de novo
+ * com sinal, `failed` é recusa do servidor (coleta que não é mais dele, por exemplo).
+ */
+export type DriverCanhotoPickupOutcome = 'failed' | 'offline' | 'sent'
+
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
+  sendCanhotoPickupPhoto: (input: {
+    file: File
+    pickupId: string
+  }) => Promise<DriverCanhotoPickupOutcome>
   /**
    * Spec 203/193: o motorista completou um campo depois do anexo já estar na fila — atualiza o(s)
    * item(ns) daquele documento in place. Sem grupo na fila (o anexo já subiu), vira `proofReceiver`
@@ -912,6 +923,25 @@ export function useDriverTrip(
    * drenagem subir antes dela (rede rápida), a foto vai sem posição e conta como longe (ADR-0070
    * §4) — nunca perdida.
    */
+  async function sendCanhotoPickupPhoto(input: {
+    file: File
+    pickupId: string
+  }): Promise<DriverCanhotoPickupOutcome> {
+    try {
+      const clockOffsetMs = driverClockOffset.read()
+      await getDriverTripClient().sendCanhotoPickupPhoto({
+        capturedAt: new Date().toISOString(),
+        ...(clockOffsetMs === undefined ? {} : { clockOffsetMs }),
+        file: input.file,
+        pickupId: input.pickupId,
+      })
+      await queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY })
+      return 'sent'
+    } catch (error) {
+      return error instanceof DriverTripRequestError && error.isOffline ? 'offline' : 'failed'
+    }
+  }
+
   function attachProof(input: DriverProofInput): Promise<DriverProofOutcome> {
     return persistWhileOpen(captureRegistry, () => enqueueProof(input))
   }
@@ -1183,6 +1213,7 @@ export function useDriverTrip(
 
   return {
     attachProof,
+    sendCanhotoPickupPhoto,
     updateProofFields,
     removeProof,
     discardProofAwaitingDelivery,
