@@ -75,7 +75,9 @@ export class DrizzleDriverStopReminderIdleReconciliationRepository
           where r."company_id" = ${params.companyId}::uuid
             and r."trip_stop_id" = idle_stage.stop_id
             and r."stage" = 'idle'
-            and r."anchor_at" >= idle_stage.anchor_at
+            -- O Postgres guarda microssegundos e o lembrete grava a âncora em milissegundos (Date): sem truncar, a âncora
+            -- nunca "alcança" a da viagem e um lembrete novo nasce assim que o anterior escala.
+            and r."anchor_at" >= date_trunc('milliseconds', idle_stage.anchor_at)
         )
       order by anchor_at
     `)) as unknown as readonly IdleRow[]
