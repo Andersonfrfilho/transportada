@@ -85,6 +85,8 @@ async function setup(database: Parameters<Parameters<typeof withConversationData
       .select()
       .from(tripOccurrenceResolutionEvents)
       .where(eq(tripOccurrenceResolutionEvents.documentOccurrenceId, seeded.occurrenceId))
+      /** O estado é o último por `seq` (ADR-0105): sem ordem, o Postgres devolve na ordem que o plano escolher. */
+      .orderBy(tripOccurrenceResolutionEvents.sequence)
   const messages = () => database.db.select().from(occurrenceConversationMessages)
   return {
     database,
