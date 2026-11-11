@@ -7,8 +7,10 @@
  * WhatsApp da chave que o tipo escolheu para o e-mail (D2: o texto continua do tipo), senão o modelo geral
  * `ocorrencia.contratante-grupo`. Nenhum dos dois cadastrado → `template_missing` (cai no e-mail de reserva).
  *
- * As variáveis são uma lista fechada e enxuta: tipo, nota, data, momento e o resumo (a observação). Valor, CPF/CNPJ e
- * dado do destinatário **nunca** entram, porque nem chegam aqui: quem lê o banco só monta estas chaves.
+ * As variáveis são uma lista fechada e enxuta: tipo, nota, data, momento, o resumo (a observação) e, por decisão de
+ * Anderson em 11/11/2026 (emenda do RF4), a contratante, o cliente (razão social do destinatário), o endereço de
+ * entrega, o valor da nota e, no tipo que pede, a nova data de vencimento. CPF, CNPJ e telefone **nunca** entram,
+ * porque nem chegam aqui: quem lê o banco só monta estas chaves.
  */
 import { interpolateTemplate } from '@adatechnology/notification-contracts'
 
@@ -23,14 +25,22 @@ export const CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_CHANNEL = 'whatsapp'
 export const CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION = 'occurrence-contractor-group.send'
 
 export const CONTRACTOR_OCCURRENCE_GROUP_VARIABLES = [
+  'cliente',
+  'contratante',
   'data',
+  'enderecoEntrega',
   'marcacao',
   'momento',
+  'novaData',
   'numeroNota',
   'numeroNotaSemSerie',
   'observacao',
   'tipoOcorrencia',
+  'valorNota',
 ] as const
+
+/** O tipo pede a nova data de vencimento e o cliente não mandou nenhuma. */
+export const NEW_DUE_DATE_NOT_INFORMED = 'cliente não informou data'
 
 export type ContractorOccurrenceGroupVariable =
   (typeof CONTRACTOR_OCCURRENCE_GROUP_VARIABLES)[number]
@@ -60,8 +70,12 @@ export function summarizeOccurrenceNote(note: string): string {
   return `${compact.slice(0, CONTRACTOR_OCCURRENCE_GROUP_SUMMARY_MAX_LENGTH - 1).trimEnd()}…`
 }
 
-/** Linha que sobrou só com emoji ou rótulo vazio (ex.: "📝 " quando a observação veio vazia). */
-const EMOJI_ONLY_LINE = /^[ \t]*(?:[\p{Extended_Pictographic}️‍][ \t]*)+$/u
+/**
+ * Linha que sobrou só com emoji e/ou rótulo em negrito vazio (ex.: "📝 " quando a observação veio vazia, ou
+ * "📅 *Vencimento pedido:* " no tipo sem data). Linha em branco de propósito não casa.
+ */
+const EMOJI_ONLY_LINE =
+  /^[ \t]*(?:(?:[\p{Extended_Pictographic}️‍][ \t]*)+(?:\*[^*\n]+:\*[ \t]*)?|\*[^*\n]+:\*[ \t]*)$/u
 const BLANK_LINES = /\n{3,}/gu
 const MENTION_PLACEHOLDER = /\{\{\s*marcacao\s*\}\}/u
 

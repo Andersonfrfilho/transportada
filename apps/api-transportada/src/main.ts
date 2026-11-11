@@ -1806,26 +1806,29 @@ export function bootstrap(): Bun.Server<undefined> {
   const canhotoReaderConfig = isCanhotoOcrEnabled(process.env)
     ? readWorkerBotAudioTranscriberConfig(process.env)
     : undefined
-  const whatsappCanhotoRecognition =
-    canhotoReaderConfig === undefined
-      ? undefined
-      : createWhatsAppCanhotoRecognition({
-          findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
-          listStops: listWhatsAppDriverStops,
-          logger,
-          media: whatsappPreparationMedia,
-          preparations: whatsappDeliveryPreparations,
-          questions: whatsappCanhotoQuestions,
-          reader: createWorkerCanhotoReader(canhotoReaderConfig),
-          /** Spec 321 T4 (D4b): a coleta de canhoto encaixada na viagem do motorista também recebe a foto. */
-          canhotoPickups: createWhatsAppCanhotoPickupPort({
-            bucket: whatsappStorageBucket,
-            collection: createDrizzleCanhotoPickupCollection(database.db),
-            logger,
-            repository: whatsappDeliveryProofRepository,
-            storage: whatsappStorageGateway,
-          }),
-        })
+  /**
+   * Sem o OCR (produção) o reconhecimento existe sem leitor: a foto da parada em que o motorista chegou baixa a nota dela
+   * sem pedir o @ do bot nem perguntar nada; qualquer outra foto segue calada.
+   */
+  const whatsappCanhotoRecognition = createWhatsAppCanhotoRecognition({
+    findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
+    listStops: listWhatsAppDriverStops,
+    logger,
+    media: whatsappPreparationMedia,
+    preparations: whatsappDeliveryPreparations,
+    questions: whatsappCanhotoQuestions,
+    ...(canhotoReaderConfig === undefined
+      ? {}
+      : { reader: createWorkerCanhotoReader(canhotoReaderConfig) }),
+    /** Spec 321 T4 (D4b): a coleta de canhoto encaixada na viagem do motorista também recebe a foto. */
+    canhotoPickups: createWhatsAppCanhotoPickupPort({
+      bucket: whatsappStorageBucket,
+      collection: createDrizzleCanhotoPickupCollection(database.db),
+      logger,
+      repository: whatsappDeliveryProofRepository,
+      storage: whatsappStorageGateway,
+    }),
+  })
   const whatsappDriverCollections = combineWhatsAppDriverCollections({
     canhoto: whatsappCanhotoRecognition,
     deliveries: whatsappDeliveryPreparations,

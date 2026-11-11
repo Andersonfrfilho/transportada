@@ -15,6 +15,7 @@ import { createGroupDeliveryFlow } from '../../src/whatsapp/application/whatsapp
 import type { GroupRequest } from '../../src/whatsapp/application/whatsapp-group-request.port.js'
 import {
   createWhatsAppSenderRoleResolver,
+  isMediaSenderAllowed,
   SENDER_NOT_ALLOWED_TEXT,
   type WhatsAppSenderRolePorts,
 } from '../../src/whatsapp/application/whatsapp-sender-role.service.js'
@@ -324,5 +325,16 @@ describe('baixa do atendente pelo caminho do escritório', () => {
         input,
       ),
     ).toMatchObject({ kind: 'refused', refusal: { code: 'document_not_reachable' } })
+  })
+})
+
+describe('foto e localização no grupo', () => {
+  test('tripulação (ajudante incluído) e atendente valem como prova; número desconhecido não', async () => {
+    const crew = await resolveRole({ companyId: 'C1', driverId: 'D1', phone: CREW_PHONE })
+    const attendant = await resolveRole({ companyId: 'C1', driverId: 'D1', phone: ATTENDANT_PHONE })
+    const stranger = await resolveRole({ companyId: 'C1', driverId: 'D1', phone: STRANGER_PHONE })
+    expect(isMediaSenderAllowed(crew)).toBe(true)
+    expect(isMediaSenderAllowed(attendant)).toBe(true)
+    expect(isMediaSenderAllowed(stranger)).toBe(false)
   })
 })

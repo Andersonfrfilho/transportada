@@ -9,7 +9,9 @@
  *   `occurrence-auto-mail:<id>`, a mesma do e-mail, RF3), numa instrução só: a linha nova nasce `processing`; a que
  *   terminou `failed`, ou ficou `processing` parada há mais de 10 min (processo caiu no meio), é retomada; `completed`
  *   nunca. A varredura do worker deixa de pedir a ocorrência com o grupo `completed`.
- * - O texto lê só o que a lista fechada do aviso usa (RF4): número da nota, tipo, data, etapa e observação.
+ * - O texto lê só o que a lista fechada do aviso usa (RF4, emenda de 11/11/2026): número da nota, tipo, data, etapa,
+ *   observação, contratante, cliente (razão social do destinatário), endereço de entrega, valor da nota e, no tipo
+ *   que pede, a nova data de vencimento. Nunca CPF, CNPJ nem telefone.
  */
 import { sql } from 'drizzle-orm'
 
@@ -21,10 +23,19 @@ import {
   CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION,
   CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_CHANNEL,
   CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY,
+  NEW_DUE_DATE_NOT_INFORMED,
   contractorOccurrenceMomentLabel,
   summarizeOccurrenceNote,
 } from '../domain/contractor-occurrence-group.policy.js'
-import { formatOccurrenceMoment } from '../../trips/domain/occurrence-mail-values.policy.js'
+import {
+  formatBrazilianAmount,
+  parseAmountToCents,
+} from '../../trips/domain/occurrence-amount.policy.js'
+import {
+  formatIsoDate,
+  formatOccurrenceMoment,
+} from '../../trips/domain/occurrence-mail-values.policy.js'
+import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 
 const KEY_PREFIX = 'occurrence-auto-mail:'
@@ -121,7 +132,9 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       const [occurrence] = await rowsOf(
         database,
         sql`select occurrence.note, occurrence.stage, occurrence.created_at,
+                   occurrence.requested_due_date::text as requested_due_date,
                    occurrence_type.name as type_name,
+                   occurrence_type.asks_new_due_date,
                    occurrence_type.contractor_notification_template_key as type_key,
                    note.number, note.series
             from trip_document_occurrences occurrence
@@ -143,6 +156,11 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       })
       if (template === null) return null
 
+      const item = await findTripOccurrenceFeedItem(database, { companyId, occurrenceId })
+      const totalValue = item?.document?.totalValue ?? ''
+      const requestedDueDate = formatIsoDate(text(occurrence, 'requested_due_date').trim())
+      const asksNewDueDate = occurrence.asks_new_due_date === true
+
       const number = text(occurrence, 'number').trim()
       const series = text(occurrence, 'series').trim()
       const createdAt = occurrence.created_at
@@ -150,15 +168,24 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       return {
         template,
         values: {
+          cliente: (item?.document?.recipient?.name ?? '').trim(),
+          contratante: (item?.document?.contractor?.name ?? '').trim(),
           data:
             createdAt instanceof Date || typeof createdAt === 'string'
               ? formatOccurrenceMoment(new Date(createdAt))
               : '',
+          enderecoEntrega: (item?.document?.destination?.label ?? '').trim(),
           momento: contractorOccurrenceMomentLabel(stage),
+          novaData: !asksNewDueDate
+            ? ''
+            : requestedDueDate === ''
+              ? NEW_DUE_DATE_NOT_INFORMED
+              : requestedDueDate,
           numeroNota: number === '' ? '' : series === '' ? number : `${number}/${series}`,
           numeroNotaSemSerie: number,
           observacao: summarizeOccurrenceNote(text(occurrence, 'note')),
           tipoOcorrencia: text(occurrence, 'type_name').trim(),
+          valorNota: totalValue === '' ? '' : formatBrazilianAmount(parseAmountToCents(totalValue)),
         },
       }
     },

@@ -144,7 +144,11 @@ export type WhatsAppCanhotoRecognitionPorts = {
   readonly media: WhatsAppDeliveryPreparationMediaPort
   readonly preparations: Required<Pick<WhatsAppDeliveryPreparations, 'receiveCanhotoPhoto'>>
   readonly questions: WhatsAppCanhotoQuestionRepositoryPort
-  readonly reader: WhatsAppCanhotoReaderPort
+  /**
+   * Ausente (OCR desligado, como em produção): a foto não é lida. Só vale a parada em que o motorista já chegou e falta a
+   * baixa — o bot mesmo pediu "a foto do canhoto" ali —, e a foto baixa a nota dela sem pergunta.
+   */
+  readonly reader?: WhatsAppCanhotoReaderPort
 }
 
 export type WhatsAppCanhotoRecognition = {
@@ -220,15 +224,24 @@ export function createWhatsAppCanhotoRecognition(
   async function readOpenNotes(scope: {
     readonly companyId: string
     readonly driverId: string
-  }): Promise<{ readonly inProgress: readonly OpenNote[]; readonly notes: readonly OpenNote[] }> {
+  }): Promise<{
+    readonly awaitingSettlement: boolean
+    readonly inProgress: readonly OpenNote[]
+    readonly notes: readonly OpenNote[]
+  }> {
     const [stops, pickups] = await Promise.all([
       ports.listStops(scope),
       ports.canhotoPickups?.list(scope) ?? [],
     ])
-    const current = findStopAwaitingSettlement(stops) ?? findStopEnRoute(stops)
+    const awaiting = findStopAwaitingSettlement(stops)
+    const current = awaiting ?? findStopEnRoute(stops)
     const currentIds = new Set(current?.documents.flatMap((document) => document.id ?? []) ?? [])
     const notes = [...toOpenNotes(stops), ...pickups.map(toPickupNote)]
-    return { inProgress: notes.filter((note) => currentIds.has(note.documentId)), notes }
+    return {
+      awaitingSettlement: awaiting !== undefined,
+      inProgress: notes.filter((note) => currentIds.has(note.documentId)),
+      notes,
+    }
   }
 
   /** Spec 321 T4: a coleta aparece como a nota da entrega de origem, marcada como canhoto a buscar. */
@@ -304,8 +317,10 @@ export function createWhatsAppCanhotoRecognition(
   }): Promise<'busy' | 'disabled' | CanhotoReadVerdict | undefined> {
     // Spec 294 S6: só imagem pelos bytes vai ao decodificador do worker.
     if (detectDeliveryProofMimeType(input.bytes) === null) return undefined
+    const { reader } = ports
+    if (reader === undefined) return undefined
     try {
-      return await ports.reader.read({
+      return await reader.read({
         bytes: input.bytes,
         candidates: input.notes.map((note) => ({
           documentId: note.documentId,
@@ -565,7 +580,7 @@ export function createWhatsAppCanhotoRecognition(
       if ((await findLiveQuestion(actor)) !== null) {
         return reply([CANHOTO_RECOGNITION_SPEECH.busy], { awaitingText: true })
       }
-      const { inProgress, notes } = await readOpenNotes(actor)
+      const { awaitingSettlement, inProgress, notes } = await readOpenNotes(actor)
       if (notes.length === 0) return null
       const duplicate = await duplicateReply({ bytes, companyId: actor.companyId, notes })
       if (duplicate !== null) return duplicate
@@ -593,9 +608,26 @@ export function createWhatsAppCanhotoRecognition(
           text: CANHOTO_RECOGNITION_SPEECH.chooseNote(listed),
         })
       }
-      if (read === 'busy') return askAmong(notes)
-      const verdict = read
-      const decision = decideCanhotoRecognition({ notes, verdict })
+      /**
+       * O bot acabou de pedir o canhoto desta parada ("Chegada registrada"): a foto é a resposta. Com uma só nota na
+       * parada, ela baixa direto, sem pergunta extra, salvo se a leitura apontou com certeza outra nota.
+       */
+      const [current] = inProgress
+      const verdict = read === 'busy' ? undefined : read
+      const decision = read === 'busy' ? undefined : decideCanhotoRecognition({ notes, verdict })
+      if (awaitingSettlement && inProgress.length === 1 && current !== undefined) {
+        const pointsElsewhere =
+          decision?.kind === 'attach' ||
+          (decision !== undefined &&
+            decision.kind !== 'photo_kind' &&
+            !decision.notes.includes(current) &&
+            decision.notes.length < notes.length)
+        const looksLikeCargo = decision?.kind === 'photo_kind' && verdict !== undefined
+        if (!pointsElsewhere && !looksLikeCargo) return attachRead({ ...common, note: current })
+      }
+      // Sem leitor, fora da parada que chegou, a foto segue calada; na que chegou com várias notas, pergunta por elas.
+      if (ports.reader === undefined) return awaitingSettlement ? askAmong(notes) : null
+      if (read === 'busy' || decision === undefined) return askAmong(notes)
       if (decision.kind === 'attach') return attachRead({ ...common, note: decision.note })
       if (decision.kind === 'confirm_note') {
         return ask({

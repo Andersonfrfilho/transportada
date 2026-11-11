@@ -111,6 +111,7 @@ Regras que já custaram tempo:
 | `ops/producao-soltar-notas-devolvidas.sh [--confirm]`                   | solta (`released_at`) NFs devolvidas pelo escritório para entrarem em outra viagem; sem `--confirm` só simula                                                                                                                                                                                                                                                                                                                                   | escrita                         |
 | `ops/producao-parada-cheguei-rafa.sh`                                   | viagens ativas do motorista Rafa (paradas e sequências) e últimos pedidos do grupo do WhatsApp (09/11/2026, bug da lista de paradas do "cheguei")                                                                                                                                                                                                                                                                                               | leitura                         |
 | `scripts/ops/producao-lembrete-viagens-despachadas.sh`                  | viagens `dispatched`/`in_transit` sem "Iniciar rota" que passam a receber o lembrete "sem evento" (spec 299, emenda D10 de 10/11/2026), interruptor da empresa e `DRIVER_REMINDERS_ENABLED` (só true/false); rodar antes de promover a emenda à `main`                                                                                                                                                                                          | leitura                         |
+| `scripts/ops/producao-pos-promocao-678.sh`                              | conferência pós-deploy da promoção #678 de 11/11/2026: tabelas novas, rotina `whatsapp-inbox.chat.expire` pausada, trava e coleta de canhoto desligadas, lembrete do motorista (§ 5.29)                                                                                                                                                                                                                                                         | leitura                         |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
 
@@ -1223,6 +1224,36 @@ cavalo dá o de volume (`resolveCapacityUnknownReason`). Dado faltando na ficha,
   Só toca veículo com as três medidas zeradas e incrementa `version`.
 - ⚠️ Medidas do Besta (CAH8I08) e do Ducato Maxicargo (FNG3980) foram derivadas do volume informado (5,2 m³ e ≈13 m³): conferir com fita.
 - Saídas ficam em `tmp/ops/saidas/veiculos-*.txt`.
+
+## 5.29 Promoção #678 staging → main (11/11/2026): o que foi para produção e como conferir
+
+O #678 foi mergeado em 11/11/2026 às 02:29 UTC (merge `f8ddc02`). O deploy em produção e a conferência são do Anderson. As migrations rodam
+sozinhas no `preDeployCommand` da API; a CI confere com `assert-migrations api`.
+
+- **11 migrations novas**, todas aditivas, com `rollback.sql` ao lado: `contractor_occurrence_channels` (318), `occurrence_location_arrival` (315),
+  `field_report_holds` (320), `salespeople` (316), `receiving_charge_to_settlements` (317), `occurrence_contractor_notice_block` (321 T1),
+  `driver_occurrence_email_settings` (322), `canhoto_pickups` (321 T2), `whatsapp_chats` (319), `canhoto_pickup_resolution` (321) e
+  `whatsapp_inbox_chat_expire_job` (319). A única que escreve em dado existente é a 317: `UPDATE` em `company_occurrence_types` do tipo
+  `unexpected_charge` (renomeia "Cobrança inesperada" para "Cobrança no recebimento", exige valor pago, desliga o e-mail à contratante) e
+  recria três CHECKs. Veja § 5.28.
+- **Nasce desligado, nada muda sozinho em produção:**
+  - **Trava de eventos atrasados (spec 320):** `company_field_report_hold_settings.hold_enabled` é `false` por padrão; sem linha não retém nada.
+    Ligar é `PUT /company-settings/field-report-hold` e pede aprovação humana.
+  - **Rotina `whatsapp-inbox.chat.expire` (spec 319):** entra em `job_schedules` com `enabled = false`, `paused_origin = 'system'`. Ligar pede
+    a autorização do dono; até lá o chat que o atendente assume não volta ao bot por vencimento.
+  - **Coleta de canhoto (spec 321):** `company_occurrence_types.creates_canhoto_pickup` é `false` em todo tipo; nenhum tipo passa a criar coleta.
+  - **E-mail do aviso do motorista (spec 322):** sem linha em `company_driver_occurrence_email_settings` vale ligado, então ninguém muda de
+    comportamento.
+- **Já ativo desde o deploy:** o lembrete do motorista (spec 299, emenda D10). `DRIVER_REMINDERS_ENABLED=true` no `api` e a empresa ligada em
+  `company_driver_reminder_settings` desde 10/11/2026 19:25 UTC. A varredura passa a cobrar também viagem `dispatched`/`in_transit` sem
+  "Iniciar rota", na primeira rodada dentro do horário de funcionamento. O preview de 10/11 listou 5 viagens; a do Geyaon estava despachada
+  havia 132 h. Para desligar: `DRIVER_REMINDERS_ENABLED=false` no `api` ou `enabled = false` da empresa.
+- **Conferir depois do deploy (somente leitura):** `bash <repositório>/scripts/ops/producao-pos-promocao-678.sh` (copiado também para
+  `tmp/ops/`). Esperado: 7 tabelas novas, `whatsapp-inbox.chat.expire` com `enabled = false`, nenhuma empresa com `hold_enabled`, 0 tipos com
+  `creates_canhoto_pickup`, `unexpected_charge` renomeado, 0 chats em modo atendente. A saída vai para `tmp/ops/saidas/`.
+- **Vermelhos da CI que apareceram na promoção e não eram dela:** o dublê padrão do smoke de viagem não cobria `/trip-canhoto-pickups`
+  (#701) e a constante de consultas fixas do snapshot do motorista subiu de 26 para 27 com a T6 (#703). O teste do SIGTERM do worker
+  (`sigterm.integration.ts`) estourou o prazo uma vez e passou na repetição.
 
 ## 5.27 Eventos velhos do app do motorista (spec 320, 10/11/2026) — leitura em produção, nada alterado
 
