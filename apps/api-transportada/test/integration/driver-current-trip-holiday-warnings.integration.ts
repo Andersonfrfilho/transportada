@@ -40,8 +40,11 @@ const WEDNESDAY_21 = new Date('2026-10-21T15:00:00.000Z')
 const TUESDAY_20 = new Date('2026-10-20T15:00:00.000Z')
 /** 22/10 às 22h30 em São Paulo: já é dia 23 em UTC. */
 const NIGHT_OF_22_IN_SAO_PAULO = new Date('2026-10-23T01:30:00.000Z')
-/** Spec 218 RF-C3: 25 + 1 fixa (a nota do motorista lê a exceção da contratante). */
-const BASELINE_QUERIES = 26
+/**
+ * Spec 218 RF-C3: 25 + 1 fixa (a nota do motorista lê a exceção da contratante). Spec 321 T6: +1 fixa — as coletas de
+ * canhoto das viagens dele (uma consulta para todas as paradas).
+ */
+const BASELINE_QUERIES = 27
 const WARNING_EXTRA_QUERIES = 5
 const CONTEXT_ONLY_EXTRA_QUERIES = 1
 
