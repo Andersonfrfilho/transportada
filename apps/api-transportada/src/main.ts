@@ -208,6 +208,9 @@ import {
 import { createWhatsAppXmlInbound } from './nfe-xml-receipts/application/receive-whatsapp-xml-document.service.js'
 import { createDrizzleWhatsAppXmlReceiptRepository } from './nfe-xml-receipts/infrastructure/drizzle-whatsapp-xml-receipt.repository.js'
 import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
+import { createWhatsAppChatTakeoverGuard } from './whatsapp-inbox/application/whatsapp-chat-takeover-guard.service.js'
+import { createWhatsAppChatTakeoverService } from './whatsapp-inbox/application/whatsapp-chat-takeover.service.js'
+import { createDrizzleWhatsAppChatRepository } from './whatsapp-inbox/infrastructure/drizzle-whatsapp-chat.repository.js'
 import { createEvolutionGroupIdentity } from './whatsapp/application/evolution-group-identity.service.js'
 import {
   createEvolutionGroupInbound,
@@ -2765,12 +2768,24 @@ function createEvolutionWebhook(input: {
   const xmlReceiptRepository = createDrizzleWhatsAppXmlReceiptRepository(database)
   /** Um só: o cache do número do bot e dos `@lid` do grupo serve ao fluxo do motorista e ao recebimento de XML. */
   const groupIdentity = createEvolutionGroupIdentity({ gateway })
+  // Spec 319 T3: chat assumido por um atendente não chega ao bot (privado e grupo); a mensagem só é gravada.
+  const whatsappChats = createDrizzleWhatsAppChatRepository(database)
+  const chatTakeover = createWhatsAppChatTakeoverGuard({
+    logger,
+    repository: whatsappChats,
+    service: createWhatsAppChatTakeoverService({
+      clock: () => new Date(),
+      repository: whatsappChats,
+    }),
+  })
   return createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets,
     apiPublicUrl: input.apiPublicUrl,
+    chatTakeover,
     gateway,
     // Spec 292 T3: o grupo do motorista chega ao bot; T4/T5: a sessão do pedido e o fluxo.
     groupInbound: createEvolutionGroupInbound({
+      chatTakeover,
       turnReplies: groupTurns,
       ...(groupAudio === undefined
         ? {}

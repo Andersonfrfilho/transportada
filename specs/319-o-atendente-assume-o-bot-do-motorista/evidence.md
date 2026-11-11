@@ -251,3 +251,54 @@ Postgres 16 local (`.env.test`), Bun 1.4.4.
 - Rollback à mão num banco migrado: recusa com chat gravado (`whatsapp_chats has 1 rows; refusing…`) e, vazio, remove
   as tabelas, a coluna e a linha do journal.
 - `tsc --noEmit`, `eslint` dos arquivos tocados e `prettier --check` limpos.
+
+## T3 — Guarda nos dois trilhos (branch `work/319-t3-guarda`, sobre `origin/staging` `233882a`)
+
+### O que entrou
+
+| Peça                    | Onde                                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| Guarda                  | `src/whatsapp-inbox/application/whatsapp-chat-takeover-guard.service.ts` (`holdIfTakenOver`) |
+| Trilho do grupo         | `evolution-group-inbound.service.ts`, `receive`, logo depois de `findGroupDriver`            |
+| Trilho do privado (308) | `whatsapp-evolution-webhook.use-case.ts`, `routeDirect`, antes do teto por número            |
+| O que vai ao histórico  | `describeHeldMessage` (texto, `image` com a legenda, `audio`, localização como `other`)      |
+| Composição              | `main.ts`: um repositório, o serviço da T2 e a guarda, a mesma nos dois trilhos              |
+
+**Como decide.** `service.attendanceOf({ companyId, chatJid })` (T2). `bot` (chat que não existe, devolvido ou
+vencido na leitura): nada muda. `operator`: a mensagem é gravada com `ensureChat` + `appendMessage` e o trilho para
+com o desfecho `taken_over`; não responde, não avança pedido, não consome o "1"/"2" do áudio, não lê foto como
+canhoto. A entrega conta em `takenOver` no log `whatsapp_evolution.webhook.received`.
+
+**Ordem no grupo.** Depois da lista de permissão (grupo fora da ficha nem consulta o estado: só o grupo cadastrado
+entra na caixa) e antes de qualquer chamada ao Evolution. Quem escreveu só é resolvido quando o chat está assumido:
+`participant`, ou o `@lid` pelo diretório; o dono do grupo (`isGroupDriver`) vira `driver`, o resto `member`. Sem
+conseguir resolver, grava sem número, como `member`.
+
+**Ordem no privado.** Só para motorista achado pelo telefone (quem só importa XML não tem chat na caixa). Depois de
+`quotesConversation`: a resposta citando a conversa da ocorrência continua no painel mesmo com o chat assumido (RF8).
+Antes de `consumeDirectLimit`: o motorista que escreve rápido com o atendente não perde mensagem para o teto.
+
+**Falhas.** Não deu para perguntar quem atende → segue com o bot (o comportamento de antes da 319) e loga
+`whatsapp_inbox.guard.unavailable`. Assumido e a gravação falhou → o bot continua calado (o atendente está lá) e loga
+`whatsapp_inbox.guard.record_failed`. Log só com empresa, `providerMessageId`, desfecho e nome do erro.
+
+**Fora desta task.** O XML de NF-e mandado ao bot (spec 301) passa antes dos dois trilhos e continua sendo recebido
+com o chat assumido: é recebimento de nota, não fluxo do bot. As mensagens do bot e do grupo sem assumir são da T4.
+
+### Testes
+
+Bun 1.4.4, sem Postgres neste ambiente (a integração roda na CI).
+
+- `test/whatsapp-inbox/takeover-guard.contract.ts` (novo, no `whatsapp-inbox.contract.test.ts`): guarda com o serviço
+  real da T2 e repositório dublê (sem assumir não monta nem grava; assumido grava sem número nem texto no log; outra
+  empresa não cala; devolver e vencer religam; número inválido vira nulo; as duas falhas) e o grupo com a guarda (a
+  resposta ao pedido aberto não chega ao bot e o Evolution nem é chamado; membro × motorista; `@lid` resolvido; áudio
+  e foto; grupo fora da ficha não consulta; devolvido volta a andar). `whatsapp-inbox.contract.test.ts`: **31 pass, 0
+  fail**.
+- `test/whatsapp/evolution-webhook-use-case.contract.ts` ganhou o bloco do privado (assumido não chega ao bot, grava
+  antes do teto e conta em `takenOver`; sem assumir segue no bot; citação da ocorrência fica no painel; quem não é
+  motorista segue no painel). `whatsapp.contract.test.ts`: **996 pass, 0 fail**.
+- Contratos da API inteira (`bun test`): **14 985 pass, 26 skip, 9 fail**; os 9 são
+  `toll-booth-catalog-repository.integration.ts`, que precisa de Postgres (`ERR_POSTGRES_CONNECTION_REFUSED`), sem
+  relação com a task.
+- `tsc --noEmit`, `eslint` dos arquivos tocados e `prettier --check` limpos.

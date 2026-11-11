@@ -36,6 +36,10 @@ import type {
 } from './evolution-group-identity.service.js'
 import type { WhatsAppBotAudio } from './whatsapp-bot-audio.service.js'
 import { GROUP_XML_ORIENTATION, type GroupQuestionAsked } from './whatsapp-group-request.port.js'
+import type {
+  WhatsAppChatHeldMessage,
+  WhatsAppChatTakeoverGuard,
+} from '../../whatsapp-inbox/application/whatsapp-chat-takeover-guard.service.js'
 
 /** Áudio não endereçado só é ouvido até 1 minuto: a chamada vem no começo, conversa longa é das pessoas. */
 const BOT_AUDIO_WAKE_MAX_SECONDS = 60
@@ -167,6 +171,11 @@ export type EvolutionGroupInboundPorts = {
    * ou que responde (cita) uma mensagem do bot. Áudio entre as pessoas do grupo continua ignorado.
    */
   readonly audio?: EvolutionGroupAudioPorts
+  /**
+   * Spec 319 T3 (RF2): com o grupo assumido por um atendente, a mensagem só é gravada no histórico; o bot não responde
+   * nem avança o pedido. Ausente, tudo como antes.
+   */
+  readonly chatTakeover?: WhatsAppChatTakeoverGuard
   /** Para testes: o relógio da janela de reenvio depois do "2". */
   readonly now?: () => number
   /** O turno da mensagem recebida (o mesmo do remetente do grupo); ausente, cada resposta sai como veio. */
@@ -236,6 +245,8 @@ export type EvolutionGroupInboundOutcome =
   | 'audio_listening'
   | 'media'
   | 'not_driver'
+  /** Spec 319 T3: o chat está com um atendente; a mensagem só foi gravada. */
+  | 'taken_over'
   | GroupMessageIgnoredReason
 
 /** Spec 308: a mensagem do chat direto (1:1) que o motorista mandou ao número do bot. */
@@ -674,6 +685,46 @@ export function createEvolutionGroupInbound(
       if (groupJid === null) return 'unknown_group'
       const owner = await dependencies.findGroupDriver({ companyId, groupJid })
       if (owner === null) return 'unknown_group'
+      // Spec 319 T3: grupo assumido não chega ao bot (nem a "1"/"2" do áudio nem ao pedido aberto).
+      if (
+        dependencies.chatTakeover !== undefined &&
+        (await dependencies.chatTakeover.holdIfTakenOver({
+          chatJid: groupJid,
+          companyId,
+          message: async () => {
+            let sender = event.participant
+            if (sender === '' && senderLid !== null) {
+              try {
+                const directory = await identity.lidDirectory({
+                  companyId,
+                  connection,
+                  groupJid,
+                  lids: [senderLid],
+                })
+                sender = directory.get(senderLid) ?? ''
+              } catch {
+                // Sem saber quem escreveu, grava sem o número (como membro): o histórico não perde a mensagem.
+              }
+            }
+            const isDriver =
+              sender !== '' &&
+              (await dependencies.isGroupDriver?.({
+                companyId,
+                driverId: owner.driverId,
+                sender,
+              })) === true
+            return describeHeldMessage({
+              audio,
+              author: isDriver ? 'driver' : 'member',
+              event,
+              media,
+              sender: sender === '' ? null : sender,
+            })
+          },
+        }))
+      ) {
+        return 'taken_over'
+      }
       if (audio !== null) {
         if (dependencies.audio === undefined) return 'no_text'
         return receiveAudio({
@@ -1003,6 +1054,34 @@ function isShortRouteCommand(text: string): boolean {
 const DIRECT_SENDER_PATTERN = /^\d{8,20}$/u
 
 /** Spec 308 D1: o chat direto como "grupo de um só": a chave do pedido, do turno e da resposta. */
+/**
+ * Spec 319 T3: a mensagem recebida, como vai ao histórico do chat assumido. A mídia ainda não é baixada (T10): fica o
+ * tipo e a legenda; a localização entra como `other`, sem as coordenadas no texto.
+ */
+export function describeHeldMessage(input: {
+  readonly audio: GroupAudio | null
+  readonly author: WhatsAppChatHeldMessage['author']
+  readonly event: EvolutionMessageEvent
+  readonly media: GroupMedia | null
+  readonly sender: null | string
+}): WhatsAppChatHeldMessage {
+  const { audio, event, media } = input
+  const base = {
+    author: input.author,
+    occurredAt: toMessageSentAt(event.timestamp),
+    providerMessageId: event.externalMessageId,
+    senderPhone: input.sender,
+  }
+  if (audio !== null) return { ...base, bodyText: event.text ?? '', contentKind: 'audio' }
+  if (media?.kind === 'image') {
+    return { ...base, bodyText: event.text ?? media.caption ?? '', contentKind: 'image' }
+  }
+  if (media?.kind === 'location')
+    return { ...base, bodyText: event.text ?? '', contentKind: 'other' }
+  if (event.text === null) return { ...base, bodyText: '', contentKind: 'other' }
+  return { ...base, bodyText: event.text, contentKind: 'text' }
+}
+
 export function directChatJid(number: string): string {
   return `${number}@s.whatsapp.net`
 }

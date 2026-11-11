@@ -32,7 +32,10 @@ import {
   WhatsAppEvolutionWebhookUrlMissingError,
 } from '../domain/whatsapp-evolution.error.js'
 import type { LazyEvolutionConnection } from './evolution-group-identity.service.js'
+import type { WhatsAppChatTakeoverGuard } from '../../whatsapp-inbox/application/whatsapp-chat-takeover-guard.service.js'
+import { directWhatsAppChatJid } from '../../whatsapp-inbox/domain/whatsapp-chat-jid.policy.js'
 import {
+  describeHeldMessage,
   type EvolutionGroupInbound,
   type EvolutionGroupInboundOutcome,
   type EvolutionMessageEvent,
@@ -98,6 +101,11 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
   /** `API_PUBLIC_URL`; ausente, receber continua funcionando, mas apontar o webhook é recusado. */
   readonly apiPublicUrl: string | undefined
   readonly apiKeySecrets: Pick<WhatsAppEvolutionSecretService, 'decrypt'>
+  /**
+   * Spec 319 T3 (RF2): o privado do motorista assumido por um atendente só grava a mensagem; o bot não responde nem
+   * avança o pedido. O grupo tem a mesma guarda dentro do `groupInbound`. Ausente, tudo como antes.
+   */
+  readonly chatTakeover?: WhatsAppChatTakeoverGuard
   readonly gateway: WhatsAppEvolutionWebhookGatewayPort
   /** Spec 292 T3: a mensagem de grupo (lista de permissão, marcação do bot, dono do pedido). */
   readonly groupInbound: EvolutionGroupInbound
@@ -233,6 +241,8 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         // Spec 308 (risco da T1): conversa 1:1 que chegou só com `@lid`, sem número para reconhecer.
         lidOnly: 0,
         statuses: 0,
+        // Spec 319 T3: mensagens de chat assumido por atendente (gravadas, sem resposta do bot).
+        takenOver: 0,
         unassigned: 0,
         xml: 0,
       }
@@ -288,7 +298,30 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
           return null
         }
         let outcome: string
-        if (inbound.consumeDirectLimit?.({ companyId, from: event.from }) === false) {
+        // Spec 319 T3: antes do teto, para a mensagem do motorista assumido nunca se perder do histórico. Só o motorista
+        // tem chat na caixa; quem só importa XML segue como antes.
+        const chatJid = driver === null ? null : directWhatsAppChatJid(event.from)
+        if (
+          chatJid !== null &&
+          dependencies.chatTakeover !== undefined &&
+          (await dependencies.chatTakeover.holdIfTakenOver({
+            chatJid,
+            companyId,
+            message: () => {
+              groupMedia ??= readGroupMedia(payload)
+              groupAudio ??= readGroupAudio(payload)
+              return describeHeldMessage({
+                audio: groupAudio.get(event.externalMessageId) ?? null,
+                author: 'driver',
+                event,
+                media: groupMedia.get(event.externalMessageId) ?? null,
+                sender: event.from,
+              })
+            },
+          }))
+        ) {
+          outcome = 'taken_over'
+        } else if (inbound.consumeDirectLimit?.({ companyId, from: event.from }) === false) {
           outcome = 'rate_limited'
         } else if (driver === null) {
           outcome = groupInbound.receiveDirectImporter?.({ companyId, event }) ?? 'no_text'
@@ -315,6 +348,7 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
           providerMessageId: event.externalMessageId,
         })
         if (['admitted', 'audio', 'audio_answer', 'media'].includes(outcome)) counts.direct += 1
+        else if (outcome === 'taken_over') counts.takenOver += 1
         else counts.ignored += 1
         return outcome
       }
@@ -391,6 +425,7 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
           })
           if (outcome === 'admitted' || outcome === 'audio' || outcome === 'media')
             counts.group += 1
+          else if (outcome === 'taken_over') counts.takenOver += 1
           else {
             counts.ignored += 1
             groupIgnored[outcome] = (groupIgnored[outcome] ?? 0) + 1
