@@ -2699,17 +2699,38 @@ function createEvolutionWebhook(input: {
    */
   /** Uma resposta por turno é uma mensagem: o remetente e a entrada do grupo dividem o mesmo turno. */
   const groupTurns = input.groupTurns ?? createWhatsAppTurnReplies({ logger })
+  // Spec 319 T3: chat assumido por um atendente não chega ao bot (privado e grupo); a mensagem só é gravada.
+  const whatsappChats = createDrizzleWhatsAppChatRepository(database)
+  const chatTakeover = createWhatsAppChatTakeoverGuard({
+    logger,
+    repository: whatsappChats,
+    service: createWhatsAppChatTakeoverService({
+      clock: () => new Date(),
+      repository: whatsappChats,
+    }),
+  })
+  const groupSendText = createEvolutionDocumentSender({
+    pacer: createEvolutionSendPacer({
+      claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
+      maxWaitMs: 120_000,
+    }),
+    repository: new DrizzleWhatsAppEvolutionRepository(database),
+    secrets: apiKeySecrets,
+  }).sendText
   const groupReplies = createEvolutionGroupReplySender({
     logger,
     turnReplies: groupTurns,
-    sendText: createEvolutionDocumentSender({
-      pacer: createEvolutionSendPacer({
-        claimSlot: createDrizzleEvolutionSendSlotClaimer(database),
-        maxWaitMs: 120_000,
-      }),
-      repository: new DrizzleWhatsAppEvolutionRepository(database),
-      secrets: apiKeySecrets,
-    }).sendText,
+    sendText: async (call) => {
+      const sent = await groupSendText(call)
+      // Spec 319 T4: o que o bot disse fica no histórico do chat (grupo cadastrado ou motorista). Sem esperar.
+      void chatTakeover.recordBotMessage({
+        bodyText: call.body,
+        chatJid: call.number,
+        companyId: call.companyId,
+        providerMessageId: sent.providerMessageId,
+      })
+      return sent
+    },
   })
   const groupRequests = createDrizzleWhatsAppGroupRequestRepository(database)
   /** Spec 292 regra 5: o pedido que vence sem resposta é avisado (antes) e encerrado com aviso no grupo. */
@@ -2781,16 +2802,6 @@ function createEvolutionWebhook(input: {
   const xmlReceiptRepository = createDrizzleWhatsAppXmlReceiptRepository(database)
   /** Um só: o cache do número do bot e dos `@lid` do grupo serve ao fluxo do motorista e ao recebimento de XML. */
   const groupIdentity = createEvolutionGroupIdentity({ gateway })
-  // Spec 319 T3: chat assumido por um atendente não chega ao bot (privado e grupo); a mensagem só é gravada.
-  const whatsappChats = createDrizzleWhatsAppChatRepository(database)
-  const chatTakeover = createWhatsAppChatTakeoverGuard({
-    logger,
-    repository: whatsappChats,
-    service: createWhatsAppChatTakeoverService({
-      clock: () => new Date(),
-      repository: whatsappChats,
-    }),
-  })
   return createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets,
     apiPublicUrl: input.apiPublicUrl,

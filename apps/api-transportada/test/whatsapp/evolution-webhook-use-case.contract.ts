@@ -122,6 +122,7 @@ async function setup(
   const state = {
     deliveries: [] as unknown[],
     held: [] as { chatJid: string; message: WhatsAppChatHeldMessage }[],
+    observed: [] as { chatJid: string; message: WhatsAppChatHeldMessage }[],
     limitCalls: 0,
     direct: [] as Parameters<NonNullable<EvolutionGroupInbound['receiveDirect']>>[0][],
     importerReplies: [] as string[],
@@ -189,6 +190,10 @@ async function setup(
       state.held.push({ chatJid, message: await message() })
       return true
     },
+    async observeInbound({ chatJid, message }) {
+      state.observed.push({ chatJid, message: await message() })
+    },
+    async recordBotMessage() {},
   }
   const useCase = createWhatsAppEvolutionWebhookUseCase({
     apiKeySecrets,
@@ -892,13 +897,40 @@ describe('spec 319 T3: o privado do motorista assumido por um atendente', () => 
     expect(JSON.stringify(state.logs)).not.toContain(PHONE)
   })
 
-  test('sem assumir, o motorista segue no bot como antes', async () => {
+  test('sem assumir, o motorista segue no bot como antes e a recebida entra no histórico (T4)', async () => {
     const { state, useCase } = await setup({ directDrivers: [PHONE], takenOver: [] })
 
     await useCase.receive(receiveWith({ rawBody: body() }))
 
     expect(state.held).toEqual([])
     expect(state.direct).toHaveLength(1)
+    expect(state.observed).toEqual([
+      {
+        chatJid: DIRECT_JID,
+        message: expect.objectContaining({
+          author: 'driver',
+          bodyText: '2',
+          providerMessageId: 'D1',
+        }),
+      },
+    ])
+  })
+
+  test('assumido, a recebida é gravada pela guarda e não duas vezes (T4)', async () => {
+    const { state, useCase } = await setup({ directDrivers: [PHONE], takenOver: [DIRECT_JID] })
+
+    await useCase.receive(receiveWith({ rawBody: body() }))
+
+    expect(state.held).toHaveLength(1)
+    expect(state.observed).toEqual([])
+  })
+
+  test('quem não é motorista não entra no histórico (T4)', async () => {
+    const { state, useCase } = await setup({ directDrivers: ['5516911112222'], takenOver: [] })
+
+    await useCase.receive(receiveWith({ rawBody: body() }))
+
+    expect(state.observed).toEqual([])
   })
 
   test('a citação da conversa da ocorrência continua no painel, mesmo assumido (RF8)', async () => {

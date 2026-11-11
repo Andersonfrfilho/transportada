@@ -18,6 +18,8 @@ import type { WhatsAppChatTakeoverService } from './whatsapp-chat-takeover.servi
 
 export const WHATSAPP_CHAT_TAKEOVER_GUARD_LOG = {
   held: 'whatsapp_inbox.guard.held',
+  observeFailed: 'whatsapp_inbox.history.observe_failed',
+  recordBotFailed: 'whatsapp_inbox.history.record_bot_failed',
   recordFailed: 'whatsapp_inbox.guard.record_failed',
   unavailable: 'whatsapp_inbox.guard.unavailable',
 } as const
@@ -47,6 +49,22 @@ export type WhatsAppChatTakeoverGuard = {
     readonly companyId: string
     readonly message: () => Promise<WhatsAppChatHeldMessage> | WhatsAppChatHeldMessage
   }) => Promise<boolean>
+  /**
+   * T4 (RF4): a recebida que o bot atende também entra no histórico, para a caixa mostrar a conversa inteira quando o
+   * atendente assumir. Nunca lança nem atrasa o trilho: quem chama não espera por ela.
+   */
+  readonly observeInbound: (input: {
+    readonly chatJid: string
+    readonly companyId: string
+    readonly message: () => Promise<WhatsAppChatHeldMessage> | WhatsAppChatHeldMessage
+  }) => Promise<void>
+  /** T4 (RF4): o que o bot disse num chat da caixa (grupo cadastrado ou motorista), com o id do provedor para deduplicar o eco. */
+  readonly recordBotMessage: (input: {
+    readonly bodyText: string
+    readonly chatJid: string
+    readonly companyId: string
+    readonly providerMessageId: null | string
+  }) => Promise<void>
 }
 
 export function createWhatsAppChatTakeoverGuard(dependencies: {
@@ -100,6 +118,49 @@ export function createWhatsAppChatTakeoverGuard(dependencies: {
         })
       }
       return true
+    },
+
+    async observeInbound({ chatJid, companyId, message }) {
+      try {
+        const held = await message()
+        const chat = await service.ensureChat({ chatJid, companyId })
+        await repository.appendMessage({
+          author: held.author,
+          bodyText: held.bodyText,
+          chatId: chat.id,
+          companyId,
+          contentKind: held.contentKind,
+          ...(held.occurredAt === undefined ? {} : { occurredAt: held.occurredAt }),
+          providerMessageId: held.providerMessageId,
+          senderPhone:
+            held.senderPhone !== null && PHONE_DIGITS.test(held.senderPhone)
+              ? held.senderPhone
+              : null,
+        })
+      } catch (error) {
+        logger.warn(WHATSAPP_CHAT_TAKEOVER_GUARD_LOG.observeFailed, {
+          companyId,
+          errorName: error instanceof Error ? error.name : typeof error,
+        })
+      }
+    },
+
+    async recordBotMessage({ bodyText, chatJid, companyId, providerMessageId }) {
+      try {
+        const chat = await service.ensureChat({ chatJid, companyId })
+        await repository.appendMessage({
+          author: 'bot',
+          bodyText,
+          chatId: chat.id,
+          companyId,
+          providerMessageId,
+        })
+      } catch (error) {
+        logger.warn(WHATSAPP_CHAT_TAKEOVER_GUARD_LOG.recordBotFailed, {
+          companyId,
+          errorName: error instanceof Error ? error.name : typeof error,
+        })
+      }
     },
   }
 }

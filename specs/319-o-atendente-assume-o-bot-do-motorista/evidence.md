@@ -352,3 +352,10 @@ Postgres 16 local, Bun 1.4.4.
 - **Fora desta task, por decisão:** a prévia de confirmação (T6b) é diálogo do painel e entra com a página (T8); o aviso "voltei" ao motorista
   usa este mesmo caminho, mas depende do modelo de notificação e fica para a T11; sem `rateLimit` de Postgres na rota porque o pacer do número
   já recusa acima de 20 s de espera e o envio é gesto humano; categoria própria no quadro 290 fica com a T11.
+
+## T4 — histórico do motorista, do bot e do grupo cadastrado
+
+- `observeInbound` (guarda): a recebida que o bot atende (privado do motorista ativo e grupo cadastrado) é gravada com autor `driver`/`member`, sem esperar (`void`) e sem nunca lançar; falha vai a log `whatsapp_inbox.history.observe_failed` só com empresa e nome do erro. Quando o chat está assumido, só a `holdIfTakenOver` grava (sem duplicar).
+- `recordBotMessage`: a fala do bot no grupo é gravada com autor `bot` e o id do provedor, para deduplicar o eco do webhook (`fromMe`).
+- Testes: `test/whatsapp-inbox/takeover-guard.contract.ts` (guarda e trilho de grupo) e `test/whatsapp/evolution-webhook-use-case.contract.ts` (trilho privado: observada, não duplicada quando assumido, não-motorista não observado). Contratos da API: 15029 pass / 0 fail.
+- **Limitação conhecida:** só o remetente de resposta do grupo/privado (`groupReplies`) grava a fala do bot; o lembrete (spec 299) e os demais remetentes do bot ainda não são registrados.

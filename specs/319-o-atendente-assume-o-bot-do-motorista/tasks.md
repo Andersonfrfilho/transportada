@@ -9,7 +9,7 @@ Uma task por vez, PR para staging, merge com CI verde. Contratos vermelhos antes
   > 🤖 Modelo: `opus`
 - [x] **T3 🧠** Guarda nos dois trilhos (privado 308 e grupo): chat assumido não responde nem avança fluxo, só grava.
   > 🤖 Modelo: `opus`
-- [ ] **T4** Registrar no histórico as mensagens do motorista, do bot e do grupo cadastrado.
+- [x] **T4** Registrar no histórico as mensagens do motorista, do bot e do grupo cadastrado.
   > 🤖 Modelo: `sonnet`
 - [x] **T5** Rotas: listar chats, mensagens, assumir, devolver, ler; permissão e auditoria.
       Feito: `src/whatsapp-inbox/presentation/whatsapp-inbox.routes.ts` e `application/whatsapp-inbox.use-case.ts`;
