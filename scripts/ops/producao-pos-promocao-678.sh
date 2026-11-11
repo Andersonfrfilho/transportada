@@ -10,7 +10,8 @@ cd "$REPO"
 DIR="/home/miyazaki/Documents/personal/transportada/tmp/ops/saidas"
 mkdir -p "$DIR"
 OUT="$DIR/producao-pos-promocao-678-$(date +%Y-%m-%d-%H%M).txt"
-railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -s api -e production -- bun -e '
+echo "conectando ao api de produção (pode levar até 1 minuto)..." >&2
+timeout 180 railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -s api -e production -- bun -e '
 console.log("== DRIVER_REMINDERS_ENABLED no api (esperado: true) ==")
 console.log(process.env.DRIVER_REMINDERS_ENABLED === "true" ? "true" : "false (ausente ou outro valor)")
 const sql = new Bun.SQL(process.env.DATABASE_URL)
@@ -35,5 +36,6 @@ await run("interruptor do lembrete por empresa", sql`
 await run("chats do WhatsApp em modo atendente (esperado: 0 até alguém assumir)", sql`
   select count(*)::int as chats from whatsapp_chats where state = ${"operator"}`)
 await sql.close()
-' 2>&1 | grep -v -i "warning" > "$OUT" || true
+process.exit(0)
+' 2>&1 | grep --line-buffered -v -i "warning" | tee "$OUT" || true
 echo "$OUT"
