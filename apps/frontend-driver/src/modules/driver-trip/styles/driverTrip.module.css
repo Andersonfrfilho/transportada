@@ -76,6 +76,13 @@
   min-width: 0;
 }
 
+.tripCardHead button {
+  border-color: transparent;
+  /* O alvo de 44 px segue; a margem negativa o deixa invadir o respiro da faixa em vez de engordá-la. */
+  margin-block: calc(var(--space-2) * -1);
+  margin-inline: calc(var(--space-2) * -1) 0;
+}
+
 .tripCardIdText {
   display: grid;
   font-size: var(--field-font-size-compact);
