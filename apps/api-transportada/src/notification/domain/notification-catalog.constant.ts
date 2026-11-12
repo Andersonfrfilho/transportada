@@ -30,6 +30,16 @@ export const NOTIFICATION_PRODUCT_CHANNELS = [
 ] as const
 export type NotificationProductChannel = (typeof NOTIFICATION_PRODUCT_CHANNELS)[number]
 
+/**
+ * O push (Web Push do app do motorista) **não é um canal do produto** para a tela de preferências do painel
+ * (`NOTIFICATION_PRODUCT_CHANNELS` segue sendo caixa e e-mail; o painel não tem aparelho cadastrado): ele só
+ * existe nas entradas do catálogo que falam com o motorista, e só sai com `VAPID_*` configurado e um aparelho
+ * ativado no app. Sem isso a entrada continua entregando pela caixa de entrada, como antes.
+ */
+export type NotificationCatalogChannel =
+  | NotificationProductChannel
+  | typeof NOTIFICATION_CHANNEL.PUSH
+
 /** A chave é identidade de negócio do template: renomear quebra template já publicado no banco. */
 export const NOTIFICATION_TEMPLATE_KEY = {
   BILLING_INVOICE_DUE: 'billing.invoice-due',
@@ -97,11 +107,11 @@ export type NotificationCatalogTemplate = {
 
 export type NotificationCatalogEntry = {
   readonly category: NotificationCategory
-  readonly channels: readonly NotificationProductChannel[]
+  readonly channels: readonly NotificationCatalogChannel[]
   /** Os marcadores que o disparo tem de preencher; ausente, o texto renderiza um buraco. */
   readonly placeholders: readonly string[]
   readonly templateKey: NotificationTemplateKey
-  readonly templates: Partial<Record<NotificationProductChannel, NotificationCatalogTemplate>>
+  readonly templates: Partial<Record<NotificationCatalogChannel, NotificationCatalogTemplate>>
 }
 
 /**
@@ -115,24 +125,33 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
    */
   {
     category: NOTIFICATION_CATEGORY.TRIP,
-    channels: [NOTIFICATION_CHANNEL.INBOX],
+    channels: [NOTIFICATION_CHANNEL.INBOX, NOTIFICATION_CHANNEL.PUSH],
     placeholders: ['occurrenceLabel'],
     templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_CONVERSATION_MESSAGE,
     templates: {
       inbox: {
         body: 'A operação mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. Abra a ocorrência no app para ler e responder.',
       },
+      /** Push: título e uma linha, sem o corpo da mensagem (ele fica na conversa, atrás do login). */
+      push: {
+        body: 'Ocorrência {{occurrenceLabel}}. Abra o app para ler e responder.',
+        subject: 'Nova mensagem do escritório',
+      },
     },
   },
   /** Spec 263 T2.5: a mensagem da operação sobre uma nota ou uma viagem; o rótulo diz qual. */
   {
     category: NOTIFICATION_CATEGORY.TRIP,
-    channels: [NOTIFICATION_CHANNEL.INBOX],
+    channels: [NOTIFICATION_CHANNEL.INBOX, NOTIFICATION_CHANNEL.PUSH],
     placeholders: ['subjectLabel'],
     templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_SUBJECT_CONVERSATION_MESSAGE,
     templates: {
       inbox: {
         body: 'A operação mandou uma mensagem · {{subjectLabel}}. Abra Conversas no app para ler e responder.',
+      },
+      push: {
+        body: '{{subjectLabel}}. Abra Conversas no app para ler e responder.',
+        subject: 'Nova mensagem do escritório',
       },
     },
   },
@@ -270,12 +289,16 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
    */
   {
     category: NOTIFICATION_CATEGORY.TRIP,
-    channels: [NOTIFICATION_CHANNEL.INBOX],
+    channels: [NOTIFICATION_CHANNEL.INBOX, NOTIFICATION_CHANNEL.PUSH],
     placeholders: ['typeName'],
     templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_RESOLVED,
     templates: {
       inbox: {
         body: 'A ocorrência "{{typeName}}" foi resolvida pelo escritório. Abra a ocorrência no app para ver.',
+      },
+      push: {
+        body: '"{{typeName}}" foi resolvida pelo escritório. Toque para ver.',
+        subject: 'Ocorrência resolvida',
       },
     },
   },

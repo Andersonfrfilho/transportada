@@ -64,7 +64,7 @@ describe('contrato do catálogo de notificações', () => {
     for (const entry of NOTIFICATION_CATALOG) {
       expect(entry.channels.length).toBeGreaterThan(0)
       for (const channel of entry.channels) {
-        expect(NOTIFICATION_PRODUCT_CHANNELS).toContain(channel)
+        expect([...NOTIFICATION_PRODUCT_CHANNELS, NOTIFICATION_CHANNEL.PUSH]).toContain(channel)
         const template = entry.templates[channel]
         expect(template).toBeDefined()
         expect(template?.body.trim().length).toBeGreaterThan(0)
@@ -107,5 +107,32 @@ describe('contrato do catálogo de notificações', () => {
 
     const identities = seeds.map((seed) => `${seed.key}:${seed.channel}`)
     expect(new Set(identities).size).toBe(identities.length)
+  })
+
+  /**
+   * O push só fala com o motorista (o app dele é o único com aparelho cadastrado) e é curto: título e uma
+   * linha, sem texto digitado por pessoa nem o corpo da conversa. O painel não oferece o canal.
+   */
+  test('o push existe só nos três avisos ao motorista e traz título e texto curto', () => {
+    const withPush = NOTIFICATION_CATALOG.filter((entry) =>
+      entry.channels.includes(NOTIFICATION_CHANNEL.PUSH),
+    ).map((entry) => entry.templateKey)
+
+    expect(withPush.toSorted()).toEqual(
+      [
+        NOTIFICATION_TEMPLATE_KEY.TRIP_CONVERSATION_MESSAGE,
+        NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_RESOLVED,
+        NOTIFICATION_TEMPLATE_KEY.TRIP_SUBJECT_CONVERSATION_MESSAGE,
+      ].toSorted(),
+    )
+    for (const entry of NOTIFICATION_CATALOG) {
+      const push = entry.templates[NOTIFICATION_CHANNEL.PUSH]
+      if (push === undefined) continue
+      expect(entry.channels).toContain(NOTIFICATION_CHANNEL.INBOX)
+      expect(push.subject?.trim().length).toBeGreaterThan(0)
+      expect(push.subject?.length ?? 0).toBeLessThanOrEqual(40)
+      expect(push.body.length).toBeLessThanOrEqual(110)
+    }
+    expect([...NOTIFICATION_PRODUCT_CHANNELS]).not.toContain(NOTIFICATION_CHANNEL.PUSH)
   })
 })
