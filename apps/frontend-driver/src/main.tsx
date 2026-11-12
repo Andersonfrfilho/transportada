@@ -55,6 +55,7 @@ import { DriverForbiddenPage } from '@/modules/identity/DriverForbidden.page'
 import { checkDriverAuthorization } from '@/modules/identity/shared/driverAuthorization.service'
 import { isSmokeAuthBypassEnabled } from '@/modules/identity/shared/smokeAuthBypass.service'
 import { DriverNotificationsPage } from '@/modules/notification/pages/DriverNotifications.page'
+import { useDriverPushRegistration } from '@/modules/notification/hooks/useDriverPushRegistration.hook'
 import { getNotificationClient } from '@/modules/notification/shared/notificationClient.service'
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
 import { readBrowserColorTheme } from '@/modules/shared/browserColorTheme.service'
@@ -207,6 +208,7 @@ function DriverShell({ session }: DriverShellProps): ReactNode {
   const sessionExpiry = useSessionExpiry(session.canSync)
   useConversationOutboxFlush(session.canSync)
   useClientEmailOutboxFlush(session.canSync)
+  useDriverPushRegistration(session.canSync)
 
   useEffect(() => subscribeDriverRoute(setSection), [])
 

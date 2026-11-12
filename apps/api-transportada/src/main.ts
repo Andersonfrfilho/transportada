@@ -1686,6 +1686,7 @@ export function bootstrap(): Bun.Server<undefined> {
           ...(config.notificationWebhookSecret === undefined
             ? {}
             : { webhookSecret: config.notificationWebhookSecret }),
+          ...(config.vapid?.publicKey === undefined ? {} : { vapidPublicKey: config.vapid.publicKey }),
         }),
       },
       ...(userModule === undefined || config.companyId === undefined
