@@ -1,34 +1,24 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { resolveEtaShiftMilliseconds } from '../domain/eta-anchor.policy.js'
-import { resolveRecordedEventClock, type EventClockFields } from '../domain/occurred-at.policy.js'
+import type { EventClockFields } from '../domain/occurred-at.policy.js'
+import type { DriverFieldReportUnitOfWork, ReportedLocation } from './driver-field-report.port.js'
+import { deriveFieldAuthorship, type FieldTripLocator } from './field-trip-target.types.js'
 import {
-  assertInformedTimeWithinWindow,
-  FIELD_INFORMED_TIME,
-} from '../domain/field-delivery-timing.policy.js'
-import { TripStopNotReachableError } from '../domain/trip.error.js'
-import type {
-  DriverFieldReportTransactionPort,
-  DriverFieldReportUnitOfWork,
-  DriverStopReference,
-  ReportedLocation,
-} from './driver-field-report.port.js'
-import {
-  deriveFieldAuthorship,
-  toFieldTripTarget,
-  type FieldTripLocator,
-} from './field-trip-target.types.js'
-import { buildOfficeAuditEntry, type OfficeAuditRequest } from './trip-field-office-audit.port.js'
+  performSequencedStopArrival,
+  type SequencedStopArrivalResult,
+} from './recorded-together-steps.service.js'
+import type { OfficeAuditRequest } from './trip-field-office-audit.port.js'
 import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
 const ARRIVE_OPERATION = 'stop.arrive'
-const DISPATCHED_STATUS = 'dispatched'
 
 export type ReportStopArrivalInput = FieldTripLocator &
   EventClockFields & {
     readonly actorUserId: string
     readonly companyId: string
+    /** Spec 294 RF27: a tripulação confirmou gravar fora da ordem da parada; o escritório nunca manda. */
+    readonly confirmOutOfOrder?: boolean
     readonly idempotencyKey: string
     readonly location: ReportedLocation | null
     /** Quando a chegada aconteceu. O motorista manda agora; o escritório, a hora informada (A1). */
@@ -41,7 +31,7 @@ export type ReportStopArrivalInput = FieldTripLocator &
     readonly unitOfWork: DriverFieldReportUnitOfWork
   }
 
-export type ReportStopArrivalResult = { readonly id: string }
+export type ReportStopArrivalResult = SequencedStopArrivalResult
 
 /**
  * Spec 057, P1 "cheguei": um toque grava `arrived_at`, carimba a coordenada **se houver**, e leva a
@@ -54,7 +44,6 @@ export async function reportStopArrival(
   input: ReportStopArrivalInput,
 ): Promise<ReportStopArrivalResult> {
   const authorship = deriveFieldAuthorship(input)
-  const isOffice = input.target !== undefined
 
   return input.unitOfWork.execute(async (transaction) =>
     withFieldReport({
@@ -66,116 +55,17 @@ export async function reportStopArrival(
         operation: resolveFieldReportOperation({ locator: input, operation: ARRIVE_OPERATION }),
         transaction,
       },
-      perform: async () => {
-        const stop = await transaction.findStopForDriver({
+      perform: () => performSequencedStopArrival({ authorship, input, transaction }),
+      recall: async (eventId) => {
+        const event = await transaction.findEventById({ companyId: input.companyId, eventId })
+        if (event === null) return null
+        const recordedTogether = await transaction.findRecordedTogetherSteps({
           companyId: input.companyId,
-          stopId: input.stopId,
-          target: toFieldTripTarget(input),
+          eventId,
         })
-        if (stop === null) throw new TripStopNotReachableError()
 
-        if (isOffice) await assertArrivalWithinWindow({ input, stop, transaction })
-
-        // Chegar de novo na mesma parada não reescreve a hora: a primeira é a que aconteceu.
-        if (stop.arrivedAt === null) {
-          /**
-           * Spec 206 D7 (M4): a chegada zera "a caminho" de toda a viagem no canal do motorista —
-           * quem chegou não está mais a caminho de outra parada. A baixa do escritório é
-           * retroativa e não diz onde ele está agora: zera só a própria parada.
-           */
-          await transaction.markStopArrived({
-            at: input.now,
-            clearEnRoute: isOffice ? 'stop' : 'trip',
-            companyId: input.companyId,
-            stopId: input.stopId,
-            tripId: stop.tripId,
-          })
-          /**
-           * Spec 156 T15 A1: a baixa retroativa do escritório não é chegada ao vivo — deslocar as
-           * paradas pendentes pela diferença entre o plano e a hora digitada dias depois inventaria
-           * um atraso que ninguém viveu.
-           */
-          if (!isOffice) await shiftPendingStopsByDelay({ input, stop, transaction })
-        }
-        if (stop.tripStatus === DISPATCHED_STATUS) {
-          await transaction.markTripInTransit({
-            actorUserId: input.actorUserId,
-            at: input.now,
-            authorship,
-            companyId: input.companyId,
-            tripId: stop.tripId,
-          })
-        }
-
-        const audit = buildOfficeAuditEntry({
-          actorUserId: input.actorUserId,
-          audit: input.officeAudit,
-          companyId: input.companyId,
-          details: { stopId: input.stopId },
-          locator: input,
-        })
-        if (audit !== undefined) await transaction.recordOfficeAudit(audit)
-
-        return transaction.recordEvent({
-          actorUserId: input.actorUserId,
-          authorship,
-          companyId: input.companyId,
-          documentId: null,
-          kind: 'arrived',
-          location: input.location,
-          ...(isOffice
-            ? { occurredAt: input.now, recordedAt: input.recordedAt ?? new Date() }
-            : resolveRecordedEventClock({
-                clockOffsetMs: input.clockOffsetMs,
-                hasLocation: input.location !== null,
-                receivedAt: input.now,
-                tappedAt: input.tappedAt,
-              })),
-          stopId: input.stopId,
-        })
+        return { id: event.id, recordedTogether }
       },
-      recall: (eventId) => transaction.findEventById({ companyId: input.companyId, eventId }),
     }),
   )
-}
-
-type ArrivalStepParams = {
-  readonly input: ReportStopArrivalInput
-  readonly stop: DriverStopReference
-  readonly transaction: DriverFieldReportTransactionPort
-}
-
-/** ADR-0067 §3, spec 156 T15 A1: a mesma janela de "Entregue em", com os códigos da chegada. */
-async function assertArrivalWithinWindow(params: ArrivalStepParams): Promise<void> {
-  assertInformedTimeWithinWindow({
-    informedAt: params.input.now,
-    kind: FIELD_INFORMED_TIME.arrived,
-    now: params.input.recordedAt ?? new Date(),
-    windowStart: await params.transaction.findInformedTimeWindowStart({
-      companyId: params.input.companyId,
-      tripId: params.stop.tripId,
-    }),
-  })
-}
-
-/**
- * Spec 109 D3: **a entrega que demorou empurra o resto do dia.** O atraso é medido contra o que o
- * plano dizia para esta parada, e as paradas que ainda não aconteceram andam junto.
- *
- * ⚠️ Chamada só dentro do `arrivedAt === null`, e é o que impede o deslocamento duplo: o segundo
- * "cheguei" da mesma parada não é chegada nova, é a rede do armazém tentando de novo.
- */
-async function shiftPendingStopsByDelay(params: ArrivalStepParams): Promise<void> {
-  const shiftMilliseconds = resolveEtaShiftMilliseconds({
-    plannedAt: params.stop.estimatedArrivalAt,
-    reportedAt: params.input.now,
-  })
-  if (shiftMilliseconds === 0) return
-
-  await params.transaction.shiftPendingStops({
-    at: params.input.now,
-    companyId: params.input.companyId,
-    shiftMilliseconds,
-    tripId: params.stop.tripId,
-  })
 }

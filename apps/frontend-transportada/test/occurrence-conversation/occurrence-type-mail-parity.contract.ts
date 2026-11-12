@@ -94,7 +94,7 @@ describe('as variáveis do e-mail à contratante no editor do tipo (spec 271)', 
     }
     expect(Object.keys(pt).sort()).toEqual([...OCCURRENCE_MAIL_VARIABLE_NAMES].sort())
     expect(Object.keys(en).sort()).toEqual([...OCCURRENCE_MAIL_VARIABLE_NAMES].sort())
-    expect<number>(OCCURRENCE_MAIL_VARIABLE_NAMES.length).toBe(17 + 13)
+    expect<number>(OCCURRENCE_MAIL_VARIABLE_NAMES.length).toBe(17 + 13 + 2)
   })
 
   test('spec 272: o exemplo das variáveis de HTML do sistema é texto fixo, sem caractere de marcação', () => {

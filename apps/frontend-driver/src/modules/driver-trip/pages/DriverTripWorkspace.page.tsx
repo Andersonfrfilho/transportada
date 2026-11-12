@@ -31,6 +31,19 @@ import { DriverStopCard, type DriverProofAttachment } from '../components/Driver
 import { DriverTripAutoSwitchNotice } from '../components/DriverTripAutoSwitchNotice.component'
 import { DriverTripSyncBanner } from '../components/DriverTripSyncBanner.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
+import { isNextStopStillPending } from '../shared/fieldReportNotice.service'
+import { DriverCanhotoDuplicateNotice } from '../components/DriverCanhotoDuplicateNotice.component'
+import { DriverCanhotoReplaceDialog } from '../components/DriverCanhotoReplaceDialog.component'
+import { DriverOutOfOrderDialog } from '../components/DriverOutOfOrderDialog.component'
+import { resolveCanhotoReplacePrompt } from '../shared/canhotoReplacePrompt.service'
+import { resolveOutOfOrderPrompt } from '../shared/outOfOrderPrompt.service'
+import { resolveRejectionCauseCode } from '../shared/rejectionCauseLabel.service'
+import {
+  formatDocumentNumbers,
+  listUnloadedDocumentNumbers,
+  UNLOADED_DOCUMENTS_CODE,
+} from '../shared/unloadedDocuments.service'
+import { DriverFieldReportNotice } from '../components/DriverFieldReportNotice.component'
 import { DriverTripReassignedNotice } from '../components/DriverTripReassignedNotice.component'
 import { DriverTripSelector } from '../components/DriverTripSelector.component'
 import { DriverStalePendingNotice } from '../components/DriverStalePendingNotice.component'
@@ -71,6 +84,7 @@ import {
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
+  DriverFieldReport,
   DriverOccurrenceTypesState,
   DriverReportedLocation,
   DriverReturnReason,
@@ -92,6 +106,7 @@ import {
 } from '../shared/occurrenceTypesCache.service'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.service'
+import { DriverVehiclePlate } from '../components/DriverVehiclePlate.component'
 import { formatShortTripId, formatTripCreatedAt } from '../shared/tripIdentifier.service'
 import {
   applyLocalDeliveries,
@@ -223,6 +238,8 @@ export function DriverTripWorkspacePage() {
   }
 
   const snapshot = driverTrip.snapshot
+  const outOfOrderPrompt = resolveOutOfOrderPrompt(driverTrip.queueView)
+  const canhotoReplacePrompt = resolveCanhotoReplacePrompt(driverTrip.queueView)
   /** RF12: com duas viagens ativas, a da tela é a escolhida — nunca mais `trips[0]` às cegas. */
   const {
     autoSwitchedTripId,
@@ -418,6 +435,7 @@ export function DriverTripWorkspacePage() {
           items={driverTrip.queueView}
           lastSyncedAtMs={driverTrip.lastSyncedAtMs}
           onBack={() => window.history.back()}
+          onCancel={(idempotencyKey) => void driverTrip.cancelQueuedOccurrence(idempotencyKey)}
           onDiscard={(idempotencyKey) => void driverTrip.discardRejected(idempotencyKey)}
           onFocusStop={focusStop}
           onSendAll={() => driverTrip.sendAllNow()}
@@ -500,6 +518,7 @@ export function DriverTripWorkspacePage() {
           ownPendingCount={driverTrip.ownPendingCount}
           queuedCount={driverTrip.queuedCount}
           snapshot={snapshot}
+          stopViewMode={stopViewMode}
           trip={trip}
           onOpenPendingProofs={() => navigateToDriverSection('pending-proofs')}
           onOpenQueue={() => navigateToDriverSection('queue')}
@@ -688,6 +707,37 @@ export function DriverTripWorkspacePage() {
     )
   }
 
+  /**
+   * Spec 317: a cobrança no recebimento entra na fila como **um** item, com as fotos por vaga. Foto de vaga obrigatória
+   * nunca é derrubada pela fila cheia: ou entra tudo, ou o toque inteiro volta e a tela diz.
+   */
+  async function reportReceivingCharge(
+    input: Parameters<OccurrenceRegistrationHandlers['reportReceivingCharge']>[0],
+  ): Promise<void> {
+    setOccurrencePhotoDropped(false)
+    setAttachmentLimit(undefined)
+    const report: DriverFieldReport = {
+      description: input.description,
+      idempotencyKey: createIdempotencyKey(),
+      kind: 'stopOccurrenceCharge',
+      location: null,
+      occurrenceTypeId: input.occurrenceTypeId,
+      photos: input.photos,
+      receivingCharge: input.receivingCharge,
+      stopId: input.stopId,
+    }
+    const outcome = await driverTrip.reportAllOrNothing([report])
+    if (outcome === 'count-limit') setEventLimitReached(true)
+    if (outcome === 'size-limit') setAttachmentLimit('size-limit')
+    if (outcome !== 'queued') return
+    setStopOccurrenceKeyByStopId((current) =>
+      new Map(current).set(input.stopId, {
+        at: new Date().toISOString(),
+        key: report.idempotencyKey,
+      }),
+    )
+  }
+
   /** Spec 218 D3 + 226: a ocorrência de nota — o item da 179, que sobe a foto (se há) antes do registro. */
   async function reportDocumentOccurrence(
     input: Parameters<OccurrenceRegistrationHandlers['enqueueDocumentOccurrence']>[0],
@@ -771,6 +821,13 @@ export function DriverTripWorkspacePage() {
   )
   const isDispatchQueued = dispatchItems.some((item) => item.status.state !== 'rejected')
   const isDispatchRejected = dispatchItems.some((item) => item.status.state === 'rejected')
+  /** A recusa por nota não carregada não se resolve tocando de novo: só o escritório destrava. */
+  const isDispatchRejectedByUnloaded = dispatchItems.some(
+    (item) =>
+      item.status.state === 'rejected' &&
+      resolveRejectionCauseCode(item.status.cause) === UNLOADED_DOCUMENTS_CODE,
+  )
+  const unloadedDocumentNumbers = trip === undefined ? [] : listUnloadedDocumentNumbers(trip.stops)
   const dispatchState =
     trip === undefined ? undefined : resolveDispatchState({ isDispatchQueued, trip })
   const isTripAwaitingDispatch = dispatchState?.isAwaiting ?? false
@@ -791,7 +848,8 @@ export function DriverTripWorkspacePage() {
           <h1>{t('title')}</h1>
           {trip === undefined ? null : (
             <p className={styles.vehicle}>
-              {t('vehicle', { plate: trip.vehiclePlate })}
+              <span className={styles.tripCodeLabelFirst}>{t('plate.label')}</span>
+              <DriverVehiclePlate plate={trip.vehiclePlate} />
               {/*
                * Pedido do usuário (01/10): o identificador curto da viagem, o MESMO que a listagem
                * do escritório mostra — é por ele que motorista e escritório falam da mesma viagem
@@ -906,6 +964,14 @@ export function DriverTripWorkspacePage() {
         {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
         {dispatchState?.canDispatch === true && trip !== undefined ? (
           <div className={styles.actions}>
+            {unloadedDocumentNumbers.length > 0 ? (
+              <p className={styles.alert} role="status">
+                {t('dispatch.unloaded', {
+                  count: unloadedDocumentNumbers.length,
+                  notes: formatDocumentNumbers(unloadedDocumentNumbers),
+                })}
+              </p>
+            ) : null}
             <Button onClick={() => dispatchTrip(trip.id)} type="button">
               <Icon name="check" />
               {t('dispatch.start')}
@@ -922,7 +988,7 @@ export function DriverTripWorkspacePage() {
         ) : null}
         {isDispatchRejected ? (
           <p className={styles.alert} role="alert">
-            {t('dispatch.failed')}
+            {t(isDispatchRejectedByUnloaded ? 'dispatch.failedUnloaded' : 'dispatch.failed')}
           </p>
         ) : null}
 
@@ -960,6 +1026,43 @@ export function DriverTripWorkspacePage() {
             onDiscard={() => void driverTrip.discardForeignPending()}
           />
         ) : null}
+
+        {/* Spec 294 RF27: a API recusou o toque por fora de ordem; só grava com a confirmação */}
+        {outOfOrderPrompt === undefined ? null : (
+          <DriverOutOfOrderDialog
+            onConfirm={(key) => void driverTrip.confirmOutOfOrder(key)}
+            onDiscard={(key) => void driverTrip.discardRejected(key)}
+            prompt={outOfOrderPrompt}
+          />
+        )}
+
+        {/* Spec 294 RF26: a nota já tem outro canhoto; trocar pede confirmação */}
+        {canhotoReplacePrompt === undefined ? null : (
+          <DriverCanhotoReplaceDialog
+            onKeep={(key) => void driverTrip.keepCurrentCanhoto(key)}
+            onReplace={(key) => void driverTrip.confirmCanhotoReplace(key)}
+            prompt={canhotoReplacePrompt}
+          />
+        )}
+
+        {driverTrip.duplicateCanhotos.map((notice) => (
+          <DriverCanhotoDuplicateNotice
+            key={notice.documentId}
+            notice={notice}
+            onDismiss={() => driverTrip.dismissDuplicateCanhoto(notice.documentId)}
+          />
+        ))}
+
+        {/* Spec 294 RF5: a etapa que a API marcou junto da baixa */}
+        {driverTrip.fieldNotices.map((notice) => (
+          <DriverFieldReportNotice
+            isNextStopPending={isNextStopStillPending(snapshot?.trips ?? [], notice.nextStop?.id)}
+            key={notice.key}
+            notice={notice}
+            onDismiss={() => driverTrip.dismissFieldNotice(notice.key)}
+            onStartRoute={departStop}
+          />
+        ))}
 
         {/* Spec 217 (RF8, D6): a viagem que estava aqui e sumiu — reatribuição ou volta a draft */}
         {driverTrip.hasReassignedTripNotice ? (
@@ -1203,12 +1306,14 @@ export function DriverTripWorkspacePage() {
                     onFocusStop={focusStop}
                     onHeaderRef={registerStopHeaderRef}
                     onProof={handleProof}
+                    onSendCanhotoPickup={driverTrip.sendCanhotoPickupPhoto}
                     onProofFieldsUpdate={handleProofFieldsUpdate}
                     onRemoveProof={handleRemoveProof}
                     occurrenceTypes={occurrenceTypes}
                     onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
                     onToggle={() => stopExpansion.toggle(stop.id)}
                     onQueuedDocumentOccurrence={(input) => void reportDocumentOccurrence(input)}
+                    onReceivingCharge={(input) => void reportReceivingCharge(input)}
                     onStopOccurrence={(input) => void reportStopOccurrence(input)}
                     notDeliveredKeyByDocumentId={notDeliveredKeyByDocumentId}
                     notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}

@@ -1,28 +1,23 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useRef, useState } from 'react'
 
-import { isCameraCapable } from '@/components/ui/barcodeScanner.service'
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 
-import type { FindNfeDocumentByAccessKeyInput, ScannedNfeDocument } from '../shared/trip.types'
 import { resolveTripFeedbackKey } from '../shared/tripFeedback.service'
 import type { TripDocumentLinkDraft, TripDocumentLinkMode } from '../shared/tripForm.service'
 import { resolveTripLinkReference } from '../shared/tripForm.service'
 import { isTypedNoteNumber, resolveTypedNote } from '../shared/tripNoteLookup.service'
 import type { TripScanQueue } from '../shared/tripScanQueue.service'
-import { acceptScannedText, markScanEntry } from '../shared/tripScanQueue.service'
+import { markScanEntry } from '../shared/tripScanQueue.service'
 
 const EMPTY_LINK_DRAFT: TripDocumentLinkDraft = { mode: 'nfe', value: '' }
 const EMPTY_SCAN_QUEUE: TripScanQueue = []
 
-export type TripLinkIssue = 'noteNumberNotFound' | 'requestFailed' | 'scannedDocumentNotFound'
+export type TripLinkIssue = 'noteNumberNotFound' | 'requestFailed'
 
 export type TripDocumentLinkFormInput = Readonly<{
   /** As notas livres da empresa: é sobre elas que o número digitado é resolvido. */
   availableDocuments?: readonly NfeDocumentListItem[]
-  findNfeDocumentByAccessKey: (
-    input: FindNfeDocumentByAccessKeyInput,
-  ) => Promise<null | ScannedNfeDocument>
   linkScannedDocument: (input: Readonly<{ documentId: string }>) => Promise<unknown>
 }>
 
@@ -31,18 +26,16 @@ export type TripDocumentLinkFormController = ReturnType<typeof useTripDocumentLi
 export function useTripDocumentLinkForm(input: TripDocumentLinkFormInput) {
   const [draft, setDraft] = useState<TripDocumentLinkDraft>(EMPTY_LINK_DRAFT)
   const [issue, setIssue] = useState<TripLinkIssue | undefined>(undefined)
-  const [isScannerOpen, setIsScannerOpen] = useState(false)
-  const [isResolving, setIsResolving] = useState(false)
   /** Mais de uma nota livre com o número digitado: a pessoa escolhe, nunca adivinhamos. */
   const [candidates, setCandidates] = useState<readonly NfeDocumentListItem[]>([])
   const [scanEntries, setScanEntries] = useState<TripScanQueue>(EMPTY_SCAN_QUEUE)
-  /** A câmera não aparece no meio da sessão: reler `navigator` a cada render não diria nada novo. */
-  const [canScan] = useState(() => isCameraCapable(globalThis.navigator))
   /**
    * Duas leituras do mesmo quadro veem o mesmo estado renderizado, e o veredito de uma nota chega
    * enquanto outra ainda resolve: a fila autoritativa é a referência, não o instantâneo do render.
    */
   const queueRef = useRef<TripScanQueue>(EMPTY_SCAN_QUEUE)
+  /** As notas que a rota de vínculo aceitou: saem da lista de encontradas, que só oferece o que falta. */
+  const [linkedDocumentIds, setLinkedDocumentIds] = useState<readonly string[]>([])
 
   const reference = resolveTripLinkReference(draft)
 
@@ -74,30 +67,6 @@ export function useTripDocumentLinkForm(input: TripDocumentLinkFormInput) {
     )
   }
 
-  /** A recusa fica na linha da nota: derrubar a sequência obrigaria a reler o palete inteiro. */
-  async function linkScannedKey(accessKey: string): Promise<void> {
-    try {
-      const document = await input.findNfeDocumentByAccessKey({ accessKey })
-      if (document === null) {
-        refuseScanEntry(accessKey, 'scannedDocumentNotFound')
-        return
-      }
-      updateScanQueue(markScanEntry({ accessKey, queue: queueRef.current, status: 'linking' }))
-      await input.linkScannedDocument({ documentId: document.id })
-      updateScanQueue(markScanEntry({ accessKey, queue: queueRef.current, status: 'linked' }))
-    } catch (error) {
-      refuseScanEntry(accessKey, resolveTripFeedbackKey(error) ?? 'requestFailed')
-    }
-  }
-
-  /** A câmera fica aberta entre leituras: confirmar nota a nota mata o ritmo de quem separa. */
-  function acceptScan(text: string): void {
-    const acceptance = acceptScannedText({ queue: queueRef.current, text })
-    if (acceptance.accessKey === undefined) return
-    updateScanQueue(acceptance.queue)
-    void linkScannedKey(acceptance.accessKey)
-  }
-
   function clearScanEntries(): void {
     updateScanQueue(EMPTY_SCAN_QUEUE)
   }
@@ -123,10 +92,14 @@ export function useTripDocumentLinkForm(input: TripDocumentLinkFormInput) {
     documents: readonly Readonly<{ accessKey: string; id: string }>[],
   ): Promise<void> {
     const fresh = documents.filter(
-      (document) => !queueRef.current.some((entry) => entry.accessKey === document.accessKey),
+      (document) =>
+        !queueRef.current.some(
+          (entry) => entry.accessKey === document.accessKey && entry.status !== 'refused',
+        ),
     )
+    const freshKeys = new Set(fresh.map((document) => document.accessKey))
     updateScanQueue([
-      ...queueRef.current,
+      ...queueRef.current.filter((entry) => !freshKeys.has(entry.accessKey)),
       ...fresh.map((document) => ({ accessKey: document.accessKey, status: 'linking' as const })),
     ])
     for (const document of fresh) {
@@ -139,47 +112,29 @@ export function useTripDocumentLinkForm(input: TripDocumentLinkFormInput) {
             status: 'linked',
           }),
         )
+        setLinkedDocumentIds((current) => [...current, document.id])
       } catch (error) {
         refuseScanEntry(document.accessKey, resolveTripFeedbackKey(error) ?? 'requestFailed')
       }
     }
   }
 
-  /** A rota de vínculo só conhece o identificador: a chave vira id antes de sair, ou vira recusa. */
-  async function resolveDocumentId(): Promise<string | undefined> {
-    if (reference === undefined) return undefined
-    if (reference.kind === 'identifier') {
-      if (draft.mode === 'nfe' && isTypedNoteNumber(reference.value)) return resolveNoteNumber()
-      return reference.value
+  /** A chave não passa por aqui: ela vai à lista de notas encontradas, onde a pessoa acrescenta. */
+  function resolveDocumentId(): Promise<string | undefined> {
+    if (reference === undefined || reference.kind === 'accessKey') return Promise.resolve(undefined)
+    if (draft.mode === 'nfe' && isTypedNoteNumber(reference.value)) {
+      return Promise.resolve(resolveNoteNumber())
     }
-    setIsResolving(true)
-    try {
-      const document = await input.findNfeDocumentByAccessKey({ accessKey: reference.value })
-      if (document === null) {
-        setIssue('scannedDocumentNotFound')
-        return undefined
-      }
-      return document.id
-    } catch {
-      setIssue('requestFailed')
-      return undefined
-    } finally {
-      setIsResolving(false)
-    }
+    return Promise.resolve(reference.value)
   }
 
   return {
-    acceptScan,
     candidates,
-    canScan,
     clearScanEntries,
-    closeScanner: () => setIsScannerOpen(false),
     draft,
-    isResolving,
-    isScannerOpen,
     issue,
     linkDocuments,
-    openScanner: () => setIsScannerOpen(true),
+    linkedDocumentIds,
     reference,
     reset,
     resolveDocumentId,

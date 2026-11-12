@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { StopOrderErrorCode, StopOrderSource } from '../../shared/trip-stop-order.constant.js'
 import type { HolidayWarning } from '../../business-calendar/domain/holiday-warning.policy.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { MdfeBodyType } from '../../database/fleet.schema.js'
@@ -146,6 +147,8 @@ export type TripDocumentDetail = TripDocument & {
    * Alimenta o diálogo "leva todas" (RF9), que conta só as notas que o botão vai carregar.
    */
   readonly leavesBehindOnDispatch: boolean
+  /** Spec 321 T7 (D4d): a nota tem canhoto retido pelo cliente (coleta aberta). Derivado na leitura, nunca gravado. */
+  readonly canhotoRetained: boolean
   /**
    * Spec 223 RF4: derivado na leitura, nunca gravado — a nota foi baixada, o evento de entrega não
    * tem foto e a configuração resolvida do destinatário exige canhoto (foto ou assinatura).
@@ -367,6 +370,10 @@ export type TripDetail = Omit<Trip, 'occupancy'> & {
   readonly stops: readonly TripStopDetail[]
   /** Feature 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */
   readonly trailer: TripTrailerView | null
+  /** Spec 323 D4: por que `stopOrderSource` está `unordered` quando o ordenador tentou e falhou; senão `null`. */
+  readonly stopOrderErrorCode?: StopOrderErrorCode | null
+  /** Spec 323 D4: quem decidiu a ordem das paradas — o ordenador, o despachante ou ninguém ainda. */
+  readonly stopOrderSource?: StopOrderSource
 }
 
 export type CreateTripRecord = {
@@ -408,6 +415,12 @@ export type TripFilters = {
 export type TripPage = {
   readonly items: readonly Trip[]
   readonly nextCursor: string | null
+  /** Cursor para voltar uma página (`direction=backward`); `null` na primeira página. */
+  readonly previousCursor?: string | null
+  /** Quantas viagens (já com os filtros) vêm antes desta página — a posição, para numerar a página. */
+  readonly offset?: number
+  /** Quantas viagens o filtro alcança, sem cursor — o total de páginas sai daqui. */
+  readonly total?: number
 }
 
 export type TripRepositoryPort = {
@@ -477,8 +490,12 @@ export type TripRepositoryPort = {
   list(input: {
     readonly companyId: string
     readonly cursor: string | null
+    /** `backward` lê as viagens mais novas que o cursor (a página anterior). */
+    readonly direction?: 'backward' | 'forward'
     readonly filters?: TripFilters
     readonly limit: number
+    /** Salto de página: pula tantas viagens a partir da mais nova. Exclui `cursor`. */
+    readonly offset?: number
   }): Promise<TripPage>
   listDrivers(input: {
     readonly companyId: string

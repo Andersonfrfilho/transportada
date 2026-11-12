@@ -34,6 +34,8 @@ export type OccurrenceMailValues = {
   /** Spec 271: o nome do tipo de ocorrência (`{{tipoOcorrencia}}`); ausente imprime vazio. */
   readonly occurrenceTypeName?: string | undefined
   readonly occurredOn: string
+  /** A nova data de vencimento pedida (`AAAA-MM-DD`); ausente é não informada. */
+  readonly requestedDueDate?: string | undefined
   readonly recipientName: string
   /** O número do documento do cliente (a NFD) que quem registra digitou. */
   readonly referenceNumber?: string | undefined

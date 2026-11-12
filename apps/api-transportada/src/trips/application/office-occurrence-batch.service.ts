@@ -73,6 +73,13 @@ export async function performBatch(context: BatchContext): Promise<BatchOutcome>
 
   const attachmentObjectId = await persistBatchAttachment(context)
   const items = await recordItems({ attachmentObjectId, context, occurrenceType })
+  await context.transaction.onStopEvent({
+    channel: context.authorship.channel,
+    companyId: context.companyId,
+    kind: 'occurrence',
+    occurredAt: new Date(),
+    target: { documentIds: context.documentIds },
+  })
   await context.transaction.recordOfficeAudit({
     ...context.officeAudit,
     actorUserId: context.actorUserId,
@@ -147,6 +154,7 @@ async function recordItem(input: {
 }): Promise<BatchItemOutcome> {
   const { attachmentObjectId, context, documentId, occurrenceType } = input
   let createdNow = false
+  let existingOccurrenceId: null | string = null
   const saved = await withFieldReport<{ readonly id: string }>({
     guard: {
       actorUserId: context.actorUserId,
@@ -161,6 +169,12 @@ async function recordItem(input: {
     },
     perform: async () => {
       if (occurrenceType === null) throw new TripDocumentNotReachableError()
+      const existing = await context.transaction.findDriverLockingOccurrence({
+        companyId: context.companyId,
+        documentId,
+        occurrenceTypeId: occurrenceType.id,
+      })
+      existingOccurrenceId = existing?.id ?? null
       const occurrence = await context.transaction.saveDocumentOccurrence({
         actorUserId: context.actorUserId,
         attachmentObjectId,
@@ -189,7 +203,7 @@ async function recordItem(input: {
       return recalled === null ? null : { id: recalled.id }
     },
   })
-  return { createdNow, documentId, id: saved.id }
+  return { createdNow, documentId, existingOccurrenceId, id: saved.id }
 }
 
 function firstItemId(items: readonly BatchItemOutcome[]): string {

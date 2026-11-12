@@ -7,6 +7,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { SCHEDULED_JOBS } from '@/modules/shared/jobCatalog.constant'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import { SentMessagesCard } from '../components/SentMessagesCard.component'
 import { useOperationsDashboard } from '../hooks/useOperationsDashboard.hook'
 import type {
   AuditEvent,
@@ -183,6 +184,7 @@ export function OperationsDashboardPage() {
         </SkeletonGroup>
       ) : (
         <>
+          {workspace.controller.canReadOperations ? <SentMessagesCard /> : null}
           <section className={styles.filters}>
             <label>
               <span>{t('filters.module')}</span>

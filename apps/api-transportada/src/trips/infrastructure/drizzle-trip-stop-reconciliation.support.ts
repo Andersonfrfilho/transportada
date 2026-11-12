@@ -4,15 +4,23 @@
 import { and, eq } from 'drizzle-orm'
 
 import { tripDocuments, tripStops } from '../../database/trip.schema.js'
+import { logStopRemindersRemovedWithStop } from '../../driver-stop-reminders/infrastructure/log-stop-reminders-removed-with-stop.persistence.js'
+import type { ApiLogger } from '../../shared/api.types.js'
 import type { TripStopReconciliationPort } from '../application/reconcile-trip-stops.use-case.js'
+import { listStopsWithScheduledCanhotoPickup } from './canhoto-pickup.query.js'
 import type { TripTransaction } from './trip-queryable.type.js'
 
 /** Implementação real de `TripStopReconciliationPort` sobre uma transação — compartilhada por todo
  * caminho que reconcilia parada (vínculo/desvínculo de nota, T007; desvio de endereço, T010b). */
 export function createTripStopReconciliationPort(
   transaction: TripTransaction,
+  logger?: ApiLogger,
 ): TripStopReconciliationPort {
   return {
+    /**
+     * Spec 321 T3: a coleta de canhoto encaixada também ocupa a parada — a parada só de coleta não tem nota, e a
+     * nota que sai de uma parada com coleta não pode apagá-la (a FK da coleta é `restrict`).
+     */
     async countLiveDocumentsAtStop(input) {
       const rows = await transaction
         .select({ id: tripDocuments.id })
@@ -20,7 +28,11 @@ export function createTripStopReconciliationPort(
         .where(
           and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.stopId, input.stopId)),
         )
-      return rows.length
+      const withPickup = await listStopsWithScheduledCanhotoPickup(transaction, {
+        companyId: input.companyId,
+        stopIds: [input.stopId],
+      })
+      return rows.length + (withPickup.has(input.stopId) ? 1 : 0)
     },
     async createStop(input) {
       const [created] = await transaction
@@ -37,6 +49,7 @@ export function createTripStopReconciliationPort(
       return { addressKey: created.addressKey, id: created.id, sequence: created.sequence }
     },
     async deleteStop(input) {
+      await logStopRemindersRemovedWithStop(transaction, { ...input, logger })
       await transaction
         .delete(tripStops)
         .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, input.stopId)))

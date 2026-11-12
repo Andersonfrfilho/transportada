@@ -104,3 +104,14 @@ export class WhatsAppEvolutionWebhookUrlMissingError extends ApiError {
     })
   }
 }
+
+/** Sem `EVOLUTION_BASE_URL` e `EVOLUTION_GLOBAL_API_KEY` neste ambiente a API não cria instância: a tela cai na digitação manual. */
+export class WhatsAppEvolutionProvisioningUnavailableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'WHATSAPP_EVOLUTION_PROVISIONING_UNAVAILABLE',
+      message: 'This environment cannot create Evolution instances',
+      status: 409,
+    })
+  }
+}

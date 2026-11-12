@@ -14,7 +14,10 @@
     "businessCalendar": "Calendar",
     "audioTranscription": "Audio transcription",
     "occurrenceWatchers": "Occurrence owners",
-    "whatsapp": "WhatsApp"
+    "whatsapp": "WhatsApp",
+    "automations": "Automations",
+    "driverReminders": "Driver reminders",
+    "salespeople": "Salespeople"
   },
   "entryKinds": {
     "title": "Entry kinds",
@@ -333,6 +336,18 @@
       "general": "General e-mail"
     },
     "clientChannel": "Client channel",
+    "asksClientContact": "Ask the driver for the client contact",
+    "asksClientContactHint": "When the invoice client has no saved contact for this channel, the driver app asks for the WhatsApp number or e-mail when the occurrence is opened, so the driver does not have to send it in the chat. A client can have several numbers and e-mails.",
+    "blocksContractorNotice": "Never notify the contractor",
+    "blocksContractorNoticeHint": "This occurrence sends no e-mail, chat or group message to the contractor, on any channel. The internal team is still notified.",
+    "createsCanhotoPickup": "Creates a receipt pickup",
+    "createsCanhotoPickupHint": "When registered, the invoice stays delivered and a pending receipt pickup is created for the office to schedule on another driver's trip.",
+    "countsCargoOnPickupTrip": "Count weight and size on the pickup trip",
+    "countsCargoOnPickupTripHint": "In this phase the pickup trip does not count the invoice's weight or size, and the value cannot be changed.",
+    "asksNewDueDate": "Ask the driver for the new due date",
+    "asksNewDueDateHint": "The driver app shows the optional \"New due date\" field when the occurrence is opened (for example, when the client asks to extend a bill). When filled in, the date goes in the e-mail to the contractor; when blank, the e-mail goes out as usual.",
+    "showClientChargeSealToDriver": "Show the driver the possible-charge notice",
+    "showClientChargeSealToDriverHint": "On the stop card, the driver sees a read-only notice when the invoice client was flagged as a possible charge on delivery. When off, only the office sees the seal. Only the office clears the flag.",
     "clientChannelHint": "How the occurrence reaches the client. E-mail is the default and follows the e-mail type next to it. WhatsApp uses the client's number and, if it fails, the saved e-mail. Off sends nothing to the client.",
     "clientChannelOptions": {
       "off": "Off",
@@ -346,6 +361,10 @@
       "manual": "Manual",
       "automatic": "Automatic"
     },
+    "driverLockMinutes": "Lock the driver for",
+    "driverLockMinutesHint": "Once an occurrence of this type exists on the invoice (from the driver or the office, open or resolved), the driver cannot register another within this period: if the network returns and the phone resends, nothing is duplicated. The office is never locked and sees a notice.",
+    "driverLockMinutesOff": "No lock",
+    "driverLockMinutesOption": "{{count}} minutes ({{hours}} h)",
     "duplicateRequestPolicy": "Repeated request on the same invoice",
     "duplicateRequestPolicyOptions": {
       "while_request_open": "Block while the request is open",
@@ -426,14 +445,16 @@
       "title": "What it requires",
       "legend": "Required means the occurrence is not registered without it. Photo is the image captured on the device; Note is the driver's text; Signature is the one from whoever refused; Products are the invoice items the occurrence points to.",
       "mixedScope": "The requirements below apply only when the driver registers (Driver, on an invoice and Driver, at the stop). At the warehouse the rule is fixed.",
-      "stopOnlyScope": "With Driver, at the stop only the photo is required: note, signature and products apply with Driver, on an invoice.",
+      "stopOnlyScope": "For Driver, at the stop, photo, note, location and arrival time apply as configured below: signature and products apply to Driver, on an invoice.",
       "fields": {
         "photo": "Photo",
         "note": "Note",
         "signature": "Signature",
         "items": "Products",
         "referenceNumber": "Customer document number",
-        "declaredAmount": "Amount paid"
+        "declaredAmount": "Amount paid",
+        "location": "Location",
+        "arrivalTime": "Arrival time"
       },
       "modes": {
         "off": "Off",
@@ -446,7 +467,9 @@
         "signature": "Off: no signature asked. Optional: the driver may collect the one from whoever refused. Required: the occurrence is only sent with the signature drawn.",
         "items": "Off: the occurrence carries no products — registration hides the selector, redelivery does not apply and Correct only shows on occurrences that already have products or were already corrected. Optional: whoever registers may pick products. Required: the occurrence is only sent with a product picked.",
         "referenceNumber": "Off: the registration screen does not ask. Optional: it asks and accepts empty. Required: the register button only enables with the number filled in (e.g. the store's return invoice).",
-        "declaredAmount": "Off: the screen does not show it. Optional: it shows and accepts empty. Required: the register button only enables filled in. With no typed amount, the invoice's calculated sum applies."
+        "declaredAmount": "Off: the screen does not show it. Optional: it shows and accepts empty. Required: the register button only enables filled in. With no typed amount, the invoice's calculated sum applies.",
+        "location": "Off: no location asked. Optional: the app sends the location if the GPS has one. Required: the driver can only register with the location captured on the device.",
+        "arrivalTime": "Asked only when the driver did not mark Arrived. Required: the driver informs when they arrived and the system records the stop's arrival at that time. Does not apply together with the minimum wait."
       },
       "record": {
         "referenceLabel": "Number label on the registration screen",
@@ -470,6 +493,12 @@
         "count": "Minimum number of products",
         "hint": "Only applies when Products is Required. All invoice items suits a total refusal: the driver app only enables the registration with every product ticked. At least N enables it with N products ticked.",
         "allItemsHint": "With no minimum, the driver must mark every product on the invoice. Set \"At least N\" to accept a partial return."
+      },
+      "minWait": {
+        "title": "Minimum wait after Arrived",
+        "hint": "The driver can only open this type after the chosen time, counted from the Arrived tap, and sees a countdown. The office opens it at any time, informing when the driver arrived. Does not apply together with the arrival time.",
+        "off": "No minimum wait",
+        "option": "{{count}} minutes"
       }
     },
     "summary": {
@@ -510,7 +539,6 @@
         "previewTitle": "Preview · sample values",
         "hint": "The email text is written in Notifications → Preferences, in a Portuguese email template. Here you only choose which one.",
         "variablesTitle": "Variables the template accepts",
-        "suggestedTitle": "Suggested template (copy it in Notifications)",
         "problems": {
           "not_found": "There is no active Portuguese email template with this key.",
           "system_key": "It is a system notice, with other variables.",
@@ -550,7 +578,9 @@
           "assinaturaIniciais": "Initials of who signs, or of the display name.",
           "faixaResposta": "\"Reply to this e-mail\" strip, only when replies arrive (system HTML).",
           "marcasRodape": "Footer marks: TransportAdA and Ada Technology (system HTML).",
-          "logoAssinatura": "Signature square: the carrier logo on the team signature, otherwise the initials (system HTML)."
+          "logoAssinatura": "Signature square: the carrier logo on the team signature, otherwise the initials (system HTML).",
+          "novaDataVencimento": "New due date requested by the driver (DD/MM/YYYY); empty when not given.",
+          "avisoNovaData": "Paragraph \"New due date requested: DD/MM/YYYY\", only when the driver gave the date (system HTML)."
         }
       },
       "watchers": {
@@ -749,6 +779,48 @@
         "empty": "Choose at least one contractor: with none the type would appear on no note, so nothing was saved.",
         "needsDocument": "A stop-only type cannot be limited to contractors: a stop has no contractor. Nothing was saved."
       }
+    },
+    "clientReturn": {
+      "title": "Client return",
+      "legend": "Channels through which the accepted invoice slip reaches the client. Each channel uses its own Notifications template.",
+      "channels": {
+        "email": "E-mail",
+        "whatsapp": "WhatsApp",
+        "sms": "SMS"
+      },
+      "soon": "Coming soon",
+      "template": {
+        "label": "Template (Notifications)",
+        "none": "None",
+        "subject": "Subject: {{subject}}",
+        "hint": {
+          "email": "E-mail template from the Notifications module.",
+          "whatsapp": "Plain text, no subject"
+        },
+        "failed": "Could not load the templates. Try again shortly."
+      },
+      "sendMode": {
+        "label": "Sending",
+        "manual": "Manual",
+        "automatic": "Automatic"
+      },
+      "sendNote": {
+        "manual": "{{channel}} is set to manual sending: it does not go out on its own, only from the button on the occurrence. Choose Automatic to send it by itself."
+      },
+      "problem": {
+        "missing": "{{channel}} is checked, but the type has no template on this channel: it will not be sent.",
+        "not_found": "The template chosen for {{channel}} no longer exists in Notifications: it will not be sent.",
+        "unusable": "The template chosen for {{channel}} does not work and will not be sent: {{problems}}",
+        "codes": {
+          "not_found": "There is no active Portuguese template with this key on this channel.",
+          "system_key": "It is a system notice with different variables.",
+          "empty_subject": "The subject is empty.",
+          "empty_body": "The body is empty."
+        }
+      },
+      "previewTitle": "Preview · sample values",
+      "attachmentName": "invoice-slip-123456.pdf",
+      "attachmentDetail": "PDF"
     }
   },
   "settingsResolution": {
@@ -811,6 +883,12 @@
     "risk": "Warning: Evolution uses the WhatsApp Web protocol, which Meta does not authorize. The number can be banned and a WhatsApp change can stop sending until the package is updated. It is a free option, not the guaranteed path: email stays the default and the fallback.",
     "acknowledgeRisk": "I read the warning and accept the risk of the number being banned.",
     "enabledLabel": "Turn on WhatsApp through Evolution",
+    "providerLabel": "Default provider for new sends",
+    "providerHint": "New sends use the chosen provider; old ones keep the provider they went out with. Evolution can only be the default while the channel is on.",
+    "provider": {
+      "meta": "Meta (official)",
+      "evolution": "Evolution (free)"
+    },
     "save": "Save settings",
     "saved": "WhatsApp settings saved.",
     "error": "Could not complete ({{code}}).",
@@ -829,7 +907,183 @@
       "pairingCode": "Or type the pairing code: {{code}}",
       "qrError": "Could not get the QR ({{code}}). Trying again.",
       "closeQr": "Close QR",
-      "connected": "Number connected."
+      "connected": "Number connected.",
+      "checkedAt": "Checked at {{time}}",
+      "checkError": "Could not read the connection state ({{code}}).",
+      "dropped": "The number is disconnected. Generate a new QR to reconnect; meanwhile sends fall back to email.",
+      "reconnect": "Reconnect number",
+      "connectedNumber": "Connected number: {{number}}.",
+      "reveal": "Reveal",
+      "disconnect": "Disconnect number",
+      "disconnectConfirm": "Disconnect this number from WhatsApp? Sends fall back to e-mail until another number is connected, and you can scan the QR of a new SIM.",
+      "disconnectConfirmAction": "Yes, disconnect",
+      "disconnectCancel": "Cancel",
+      "title": "Number connection",
+      "qrWaiting": "Generating the QR code. This can take a few seconds.",
+      "qrValidity": "This code is valid for about {{seconds}} s and renews itself. Scan it before it expires.",
+      "qrExpired": "This code expired. Click \"Generate new QR\" and scan the new code.",
+      "refreshQr": "Generate new QR"
+    },
+    "provision": {
+      "action": "Create and connect",
+      "hint": "This environment's Evolution creates the number's instance for you. Accept the notice and scan the QR with WhatsApp.",
+      "title": "Create the number from the portal"
+    },
+    "settingsTitle": "Channel settings"
+  },
+  "automations": {
+    "title": "Automations",
+    "subtitle": "A contractor's weekly flow: what arrives by email, who receives the reply and when the invoice falls due. Each step still asks for your confirmation.",
+    "loading": "Loading automations…",
+    "retry": "Try again",
+    "empty": "No automations yet.",
+    "summary_one": "{{count}} recipient · invoice due in {{days}} days",
+    "summary_other": "{{count}} recipients · invoice due in {{days}} days",
+    "on": "On",
+    "off": "Off",
+    "edit": "Edit",
+    "new": "New automation",
+    "editing": "Edit automation",
+    "name": "Name (the contractor)",
+    "recipients": "Recipients of the send",
+    "recipientsHint": "One email per line. The send replies to all of them.",
+    "dueDays": "Invoice due (days)",
+    "partSize": "XMLs per email (up to 100)",
+    "nfseCity": "NFS-e city (optional)",
+    "xmlKind": "Only the XMLs of issued CT-e follow by email.",
+    "enabled": "Automation on",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "formError": {
+      "name": "Enter the automation name.",
+      "billingDueDays": "The invoice term is 1 to 120 days.",
+      "partSize": "Each email carries 1 to 100 XMLs.",
+      "recipientFormat": "There is an invalid email in the recipients.",
+      "recipientLimit": "At most 50 recipients."
+    },
+    "error": {
+      "failed": "Could not finish. Try again.",
+      "forbidden": "You are not allowed to manage automations.",
+      "invalid": "The data was not accepted. Check the fields.",
+      "unauthenticated": "Your session expired. Sign in again.",
+      "notFound": "The automation no longer exists.",
+      "conflict": "An automation with this name already exists."
+    }
+  },
+  "driverStopReminders": {
+    "kicker": "WhatsApp",
+    "title": "Driver reminders",
+    "hint": "The bot asks the driver on WhatsApp when a stop passes its time with no arrival or delivery recorded. With no answer, the office is notified.",
+    "origin": {
+      "company": "Setting saved by the company.",
+      "default": "Nothing saved yet: the system defaults apply and reminders are off."
+    },
+    "rules": {
+      "title": "When and how often"
+    },
+    "enabledLabel": "Remind the driver on WhatsApp",
+    "enabledOn": "On: the bot reminds the driver on the schedule below, if the environment switch is also on.",
+    "enabledOff": "Off: the bot reminds nobody.",
+    "fields": {
+      "maxAttempts": {
+        "label": "Reminders",
+        "hint": "From {{min}} to {{max}}. After the last unanswered one, the office is notified."
+      },
+      "intervalMinutes": {
+        "label": "Interval (min)",
+        "hint": "From {{min}} to {{max}} minutes."
+      },
+      "graceMinMinutes": {
+        "label": "Minimum grace (min)",
+        "hint": "From {{min}} to {{max}} minutes of wait after the expected time."
+      },
+      "gracePercent": {
+        "label": "Grace (%)",
+        "hint": "From {{min}} to {{max}}% of the travel time, added to the minimum grace."
+      },
+      "dwellMinutes": {
+        "label": "Dwell (min)",
+        "hint": "From {{min}} to {{max}} minutes between arrival and the delivery reminder."
+      },
+      "idleMinutes": {
+        "label": "No event (min)",
+        "hint": "From {{min}} to {{max}} minutes with no trip record before reminding."
+      }
+    },
+    "hours": {
+      "title": "Operating hours",
+      "hint": "The bot only reminds within these ranges. A day with no range is closed. Up to 3 ranges per day.",
+      "alwaysOpen": "With no range, the bot reminds at any time, every day.",
+      "closed": "Closed",
+      "add": "Add range",
+      "startLabel": "Start, {{day}}",
+      "endLabel": "End, {{day}}",
+      "remove": "Remove range, {{day}}",
+      "issue": {
+        "start_must_precede_end": "The start must be before the end.",
+        "ranges_overlap": "Ranges on the same day cannot overlap.",
+        "too_many_ranges_in_weekday": "At most 3 ranges per day."
+      }
+    },
+    "weekday": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "save": "Save reminders",
+    "saved": "Reminder settings saved.",
+    "error": "Could not save the reminder settings ({{code}})."
+  },
+  "salespeople": {
+    "title": "Salespeople",
+    "subtitle": "The contractors' salespeople. One salesperson can serve several contractors and, for each, a portfolio of clients of their own.",
+    "loading": "Loading the salespeople…",
+    "retry": "Try again",
+    "empty": "No salesperson registered.",
+    "inactive": "inactive",
+    "clientCount_one": "{{count}} client",
+    "clientCount_other": "{{count}} clients",
+    "edit": "Edit",
+    "new": "New salesperson",
+    "editing": "Edit salesperson",
+    "name": "Name",
+    "email": "Email",
+    "whatsapp": "WhatsApp",
+    "contactHint": "Give at least one: email or WhatsApp (with area code).",
+    "status": "Status",
+    "statusValue": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "linkContractor": "Link contractor",
+    "link": "Link",
+    "unlink": "Unlink",
+    "portfolio": "Portfolio",
+    "portfolioTitle": "Client portfolio",
+    "portfolioLabel": "Client tax IDs",
+    "portfolioHint": "One tax ID per line. Only clients already registered; saving replaces the whole list.",
+    "portfolioInvalid": "Invalid tax ID: {{list}}",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "formError": {
+      "name": "Enter the salesperson's name.",
+      "contactRequired": "Enter the email or the WhatsApp.",
+      "emailFormat": "The email is not valid."
+    },
+    "error": {
+      "failed": "Could not finish. Try again.",
+      "forbidden": "You do not have permission for salespeople.",
+      "invalid": "The data was not accepted. Check the fields.",
+      "unauthenticated": "Your session expired. Sign in again.",
+      "notFound": "The salesperson or the link no longer exists.",
+      "conflict": "A salesperson with that email or WhatsApp already exists.",
+      "unknownClient": "Some tax ID in the portfolio is not a registered client."
     }
   }
 }

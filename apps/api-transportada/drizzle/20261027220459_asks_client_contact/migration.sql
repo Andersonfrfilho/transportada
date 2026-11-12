@@ -1,0 +1,1 @@
+ALTER TABLE "company_occurrence_types" ADD COLUMN "asks_client_contact" boolean DEFAULT false NOT NULL;

@@ -197,6 +197,24 @@ describe('as etapas da ocorrência (spec 276 T3)', () => {
     expect(timeline.timings.resolvedAt).toBe(AT(50))
   })
 
+  test('retorno tratado depois de solucionada não volta a ocorrência para "em andamento"', () => {
+    const timeline = buildOccurrenceTimeline({
+      sources: [
+        RECORDED,
+        replyTo('r1', 5, 'needs_operator', 'document_not_confirmed'),
+        RESOLVED(10),
+        replyTo('r2', 11, 'handled'),
+      ],
+    })
+
+    expect(timeline.stages.map((stage) => stage.stage)).toEqual([
+      'received',
+      'awaiting_operator',
+      'resolved',
+    ])
+    expect(timeline.stages.at(-1)?.endedAt).toBeNull()
+  })
+
   test('cancelada é terminal, e não há tempo de solução', () => {
     const timeline = buildOccurrenceTimeline({
       sources: [

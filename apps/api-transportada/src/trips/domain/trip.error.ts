@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { ApiError } from '../../shared/api.error.js'
+import { DiagnosableError } from '../../shared/diagnosable.error.js'
 import { OCCURRENCE_DECLARED_AMOUNT_FIELD } from '../../shared/trip-occurrence.constant.js'
 import { OCCURRENCE_CASE_TRANSITION_REFUSALS } from './occurrence-case-state.policy.js'
 import { TRIP_PROOF_REPORT_MAX_DOCUMENTS, TRIP_REPORT_MAX_ROWS } from './trip-report.constant.js'
@@ -695,6 +696,37 @@ export class OccurrenceTypeItemsOffRedeliveryPolicyError extends ApiError {
   }
 }
 
+/**
+ * Spec 321 (D4c): na fase 1 a coleta de canhoto não soma carga na viagem que a busca. Voltar a `true` um tipo gravado
+ * com `false` prometeria uma conta que nenhum leitor de carga faz.
+ */
+export class OccurrenceTypePickupCargoUnsupportedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_PICKUP_CARGO_UNSUPPORTED',
+      details: [
+        {
+          field: 'countsCargoOnPickupTrip',
+          message: 'Counting the canhoto pickup cargo on the pickup trip is not supported yet',
+        },
+      ],
+      message: 'Counting the canhoto pickup cargo on the pickup trip is not supported yet.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 321 T2: a coleta de canhoto não nasceu junto da ocorrência — o vínculo de origem sumiu entre a conferência e a
+ * escrita. A transação inteira desfaz: ocorrência do tipo com coleta nunca existe sem a coleta.
+ */
+export class CanhotoPickupNotCreatedError extends DiagnosableError {
+  public constructor() {
+    super('The canhoto pickup was not created with its occurrence')
+    this.name = 'CanhotoPickupNotCreatedError'
+  }
+}
+
 /** O nome é único por empresa em qualquer etapa, inclusive entre os tipos de recebimento que o painel não lista. */
 export class OccurrenceTypeNameTakenError extends ApiError {
   public constructor() {
@@ -1353,6 +1385,62 @@ export class TripOccurrenceNoteRequiredError extends ApiError {
 }
 
 /**
+ * Spec 315 (D3): o tipo de parada exige a localização e o registro chegou sem ponto. Distância e precisão nunca
+ * são porteiro (ADR-0057 §3): só a ausência recusa.
+ */
+export class TripOccurrenceLocationRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_LOCATION_REQUIRED',
+      message: 'This occurrence type requires the location of the stop.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 315 (D10): a espera mínima conta do toque em "Cheguei", então o tipo com espera mínima não pode pedir também o
+ * horário de chegada digitado. Validado sobre o estado resultante do `PUT`; a CHECK do banco é só a rede.
+ */
+export class OccurrenceTypeMinWaitConflictsWithArrivalTimeError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_TYPE_MIN_WAIT_CONFLICTS_WITH_ARRIVAL_TIME',
+      message: 'A type with a minimum wait after arrival cannot ask for the arrival time.',
+      status: 422,
+    })
+  }
+}
+
+/** Spec 315 (D4): a parada não tem "Cheguei", o tipo pede o horário de chegada e o registro não o trouxe. */
+export class TripOccurrenceArrivalTimeRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ARRIVAL_TIME_REQUIRED',
+      message: 'This occurrence type requires the arrival time of the stop.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * Spec 315 (D10): a espera mínima depois do "Cheguei" ainda não passou (ou não há "Cheguei"). `availableAt` (ISO)
+ * diz quando abre; nulo é "marque Cheguei primeiro".
+ */
+export class TripOccurrenceMinWaitNotReachedError extends ApiError {
+  public constructor(input: { readonly availableAt: Date | null }) {
+    super({
+      code: 'TRIP_OCCURRENCE_MIN_WAIT_NOT_REACHED',
+      extraBody: {
+        availableAt: input.availableAt === null ? null : input.availableAt.toISOString(),
+      },
+      message: 'This occurrence type opens only after the minimum wait since the arrival.',
+      status: 422,
+    })
+  }
+}
+
+/**
  * Spec 246 (RF8, CA06): o tipo efetivo da nota exige a assinatura de quem recusou e o registro chegou
  * sem ela. Código estável próprio — a tela diz qual dos campos falta. O WhatsApp do motorista não
  * colhe assinatura e devolve este mesmo erro (RF13).
@@ -1522,6 +1610,18 @@ export class OccurrenceDeclaredAmountLevelConflictError extends ApiError {
 
 const REQUIRED_BY_OCCURRENCE_TYPE_MESSAGE = 'Required by the occurrence type.'
 
+/** A nova data de vencimento do pedido de prorrogação já passou: o motorista escolheu um dia anterior a hoje. */
+export class TripOccurrenceNewDueDateInPastError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_NEW_DUE_DATE_IN_PAST',
+      details: [{ field: 'newDueDate', message: 'The new due date cannot be in the past.' }],
+      message: 'The new due date cannot be in the past.',
+      status: 422,
+    })
+  }
+}
+
 /**
  * Spec 247 (RF14, CA06): o tipo **efetivo** da nota exige o número do documento do cliente e o
  * registro chegou sem ele. Código próprio, com o campo: a tela diz o que falta.
@@ -1629,6 +1729,44 @@ export class OccurrenceTypeAcknowledgementInvalidError extends ApiError {
       ],
       message: 'The automatic reply must be an active contractor quick reply of this company.',
       status: 400,
+    })
+  }
+}
+
+/**
+ * ADR-0047, emenda 2026-11-05: o MDF-e automático é decisão fiscal do dono, e a API o recusa enquanto
+ * `MDFE_AUTO_ISSUE_ENABLED` estiver desligada. 404, como rota que não existe nesta instalação.
+ */
+export class MdfeAutoIssueDisabledError extends ApiError {
+  public constructor() {
+    super({
+      code: 'MDFE_AUTO_ISSUE_DISABLED',
+      message: 'Automatic MDF-e issuance is disabled in this installation.',
+      status: 404,
+    })
+    this.name = 'MdfeAutoIssueDisabledError'
+  }
+}
+
+/** Spec 320: a retenção não existe na empresa do contexto (ou nunca existiu). */
+export class FieldReportHoldNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FIELD_REPORT_HOLD_NOT_FOUND',
+      message: 'The held field report was not found.',
+      status: 404,
+    })
+  }
+}
+
+/** Spec 320: o escritório já decidiu de outro jeito — liberar um descartado (ou o contrário) é recusado. */
+export class FieldReportHoldAlreadyDecidedError extends ApiError {
+  public constructor(state: string) {
+    super({
+      code: 'FIELD_REPORT_HOLD_ALREADY_DECIDED',
+      details: [{ field: 'state', message: state }],
+      message: 'The held field report was already decided.',
+      status: 409,
     })
   }
 }

@@ -38,6 +38,9 @@ export const OCCURRENCE_MAIL_VARIABLE_NAMES = [
   'faixaResposta',
   'marcasRodape',
   'logoAssinatura',
+  /** A nova data de vencimento pedida pelo motorista (opcional): o texto e o aviso em HTML do sistema. */
+  'novaDataVencimento',
+  'avisoNovaData',
 ] as const
 
 export type OccurrenceMailVariableName = (typeof OCCURRENCE_MAIL_VARIABLE_NAMES)[number]
@@ -48,6 +51,7 @@ export const OCCURRENCE_MAIL_SAMPLE_VALUES: Readonly<Record<OccurrenceMailVariab
   assinaturaCargo: 'Analista de Operações',
   assinaturaIniciais: 'ME',
   assinaturaNome: 'Maria Exemplo',
+  avisoNovaData: 'Nova data de vencimento solicitada: 25/11/2026',
   cidadeTransportadora: 'Ribeirão Preto · SP',
   cnpjContratante: '98.765.432/0001-10',
   cnpjTransportadora: '12.345.678/0001-95',
@@ -64,6 +68,7 @@ export const OCCURRENCE_MAIL_SAMPLE_VALUES: Readonly<Record<OccurrenceMailVariab
   marcasRodape: 'Enviado pelo TransportAdA — uma solução Ada Technology',
   motorista: 'Motorista Exemplo',
   nomeExibicao: 'Transportadora Exemplo',
+  novaDataVencimento: '25/11/2026',
   numeroNota: '123456/1',
   numeroNotaSemSerie: '123456',
   numeroReferencia: '45029',
@@ -78,12 +83,6 @@ export const OCCURRENCE_MAIL_SAMPLE_VALUES: Readonly<Record<OccurrenceMailVariab
   valorDeclarado: '117,20',
   valorNota: '7.840,64',
 }
-
-/** O modelo sugerido, para copiar no módulo de notificação (nunca semeado). */
-export const OCCURRENCE_MAIL_SUGGESTED_TEMPLATE = {
-  body: 'Olá, equipe {{contratante}},\n\nRegistramos {{tipoOcorrencia}} na nota {{numeroNota}} ({{razaoSocial}}) em {{data}}.\n\n{{observacao}}\n\n{{linhasItens}}\n\nQualquer dúvida, é só responder este e-mail.',
-  subject: 'Ocorrência na nota {{numeroNota}} — {{contratante}}',
-} as const
 
 /** O mesmo `{{ nome }}` do renderizador do módulo; a variável que falta sai vazia. */
 const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/gu

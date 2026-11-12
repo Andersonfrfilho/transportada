@@ -191,6 +191,8 @@ export function createDrizzleContractorReplyHandledWriter(
           .set({
             handledByUserId: input.actorUserId,
             handledNote: input.note,
+            /** O check `occurrence_contractor_replies_reason_check` só admite motivo em `needs_operator`; sem isto o tratar falha com 500. */
+            reason: null,
             status: 'handled',
             updatedAt: input.now,
           })

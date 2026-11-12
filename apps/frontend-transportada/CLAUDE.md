@@ -18,6 +18,11 @@ Tokens de design em `:root` de `src/styles/index.css` (`--color-*`, `--font-*`, 
 tema escuro único. Design system caseiro em `src/components/ui/`. Estilos por módulo em
 `*.module.css`.
 
+**Fontes são do projeto, não do aparelho** (Inter e JetBrains Mono, pacotes `@fontsource-variable/*` importados em
+`main.tsx` e precacheadas no PWA). O título de página é o `h1` global de `index.css`, medido pelos tokens
+`--page-title-*`: módulo nenhum redefine tamanho, peso ou caixa dele. O tema de login do Keycloak (`deploy/keycloak/theme/`)
+ainda usa as fontes antigas e é outro deploy.
+
 ## Regras do design system que não se negociam
 
 Cada linha é um primitivo obrigatório — o cru correspondente é **proibido** em `src/**/*.tsx` fora
@@ -55,6 +60,14 @@ forma sem acento (`nao`, `possivel`, …).
 o elemento tocado é comparado com os vizinhos da mesma tela (campo com campo, botão com botão), o
 contraste é conferido no estado normal e no selecionado, e um print vai para o usuário como prova.
 Primitivo cru ao lado de um do design system é defeito da tarefa, não pendência de outra.
+
+⚠️ **A revisão é antes do PR, não depois do relato do usuário.** Bloco novo de formulário (spec 313: o
+"E-mails liberados a enviar XML" saiu com `<input>` sem altura, rótulo colado e seletor compacto ao lado
+de campo cheio, e o Anderson achou em produção) segue o formulário vizinho: `<label>` em grade com o
+rótulo em `<span>` em cima, campo com `--field-height`/`--field-padding`, e o `SearchableSelect`
+(compacto de fábrica) fechado na altura do campo com CSS do módulo. O print em tema **claro e escuro**,
+**desktop (1440) e celular (375)** é conferido por quem escreve — com o smoke do módulo e
+`VITE_SMOKE_AUTH_BYPASS=true` — e anexado à entrega, antes de abrir o PR.
 
 ## Fronteira entre módulos
 
@@ -388,6 +401,15 @@ evento **nem é lida** (`mode: 'stopsOnly'`, aviso claro); evento `restricted`/`
 motivo. Mesmo mapa (`AssemblyVectorMap`, lazy, `vectorBasemap.service`); ele ganhou `focusRequest`, `isEntryAnimated` e, por ponto,
 `color`/`popup`/`isHighlighted` (dica em texto puro). Contratos: `test/trip/occurrence-trip-map*.contract.ts(x)`.
 
+## O boleto por WhatsApp na linha do tempo (spec 281 T9)
+
+O evento `contractor.client.whatsapp` (uma tentativa de mandar o boleto ao cliente por WhatsApp) é lido em
+`tripOccurrenceTimeline.service.ts` e validado em `tripOccurrenceTimeline.validation.ts`. O título sai de
+`clientWhatsappSent` / `clientWhatsappFailed` / `clientWhatsappPending`; a linha de detalhe só existe na falha e usa
+`occurrenceTimeline.deliveryReason.*`, que tem a lista de motivos do cliente. Um motivo novo do lado da API entra nas duas
+listas (`OCCURRENCE_TIMELINE_DELIVERY_REASONS` e o locale), senão a falha cai sem linha de detalhe. Teste:
+`test/trip/occurrence-timeline-automatic.contract.ts`.
+
 ## Contratantes e perfil de recebimento (spec 237 T1.4)
 
 Aba "Contratantes" de `/clientes` (`delivery-clients`): ficha com dados do contratante e perfil de
@@ -651,3 +673,32 @@ Os diálogos de envio (`SendToContractorDialog`, `AddressCorrectionMailDialog`) 
 linha "Cópia: …" e a resposta do responsável (`identity.kind === 'internal'`) vira "Nome · Equipe", com o selo "só para a equipe — a
 contratante não recebeu" quando `reachedContractor` é falso. Não houve fase de tolerância: a leitura do painel antigo ignora campo novo.
 Detalhe: `docs/ai-context/frontend-transportada.md`.
+
+## A conversa do cliente abre no chat da ocorrência (spec 283)
+
+A aba Cliente da ocorrência (`modules/occurrence-conversation/components/ClientConversationPanel`) é a conversa com o
+contratante que recebeu a nota. Não há tela própria: a coluna Cliente, a faixa de canais (`ClientChannelsStrip`), a faixa
+recolhida (`ClientConversationStrip`) e o composer (`ClientReplyComposer`) leem `clientConversation.service.ts` e
+`clientReply.service.ts`. O contrato da API está em `specs/283-*/contract.md`.
+
+- **Campo de resposta só para quem tem `occurrences.resolve`** (RF7). Quem só vê a ocorrência não recebe a conversa do
+  cliente, e o painel não depende de CSS para esconder o campo.
+- **Destino sempre mascarado.** A API devolve a forma mascarada do número e do e-mail; o painel não monta um destino a
+  partir de outro campo.
+- **Layout de três colunas** (D7). Em celular a conversa vira aba e a faixa fica recolhida. A prova é o print de 375 px
+  e de desktop em `specs/283-*/evidence.md`.
+- **Log sem dado do cliente.** O módulo não grava número ou e-mail em console nem em telemetria. A API tem o teste
+  `apps/api-transportada/test/occurrence-conversation/client-log-privacy.contract.ts`, que reprova log com esses campos crus.
+
+## Cobrança no recebimento em Ressarcimentos (spec 317)
+
+- `extra-charges`: `receiving_charge` está em `DELIVERY_CHARGE_TYPES` (sem isso `readChargeType` lança na primeira linha). O relatório lê `photos[]`, `receivingCharge`,
+  `tripId` e `stopOccurrenceId` de forma **tolerante** (API antiga, foto malformada). `ReceivingChargeDetail` é a linha abaixo da cobrança: fotos rotuladas, quem pagou,
+  PIX do motorista (a tela já exige `trip.financials`) e "Abrir a ocorrência".
+- `delivery-clients`: `DeliveryClientReceivingChargeFlag` na ficha (selo "Possível cobrança na entrega", data, link da ocorrência, "Limpar a marca" só com `fleet.manage`).
+  A lista **não** mostra o selo (seriam N chamadas).
+- `trip`: `OccurrenceResolutionPanel` oferece o "Comprovante do PIX" (opcional, `DriverPayoutReceiptField`, dono `extra-charges`) nas ocorrências pagas pelo motorista; o arquivo
+  sobe pelo chat do motorista e o id vai em `driverPayoutReceiptAttachmentId`; falha no envio não impede concluir.
+- Editor de tipos: o interruptor "Mostrar ao motorista o aviso de possível cobrança" só aparece em `unexpected_charge`; `showClientChargeSealToDriver` é opcional ("ausente não mexe").
+- Só componentes do design system. Contratos: `test/extra-charges/receiving-charge.contract.ts`, `test/trip/occurrence-type-client-email-type.contract.ts`.
+  Prints em `specs/317-*/prints/` (`test/spec-317-prints.smoke.spec.ts`, fora da CI). **Este painel vai antes da API** (ordem de publicação).

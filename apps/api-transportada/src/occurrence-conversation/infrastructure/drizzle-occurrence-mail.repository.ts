@@ -11,6 +11,8 @@ import { createConversationAttachmentTransactionPort } from './drizzle-conversat
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
+import { CLIENT_EMAIL_TYPE_OFF } from '../../shared/delivery-client-email.constant.js'
+
 import {
   CONTRACTOR_MAIL_OUTBOX_EVENT_TYPES,
   companyFiscalProfiles,
@@ -20,10 +22,13 @@ import {
   contractorMailOutbox,
   contractorMailSettings,
   contractorMailThreads,
+  deliveryClientContacts,
+  deliveryClients,
   identityUserPictures,
   identityUserProfiles,
   idempotencyRecords,
   membershipRoles,
+  nfeParticipants,
   occurrenceConversationMessages,
   occurrenceConversations,
   tripDocumentOccurrences,
@@ -54,6 +59,7 @@ import {
   blocksContractorMailSend,
 } from '../domain/occurrence-contractor-template.policy.js'
 import { findActiveContractorTemplate } from './notification-template.query.js'
+import { findContractorOccurrenceGroupChannel } from './contractor-occurrence-group.repository.js'
 import { toDisplayPersonName } from '../../shared/person-name.service.js'
 import { resolveSignerJobTitle } from '../domain/occurrence-mail-signer.policy.js'
 import type {
@@ -78,9 +84,12 @@ import {
 } from './drizzle-occurrence-contractor-reply.repository.js'
 import { recordContractorReplyResend } from './drizzle-contractor-reply-resend.repository.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
+import { occurrenceTypeNeverNotifiesContractor } from '../../trips/domain/occurrence-contractor-notice.policy.js'
+import { findOccurrenceTypeBlocksContractorNotice } from '../../trips/infrastructure/occurrence-contractor-notice.query.js'
 import type { AutomaticOccurrenceMailReaderPort } from '../application/send-automatic-occurrence-mail.use-case.js'
 import { initialOutboundStatus } from '../domain/message-status.policy.js'
 import {
+  OCCURRENCE_CLIENT_THREAD_SUBJECT_TYPE,
   OCCURRENCE_THREAD_SUBJECT_TYPE,
   SEND_OCCURRENCE_MAIL_OPERATION,
 } from '../domain/occurrence-conversation.constant.js'
@@ -110,12 +119,18 @@ async function findOccurrenceTarget(
   if (item === null) return null
   /** Spec 237 (ADR-0094 §9.6): a ocorrência de recebimento ainda não tem conversa nem e-mail. */
   if (item.stage === TRIP_OCCURRENCE_STAGE.receiving) return null
+  const occurrenceTypeId = item.occurrenceTypeId ?? null
   return {
+    /** Spec 321 (D2): o envio manual não lê o tipo; a marca vem junto do alvo para a guarda do caso de uso. */
+    blocksContractorNotice: await findOccurrenceTypeBlocksContractorNotice(queryable, {
+      companyId: params.companyId,
+      occurrenceTypeId,
+    }),
     contractorId: item.document?.contractor?.contractorId ?? null,
     contractorName: item.document?.contractor?.name ?? '',
     contractorTaxId: item.document?.contractor?.taxId ?? null,
     kind: item.source,
-    occurrenceTypeId: item.occurrenceTypeId ?? null,
+    occurrenceTypeId,
     stage: item.stage ?? 'stop',
   }
 }
@@ -614,6 +629,7 @@ export function createAutomaticOccurrenceMailReader(
       }
       const [type] = await database
         .select({
+          blocksContractorNotice: companyOccurrenceTypes.blocksContractorNotice,
           emailsContractor: companyOccurrenceTypes.emailsContractor,
           occurrenceTypeId: companyOccurrenceTypes.id,
         })
@@ -633,6 +649,19 @@ export function createAutomaticOccurrenceMailReader(
         )
         .limit(1)
       if (type === undefined) return null
+      /** Spec 321 (D2): o tipo que nunca avisa a contratante não lê contato, modelo nem grupo. */
+      if (occurrenceTypeNeverNotifiesContractor(type)) {
+        return {
+          blocksContractorNotice: true,
+          chosenContactIds: [],
+          emailsContractor: false,
+          groupChannel: null,
+          isRegisteredBeforeTemplate: false,
+          recipients: [],
+          stage: target.stage,
+          suggested: null,
+        }
+      }
       const emailsContractor = type.emailsContractor
       const contacts = emailsContractor
         ? await database
@@ -664,9 +693,18 @@ export function createAutomaticOccurrenceMailReader(
             occurrenceTypeId: type.occurrenceTypeId,
           })
         : []
+      /** Spec 318: o canal da contratante; só lido quando o tipo avisa. */
+      const groupChannel = emailsContractor
+        ? await findContractorOccurrenceGroupChannel(database, {
+            companyId: params.companyId,
+            contractorId: target.contractorId,
+          })
+        : null
       return {
+        blocksContractorNotice: false,
         chosenContactIds,
         emailsContractor,
+        groupChannel,
         isRegisteredBeforeTemplate: planned.isRegisteredBeforeTemplate,
         recipients: contacts.map((contact) => ({
           contactId: contact.id,
@@ -902,6 +940,120 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     return row
   }
 
+  public async findClientEmailAudience(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<null | { readonly addresses: readonly string[]; readonly taxId: string }> {
+    const [client] = await this.transaction
+      .select({
+        clientEmailType: companyOccurrenceTypes.clientEmailType,
+        taxId: deliveryClients.taxId,
+      })
+      .from(tripDocumentOccurrences)
+      .innerJoin(
+        tripDocuments,
+        and(
+          eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
+          eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
+        ),
+      )
+      .innerJoin(
+        nfeParticipants,
+        and(
+          eq(nfeParticipants.companyId, tripDocuments.companyId),
+          eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
+          eq(nfeParticipants.role, 'recipient'),
+        ),
+      )
+      .innerJoin(
+        deliveryClients,
+        and(
+          eq(deliveryClients.companyId, nfeParticipants.companyId),
+          eq(deliveryClients.taxId, nfeParticipants.taxId),
+        ),
+      )
+      .leftJoin(
+        companyOccurrenceTypes,
+        and(
+          eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
+          eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
+        ),
+      )
+      .where(
+        and(
+          eq(tripDocumentOccurrences.companyId, params.companyId),
+          eq(tripDocumentOccurrences.id, params.occurrenceId),
+        ),
+      )
+      .limit(1)
+    if (client === undefined) return null
+    /** O tipo da ocorrência escolhe a finalidade do e-mail; `off` ou sem tipo, todos os e-mails cadastrados. */
+    const purpose =
+      client.clientEmailType === null || client.clientEmailType === CLIENT_EMAIL_TYPE_OFF
+        ? null
+        : client.clientEmailType
+    const rows = await this.transaction
+      .select({ address: deliveryClientContacts.address })
+      .from(deliveryClientContacts)
+      .where(
+        and(
+          eq(deliveryClientContacts.companyId, params.companyId),
+          eq(deliveryClientContacts.taxId, client.taxId),
+          eq(deliveryClientContacts.channel, 'email'),
+          ...(purpose === null ? [] : [eq(deliveryClientContacts.purpose, purpose)]),
+        ),
+      )
+      .orderBy(asc(deliveryClientContacts.createdAt), asc(deliveryClientContacts.id))
+    const seen = new Set<string>()
+    const addresses = rows
+      .map((row) => row.address.trim())
+      .filter((address) => {
+        const key = address.toLowerCase()
+        if (address === '' || seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+    return { addresses, taxId: client.taxId }
+  }
+
+  public async findOrCreateClientEmailConversation(params: {
+    readonly clientTaxId: string
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<{ readonly id: string }> {
+    await this.transaction
+      .insert(occurrenceConversations)
+      .values({
+        clientTaxId: params.clientTaxId,
+        companyId: params.companyId,
+        occurrenceId: params.occurrenceId,
+        occurrenceKind: 'document',
+        participant: 'client_email',
+      })
+      .onConflictDoNothing({
+        target: [
+          occurrenceConversations.companyId,
+          occurrenceConversations.occurrenceKind,
+          occurrenceConversations.occurrenceId,
+          occurrenceConversations.participant,
+        ],
+      })
+    const [row] = await this.transaction
+      .select({ id: occurrenceConversations.id })
+      .from(occurrenceConversations)
+      .where(
+        and(
+          eq(occurrenceConversations.companyId, params.companyId),
+          eq(occurrenceConversations.occurrenceKind, 'document'),
+          eq(occurrenceConversations.occurrenceId, params.occurrenceId),
+          eq(occurrenceConversations.participant, 'client_email'),
+        ),
+      )
+      .limit(1)
+    if (row === undefined) throw new Error('OCCURRENCE_CLIENT_EMAIL_CONVERSATION_NOT_PERSISTED')
+    return row
+  }
+
   public async lockOccurrenceThread(params: {
     readonly companyId: string
     readonly occurrenceId: string
@@ -916,6 +1068,7 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
   }
 
   public async findOccurrenceThread(params: {
+    readonly audience?: 'client'
     readonly companyId: string
     readonly occurrenceId: string
     readonly occurrenceKind: OccurrenceMailTarget['kind']
@@ -928,7 +1081,9 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
           eq(contractorMailThreads.companyId, params.companyId),
           eq(
             contractorMailThreads.subjectType,
-            OCCURRENCE_THREAD_SUBJECT_TYPE[params.occurrenceKind],
+            (params.audience === 'client'
+              ? OCCURRENCE_CLIENT_THREAD_SUBJECT_TYPE
+              : OCCURRENCE_THREAD_SUBJECT_TYPE)[params.occurrenceKind],
           ),
           eq(contractorMailThreads.subjectId, params.occurrenceId),
         ),
@@ -947,7 +1102,9 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
         id: params.threadId,
         replyTokenHash: params.replyTokenHash,
         subjectId: params.occurrenceId,
-        subjectType: OCCURRENCE_THREAD_SUBJECT_TYPE[params.occurrenceKind],
+        subjectType: (params.threadAudience === 'client'
+          ? OCCURRENCE_CLIENT_THREAD_SUBJECT_TYPE
+          : OCCURRENCE_THREAD_SUBJECT_TYPE)[params.occurrenceKind],
       })
     }
     const [message] = await this.transaction

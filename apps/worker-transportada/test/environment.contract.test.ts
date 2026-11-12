@@ -40,10 +40,14 @@ describe('worker environment contract', () => {
       appEnv: 'local',
       cargoLayoutTimeBudgetMs: 120_000,
       databaseUrl: validEnvironment.DATABASE_URL,
+      driverRemindersEnabled: false,
       fiscalEnvironment: 'production',
       foundationSyntheticConsumerEnabled: false,
       foundationSyntheticEffectDelayMs: 0,
       fuelPricePull: undefined,
+      hostname: '0.0.0.0',
+      mdfeAutoIssueEnabled: false,
+      nfeXmlMailboxDomains: [],
       /** Spec 062 T005: sem segredo e sem template — o padrão é a versão da Graph API e mais nada. */
       whatsapp: {
         apiVersion: 'v23.0',
@@ -70,10 +74,40 @@ describe('worker environment contract', () => {
     })
   })
 
+  test('NFE_XML_MAILBOX_DOMAINS: lista de domínios em minúsculas; domínio inválido falha o boot', () => {
+    const parsed = parseWorkerEnvironment({
+      ...validEnvironment,
+      NFE_XML_MAILBOX_DOMAINS: 'Fernandes-Transportadora.com.br, outro.com.br',
+    })
+    expect(parsed.nfeXmlMailboxDomains).toEqual(['fernandes-transportadora.com.br', 'outro.com.br'])
+    expect(() =>
+      parseWorkerEnvironment({ ...validEnvironment, NFE_XML_MAILBOX_DOMAINS: 'nota@x.com' }),
+    ).toThrow()
+  })
+
   test('sem SENTRY_DSN o rastreio de erro nasce desligado', () => {
     expect(
       parseWorkerEnvironment({ ...validEnvironment, SENTRY_DSN: '  ' }).sentryDsn,
     ).toBeUndefined()
+  })
+
+  test('BOT_AUDIO_TRANSCRIPTION_PROMPT: vazio some, até 300 caracteres vale, acima falha o boot', () => {
+    expect(
+      parseWorkerEnvironment({ ...validEnvironment, BOT_AUDIO_TRANSCRIPTION_PROMPT: ' ' })
+        .botAudioTranscriptionPrompt,
+    ).toBeUndefined()
+    expect(
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        BOT_AUDIO_TRANSCRIPTION_PROMPT: 'Central Fernandes.',
+      }).botAudioTranscriptionPrompt,
+    ).toBe('Central Fernandes.')
+    expect(() =>
+      parseWorkerEnvironment({
+        ...validEnvironment,
+        BOT_AUDIO_TRANSCRIPTION_PROMPT: 'a'.repeat(301),
+      }),
+    ).toThrow(WorkerConfigurationError)
   })
 
   test('SENTRY_DSN preenchido e torto falha o boot em vez de sumir', () => {
@@ -342,6 +376,107 @@ describe('worker environment contract', () => {
         WORKER_CLIENT_ID: 'transportada-worker',
       }),
     ).toThrow(WorkerConfigurationError)
+  })
+
+  /**
+   * O MDF-e automático é decisão fiscal do dono (emenda 2026-11-05 da ADR-0047): o crachá do worker
+   * serve também ao canhoto e à baixa do WhatsApp, então tê-lo não pode ligar a emissão. Nasce
+   * desligado, e ligado sem o crachá derruba o boot em vez de não emitir calado.
+   */
+  describe('o interruptor do MDF-e automático', () => {
+    const credentials = {
+      ...validEnvironment,
+      API_BASE_URL: 'https://api.staging.example.com',
+      KEYCLOAK_TOKEN_URL: 'https://keycloak.example.com/token',
+      WORKER_CLIENT_ID: 'transportada-worker',
+      WORKER_CLIENT_SECRET: 'secret-value',
+    }
+
+    test('com o crachá e sem o interruptor, nasce desligado', () => {
+      const environment = parseWorkerEnvironment(credentials)
+
+      expect(environment.mdfeAutoIssue).toBeDefined()
+      expect(environment.mdfeAutoIssueEnabled).toBe(false)
+    })
+
+    test('MDFE_AUTO_ISSUE_ENABLED=true com o crachá liga', () => {
+      expect(
+        parseWorkerEnvironment({ ...credentials, MDFE_AUTO_ISSUE_ENABLED: 'true' })
+          .mdfeAutoIssueEnabled,
+      ).toBe(true)
+    })
+
+    test('ligado sem o crachá derruba o boot', () => {
+      expect(() =>
+        parseWorkerEnvironment({ ...validEnvironment, MDFE_AUTO_ISSUE_ENABLED: 'true' }),
+      ).toThrow(WorkerConfigurationError)
+    })
+
+    test('valor fora de true/false derruba o boot', () => {
+      expect(() =>
+        parseWorkerEnvironment({ ...credentials, MDFE_AUTO_ISSUE_ENABLED: 'yes' }),
+      ).toThrow(WorkerConfigurationError)
+    })
+  })
+
+  describe('o interruptor dos lembretes do motorista', () => {
+    test('ausente ou vazio nasce desligado', () => {
+      expect(parseWorkerEnvironment(validEnvironment).driverRemindersEnabled).toBe(false)
+      expect(
+        parseWorkerEnvironment({ ...validEnvironment, DRIVER_REMINDERS_ENABLED: '' })
+          .driverRemindersEnabled,
+      ).toBe(false)
+    })
+
+    test('DRIVER_REMINDERS_ENABLED=true liga', () => {
+      expect(
+        parseWorkerEnvironment({ ...validEnvironment, DRIVER_REMINDERS_ENABLED: 'true' })
+          .driverRemindersEnabled,
+      ).toBe(true)
+    })
+
+    test('valor fora de true/false derruba o boot', () => {
+      expect(() =>
+        parseWorkerEnvironment({ ...validEnvironment, DRIVER_REMINDERS_ENABLED: 'yes' }),
+      ).toThrow(WorkerConfigurationError)
+    })
+  })
+
+  describe('a credencial própria da foto da CNH', () => {
+    const complete = {
+      ...validEnvironment,
+      API_BASE_URL: 'https://api.staging.example.com',
+      CNH_PICTURE_CLIENT_ID: 'transportada-worker-cnh-picture',
+      CNH_PICTURE_CLIENT_SECRET: 'secret-value',
+      KEYCLOAK_TOKEN_URL: 'https://keycloak.example.com/token',
+    }
+
+    test('completa liga a foto, sem tocar no crachá do MDF-e', () => {
+      const environment = parseWorkerEnvironment(complete)
+
+      expect(environment.cnhPicture).toEqual({
+        apiBaseUrl: 'https://api.staging.example.com',
+        clientId: 'transportada-worker-cnh-picture',
+        clientSecret: 'secret-value',
+        tokenUrl: 'https://keycloak.example.com/token',
+      })
+      expect(environment.mdfeAutoIssue).toBeUndefined()
+    })
+
+    test('ausente desliga a foto sem derrubar o boot', () => {
+      expect(parseWorkerEnvironment(validEnvironment).cnhPicture).toBeUndefined()
+    })
+
+    test.each([
+      ['só o id', { CNH_PICTURE_CLIENT_SECRET: undefined }],
+      ['só o segredo', { CNH_PICTURE_CLIENT_ID: undefined }],
+      ['sem o endereço do token', { KEYCLOAK_TOKEN_URL: undefined }],
+      ['sem o endereço da API', { API_BASE_URL: undefined }],
+    ])('%s derruba o boot', (_name, override) => {
+      expect(() => parseWorkerEnvironment({ ...complete, ...override })).toThrow(
+        WorkerConfigurationError,
+      )
+    })
   })
 
   test('does not expose connection credentials in configuration errors', () => {

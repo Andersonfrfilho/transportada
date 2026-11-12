@@ -1,12 +1,19 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/ui/copy-button'
 
-import { describeTripSelectorPath } from '../shared/driverTripSelection.service'
+import {
+  describeTripSelectorPath,
+  listTripSelectorCities,
+} from '../shared/driverTripSelection.service'
 import type { DriverTrip } from '../shared/driverTrip.types'
+import { formatShortTripId, formatTripCreatedDate } from '../shared/tripIdentifier.service'
 import { isConcludedTripStatus } from '../shared/tripSnapshot.service'
+import { formatVehiclePlateText } from '../shared/vehiclePlate.service'
 import styles from '../styles/driverTrip.module.css'
+
+import { DriverVehiclePlate } from './DriverVehiclePlate.component'
 
 type DriverTripSelectorProps = Readonly<{
   onSelect: (tripId: string) => void
@@ -33,22 +40,55 @@ export function DriverTripSelector({ onSelect, selectedTripId, trips }: DriverTr
     <div aria-label={t('tripSelector.label')} className={styles.tripSelector} role="group">
       {openTrips.map((trip) => {
         const path = describeTripSelectorPath(trip)
+        const cities = listTripSelectorCities(trip)
+        const isSelected = trip.id === selectedTripId
+        const createdDate = formatTripCreatedDate(trip.createdAt)
+        const shortId = formatShortTripId(trip.id)
         return (
-          <Button
-            aria-pressed={trip.id === selectedTripId}
-            className={styles.tripSelectorButton}
-            key={trip.id}
-            type="button"
-            variant={trip.id === selectedTripId ? 'default' : 'secondary'}
-            onClick={() => onSelect(trip.id)}
-          >
-            <span className={styles.tripSelectorOption}>
+          <div className={isSelected ? styles.tripCardSelected : styles.tripCard} key={trip.id}>
+            {/*
+             * Pedido do usuário (10/11): a identificação separada do trajeto — data e viagem à
+             * esquerda, placa à direita, cada uma com o seu copiar. Os copiar são irmãos do botão
+             * de escolher (um botão dentro de outro é HTML inválido), por isso o cartão é uma div.
+             * O copiar leva o id INTEIRO, como o cabeçalho: o recorte é para ler, não para ditar.
+             */}
+            <div className={styles.tripCardHead}>
+              <div className={styles.tripCardId}>
+                <div className={styles.tripCardIdText}>
+                  {createdDate === '' ? null : <b>{createdDate}</b>}
+                  <span>
+                    {t('tripCodeLabel')} <code className={styles.tripCode}>{shortId}</code>
+                  </span>
+                </div>
+                <CopyButton
+                  copiedLabel={t('tripCodeCopied')}
+                  label={t('tripCodeCopy')}
+                  value={trip.id}
+                />
+              </div>
+              <div className={styles.tripCardPlate}>
+                <DriverVehiclePlate plate={trip.vehiclePlate} />
+                <CopyButton
+                  copiedLabel={t('plate.copied')}
+                  label={t('plate.copy')}
+                  value={formatVehiclePlateText(trip.vehiclePlate)}
+                />
+              </div>
+            </div>
+            <button
+              aria-pressed={isSelected}
+              className={styles.tripCardBody}
+              type="button"
+              onClick={() => onSelect(trip.id)}
+            >
               <span className={styles.tripSelectorPath}>
                 {t('tripSelector.option', { count: path.stopCount, path: path.path })}
               </span>
-              <span className={styles.tripSelectorPlate}>{trip.vehiclePlate}</span>
-            </span>
-          </Button>
+              {cities.length === 0 ? null : (
+                <span className={styles.tripCardCities}>{cities.join(' · ')}</span>
+              )}
+            </button>
+          </div>
         )
       })}
     </div>

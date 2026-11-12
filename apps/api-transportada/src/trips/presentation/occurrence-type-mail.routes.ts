@@ -13,16 +13,24 @@ import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type { ContractorTemplateView } from '../../occurrence-conversation/domain/occurrence-contractor-template.policy.js'
 import { JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import { OCCURRENCE_TYPE_CONTRACTOR_SCOPE_MAX_CONTRACTORS } from '../../shared/trip-occurrence.constant.js'
+import type { ClientChannelTemplateView } from '../domain/occurrence-client-channel-template.policy.js'
 import type { OccurrenceTypeMailRecipientView } from '../infrastructure/occurrence-type-mail-view.query.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
 export const OCCURRENCE_TYPE_MAIL_TEMPLATES_PATH = `${OCCURRENCE_TYPES_PATH}/contractor-mail-templates`
+/** Spec 286 (RF2): os modelos por canal que a matriz "Retorno ao cliente" pode escolher. */
+export const OCCURRENCE_TYPE_CLIENT_CHANNEL_TEMPLATES_PATH = `${OCCURRENCE_TYPES_PATH}/client-channel-templates`
 export const OCCURRENCE_TYPE_MAIL_RECIPIENT_CANDIDATES_PATH = `${OCCURRENCE_TYPES_PATH}/contractor-mail-recipient-candidates`
 
 const contractorIdsSchema = z.array(z.uuid()).max(OCCURRENCE_TYPE_CONTRACTOR_SCOPE_MAX_CONTRACTORS)
 
 export type OccurrenceTypeMailRoutesDependencies = {
+  readonly listClientChannelTemplates: {
+    execute(input: {
+      readonly context: CompanyContext
+    }): Promise<readonly ClientChannelTemplateView[]>
+  }
   readonly listContractorMailRecipientCandidates: {
     execute(input: {
       readonly context: CompanyContext
@@ -67,6 +75,17 @@ export function createOccurrenceTypeMailRoutes(
       method: 'GET',
       parse: () => undefined,
       pathname: OCCURRENCE_TYPE_MAIL_TEMPLATES_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        return json(
+          await dependencies.listClientChannelTemplates.execute({ context: context.scope }),
+        )
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: OCCURRENCE_TYPE_CLIENT_CHANNEL_TEMPLATES_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
     defineRoute<{ readonly contractorIds: readonly string[] }>({

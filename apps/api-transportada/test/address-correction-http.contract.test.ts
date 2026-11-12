@@ -3,3 +3,4 @@
  */
 import './address-correction-http/routes.contract.js'
 import './address-correction-http/mail-routes.contract.js'
+import './address-correction-http/mail-template-route.contract.js'

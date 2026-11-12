@@ -388,6 +388,11 @@
     "status": "Situação",
     "vehicleId": "Veículo"
   },
+  "columnsMenu": {
+    "moveDown": "Descer a coluna",
+    "moveUp": "Subir a coluna",
+    "title": "Colunas"
+  },
   "contact": {
     "contractor": "Contratante: {{name}}",
     "phone": "Telefone: {{phone}}",
@@ -857,9 +862,10 @@
       },
       "origin": {
         "contractor": "Corrigido pelo contratante",
-        "driver": "Corrigido pelo motorista",
+        "driver": "Endereço corrigido pela chegada do motorista",
         "operator": "Corrigido pelo escritório",
-        "refinement": "Refino de precisão"
+        "refinement": "Refino de precisão",
+        "unknown": "Origem não identificada"
       }
     },
     "attachmentCount_one": "{{count}} foto anexada",
@@ -952,6 +958,8 @@
     "chip": {
       "recordedLater": "registrado {{duration}} depois",
       "recordedLaterUnknown": "registrado depois",
+      "recordedTogether": "Marcada junto",
+      "recordedTogetherHint": "O motorista pulou esta etapa; ela foi registrada junto com o evento seguinte.",
       "stop": "Parada {{sequence}}",
       "transition": "{{from}} → {{to}}"
     },
@@ -1376,6 +1384,41 @@
       "overdueWithDays_other": "Vencida há {{count}} dias úteis"
     }
   },
+  "canhotoPickup": {
+    "availableList": "Coletas de canhoto que podem ser encaixadas nesta viagem",
+    "availableTitle": "Coletas pendentes",
+    "document": "NF {{number}}",
+    "errors": {
+      "CANHOTO_PICKUP_CHANGED": "A coleta mudou enquanto você mexia. Atualize a tela e tente de novo.",
+      "CANHOTO_PICKUP_CLOSED": "Esta coleta já foi concluída ou cancelada.",
+      "CANHOTO_PICKUP_NOT_FOUND": "Coleta não encontrada.",
+      "CANHOTO_PICKUP_NOT_SCHEDULED": "Esta coleta não está encaixada em nenhuma viagem.",
+      "CANHOTO_PICKUP_ORIGIN_TRIP": "O canhoto que volta ao próprio motorista é a foto na viagem de origem, não uma coleta.",
+      "CANHOTO_PICKUP_TRIP_CLOSED": "Esta viagem já terminou e não recebe coleta.",
+      "CANHOTO_PICKUP_WITHOUT_ADDRESS": "A entrega de origem não tem endereço de parada para a coleta.",
+      "NETWORK": "Sem conexão com o servidor. Tente de novo.",
+      "REQUEST_FAILED": "Não foi possível concluir a ação. Tente de novo.",
+      "RESPONSE_INVALID": "O servidor respondeu algo inesperado. Atualize a tela.",
+      "TRIP_NOT_FOUND": "Viagem não encontrada."
+    },
+    "flag": {
+      "pickup": {
+        "badge": "Coleta de canhoto",
+        "hint": "Esta nota volta só para buscar o canhoto; peso e dimensão não entram na carga desta viagem."
+      },
+      "retained": {
+        "badge": "Canhoto retido",
+        "hint": "O cliente reteve o canhoto desta nota. A entrega vale como feita; outro motorista busca o canhoto em outra viagem."
+      }
+    },
+    "hint": "O cliente reteve o canhoto. Encaixe a coleta na viagem de outro motorista; o peso e a dimensão da nota não entram na carga desta viagem.",
+    "noDocument": "Nota sem número",
+    "noOriginStop": "Parada de origem sem rótulo",
+    "schedule": "Encaixar nesta viagem",
+    "scheduledList": "Coletas de canhoto encaixadas nesta viagem",
+    "title": "Coletas de canhoto",
+    "unschedule": "Desencaixar"
+  },
   "proofPending": {
     "badge": "Canhoto pendente",
     "hint": "Nota baixada sem canhoto, e a configuração da empresa exige o canhoto. A cobrança segue pendente até o canhoto chegar."
@@ -1653,7 +1696,12 @@
     }
   },
   "pagination": {
+    "first": "Primeira página",
+    "goTo": "Ir para a página {{page}}",
+    "last": "Última página",
     "next": "Próxima página",
+    "pageSize": "Viagens por página",
+    "position": "Página {{current}} de {{count}}",
     "previous": "Página anterior"
   },
   "proposal": {
@@ -1718,6 +1766,10 @@
     "accessKey": "Número da nota ou chave",
     "accessKeyPlaceholder": "Número da nota ou 44 caracteres da chave",
     "add": "Acrescentar",
+    "addAllReady": "Acrescentar todas as prontas ({{count}})",
+    "bipped": "Bipada",
+    "bippedDocumentFailed": "Não foi possível conferir esta nota no cadastro.",
+    "bippedRetry": "Tentar de novo",
     "cancel": "Cancelar",
     "clearFilteredSelection": "Desmarcar as {{count}} do filtro",
     "close": "Fechar",
@@ -1732,9 +1784,10 @@
     },
     "empty": "Nenhuma nota lida ainda.",
     "failed": "Não foi possível criar a viagem. Confira as notas e tente de novo.",
+    "foundNotes": "Notas encontradas",
     "hiddenBySelection_one": "{{count}} nota marcada está fora do filtro atual e não entra na viagem.",
     "hiddenBySelection_other": "{{count}} notas marcadas estão fora do filtro atual e não entram na viagem.",
-    "intro": "Bipe, leia pela câmera ou digite o número ou a chave das notas que saem juntas. Só entram notas que ainda não estão em nenhuma viagem.",
+    "intro": "Bipe com o leitor, leia pela câmera ou busque as notas que saem juntas. Elas aparecem em Notas encontradas e só entram na viagem com Acrescentar. Só entram notas que ainda não estão em nenhuma viagem.",
     "issue": {
       "dailyAllowanceDaysInvalid": "Diárias: informe um número inteiro de dias, a partir de 1.",
       "driverRequired": "Selecione ao menos um motorista.",
@@ -1742,14 +1795,25 @@
       "noDocument": "Leia ao menos uma nota disponível.",
       "vehicleRequired": "Selecione o veículo da viagem."
     },
+    "notice": {
+      "alreadyAdded": "Esta nota já está na viagem.",
+      "alreadyScanned": "Esta chave já foi bipada.",
+      "loadingDocuments": "Carregando as notas disponíveis… Leia de novo em instantes.",
+      "notFound": "Nenhuma nota livre com este número nesta empresa.",
+      "unrecognized": "Leia a chave da nota ou digite o número dela."
+    },
+    "reader": {
+      "field": "Chave da nota",
+      "idle": "Ativar o leitor",
+      "placeholder": "Bipe a chave de 44 dígitos ou digite o número da nota",
+      "ready": "Leitor pronto"
+    },
+    "movesFromTrip": "Esta nota está em outra viagem. Ao acrescentar, ela sai de lá e vem para esta, e a troca fica registrada no histórico das duas.",
     "refusal": {
       "alreadyOnTrip": "Já está em outra viagem",
-      "lookupFailed": "Não foi possível consultar",
-      "notAuthorized": "Não está autorizada na SEFAZ",
-      "notFound": "Não encontrada nesta empresa"
+      "notAuthorized": "Não está autorizada na SEFAZ"
     },
     "remove": "Retirar esta nota",
-    "resolving": "Procurando a nota…",
     "scan": "Ler com a câmera",
     "search": "Buscar notas",
     "searchLoading": "Carregando as notas disponíveis…",
@@ -1768,15 +1832,25 @@
     "submit": "Criar viagem",
     "submitDraft": "Salvar rascunho",
     "title": "Nova viagem",
-    "weightEstimated": "estimado",
-    "weightEstimatedHint": "Peso calculado a partir da quantidade de volumes e do peso padrão da empresa — a nota não declarou massa.",
-    "weightValue": "{{weight}} kg",
     "typed": {
       "ambiguous": "Há {{count}} notas livres com este número. Qual delas?",
+      "inAnotherTrip": "Esta nota já está em outra viagem. Solte-a de lá antes de acrescentar.",
+      "notAuthorized": "Esta nota não está autorizada na SEFAZ e não pode entrar na viagem.",
       "notFound": "Nenhuma nota livre com este número ou esta chave nesta empresa.",
+      "notImported": "Esta chave ainda não foi importada para o sistema. Importe a nota (XML ou consulta da chave) e tente de novo.",
       "option": "Nota {{number}}/{{series}} · {{emitter}} para {{recipient}}",
       "pickTitle": "Escolha a nota",
       "unrecognized": "Digite o número da nota ou os 44 caracteres da chave."
+    },
+    "weightEstimated": "estimado",
+    "weightEstimatedHint": "Peso calculado a partir da quantidade de volumes e do peso padrão da empresa — a nota não declarou massa.",
+    "weightValue": "{{weight}} kg",
+    "xml": {
+      "action": "Enviar XML",
+      "field": "XML da nota",
+      "placeholder": "Nenhum XML escolhido",
+      "failed": "Não foi possível enviar o XML. Tente de novo.",
+      "notImported": "O XML foi enviado, mas a nota ainda não entrou no cadastro."
     }
   },
   "readiness": {
@@ -1948,6 +2022,7 @@
     "clear": "Limpar seleção",
     "closeTrips": "Encerrar {{count}} viagem",
     "closeTrips_other": "Encerrar {{count}} viagens",
+    "closeTrips_zero": "Encerrar {{count}} viagens",
     "count_one": "{{count}} viagem selecionada",
     "count_other": "{{count}} viagens selecionadas",
     "selectAll": "Selecionar as viagens da página que aceitam ação em lote",
@@ -2135,6 +2210,20 @@
     "route_planned": "Roteiro planejado",
     "separating": "Separando"
   },
+  "stopOrder": {
+    "action": "Ordenar paradas",
+    "ordering": "Ordenando…",
+    "source": {
+      "manual": "Ordem ajustada por você. Uma nota nova é encaixada sem mexer nas outras.",
+      "suggested": "Ordem sugerida pela rota por estrada.",
+      "unordered": "Paradas na ordem em que as notas entraram."
+    },
+    "error": {
+      "ROUTING_DEPOT_NOT_GEOCODED": "Não foi possível ordenar agora: o endereço do barracão ainda não tem localização. As paradas ficam na ordem em que as notas entraram.",
+      "ROUTING_MATRIX_UNAVAILABLE": "Não foi possível ordenar agora: o serviço de rotas não respondeu. As paradas ficam na ordem em que as notas entraram.",
+      "ROUTING_TOO_MANY_STOPS": "Há paradas demais para ordenar de uma vez. As paradas ficam na ordem em que as notas entraram."
+    }
+  },
   "stops": {
     "arrivedAt": "Chegou às {{time}}",
     "cargoValue": "Mercadoria: {{amount}}",
@@ -2297,6 +2386,8 @@
     }
   },
   "fieldOccurrence": {
+    "alreadyExisted": "Esta nota já tinha uma ocorrência deste tipo, aberta pelo motorista ou pelo escritório. A nova foi registrada mesmo assim; confira se não ficou duplicada.",
+    "alreadyExisted_other": "{{count}} notas já tinham uma ocorrência deste tipo, aberta pelo motorista ou pelo escritório. As novas foram registradas mesmo assim; confira se não ficaram duplicadas.",
     "batchSubmit": "Registrar em {{count}} nota",
     "batchSubmit_other": "Registrar em {{count}} notas",
     "batchTitle": "Ocorrência em {{count}} nota",
@@ -2389,7 +2480,9 @@
       "alreadyResolved": "Já estava resolvida. A tela foi atualizada.",
       "cancelled": "Esta ocorrência foi cancelada e não pode ser resolvida.",
       "generic": "Não foi possível resolver a ocorrência. Tente novamente."
-    }
+    },
+    "receiptMessage": "Comprovante do PIX",
+    "receiptFailed": "O comprovante do PIX não pôde ser enviado ao motorista; a ocorrência foi concluída sem ele."
   },
   "occurrenceSettlement": {
     "title": "Acerto dos produtos",
@@ -2496,7 +2589,8 @@
     "channel": {
       "driver_app": "app do motorista",
       "office": "escritório",
-      "whatsapp": "WhatsApp"
+      "whatsapp": "WhatsApp",
+      "whatsapp_group_bot": "WhatsApp, pelo bot do grupo"
     },
     "summary": {
       "title": "Resumo",
@@ -2558,7 +2652,8 @@
       "ariaLabel": "Partes da ocorrência",
       "summary": "Resumo",
       "contractor": "Contratante",
-      "driver": "Motorista"
+      "driver": "Motorista",
+      "client": "Cliente"
     },
     "correction": {
       "cancel": {
@@ -2657,7 +2752,9 @@
       "resolvedInternal": "Resolvida por {{name}}: {{note}}",
       "resolvedAutomatic": "Resolvida automaticamente ao encerrar a tratativa",
       "resolvedOnDelivery": "Resolvida automaticamente ao entregar o documento ao motorista",
+      "resolvedCanhotoCollected": "Resolvida automaticamente: o canhoto coletado foi aprovado na conferência",
       "reopened": "Reaberta pelo motorista {{name}}",
+      "reopenedAutomatic": "Reaberta automaticamente: o canhoto coletado foi reprovado na conferência",
       "contractorReply": "Retorno da contratante: {{status}}",
       "documentConfirmed": "Boleto conferido",
       "documentNotConfirmed": "Boleto não conferido",
@@ -2666,7 +2763,21 @@
       "deliveryFailed": "Falhou a entrega ao motorista",
       "deliveryPending": "Entrega ao motorista aguardando",
       "driverReadBoleto": "O motorista leu o boleto",
-      "driverReadDocument": "O motorista leu o documento"
+      "driverReadDocument": "O motorista leu o documento",
+      "clientWhatsappSent": "Boleto enviado por WhatsApp",
+      "clientWhatsappFailed": "Falhou o envio do boleto por WhatsApp",
+      "clientWhatsappPending": "Envio do boleto por WhatsApp aguardando",
+      "clientEmailSent": "Boleto enviado por e-mail",
+      "clientEmailFailed": "Falhou o envio do boleto por e-mail",
+      "clientEmailSkipped": "Boleto não enviado por e-mail",
+      "clientEmailPending": "Envio do boleto por e-mail aguardando",
+      "groupReturn": {
+        "posted_to_group": "Boleto postado no grupo do WhatsApp",
+        "sent_to_client": "Grupo avisado: boleto enviado ao cliente",
+        "office": "Grupo avisado: boleto com o escritório",
+        "overdue": "Grupo avisado: boleto vencido",
+        "failed": "Falhou responder no grupo do WhatsApp"
+      }
     },
     "detail": {
       "documentConfirmed": "Linha digitável e número da nota {{note}} encontrados no PDF.",
@@ -2686,7 +2797,14 @@
       "driver_without_account": "O motorista não tem acesso ao app",
       "driver_unreachable": "Não foi possível falar com o motorista",
       "whatsapp_window_closed": "A janela do WhatsApp está fechada",
-      "send_failed": "O envio falhou"
+      "send_failed": "O envio falhou",
+      "whatsapp_number_not_found": "O número não tem WhatsApp",
+      "whatsapp_disconnected": "O WhatsApp estava desconectado",
+      "attachment_too_large_for_whatsapp": "O arquivo é grande demais para o WhatsApp",
+      "client_without_email": "O cliente não tem e-mail cadastrado para o boleto",
+      "client_without_whatsapp": "O cliente não tem WhatsApp cadastrado",
+      "template_missing": "O canal está ligado, mas sem modelo de mensagem",
+      "attachment_too_large_for_email": "O arquivo é grande demais para o e-mail"
     },
     "stagesTitle": "Etapas",
     "stageRunning": "em andamento há {{elapsed}}",
@@ -2733,7 +2851,8 @@
     "reasonLabel": "Motivo do encerramento",
     "subtitle": "As notas sem baixa ficam como pendência de canhoto — o encerramento não espera por elas.",
     "title": "Encerrar {{count}} viagem",
-    "title_other": "Encerrar {{count}} viagens"
+    "title_other": "Encerrar {{count}} viagens",
+    "title_zero": "Encerrar {{count}} viagens"
   },
   "proofPdfExport": {
     "planning": "Contando os canhotos para dividir o PDF…",

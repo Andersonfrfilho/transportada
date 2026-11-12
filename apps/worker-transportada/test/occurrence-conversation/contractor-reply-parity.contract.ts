@@ -13,7 +13,12 @@ const MIRRORED_FILES = [
   'src/occurrence-conversation/infrastructure/contractor-reply-driver-delivery.support.ts',
   'src/occurrence-conversation/infrastructure/contractor-reply-note-recipient-forward.support.ts',
   'src/occurrence-conversation/infrastructure/contractor-reply-client-email-forward.support.ts',
+  'src/occurrence-conversation/infrastructure/contractor-reply-client-template.support.ts',
+  'src/occurrence-conversation/infrastructure/contractor-reply-client-email-layout.support.ts',
+  'src/occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-forward.support.ts',
   'src/occurrence-conversation/infrastructure/contractor-reply-acknowledgement.support.ts',
+  /** Spec 292 T7: o retorno do boleto ao grupo do pedido, despachado pelos dois. */
+  'src/occurrence-conversation/infrastructure/whatsapp-group-boleto-return.support.ts',
   'src/shared/occurrence-contractor-reply.constant.ts',
   'test/occurrence-conversation/contractor-reply.contract.ts',
   'test/occurrence-conversation/contractor-reply-document.contract.ts',

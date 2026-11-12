@@ -5,9 +5,13 @@
  * mensagem são as conversas **abertas** com a contratante das contratantes do remetente: o contato
  * gravado na fila quando é um só; senão, todo contato ativo com aquele número (chave do WhatsApp) ou
  * e-mail. A página sai em leituras fixas, sem N+1, e tudo pela empresa do contexto.
+ *
+ * Spec 283 (RF3, "vincular a esta conversa"): o WhatsApp também tem como candidatas as conversas **do cliente** em que o
+ * número do remetente recebeu um envio ou é contato de WhatsApp do cliente de agora — a mesma chave do WhatsApp, a
+ * mesma regra de "aberta" (a tratativa não encerrou).
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 
 import {
   contractorContacts,
@@ -103,6 +107,85 @@ function contractorIdsFor(row: PendingRow, contacts: readonly SenderContact[]): 
     .map((contact) => contact.contractorId)
 }
 
+type ClientCandidate = {
+  readonly clientName: string
+  readonly clientTaxId: string
+  readonly conversationId: string
+  readonly occurrenceId: string
+  readonly phoneKey: string
+}
+
+/** Spec 283: as conversas do cliente abertas por chave do WhatsApp, numa leitura só. */
+async function readClientConversations(
+  queryable: Queryable,
+  companyId: string,
+  rows: readonly PendingRow[],
+): Promise<readonly ClientCandidate[]> {
+  const phoneKeys = [
+    ...new Set(
+      rows.filter((row) => row.channel === 'whatsapp').map((row) => phoneKeyOf(row.senderAddress)),
+    ),
+  ]
+  if (phoneKeys.length === 0) return []
+  const keyOf = (column: SQL) =>
+    sql`left(regexp_replace(${column}, '[^0-9]', '', 'g'), 4) || right(regexp_replace(${column}, '[^0-9]', '', 'g'), 8)`
+  const found = await queryable.execute<{
+    readonly client_name: null | string
+    readonly client_tax_id: string
+    readonly conversation_id: string
+    readonly occurrence_id: string
+    readonly phone_key: string
+  }>(sql`
+    select ${occurrenceConversations.id} as conversation_id,
+           ${occurrenceConversations.occurrenceId} as occurrence_id,
+           ${occurrenceConversations.clientTaxId} as client_tax_id,
+           client.display_name as client_name,
+           address.phone_key
+      from ${occurrenceConversations}
+      join lateral (
+        select ${keyOf(sql`message.recipient_address`)} as phone_key
+          from occurrence_conversation_messages message
+         where message.company_id = ${occurrenceConversations.companyId}
+           and message.conversation_id = ${occurrenceConversations.id}
+           and message.channel = 'whatsapp'
+           and message.recipient_address is not null
+        union
+        select ${keyOf(sql`contact.address`)}
+          from delivery_client_contacts contact
+         where contact.company_id = ${occurrenceConversations.companyId}
+           and contact.tax_id = ${occurrenceConversations.clientTaxId}
+           and contact.channel = 'whatsapp'
+      ) address on address.phone_key in ${phoneKeys}
+      left join delivery_clients client
+        on client.company_id = ${occurrenceConversations.companyId}
+       and client.tax_id = ${occurrenceConversations.clientTaxId}
+     where ${occurrenceConversations.companyId} = ${companyId}
+       and ${occurrenceConversations.participant} = 'client'
+       and ${attributableContractorConversation({ requireMessage: false })}
+  `)
+  return found.map((row) => ({
+    clientName: (row.client_name ?? '').trim(),
+    clientTaxId: row.client_tax_id,
+    conversationId: row.conversation_id,
+    occurrenceId: row.occurrence_id,
+    phoneKey: row.phone_key,
+  }))
+}
+
+function clientCandidatesFor(
+  row: PendingRow,
+  candidates: readonly ClientCandidate[],
+): readonly ClientCandidate[] {
+  if (row.channel !== 'whatsapp') return []
+  const key = phoneKeyOf(row.senderAddress)
+  const seen = new Set<string>()
+  return candidates.filter((candidate) => {
+    if (candidate.phoneKey !== key || seen.has(candidate.conversationId)) return false
+    seen.add(candidate.conversationId)
+    return true
+  })
+}
+
 async function readOpenConversations(
   queryable: Queryable,
   companyId: string,
@@ -137,6 +220,13 @@ async function readOpenConversations(
     )
 }
 
+function toLastOutbound(
+  last: undefined | { readonly bodyText: string; readonly createdAt: Date },
+): UnassignedCandidateView['lastOutbound'] {
+  if (last === undefined) return null
+  return { at: last.createdAt.toISOString(), preview: last.bodyText.slice(0, PREVIEW_LENGTH) }
+}
+
 export function createDrizzleOccurrenceConversationUnassignedReader(
   database: Database,
 ): UnassignedReaderPort {
@@ -166,12 +256,14 @@ export function createDrizzleOccurrenceConversationUnassignedReader(
       const contractorIdsByRow = new Map(
         rows.map((row) => [row.id, contractorIdsFor(row, contacts)]),
       )
-      const conversations = await readOpenConversations(
-        database,
-        companyId,
-        [...contractorIdsByRow.values()].flat(),
-      )
-      const conversationIds = conversations.map((conversation) => conversation.conversationId)
+      const [conversations, clientConversations] = await Promise.all([
+        readOpenConversations(database, companyId, [...contractorIdsByRow.values()].flat()),
+        readClientConversations(database, companyId, rows),
+      ])
+      const conversationIds = [
+        ...conversations.map((conversation) => conversation.conversationId),
+        ...clientConversations.map((conversation) => conversation.conversationId),
+      ]
       const lastOutbound =
         conversationIds.length === 0
           ? []
@@ -205,24 +297,32 @@ export function createDrizzleOccurrenceConversationUnassignedReader(
           .filter((conversation) => contractorIds.has(conversation.contractorId ?? ''))
           .map((candidate): UnassignedCandidateView => {
             const conversation = requireOccurrenceSubject(candidate)
-            const last = lastByConversation.get(conversation.conversationId)
             return {
               contractorName:
                 conversation.contractorName.trim() === ''
                   ? conversation.contractorTaxId
                   : conversation.contractorName,
               conversationId: conversation.conversationId,
-              lastOutbound:
-                last === undefined
-                  ? null
-                  : {
-                      at: last.createdAt.toISOString(),
-                      preview: last.bodyText.slice(0, PREVIEW_LENGTH),
-                    },
+              lastOutbound: toLastOutbound(lastByConversation.get(conversation.conversationId)),
               occurrenceId: conversation.occurrenceId,
               occurrenceKind: conversation.occurrenceKind,
+              participant: 'contractor',
             }
           })
+          .concat(
+            clientCandidatesFor(row, clientConversations).map(
+              (candidate): UnassignedCandidateView => ({
+                /** O painel de hoje lê `contractorName`: na do cliente, leva o nome do cliente. */
+                contractorName:
+                  candidate.clientName === '' ? candidate.clientTaxId : candidate.clientName,
+                conversationId: candidate.conversationId,
+                lastOutbound: toLastOutbound(lastByConversation.get(candidate.conversationId)),
+                occurrenceId: candidate.occurrenceId,
+                occurrenceKind: 'document',
+                participant: 'client',
+              }),
+            ),
+          )
         return {
           bodyText: row.bodyText,
           candidates,
@@ -283,14 +383,18 @@ function createTransactionPort(
         .limit(1)
       if (row === undefined) return null
       const contacts = await readSenderContacts(transaction, companyId, [row])
-      const conversations = await readOpenConversations(
-        transaction,
-        companyId,
-        contractorIdsFor(row, contacts),
-      )
+      const [conversations, clientConversations] = await Promise.all([
+        readOpenConversations(transaction, companyId, contractorIdsFor(row, contacts)),
+        readClientConversations(transaction, companyId, [row]),
+      ])
       return {
         ...row,
-        candidateConversationIds: conversations.map((conversation) => conversation.conversationId),
+        candidateConversationIds: [
+          ...conversations.map((conversation) => conversation.conversationId),
+          ...clientCandidatesFor(row, clientConversations).map(
+            (conversation) => conversation.conversationId,
+          ),
+        ],
       }
     },
     async markAssigned(input) {

@@ -6,16 +6,21 @@
  * que se soma é o número a que a mensagem citada foi entregue.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import {
   occurrenceContractorReplyDeliveries,
   occurrenceConversationMessages,
+  occurrenceConversations,
 } from '../../database/database.schema.js'
 import type { EvolutionConversationInboundPort } from '../application/evolution-conversation-inbound.service.js'
 import { createDrizzleWhatsAppConversationInboundRepository } from './drizzle-whatsapp-conversation-inbound.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
+
+/** Spec 283: a mensagem da conversa do cliente que conta a mesma entrega do aviso citado. */
+const clientMessage = alias(occurrenceConversationMessages, 'evolution_client_delivery_message')
 
 /** O `deliveryId` do aviso vem de jsonb: só vira `uuid` no SQL quando tem a forma de um. */
 const UUID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
@@ -27,14 +32,49 @@ export function createDrizzleEvolutionConversationInboundRepository(
     ...createDrizzleWhatsAppConversationInboundRepository(database),
 
     /**
+     * A conversa do cliente do último envio do painel por WhatsApp a esse número. A chave é a do `toWhatsAppPhoneKey`
+     * (`55` + DDD + os oito últimos dígitos), então vale com e sem o nono dígito.
+     */
+    async findLatestClientConversation({ companyId, phoneKey }) {
+      const digits = sql`regexp_replace(${occurrenceConversationMessages.recipientAddress}, '[^0-9]', '', 'g')`
+      const [row] = await database
+        .select({ conversationId: occurrenceConversationMessages.conversationId })
+        .from(occurrenceConversationMessages)
+        .innerJoin(
+          occurrenceConversations,
+          and(
+            eq(occurrenceConversations.companyId, occurrenceConversationMessages.companyId),
+            eq(occurrenceConversations.id, occurrenceConversationMessages.conversationId),
+            eq(occurrenceConversations.participant, 'client'),
+          ),
+        )
+        .where(
+          and(
+            eq(occurrenceConversationMessages.companyId, companyId),
+            eq(occurrenceConversationMessages.channel, 'whatsapp'),
+            eq(occurrenceConversationMessages.direction, 'outbound'),
+            isNotNull(occurrenceConversationMessages.recipientAddress),
+            sql`left(${digits}, 4) || right(${digits}, 8) = ${phoneKey}`,
+          ),
+        )
+        .orderBy(desc(occurrenceConversationMessages.createdAt))
+        .limit(1)
+      return row?.conversationId ?? null
+    },
+
+    /**
      * O aviso de sistema que a T5 grava na conversa ("Boleto enviado por WhatsApp") leva o id do
      * Evolution em `provider_message_id` e a entrega em `system_notice.deliveryId`; a entrega guarda o
-     * número. Mensagem sem aviso, ou aviso sem entrega, não tem destinatário a comparar.
+     * número. Mensagem sem aviso, ou aviso sem entrega, não tem destinatário a comparar. Spec 283 (RF3): sai junto a
+     * conversa do cliente da mesma entrega, para onde a resposta de quem recebeu vai.
      */
     async findReplyRecipient({ companyId, replyToProviderMessageId }) {
       const deliveryId = sql`(${occurrenceConversationMessages.systemNotice} ->> 'deliveryId')`
       const [row] = await database
-        .select({ address: occurrenceContractorReplyDeliveries.address })
+        .select({
+          address: occurrenceContractorReplyDeliveries.address,
+          clientConversationId: clientMessage.conversationId,
+        })
         .from(occurrenceConversationMessages)
         .innerJoin(
           occurrenceContractorReplyDeliveries,
@@ -47,6 +87,13 @@ export function createDrizzleEvolutionConversationInboundRepository(
             sql`${occurrenceContractorReplyDeliveries.id} = ${deliveryId}::uuid`,
           ),
         )
+        .leftJoin(
+          clientMessage,
+          and(
+            eq(clientMessage.companyId, occurrenceContractorReplyDeliveries.companyId),
+            eq(clientMessage.clientDeliveryId, occurrenceContractorReplyDeliveries.id),
+          ),
+        )
         .where(
           and(
             eq(occurrenceConversationMessages.companyId, companyId),
@@ -56,7 +103,29 @@ export function createDrizzleEvolutionConversationInboundRepository(
           ),
         )
         .limit(1)
-      return row?.address ?? null
+      if (row?.address !== null && row?.address !== undefined) {
+        return { address: row.address, clientConversationId: row.clientConversationId }
+      }
+      /** Spec 283 T5: a resposta do painel ao cliente é a própria mensagem da conversa dele, sem entrega. */
+      const [reply] = await database
+        .select({
+          address: occurrenceConversationMessages.recipientAddress,
+          conversationId: occurrenceConversationMessages.conversationId,
+        })
+        .from(occurrenceConversationMessages)
+        .where(
+          and(
+            eq(occurrenceConversationMessages.companyId, companyId),
+            eq(occurrenceConversationMessages.channel, 'whatsapp'),
+            eq(occurrenceConversationMessages.direction, 'outbound'),
+            eq(occurrenceConversationMessages.providerMessageId, replyToProviderMessageId),
+            isNull(occurrenceConversationMessages.clientDeliveryId),
+            isNotNull(occurrenceConversationMessages.recipientAddress),
+          ),
+        )
+        .limit(1)
+      if (reply?.address === null || reply?.address === undefined) return null
+      return { address: reply.address, clientConversationId: reply.conversationId }
     },
   }
 }

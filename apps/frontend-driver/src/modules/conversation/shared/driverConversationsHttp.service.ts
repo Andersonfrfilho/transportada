@@ -27,7 +27,10 @@ export type DriverConversationRequestInit = Readonly<{
 }>
 
 export type DriverConversationHttp = Readonly<{
+  /** Spec 281 T8b: o `DELETE` responde `204` sem corpo. */
+  deleteJson: (path: string) => Promise<unknown>
   getJson: (path: string) => Promise<unknown>
+  patchJson: (path: string, init?: DriverConversationRequestInit) => Promise<unknown>
   postJson: (path: string, init?: DriverConversationRequestInit) => Promise<unknown>
   /** O PUT direto ao armazenamento, sem o token: a URL assinada já é a autorização. */
   putFile: (input: Readonly<{ file: File; url: string }>) => Promise<void>
@@ -60,7 +63,8 @@ async function readPayload(response: Response): Promise<unknown> {
 
 async function requestJson(
   dependencies: DriverConversationHttpDependencies,
-  input: Readonly<{ method: 'GET' | 'POST'; path: string }> & DriverConversationRequestInit,
+  input: Readonly<{ method: 'DELETE' | 'GET' | 'PATCH' | 'POST'; path: string }> &
+    DriverConversationRequestInit,
 ): Promise<unknown> {
   const accessToken = await dependencies.getAccessToken()
   let response: Response
@@ -115,7 +119,9 @@ export function createDriverConversationHttp(
   dependencies: DriverConversationHttpDependencies,
 ): DriverConversationHttp {
   return {
+    deleteJson: (path) => requestJson(dependencies, { method: 'DELETE', path }),
     getJson: (path) => requestJson(dependencies, { method: 'GET', path }),
+    patchJson: (path, init) => requestJson(dependencies, { ...init, method: 'PATCH', path }),
     postJson: (path, init) => requestJson(dependencies, { ...init, method: 'POST', path }),
     putFile: (input) => putFile(dependencies, input),
   }

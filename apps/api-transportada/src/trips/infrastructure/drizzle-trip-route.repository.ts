@@ -14,6 +14,7 @@ import {
   type TripStatus,
 } from '../../database/trip.schema.js'
 import { fleetVehicles } from '../../database/database.schema.js'
+import type { StopOrderSource } from '../domain/draft-stop-order.constant.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { stopHasLiveDocument } from './trip-stop-coordinates.support.js'
 import type {
@@ -57,6 +58,8 @@ import {
   timestampPatchFor,
 } from './drizzle-trip-document-batch.repository.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
+import { closePendingStopReminders } from '../../driver-stop-reminders/infrastructure/close-pending-stop-reminders.persistence.js'
+import { listStopsWithScheduledCanhotoPickup } from './canhoto-pickup.query.js'
 import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import { TRACTOR_UNIT_VEHICLE_TYPE } from '../../shared/vehicle-type.constant.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
@@ -389,6 +392,11 @@ export class DrizzleTripRouteRepository
         toStatus: updated.status,
         tripId: input.tripId,
       })
+      await closePendingStopReminders(transaction, {
+        companyId: input.companyId,
+        reason: 'trip_cancelled',
+        tripId: input.tripId,
+      })
 
       return updated.status
     })
@@ -416,10 +424,16 @@ export class DrizzleTripRouteRepository
   public async reorderStops(input: {
     readonly companyId: string
     readonly orderedStopIds: readonly string[]
+    readonly source: StopOrderSource
     readonly tripId: string
   }): Promise<void> {
     await this.database.transaction(async (transaction) => {
       await writeStopOrder(transaction, input)
+      /** Spec 323 D4: a origem da ordem vai junto, na mesma transação, e a falha anterior do ordenador deixa de valer. */
+      await transaction
+        .update(trips)
+        .set({ stopOrderErrorCode: null, stopOrderSource: input.source })
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
 
       /**
        * T704 M1: a ordem mudou, então a rota gravada descreve uma sequência que não existe mais.
@@ -942,7 +956,14 @@ async function releaseUnloadedDocuments(
   const occupiedStopIds = new Set(
     stillOccupied.map((row) => row.stopId).filter((stopId): stopId is string => stopId !== null),
   )
-  const emptiedStopIds = affectedStopIds.filter((stopId) => !occupiedStopIds.has(stopId))
+  /** Spec 321 T3: a coleta de canhoto encaixada também ocupa a parada (e a FK dela é `restrict`). */
+  const withPickup = await listStopsWithScheduledCanhotoPickup(transaction, {
+    companyId: input.companyId,
+    stopIds: affectedStopIds,
+  })
+  const emptiedStopIds = affectedStopIds.filter(
+    (stopId) => !occupiedStopIds.has(stopId) && !withPickup.has(stopId),
+  )
   if (emptiedStopIds.length === 0) return releasedDocumentIds
 
   await transaction

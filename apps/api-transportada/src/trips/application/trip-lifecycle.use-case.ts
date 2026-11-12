@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import type { StopOrderSource } from '../domain/draft-stop-order.constant.js'
 import type { RouteChoice } from '../domain/route-choice.policy.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import type { TripDocumentAction } from '../domain/trip-state.policy.js'
@@ -273,6 +274,8 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
     reorderStops: {
       async execute(input: {
         readonly context: CompanyContext
+        /** Spec 323 D4: ausente é o despachante arrastando (`manual`). */
+        readonly source?: StopOrderSource
         readonly stopIds: readonly string[]
         readonly tripId: string
       }) {
@@ -286,6 +289,7 @@ export function createTripLifecycleUseCase(dependencies: TripLifecycleDependenci
           ...(dependencies.tollFreezer === undefined
             ? {}
             : { routeFreezer: dependencies.tollFreezer }),
+          ...(input.source === undefined ? {} : { source: input.source }),
           tripId: input.tripId,
         })
       },

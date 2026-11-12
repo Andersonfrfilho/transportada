@@ -7,18 +7,11 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 
 import {
   activeAddressCorrectionMailContacts,
-  activeAddressCorrectionMailTemplates,
-  addressCorrectionMailTemplateIdForRequest,
   canConfirmAddressCorrectionMail,
-  defaultAddressCorrectionMailTemplateId,
   initialAddressCorrectionMailContactIds,
-  initialAddressCorrectionMailTemplateId,
   resolveAddressCorrectionMailIdempotencyKey,
 } from '../shared/addressCorrectionMail.service'
-import type {
-  AddressCorrectionMailSendResult,
-  AddressCorrectionMailTemplatePreview,
-} from '../shared/addressCorrectionMail.validation'
+import type { AddressCorrectionMailSendResult } from '../shared/addressCorrectionMail.validation'
 import { AddressCorrectionRequestError } from '../shared/addressCorrectionRequestError.service'
 import { createNfeWorkspaceClient } from '../shared/nfeWorkspaceClient.service'
 import { ADDRESS_CORRECTION_REQUESTS_QUERY_KEY } from '../shared/nfeWorkspace.constant'
@@ -41,8 +34,7 @@ export type AddressCorrectionMailTarget = Readonly<{
 export type UseAddressCorrectionMailDialogResult = ReturnType<typeof useAddressCorrectionMailDialog>
 
 const RECIPIENTS_QUERY_KEY = 'address-correction-mail-recipients'
-const TEMPLATES_QUERY_KEY = 'address-correction-mail-templates'
-const TEMPLATE_PREVIEW_QUERY_KEY = 'address-correction-mail-template-preview'
+const TEMPLATE_QUERY_KEY = 'address-correction-mail-template'
 
 function createClient() {
   return createNfeWorkspaceClient({
@@ -78,9 +70,6 @@ export function useAddressCorrectionMailDialog() {
   const [contactSelectionSnapshot, setContactSelectionSnapshot] = useState<
     readonly string[] | null
   >(null)
-  /** `null` até o operador trocar de modelo no seletor: a seleção efetiva cai para a inicial. */
-  const [selectedTemplateIdOverride, setSelectedTemplateIdOverride] = useState<string | null>(null)
-  const [templateSelectionSnapshot, setTemplateSelectionSnapshot] = useState<string | null>(null)
   /** Spec 267 RF4: quem o operador tirou da cópia, e o conjunto da tentativa em andamento (chave de idempotência). */
   const [removedCopyIds, setRemovedCopyIds] = useState<readonly string[]>([])
   const [copySnapshot, setCopySnapshot] = useState<readonly string[]>([])
@@ -98,54 +87,36 @@ export function useAddressCorrectionMailDialog() {
     queryKey: [RECIPIENTS_QUERY_KEY, target?.contractorTaxId],
   })
 
-  const templatesQuery = useQuery({
+  /** Spec 286 (RF6): o modelo é o do módulo de notificação; a tela só mostra o estado e a prévia. */
+  const templateQuery = useQuery({
     enabled: isOpen,
-    queryFn: () => client.listAddressCorrectionMailTemplates(),
-    queryKey: [TEMPLATES_QUERY_KEY],
+    queryFn: () => client.readAddressCorrectionMailTemplate(),
+    queryKey: [TEMPLATE_QUERY_KEY],
   })
+  const isTemplateUsable = templateQuery.data?.usable === true
 
   const contacts = activeAddressCorrectionMailContacts(recipientsQuery.data?.contacts ?? [])
   const selectedContactIds =
     selectedContactIdsOverride ?? initialAddressCorrectionMailContactIds(contacts)
 
-  const templates = activeAddressCorrectionMailTemplates(templatesQuery.data ?? [])
-  const defaultTemplateId = defaultAddressCorrectionMailTemplateId(templates)
-  const selectedTemplateId =
-    selectedTemplateIdOverride ?? initialAddressCorrectionMailTemplateId(templates)
-  const templateIdForRequest = addressCorrectionMailTemplateIdForRequest({
-    defaultTemplateId,
-    selectedTemplateId,
-  })
-
-  const previewQuery = useQuery<AddressCorrectionMailTemplatePreview>({
-    enabled: isOpen && selectedTemplateId !== null,
-    queryFn: () =>
-      client.previewAddressCorrectionMailTemplate({ templateId: selectedTemplateId ?? '' }),
-    queryKey: [TEMPLATE_PREVIEW_QUERY_KEY, selectedTemplateId],
-  })
-
   /**
    * Ajusta o estado durante a renderização (padrão oficial do React para "resetar estado quando
-   * outro valor muda", sem `useEffect`): a chave só muda quando a seleção de contatos ou de modelo
+   * outro valor muda", sem `useEffect`): a chave só muda quando a seleção de contatos ou da cópia
    * muda de fato — `resolveAddressCorrectionMailIdempotencyKey` decide, `contactSelectionSnapshot
    * === null` (`open()`) força a troca mesmo que as duas seleções calculadas batam com a sessão
-   * anterior. `currentTemplateId` é o valor **efetivo** que vai no corpo (`templateIdForRequest`,
-   * `undefined` quando é o padrão) — trocar de modelo sem sair do padrão não conta como mudança.
+   * anterior.
    */
   const resolvedIdempotency = resolveAddressCorrectionMailIdempotencyKey({
     currentContactIds: selectedContactIds,
     currentExcludedWatcherIds: removedCopyIds,
-    currentTemplateId: templateIdForRequest ?? null,
     generateKey: () => crypto.randomUUID(),
     previousContactIds: contactSelectionSnapshot,
     previousExcludedWatcherIds: copySnapshot,
     previousIdempotencyKey: idempotencyKey,
-    previousTemplateId: templateSelectionSnapshot,
   })
   if (resolvedIdempotency.idempotencyKey !== idempotencyKey) {
     setContactSelectionSnapshot(resolvedIdempotency.contactIds)
     setCopySnapshot(resolvedIdempotency.excludedWatcherIds)
-    setTemplateSelectionSnapshot(resolvedIdempotency.templateId)
     setIdempotencyKey(resolvedIdempotency.idempotencyKey)
   }
 
@@ -160,7 +131,6 @@ export function useAddressCorrectionMailDialog() {
         ...(removedCopyIds.length === 0 ? {} : { excludedWatcherUserIds: removedCopyIds }),
         idempotencyKey,
         ...(target.requestIds === undefined ? {} : { requestIds: target.requestIds }),
-        ...(templateIdForRequest === undefined ? {} : { templateId: templateIdForRequest }),
       })
     },
     onSuccess: (sent) => {
@@ -180,8 +150,6 @@ export function useAddressCorrectionMailDialog() {
     setTarget(next)
     setSelectedContactIdsOverride(null)
     setContactSelectionSnapshot(null)
-    setSelectedTemplateIdOverride(null)
-    setTemplateSelectionSnapshot(null)
     setRemovedCopyIds([])
     setResult(null)
     sendMutation.reset()
@@ -190,7 +158,6 @@ export function useAddressCorrectionMailDialog() {
   function close(): void {
     setTarget(null)
     setSelectedContactIdsOverride(null)
-    setSelectedTemplateIdOverride(null)
     setRemovedCopyIds([])
     setResult(null)
     sendMutation.reset()
@@ -208,14 +175,10 @@ export function useAddressCorrectionMailDialog() {
     )
   }
 
-  function selectTemplate(templateId: string): void {
-    setSelectedTemplateIdOverride(templateId)
-  }
-
   function confirm(): void {
     if (
       !canConfirmAddressCorrectionMail({
-        hasTemplate: templates.length > 0,
+        hasTemplate: isTemplateUsable,
         selectedContactCount: selectedContactIds.length,
       })
     )
@@ -233,30 +196,23 @@ export function useAddressCorrectionMailDialog() {
     contacts,
     copy,
     canConfirm: canConfirmAddressCorrectionMail({
-      hasTemplate: templates.length > 0,
+      hasTemplate: isTemplateUsable,
       selectedContactCount: selectedContactIds.length,
     }),
-    errorCode: readErrorCode(sendMutation.error ?? recipientsQuery.error ?? templatesQuery.error),
-    errorRetryAfterSeconds: readErrorRetryAfterSeconds(
-      sendMutation.error ?? recipientsQuery.error ?? templatesQuery.error,
-    ),
+    errorCode: readErrorCode(sendMutation.error ?? recipientsQuery.error),
+    errorRetryAfterSeconds: readErrorRetryAfterSeconds(sendMutation.error ?? recipientsQuery.error),
     isOpen,
     isSending: sendMutation.isPending,
     open,
-    preview: previewQuery.data,
-    previewFailed: previewQuery.isError,
-    previewLoading: isOpen && selectedTemplateId !== null && previewQuery.isFetching,
     recipientsFailed: recipientsQuery.isError,
     recipientsLoading: isOpen && recipientsQuery.isFetching,
     removeCopy,
     result,
-    selectTemplate,
     selectedContactIds,
-    selectedTemplateId,
     target,
-    templates,
-    templatesFailed: templatesQuery.isError,
-    templatesLoading: isOpen && templatesQuery.isFetching,
+    template: templateQuery.data,
+    templateFailed: templateQuery.isError,
+    templateLoading: isOpen && templateQuery.isFetching,
     toggleContact,
   }
 }

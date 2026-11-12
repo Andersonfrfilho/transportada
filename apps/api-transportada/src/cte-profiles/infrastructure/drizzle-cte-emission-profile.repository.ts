@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, ilike, inArray, lt, max, or } from 'drizzle-orm'
+import { and, desc, eq, ilike, inArray, lt, max, ne, or } from 'drizzle-orm'
 
 import {
   auditLogs,
@@ -29,7 +29,12 @@ import type {
   CteEmissionProfilesUnitOfWorkPort,
 } from '../application/cte-emission-profile.port.js'
 import { mapFreightRule, mapProfile } from './cte-emission-profile.mapper.js'
-import { isProfileNameConflict, NAME_TAKEN_SIGNAL } from './cte-emission-profile.support.js'
+import { canShareMatcher } from '../domain/emission-profile-resolution.policy.js'
+import {
+  isProfileNameConflict,
+  MATCHER_CONFLICT_SIGNAL,
+  NAME_TAKEN_SIGNAL,
+} from './cte-emission-profile.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -326,6 +331,55 @@ class DrizzleCteEmissionProfileTransaction implements CteEmissionProfileTransact
         taxId: matcher.taxId,
       })),
     )
+    await this.assertMatchersDoNotCollide(input)
+  }
+
+  /**
+   * O mesmo CNPJ e papel só pode estar em outro perfil não inativo se os dois se restringem a cidades que não se
+   * cruzam (spec 312). Roda depois de gravar a lista de cidades do próprio perfil, que o `create` e o `update` já
+   * salvaram.
+   */
+  private async assertMatchersDoNotCollide(input: {
+    readonly companyId: string
+    readonly matchers: readonly CteEmissionProfileMatcherInput[]
+    readonly profileId: string
+  }): Promise<void> {
+    const [own] = await this.transaction
+      .select({ destinationCities: cteEmissionProfiles.destinationCities })
+      .from(cteEmissionProfiles)
+      .where(
+        and(
+          eq(cteEmissionProfiles.companyId, input.companyId),
+          eq(cteEmissionProfiles.id, input.profileId),
+        ),
+      )
+      .limit(1)
+    for (const matcher of input.matchers) {
+      const others = await this.transaction
+        .select({ destinationCities: cteEmissionProfiles.destinationCities })
+        .from(cteEmissionProfileMatchers)
+        .innerJoin(
+          cteEmissionProfiles,
+          and(
+            eq(cteEmissionProfiles.companyId, cteEmissionProfileMatchers.companyId),
+            eq(cteEmissionProfiles.id, cteEmissionProfileMatchers.profileId),
+          ),
+        )
+        .where(
+          and(
+            eq(cteEmissionProfileMatchers.companyId, input.companyId),
+            eq(cteEmissionProfileMatchers.taxId, matcher.taxId),
+            eq(cteEmissionProfileMatchers.matchRole, matcher.matchRole),
+            ne(cteEmissionProfileMatchers.profileId, input.profileId),
+            ne(cteEmissionProfiles.status, 'inactive'),
+          ),
+        )
+      if (
+        others.some((other) => !canShareMatcher(own?.destinationCities, other.destinationCities))
+      ) {
+        throw new Error(MATCHER_CONFLICT_SIGNAL)
+      }
+    }
   }
 
   public async saveIdempotency(input: {
@@ -546,6 +600,7 @@ function toProfileColumns(
 > {
   return {
     cargoInsuranceDeclared: settings.cargoInsuranceDeclared,
+    destinationCities: settings.destinationCities === null ? null : [...settings.destinationCities],
     cfopInternal: settings.cfopInternal,
     cfopInterstate: settings.cfopInterstate,
     chargeComponentLabel: settings.chargeComponentLabel,

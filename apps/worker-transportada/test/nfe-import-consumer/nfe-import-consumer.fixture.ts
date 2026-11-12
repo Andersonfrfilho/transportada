@@ -34,6 +34,7 @@ export type PendingImportAggregate = {
   readonly companyId: string
   readonly id: string
   readonly items: readonly PendingImportItem[]
+  readonly restrictedContractorTaxId?: string
 }
 
 export type ExpandedXmlEntry = {

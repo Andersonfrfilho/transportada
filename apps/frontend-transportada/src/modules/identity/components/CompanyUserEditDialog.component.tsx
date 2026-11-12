@@ -27,6 +27,7 @@ import {
 import { CompanyUserIdentifierFields } from './CompanyUserIdentifierFields.component'
 import { CompanyUserPasswordPanel } from './CompanyUserPasswordPanel.component'
 import { CompanyUserPictureField } from './CompanyUserPictureField.component'
+import { CompanyUserWhatsAppPanel } from './CompanyUserWhatsAppPanel.component'
 import { CompanyUserStoredField } from './CompanyUserStoredField.component'
 
 /** Os campos guardados que a API entrega mascarados, e que o olho revela um a um. */
@@ -333,6 +334,8 @@ export function CompanyUserEditDialog({
           userId={user.id}
           username={user.username}
         />
+
+        <CompanyUserWhatsAppPanel disabled={isPending} userId={user.id} />
 
         <DialogError code={footerErrorCode} />
 

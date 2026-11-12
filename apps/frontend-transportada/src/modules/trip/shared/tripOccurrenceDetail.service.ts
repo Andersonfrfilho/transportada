@@ -105,10 +105,20 @@ export function resolveOccurrenceCorrectionHistory(
 /** Spec 183 T801 (P11): no celular, o detalhe vira três abas. */
 export const OCCURRENCE_DETAIL_PHONE_TABS = ['summary', 'contractor', 'driver'] as const
 
-export type OccurrenceDetailPhoneTab = (typeof OCCURRENCE_DETAIL_PHONE_TABS)[number]
+/** Spec 283 D7: a aba "Cliente" só existe no celular quando houve envio ao cliente. */
+export type OccurrenceDetailPhoneTab = (typeof OCCURRENCE_DETAIL_PHONE_TABS)[number] | 'client'
+
+export function occurrenceDetailPhoneTabsFor(
+  hasClientConversation: boolean,
+): readonly OccurrenceDetailPhoneTab[] {
+  return hasClientConversation
+    ? [...OCCURRENCE_DETAIL_PHONE_TABS, 'client']
+    : OCCURRENCE_DETAIL_PHONE_TABS
+}
 
 export type OccurrenceDetailSection =
   | 'case'
+  | 'clientConversation'
   | 'contractorConversation'
   | 'conversations'
   | 'document'
@@ -128,6 +138,7 @@ export function occurrenceDetailSectionsFor(
   if (tab === 'summary') return ['summary', 'tripMap', 'document', 'case', 'timeline']
   if (tab === 'contractor') return ['contractorConversation']
   if (tab === 'driver') return ['driverContact', 'driverConversation']
+  if (tab === 'client') return ['clientConversation']
   return ['summary', 'tripMap', 'document', 'driverContact', 'case', 'conversations', 'timeline']
 }
 

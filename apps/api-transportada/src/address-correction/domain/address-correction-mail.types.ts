@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { MailTemplateContent } from '../../contractor-mail/domain/mail-template-catalog.constant.js'
 import type { ProviderMatchLevel } from '../../database/address-comparison.schema.js'
 import type { AddressFields } from '../application/address-correction.port.js'
+import type { AddressCorrectionTemplateContent } from './address-correction-mail-template.policy.js'
 
 export type AddressCorrectionMailReason = {
   readonly matchLevel: ProviderMatchLevel
@@ -24,8 +24,8 @@ export type BuildAddressCorrectionMailParams = {
   readonly carrierName: string
   readonly operatorName: string
   readonly items: readonly AddressCorrectionMailItem[]
-  /** Spec 150 T402: o texto vem do modelo; o layout (`email-template.html`) segue fixo. */
-  readonly template: MailTemplateContent
+  /** Spec 286 (RF6): assunto e corpo HTML do modelo do módulo de notificação. */
+  readonly template: AddressCorrectionTemplateContent
 }
 
 export type BuildAddressCorrectionMailResult = {

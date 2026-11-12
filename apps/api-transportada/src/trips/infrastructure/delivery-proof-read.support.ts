@@ -39,10 +39,14 @@ import {
   tripStops,
 } from '../../database/trip.schema.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
-import type {
-  ClientChannel,
-  ClientEmailSendMode,
-  ClientEmailType,
+import {
+  CLIENT_CHANNEL_DEFAULT,
+  CLIENT_EMAIL_SEND_MODE_DEFAULT,
+  CLIENT_EMAIL_TYPE_DEFAULT,
+  DELIVERY_CLIENT_EMAIL_PURPOSE,
+  type ClientChannel,
+  type ClientEmailSendMode,
+  type ClientEmailType,
 } from '../../shared/delivery-client-email.constant.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
@@ -80,6 +84,8 @@ import {
 } from '../../shared/trip-occurrence.constant.js'
 import { openOccurrenceCase } from './drizzle-occurrence-case.repository.js'
 import { assertNoDuplicateOccurrenceRequest } from './occurrence-duplicate-request.query.js'
+import { createPendingCanhotoPickup } from './canhoto-pickup.query.js'
+import { CanhotoPickupNotCreatedError } from '../domain/trip.error.js'
 import type { OccurrenceMailValues } from '../domain/occurrence-mail-values.types.js'
 import {
   OccurrenceTypeAcknowledgementInvalidError,
@@ -137,10 +143,22 @@ import {
 } from './occurrence-type-moments.query.js'
 import { deriveOccurrenceMomentsFromStageAndFlow } from '../domain/occurrence-moment.policy.js'
 import {
+  applyLegacyFieldsToClientChannelMatrix,
+  deriveLegacyFieldsFromClientChannelMatrix,
+  isEmailEnabledWithoutClientEmailType,
+  mergeClientChannelMatrix,
+  type OccurrenceClientChannelMatrixChange,
+} from '../domain/occurrence-client-channels.policy.js'
+import {
+  readResolvedClientChannelMatrices,
+  writeOccurrenceTypeClientChannels,
+} from './occurrence-type-client-channels.query.js'
+import {
   assertStoredOccurrenceTypeContractorScope,
   replaceOccurrenceTypeContractorScope,
   withOccurrenceTypeContractorIds,
 } from './occurrence-type-contractors.query.js'
+import { withOccurrenceTypePhotoSlots } from './occurrence-type-photo-slots.query.js'
 
 /**
  * Spec 156 T9 (D3): resolve o nome de quem gravou pela mesma janela do padrão já em produção
@@ -600,6 +618,8 @@ export async function saveTripOccurrence(
     readonly declaredAmount?: null | string
     /** Spec 247 (T4.4): o número do documento do cliente; ausente/nulo grava nulo. */
     readonly referenceNumber?: null | string
+    /** A nova data de vencimento (`AAAA-MM-DD`) do pedido de prorrogação; ausente/nulo grava nulo. */
+    readonly newDueDate?: null | string
     /**
      * Spec 164 T4 (RF3): a política do tipo, copiada para a tratativa no registro. Ausente (ou
      * `'unset'`) é o produto de hoje — nenhuma tratativa nasce, nenhum caminho muda.
@@ -624,7 +644,7 @@ export async function saveTripOccurrence(
     )
     .limit(1)
   if (document === undefined) return null
-  await assertNoDuplicateOccurrenceRequest(queryable, {
+  const { createsCanhotoPickup } = await assertNoDuplicateOccurrenceRequest(queryable, {
     companyId: input.companyId,
     occurrenceTypeId: input.occurrenceTypeId,
     tripDocumentId: input.documentId,
@@ -642,6 +662,7 @@ export async function saveTripOccurrence(
       occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
       referenceNumber: input.referenceNumber ?? null,
+      requestedDueDate: input.newDueDate ?? null,
       signatureObjectId: input.signatureObjectId ?? null,
       stage: input.stage,
       tripDocumentId: input.documentId,
@@ -666,6 +687,19 @@ export async function saveTripOccurrence(
       occurrenceId: saved.id,
       storedObjectIds,
     })
+  }
+
+  /**
+   * Spec 321 T2 (D4, RF2): o tipo com coleta cria a coleta `pending` na **mesma transação** da ocorrência. A linha de
+   * `trip_documents` não é tocada (D3, CA03): a entrega segue entregue e a nota não volta a ficar disponível.
+   */
+  if (createsCanhotoPickup) {
+    const pickupId = await createPendingCanhotoPickup(queryable, {
+      companyId: input.companyId,
+      occurrenceId: saved.id,
+      originTripDocumentId: input.documentId,
+    })
+    if (pickupId === null) throw new CanhotoPickupNotCreatedError()
   }
 
   /**
@@ -898,6 +932,10 @@ export async function findOccurrenceType(
       iconName: companyOccurrenceTypes.iconName,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      /** Spec 321 (D2, D4c): nunca avisa a contratante; a coleta soma (ou não) carga na viagem que a busca. */
+      blocksContractorNotice: companyOccurrenceTypes.blocksContractorNotice,
+      countsCargoOnPickupTrip: companyOccurrenceTypes.countsCargoOnPickupTrip,
+      createsCanhotoPickup: companyOccurrenceTypes.createsCanhotoPickup,
       /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
       contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
@@ -909,9 +947,13 @@ export async function findOccurrenceType(
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      driverLockMinutes: companyOccurrenceTypes.driverLockMinutes,
       clientEmailType: companyOccurrenceTypes.clientEmailType,
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       clientChannel: companyOccurrenceTypes.clientChannel,
+      asksClientContact: companyOccurrenceTypes.asksClientContact,
+      asksNewDueDate: companyOccurrenceTypes.asksNewDueDate,
+      showClientChargeSealToDriver: companyOccurrenceTypes.showClientChargeSealToDriver,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -919,8 +961,6 @@ export async function findOccurrenceType(
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
       forwardToNoteRecipient: companyOccurrenceTypes.forwardToNoteRecipient,
       forwardToInformedEmail: companyOccurrenceTypes.forwardToInformedEmail,
-      forwardEmailSubject: companyOccurrenceTypes.forwardEmailSubject,
-      forwardEmailBody: companyOccurrenceTypes.forwardEmailBody,
       /** Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta. */
       flow: companyOccurrenceTypes.flow,
       /** Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa. */
@@ -940,6 +980,9 @@ export async function findOccurrenceType(
       photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       /** Spec 164 T4 (RF3): copiada para a tratativa no registro — `openOccurrenceCase` decide por ela. */
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      arrivalTimeMode: companyOccurrenceTypes.arrivalTimeMode,
+      locationMode: companyOccurrenceTypes.locationMode,
+      minWaitAfterArrivalMinutes: companyOccurrenceTypes.minWaitAfterArrivalMinutes,
       referenceNumberLabel: companyOccurrenceTypes.referenceNumberLabel,
       referenceNumberMode: companyOccurrenceTypes.referenceNumberMode,
       /** Spec 246 (RF1): a exigência da assinatura de quem recusou. */
@@ -1082,6 +1125,10 @@ export async function listOccurrenceTypes(
       iconName: companyOccurrenceTypes.iconName,
       emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       emailsContractor: companyOccurrenceTypes.emailsContractor,
+      /** Spec 321 (D2, D4c): nunca avisa a contratante; a coleta soma (ou não) carga na viagem que a busca. */
+      blocksContractorNotice: companyOccurrenceTypes.blocksContractorNotice,
+      countsCargoOnPickupTrip: companyOccurrenceTypes.countsCargoOnPickupTrip,
+      createsCanhotoPickup: companyOccurrenceTypes.createsCanhotoPickup,
       /** Spec 271 (ADR-0108): a chave do modelo do módulo de notificação. */
       contractorNotificationTemplateKey: companyOccurrenceTypes.contractorNotificationTemplateKey,
       /** Spec 270 (ADR-0107): para quem o tipo vale; a lista vem de `withOccurrenceTypeContractorIds`. */
@@ -1093,9 +1140,13 @@ export async function listOccurrenceTypes(
       contractorReplyAttachmentKind: companyOccurrenceTypes.contractorReplyAttachmentKind,
       contractorReplyResolveOnDelivery: companyOccurrenceTypes.contractorReplyResolveOnDelivery,
       duplicateRequestPolicy: companyOccurrenceTypes.duplicateRequestPolicy,
+      driverLockMinutes: companyOccurrenceTypes.driverLockMinutes,
       clientEmailType: companyOccurrenceTypes.clientEmailType,
       clientEmailSendMode: companyOccurrenceTypes.clientEmailSendMode,
       clientChannel: companyOccurrenceTypes.clientChannel,
+      asksClientContact: companyOccurrenceTypes.asksClientContact,
+      asksNewDueDate: companyOccurrenceTypes.asksNewDueDate,
+      showClientChargeSealToDriver: companyOccurrenceTypes.showClientChargeSealToDriver,
       contractorReplyAcknowledgementQuickReplyId:
         companyOccurrenceTypes.contractorReplyAcknowledgementQuickReplyId,
       contractorReplyMode: companyOccurrenceTypes.contractorReplyMode,
@@ -1103,8 +1154,6 @@ export async function listOccurrenceTypes(
       driverReplyTemplate: companyOccurrenceTypes.driverReplyTemplate,
       forwardToNoteRecipient: companyOccurrenceTypes.forwardToNoteRecipient,
       forwardToInformedEmail: companyOccurrenceTypes.forwardToInformedEmail,
-      forwardEmailSubject: companyOccurrenceTypes.forwardEmailSubject,
-      forwardEmailBody: companyOccurrenceTypes.forwardEmailBody,
       flow: companyOccurrenceTypes.flow,
       id: companyOccurrenceTypes.id,
       itemsMinimumCount: companyOccurrenceTypes.itemsMinimumCount,
@@ -1115,6 +1164,9 @@ export async function listOccurrenceTypes(
       notifies: companyOccurrenceTypes.notifies,
       photoMinimumCount: companyOccurrenceTypes.photoMinimumCount,
       redeliveryPolicy: companyOccurrenceTypes.redeliveryPolicy,
+      arrivalTimeMode: companyOccurrenceTypes.arrivalTimeMode,
+      locationMode: companyOccurrenceTypes.locationMode,
+      minWaitAfterArrivalMinutes: companyOccurrenceTypes.minWaitAfterArrivalMinutes,
       referenceNumberLabel: companyOccurrenceTypes.referenceNumberLabel,
       referenceNumberMode: companyOccurrenceTypes.referenceNumberMode,
       signatureMode: companyOccurrenceTypes.signatureMode,
@@ -1136,9 +1188,14 @@ export async function listOccurrenceTypes(
     records,
   })
   /** Spec 270 (R7): só os ids por tipo, numa consulta; nome e CNPJ ficam no cadastro. */
-  return withOccurrenceTypeContractorIds(queryable, {
+  const withContractors = await withOccurrenceTypeContractorIds(queryable, {
     companyId: input.companyId,
     records: withMoments,
+  })
+  /** Spec 317 (RF8): as vagas de foto por tipo, numa consulta; só quem tem vaga ganha o campo. */
+  return withOccurrenceTypePhotoSlots(queryable, {
+    companyId: input.companyId,
+    records: withContractors,
   })
 }
 
@@ -1196,6 +1253,8 @@ export async function saveOccurrenceType(
     /** Spec 271 (D10): os responsáveis em cópia do tipo, da lista da empresa; ausente é "não mexa". */
     readonly contractorMailWatcherUserIds?: readonly string[] | undefined
     readonly contractorScope?: OccurrenceTypeContractorScope | undefined
+    /** Spec 286 (RF2): a matriz por canal; canal ausente é "não mexa" e, presente, ela deriva `clientChannel`. */
+    readonly clientChannels?: OccurrenceClientChannelMatrixChange | undefined
     readonly moments?: readonly OccurrenceMoment[] | undefined
   },
 ): Promise<OccurrenceTypeRecord> {
@@ -1209,7 +1268,10 @@ export async function saveOccurrenceType(
             occurrenceTypeId: input.occurrenceTypeId,
           })
     await assertAcknowledgementQuickReply(transaction, input)
-    const saved = await writeOccurrenceTypeRow(transaction, input)
+    const saved = await syncOccurrenceTypeClientChannels(transaction, {
+      input,
+      saved: await writeOccurrenceTypeRow(transaction, input),
+    })
     const moments =
       input.moments ??
       (input.occurrenceTypeId === null ? deriveOccurrenceMomentsFromStageAndFlow(saved) : undefined)
@@ -1270,6 +1332,90 @@ export async function saveOccurrenceType(
     })
     return withContractors ?? withMoments ?? saved
   })
+}
+
+/**
+ * Spec 286 T2 (RF2): a matriz "Retorno ao cliente" na mesma transação do tipo. Com `clientChannels`, o canal mandado
+ * substitui o gravado e `client_channel`/`client_email_send_mode` passam a ser os derivados dela. Sem ela, a gravação do
+ * painel antigo (`clientChannel`, `clientEmailType`, `clientEmailSendMode`) liga e desliga as caixas sem perder o
+ * modelo. Todo tipo novo nasce com as linhas.
+ */
+async function syncOccurrenceTypeClientChannels(
+  transaction: TripQueryable,
+  params: {
+    readonly input: {
+      readonly clientChannel?: ClientChannel | undefined
+      readonly clientChannels?: OccurrenceClientChannelMatrixChange | undefined
+      readonly clientEmailSendMode?: ClientEmailSendMode | undefined
+      readonly clientEmailType?: ClientEmailType | undefined
+      readonly companyId: string
+      readonly occurrenceTypeId: null | string
+    }
+    readonly saved: OccurrenceTypeRecord
+  },
+): Promise<OccurrenceTypeRecord> {
+  const { input, saved } = params
+  const touchesLegacy =
+    input.clientChannel !== undefined ||
+    input.clientEmailType !== undefined ||
+    input.clientEmailSendMode !== undefined
+  const isCreate = input.occurrenceTypeId === null
+  if (input.clientChannels === undefined && !touchesLegacy && !isCreate) return saved
+
+  const legacy = {
+    clientChannel: saved.clientChannel ?? CLIENT_CHANNEL_DEFAULT,
+    clientEmailSendMode: saved.clientEmailSendMode ?? CLIENT_EMAIL_SEND_MODE_DEFAULT,
+    clientEmailType: saved.clientEmailType ?? CLIENT_EMAIL_TYPE_DEFAULT,
+  }
+  const [current] = (
+    await readResolvedClientChannelMatrices(transaction, {
+      companyId: input.companyId,
+      records: [{ ...legacy, id: saved.id }],
+    })
+  ).values()
+  if (current === undefined) return saved
+
+  if (input.clientChannels === undefined) {
+    await writeOccurrenceTypeClientChannels(transaction, {
+      companyId: input.companyId,
+      matrix: applyLegacyFieldsToClientChannelMatrix({ current, legacy }),
+      occurrenceTypeId: saved.id,
+    })
+    return saved
+  }
+
+  const matrix = mergeClientChannelMatrix({ change: input.clientChannels, current })
+  /** O e-mail não depende de escolha prévia: ligado sem tipo de e-mail do cliente, o tipo passa a ser o padrão (boleto). */
+  const needsDefaultEmailType = isEmailEnabledWithoutClientEmailType({
+    clientEmailType: legacy.clientEmailType,
+    matrix,
+  })
+  await writeOccurrenceTypeClientChannels(transaction, {
+    companyId: input.companyId,
+    matrix,
+    occurrenceTypeId: saved.id,
+  })
+  const derived = {
+    ...deriveLegacyFieldsFromClientChannelMatrix(matrix),
+    ...(needsDefaultEmailType ? { clientEmailType: DELIVERY_CLIENT_EMAIL_PURPOSE.BOLETO } : {}),
+  }
+  if (
+    derived.clientChannel === legacy.clientChannel &&
+    derived.clientEmailSendMode === legacy.clientEmailSendMode &&
+    !needsDefaultEmailType
+  ) {
+    return saved
+  }
+  await transaction
+    .update(companyOccurrenceTypes)
+    .set({ ...derived, updatedAt: sql`now()` })
+    .where(
+      and(
+        eq(companyOccurrenceTypes.companyId, input.companyId),
+        eq(companyOccurrenceTypes.id, saved.id),
+      ),
+    )
+  return { ...saved, ...derived }
 }
 
 async function readMailSnapshotLocked(
@@ -1357,6 +1503,10 @@ async function writeOccurrenceTypeRow(
     readonly emailTemplateKey: null | string
     /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
     readonly emailsContractor?: boolean | undefined
+    /** Spec 321 (D2, D4c): ausente é "não mexa" — o INSERT usa o padrão da coluna e o UPDATE a omite. */
+    readonly blocksContractorNotice?: boolean | undefined
+    readonly countsCargoOnPickupTrip?: boolean | undefined
+    readonly createsCanhotoPickup?: boolean | undefined
     /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
     readonly contractorNotificationTemplateKey?: null | string | undefined
     readonly contractorReplyAlertIntervalMinutes?: number | undefined
@@ -1365,9 +1515,13 @@ async function writeOccurrenceTypeRow(
     readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
     readonly contractorReplyResolveOnDelivery?: boolean | undefined
     readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+    readonly driverLockMinutes?: null | number | undefined
     readonly clientEmailType?: ClientEmailType | undefined
     readonly clientEmailSendMode?: ClientEmailSendMode | undefined
     readonly clientChannel?: ClientChannel | undefined
+    readonly asksClientContact?: boolean | undefined
+    readonly asksNewDueDate?: boolean | undefined
+    readonly showClientChargeSealToDriver?: boolean | undefined
     readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
     readonly contractorReplyMode?: ContractorReplyMode | undefined
     readonly contractorReplyWaitHours?: null | number | undefined
@@ -1403,6 +1557,10 @@ async function writeOccurrenceTypeRow(
      * (`'unset'`) e o UPDATE omite a coluna, como `attachmentMode`.
      */
     readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+    /** Spec 315 (D1, D10): ausente é "não mexa"; a espera mínima `null` a limpa. */
+    readonly arrivalTimeMode?: DeliveryProofFieldMode | undefined
+    readonly locationMode?: DeliveryProofFieldMode | undefined
+    readonly minWaitAfterArrivalMinutes?: null | number | undefined
     readonly referenceNumberLabel?: string | undefined
     readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
     /** Spec 246 (RF1): ausente é "não mexa" — o INSERT usa o padrão da coluna (`'off'`). */
@@ -1447,7 +1605,21 @@ async function writeOccurrenceTypeRow(
     ...(input.referenceNumberMode === undefined
       ? {}
       : { referenceNumberMode: input.referenceNumberMode }),
+    ...(input.arrivalTimeMode === undefined ? {} : { arrivalTimeMode: input.arrivalTimeMode }),
+    ...(input.locationMode === undefined ? {} : { locationMode: input.locationMode }),
+    ...(input.minWaitAfterArrivalMinutes === undefined
+      ? {}
+      : { minWaitAfterArrivalMinutes: input.minWaitAfterArrivalMinutes }),
     ...(input.emailsContractor === undefined ? {} : { emailsContractor: input.emailsContractor }),
+    ...(input.blocksContractorNotice === undefined
+      ? {}
+      : { blocksContractorNotice: input.blocksContractorNotice }),
+    ...(input.countsCargoOnPickupTrip === undefined
+      ? {}
+      : { countsCargoOnPickupTrip: input.countsCargoOnPickupTrip }),
+    ...(input.createsCanhotoPickup === undefined
+      ? {}
+      : { createsCanhotoPickup: input.createsCanhotoPickup }),
     ...(input.contractorReplyAlertIntervalMinutes === undefined
       ? {}
       : { contractorReplyAlertIntervalMinutes: input.contractorReplyAlertIntervalMinutes }),
@@ -1466,11 +1638,21 @@ async function writeOccurrenceTypeRow(
     ...(input.duplicateRequestPolicy === undefined
       ? {}
       : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
+    ...(input.driverLockMinutes === undefined
+      ? {}
+      : { driverLockMinutes: input.driverLockMinutes }),
     ...(input.clientEmailType === undefined ? {} : { clientEmailType: input.clientEmailType }),
     ...(input.clientEmailSendMode === undefined
       ? {}
       : { clientEmailSendMode: input.clientEmailSendMode }),
     ...(input.clientChannel === undefined ? {} : { clientChannel: input.clientChannel }),
+    ...(input.asksClientContact === undefined
+      ? {}
+      : { asksClientContact: input.asksClientContact }),
+    ...(input.asksNewDueDate === undefined ? {} : { asksNewDueDate: input.asksNewDueDate }),
+    ...(input.showClientChargeSealToDriver === undefined
+      ? {}
+      : { showClientChargeSealToDriver: input.showClientChargeSealToDriver }),
     ...(input.contractorReplyAcknowledgementQuickReplyId === undefined
       ? {}
       : {
@@ -1492,10 +1674,6 @@ async function writeOccurrenceTypeRow(
     ...(input.forwardToInformedEmail === undefined
       ? {}
       : { forwardToInformedEmail: input.forwardToInformedEmail }),
-    ...(input.forwardEmailSubject === undefined
-      ? {}
-      : { forwardEmailSubject: input.forwardEmailSubject }),
-    ...(input.forwardEmailBody === undefined ? {} : { forwardEmailBody: input.forwardEmailBody }),
     ...(input.flow === undefined ? {} : { flow: input.flow }),
     ...(input.itemsMode === undefined ? {} : { itemsMode: input.itemsMode }),
     ...(input.itemsMinimumCount === undefined
@@ -1582,6 +1760,9 @@ async function writeOccurrenceTypeRow(
     iconName: saved.iconName,
     emailTemplateKey: saved.emailTemplateKey,
     emailsContractor: saved.emailsContractor,
+    blocksContractorNotice: saved.blocksContractorNotice,
+    countsCargoOnPickupTrip: saved.countsCargoOnPickupTrip,
+    createsCanhotoPickup: saved.createsCanhotoPickup,
     contractorNotificationTemplateKey: saved.contractorNotificationTemplateKey,
     contractorScope: saved.contractorScope,
     contractorReplyAlertIntervalMinutes: saved.contractorReplyAlertIntervalMinutes,
@@ -1590,17 +1771,19 @@ async function writeOccurrenceTypeRow(
     contractorReplyAttachmentKind: saved.contractorReplyAttachmentKind,
     contractorReplyResolveOnDelivery: saved.contractorReplyResolveOnDelivery,
     duplicateRequestPolicy: saved.duplicateRequestPolicy,
+    driverLockMinutes: saved.driverLockMinutes,
     clientEmailType: saved.clientEmailType,
     clientEmailSendMode: saved.clientEmailSendMode,
     clientChannel: saved.clientChannel,
+    asksClientContact: saved.asksClientContact,
+    asksNewDueDate: saved.asksNewDueDate,
+    showClientChargeSealToDriver: saved.showClientChargeSealToDriver,
     contractorReplyAcknowledgementQuickReplyId: saved.contractorReplyAcknowledgementQuickReplyId,
     contractorReplyMode: saved.contractorReplyMode,
     contractorReplyWaitHours: saved.contractorReplyWaitHours,
     driverReplyTemplate: saved.driverReplyTemplate,
     forwardToNoteRecipient: saved.forwardToNoteRecipient,
     forwardToInformedEmail: saved.forwardToInformedEmail,
-    forwardEmailSubject: saved.forwardEmailSubject,
-    forwardEmailBody: saved.forwardEmailBody,
     flow: saved.flow,
     id: saved.id,
     itemsMinimumCount: saved.itemsMinimumCount,
@@ -1611,6 +1794,9 @@ async function writeOccurrenceTypeRow(
     notifies: saved.notifies,
     photoMinimumCount: saved.photoMinimumCount,
     redeliveryPolicy: saved.redeliveryPolicy,
+    arrivalTimeMode: saved.arrivalTimeMode,
+    locationMode: saved.locationMode,
+    minWaitAfterArrivalMinutes: saved.minWaitAfterArrivalMinutes,
     referenceNumberLabel: saved.referenceNumberLabel,
     referenceNumberMode: saved.referenceNumberMode,
     signatureMode: saved.signatureMode,
@@ -1738,6 +1924,7 @@ export async function readOccurrenceMailValues(
     occurredOn: input.occurredOn,
     recipientName: contato?.name ?? '',
     ...(stored?.referenceNumber == null ? {} : { referenceNumber: stored.referenceNumber }),
+    ...(stored?.requestedDueDate == null ? {} : { requestedDueDate: stored.requestedDueDate }),
     stopLabel: row?.stopLabel ?? '',
     totalValue: row?.totalValue ?? '',
   }

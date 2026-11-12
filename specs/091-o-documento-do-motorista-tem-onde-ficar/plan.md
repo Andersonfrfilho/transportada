@@ -1,25 +1,9 @@
 # Plano — 091 O documento do motorista tem onde ficar
 
-## Ordem, e por que ela é esta
+## Ordem
 
-A D1 manda a cifra vir antes do arquivo. O motivo é irreversibilidade: coluna em claro se migra com
-um `UPDATE`; arquivo em bucket, não. Cada documento que entrar antes da cifra é uma cópia do CPF que
-depois precisa ser reescrita objeto a objeto, com o bucket já espalhado por ambiente.
-
-Por isso a Fase 1 **não é** desta feature — é a ADR-0039, decidida em 20/08/2026 e nunca executada.
-Ela entra aqui porque esta é a primeira feature que a torna bloqueante em vez de recomendável.
-
-## Fase 1 — A ficha do motorista se criptografa (ADR-0039)
-
-> 🤖 Modelo: `opus` 🧠 — envelope, AAD e índice cego são decisões de segurança, e migração com perda
-> não tem segunda chance.
-
-Treze colunas para o envelope A256GCM, AAD `transportada:fleet-driver:v1:${companyId}:${driverId}`,
-índice cego com HMAC para a CNH seguir única por empresa. `tax_id`, `linked_tax_id`, `name` e
-`license_expires_at` ficam em claro por decisão registrada na ADR.
-
-⚠️ Expansão e contração em migrations separadas, com rollback ao lado. A contração derruba as treze
-colunas antigas e **não** volta com os valores.
+A antiga Fase 1 (executar a ADR-0039, criptografar a ficha) saiu: a ADR foi revogada pelo dono em
+2026-11-05 — perder a chave é perder o dado. O plano começa pela tabela e pelas rotas.
 
 ## Fase 2 — A tabela e as rotas
 

@@ -47,6 +47,13 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'addresses.read',
   'fleet.read',
   'fleet.manage',
+  /**
+   * Spec 091 D3: abrir o documento do motorista (CNH, RG, comprovante de endereço) é permissão
+   * própria, no molde de `users.reveal`. `fleet.manage` anexa e substitui; quem cuida da frota não
+   * baixa a CNH de todo motorista só por ter ganhado aquela permissão para outra finalidade.
+   * Toda abertura grava trilha de auditoria (`security.md` §10).
+   */
+  'fleet.reveal',
   'mdfe.read',
   'mdfe.manage',
   'mdfe.issue',
@@ -93,10 +100,20 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    */
   'trip.canhoto-auto-review',
   /**
+   * Spec 299: a entrega do lembrete vencido ao motorista, também do **serviço** e de uma rota só. O robô só marca o
+   * relógio e a API decide e envia; ele não recebe `trip.manage`, que lhe daria separar, carregar e cancelar viagem.
+   */
+  'trip.stop-reminder-dispatch',
+  /**
    * Spec 248 T4.4b: o aviso automático da ocorrência à contratante, também do **serviço** e de uma rota
    * só. O robô pede o envio e o servidor decide e grava; ele não recebe `trip.manage`.
    */
   'occurrence.automatic-mail',
+  /**
+   * Spec 295 Fase 4: o rosto extraído da CNH vira foto de perfil, também do **serviço** e de uma rota só.
+   * O robô entrega a imagem; a API resolve o usuário pelo anexo e decide se aplica.
+   */
+  'driver.cnh-picture',
   /**
    * Spec 085 G005: medir a caixa de papelão é trabalho de galpão, e tem permissão própria.
    * `settings.manage` entregaria de carona o preço do combustível, a tabela de frete e a credencial
@@ -155,6 +172,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'fleet.read',
     'trip.event-location',
     'fleet.manage',
+    'fleet.reveal',
     'mdfe.read',
     'mdfe.manage',
     'nfse.manage',
@@ -285,8 +303,11 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'mdfe.auto-issue',
     'whatsapp.settle',
     'trip.canhoto-auto-review',
+    'trip.stop-reminder-dispatch',
     'occurrence.automatic-mail',
   ]),
+  /** Spec 295: a credencial da foto da CNH alcança só esta rota; ela não herda nada do `automation`. */
+  'cnh-picture-service': Object.freeze(['driver.cnh-picture']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {
@@ -392,7 +413,9 @@ export const SERVICE_ONLY_PERMISSIONS = [
   'mdfe.auto-issue',
   'whatsapp.settle',
   'trip.canhoto-auto-review',
+  'trip.stop-reminder-dispatch',
   'occurrence.automatic-mail',
+  'driver.cnh-picture',
 ] as const
 
 /** O que grupo e concessão avulsa podem dar: permissão da empresa, e não de serviço. */

@@ -16,17 +16,30 @@
 
 ARG PLANETILER_VERSION=latest
 
+# O `latest` do planetiler perdeu o `wget`; o download vive num estágio próprio que garante a ferramenta.
+# ⚠️ A URL é presignada (credencial do bucket). O Railway imprime o texto do `RUN` com o `ARG` expandido no
+# log de build (vazou assim em 05/11/2026) e não aceita `--mount=type=secret`. Por isso o `RUN` só chama o
+# script: a URL fica no ambiente do passo, fora do texto do comando, e este estágio não vai para a imagem final.
+FROM alpine:3.20 AS pbf
+
+ARG MAP_PBF_URL
+
+COPY deploy/map-tiles/fetch-pbf.sh /fetch-pbf.sh
+
+RUN sh /fetch-pbf.sh
+
 FROM ghcr.io/onthegomap/planetiler:${PLANETILER_VERSION} AS dataset
 
-# Sub-região do Geofabrik, `.osm.pbf` — o **mesmo** arquivo que alimenta o OSRM. Sem valor padrão de
-# propósito: mapa e rota descrevendo regiões diferentes é a tela e o roteirizador discordando.
-ARG MAP_PBF_URL
+# Sub-região do Geofabrik, `.osm.pbf` — o **mesmo** arquivo que alimenta o OSRM (`ARG MAP_PBF_URL`,
+# estágio `pbf`). Sem valor padrão de propósito: mapa e rota descrevendo regiões diferentes é a tela e o
+# roteirizador discordando.
 
 WORKDIR /data
 
 # Feature 089 (fase 2) — o schema do overlay do radar. Copiado antes do RUN porque ele lê o mesmo
 # `.osm.pbf` que o RUN baixa: o schema é um arquivo do repositório, o `.pbf` não é.
 COPY deploy/map-tiles/overlay.yml /data/overlay.yml
+COPY --from=pbf /area.osm.pbf /data/area.osm.pbf
 
 # ⚠️ O entrypoint da imagem é jib (`java -cp @/app/jib-classpath-file …`), e não um jar solto:
 # `java -jar /planetiler.jar` falha com "Unable to access jarfile" — e falharia só aqui, no build
@@ -40,10 +53,6 @@ COPY deploy/map-tiles/overlay.yml /data/overlay.yml
 # `generate-custom` no lugar de um perfil customizado do OpenMapTiles (T002 do tasks.md): reassar o
 # perfil inteiro a cada radar novo arriscaria o basemap que hoje funciona.
 RUN set -eu; \
-  if [ -z "${MAP_PBF_URL:-}" ]; then \
-    echo 'MAP_PBF_URL é obrigatório — ver docs/runbooks/map-tiles.md' >&2; exit 1; \
-  fi; \
-  wget -q -O area.osm.pbf "${MAP_PBF_URL}"; \
   java -cp @/app/jib-classpath-file com.onthegomap.planetiler.Main \
     --osm-path=/data/area.osm.pbf --output=/data/area.pmtiles \
     --force --download --nodemap-type=array; \

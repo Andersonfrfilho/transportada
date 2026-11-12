@@ -113,4 +113,25 @@ export type WhatsAppEvolutionGatewayPort = {
     input: EvolutionConnectionRequest,
   ): Promise<Exclude<WhatsAppEvolutionConnectionState, 'unknown'>>
   getQrCode(input: EvolutionConnectionRequest): Promise<EvolutionQrResult>
+  /** O número do chip conectado, só com dígitos (E.164 sem `+`); `null` quando o Evolution não o informa. */
+  getOwnerNumber(input: EvolutionConnectionRequest): Promise<null | string>
+  /** Desfaz o pareamento do número (o chip sai); a instância continua e gera QR novo. */
+  logout(input: EvolutionConnectionRequest): Promise<void>
+  /** Spec 292 T1: os grupos de que o número participa (sem os participantes). */
+  listGroups(input: EvolutionConnectionRequest): Promise<readonly EvolutionGroup[]>
+}
+
+/** Um grupo do WhatsApp como o Evolution o devolve: o identificador `@g.us` e o nome (rótulo). */
+export type EvolutionGroup = {
+  readonly groupJid: string
+  readonly name: string
+}
+
+/**
+ * Spec 281 T4b: criar a instância do número pela API, com a chave **global** do Evolution (variável de
+ * ambiente, nunca do banco nem do navegador). Devolve o token da instância, que passa a ser a chave da empresa.
+ */
+export type WhatsAppEvolutionProvisionerPort = {
+  readonly baseUrl: string
+  createInstance(input: { readonly instanceName: string }): Promise<{ readonly token: string }>
 }

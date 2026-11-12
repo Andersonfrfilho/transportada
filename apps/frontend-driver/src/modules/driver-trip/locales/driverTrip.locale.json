@@ -1,4 +1,18 @@
 {
+  "canhotoDuplicate": {
+    "dismiss": "Entendi",
+    "notice": "Esse canhoto já tinha chegado às {{time}}. Não gravamos de novo."
+  },
+  "canhotoReplace": {
+    "body": "Esta nota já tem um canhoto. Se trocar, o novo vai para conferência do escritório.",
+    "confirm": "Trocar o canhoto",
+    "keep": "Manter o que já tem",
+    "title": "Trocar o canhoto?"
+  },
+  "addressCorrection": {
+    "applied": "Endereço atualizado com a sua localização. Obrigado!",
+    "suggested": "Enviamos a sua localização para o escritório conferir o endereço."
+  },
   "arrivalRequired": "Toque em Cheguei para liberar a entrega",
   "arrive": "Cheguei",
   "arrived": "Cheguei às {{time}}",
@@ -13,6 +27,24 @@
   "helperNotice": {
     "detail": "Aqui você vê as paradas, as notas e o manifesto. Chegada, entrega, devolução e ocorrência são do motorista.",
     "title": "Você acompanha esta viagem como ajudante"
+  },
+  "chargeSeal": {
+    "label": "Aviso de cobrança",
+    "text": "O escritório marcou este cliente como possível cobrança na entrega. Se pedirem algum valor, registre pela ocorrência de cobrança."
+  },
+  "canhotoPickup": {
+    "explanation": "Esta nota já foi entregue. Você só busca o canhoto com o cliente — não leve a mercadoria.",
+    "failed": "Não foi possível enviar o canhoto. Confira se a coleta ainda é sua e tente de novo.",
+    "note": "NF {{number}} · série {{series}}",
+    "offline": "Sem sinal. Seu canhoto não foi enviado — tente de novo quando tiver rede.",
+    "pending_one": "{{count}} canhoto para coletar",
+    "pending_other": "{{count}} canhotos para coletar",
+    "photoAttached": "Foto do canhoto anexada",
+    "photoTitle": "Foto do canhoto",
+    "send": "Enviar canhoto",
+    "sending": "Enviando…",
+    "title": "Coletar canhoto",
+    "waitingReview": "Foto enviada. O escritório confere o canhoto."
   },
   "holidayWarning": {
     "future": "Dia {{date}} é feriado em {{city}} ({{reasons}}). Confirme com o cliente antes de ir.",
@@ -44,7 +76,10 @@
   "dispatch": {
     "queued": "Início da viagem aguardando envio — sobe quando o sinal voltar. Você já pode registrar as paradas.",
     "failed": "Não foi possível iniciar o trajeto. Toque de novo.",
+    "failedUnloaded": "A viagem não começou: o escritório precisa conferir o carregamento ou liberar a saída. Depois, toque em Despachar viagem de novo.",
     "start": "Despachar viagem",
+    "unloaded_one": "A {{notes}} ainda não foi marcada como carregada. A viagem só começa depois que o escritório conferir o carregamento ou liberar a saída.",
+    "unloaded_other": "As notas {{notes}} ainda não foram marcadas como carregadas. A viagem só começa depois que o escritório conferir o carregamento ou liberar a saída.",
     "waiting": "Aguardando o despacho — as ações de campo liberam depois de despachar a viagem."
   },
   "error": "Não foi possível carregar sua viagem. Puxe para tentar de novo.",
@@ -54,6 +89,7 @@
     "attachments_other": "{{count}} anexos",
     "back": "Voltar",
     "cause": {
+      "canhotoAlreadyAttached": "esta nota já tem um canhoto; na tela da viagem, escolha trocar ou manter o que já está lá",
       "declaredAmountRequired": "o valor pago é exigido por este tipo de ocorrência",
       "itemDeclaredAmountRequired": "o valor pago de cada produto é exigido por este tipo de ocorrência",
       "itemQuantityAboveNote": "a quantidade devolvida passou da quantidade da nota",
@@ -63,7 +99,17 @@
       "referenceNumberRequired": "o número do documento do cliente é exigido por este tipo de ocorrência",
       "stopNotReachable": "esta parada foi removida da viagem; peça ao escritório para registrar",
       "tooLarge": "a foto passou do tamanho aceito pelo servidor",
+      "unloadedDocuments": "há notas que ainda não foram marcadas como carregadas; peça ao escritório para conferir o carregamento ou liberar a saída",
+      "unloadedDocumentsNamed_one": "a {{notes}} ainda não foi marcada como carregada; peça ao escritório para conferir o carregamento ou liberar a saída",
+      "unloadedDocumentsNamed_other": "as notas {{notes}} ainda não foram marcadas como carregadas; peça ao escritório para conferir o carregamento ou liberar a saída",
+      "unscheduledStops": "há paradas da viagem sem horário; peça ao escritório para completar a rota",
       "typeNotAvailableForContractor": "este tipo de ocorrência não vale para a contratante desta nota; escolha outro tipo"
+    },
+    "cancel": {
+      "confirm": "Cancelar mesmo assim",
+      "keep": "Manter",
+      "open": "Cancelar envio",
+      "warning": "Esta ocorrência ainda não foi enviada. Cancelar apaga ela (e as fotos) do aparelho e ela não será registrada."
     },
     "discard": {
       "confirm": "Descartar mesmo assim",
@@ -95,6 +141,7 @@
       "occurrence": "Ocorrência",
       "proof": "Comprovante",
       "proofReceiver": "Quem recebeu",
+      "stopOccurrenceCharge": "Cobrança no recebimento (fotos e valor)",
       "stopOccurrencePhoto": "Foto da ocorrência da parada",
       "return": "Devolução"
     },
@@ -103,7 +150,7 @@
     "sendNow": "Enviar agora",
     "sending": "Enviando…",
     "status": {
-      "attachmentRejected": "Anexo rejeitado pelo servidor: {{cause}}. O evento já foi aceito.",
+      "attachmentRejected": "O anexo não foi aceito: {{cause}}. A entrega continua registrada.",
       "failed_one": "Falhou {{count}} vez — sem rede na última tentativa",
       "failed_other": "Falhou {{count}} vezes — sem rede na última tentativa",
       "queued": "Na fila",
@@ -166,6 +213,20 @@
   "navigate": "Navegar",
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
   "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
+  "outOfOrder": {
+    "confirm": "Seguir para a parada {{requested}}",
+    "discard": "Foi engano, descartar",
+    "generic": "Este toque ({{kind}}) não segue a ordem sugerida da rota. Se achar melhor, pode seguir.",
+    "kind": {
+      "arrive": "Cheguei",
+      "deliver": "Entreguei",
+      "depart": "Iniciar rota",
+      "return": "Não entreguei"
+    },
+    "title": "Fora da rota sugerida",
+    "withCurrent": "Você está a caminho da parada {{current}}, e este toque ({{kind}}) é da parada {{requested}}. Se achar melhor, pode seguir — a parada {{current}} continua aberta.",
+    "withNext": "A rota sugerida segue para a parada {{next}}. Se achar melhor, pode registrar {{kind}} na parada {{requested}}."
+  },
   "pendingProofs": {
     "attach": "Anexar comprovante",
     "back": "Voltar",
@@ -203,6 +264,15 @@
   "occurrenceSend": "Registrar",
   "profile": {
     "noTrip": "Sem viagem em andamento.",
+    "picture": {
+      "change": "Trocar foto",
+      "remove": "Remover foto",
+      "busy": "Enviando a foto…",
+      "cnhNote": "Foto tirada da sua CNH — toque para trocar",
+      "error": "Não foi possível salvar a foto. Tente outra imagem.",
+      "tooLarge": "A foto é grande demais mesmo depois de reduzida. Escolha outra.",
+      "unsupported": "Esse formato de imagem não é aceito. Use JPG, PNG ou WebP."
+    },
     "queueEmpty": "Nada aguardando envio.",
     "queueTitle": "Fila de envio",
     "roles": {
@@ -211,12 +281,10 @@
       "unknown": "Sem papel de campo"
     },
     "score": "{{score}} de 100",
+    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega, ou sem a localização dela, ou não chega. Cada perda some depois de 90 dias.",
     "scoreNone": "Sem nota ainda — nenhuma entrega com foto obrigatória nos últimos 90 dias.",
     "scoreTitle": "Sua nota",
     "signOut": "Sair",
-    "vehicleTitle": "Veículo da viagem",
-    "whatsappTitle": "WhatsApp",
-    "scoreHint": "Começa em 100. Cai quando a foto obrigatória chega atrasada, longe do local da entrega, ou sem a localização dela, ou não chega. Cada perda some depois de 90 dias.",
     "signOutPending": {
       "chatNotice_one": "{{count}} mensagem do chat ainda não foi enviada. Saindo agora, ela será descartada.",
       "chatNotice_other": "{{count}} mensagens do chat ainda não foram enviadas. Saindo agora, elas serão descartadas.",
@@ -225,7 +293,9 @@
       "notice_one": "{{count}} registro seu ainda não subiu. Saindo agora, ele fica no celular — envie antes ou descarte.",
       "notice_other": "{{count}} registros seus ainda não subiram. Saindo agora, eles ficam no celular — envie antes ou descarte.",
       "send": "Enviar agora"
-    }
+    },
+    "vehicleTitle": "Veículo da viagem",
+    "whatsappTitle": "WhatsApp"
   },
   "progress": {
     "label": "{{resolved}} de {{total}} paradas resolvidas",
@@ -485,10 +555,30 @@
     "dismiss": "Entendi",
     "notice": "Esta viagem não está mais com você — foi passada para outro motorista ou ajudante, ou voltou para o planejamento do escritório. O que você entregou e registrou fica com a viagem. Fale com o escritório se precisar de mais detalhes."
   },
+  "recordedTogether": {
+    "confirm": {
+      "arrived": "Vamos marcar Cheguei junto com esta baixa.",
+      "departed": "Vamos marcar Iniciar rota junto com este toque.",
+      "departedAndArrived": "Vamos marcar Iniciar rota e Cheguei junto com esta baixa."
+    },
+    "dismiss": "Entendi",
+    "notice": {
+      "arrived": "Marcamos Cheguei junto com esta baixa.",
+      "departed": "Marcamos Iniciar rota junto com este toque.",
+      "departedAndArrived": "Marcamos Iniciar rota e Cheguei junto com esta baixa."
+    }
+  },
   "serviceWorkerUpdate": {
     "apply": "Atualizar",
     "available": "Nova versão disponível.",
     "waitingCapture": "Atualiza ao terminar a captura aberta — foto, assinatura, recorte, ocorrência ou comprovante em preenchimento."
+  },
+  "plate": {
+    "label": "Placa",
+    "copied": "Placa copiada",
+    "copy": "Copiar a placa",
+    "legacy": "Placa {{plate}}, modelo antigo",
+    "mercosul": "Placa {{plate}}, modelo Mercosul"
   },
   "tripSelector": {
     "label": "Suas viagens",
@@ -543,6 +633,13 @@
     "sendNow": "Enviar agora",
     "confirming": "Entrega registrada. Ela segue para o servidor assim que houver sinal, e a foto sobe logo depois. Não precisa tocar de novo.",
     "missingLead": "Para confirmar, falta: {{fields}}."
+  },
+  "nextStop": {
+    "documents": "Notas: {{numbers}}",
+    "notNow": "Agora não",
+    "start": "Iniciar rota",
+    "title": "Próxima parada: {{sequence}} de {{totalStops}}",
+    "unreliableAddress": "Este endereço está sem localização certa no mapa. Quando chegar, marque Cheguei e compartilhe a localização: o endereço é atualizado."
   },
   "notDelivered": {
     "returnToWarehouse": "Não entregue — volta ao barracão",
@@ -624,7 +721,9 @@
     "attachment": {
       "off": "Sem foto",
       "optional": "Foto opcional",
-      "required": "Foto obrigatória"
+      "required": "Foto obrigatória",
+      "slots_one": "1 foto obrigatória",
+      "slots_other": "{{count}} fotos obrigatórias"
     },
     "cancel": "Cancelar",
     "changeType": "Trocar tipo",
@@ -674,6 +773,7 @@
     "missing": {
       "declaredAmount": "“{{label}}”",
       "itemDeclaredAmount": "“{{label}}” de cada produto marcado",
+      "newDueDateInvalid": "a nova data de vencimento (completa e a partir de hoje)",
       "note": "a observação",
       "photo": "a foto",
       "photoMinimum": "mais fotos (mínimo de {{count}})",
@@ -696,6 +796,12 @@
       "title": "Produtos da nota (obrigatório)"
     },
     "readyToRegister": "Tudo o que o tipo pede está preenchido.",
+    "newDueDate": {
+      "hint": "Se o cliente disse a data, digite só os números. Se não, deixe em branco.",
+      "invalid": "Digite uma data completa que ainda não passou, como 25/11/2026. Nada foi cortado: corrija ou apague o texto.",
+      "label": "Nova data de vencimento · opcional",
+      "placeholder": "dd/mm/aaaa"
+    },
     "referenceNumber": {
       "defaultLabel": "Número do documento do cliente",
       "optional": "{{label}} · opcional",
@@ -712,7 +818,44 @@
       "title": "Assinatura (opcional)",
       "titleRequired": "Assinatura (obrigatória)"
     },
-    "title": "Registrar ocorrência"
+    "title": "Registrar ocorrência",
+    "receivingCharge": {
+      "amount": "Valor pago",
+      "groupedAmount": "Valor pago (um só para as notas marcadas)",
+      "documents": "Notas da cobrança",
+      "documentsHint": "Marque as notas a que esta cobrança se refere.",
+      "documentNumber": "NF {{number}}",
+      "documentAmount": "Valor pago da NF {{number}}",
+      "mode": "Como registrar",
+      "modeOption": {
+        "one_per_document": "Uma linha por nota",
+        "grouped": "Uma linha para as notas"
+      },
+      "paidBy": "Quem pagou?",
+      "paidByOption": {
+        "driver": "Eu paguei",
+        "company": "A empresa pagou"
+      },
+      "pixKeyType": "Tipo da chave PIX",
+      "pixKeyTypePlaceholder": "Escolha o tipo",
+      "pixKeyTypeOption": {
+        "cpf": "CPF",
+        "cnpj": "CNPJ",
+        "email": "E-mail",
+        "phone": "Celular",
+        "random": "Chave aleatória"
+      },
+      "pixKey": "Sua chave PIX",
+      "pixKeyHint": "O escritório usa esta chave para devolver o que você pagou.",
+      "missing": {
+        "amount": "o valor pago",
+        "documentAmount": "o valor da NF {{number}}",
+        "documents": "as notas da cobrança",
+        "paidBy": "quem pagou",
+        "pix": "o tipo e a chave PIX",
+        "photo": "{{label}}"
+      }
+    }
   },
   "routeOccurrence": {
     "alert": {
@@ -840,6 +983,7 @@
     "more_other": "Ver mais {{count}} ocorrências de {{label}}",
     "noteLabel": "NF {{number}}",
     "phrase": {
+      "canhoto_collected": "O canhoto foi coletado e aprovado pelo escritório.",
       "case_cancelled": "Tratativa cancelada pelo escritório",
       "case_closed": "Encerrada pelo escritório",
       "case_returned_to_warehouse": "Mercadoria devolvida ao armazém",

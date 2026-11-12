@@ -16,6 +16,7 @@ export const CORRELATION_ID = 'cte-profiles-http-correlation'
 
 export const PROFILE_SETTINGS_BODY = {
   cargoInsuranceDeclared: true,
+  destinationCities: null,
   municipalServicePolicy: 'allow',
   cfopInternal: '5353',
   cfopInterstate: '6353',
@@ -104,6 +105,13 @@ export function serializeProfileDetail(profile: CteEmissionProfileDetail): objec
     components: profile.components.map((component) => ({ ...component })),
     createdAt: profile.createdAt,
     deliveryDays: profile.deliveryDays,
+    destinationCities:
+      profile.destinationCities === null
+        ? null
+        : profile.destinationCities.map((key) => {
+            const [city = '', state = ''] = key.split('|')
+            return { city, state }
+          }),
     freightRule: { ...profile.freightRule },
     freightRuleId: profile.freightRuleId,
     groupingMode: profile.groupingMode,

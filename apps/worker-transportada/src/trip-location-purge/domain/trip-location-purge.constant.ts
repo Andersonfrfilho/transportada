@@ -31,6 +31,13 @@ export const TRIP_DELIVERY_PROOFS_TABLE = 'trip_delivery_proofs'
 export const TRIP_STATUS_EVENTS_TABLE = 'trip_status_events'
 export const TRIP_STOP_OCCURRENCES_TABLE = 'trip_stop_occurrences'
 export const TRIP_DOCUMENT_OCCURRENCES_TABLE = 'trip_document_occurrences'
+export const ADDRESS_CORRECTION_SUGGESTIONS_TABLE = 'address_correction_suggestions'
+
+/**
+ * Spec 294 S4 (LGPD): a sugestão de endereço guarda o ponto do motorista e quem a criou; a linha inteira sai 90 dias
+ * depois da decisão (ou da criação, enquanto pendente). Prazo do produto, não da tela da empresa.
+ */
+export const ADDRESS_CORRECTION_SUGGESTION_MAX_AGE_DAYS = 90
 
 /**
  * Spec 196 D8: as cinco tabelas de evento que carregam o ponto do toque, cada uma com a coluna de
@@ -54,12 +61,27 @@ export const TRIP_LOCATION_UNSTAMPED_TABLES = [
   { table: 'trip_stops', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   { table: 'client_delivery_addresses', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   { table: 'geocoded_addresses', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
+  {
+    table: ADDRESS_CORRECTION_SUGGESTIONS_TABLE,
+    reason:
+      'sugestão de endereço com o ponto do motorista: prazo próprio (spec 294 S4) que apaga a linha inteira 90 dias depois da decisão, ou da criação se pendente',
+  },
   { table: 'geocoded_address_corrections', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   { table: 'municipality_centroids', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   { table: 'toll_booths', reason: ADDRESS_NOT_PERSON_POSITION_REASON },
   {
     table: 'trip_location_pings',
     reason: 'rastro ao vivo, com expurgo próprio de horas (ADR-0056 §2) que apaga a linha inteira',
+  },
+  {
+    table: 'whatsapp_delivery_preparations',
+    reason:
+      'a posição que o motorista compartilhou enquanto a entrega pelo WhatsApp está em preparo; a linha é de curta duração e o ponto vai ao evento da entrega, que o expurgo já varre',
+  },
+  {
+    table: 'whatsapp_occurrence_drafts',
+    reason:
+      'a posição que o motorista compartilhou enquanto a ocorrência pelo WhatsApp está em coleta; a linha é de curta duração e o ponto vai ao registro da ocorrência, que o expurgo já varre',
   },
   {
     table: 'fleet_drivers',
@@ -83,4 +105,10 @@ export const TRIP_TRACKING_MAX_AGE_HOURS = 36
 
 export function resolveTrackingPurgeCutoff(now: Date): Date {
   return new Date(now.getTime() - TRIP_TRACKING_MAX_AGE_HOURS * MILLISECONDS_PER_HOUR)
+}
+
+const MILLISECONDS_PER_DAY = 24 * MILLISECONDS_PER_HOUR
+
+export function resolveAddressSuggestionPurgeCutoff(now: Date): Date {
+  return new Date(now.getTime() - ADDRESS_CORRECTION_SUGGESTION_MAX_AGE_DAYS * MILLISECONDS_PER_DAY)
 }

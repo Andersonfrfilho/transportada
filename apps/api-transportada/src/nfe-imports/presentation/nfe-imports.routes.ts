@@ -19,6 +19,7 @@ import type {
   NfeImportListPage,
   NfeImportSummary,
 } from '../application/nfe-import.types.js'
+import type { NfeImportReprocessPreview } from '../application/preview-nfe-import-reprocess.use-case.js'
 import {
   parseDistributionRequest,
   parseIdempotencyKey,
@@ -96,8 +97,8 @@ type ListImportsInput = {
     readonly rejectedCountNe?: string
     readonly requestedByUserIdEq?: string
     readonly requestedByUserIdNe?: string
-    readonly sourceEq?: 'distribution' | 'upload'
-    readonly sourceNe?: 'distribution' | 'upload'
+    readonly sourceEq?: 'access_key' | 'distribution' | 'upload'
+    readonly sourceNe?: 'access_key' | 'distribution' | 'upload'
     readonly statusEq?:
       | 'pending'
       | 'queued'
@@ -158,6 +159,12 @@ type Dependencies = {
       readonly filters?: ListImportsInput['filters']
       readonly limit: number
     }): Promise<NfeImportListPage>
+  }
+  readonly previewReprocess: {
+    execute(input: {
+      readonly context: CompanyContext
+      readonly importId: string
+    }): Promise<NfeImportReprocessPreview>
   }
   readonly reprocessImport: {
     execute(input: {
@@ -280,6 +287,21 @@ export function createNfeImportRoutes(
       pathname: `${API_NFE_IMPORTS_PATH}/:id/items`,
       policy: INVOICES_READ_POLICY,
     }),
+    defineRoute<ImportIdentifierInput>({
+      async handle({ context, input }): Promise<Response> {
+        const preview = await dependencies.previewReprocess.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: preview }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }): ImportIdentifierInput => ({
+        importId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: `${API_NFE_IMPORTS_PATH}/:id/reprocess-preview`,
+      policy: INVOICES_IMPORT_POLICY,
+    }),
     defineRoute<ReprocessImportInput>({
       async handle({ context, input }): Promise<Response> {
         return acceptedSummaryResponse(
@@ -359,6 +381,8 @@ function serializeSummary(summary: NfeImportSummary): object {
     createdAt: summary.createdAt,
     id: summary.id,
     idempotencyKey: summary.idempotencyKey,
+    receivedFrom: summary.receivedFrom ?? null,
+    receivedVia: summary.receivedVia ?? 'screen',
     source: summary.source,
     status: summary.status,
     terminalError: summary.terminalError,

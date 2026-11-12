@@ -77,6 +77,14 @@ export type OccurrenceTimelineEvent =
       }>)
   /** Spec 278: o motorista leu a mensagem com o documento. */
   | (EventBase & Readonly<{ documentKind: string; kind: 'contractor.reply.driver_read' }>)
+  /** Spec 281 T9: uma tentativa de mandar o boleto ao cliente por WhatsApp; só status e motivo. */
+  | (EventBase &
+      Readonly<{ kind: 'contractor.client.whatsapp'; reason: null | string; status: string }>)
+  /** Spec 292 T7: o que o bot disse no grupo do WhatsApp do pedido; só o tipo do aviso. */
+  | (EventBase & Readonly<{ kind: 'group.boleto_return'; status: string }>)
+  /** Spec 288: o boleto ao cliente por e-mail, inclusive o que ficou de fora (`skipped`) e o motivo. */
+  | (EventBase &
+      Readonly<{ kind: 'contractor.client.email'; reason: null | string; status: string }>)
 
 export type OccurrenceTimelineTimings = Readonly<{
   contractorAskedAt: null | string
@@ -116,6 +124,15 @@ export const OCCURRENCE_TIMELINE_DELIVERY_REASONS = [
   'driver_unreachable',
   'whatsapp_window_closed',
   'send_failed',
+  /** Spec 281 T5/T9: os motivos do boleto ao cliente por WhatsApp (os da API para o cliente). */
+  'whatsapp_number_not_found',
+  'whatsapp_disconnected',
+  'attachment_too_large_for_whatsapp',
+  /** Spec 288: o que deixa o boleto ao cliente de fora, em qualquer canal (os da API para o cliente). */
+  'client_without_email',
+  'client_without_whatsapp',
+  'template_missing',
+  'attachment_too_large_for_email',
 ] as const
 
 export type OccurrenceTimelineStage = Readonly<{
@@ -231,7 +248,9 @@ export function describeOccurrenceTimelineEvent(
           key:
             event.phraseKey === 'contractor_reply_delivered'
               ? 'occurrenceTimeline.event.resolvedOnDelivery'
-              : 'occurrenceTimeline.event.resolvedAutomatic',
+              : event.phraseKey === 'canhoto_collected'
+                ? 'occurrenceTimeline.event.resolvedCanhotoCollected'
+                : 'occurrenceTimeline.event.resolvedAutomatic',
           values: {},
         }
       }
@@ -240,6 +259,10 @@ export function describeOccurrenceTimelineEvent(
         values: { name: formatPersonName(event.actor.name ?? ''), note: event.note ?? '' },
       }
     case 'resolution.reopened':
+      // Spec 321 T4: o canhoto coletado reprovado na conferência reabre sozinho (ator do sistema).
+      if (event.actor.kind === 'system') {
+        return { key: 'occurrenceTimeline.event.reopenedAutomatic', values: {} }
+      }
       return {
         key: 'occurrenceTimeline.event.reopened',
         values: { name: formatPersonName(event.actor.name ?? '') },
@@ -267,10 +290,33 @@ export function describeOccurrenceTimelineEvent(
             : 'occurrenceTimeline.event.driverReadDocument',
         values: {},
       }
+    case 'contractor.client.whatsapp':
+      return { key: `occurrenceTimeline.event.${clientWhatsappTitleKey(event)}`, values: {} }
+    case 'contractor.client.email':
+      return { key: `occurrenceTimeline.event.${clientEmailTitleKey(event)}`, values: {} }
+    case 'group.boleto_return':
+      return { key: `occurrenceTimeline.event.groupReturn.${event.status}`, values: {} }
   }
 }
 
 const FAILED_DELIVERY_STATUSES: ReadonlySet<string> = new Set(['failed', 'skipped'])
+
+function clientWhatsappTitleKey(
+  event: Extract<OccurrenceTimelineEvent, { kind: 'contractor.client.whatsapp' }>,
+): string {
+  if (event.status === 'sent') return 'clientWhatsappSent'
+  return FAILED_DELIVERY_STATUSES.has(event.status)
+    ? 'clientWhatsappFailed'
+    : 'clientWhatsappPending'
+}
+
+function clientEmailTitleKey(
+  event: Extract<OccurrenceTimelineEvent, { kind: 'contractor.client.email' }>,
+): string {
+  if (event.status === 'sent') return 'clientEmailSent'
+  if (event.status === 'skipped') return 'clientEmailSkipped'
+  return event.status === 'failed' ? 'clientEmailFailed' : 'clientEmailPending'
+}
 
 function deliveryTitleKey(
   event: Extract<OccurrenceTimelineEvent, { kind: 'contractor.reply.delivery' }>,
@@ -301,6 +347,23 @@ function describeDeliveryDetail(
 }
 
 /**
+ * Spec 281 T9: o motivo da falha do envio ao cliente, com a mesma lista de motivos da entrega ao motorista. Sem motivo
+ * conhecido, a linha não diz nada a mais.
+ */
+function describeClientWhatsappDetail(
+  event: Extract<
+    OccurrenceTimelineEvent,
+    { kind: 'contractor.client.email' | 'contractor.client.whatsapp' }
+  >,
+): null | OccurrenceTimelineSentence {
+  if (!FAILED_DELIVERY_STATUSES.has(event.status)) return null
+  const reason = OCCURRENCE_TIMELINE_DELIVERY_REASONS.find((known) => known === event.reason)
+  return reason === undefined
+    ? null
+    : { key: `occurrenceTimeline.deliveryReason.${reason}`, values: {} }
+}
+
+/**
  * Spec 278: a linha de detalhe sob o título — o que a conferência achou, por onde e para quem o documento foi, por
  * que a entrega falhou, e o e-mail sem anexo que deixou o retorno aguardando. `null` quando não há o que dizer.
  * `reason` chega como chave de locale, como o `status` do título.
@@ -320,6 +383,9 @@ export function describeOccurrenceTimelineEventDetail(
     }
     case 'contractor.reply.delivery':
       return describeDeliveryDetail(event)
+    case 'contractor.client.whatsapp':
+    case 'contractor.client.email':
+      return describeClientWhatsappDetail(event)
     case 'contractor.mail.received':
       return event.awaitingAttachment === true
         ? { key: 'occurrenceTimeline.detail.awaitingAttachment', values: {} }

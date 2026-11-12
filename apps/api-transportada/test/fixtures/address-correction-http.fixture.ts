@@ -23,6 +23,10 @@ import type {
   SendAddressCorrectionMailInput,
   SendAddressCorrectionMailUseCase,
 } from '../../src/address-correction/application/send-address-correction-mail.use-case.js'
+import type {
+  AddressCorrectionMailTemplateState,
+  ReadAddressCorrectionMailTemplateUseCase,
+} from '../../src/address-correction/application/read-address-correction-mail-template.use-case.js'
 import type { SendAddressCorrectionMailResult } from '../../src/address-correction/application/address-correction-mail.port.js'
 import type {
   AddressCorrectionRecipients,
@@ -84,6 +88,19 @@ export const SEND_MAIL_RESULT: SendAddressCorrectionMailResult = {
   threadId: '00000000-0000-4000-8000-000000000b10',
 }
 
+export const MAIL_TEMPLATE_STATE: AddressCorrectionMailTemplateState = {
+  key: 'correcao-endereco.padrao',
+  preview: {
+    html: '<p>Olá</p>',
+    subject: 'Correção de endereço de entrega — 2 clientes',
+    text: 'Olá',
+  },
+  problems: [],
+  usable: true,
+  variables: [{ description: 'Nome da contratante que recebe o e-mail.', name: 'contratante' }],
+  version: 3,
+}
+
 export const ADDRESS_CORRECTION_RECIPIENTS: AddressCorrectionRecipients = {
   cc: [{ maskedEmail: 'a***@e***.example', name: 'Ana', userId: 'user-ana' }],
   ccSource: 'company',
@@ -103,6 +120,7 @@ type CreateFixtureParams = {
   readonly findRecipientsError?: Error
   readonly findRecipientsResult?: AddressCorrectionRecipients
   readonly listResult?: readonly AddressCorrectionRequest[]
+  readonly mailTemplateState?: AddressCorrectionMailTemplateState
   readonly permissions?: CompanyContext['permissions']
   readonly saveError?: Error
   readonly saveResult?: AddressCorrectionRequest
@@ -118,6 +136,7 @@ export async function createAddressCorrectionHttpFixture(
   readonly handle: (request: Request) => Promise<Response>
   readonly listCalls: { readonly companyId: string }[]
   readonly logCalls: { readonly message: string; readonly metadata: unknown }[]
+  readonly readMailTemplateCalls: { readonly companyId: string }[]
   readonly saveCalls: SaveAddressCorrectionDraftInput[]
   readonly sendMailCalls: SendAddressCorrectionMailInput[]
 }> {
@@ -125,6 +144,14 @@ export async function createAddressCorrectionHttpFixture(
   const saveCalls: SaveAddressCorrectionDraftInput[] = []
   const sendMailCalls: SendAddressCorrectionMailInput[] = []
   const findRecipientsCalls: FindAddressCorrectionRecipientsInput[] = []
+  const readMailTemplateCalls: { readonly companyId: string }[] = []
+
+  const readMailTemplate: ReadAddressCorrectionMailTemplateUseCase = {
+    read: async (input) => {
+      readMailTemplateCalls.push(structuredClone(input))
+      return params.mailTemplateState ?? MAIL_TEMPLATE_STATE
+    },
+  }
 
   const listRequests: ListAddressCorrectionRequestsUseCase = {
     list: async (input) => {
@@ -164,6 +191,7 @@ export async function createAddressCorrectionHttpFixture(
       findRecipients,
       listRequests,
       mailRateLimit: { maxRequests: 20, windowSeconds: 3_600 },
+      readMailTemplate,
       saveDraft,
       sendMail,
     }),
@@ -186,6 +214,7 @@ export async function createAddressCorrectionHttpFixture(
     handle: (request) => handleRequest(request, { timeout() {} }),
     listCalls,
     logCalls,
+    readMailTemplateCalls,
     saveCalls,
     sendMailCalls,
   }
@@ -195,6 +224,7 @@ async function loadRoutes(input: {
   readonly findRecipients: FindAddressCorrectionRecipientsUseCase
   readonly listRequests: ListAddressCorrectionRequestsUseCase
   readonly mailRateLimit: { readonly maxRequests: number; readonly windowSeconds: number }
+  readonly readMailTemplate: ReadAddressCorrectionMailTemplateUseCase
   readonly saveDraft: SaveAddressCorrectionDraftUseCase
   readonly sendMail: SendAddressCorrectionMailUseCase
 }): Promise<readonly RegisteredRoute[]> {
@@ -205,6 +235,7 @@ async function loadRoutes(input: {
       readonly findRecipients: FindAddressCorrectionRecipientsUseCase
       readonly listRequests: ListAddressCorrectionRequestsUseCase
       readonly mailRateLimit: { readonly maxRequests: number; readonly windowSeconds: number }
+      readonly readMailTemplate: ReadAddressCorrectionMailTemplateUseCase
       readonly saveDraft: SaveAddressCorrectionDraftUseCase
       readonly sendMail: SendAddressCorrectionMailUseCase
     }): readonly RegisteredRoute[]

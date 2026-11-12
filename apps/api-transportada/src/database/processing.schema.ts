@@ -22,6 +22,7 @@ import { nfeImports, type NfeOriginTrigger } from './nfe.schema.js'
 export const PROCESSING_EVENT_TYPES = [
   'transportada.nfe.import.requested',
   'transportada.nfe.distribution.requested',
+  'transportada.nfe.access-key.requested',
 ] as const
 export type ProcessingEventType = (typeof PROCESSING_EVENT_TYPES)[number]
 
@@ -163,7 +164,7 @@ export const processingOutbox = pgTable(
     check('processing_outbox_aggregate_type_check', sql`${table.aggregateType} = 'nfe_import'`),
     check(
       'processing_outbox_event_type_check',
-      sql`${table.eventType} in ('transportada.nfe.import.requested', 'transportada.nfe.distribution.requested')`,
+      sql`${table.eventType} in ('transportada.nfe.import.requested', 'transportada.nfe.distribution.requested', 'transportada.nfe.access-key.requested')`,
     ),
     check(
       'processing_outbox_claim_check',

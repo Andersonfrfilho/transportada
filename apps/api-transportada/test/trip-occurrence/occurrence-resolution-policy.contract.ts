@@ -190,3 +190,31 @@ describe('system resolution caused by the contractor reply (spec 276 T3b)', () =
     expect(state.lastResolution).toMatchObject({ causedByContractorReply: true })
   })
 })
+
+describe('system resolution caused by the collected canhoto (spec 321 T4)', () => {
+  test('the approved canhoto of a pickup has its own key', () => {
+    expect(
+      resolveSystemResolutionCausePhraseKey({
+        caseEventStatus: undefined,
+        causedByCanhotoPickup: true,
+      }),
+    ).toBe('canhoto_collected')
+  })
+
+  test('the last resolution carries the pickup cause', () => {
+    const state = resolveOccurrenceResolutionState({
+      cancelledAt: undefined,
+      events: [
+        event({
+          actorKind: 'system',
+          causedByCanhotoPickup: true,
+          createdAt: '2026-11-10T10:00:00.000Z',
+          id: 'a',
+          note: undefined,
+        }),
+      ],
+    })
+    expect(state.state).toBe('resolved')
+    expect(state.lastResolution).toMatchObject({ causedByCanhotoPickup: true })
+  })
+})

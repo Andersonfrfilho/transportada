@@ -4,7 +4,7 @@
  * Spec 248 T4.7: o retorno da contratante já aberto e com a resposta (um PDF) recebida, contra Postgres
  * real — o ponto de partida dos testes que levam o boleto adiante.
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import {
   companyOccurrenceTypes,
@@ -50,8 +50,6 @@ export async function openReplyWithForward(
       contractorReplyWaitHours: 6,
       driverReplyTemplate: 'Segue o boleto prorrogado.',
       emailsContractor: true,
-      forwardEmailBody: FORWARD_EMAIL_BODY,
-      forwardEmailSubject: FORWARD_EMAIL_SUBJECT,
       forwardToInformedEmail: forward.informed,
       forwardToNoteRecipient: forward.note,
     })
@@ -61,6 +59,20 @@ export async function openReplyWithForward(
         eq(companyOccurrenceTypes.id, occurrence?.typeId ?? ''),
       ),
     )
+  /** Spec 286 T9: o texto do e-mail sai do modelo escolhido no canal do tipo, não do texto antigo. */
+  const templateKey = `occurrence.client-reply.${occurrence?.typeId ?? ''}`
+  await database.db.execute(sql`
+    insert into notification.templates (company_id, key, channel, locale, version, subject, body, active)
+    values (${companyId}, ${templateKey}, 'email', 'pt-BR', 1, ${FORWARD_EMAIL_SUBJECT}, ${FORWARD_EMAIL_BODY}, true)`)
+  /** Só semeia o e-mail automático quando o teste ainda não escolheu o canal: o teste pode trazer o modo dele. */
+  const [existingEmail] = await database.db.execute(sql`
+    select 1 from company_occurrence_type_client_channels
+    where company_id = ${companyId} and occurrence_type_id = ${occurrence?.typeId ?? ''} and channel = 'email'`)
+  if (existingEmail === undefined) {
+    await database.db.execute(sql`
+      insert into company_occurrence_type_client_channels (company_id, occurrence_type_id, channel, enabled, send_mode, template_key)
+      values (${companyId}, ${occurrence?.typeId ?? ''}, 'email', true, 'automatic', ${templateKey})`)
+  }
   await createSendAutomaticOccurrenceMailUseCase({
     reader: createAutomaticOccurrenceMailReader(database.db),
     sendMail: createOccurrenceMailUseCase(database),
@@ -144,4 +156,29 @@ export async function setNoteRecipientEmail(
     .update(nfeDocuments)
     .set({ recipientEmail })
     .where(eq(nfeDocuments.companyId, companyId))
+}
+
+/**
+ * Spec 286 T9: o texto do boleto no canal sai do modelo escolhido no tipo, não do texto antigo. Semeia o modelo
+ * do canal e a linha de canal ligada a ele, como o cadastro faz.
+ */
+export async function seedContractorReplyChannelTemplate(
+  database: TestDatabase,
+  seeded: Seeded,
+  channel: 'email' | 'whatsapp',
+  body: string,
+): Promise<void> {
+  const { companyId } = seeded.company
+  const [occurrence] = await database.db
+    .select({ typeId: tripDocumentOccurrences.occurrenceTypeId })
+    .from(tripDocumentOccurrences)
+    .where(eq(tripDocumentOccurrences.id, seeded.occurrenceId))
+  const typeId = occurrence?.typeId ?? ''
+  const templateKey = `occurrence.client-reply.${typeId}`
+  await database.db.execute(sql`
+    insert into notification.templates (company_id, key, channel, locale, version, subject, body, active)
+    values (${companyId}, ${templateKey}, ${channel}, 'pt-BR', 1, '', ${body}, true)`)
+  await database.db.execute(sql`
+    insert into company_occurrence_type_client_channels (company_id, occurrence_type_id, channel, enabled, send_mode, template_key)
+    values (${companyId}, ${typeId}, ${channel}, true, 'automatic', ${templateKey})`)
 }

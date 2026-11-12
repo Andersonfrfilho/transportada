@@ -1,5 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/driverTrip.types.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { CLIENT_CHANNEL_VALUES } from '@/modules/client-contacts/shared/clientContacts.types'
 import { hasValidContractorReplyFields } from './driverOccurrenceContractorReply.validation'
 
 /**
@@ -136,8 +137,25 @@ export type DriverDeliveryProofSettings = Readonly<{
   signature: ProofFieldRequirement
 }>
 
+/** Spec 317 T14a: a data da marca vem do servidor; o app só decide se mostra o aviso. */
+export type DriverClientChargeSeal = Readonly<{ flaggedAt: string }>
+
+/**
+ * Spec 321 T6 (D4b): a coleta de canhoto encaixada na parada. O motorista da viagem nova a conclui fotografando o canhoto;
+ * `photoSentAt` preenchido é a foto que espera a conferência do escritório.
+ */
+export type DriverCanhotoPickup = Readonly<{
+  documentNumber: string
+  documentSeries: string
+  id: string
+  photoSentAt: string | null
+  recipientDisplayName: string
+}>
+
 export type DriverTripStop = Readonly<{
   arrivedAt: string | null
+  /** Spec 321 T6: acessório — ausente (API anterior) ou malformado vira sem coleta. */
+  canhotoPickups?: readonly DriverCanhotoPickup[]
   completedAt: string | null
   /** `null` quando o snapshot ainda não traz configuração — o app aplica o padrão. */
   deliveryProof: DriverDeliveryProofSettings | null
@@ -153,9 +171,16 @@ export type DriverTripStop = Readonly<{
   enRouteSince?: string | null
   /** Spec 206 D9: a hora do TOQUE no aparelho — a 207 usa como âncora, com `enRouteSince` de reserva. */
   enRouteTappedAt?: string | null
+  /**
+   * Spec 317 (E7, RF13): o escritório marcou o cliente como "possível cobrança na entrega" e o tipo liga o aviso ao
+   * motorista. Acessório, somente leitura: ausente ou malformado = sem aviso.
+   */
+  clientChargeSeal?: DriverClientChargeSeal
   /** Spec 252 (ADR-0100 §6): avisos de feriado para a parada. Acessório: ausente ou malformado vira lista vazia. */
   holidayWarnings?: readonly HolidayWarning[]
   id: string
+  /** Spec 294 RF12: `false` = sem localização certa no mapa; ausente (API antiga) não avisa. */
+  isAddressReliable?: boolean
   label: string
   latitude: string | null
   longitude: string | null
@@ -312,6 +337,8 @@ export type StopOccurrenceReportReference =
  */
 export type DriverFieldReport =
   | Readonly<{
+      /** Spec 294 RF27: o motorista confirmou gravar fora da ordem da rota (o 409 já foi perguntado). */
+      confirmOutOfOrder?: true
       idempotencyKey: string
       kind: 'arrive'
       location: DriverReportedLocation | null
@@ -323,6 +350,8 @@ export type DriverFieldReport =
    * concorrentes (D3); a data nasce no toque, nunca no envio.
    */
   | Readonly<{
+      /** Spec 294 RF27: o motorista confirmou gravar fora da ordem da rota (o 409 já foi perguntado). */
+      confirmOutOfOrder?: true
       idempotencyKey: string
       kind: 'depart'
       location: DriverReportedLocation | null
@@ -349,6 +378,8 @@ export type DriverFieldReport =
       tappedAt: string
     }>
   | Readonly<{
+      /** Spec 294 RF27: o motorista confirmou gravar fora da ordem da rota (o 409 já foi perguntado). */
+      confirmOutOfOrder?: true
       documentId: string
       idempotencyKey: string
       kind: 'deliver'
@@ -357,6 +388,8 @@ export type DriverFieldReport =
       location: DriverReportedLocation | null
     }>
   | Readonly<{
+      /** Spec 294 RF27: o motorista confirmou gravar fora da ordem da rota (o 409 já foi perguntado). */
+      confirmOutOfOrder?: true
       documentId: string
       idempotencyKey: string
       kind: 'return'
@@ -405,6 +438,8 @@ export type DriverFieldReport =
        */
       declaredAmount?: string
       items?: readonly DriverOccurrenceItem[]
+      /** A nova data de vencimento (`AAAA-MM-DD`), opcional; só o tipo que a pede a manda. */
+      newDueDate?: string
       referenceNumber?: string
       /**
        * Spec 246 (RF9, 209 D1): a assinatura mora **no mesmo item** da foto — item novo multiplicaria
@@ -426,6 +461,23 @@ export type DriverFieldReport =
       kind: 'stopOccurrencePhoto'
       occurrenceKey: string
       photo: DriverOccurrencePhoto
+      stopId: string
+    }> &
+      StopOccurrenceReportReference)
+  /**
+   * Spec 317 (E1, E4, E11, RF4): a cobrança no recebimento — **um item só** com as fotos por vaga, o valor, as notas,
+   * quem pagou e o PIX. A API cobra todas as vagas obrigatórias no mesmo registro (`422 STOP_OCCURRENCE_PHOTO_SLOT_MISSING`),
+   * então a ocorrência não sobe antes das fotos: o `send` sobe cada foto pela rota da parada e faz **um** `POST` com
+   * `photos[{ slotKey, objectId }]` e `receivingCharge`. A chave do item é a do registro — o reenvio da fila não duplica.
+   */
+  | (Readonly<{
+      description: string
+      idempotencyKey: string
+      kind: 'stopOccurrenceCharge'
+      location: DriverReportedLocation | null
+      /** Uma foto por vaga; a chave é a `slotKey` que o servidor mandou. */
+      photos: readonly Readonly<{ photo: DriverOccurrencePhoto; slotKey: string }>[]
+      receivingCharge: ReceivingChargeBody
       stopId: string
     }> &
       StopOccurrenceReportReference)
@@ -499,7 +551,53 @@ export type DriverOccurrenceType = Readonly<{
   declaredAmountScope?: string
   declaredAmountLabel?: string
   iconName?: null | string
+  /** Spec 281 T8b: o servidor pede o contato do cliente na abertura; ausente é API anterior ao campo. */
+  asksClientContact?: boolean
+  /** O app mostra o campo opcional "nova data de vencimento"; ausente é API anterior ao campo. */
+  asksNewDueDate?: boolean
+  clientChannel?: 'both' | 'email' | 'off' | 'whatsapp'
+  /**
+   * Spec 317 (E1, RF8): as vagas de foto rotuladas do tipo (a cobrança no recebimento tem a placa e o comprovante).
+   * O servidor manda e recobra; ausente é o tipo sem vagas, que segue com a foto única da spec 209.
+   */
+  photoSlots?: readonly DriverPhotoSlot[]
 }>
+
+/** Spec 317: uma vaga de foto do tipo — a chave estável, o rótulo que o motorista lê e se trava o envio. */
+export type DriverPhotoSlot = Readonly<{
+  label: string
+  position: number
+  required: boolean
+  slotKey: string
+}>
+
+/** Spec 317 (E4, E11): os vocabulários do corpo da cobrança — cópia por valor da API. */
+export const RECEIVING_CHARGE_MODES = ['one_per_document', 'grouped'] as const
+export type ReceivingChargeMode = (typeof RECEIVING_CHARGE_MODES)[number]
+export const RECEIVING_CHARGE_PAID_BY = ['driver', 'company'] as const
+export type ReceivingChargePaidBy = (typeof RECEIVING_CHARGE_PAID_BY)[number]
+export const DRIVER_PIX_KEY_TYPES = ['cpf', 'cnpj', 'email', 'phone', 'random'] as const
+export type DriverPixKeyType = (typeof DRIVER_PIX_KEY_TYPES)[number]
+
+/** O corpo `receivingCharge` do registro da parada. Dinheiro é texto (`"12.34"`), nunca `number`. */
+export type ReceivingChargeBody = Readonly<{
+  amount?: string
+  documents?: readonly Readonly<{ amount?: string; documentId: string }>[]
+  driverPix?: Readonly<{ key: string; type: DriverPixKeyType }>
+  mode: ReceivingChargeMode
+  paidBy: ReceivingChargePaidBy
+}>
+
+function isDriverPhotoSlot(value: unknown): value is DriverPhotoSlot {
+  if (typeof value !== 'object' || value === null) return false
+  const slot = value as Partial<Record<keyof DriverPhotoSlot, unknown>>
+  return (
+    typeof slot.slotKey === 'string' &&
+    typeof slot.label === 'string' &&
+    typeof slot.required === 'boolean' &&
+    typeof slot.position === 'number'
+  )
+}
 
 /** ⚠️ Cópia por valor de `OCCURRENCE_TYPE_FLOWS` (spec 218 D1). */
 export const DRIVER_OCCURRENCE_FLOWS = ['document', 'stop'] as const
@@ -529,7 +627,15 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly declaredAmountScope?: unknown
     readonly declaredAmountLabel?: unknown
     readonly iconName?: unknown
+    readonly asksClientContact?: unknown
+    readonly asksNewDueDate?: unknown
+    readonly clientChannel?: unknown
+    readonly photoSlots?: unknown
   }
+  /** Spec 317: ausente é a API anterior; presente, uma lista de vagas bem formadas (vaga torta derruba o tipo, não o app). */
+  const hasKnownPhotoSlots =
+    candidate.photoSlots === undefined ||
+    (Array.isArray(candidate.photoSlots) && candidate.photoSlots.every(isDriverPhotoSlot))
   /** Ausente é a API anterior; presente, só no vocabulário — valor desconhecido não vira "sem exigência". */
   const hasKnownMode = [
     candidate.attachmentMode,
@@ -564,6 +670,13 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     candidate.iconName === undefined ||
     candidate.iconName === null ||
     typeof candidate.iconName === 'string'
+  /** Spec 281 T8b: ausentes são a API anterior; presentes, só no vocabulário — valor estranho não liga o pedido. */
+  const hasKnownContactFields =
+    (candidate.asksClientContact === undefined ||
+      typeof candidate.asksClientContact === 'boolean') &&
+    (candidate.asksNewDueDate === undefined || typeof candidate.asksNewDueDate === 'boolean') &&
+    (candidate.clientChannel === undefined ||
+      (CLIENT_CHANNEL_VALUES as readonly unknown[]).includes(candidate.clientChannel))
   return (
     typeof candidate.id === 'string' &&
     typeof candidate.name === 'string' &&
@@ -573,6 +686,8 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     hasKnownDeclaredAmountScope &&
     hasKnownNewFields &&
     hasKnownIconName &&
+    hasKnownContactFields &&
+    hasKnownPhotoSlots &&
     hasValidContractorReplyFields(value as Readonly<Record<string, unknown>>)
   )
 }

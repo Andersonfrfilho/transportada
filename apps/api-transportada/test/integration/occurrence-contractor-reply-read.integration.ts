@@ -161,6 +161,36 @@ describe('ler e tratar o retorno da contratante (spec 248 T5.3)', () => {
     },
   )
 
+  testWithPostgres(
+    'retorno que precisa do operador (boleto não confere) pode ser tratado e perde o motivo',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId, userId } = seeded.company
+        await openReply(database, seeded)
+        await database.db
+          .update(occurrenceContractorReplies)
+          .set({ reason: 'document_not_confirmed', status: 'needs_operator' })
+          .where(eq(occurrenceContractorReplies.companyId, companyId))
+
+        const outcome = await createDrizzleContractorReplyHandledWriter(database.db).markHandled({
+          actorUserId: userId,
+          companyId,
+          note: 'Boleto errado; pedi outro à contratante.',
+          now: new Date(),
+          occurrenceId: seeded.occurrenceId,
+        })
+        expect(outcome).toBe('handled')
+
+        const [reply] = await database.db
+          .select()
+          .from(occurrenceContractorReplies)
+          .where(eq(occurrenceContractorReplies.companyId, companyId))
+        expect(reply).toMatchObject({ reason: null, status: 'handled' })
+      })
+    },
+  )
+
   testWithPostgres('retorno já entregue não vira tratado', async () => {
     await withConversationDatabase(async (database) => {
       const seeded = await seedMailScenario(database)

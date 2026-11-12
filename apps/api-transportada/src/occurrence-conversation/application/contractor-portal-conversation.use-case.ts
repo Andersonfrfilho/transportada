@@ -34,6 +34,7 @@ import type {
   PortalConversationMessageRecord,
   PortalConversationSummary,
 } from './contractor-portal-conversation.port.js'
+import type { ContractorReplyClientWhatsAppDispatcherPort } from './contractor-reply-client-whatsapp.port.js'
 
 export const PORTAL_CONVERSATION_SEND_OPERATION = 'occurrence-conversation.portal.send'
 
@@ -176,6 +177,8 @@ async function notifyDelivery(
 }
 
 export function createContractorPortalConversationUseCase(dependencies: {
+  /** Spec 286 T3 (RF3): o boleto por WhatsApp ao cliente que a entrega automática reservou, depois do commit. */
+  readonly clientWhatsApp?: ContractorReplyClientWhatsAppDispatcherPort
   readonly clock: () => Date
   /** Spec 248 T4.6b: the notice of the automatic delivery, sent after the commit. */
   readonly deliveryNotifier: ContractorReplyDeliveryNotifierPort
@@ -315,6 +318,7 @@ export function createContractorPortalConversationUseCase(dependencies: {
       if (outcome.delivery !== undefined) {
         await notifyDelivery(dependencies.deliveryNotifier, companyId, outcome.delivery)
       }
+      await dependencies.clientWhatsApp?.dispatch({ companyId })
       return outcome.response
     },
   }

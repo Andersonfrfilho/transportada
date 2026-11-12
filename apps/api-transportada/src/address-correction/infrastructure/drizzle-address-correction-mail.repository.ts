@@ -18,7 +18,6 @@ import {
   contractorMailMessages,
   contractorMailOutbox,
   contractorMailSettings,
-  contractorMailTemplates,
   contractorMailThreads,
   contractors,
   identityUserProfiles,
@@ -26,10 +25,6 @@ import {
   userCompanyMemberships,
 } from '../../database/database.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
-import {
-  ADDRESS_CORRECTION_MAIL_TYPE,
-  CONTRACTOR_MAIL_TEMPLATE_STATUSES,
-} from '../../contractor-mail/domain/mail-template-catalog.constant.js'
 import type {
   AddressCorrectionMailContact,
   AddressCorrectionMailContractor,
@@ -43,6 +38,7 @@ import type {
   SendAddressCorrectionMailResult,
 } from '../application/address-correction-mail.port.js'
 import type { AddressCorrectionRequest } from '../application/address-correction.port.js'
+import { findActiveAddressCorrectionMailTemplate } from './address-correction-mail-template.query.js'
 import { ADDRESS_CORRECTION_SEND_MAIL_OPERATION } from '../domain/address-correction-mail.constant.js'
 import {
   AddressCorrectionMailMessageNotPersistedError,
@@ -59,7 +55,6 @@ const OUTBOUND_DIRECTION = 'outbound'
 const QUEUED_DELIVERY_STATUS = 'queued'
 const ADDRESS_CORRECTION_SUBJECT_TYPE = 'address_correction'
 const ACTIVE_CONTACT_STATUS = CONTRACTOR_CONTACT_STATUSES[0]
-const [ACTIVE_TEMPLATE_STATUS] = CONTRACTOR_MAIL_TEMPLATE_STATUSES
 const [MESSAGE_SEND_REQUESTED_EVENT_TYPE] = CONTRACTOR_MAIL_OUTBOX_EVENT_TYPES
 
 export class DrizzleAddressCorrectionMailRepository implements AddressCorrectionMailUnitOfWorkPort {
@@ -105,32 +100,11 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
     return row
   }
 
-  /** `company_id`, tipo e `active` na mesma condição do id — nunca o id sozinho (T402, tenant). */
-  public async findMailTemplate(params: {
+  /** Spec 286 (RF6): a versão ativa do modelo vem do módulo de notificação. */
+  public findMailTemplate(params: {
     readonly companyId: string
-    readonly templateId?: string
   }): Promise<AddressCorrectionMailTemplate | undefined> {
-    const [row] = await this.transaction
-      .select({
-        closing: contractorMailTemplates.closing,
-        id: contractorMailTemplates.id,
-        intro: contractorMailTemplates.intro,
-        itemText: contractorMailTemplates.itemText,
-        subject: contractorMailTemplates.subject,
-      })
-      .from(contractorMailTemplates)
-      .where(
-        and(
-          eq(contractorMailTemplates.companyId, params.companyId),
-          eq(contractorMailTemplates.mailType, ADDRESS_CORRECTION_MAIL_TYPE),
-          eq(contractorMailTemplates.status, ACTIVE_TEMPLATE_STATUS),
-          params.templateId === undefined
-            ? eq(contractorMailTemplates.isDefault, true)
-            : eq(contractorMailTemplates.id, params.templateId),
-        ),
-      )
-      .limit(1)
-    return row
+    return findActiveAddressCorrectionMailTemplate(this.transaction, params)
   }
 
   public async findActiveContactsByIds(params: {
@@ -325,7 +299,8 @@ class AddressCorrectionMailDrizzleTransaction implements AddressCorrectionMailTr
         direction: OUTBOUND_DIRECTION,
         fromAddress: params.fromAddress,
         subject: params.subject,
-        templateId: params.templateId,
+        notificationTemplateKey: params.templateKey,
+        notificationTemplateVersion: params.templateVersion,
         threadId: params.threadId,
         toAddresses: [...params.toAddresses],
         ccAddresses: [...params.ccAddresses],

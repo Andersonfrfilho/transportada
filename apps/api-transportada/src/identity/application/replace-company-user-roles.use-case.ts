@@ -1,8 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { CompanyRole } from '../../database/identity.schema.js'
-import { CompanyUserNotFoundError } from '../domain/company-user.error.js'
+import { SERVICE_COMPANY_ROLES, type CompanyRole } from '../../database/identity.schema.js'
+import {
+  CompanyUserIsServiceAccountError,
+  CompanyUserNotFoundError,
+} from '../domain/company-user.error.js'
 import { toCompanyUserView, type CompanyUserView } from '../domain/company-user.policy.js'
 import { assertCompanyKeepsAdministrator } from '../domain/invitation.policy.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
@@ -31,6 +34,9 @@ export function createReplaceCompanyUserRolesUseCase({
     async execute({ context, roles, userId }) {
       const existing = await repository.findByUserId({ companyId: context.companyId, userId })
       if (existing === undefined) throw new CompanyUserNotFoundError()
+      if (existing.roles.some((role) => SERVICE_COMPANY_ROLES.includes(role))) {
+        throw new CompanyUserIsServiceAccountError()
+      }
 
       const administratorUserIds = await repository.listAdministratorUserIds({
         companyId: context.companyId,

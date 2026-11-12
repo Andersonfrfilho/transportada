@@ -1,17 +1,20 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import type { KeyReaderFieldHandle } from '@/components/ui/key-reader-field'
 import { Select } from '@/components/ui/select'
 import { Tabs } from '@/components/ui/tabs'
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 
+import { useBippedNotes } from '../hooks/useBippedNotes.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
+import { excludeBippedDocuments } from '../shared/bippedNote.service'
 import type { ScannedNfeDocument } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
+import { TripBippedNotes } from './TripBippedNotes.component'
 import { TripDocumentSearch } from './TripDocumentSearch.component'
 import { TripScanQueue } from './TripScanQueue.component'
 import { TripTypedNoteFeedback } from './TripTypedNoteFeedback.component'
@@ -52,6 +55,33 @@ export function TripLinkDocumentPanel({
   /** Remonta a busca depois de vincular: a seleção velha apontaria para notas que já saíram da lista. */
   const [searchEpoch, setSearchEpoch] = useState(0)
   const isNfe = linkForm.draft.mode === 'nfe'
+  const readerRef = useRef<KeyReaderFieldHandle>(null)
+  /** "Acrescentar" chama a mesma rota de vínculo do detalhe: as regras da viagem continuam sendo da API. */
+  const bipped = useBippedNotes({
+    availableDocuments,
+    isLoadingDocuments,
+    onStage: (documents) => void linkForm.linkDocuments(documents),
+    refocusReader: () => readerRef.current?.focus(),
+    stagedDocumentIds: linkForm.linkedDocumentIds,
+  })
+
+  /** O leitor aceita número de nota: as livres precisam estar carregadas antes da primeira leitura. */
+  useEffect(() => {
+    if (isNfe) onNeedDocuments()
+  }, [isNfe, onNeedDocuments])
+
+  /** A nota bipada já tem linha própria: a busca não a oferece de novo. */
+  const searchDocuments = excludeBippedDocuments(availableDocuments, bipped.rows)
+
+  /** Chave digitada não vincula direto: vira linha da lista, como a lida pelo leitor. */
+  function handleLinkTyped(): void {
+    if (linkForm.reference?.kind !== 'accessKey') {
+      onLinkTyped()
+      return
+    }
+    bipped.read(linkForm.reference.value)
+    linkForm.reset()
+  }
 
   async function linkSelected(): Promise<void> {
     const documents = selected
@@ -74,7 +104,7 @@ export function TripLinkDocumentPanel({
           onKeyDown={(event) => {
             if (event.key !== 'Enter') return
             event.preventDefault()
-            if (linkForm.reference !== undefined && !isLoadingDocuments) onLinkTyped()
+            if (linkForm.reference !== undefined && !isLoadingDocuments) handleLinkTyped()
           }}
           placeholder={isNfe ? t('detail.quickInputPlaceholder') : undefined}
           value={linkForm.draft.value}
@@ -107,6 +137,8 @@ export function TripLinkDocumentPanel({
         </label>
       </div>
 
+      {isNfe ? <TripBippedNotes bipped={bipped} readerRef={readerRef} /> : null}
+
       {isNfe ? (
         <Tabs
           ariaLabel={t('detail.linkTabs')}
@@ -117,7 +149,7 @@ export function TripLinkDocumentPanel({
               panel: (
                 <div className={styles.linkDocumentsBody}>
                   <TripDocumentSearch
-                    documents={availableDocuments}
+                    documents={searchDocuments}
                     isLoading={isLoadingDocuments}
                     key={searchEpoch}
                     onOpen={onNeedDocuments}
@@ -167,40 +199,20 @@ export function TripLinkDocumentPanel({
           <div className={styles.actionActions}>
             <Button
               disabled={
-                linkForm.reference === undefined ||
-                linkForm.isResolving ||
-                isLinking ||
-                (isNfe && isLoadingDocuments)
+                linkForm.reference === undefined || isLinking || (isNfe && isLoadingDocuments)
               }
-              onClick={onLinkTyped}
+              onClick={handleLinkTyped}
               size="sm"
               type="button"
             >
               <Icon name="link" />
               {t('actions.linkDocument')}
             </Button>
-            {linkForm.canScan ? (
-              <Button onClick={linkForm.openScanner} size="sm" type="button" variant="secondary">
-                <Icon name="camera" />
-                {t('detail.scan')}
-              </Button>
-            ) : null}
           </div>
         </>
       ) : null}
 
       <TripScanQueue entries={linkForm.scanEntries} onClear={linkForm.clearScanEntries} />
-      <BarcodeScanner
-        closeLabel={t('detail.scanClose')}
-        deniedMessage={t('detail.scanDenied')}
-        isOpen={linkForm.isScannerOpen}
-        onClose={linkForm.closeScanner}
-        onRead={linkForm.acceptScan}
-        readingMessage={t('detail.scanReading')}
-        startingMessage={t('detail.scanStarting')}
-        title={t('detail.scanTitle')}
-        unavailableMessage={t('detail.scanUnavailable')}
-      />
     </div>
   )
 }

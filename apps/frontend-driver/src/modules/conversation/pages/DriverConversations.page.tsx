@@ -13,6 +13,7 @@ import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ClientEmailSendButton } from '@/modules/client-email/components/ClientEmailSendButton.component'
+import { ClientWhatsAppSendButton } from '@/modules/client-whatsapp/components/ClientWhatsAppSendButton.component'
 import { useDriverSession } from '@/modules/driver-trip/hooks/useDriverSession.hook'
 import { DriverBottomBar } from '@/modules/driver-trip/components/DriverBottomBar.component'
 import {
@@ -120,6 +121,11 @@ export function DriverConversationsPage() {
       {selectedOccurrence === undefined ? null : (
         <div className={styles.clientEmailBar}>
           <ClientEmailSendButton
+            contextLabel={selectedOccurrence.type.name}
+            phraseKey={selectedOccurrence.resolution?.phraseKey}
+            occurrenceId={selectedOccurrence.id}
+          />
+          <ClientWhatsAppSendButton
             contextLabel={selectedOccurrence.type.name}
             phraseKey={selectedOccurrence.resolution?.phraseKey}
             occurrenceId={selectedOccurrence.id}

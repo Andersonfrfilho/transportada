@@ -104,6 +104,16 @@ const REPORT_BY_KIND = {
     photo: PHOTO,
     stopId: 'stop-1',
   },
+  stopOccurrenceCharge: {
+    description: '',
+    idempotencyKey: 'k-charge',
+    kind: 'stopOccurrenceCharge',
+    location: null,
+    occurrenceTypeId: 'type-3',
+    photos: [{ photo: PHOTO, slotKey: 'charge_sign' }],
+    receivingCharge: { amount: '12.50', mode: 'one_per_document', paidBy: 'company' },
+    stopId: 'stop-1',
+  },
 } as const satisfies Record<DriverFieldReport['kind'], DriverFieldReport>
 
 type SeenRequest = Readonly<{
@@ -146,8 +156,10 @@ function buildRecordingClient(
 const ACCEPTING_ROUTE_SUFFIX_BY_KIND: Readonly<Record<string, string>> = {
   arrive: '/arrive',
   deliver: '/deliver',
+  documentOccurrence: '/occurrences',
   occurrence: '/occurrences',
   return: '/return',
+  stopOccurrenceCharge: '/occurrences',
   stopOccurrencePhoto: '/occurrences',
 }
 
@@ -162,12 +174,14 @@ async function sendAndCollect(
 }
 
 describe('quais relatos levam tappedAt e clockOffsetMs (spec 234, esquemas .strict() da API)', () => {
-  it('são exatamente arrive, deliver, return e a ocorrência de parada (com a foto dela)', () => {
+  it('são exatamente arrive, deliver, return e as ocorrências de parada (com a foto dela) e de nota', () => {
     expect([...CLOCK_FIELD_REPORT_KINDS].sort()).toEqual([
       'arrive',
       'deliver',
+      'documentOccurrence',
       'occurrence',
       'return',
+      'stopOccurrenceCharge',
       'stopOccurrencePhoto',
     ])
   })
@@ -193,7 +207,6 @@ describe('quais relatos levam tappedAt e clockOffsetMs (spec 234, esquemas .stri
       'cancelDeparture',
       'depart',
       'dispatch',
-      'documentOccurrence',
       'proofReceiver',
     ])
   })

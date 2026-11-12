@@ -33,6 +33,7 @@ import { contractorReplyConfigurationSchema } from '../domain/contractor-reply-c
 import { parseContractorReplyEmailAddress } from '../domain/contractor-reply-email-address.policy.js'
 import {
   ContractorReplyClientEmailLimitReachedError,
+  ContractorReplyClientTemplateMissingError,
   ContractorReplyClientEmailNotFoundError,
   ContractorReplyEmailAddressInvalidError,
   ContractorReplyEmailAttachmentNotFoundError,
@@ -43,7 +44,6 @@ import {
 } from '../domain/contractor-reply-email.error.js'
 import { CONVERSATION_ATTACHMENT_LIMITS } from '../domain/conversation-attachment.policy.js'
 import { OccurrenceConversationIdempotencyKeyReusedError } from '../domain/occurrence-conversation.error.js'
-import { buildOccurrenceMail } from '../domain/occurrence-mail.template.js'
 import type {
   ContractorReplyClientEmail,
   ContractorReplyEmailDeliveryRecord,
@@ -56,7 +56,6 @@ import type {
 
 /** Chave de entrega: o alvo e o resumo de (retorno, chave do cliente) — cabe nos 120 caracteres da coluna. */
 const IDEMPOTENCY_DIGEST_LENGTH = 32
-const WHITESPACE_RUN = /\s+/gu
 
 export type ForwardContractorReplyByEmailLogger = {
   info(event: string, fields?: Record<string, unknown>): void
@@ -209,20 +208,38 @@ function resolveForwardMode(params: {
   return 'manual'
 }
 
-export function readForwardTexts(params: {
-  readonly config: unknown
+/**
+ * Spec 286 T3: o alvo ligado na cópia do retorno (248) e o texto do canal, do modelo do módulo de notificação escolhido
+ * no tipo — ou o texto livre antigo, enquanto o tipo não escolheu modelo. Sem texto utilizável o canal não sai (409).
+ */
+export async function resolveForwardTexts(params: {
+  readonly channel: 'email' | 'whatsapp'
+  readonly companyId: string
+  readonly occurrenceId: string
+  readonly reply: ContractorReplyEmailReply
   readonly target: ContractorReplyEmailTarget
-}): { readonly body: string; readonly subject: string } {
-  const parsed = contractorReplyConfigurationSchema.safeParse(params.config)
+  readonly transaction: Pick<ContractorReplyEmailTransactionPort, 'resolveClientTexts'>
+  readonly variableOverrides?: Readonly<Record<string, string>>
+}): Promise<{ readonly body: string; readonly subject: string }> {
+  const parsed = contractorReplyConfigurationSchema.safeParse(params.reply.config)
   if (!parsed.success) throw new ContractorReplyEmailForwardDisabledError()
-  const configuration = parsed.data
-  const mode = resolveForwardMode({ configuration, target: params.target })
-  const subject = configuration.forwardEmailSubject.replace(WHITESPACE_RUN, ' ').trim()
-  const body = configuration.forwardEmailBody.trim()
-  if (mode === 'off' || subject === '' || body === '') {
+  if (resolveForwardMode({ configuration: parsed.data, target: params.target }) === 'off') {
     throw new ContractorReplyEmailForwardDisabledError()
   }
-  return { body, subject }
+  const found = await params.transaction.resolveClientTexts({
+    channel: params.channel,
+    companyId: params.companyId,
+    config: params.reply.config,
+    occurrenceId: params.occurrenceId,
+    ...(params.variableOverrides === undefined
+      ? {}
+      : { variableOverrides: params.variableOverrides }),
+  })
+  if (found.kind === 'template_missing') {
+    if (found.legacy) throw new ContractorReplyEmailForwardDisabledError()
+    throw new ContractorReplyClientTemplateMissingError()
+  }
+  return found.texts
 }
 
 async function resolveAddress(params: {
@@ -299,7 +316,14 @@ async function executeForward(params: {
 
   const reply = await transaction.lockReply({ companyId, occurrenceId })
   if (reply === null) throw new TripOccurrenceNotFoundError()
-  const texts = readForwardTexts({ config: reply.config, target })
+  const texts = await resolveForwardTexts({
+    channel: 'email',
+    companyId,
+    occurrenceId,
+    reply,
+    target,
+    transaction,
+  })
 
   const attachmentId = input.attachmentId ?? reply.replyAttachmentId
   if (attachmentId === null) throw new ContractorReplyEmailAttachmentNotFoundError()
@@ -365,10 +389,9 @@ async function executeForward(params: {
   })
   if (threadId === undefined) throw new TripOccurrenceNotFoundError()
 
-  const mail = buildOccurrenceMail({
-    bodyText: texts.body,
-    carrierName: (await transaction.findCarrierName({ companyId })) ?? '',
-    operatorName: '',
+  const mail = await transaction.renderMail({
+    body: texts.body,
+    companyId,
     subject: texts.subject,
   })
   const recorded = await transaction.recordMail({
@@ -378,6 +401,7 @@ async function executeForward(params: {
     companyId,
     correlationId: input.correlationId,
     fromAddress: readiness.settings.senderAddress,
+    hasInlineLogo: mail.hasInlineLogo,
     subject: mail.subject,
     threadId,
     toAddress: address,
@@ -421,6 +445,10 @@ function deriveClientDeliveryKey(params: {
   return `${CLIENT_TARGET}:${digest}`
 }
 
+function isResendable(delivery: ContractorReplyEmailDeliveryRecord): boolean {
+  return isRetryable(delivery) || delivery.status === 'sent'
+}
+
 function isRetryable(delivery: ContractorReplyEmailDeliveryRecord): boolean {
   return delivery.status === 'failed' && delivery.reason === 'send_failed'
 }
@@ -453,7 +481,7 @@ async function planClientAttempt(params: {
     attempt += 1
   }
   if (latest === null) return { existing: null, idempotencyKey: keyOf(0) }
-  if (!retry || !isRetryable(latest.existing)) return latest
+  if (!retry || !isResendable(latest.existing)) return latest
   if (attempt > CLIENT_DELIVERY_MAX_RETRIES) throw new ContractorReplyEmailLimitReachedError()
   return { existing: null, idempotencyKey: keyOf(attempt) }
 }
@@ -585,7 +613,14 @@ async function lockClientReply(params: {
   const purpose = resolveClientEmailPurpose(
     await transaction.findClientEmailType({ companyId, occurrenceId }),
   )
-  const texts = readForwardTexts({ config: reply.config, target: CLIENT_TARGET })
+  const texts = await resolveForwardTexts({
+    channel: 'email',
+    companyId,
+    occurrenceId,
+    reply,
+    target: CLIENT_TARGET,
+    transaction,
+  })
   const attachmentId = input.attachmentId ?? reply.replyAttachmentId
   if (attachmentId === null) throw new ContractorReplyEmailAttachmentNotFoundError()
   const found = await transaction.findAttachment({ attachmentId, companyId, occurrenceId })
@@ -609,7 +644,7 @@ async function resolveRetryTarget(params: {
   if (failed === null || failed.target !== CLIENT_TARGET || failed.address === null) {
     throw new ContractorReplyEmailDeliveryNotFoundError()
   }
-  if (!isRetryable(failed)) throw new ContractorReplyEmailRetryNotAllowedError()
+  if (!isResendable(failed)) throw new ContractorReplyEmailRetryNotAllowedError()
   return { address: failed.address, attachmentId: failed.attachmentId }
 }
 
@@ -748,10 +783,9 @@ async function prepareClientMail(params: {
     occurrenceKind: reply.occurrenceKind,
   })
   if (threadId === undefined) throw new TripOccurrenceNotFoundError()
-  const mail = buildOccurrenceMail({
-    bodyText: texts.body,
-    carrierName: (await transaction.findCarrierName({ companyId })) ?? '',
-    operatorName: '',
+  const mail = await transaction.renderMail({
+    body: texts.body,
+    companyId,
     subject: texts.subject,
   })
   return {
@@ -762,6 +796,7 @@ async function prepareClientMail(params: {
       companyId,
       correlationId: input.correlationId,
       fromAddress: readiness.settings.senderAddress,
+      hasInlineLogo: mail.hasInlineLogo,
       subject: mail.subject,
       threadId,
     },

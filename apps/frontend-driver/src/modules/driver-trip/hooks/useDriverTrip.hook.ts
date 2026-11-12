@@ -9,6 +9,7 @@ import {
   getDriverDiagnostics,
   getDriverTripClient,
   describeAttachmentFailure,
+  DriverTripRequestError,
   toAttachmentSendOutcome,
 } from '../shared/driverTripClient.service'
 import { traceBaixaTotal } from '../shared/baixaTotalTrace.service'
@@ -33,6 +34,24 @@ import {
   createIndexedDbSentHistoryStore,
   createIndexedDbTripSnapshotStore,
 } from '../shared/indexedDbQueue.service'
+import {
+  appendCanhotoDuplicateNotices,
+  collectCanhotoDuplicateNotices,
+  dismissCanhotoDuplicateNotice,
+  type CanhotoDuplicateNotice,
+} from '../shared/canhotoDuplicateNotice.service'
+import {
+  discardRefusedCanhoto,
+  markCanhotoReplaceConfirmed,
+} from '../shared/canhotoReplacePrompt.service'
+import { markOutOfOrderConfirmed } from '../shared/outOfOrderPrompt.service'
+import { countRejectedEvents } from '../shared/tripSyncBanner.service'
+import {
+  appendFieldReportNotices,
+  dismissFieldReportNotice,
+  toFieldReportNotice,
+  type FieldReportNotice,
+} from '../shared/fieldReportNotice.service'
 import {
   ATTACHMENT_QUEUE_LIMIT,
   applyAttachmentLocation,
@@ -77,7 +96,8 @@ import {
   discardOwnPending,
   partitionPendingByOwner,
 } from '../shared/queueOwner.service'
-import { discardRejectedQueueItem } from '../shared/queueDiscard.service'
+import { purgeConcludedTripQueue } from '../shared/concludedTripQueue.service'
+import { cancelQueuedOccurrence, discardRejectedQueueItem } from '../shared/queueDiscard.service'
 import {
   appendSentHistory,
   purgeTripSentHistory,
@@ -143,6 +163,8 @@ export type DriverProofInput = Readonly<{
   receivedByDetail?: string
   receiverDocument?: string
   receiverName?: string
+  /** "Substituir" o canhoto já enviado: vai com a confirmação da troca (spec 294 RF26). */
+  replaceCanhoto?: true
 }>
 
 /**
@@ -160,8 +182,18 @@ export type DriverNotDeliveredOutcome = DriverReportOutcome | 'size-limit'
 /** Spec 209 (D3): a foto do "Deu problema" que não coube saiu — o relato entrou mesmo assim. */
 export type DriverStopOccurrenceOutcome = DriverReportOutcome | 'photo-dropped'
 
+/**
+ * Spec 321 T6: a foto do canhoto da coleta sai direto (sem fila): `sent` fechou o envio, `offline` pede para tentar de novo
+ * com sinal, `failed` é recusa do servidor (coleta que não é mais dele, por exemplo).
+ */
+export type DriverCanhotoPickupOutcome = 'failed' | 'offline' | 'sent'
+
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
+  sendCanhotoPickupPhoto: (input: {
+    file: File
+    pickupId: string
+  }) => Promise<DriverCanhotoPickupOutcome>
   /**
    * Spec 203/193: o motorista completou um campo depois do anexo já estar na fila — atualiza o(s)
    * item(ns) daquele documento in place. Sem grupo na fila (o anexo já subiu), vira `proofReceiver`
@@ -212,7 +244,21 @@ export type DriverTripController = Readonly<{
    * leitura boa quando a releitura falhou com sessão viva. `undefined` com a leitura em dia.
    */
   dataSavedAt: string | undefined
+  /** Spec 294 RF26: "Trocar o canhoto" — reenvia a foto recusada com a confirmação. */
+  confirmCanhotoReplace: (eventKey: string) => Promise<void>
+  /** Spec 294 RF27: "Registrar mesmo assim" — reenvia o toque recusado com a confirmação. */
+  confirmOutOfOrder: (idempotencyKey: string) => Promise<void>
+  dismissDuplicateCanhoto: (documentId: string) => void
+  /** Spec 294 RF26: os canhotos que a API já tinha (mesma imagem), do mais antigo ao mais novo. */
+  duplicateCanhotos: readonly CanhotoDuplicateNotice[]
+  /** Spec 294 RF26: "Manter o que já tem" — a foto recusada sai do aparelho. */
+  keepCurrentCanhoto: (eventKey: string) => Promise<void>
+  /** Spec 294 RF5: some quando o motorista toca em "Entendi". */
+  dismissFieldNotice: (key: string) => void
+  /** Spec 294 RF5: os avisos pós-baixa (etapa marcada junto), do mais antigo ao mais novo. */
+  fieldNotices: readonly FieldReportNotice[]
   /** Spec 227: o recusado de negócio sai da fila só pela mão do motorista, com confirmação na tela. */
+  cancelQueuedOccurrence: (idempotencyKey: string) => Promise<void>
   discardRejected: (idempotencyKey: string) => Promise<void>
   /** `true` no boot sem rede — a faixa diz "sem conexão"; com sessão viva, "sem atualização". */
   isOfflineBoot: boolean
@@ -299,6 +345,8 @@ export function useDriverTrip(
   const [proofOutcomeByDocumentId, setProofOutcomeByDocumentId] = useState<
     ReadonlyMap<string, ProofPunctuality>
   >(new Map())
+  const [duplicateCanhotos, setDuplicateCanhotos] = useState<readonly CanhotoDuplicateNotice[]>([])
+  const [fieldNotices, setFieldNotices] = useState<readonly FieldReportNotice[]>([])
   const [sentReportKeys, setSentReportKeys] = useState<ReadonlySet<string>>(new Set())
   const [pendingTotal, setPendingTotal] = useState(0)
   /** RF8/D6: fica `true` até o motorista dispensar — mesmo se a viagem seguinte também sumir. */
@@ -369,6 +417,30 @@ export function useDriverTrip(
         }),
     queryFn: async () => {
       const snapshot = await getDriverTripClient().readCurrent()
+      /** Viagem concluída pelo escritório não deixa pendência no aparelho; a baixa vai ao histórico. */
+      await purgeConcludedTripQueue({
+        attachmentStore,
+        ownerSubHash: session.subHash,
+        store,
+        trips: snapshot.trips,
+      })
+        .then(async (purged) => {
+          if (purged.length === 0) return
+          await sentHistoryStore
+            .update((current) =>
+              appendSentHistory({
+                additions: purged.map((item) =>
+                  toSentHistoryEntry({ at: new Date().toISOString(), item, result: 'discarded' }),
+                ),
+                current,
+                nowMs: Date.now(),
+              }),
+            )
+            .then(setSentHistory)
+            .catch(() => undefined)
+          await refreshQueueView()
+        })
+        .catch(() => undefined)
       /** Falhar ao guardar não derruba a tela: o próximo boot sem rede só abre um snapshot mais velho. */
       await saveTripSnapshot({
         now: new Date(),
@@ -431,6 +503,8 @@ export function useDriverTrip(
       const client = getDriverTripClient()
       /** O que o servidor aceitou nesta drenagem, chave a chave — é isso que a tela chama de enviado. */
       const sentKeys: string[] = []
+      /** Spec 294 RF5: o que a API marcou junto de cada toque, para o aviso pós-baixa. */
+      const notices: FieldReportNotice[] = []
       /** 15/10: o histórico guarda o toque e o desfecho de cada item, para a tela "Enviados". */
       const queuedBefore = new Map(
         (await store.read()).map((item) => [item.report.idempotencyKey, item] as const),
@@ -450,7 +524,13 @@ export function useDriverTrip(
         ownerSubHash: session.subHash,
         send: async (stamped, options): Promise<AttachmentSendOutcome> => {
           try {
-            await client.send(stamped, options)
+            const response = await client.send(stamped, options)
+            const notice = toFieldReportNotice({
+              key: stamped.report.idempotencyKey,
+              kind: stamped.report.kind,
+              response,
+            })
+            if (notice !== undefined) notices.push(notice)
             sentKeys.push(stamped.report.idempotencyKey)
             remember(stamped.report.idempotencyKey, 'sent')
             return { kind: 'sent' }
@@ -506,6 +586,7 @@ export function useDriverTrip(
               ...(attachment.lateRegistration === undefined
                 ? {}
                 : { lateRegistration: attachment.lateRegistration }),
+              ...(attachment.replaceCanhoto === true ? { replaceCanhoto: true } : {}),
             })
             /**
              * Pedido do usuário (01/10): aceito o anexo, o original sai da fila — a miniatura fica
@@ -526,7 +607,11 @@ export function useDriverTrip(
               toProofSentHistoryEntry({ at: new Date().toISOString(), attachment }),
             )
             proofUploadProgress.accepted(progressKey, result.processingState)
-            return { kind: 'sent', punctuality: result.punctuality }
+            return {
+              ...(result.duplicate === undefined ? {} : { duplicate: result.duplicate }),
+              kind: 'sent',
+              punctuality: result.punctuality,
+            }
           } catch (error) {
             const failure = describeAttachmentFailure(error)
             if (failure === undefined) proofUploadProgress.clear(progressKey)
@@ -545,12 +630,19 @@ export function useDriverTrip(
           .then(setSentHistory)
           .catch(() => undefined)
       }
-      return { ...result, sentKeys }
+      return { ...result, notices, sentKeys }
     },
     onSuccess: (result) => {
       void refreshQueueView()
+      if (result.notices.length > 0) {
+        setFieldNotices((current) => appendFieldReportNotices(current, result.notices))
+      }
       if (result.sentKeys.length > 0) {
         setSentReportKeys((current) => new Set([...current, ...result.sentKeys]))
+      }
+      const duplicates = collectCanhotoDuplicateNotices(result.attachmentsSent)
+      if (duplicates.length > 0) {
+        setDuplicateCanhotos((current) => appendCanhotoDuplicateNotices(current, duplicates))
       }
       if (result.attachmentsSent.length > 0) {
         setProofOutcomeByDocumentId((current) => {
@@ -831,6 +923,25 @@ export function useDriverTrip(
    * drenagem subir antes dela (rede rápida), a foto vai sem posição e conta como longe (ADR-0070
    * §4) — nunca perdida.
    */
+  async function sendCanhotoPickupPhoto(input: {
+    file: File
+    pickupId: string
+  }): Promise<DriverCanhotoPickupOutcome> {
+    try {
+      const clockOffsetMs = driverClockOffset.read()
+      await getDriverTripClient().sendCanhotoPickupPhoto({
+        capturedAt: new Date().toISOString(),
+        ...(clockOffsetMs === undefined ? {} : { clockOffsetMs }),
+        file: input.file,
+        pickupId: input.pickupId,
+      })
+      await queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY })
+      return 'sent'
+    } catch (error) {
+      return error instanceof DriverTripRequestError && error.isOffline ? 'offline' : 'failed'
+    }
+  }
+
   function attachProof(input: DriverProofInput): Promise<DriverProofOutcome> {
     return persistWhileOpen(captureRegistry, () => enqueueProof(input))
   }
@@ -855,6 +966,7 @@ export function useDriverTrip(
       ...(input.receiverDocument === undefined ? {} : { receiverDocument: input.receiverDocument }),
       ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
       ...(input.lateRegistration === undefined ? {} : { lateRegistration: input.lateRegistration }),
+      ...(input.replaceCanhoto === true ? { replaceCanhoto: true as const } : {}),
       subHash: session.subHash,
     }
     const result = await enqueueAttachment({
@@ -1021,6 +1133,33 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  /** O motorista desiste de enviar a ocorrência que ainda está na fila (o atendimento já resolveu). */
+  async function cancelQueuedOccurrenceItem(idempotencyKey: string): Promise<void> {
+    const queued = (await store.read()).find(
+      (item) => item.report.idempotencyKey === idempotencyKey,
+    )
+    const isRemoved = await cancelQueuedOccurrence({ attachmentStore, idempotencyKey, store })
+    if (isRemoved && queued !== undefined) {
+      await sentHistoryStore
+        .update((current) =>
+          appendSentHistory({
+            additions: [
+              toSentHistoryEntry({
+                at: new Date().toISOString(),
+                item: queued,
+                result: 'discarded',
+              }),
+            ],
+            current,
+            nowMs: Date.now(),
+          }),
+        )
+        .then(setSentHistory)
+        .catch(() => undefined)
+    }
+    await refreshQueueView()
+  }
+
   /** "Sair" com pendência própria (segurança M2): o item e o dado saem do aparelho. */
   async function discardOwn(): Promise<void> {
     await discardOwnPending({ attachmentStore, ownerSubHash: session.subHash, store })
@@ -1039,6 +1178,33 @@ export function useDriverTrip(
     await refreshQueueView()
   }
 
+  /** Spec 294 RF27: "Registrar mesmo assim" — o toque volta à fila com a confirmação e sobe na ordem. */
+  async function confirmOutOfOrder(idempotencyKey: string): Promise<void> {
+    await store.update((items) => markOutOfOrderConfirmed(items, idempotencyKey))
+    await refreshQueueView()
+    requestDrain(undefined, 'immediate')
+  }
+
+  /** Spec 294 RF26: "Trocar o canhoto" — a foto volta com a confirmação; o servidor manda para conferência. */
+  async function confirmCanhotoReplace(eventKey: string): Promise<void> {
+    await attachmentStore.update({ eventKey, mutate: markCanhotoReplaceConfirmed })
+    await refreshQueueView()
+    requestDrain(undefined, 'immediate')
+  }
+
+  async function keepCurrentCanhoto(eventKey: string): Promise<void> {
+    await attachmentStore.update({ eventKey, mutate: discardRefusedCanhoto })
+    await refreshQueueView()
+  }
+
+  function dismissDuplicateCanhoto(documentId: string): void {
+    setDuplicateCanhotos((current) => dismissCanhotoDuplicateNotice(current, documentId))
+  }
+
+  function dismissFieldNotice(key: string): void {
+    setFieldNotices((current) => dismissFieldReportNotice(current, key))
+  }
+
   function dismissReassignedTripNotice(): void {
     setIsTripReassignedNoticeVisible(false)
   }
@@ -1047,16 +1213,25 @@ export function useDriverTrip(
 
   return {
     attachProof,
+    sendCanhotoPickupPhoto,
     updateProofFields,
     removeProof,
     discardProofAwaitingDelivery,
     confirmUnverifiedPending: confirmUnverified,
     discardForeignPending: discardForeign,
     discardOwnPending: discardOwn,
+    cancelQueuedOccurrence: cancelQueuedOccurrenceItem,
     discardRejected,
     purgeSentHistoryOfTrip,
     discardUnverifiedPending: discardUnverified,
+    confirmCanhotoReplace,
+    confirmOutOfOrder,
+    dismissDuplicateCanhoto,
+    dismissFieldNotice,
     dismissReassignedTripNotice,
+    duplicateCanhotos,
+    fieldNotices,
+    keepCurrentCanhoto,
     foreignPendingCount,
     hasReassignedTripNotice: isTripReassignedNoticeVisible,
     isQueueLoading: queueView === undefined,
@@ -1076,7 +1251,7 @@ export function useDriverTrip(
     queuedReports,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,
     refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
-    rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
+    rejectedCount: countRejectedEvents(loadedView),
     report,
     reportAllOrNothing: reportNotDelivered,
     reportNotDelivered,

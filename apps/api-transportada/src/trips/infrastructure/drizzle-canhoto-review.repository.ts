@@ -25,6 +25,7 @@ import type {
   LockedCanhotoProof,
 } from '../application/canhoto-review.port.js'
 import { DELIVERED_EVENT_KIND } from '../domain/delivery-event.constant.js'
+import { settleCanhotoPickupOnReview } from './canhoto-pickup-collection.persistence.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -50,6 +51,9 @@ function createCanhotoReviewTransaction(queryable: TripQueryable): CanhotoReview
     insertAudit: (entry) => insertCanhotoReviewAudit(queryable, entry),
     lockCanhotoProof: (input) => lockCanhotoProof(queryable, input),
     readReviewView: (input) => readCanhotoReviewView(queryable, input),
+    settleCanhotoPickup: async (input) => {
+      await settleCanhotoPickupOnReview(queryable, input)
+    },
   }
 }
 

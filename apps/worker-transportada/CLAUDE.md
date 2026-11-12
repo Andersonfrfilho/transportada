@@ -42,6 +42,7 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   separada, `prefetch: 1` só nesse consumidor, `new Worker(url)` exige caminho de arquivo de
   verdade (`*.worker.ts` é entrypoint do `bun build`, coberto em
   `test/build-entrypoints.contract.test.ts`). Detalhe: docs/ai-context § "anexo do agregado".
+- **A foto da CNH da ficha do motorista** (spec 295 Fase 4): depois de gravar a leitura, `extractAttachmentFields` chama `applyCnhProfilePicture` (melhor esforço, nunca recicla a mensagem) — `cnh-face.worker.ts` roda pdf.js + sharp + onnxruntime-web (WASM) + UltraFace RFB-320 (`assets/ultraface-rfb-320.onnx`, copiado pelo `Dockerfile`, sha256 em `cnh-face.constant.ts`) numa thread sem log; aceita só rosto único, nota ≥ 0,98 e recorte ≥ 120 px e entrega o WebP à API (`PUT /fleet/driver-attachments/:id/cnh-picture`), que decide. A credencial é própria (`CNH_PICTURE_CLIENT_ID`/`CNH_PICTURE_CLIENT_SECRET`, as duas juntas com `API_BASE_URL` e `KEYCLOAK_TOKEN_URL`): ausente, a foto fica desligada (um log `cnh_picture_disabled` no boot) e a leitura da CNH segue. Modelo e WASM carregam a cada mensagem (~0,2 s por documento): aceito no volume atual (um evento por cadastro); thread persistente só se o volume crescer. Backfill: `bun run backfill:cnh-picture` (dry-run por padrão, `--confirm` grava; pede aprovação em staging/produção); o mesmo passe refaz a publicação no Keycloak das fotos da CNH com `published_at` nulo.
 - **Quem escolhe o mecanismo é a assinatura do arquivo; quem escolhe o mapa é o documento**
   (spec 071) — `document-extraction.gateway.ts` decide PDF (`%PDF`, `worker_thread`+pdf.js) vs
   imagem (`PNG`/`JPEG`, `tesseract-server`); dentro do PDF o mapa de campos vem do **título** do
@@ -60,6 +61,21 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   porque o `whisper-local` usa o timeout duas vezes; a trava é lote × lease. Falha de infraestrutura devolve a
   tentativa e repete em 30 min; desligamento devolve a linha em posse. A rotina nasce pausada e não é registrada sem
   modelo ou ferramenta. Detalhe: `docs/ai-context/worker-transportada.md` § "A rotina `conversation.audio.transcribe`".
+- **O canhoto da foto do bot é lido por OCR local numa thread permanente** (spec 294 T4.8, ADR 0113 §5): PP-OCRv4 em `onnxruntime-web`
+  WASM, modelos em `CANHOTO_OCR_MODEL_DIR` (baixados no `Dockerfile`) e carregados **no boot** (prazo próprio de 120 s; até lá 503), uma leitura
+  por vez, prazo `CANHOTO_OCR_TIMEOUT_MS`, uma esperando e uma por empresa (o resto = 503 na hora; a API então pergunta a nota). Só JPEG/PNG pelos
+  bytes (senão 415), teto de 40 MP antes de decodificar (`openCanhotoImage`).
+  Rota interna `POST /internal/bot-canhoto-reads` com o mesmo token do áudio do bot; devolve só marcas e notas casadas — **o texto lido nunca é
+  logado nem guardado**. `CANHOTO_OCR_ENABLED`: ligado fora de produção, desligado em produção (pico de ~740 MB). Núcleo em
+  `src/canhoto-ocr/`; a API decide o que fazer com o veredito.
+- **O áudio do bot do WhatsApp é transcrito na rota interna `POST /internal/bot-audio-transcriptions`** (spec 292 T9),
+  no mesmo servidor do healthcheck, só com `BOT_AUDIO_TRANSCRIPTION_TOKEN` e a transcrição configurada (senão 404).
+  Uma por vez, 3 na fila (depois 503), 8 MB, nada gravado e nada de texto em log. No Railway, `WORKER_HOSTNAME=::`.
+- **A busca de NF-e por chave tem trilho próprio** (spec 298): `nfe-access-key.v1`, consumidor `startNfeAccessKeyConsumer` (prefetch 1) e caso de uso
+  `process-access-key-lookup` em `src/nfe-access-key-lookup/`. Orçamento por `(empresa, ambiente)` em `nfe_access_key_lookup_budgets` (15 por hora, 656 abre
+  65 min), nunca o cursor da distribuição; o 656 é um só para o serviço: o da distribuição trava a busca e o da busca pausa a distribuição (que não gasta a cota). Erro de dado (importId, ambiente, SHA do objeto, chave) é `NfeAccessKeyLookupNonRetryableError`: fecha a busca e vai à fila morta sem nova consulta. Só guarda o XML quem é parte (emitente, destinatário, transportador ou `autXML`). `procNFe` entra pelo escritor comum (`source = 'access_key'`); a nota que a distribuição já trouxe é reaproveitada, sem
+  consulta nem orçamento. A rotina `nfe.distribution.pull` devolve ao trilho as buscas `waiting` vencidas, no máximo o que cabe no orçamento (leitura sem reserva).
+  Log só com `accessKeyLast4`, nunca a chave inteira. Detalhe: `specs/298-a-nota-bipada-vem-da-sefaz/`.
 - **A planta do baú é calculada aqui** (ADR-0063, spec 145) — consumidor `CargoLayoutConsumer`
   reclama pedidos por hash, executa `@adatechnology/cargo-placement` em `new Worker()` com orçamento
   `CARGO_LAYOUT_TIME_BUDGET_MS` (padrão 120s, escada 120/240/480 em retry), prefetch 1, schema estrito

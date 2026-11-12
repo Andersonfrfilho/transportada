@@ -10,6 +10,8 @@ import { join } from 'node:path'
 import type { SQL } from 'bun'
 import { expect } from 'bun:test'
 
+import { rollbackClientEmailFallbackFrom } from './client-email-fallback-from.assertion.js'
+import { rollbackClientWhatsAppAutomatic } from './client-whatsapp-automatic.assertion.js'
 import { rollbackContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { rollbackClientEmailSendMode } from './client-email-send-mode.assertion.js'
 import { rollbackContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
@@ -23,6 +25,7 @@ import {
 } from './occurrence-contractor-reply.fixture.js'
 import { assertOccurrenceContractorReplyRows } from './occurrence-contractor-reply-rows.assertion.js'
 import { assertOccurrenceContractorReplyTypeConstraints } from './occurrence-contractor-reply-type.assertion.js'
+import { rollbackOccurrenceDropForwardEmail } from './occurrence-drop-forward-email.assertion.js'
 import { migrationsDirectory } from './support.js'
 
 const MIGRATION_SUFFIX = '_occurrence_contractor_reply'
@@ -46,6 +49,13 @@ async function assertDefaultsOnExistingType(
     join(migrationsDirectory.pathname, directory, 'rollback.sql'),
   ).text()
 
+  /**
+   * A drop de forward_email_* (286 etapa B) é a mais nova: desfaz-se primeiro. Sem isso, reaplicar a 248 recria a
+   * CHECK do texto do encaminhamento com a migration de drop já marcada como aplicada, e ela nunca roda de novo.
+   */
+  await rollbackOccurrenceDropForwardEmail(database, directories)
+  await rollbackClientEmailFallbackFrom(database, directories)
+  await rollbackClientWhatsAppAutomatic(database, directories)
   await rollbackContractorReplyWhatsAppDelivery(database, directories)
   await rollbackClientEmailSendMode(database, directories)
   await rollbackContractorReplyClientBoletoEmails(database, directories)
@@ -65,8 +75,7 @@ async function assertDefaultsOnExistingType(
     select contractor_reply_mode, contractor_reply_attachment_kind, driver_reply_channel,
       driver_reply_window_closed_action, driver_reply_template, contractor_reply_wait_hours,
       contractor_reply_alert_mode, contractor_reply_alert_interval_minutes,
-      contractor_reply_alert_max_count, forward_to_note_recipient, forward_to_informed_email,
-      forward_email_subject, forward_email_body
+      contractor_reply_alert_max_count, forward_to_note_recipient, forward_to_informed_email
     from company_occurrence_types where id = ${typeId}
   `) as Record<string, unknown>[]
   expect(stored).toEqual({
@@ -79,8 +88,6 @@ async function assertDefaultsOnExistingType(
     driver_reply_channel: 'app_chat',
     driver_reply_template: '',
     driver_reply_window_closed_action: 'fallback_app_chat',
-    forward_email_body: '',
-    forward_email_subject: '',
     forward_to_informed_email: 'off',
     forward_to_note_recipient: 'off',
   })

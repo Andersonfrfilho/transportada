@@ -8,7 +8,19 @@
 import {
   OccurrenceEmailTemplateNotFoundError,
   OccurrenceTypeLeavesDocumentBehindRequiresSeparationError,
+  OccurrenceTypePickupCargoUnsupportedError,
 } from '../domain/trip.error.js'
+import { resolvePickupCargoCounting } from '../domain/canhoto-pickup.policy.js'
+import {
+  OCCURRENCE_CLIENT_CHANNEL_ORDER,
+  type OccurrenceClientChannelMatrixChange,
+} from '../domain/occurrence-client-channels.policy.js'
+import {
+  assessClientChannelTemplate,
+  type ClientChannelTemplateContent,
+} from '../domain/occurrence-client-channel-template.policy.js'
+import { OccurrenceClientChannelTemplateInvalidError } from '../domain/occurrence-client-channels.error.js'
+import type { OccurrenceClientChannel } from '../../shared/occurrence-client-channel.constant.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type {
   ClientChannel,
@@ -36,6 +48,7 @@ import {
   OCCURRENCE_TYPE_CONTRACTOR_SCOPE_ISSUE,
 } from '../domain/occurrence-type-contractor-scope.policy.js'
 import { assertDeclaredAmountHasItems } from '../domain/occurrence-declared-amount-shape.policy.js'
+import { assertMinWaitExcludesArrivalTime } from '../domain/occurrence-min-wait-shape.policy.js'
 import {
   assertItemsMinimumMatchesMode,
   assertItemsOffHasNoRedeliveryPolicy,
@@ -48,6 +61,8 @@ import {
   isExpressedByStageAndFlow,
   normalizeOccurrenceMoments,
 } from '../domain/occurrence-moment.policy.js'
+import { ReceivingChargeContractorMailNotAllowedError } from '../domain/receiving-charge.error.js'
+import { RECEIVING_CHARGE_STOP_KIND } from '../domain/receiving-charge.policy.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 import type {
   ContractorReplyAlertMode,
@@ -69,6 +84,15 @@ export type OccurrenceEmailTemplateCatalogPort = {
     readonly companyId: string
     readonly templateKey: string
   }): Promise<boolean>
+  /**
+   * Spec 286 (RF2): a versão ativa mais alta da chave **no canal** (pt-BR), da empresa; `null` quando não há. Ausente
+   * (dublê que não exercita a matriz) é "nenhum modelo": a chave mandada é recusada como `not_found`.
+   */
+  findClientChannelTemplate?(input: {
+    readonly channel: OccurrenceClientChannel
+    readonly companyId: string
+    readonly key: string
+  }): Promise<ClientChannelTemplateContent | null>
 }
 
 export type SaveOccurrenceTypeValues = {
@@ -96,9 +120,15 @@ export type SaveOccurrenceTypeValues = {
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   readonly contractorReplyResolveOnDelivery?: boolean | undefined
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+  readonly driverLockMinutes?: null | number | undefined
   readonly clientEmailType?: ClientEmailType | undefined
   readonly clientEmailSendMode?: ClientEmailSendMode | undefined
   readonly clientChannel?: ClientChannel | undefined
+  /** Spec 286 (RF2): a matriz por canal; canal ausente é "não mexa" e, presente, ela deriva `clientChannel`. */
+  readonly clientChannels?: OccurrenceClientChannelMatrixChange | undefined
+  readonly asksClientContact?: boolean | undefined
+  readonly asksNewDueDate?: boolean | undefined
+  readonly showClientChargeSealToDriver?: boolean | undefined
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined
@@ -109,6 +139,15 @@ export type SaveOccurrenceTypeValues = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa", como `attachmentMode`. */
   readonly emailsContractor?: boolean | undefined
+  /** Spec 321 (D2): o tipo nunca avisa a contratante. Ausente é "não mexa". */
+  readonly blocksContractorNotice?: boolean | undefined
+  /**
+   * Spec 321 (D4c): se a coleta soma carga na viagem que a busca. Ausente é "não mexa"; no tipo com coleta só `false`
+   * vale na fase 1 (`resolvePickupCargoCounting`).
+   */
+  readonly countsCargoOnPickupTrip?: boolean | undefined
+  /** Spec 321 T2 (D4): o tipo cria a coleta de canhoto ao ser registrado. Ausente é "não mexa". */
+  readonly createsCanhotoPickup?: boolean | undefined
   /**
    * Spec 271 (ADR-0108): a chave do modelo de e-mail do módulo de notificação que escreve o e-mail à contratante.
    * Ausente é "não mexa"; `null` limpa. Conferida **antes** da transação: sem trava, e o envio reconfere.
@@ -169,6 +208,10 @@ export type SaveOccurrenceTypeValues = {
   /** Spec 247 (RF1): o número do documento do cliente — modo e rótulo. Ausente é "não mexa". */
   readonly referenceNumberLabel?: string | undefined
   readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
+  /** Spec 315 (D1, D10): ausente é "não mexa"; a espera mínima `null` a limpa. */
+  readonly arrivalTimeMode?: DeliveryProofFieldMode | undefined
+  readonly locationMode?: DeliveryProofFieldMode | undefined
+  readonly minWaitAfterArrivalMinutes?: null | number | undefined
   /** Ausente é "não mexa" (spec 164 RF1) — o valor guardado fica; na criação vale `'unset'`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
   /** Spec 246 (RF1): a exigência da assinatura. Ausente é "não mexa" — nunca `'off'`. */
@@ -185,12 +228,17 @@ export type CurrentOccurrenceTypeShape = Partial<
   Pick<
     OccurrenceTypeRecord,
     | 'contractorScope'
+    | 'countsCargoOnPickupTrip'
+    | 'createsCanhotoPickup'
     | 'declaredAmountMode'
     | 'declaredAmountScope'
+    | 'arrivalTimeMode'
+    | 'minWaitAfterArrivalMinutes'
     | 'flow'
     | 'itemsMinimumCount'
     | 'moments'
     | 'stage'
+    | 'stopKind'
   >
 > &
   Pick<OccurrenceTypeRecord, 'itemsMode' | 'redeliveryPolicy'>
@@ -216,7 +264,10 @@ export async function saveOccurrenceTypeWithTemplate(
   input: SaveOccurrenceTypeWithTemplateInput,
 ): Promise<OccurrenceTypeRecord> {
   const stored = await readStoredTypeWhenNeeded(input)
-  const values = resolveMomentsChange({ stored, values: input.values })
+  const values = resolvePickupCargoValues({
+    stored,
+    values: resolveMomentsChange({ stored, values: input.values }),
+  })
   if (values.leavesDocumentBehind === true && values.stage !== 'separation') {
     throw new OccurrenceTypeLeavesDocumentBehindRequiresSeparationError()
   }
@@ -224,8 +275,16 @@ export async function saveOccurrenceTypeWithTemplate(
   assertItemsOffHasNoRedeliveryPolicy({ stored, values })
   assertItemsMinimumMatchesMode({ stored, values })
   assertDeclaredAmountHasItems({ stored, values })
+  assertMinWaitExcludesArrivalTime({ stored, values })
   assertContractorScopeValues(values)
+  assertReceivingChargeSendsNoContractorMail({ stored, values })
   await assertContractorTemplateIsUsable({
+    companyId: input.companyId,
+    templates: input.templates,
+    values,
+  })
+
+  await assertClientChannelTemplatesAreUsable({
     companyId: input.companyId,
     templates: input.templates,
     values,
@@ -259,30 +318,97 @@ async function assertContractorTemplateIsUsable(params: {
   if (problems.length > 0) throw new OccurrenceContractorTemplateInvalidError(problems)
 }
 
+/**
+ * Spec 286 (RF2): cada canal mandado com chave tem de apontar para um modelo utilizável do módulo naquele canal — todos
+ * os problemas de todos os canais de uma vez. Chave nula é permitida (o canal fica sem modelo e não sai; o editor avisa).
+ */
+async function assertClientChannelTemplatesAreUsable(params: {
+  readonly companyId: string
+  readonly templates: OccurrenceEmailTemplateCatalogPort
+  readonly values: SaveOccurrenceTypeValues
+}): Promise<void> {
+  const change = params.values.clientChannels
+  if (change === undefined) return
+  const checks = await Promise.all(
+    OCCURRENCE_CLIENT_CHANNEL_ORDER.map(async (channel) => {
+      const key = change[channel]?.templateKey
+      if (key === undefined || key === null) return { channel, problems: [] }
+      const template =
+        (await params.templates.findClientChannelTemplate?.({
+          channel,
+          companyId: params.companyId,
+          key,
+        })) ?? null
+      return { channel, problems: assessClientChannelTemplate({ channel, key, template }) }
+    }),
+  )
+  const invalid = checks.filter((check) => check.problems.length > 0)
+  if (invalid.length > 0) throw new OccurrenceClientChannelTemplateInvalidError(invalid)
+}
+
 /** Uma leitura só do gravado, e só na edição que deixa algum campo ausente. */
 async function readStoredTypeWhenNeeded(
   input: SaveOccurrenceTypeWithTemplateInput,
 ): Promise<CurrentOccurrenceTypeShape | null> {
   const {
+    arrivalTimeMode,
     declaredAmountMode,
     declaredAmountScope,
     itemsMinimumCount,
     itemsMode,
+    minWaitAfterArrivalMinutes,
     moments,
     occurrenceTypeId,
     redeliveryPolicy,
   } = input.values
   const isStoredStateNeeded =
     occurrenceTypeId !== null &&
-    (itemsMode === undefined ||
+    (input.values.emailsContractor === true ||
+      input.values.countsCargoOnPickupTrip !== undefined ||
+      input.values.createsCanhotoPickup !== undefined ||
+      itemsMode === undefined ||
       declaredAmountMode === undefined ||
       declaredAmountScope === undefined ||
       itemsMinimumCount === undefined ||
+      arrivalTimeMode === undefined ||
+      minWaitAfterArrivalMinutes === undefined ||
       redeliveryPolicy === undefined ||
       moments === undefined)
   return isStoredStateNeeded
     ? input.findCurrentType({ companyId: input.companyId, occurrenceTypeId })
     : null
+}
+
+/**
+ * Spec 317 (D1, RF7, T7): a cobrança no recebimento é assunto entre transportadora e motorista — nada vai à
+ * contratante. O tipo de parada `unexpected_charge` recusa ligar o aviso automático; o tipo já gravado com ele ligado
+ * (cadastro anterior) não é reescrito, e o aviso nunca sai para parada mesmo assim (`not_document`).
+ */
+function assertReceivingChargeSendsNoContractorMail(params: {
+  readonly stored: CurrentOccurrenceTypeShape | null
+  readonly values: SaveOccurrenceTypeValues
+}): void {
+  if (params.values.emailsContractor !== true) return
+  if (params.stored?.stopKind !== RECEIVING_CHARGE_STOP_KIND) return
+  throw new ReceivingChargeContractorMailNotAllowedError()
+}
+
+/**
+ * Spec 321 (D4c, T2): o tipo com coleta só grava `countsCargoOnPickupTrip = false` na fase 1 — `true` explícito é 422,
+ * e ausente vira `false` quando o gravado (ou o padrão da coluna) é `true`. A regra é `resolvePickupCargoCounting`.
+ */
+function resolvePickupCargoValues(params: {
+  readonly stored: CurrentOccurrenceTypeShape | null
+  readonly values: SaveOccurrenceTypeValues
+}): SaveOccurrenceTypeValues {
+  const decision = resolvePickupCargoCounting({
+    requestedCountsCargo: params.values.countsCargoOnPickupTrip,
+    requestedCreatesPickup: params.values.createsCanhotoPickup,
+    storedCountsCargo: params.stored?.countsCargoOnPickupTrip,
+    storedCreatesPickup: params.stored?.createsCanhotoPickup,
+  })
+  if (decision.kind === 'refuse') throw new OccurrenceTypePickupCargoUnsupportedError()
+  return { ...params.values, countsCargoOnPickupTrip: decision.countsCargoOnPickupTrip }
 }
 
 type ResolveMomentsChangeParams = {

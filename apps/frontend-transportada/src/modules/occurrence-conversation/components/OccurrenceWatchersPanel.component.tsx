@@ -95,14 +95,17 @@ export function OccurrenceWatchersPanel({ canManage, scope }: OccurrenceWatchers
   }
 
   return (
-    <div className={styles.panel}>
-      <p className={styles.hint}>
-        {scope.kind === 'company'
-          ? t('watchers.description')
-          : t(
-              `watchers.source.${describeWatcherListSource(list?.effectiveSource ?? null, watchers.length)}`,
-            )}
-      </p>
+    <div className={`${styles.panel} ${styles.settingsPanel}`}>
+      <div className={styles.settingsHeading}>
+        {scope.kind === 'company' ? <h2>{t('watchers.title')}</h2> : null}
+        <p className={styles.hint}>
+          {scope.kind === 'company'
+            ? t('watchers.description')
+            : t(
+                `watchers.source.${describeWatcherListSource(list?.effectiveSource ?? null, watchers.length)}`,
+              )}
+        </p>
+      </div>
       {failure === undefined ? null : (
         <p className={styles.error} role="alert">
           {t(errorKey(failure.error))}

@@ -42,18 +42,18 @@ export default defineRailway((ctx) => {
     checkSuites: false,
   })
 
-  const applicationDatabase = postgres(isProduction ? 'Postgres-FDoz' : 'Postgres', {
+  const applicationDatabase = postgres(isProduction ? 'postgres-app' : 'Postgres', {
     region: 'sfo',
   })
-  const identityDatabase = postgres(isProduction ? 'Postgres-Hqfu' : 'Postgres-q0RQ', {
+  const identityDatabase = postgres(isProduction ? 'postgres-keycloak' : 'Postgres-q0RQ', {
     region: 'sfo',
   })
   const applicationVolume = volume(
-    isProduction ? 'postgres-volume-Bi41' : 'postgres-volume',
+    isProduction ? 'postgres-volume-HrAw' : 'postgres-volume',
     VOLUME,
   )
   const identityVolume = volume(
-    isProduction ? 'postgres-volume-HrAw' : 'postgres-volume-2L8j',
+    isProduction ? 'postgres-volume-Bi41' : 'postgres-volume-2L8j',
     VOLUME,
   )
   const queueVolume = volume(isProduction ? 'rabbitmq-volume-V_YD' : 'rabbitmq-volume', VOLUME)
@@ -105,6 +105,9 @@ export default defineRailway((ctx) => {
       /** Spec 268: o remetente do e-mail sandbox da contratante (o mesmo do worker); só é lido com o modo ligado. */
       EMAIL_FROM: preserve(),
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
+      /** Evolution (spec 281): só staging tem o serviço; a chave é referência à chave global dele. */
+      EVOLUTION_BASE_URL: preserve(),
+      EVOLUTION_GLOBAL_API_KEY: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       FLEET_VEHICLE_CATALOG_URL: preserve(),
       FRONTEND_ORIGIN: preserve(),
@@ -140,6 +143,19 @@ export default defineRailway((ctx) => {
       ROUTING_MATRIX_URL: preserve(),
       SCHEDULED_DISTRIBUTION_CRON: preserve(),
       SENTRY_DSN: preserve(),
+      /** Segredo do Turnstile do formulário público; a API lê (environment.schema.ts). Sem a declaração o plano de produção apagava a variável. */
+      TURNSTILE_SECRET_KEY: preserve(),
+      /** Spec 281 T4b: o Evolution do ambiente; com os dois a API cria a instância da empresa. */
+      EVOLUTION_BASE_URL: preserve(),
+      EVOLUTION_GLOBAL_API_KEY: preserve(),
+      /** Spec 292 T9: a rota interna do worker que transcreve o áudio do bot; o token é referência ao do worker. */
+      BOT_AUDIO_TRANSCRIPTION_TOKEN: preserve(),
+      WORKER_INTERNAL_URL: preserve(),
+      /** Spec 294 T4.8: liga o reconhecimento do canhoto pelo OCR do worker; vazio = ligado fora de produção, desligado em produção. */
+      CANHOTO_OCR_ENABLED: preserve(),
+      /** Spec 292 T9: frase de chamada por áudio no grupo (ex.: "atendimento Fernandes"); vazia = desligada. */
+      WHATSAPP_BOT_WAKE_PHRASE: preserve(),
+      WHATSAPP_BOT_WAKE_DEBUG: preserve(),
       /** Os dois segredos do APP da Meta: sem os dois a rota do webhook nem é registrada (fail-closed). */
       WHATSAPP_APP_SECRET: preserve(),
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: preserve(),
@@ -157,6 +173,11 @@ export default defineRailway((ctx) => {
     },
     replicas: { sfo: 1 },
     env: {
+      KEYCLOAK_TOKEN_URL: preserve(),
+      WORKER_CLIENT_ID: preserve(),
+      WORKER_CLIENT_SECRET: preserve(),
+      CNH_PICTURE_CLIENT_ID: preserve(),
+      CNH_PICTURE_CLIENT_SECRET: preserve(),
       ANEEL_BASE_URL: preserve(),
       ANEEL_TIMEOUT_MS: preserve(),
       ANP_BASE_URL: preserve(),
@@ -220,6 +241,13 @@ export default defineRailway((ctx) => {
       WHATSAPP_CODE_TEMPLATE_LANGUAGE: preserve(),
       WHATSAPP_INVITATION_TEMPLATE: preserve(),
       WHATSAPP_PASSWORD_RESET_TEMPLATE: preserve(),
+      /** Spec 292 T9: o token da rota interna que transcreve o áudio do bot (o mesmo da API) e `::` na rede IPv6. */
+      BOT_AUDIO_TRANSCRIPTION_TOKEN: preserve(),
+      /** Spec 292 T9: o texto de contexto do whisper no áudio do bot (a grafia da marca). */
+      BOT_AUDIO_TRANSCRIPTION_PROMPT: preserve(),
+      /** Spec 294 T4.8: liga/desliga o OCR do canhoto do bot; vazio = ligado fora de produção, desligado em produção. */
+      CANHOTO_OCR_ENABLED: preserve(),
+      WORKER_HOSTNAME: preserve(),
       WORKER_PORT: preserve(),
       WORKER_PREFETCH: preserve(),
     },
@@ -498,6 +526,32 @@ export default defineRailway((ctx) => {
     deploy: { healthcheckPath: '/', healthcheckTimeout: 120, restartPolicyType: 'ON_FAILURE' },
     replicas: { sfo: 1 },
     env: {
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: preserve(),
+      CACHE_LOCAL_ENABLED: preserve(),
+      CACHE_REDIS_ENABLED: preserve(),
+      CACHE_REDIS_PREFIX_KEY: preserve(),
+      CACHE_REDIS_SAVE_INSTANCES: preserve(),
+      CONFIG_SESSION_PHONE_CLIENT: preserve(),
+      CONFIG_SESSION_PHONE_NAME: preserve(),
+      DATABASE_CONNECTION_CLIENT_NAME: preserve(),
+      DATABASE_ENABLED: preserve(),
+      DATABASE_PROVIDER: preserve(),
+      DATABASE_SAVE_DATA_CHATS: preserve(),
+      DATABASE_SAVE_DATA_CONTACTS: preserve(),
+      DATABASE_SAVE_DATA_HISTORIC: preserve(),
+      DATABASE_SAVE_DATA_INSTANCE: preserve(),
+      DATABASE_SAVE_DATA_NEW_MESSAGE: preserve(),
+      DATABASE_SAVE_MESSAGE_UPDATE: preserve(),
+      DEL_INSTANCE: preserve(),
+      LANGUAGE: preserve(),
+      LOG_BAILEYS: preserve(),
+      LOG_LEVEL: preserve(),
+      QRCODE_LIMIT: preserve(),
+      S3_ENABLED: preserve(),
+      SERVER_PORT: preserve(),
+      SERVER_TYPE: preserve(),
+      TELEMETRY_ENABLED: preserve(),
+      WEBHOOK_GLOBAL_ENABLED: preserve(),
       AUTHENTICATION_API_KEY: preserve(),
       CACHE_REDIS_URI: preserve(),
       DATABASE_CONNECTION_URI: preserve(),

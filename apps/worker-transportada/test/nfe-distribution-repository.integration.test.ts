@@ -25,6 +25,7 @@ const COMPANY_CNPJ = '12345678000190'
 const DOCUMENT_ACCESS_KEY = '35190730290856000160550010000000011000000010'
 const EVENT_TARGET_KEY = '35190730290856000160550010000000021000000029'
 const SUMMARY_ACCESS_KEY = '35190730290856000160550010000000031000000038'
+const LOOKUP_STORED_ACCESS_KEY = '35190730290856000160550010000000041000000047'
 const SHA256 = 'a'.repeat(64)
 
 function authorizedItem(): ImportedNfeXml {
@@ -355,5 +356,92 @@ describeDatabase('DrizzleNfeDistributionRepository.persistPage (integration)', (
         ),
       )
     expect(documents).toHaveLength(0)
+  })
+
+  /**
+   * A busca por chave grava o objeto do XML primeiro, no mesmo endereço que a distribuição usa: a
+   * distribuição tem de apontar para a linha que já existe, senão a FK do item falha.
+   */
+  it('reuses the stored object the access key lookup wrote first, without an FK error or a duplicate', async () => {
+    const lookupObjectId = crypto.randomUUID()
+    const key = `tenants/${companyId}/nfe-documents/${LOOKUP_STORED_ACCESS_KEY}/original.xml`
+    await db.insert(storedObjects).values({
+      bucket: 'transportada-private',
+      companyId,
+      id: lookupObjectId,
+      mimeType: 'application/xml',
+      objectKey: key,
+      provider: 'minio',
+      purpose: 'nfe_document',
+      sha256: SHA256,
+      sizeBytes: 256n,
+      status: 'final',
+    })
+    const secondImportId = crypto.randomUUID()
+    await db.insert(nfeImports).values({
+      companyId,
+      correlationId: 'distribution-correlation-2',
+      id: secondImportId,
+      idempotencyKey: `idem-${secondImportId}`,
+      requestFingerprint: `fingerprint-${secondImportId}`,
+      requestedByUserId: userId,
+      source: 'distribution',
+      status: 'processing',
+    })
+    const normalizedXml = authorizedItem()
+    if (normalizedXml.kind === 'nfe-event') throw new Error('fixture must be a document')
+    const lookupDocument = {
+      ...normalizedXml,
+      document: { ...normalizedXml.document, accessKey: LOOKUP_STORED_ACCESS_KEY },
+    } as ImportedNfeXml
+    const buildPage = (nsu: string): readonly DistributionPersistItem[] => [
+      {
+        finalObject: finalObject(crypto.randomUUID(), LOOKUP_STORED_ACCESS_KEY, companyId),
+        normalizedXml: lookupDocument,
+        nsu,
+        variant: 'complete',
+      },
+    ]
+
+    const first = await repository.persistPage({
+      companyId,
+      environment: ENVIRONMENT,
+      importId: secondImportId,
+      items: buildPage('000000000000061'),
+      maxNsu: '000000000000061',
+      ultNsu: '000000000000061',
+    })
+    const second = await repository.persistPage({
+      companyId,
+      environment: ENVIRONMENT,
+      importId: secondImportId,
+      items: buildPage('000000000000062'),
+      maxNsu: '000000000000062',
+      ultNsu: '000000000000062',
+    })
+
+    expect(first.documentCount).toBe(1)
+    expect(second.documentCount).toBe(0)
+    const documents = await db
+      .select()
+      .from(nfeDocuments)
+      .where(
+        and(
+          eq(nfeDocuments.companyId, companyId),
+          eq(nfeDocuments.accessKey, LOOKUP_STORED_ACCESS_KEY),
+        ),
+      )
+    expect(documents).toHaveLength(1)
+    expect(documents[0]?.xmlObjectId).toBe(lookupObjectId)
+    const items = await db
+      .select()
+      .from(nfeImportItems)
+      .where(eq(nfeImportItems.importId, secondImportId))
+    expect(items.map((item) => item.sourceObjectId)).toEqual([lookupObjectId, lookupObjectId])
+    const objects = await db
+      .select()
+      .from(storedObjects)
+      .where(and(eq(storedObjects.companyId, companyId), eq(storedObjects.objectKey, key)))
+    expect(objects).toHaveLength(1)
   })
 })

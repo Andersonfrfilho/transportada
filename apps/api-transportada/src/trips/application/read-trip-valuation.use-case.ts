@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { cityKey } from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
 import { apportionDocumentCosts } from '../domain/document-cost-apportionment.policy.js'
 import type {
   ApportionmentLeg,
@@ -59,6 +60,8 @@ export type TripValuationDocument = {
    * `'0.0000'` quando o CST é isento — e a diferença entre os dois é o que a origem preserva.
    */
   readonly icmsAmount?: null | string
+  /** Spec 312: a cidade do destinatário, para o perfil de CT-e que se restringe a cidades. */
+  readonly destinationCity?: null | string
   readonly destinationState: null | string
   readonly issuedAt: null | string
   /** Soma dos `cte_batch_item_charges` do CT-e **autorizado** — `null` quando não há emissão. */
@@ -491,6 +494,10 @@ export async function buildValuationFromContext(input: {
       icms: resolveDocumentIcms({
         measuredIcms: document.icmsAmount ?? null,
         profiles: context.emissionProfiles ?? [],
+        recipientCityKey:
+          document.destinationCity == null || document.destinationState == null
+            ? null
+            : cityKey(document.destinationCity, document.destinationState),
         recipientTaxId: document.recipientTaxId ?? null,
         revenue,
         senderTaxId: document.senderTaxId,

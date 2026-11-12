@@ -40,6 +40,28 @@ tipo (spec 150 T401/T402, `resolveMailSendReadiness`). ⚠️ **Rota que dispara
 
 **WhatsApp pelo Evolution — webhook** (spec 281 T6): `POST /public/whatsapp-evolution/:webhookId` (anônima, id opaco) recebe o Evolution da empresa. O Evolution **não assina o corpo**: a prova é o segredo por empresa no cabeçalho `x-transportada-webhook-token`, gerado pela API, selado em `whatsapp_evolution_settings.webhook_secret_envelope` (AAD `transportada:whatsapp-evolution-webhook:v1:…`, diferente do da chave) e comparado em tempo constante; id desconhecido, envelope que não abre e segredo errado dão o mesmo 401 sem corpo, e o resto é 200. Só depois disso o corpo vira dado, e o `instance` do evento tem de ser o configurado. Mensagem (`messages.upsert`, só chat de pessoa, nunca a própria) passa pela política `evolution-attribution.policy.ts`: resposta citando uma mensagem da conversa (motorista dela, contato com aceite, ou **o número a que a entrega do aviso foi feita** — `system_notice.deliveryId` → `occurrence_contractor_reply_deliveries.address`, gravado pela T5), única conversa aberta do contato, e todo o resto em `occurrence_conversation_unassigned` (nada é recusado; teto por número no serviço). Gravação idempotente pelo `unique` de `provider_message_id` no canal `whatsapp`, como a Meta. Status (`messages.update`: enviada/entregue/lida/falhou) vai por `applyProviderMessageStatus`, que só avança; conexão (`connection.update`) grava o último estado; toda entrega autenticada grava `last_webhook_at`. O webhook é apontado pela API (`setWebhook` do SDK) no primeiro QR da instância ativa e de novo depois que endereço, instância ou chave mudam; `POST /company-settings/whatsapp-evolution/webhook` (`settings.manage`) aponta de novo **trocando o segredo**. Sem `API_PUBLIC_URL` receber funciona, apontar é recusado (`WHATSAPP_EVOLUTION_WEBHOOK_URL_MISSING`). Log só com empresa, contagens e motivo.
 
+**Linha do tempo do boleto por WhatsApp** (spec 281 T9): cada tentativa do alvo `client_boleto_whatsapp` entra na linha do tempo da ocorrência como `contractor.client.whatsapp` (status e motivo, sem número, texto nem anexo). Ela não muda etapa; só `sent` é marco. A consulta é `listClientWhatsappSources` em `trip-occurrence-timeline.query.ts`, com o mesmo `reply_id` do retorno. O painel lê o tipo em `tripOccurrenceTimeline.service.ts`; o motivo de falha é o da lista de motivos do cliente, espelhada no painel.
+
+**O grupo de WhatsApp do motorista, 1 para 1** (spec 292 T1): tabela `fleet_driver_whatsapp_groups` (`group_jid` `…@g.us` + `group_name` só rótulo), com `unique (company_id, driver_id)` e `unique (company_id, group_jid)` — o grupo é a identidade do motorista para o bot, então um grupo nunca está em dois motoristas (`409 FLEET_DRIVER_WHATSAPP_GROUP_TAKEN`, também sob concorrência: o unique decide) e apagar a ficha apaga o vínculo (cascade). Rotas `GET|PUT|DELETE /fleet/drivers/:id/whatsapp-group` (`fleet.read` / `fleet.manage`, auditadas em `audit_logs`) e `GET /fleet/whatsapp-groups` (`fleet.manage`): a lista de grupos do número conectado (`listGroups` do gateway → `GET /group/fetchAllGroups/{instância}?getParticipants=false`), cada um com o motorista dono quando já tem. Evolution sem configuração/desligado/fora do ar: `404 WHATSAPP_EVOLUTION_NOT_CONFIGURED`, `409 WHATSAPP_EVOLUTION_DISABLED`, `502 WHATSAPP_EVOLUTION_UNREACHABLE`. A política de refresh do staging é `keep`. Quem lê o grupo para atender (webhook, T3) vem depois.
+
+**O aviso de ocorrência no grupo da contratante** (spec 318, etapa API): `contractor_occurrence_channels` (canal `email` padrão | `whatsapp_group`, grupo, número marcado, `email_fallback`). Com o canal de grupo, o aviso automático (`send-automatic-occurrence-mail.use-case.ts`) posta no grupo pelo Evolution da empresa com a marca (`sendEvolutionTextWithMention`) e **não** manda e-mail; falha passageira repete na hora (3x), a reserva por e-mail sai com `email_fallback`, e o resultado mora em `idempotency_records` (operação `occurrence-contractor-group.send`, chave `occurrence-auto-mail:<id>`) — é dele que saem a idempotência, a linha do tempo (`contractor.group.whatsapp`) e o filtro da varredura do worker (`failed` volta à fila). Texto: versão `whatsapp` da chave do tipo, senão `ocorrencia.contratante-grupo` em Notificações, com lista fechada de variáveis (`contractor-occurrence-group.policy.ts`: contratante, cliente, endereço de entrega, valor da nota e vencimento pedido entram desde 11/11/2026; nunca CPF, CNPJ nem telefone). RF5: um grupo tem um dono só, motorista ou contratante — as duas escritas tomam `lockWhatsappGroupIdentity` e conferem a outra tabela (`409 CONTRACTOR_OCCURRENCE_GROUP_TAKEN` / `FLEET_DRIVER_WHATSAPP_GROUP_TAKEN_BY_CONTRACTOR`). Rotas `GET|PUT /contractors/:id/occurrence-channel`, `POST …/test` (balde Postgres próprio) e `GET /contractor-occurrence-channels/whatsapp-groups`, todas `settings.manage`.
+
+**O bot atende no grupo do motorista** (spec 292 T3–T5, só Evolution). O webhook lê grupo: lista de permissão pelo grupo da ficha (`findDriverByGroup`, antes de qualquer chamada ao Evolution), marcação do bot por número **e por `@lid`** (traduzido por `GET /group/participants`, cache em memória; o SDK 0.3.0 só casa por número) e a regra do dono (`decideGroupMessage`). A sessão (`whatsapp_group_requests`, um aberto por grupo pelo índice único parcial, prazo `group_request_timeout_seconds`) encadeia o fluxo `createGroupOccurrenceFlow`: nota → tipo (`isOfferedToDriver`, só ativo) → observação → confirmação → `registerDriverOccurrence` com o autor = conta do motorista do grupo. Resposta ao grupo sai fora do webhook (`createEvolutionGroupReplySender`), no ritmo da 289. Runbook: `docs/runbooks/evolution-staging.md`.
+
+**O bot atende o motorista no chat direto** (spec 308 T2, só Evolution): o 1:1 de motorista ativo (`findActiveDriverByPhone`, ficha única pelo telefone) vai ao `receiveDirect` do `groupInbound` como "grupo de um só" (`<número>@s.whatsapp.net`): sem marcação, sem frase de chamada, sem `lidDirectory`, e o `createEvolutionGroupReplySender` não marca ninguém fora de `@g.us`. Fica no painel (`receiveMessage`) quem não é motorista e a citação que casa numa conversa (`quotesConversation`); o teto é o mesmo balde do painel (`consumeDirectLimit`). Runbook: `docs/runbooks/evolution-staging.md`.
+
+**O atendente assume o chat do bot** (spec 319 T2, só domínio e tabelas por enquanto): módulo `whatsapp-inbox/`, separado da ocorrência (RF8, contrato `test/whatsapp-inbox/separation.contract.ts`). `whatsapp_chats` (um por empresa e JID: `…@g.us` ou `<número>@s.whatsapp.net`, **nunca `@lid`**; `state` `bot`|`operator`, dono e vencimento obrigatórios quando assumido) e `whatsapp_chat_messages` (autor `driver`/`member`/`bot`/`operator`/`phone`, `provider_message_id` único por empresa, status que só avança). Assumir é um `UPDATE … WHERE` atômico (o segundo atendente recebe `409 WHATSAPP_CHAT_ALREADY_TAKEN_OVER` com quem segura); vencido conta como `bot` já na leitura (`resolveWhatsAppChatAttendance`) e o lote grava `expired` (`expireDue`). Prazo por empresa em `whatsapp_evolution_settings.chat_takeover_timeout_seconds` (padrão 1800). Quem chama: `createWhatsAppChatTakeoverService`. Detalhe e o uso por task: `specs/319-*/evidence.md` § T2. **A guarda (T3, RF2)** é `createWhatsAppChatTakeoverGuard` (`holdIfTakenOver`): chat assumido não chega ao bot, só grava a mensagem recebida (`driver`/`member`). No grupo ela roda dentro de `groupInbound.receive`, logo depois da lista de permissão (antes do áudio, da mídia e do Evolution); no privado, em `routeDirect`, só para motorista, depois da citação da ocorrência e **antes** do teto. Desfecho `taken_over`, contado em `takenOver`. Falha ao perguntar quem atende segue com o bot; falha ao gravar mantém o bot calado. Detalhe: § T3.
+
+**O bot ouve áudio, mas só segue com confirmação** (spec 292 T9): `whatsapp/application/whatsapp-bot-audio.service.ts` responde "estou escutando", baixa o áudio, manda transcrever ao worker (`worker-bot-audio-transcriber.gateway.ts` → `POST /internal/bot-audio-transcriptions`, `WORKER_INTERNAL_URL` + `BOT_AUDIO_TRANSCRIPTION_TOKEN`; sem os dois o bot diz que não ouve áudio) e mostra o texto com 1 Sim / 2 Não. "1" reentra no fluxo como texto digitado; o pendente é da memória do processo (10 min, uma réplica). No grupo só ouve quem tem o pedido aberto ou o áudio que cita o bot (`readGroupAudio`); no individual da Meta, todo número vinculado. Nunca loga o texto. Frase de chamada (`WHATSAPP_BOT_WAKE_PHRASE`, `domain/bot-wake-phrase.policy.ts`): áudio no grupo sem `@` é transcrito calado (`bot.listen`) e, sem a frase, descartado sem resposta; com ela, o resto vira `bot.offer`. Runbook: `docs/runbooks/evolution-staging.md`.
+
+**A foto sem "entreguei" é lida como canhoto** (spec 294 T4.8, ADR 0113 §5): `whatsapp-commands/application/whatsapp-canhoto-recognition.service.ts` (decisão em `domain/whatsapp-canhoto-recognition.policy.ts`) manda a foto ao OCR local do worker (`worker-canhoto-reader.gateway.ts` → `POST /internal/bot-canhoto-reads`, mesmo token do áudio) com as notas abertas do motorista. Exato e único liga ao canhoto da nota (`receiveCanhotoPhoto`, mesma baixa e mesmo `pending` de sempre); aproximado, ambíguo ou sem número pergunta, com a foto esperando no bucket privado (`whatsapp_canhoto_questions`, uma por motorista, vence em 30 min). Entra pela fachada `combineWhatsAppDriverCollections`, então grupo e individual herdam. `CANHOTO_OCR_ENABLED` (`isCanhotoOcrEnabled`): ligado fora de produção, desligado em produção; rota ausente no worker = foto calada. Nunca guarda nem loga o texto lido.
+
+**Os eventos da entrega pelo WhatsApp passam por uma camada só** (spec 293 T11): `whatsapp-commands/application/whatsapp-driver-events.service.ts` (saí, cheguei, entreguei, devolvi, ocorrência) recebe motorista, conta e nota/parada e devolve um resultado tipado (`registered` com os detalhes da baixa, `already_registered` ou `refused` com o motivo: portão de estado, nota/parada fora da viagem, outra parada a caminho, campo exigido pelo tipo, motorista sem ficha ou sem acesso). As portas são as funções das rotas `/me` com `channel: 'whatsapp'` (`whatsappDriverEventPorts` em `main.ts`); erro que não é de negócio sobe. A conversa individual (`register-driver-flow-actions.ts`) e o grupo (`whatsapp-group-occurrence.adapter.ts`) já chamam por ela. ⚠️ **As falas ficam em `whatsapp-driver-event-speech.service.ts`**, com duas plateias: `driver` (as frases da 144) e `group` (chaves `group*` do catálogo editável: só o número da nota, nunca nome, endereço, documento nem valor). Saí/cheguei miram a parada por `whatsapp-driver-stop.policy.ts` (a caminho vence; senão as pendentes na ordem do roteiro; a parada é citada pela primeira NF). Ainda não ligados aos canais: saí/cheguei (T12/T14) e o lançamento por outro membro do grupo como evento do escritório (T13).
+
+**A entrega pelo WhatsApp colhe as provas antes da baixa** (spec 293 T15): `whatsapp-delivery-preparation.service.ts` abre a entrega em preparo da nota (`whatsapp_delivery_preparations`, uma `open` por nota pelo índice único parcial) e pergunta só o que `resolveDeliveryProofChecklist` tira da configuração resolvida do comprovante (`resolveProofFieldSettings`, a mesma do app): `off` nunca, `optional` uma vez com "pular", `required` insiste, localização só oferecida, assinatura obrigatória manda ao app. Faltou obrigatório, não fecha. Completo: 1/2, baixa pela camada T11 (chave `whatsapp-delivery-preparation:<id>`) e as fotos viram comprovante pelo `attachDeliveryProof` (`variant: 'original'`). As provas valem do grupo ou do individual, ligadas pela nota. No grupo, a foto/localização do motorista (telefone da ficha) entra por `handleMedia` da porta do grupo (`readGroupMedia` lê o corpo cru; o SDK 0.3.0 só lê texto). ⚠️ As falas (`whatsapp-delivery-proof-speech.constant.ts`) nunca levam dado do cliente nem o nome de quem recebeu. Runbook: `docs/runbooks/evolution-staging.md`.
+
+**A ocorrência que pede foto, número ou valor é colhida, não recusada** (spec 293 T15): `whatsapp-occurrence-draft.service.ts` abre a ocorrência em coleta (`whatsapp_occurrence_drafts`, uma `open` por motorista) quando `resolveOccurrenceDraftChecklist`, sobre a exigência efetiva do app (`resolveDocumentOccurrenceRequirements`), pede foto, número do documento do cliente ou valor pago **da ocorrência**; assinatura, produtos e valor por item obrigatórios ficam no app (`begin` devolve `null` e o canal segue a recusa de sempre). Completa, registra pela camada T11 com `attachmentObjectIds`/`referenceNumber`/`declaredAmount` (chave `whatsapp-occurrence-draft:<id>`). A foto vira upload confirmado de ocorrência pelo mesmo `confirmOccurrenceUpload` (`whatsapp-occurrence-photo.adapter.ts`, reduz a JPEG acima de 512 KiB). Os canais só falam com `combineWhatsAppDriverCollections`, que manda foto e texto para a coleta certa (ocorrência que pede aquilo, senão entrega em preparo). Runbook: `docs/runbooks/evolution-staging.md`.
+
 **O IP do cliente vem do salto conhecido** (ADR-0076 §6, spec 191): `createClientIpResolver` lê só o
 cabeçalho de `CLIENT_IP_SOURCE` — padrão `x-real-ip`, que o edge do Railway sobrescreve (medido).
 Nunca o começo de `x-forwarded-for`, que é do cliente; `cf-connecting-ip` só com Cloudflare
@@ -294,6 +316,22 @@ empresa já ajustou, mas que não tem (ou nunca teve) linha correspondente em `t
   (ou `anyPermission`, abaixo); migrá-la para `trip.read` migra `driver`, `aggregate` e `separator`
   juntos. `test/separator-role.contract.test.ts` lista as rotas alcançáveis por
   extenso — rota nova de frota/faturamento/CT-e reprova ali até decisão por escrito.
+
+- **Token de serviço não carrega `company_id`** (ADR-0047, emenda 2026-11-05). O verificador
+  (`keycloak-jwt.gateway.ts`) exige assinatura, emissor, `aud=transportada-api`, `exp` e `sub` de todo
+  token e **não** exige `company_id`; quem exige é `AuthenticationService`, para todo token que não é
+  service account. Service account = papel de realm exato `transportada-service` **e** `azp` em
+  `SERVICE_CLIENT_IDS` (env da API, padrão os dois clients do worker) **e** sem `company_id`; papel com
+  outra forma é 401. `typ` precisa ser `Bearer`. Serviço: empresa só por `x-company-id`, validada contra
+  a membership do usuário sintético (403 sem ela), e rota de membership recusa. `AuthorizationService`
+  separa os lados: `SERVICE_ONLY_PERMISSIONS` só para serviço, serviço só para elas (403 nos dois
+  sentidos). Papel de serviço não se atribui a gente (`user-administration.schema.ts`, 400), e a
+  membership sintética não ganha papel de gente (409 `COMPANY_USER_IS_SERVICE_ACCOUNT`). Pôr `company_id` de volta no
+  `requiredClaims` derruba todas as chamadas do worker em 401 — foi o que aconteceu até 05/11/2026.
+  Contrato com JWT assinado de verdade: `test/service-token.contract.test.ts`. Num ambiente novo, cada
+  client de serviço precisa do mapper de audiência no Keycloak (passos na emenda). O MDF-e automático só
+  liga com `MDFE_AUTO_ISSUE_ENABLED=true` no worker **e** na API (padrão `false`; a rota responde 404
+  `MDFE_AUTO_ISSUE_DISABLED`).
 
 ## A lista de viagens diz ocupação e lucro (spec 259)
 
@@ -635,6 +673,11 @@ docs/ai-context § "A ocorrência tem duas conversas".
 - **Rotas que enviam declaram `rateLimit` no Postgres** e aparecem em
   `test/rate-limited-routes.contract.test.ts`: e-mail, app, portal, uploads e a resposta do
   motorista (`driver-occurrence-conversation-send`, 30/300 s).
+- **O cliente é o terceiro participante** (spec 283, contrato em `specs/283-*/contract.md`). A conversa `client` nasce
+  só pelo gatilho `occurrence_client_conversation_sync_trigger` na entrega da 248 (alvos `client_boleto_*`), uma
+  mensagem por entrega (`client_delivery_id`); nunca crie a conversa do cliente em código. Ela não guarda id de
+  provedor nem `mail_message_id` (a thread do e-mail é da contratante): o status chega pela entrega em
+  `applyProviderMessageStatus`. A leitura só a mostra com `occurrences.resolve`, sempre com destino mascarado.
 - Logs só com ids, códigos e contagens. Isolamento:
   `test/occurrence-conversation-schema/tenant-safety.contract.ts`.
 - **O motorista vê o estado do retorno da contratante na nota** (spec 248 T5.4): `GET /me/trips/current` traz `documents[].registeredOccurrences:
@@ -649,10 +692,8 @@ docs/ai-context § "A ocorrência tem duas conversas".
 ## Fleet — ficha do motorista e geocodificação
 
 **A ficha do motorista guarda dado de pessoa física que hoje ninguém lê** (`birth_date`,
-`license_number`, endereço residencial, trio do RG) — a ADR-0039 já decidiu criptografar esses campos
-(A256GCM, AAD `transportada:fleet-driver:v1:${companyId}:${driverId}`) e a execução **ainda não
-aconteceu**; quem for escrever leitor para um desses campos precisa abrir o envelope primeiro —
-confira a ADR antes. CNH é única por empresa só quando preenchida (índice parcial). Órgão do RG é
+`license_number`, endereço residencial, trio do RG) — fica em claro: a ADR-0039 (criptografar) foi **revogada** em 2026-11-05, porque perder a chave é
+perder o dado. Não propor cifra de coluna. CNH é única por empresa só quando preenchida (índice parcial). Órgão do RG é
 lista fechada `IDENTITY_DOCUMENT_ISSUERS`, cópia por valor API/frontend.
 
 **A nota do motorista é derivada na leitura, nunca gravada** (ADR-0070, spec 159):
@@ -686,6 +727,12 @@ provedores perdedores são abortados (`raceCompletePostalCodeSuggestion`); a v2 
 mesmo levando ~2 s. A busca textual ainda sai do navegador
 (Photon). **Cidade é lista do IBGE, não texto livre** (`fleet/shared/municipality.service.ts`),
 casada por `normalizeVehicleCatalogName` para tolerar grafia divergente entre planilha e IBGE.
+
+### O documento do motorista (spec 091)
+
+`fleet_driver_attachments` guarda CNH, RG, comprovante de endereço e outros na ficha — **sem criptografia de aplicação** (ADR-0039 revogada em 2026-11-05); o arquivo vai ao bucket privado como os demais anexos. Rotas em `fleet/presentation/fleet-driver-attachment.routes.ts`: listar (`GET .../attachments`, `fleet.read`: tipo, data, quem anexou e `hasSuggestion`, nunca conteúdo), anexar/substituir (`POST`, `fleet.manage`, multipart, 1,5 MiB, tipo pela **assinatura**; nome ou tipo declarado que a contradiz é 400) e remover (`DELETE`, 204); abrir o arquivo é `GET .../content` sob **`fleet.reveal`** (link assinado de 300 s, só o `company-admin` a tem por papel). Um documento vivo por tipo e motorista (único parcial; `other` aceita vários), e anexar um tipo existente **substitui**: o objeto anterior sai do bucket antes da troca. A chave do objeto é só UUIDs (`tenants/<empresa>/fleet-driver-attachments/<motorista>/<tipo>/<objeto>`).
+
+A CNH é lida pelo **worker**, nunca na requisição (ADR-0053): o anexo grava `fleet_driver_attachment_outbox` na mesma transação, o worker lê (PDF em `worker_thread`, imagem pelo OCR) e grava `extracted_fields` + `extracted_at`. A leitura é **oferta**: `GET .../suggestion` (`fleet.manage`) devolve só `licenseNumber` e `licenseCategory`, e `POST .../suggestion` (`accepted`/`dismissed`) registra a decisão e zera `extracted_fields` no **mesmo** `UPDATE`. O ponto de encaixe para quem precisar reagir a uma CNH anexada (a spec 295, foto da CNH como foto de perfil) é o pedido `attachment.extraction.requested` dessa tabela de outbox, criado em `DrizzleFleetDriverAttachmentRepository.create` para `type = 'cnh'`; ainda não há trilha de auditoria (Fase 5, T020) nem descarte na remoção do motorista (T021).
 
 ## Carga: cubagem, capacidade e cargo placement — ver a referência
 
@@ -837,6 +884,41 @@ emitir CT-e/NFS-e por seleção e faturar (spec 144, ADR-0063/ADR-0064). O despa
 está nos pacotes `meta-whatsapp-module@0.8.0`, `-contracts@0.6.0` e `-provider@0.3.1`; as migrations do módulo viajam em
 pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigrations`, com o `migrate` injetado.
 
+- **A jornada do motorista no bot é uma só nos dois canais** (spec 294 RF28–RF34): o texto de cada passo mora em
+  `whatsapp-commands/domain/whatsapp-driver-journey.policy.ts` e o bloco da parada em `whatsapp-stop-card.policy.ts`
+  (lido por `whatsapp-stop-card.reader.ts`: contratante, valor, volumes e a estrada do OSRM só a partir do último ponto
+  compartilhado na viagem). Evento repetido abre o menu de ações (grupo: passo `journey.actions`; individual: pedido
+  `journey_actions`), nunca a lista das outras paradas. "Não entreguei" no grupo é `whatsapp-group-return-flow.service.ts`.
+  A prova é a jornada inteira pelo caminho real, com o texto exato de cada resposta:
+  `test/integration/whatsapp-driver-journey-{group,direct}.integration.ts` (respostas em
+  `test/fixtures/driver-journey-*.expected.ts`; `JOURNEY_RECORD=1` regrava, `JOURNEY_TRANSCRIPT=1` imprime a conversa).
+- **"Entreguei" sem número segue o que está em andamento**, nos dois canais e por áudio: a entrega em preparo aberta é
+  retomada (`resume`: "↩️ _Continuando a entrega da NF X._" + a pergunta pendente); sem ela, a parada que chegou e falta
+  a baixa (ou a caminho) decide (`readWhatsAppStopInProgress`: uma nota vai direto com o bloco da parada, várias listam
+  só as dela); só sem nada em andamento a lista é a da viagem. O número digitado sempre vence. A foto sem pergunta
+  aberta (reconhecimento do canhoto) também pergunta primeiro pela nota da parada em andamento.
+- **Uma resposta do bot por turno é UMA mensagem do WhatsApp** (`whatsapp-turn-replies.service.ts`): no grupo, o remetente
+  (`createEvolutionGroupReplySender`) e a entrada (`createEvolutionGroupInbound`) dividem o turno; na conversa individual, o
+  canal da Meta é embrulhado em `createWhatsAppCommandHookFactory`. Os textos do turno saem juntos (linha em branco entre
+  eles) no fim; lista/botões interativos saem na hora, depois da fala já guardada. O que vem depois do turno (a
+  transcrição do áudio, `runOutsideWhatsAppTurn`) sai sozinho. Motivo: o espaçador do Evolution segura cada mensagem
+  seguinte, e a pergunta separada chegava depois da resposta do motorista. As jornadas de integração cobram uma mensagem
+  por turno. Teto de 4000 caracteres por mensagem (a Meta recusa acima de 4096): corta nas linhas em branco, em ordem.
+  Falha na entrega do fim do turno vai a log (`companyId`, `errorName`) e nunca sobe — o webhook não pode virar 5xx e a
+  Meta reenviar o turno. Compromisso conhecido: fala de fora do turno ao mesmo destino entrega antes o que o turno já
+  guardou (a ordem vale mais que juntar).
+- **A resposta do bot no grupo marca quem pediu** (`GroupReplySenderPort.send({ mentionNumber })`): o remetente
+  abre a primeira mensagem com `@<telefone>` e manda o número em `mentioned` de `POST /message/sendText` (Evolution 2.3.7;
+  chamada direta em `evolution-mention-text.gateway.ts`, o SDK só tem `sendText(to, body)`), então o WhatsApp avisa a pessoa
+  com o grupo silenciado. Uma vez por resposta: o turno junta as falas e a marca fica no começo; texto cortado pelo teto de
+  4000 caracteres marca só a primeira parte. O número é o telefone que a entrada do grupo já resolveu (o `@lid` vira número
+  antes de aceitar a mensagem; sem número, a mensagem nem é aceita), validado como 8–15 dígitos; sem ele a resposta sai sem
+  marca e nunca falha. Aviso sem pedido (vencimento do pedido) não marca ninguém; quem chamar com um destinatário (lembrete da
+  spec 299) passa `mentionNumber`. Número nunca vai a log.
+- **"Cancelar" fecha qualquer pergunta aberta, nunca vira resposta**: no grupo, todo passo do `GROUP_STEP_REGISTRY`
+  fecha (a lista "Qual nota você entregou?" só deixa o pedido fechar; a entrega em preparo é encerrada); no individual,
+  o motorista sai de qualquer nó do fluxo com "Certo, cancelei e não registrei nada." As matrizes de isolamento
+  (`test/whatsapp/group-{flow,inbound}-isolation.contract.ts`) iteram o registro, então passo novo já é cobrado.
 - **Toda `FlowAction` de negócio passa por `withAuthorizedActor`**, que re-resolve o ator a cada
   chamada contra o mesmo `AuthorizationService` do HTTP; `registerWhatsAppFlowActions` é o único
   caminho de registro.
@@ -862,6 +944,7 @@ pasta (formato do `drizzle-orm` 1.0) e rodam por `runMetaWhatsAppSchemaMigration
   `whatsapp/application/whatsapp-location-redact.service.ts`.
 - **`MembershipAuthorizationPolicy`** ("qualquer membership ativa") só existe sob `/me/` —
   `assertMembershipRoutesUnderMe` derruba o boot fora dali.
+- **O administrador grava o número já verificado** (decisão do dono, 10/11/2026; revê a regra A6 da spec 144): `PUT /company-users/:id/whatsapp-phone` (`users.manage`, corpo `{ phone }` `.strict()`, `204`) e `GET` do estado mascarado; vínculo de outra empresa é 404, número verificado de outra pessoa dentro da validade é 409, e a trilha `whatsapp_phone.bound_by_administrator` diz quem gravou (número mascarado). Tela: Usuários → editar → WhatsApp.
 - Rotas (`cache-control: no-store`): `GET`/`DELETE /me/whatsapp-phone`,
   `POST /me/whatsapp-phone/verification` (201, 409 `WHATSAPP_CHANNEL_NUMBER_MISSING`),
   `DELETE /company-users/:id/whatsapp-phone` (`users.manage`) e
@@ -1069,6 +1152,15 @@ Detalhe: docs/ai-context/api-transportada.md § "Spec 247" e specs/247-\*/eviden
   chat **da própria ocorrência** (vem do mesmo leitor do detalhe) e a `retention_until` não tiver vencido; senão 404
   `TRIP_OCCURRENCE_ATTACHMENT_NOT_FOUND`. O link nunca vai a log nem entra no retrato offline do app (só metadado).
 
+### Contato do cliente na abertura (spec 281 T8b)
+
+`company_occurrence_types.asks_client_contact` (padrão `false`) liga, por tipo, o pedido do contato do cliente ao motorista
+na abertura da ocorrência; o tipo do campo (`FieldOccurrenceType`) leva `asksClientContact` e `clientChannel`. As rotas
+`/me/trips/current/documents/:documentId/client-contacts` (`delivery-clients/presentation/me-client-contacts.routes.ts`,
+leitura `trip.read`, escrita `trip.report`) listam, incluem, editam e removem contatos do destinatário da nota, só para quem
+está na tripulação da viagem. Endereço normalizado (E.164 / e-mail) antes de gravar, só a forma mascarada sai, o motorista
+só mexe no que ele informou (`created_by_kind = driver` e o mesmo usuário), limite de 10 por canal e auditoria sem o endereço.
+
 ### Andamento da ocorrência (ADR-0105)
 
 - **Estado = último evento** de `trip_occurrence_resolution_events` (sem evento = `open`; `resolved` = `resolved`; `reopened` = `open`).
@@ -1154,6 +1246,49 @@ parametrizado (`notification-template.query.ts`, versão ativa mais alta) e usa 
 - **Leituras do editor** (`settings.manage`): `GET .../contractor-mail-templates` e `GET .../contractor-mail-recipient-candidates`. As escritas
   em `/v1/notification-templates*` exigem `settings.manage` (o módulo, sozinho, deixa qualquer membro).
 - Detalhe e decisões: `docs/ai-context/api-transportada.md` § "O modelo do e-mail da ocorrência vem do módulo de notificação (spec 271)".
+
+## O retorno ao cliente do tipo é uma matriz por canal (spec 286 T2)
+
+O tipo **seleciona**, por canal, o modelo do módulo de notificação (`notification.templates`, a versão ativa mais alta da chave **no
+canal**, `pt-BR`) e o modo de envio; texto de mensagem não mora no tipo. Tabela filha `company_occurrence_type_client_channels` (um canal
+por linha, molde de `company_occurrence_type_moments`): `enabled` (a caixa), `send_mode` (`manual`/`automatic`) e `template_key` (sem FK).
+
+- **`PUT`**: `clientChannels: { email?, whatsapp? }`, cada canal inteiro (`enabled`, `sendMode`, `templateKey`); canal ausente não mexe.
+  Chave conferida **antes** da transação (400 `OCCURRENCE_CLIENT_CHANNEL_TEMPLATE_INVALID`, campo `clientChannels.<canal>.templateKey`:
+  `not_found`, `system_key`, `empty_subject` só no e-mail, `empty_body`). Com a matriz, `client_channel` e `client_email_send_mode` são
+  gravados **derivados** dela; e-mail ligado com `client_email_type = off` é 400 `OCCURRENCE_CLIENT_CHANNEL_EMAIL_TYPE_REQUIRED`.
+- **Painel antigo** (grava `clientChannel`/`clientEmailType`/`clientEmailSendMode`): liga e desliga as caixas pela regra de
+  `deriveClientChannelMatrixFromLegacy`, sem apagar o modelo nem o modo do WhatsApp. Tipo sem linha lê o derivado (leitura tolerante).
+- **Leitura**: `clientChannels` em `GET`/`PUT /company-settings/occurrence-types` (`toOccurrenceTypeSettingsViews`, lote).
+- **Migração (RF5)**: o texto livre `forward_email_subject`/`forward_email_body` de cada tipo virou o modelo `email`
+  `occurrence.client-reply.<id do tipo>` (e um `whatsapp` sem HTML quando o tipo falava por WhatsApp), apontado pelo canal. Os campos
+  antigos **seguem gravados e lidos pelo envio** até a T3 trocar o envio para o modelo; a etapa B (T9) os tira, com aprovação.
+
+## O boleto sai por canal, pelo modelo (spec 286 T3)
+
+O envio ao cliente lê o **modelo de cada canal** da matriz (`contractor-reply-client-template.support.ts`, espelhado no worker):
+tipo sem linha ou sem `template_key` segue nos `forwardEmail*` antigos (no WhatsApp a legenda é `assunto\n\ncorpo`); chave escolhida
+sem versão ativa → `template_missing` (entrega `skipped` no automático, 409 `CONTRACTOR_REPLY_CLIENT_TEMPLATE_MISSING` no botão).
+Variáveis: `razaoSocial`, `nomeExibicao`, `numeroNota`, `numeroNotaSemSerie`, `tipoOcorrencia`.
+
+- **WhatsApp automático** (canal ligado e `automatic`), em duas fases. **Reserva** na transação que entrega o boleto ao motorista
+  (savepoint `client_whatsapp_forward`): uma linha `queued`, gatilho `automatic`, sem usuário, por número `whatsapp`/`boleto` do
+  cadastro do cliente, com a **mesma chave** do botão (`client_boleto_whatsapp:` + sha256(`retorno:anexo:número`)) — o Reenviar
+  manual ao mesmo número faz replay. **Despacho** depois do commit (API: portal; worker: e-mail recebido), trava atômica em
+  `claimed_at` (dois despachos não mandam duas vezes); cada número enviado vira aviso do Sistema na conversa do motorista.
+- **Queda para e-mail (RF4)**: sem número (`client_without_whatsapp`), sem modelo, sem instância (`whatsapp_disconnected`) ou
+  nenhum número recebeu → o motivo fica na linha do tempo e o boleto vai ao e-mail do cliente se a caixa do e-mail estiver
+  ligada (mesmo em manual). Teste: `test/integration/occurrence-contractor-reply-client-channels-auto.integration.ts`.
+- **Marca da reserva**: o e-mail que sai como queda do WhatsApp grava `fallback_from = 'whatsapp'` na entrega (migration
+  `20261029023933_client_email_fallback_from`, CHECK só no alvo `client_boleto_emails`); a leitura das entregas devolve
+  `fallbackFrom` e o painel mostra "Reserva do WhatsApp". O envio do próprio canal e o botão ficam com `null`.
+- **Layout do e-mail**: o boleto ao cliente e ao destinatário da nota (automático e botão) sai no modelo padrão de e-mail das
+  Notificações (`notification.standard-email`, o da empresa quando utilizável, senão o embutido do SDK), o mesmo visual do chat da
+  contratante: `contractor-reply-client-email-layout.support.ts` (espelhado no worker). O texto do modelo do canal entra como texto
+  (HTML antigo migrado vira texto); o logo vai inline (`has_inline_logo`) quando a empresa tem um. Proibido montar layout aqui.
+- **Limites conhecidos**: queda do processo entre a trava e o fechamento deixa a linha `queued` com `claimed_at` (sem varredura);
+  `acceptsFreeText` do SDK 0.3.0 não é ligado aqui porque o TMS não usa driver Evolution no módulo (o módulo só guarda e
+  renderiza; quem envia é o gateway Evolution da própria app).
 
 ## E-mail da ocorrência em HTML (spec 272, ADR-0110)
 
@@ -1243,3 +1378,59 @@ troca `_` por espaço. O item ganha `vehicle`, `document.recipient` e `document.
 `/trip-occurrences/` porque ali o `:id` do detalhe casaria o caminho): por tipo, `{ typeName, resolvedCount, averageSeconds }`, do
 registro até o **último** `resolved` (o `resolvedAt` da 276), só de quem está resolvida agora — reaberta, em aberto e cancelada
 ficam de fora. Nome do tipo como no feed (cadastrado, ou o `kind` da parada). `trip-occurrence-resolution-summary.query.ts`.
+
+## A ordem da parada (spec 294, ADR-0113)
+
+- **A tripulação segue a ordem da parada** (saiu, chegou, baixou): etapa pulada é **gravada junto** com o relógio do evento pedido e `recordedTogether` na resposta
+  (`recorded-together-steps.service.ts`); a etapa junto leva `location: null` e nunca dispara correção de endereço. Reenvio (chave de idempotência) devolve o mesmo
+  `recordedTogether`. Escritório (`target`) nunca é conferido nem marca junto. Estatísticas ignoram etapa marcada junto; a linha do tempo desempata.
+- **Fora de ordem** (`resolveStopOrderViolation`, só tripulação, sob a trava das paradas): `409 TRIP_STOP_OUT_OF_ORDER` com `outOfOrder { requested*, current*, next* }`;
+  `confirmOutOfOrder: true` no corpo de saída, chegada, entrega e devolução (`/me`) grava. Reenvio, parada fechada ou nota já baixada nunca dão 409.
+- **`nextStop`**: a baixa que fecha a parada devolve a próxima; o snapshot do app leva a precisão do endereço.
+- **Correção do endereço pela chegada**: chegada real da tripulação roda `resolveAddressArrivalCorrection` em savepoint (falha vira `address_correction.failed`, a chegada grava).
+  Aplica direto (trilha `geocoded_address_corrections` com `origin 'driver'`) ou sugere (`address_correction_suggestions`, único por empresa + evento). Sugestão aparece em
+  `GET /pending-items` (`addressSuggestedByDriver`, `trip.manage`, com `currentLatitude/currentLongitude`, ponto sugerido e distância); `POST /address-correction-suggestions/:id/apply|dismiss`
+  (`trip.manage`, auditado; 404 outra empresa, 409 já decidida).
+- **Canhoto fora de ordem ou repetido**: SHA-256 da imagem por empresa (`stored_objects.sha256`); repetida = 200 `{ duplicate }` sem gravar; canhoto diferente sobre o existente =
+  `409 TRIP_CANHOTO_ALREADY_ATTACHED` sem `replaceCanhoto`. Escritório mantém a regra anterior (troca o próprio; o da tripulação é `TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`).
+- **Atendente**: baixa, saída e chegada do atendente vão pelo caminho do escritório (RF19), sem conferência de ordem.
+- Foto de canhoto dando a baixa (RF23) usa só opções gratuitas e locais no worker; sem modelo de IA pago no produto.
+
+**A pessoa troca a própria foto** (spec 295). `GET/PUT/DELETE /me/picture` (`me-picture.routes.ts`, política de membership ativa, travada a `/me/` pelo `membership-policy-lock`) reaproveitam `user-picture.use-case.ts`; o alvo é sempre `context.scope.userId`, a rota não tem id. Mesma validação da rota administrativa (assinatura, 256 KiB).
+
+**A foto da CNH vira foto inicial** (spec 295 Fase 4). `identity_user_pictures.origin` (`cnh|self|admin`; `PUT /me/picture` grava `self`, a rota administrativa `admin`, foto anterior à coluna é `admin`); `GET /me/picture` devolve `x-picture-origin` (exposto no CORS). `PUT /fleet/driver-attachments/:attachmentId/cnh-picture` é do robô do worker (permissão só-serviço `driver.cnh-picture`): resolve o usuário pelo anexo `cnh` e aplica com `saveFromCnh`, um `ON CONFLICT … WHERE origin = 'cnh'` — `self`/`admin` nunca são sobrescritos (`applied: false`). Contrato em `test/driver-cnh-picture.contract.ts`, SQL em `test/integration/user-picture-cnh-origin.integration.ts`.
+
+## Cobrança no recebimento vai para os acertos (spec 317)
+
+Tipo de parada `stop_kind = 'unexpected_charge'` com vagas de foto (`company_occurrence_type_photo_slots`). `report-stop-occurrence` grava, na **mesma
+transação** do `trip_field_reports`: ocorrência, fotos por vaga (`trip_stop_occurrence_photos`), linhas `delivery_charges` `receiving_charge`/`recorded`/`occurrence`
+(`stop_occurrence_id`; por nota = uma linha por nota, agrupada = uma linha com `grouped_documents` e `delivery_charge_documents`) e a marca do cliente
+(`delivery_clients.receiving_charge_flagged_at`). Políticas puras: `stop-occurrence-photo-slots.policy.ts` (vaga desconhecida/repetida 400, obrigatória faltando
+422 `STOP_OCCURRENCE_PHOTO_SLOT_MISSING` com `slotKey`) e `receiving-charge.policy.ts`; persistência em `receiving-charge.persistence.ts` com `ON CONFLICT DO NOTHING` (reenvio = replay).
+Valor exato em `bigint`, `0` é valor; "quem pagou" obrigatório e `driver` exige PIX; partes da nota lidas no servidor, nunca do payload.
+
+- **RF7:** o registro da parada não importa e-mail, portal, bot nem a sugestão `onDelivered`; `PUT /company-settings/occurrence-types` recusa `emailsContractor` em `unexpected_charge`.
+- **Leituras:** `GET /occurrence-charges/report` lista `receiving_charge` com `photos[]` (URL assinada de 5 min) e `receivingCharge` (PIX só com `trip.financials`);
+  `GET`/`DELETE /delivery-clients/:id/receiving-charge-flag` (`fleet.read`/`fleet.manage`, limpar audita); `POST /trip-occurrences/stop/:id/resolution` aceita
+  `driverPayoutReceiptAttachmentId` opcional (anexo de mensagem enviada no chat do motorista desta ocorrência; concluir nunca bloqueia).
+- **Ao motorista:** `GET /me/trips/current/occurrence-types` leva `photoSlots[]` só no tipo que tem vagas (o corpo dos outros não muda); `GET /me/trips/current` leva
+  `stops[].clientChargeSeal { flaggedAt }` em parada aberta, só se `show_client_charge_seal_to_driver`; falha só tira o selo.
+- **Testes:** `test/trip-occurrence/receiving-charge.contract.ts`, `charge-seal.contract.ts`, `test/delivery-clients-http/receiving-charge.contract.ts`,
+  `test/integration/receiving-charge.integration.ts` (na lista do `package.json`). Publicação: painel → API → app (runbook de produção, 5.28).
+
+## Canhoto retido pelo cliente (spec 321, T7)
+
+- **Filtro por id do tipo.** `GET /trip-occurrences?typeIdIn=<uuid>,<uuid>` filtra a ocorrência de nota por `occurrence_type_id` (o `typeIn` segue sendo por nome/`kind`). Valor que não é UUID é `400`, nunca lista vazia; ocorrência de parada não tem tipo cadastrado e fica fora quando o filtro vem.
+- **`canhotoRetained` no detalhe do documento.** `GET /trips/:id` leva `documents[].canhotoRetained` (derivado, nunca gravado): a nota de origem tem coleta de canhoto aberta (`pending | scheduled`, D6) de ocorrência não cancelada. Uma leitura fixa para a viagem (`loadCanhotoRetainedDocumentIds`, `canhoto-pickup.query.ts`). O painel já o lê como opcional.
+- Contratos: `test/trip-occurrence/feed.contract.ts` (`typeIdIn`) e `test/integration/canhoto-pickup-registration.integration.ts` (marcador).
+
+## A ordem das paradas nasce no rascunho (spec 323, ADR-0044 §1)
+
+- **Ordenador por estrada, nunca linha reta.** `orderStopsByRoad` (`trips/domain/draft-stop-order.policy.ts`) é puro: vizinho mais próximo a partir do barracão e 2-opt com realocação, sobre a matriz N×N do OSRM (`RoadMatrixPort`, `osrm-road-matrix.gateway.ts`, `GET /table/v1/driving`, timeout 5 s, falha = `null`). `haversine` é proibido no módulo (`test/trip-domain/draft-stop-order-no-straight-line.contract.ts`).
+- **Quem roda.** `orderDraftTripStops` (`order-draft-trip-stops.use-case.ts`) é chamado por `linkDocument` e `linkDocumentsBatch` depois do vínculo, por `order-draft-trip-stops-gracefully.ts` (nunca derruba o vínculo). Só em viagem `draft`/não despachada: a porta de não-retorno é `checkTripAcceptsLinkage`. O aceite multiveículo vincula com `orderStops: false` e ordena uma vez no fim.
+- **Origem e falha.** `trips.stop_order_source` ∈ `unordered | suggested | manual` e `trips.stop_order_error_code` (`ROUTING_MATRIX_UNAVAILABLE`, `ROUTING_DEPOT_NOT_GEOCODED`, `ROUTING_TOO_MANY_STOPS`, nulo sem falha). Quem grava: o ordenador (`suggested`), o reordenar manual `PUT .../stops/order` (`manual`), o aceite da 058 (`suggested`). **Numa falha a origem `manual` continua `manual`** (só o código é gravado).
+- **Nota nova.** Origem `manual` não é desfeita: `insert_new` encaixa a parada na melhor posição de inserção e mantém a ordem relativa das demais (`resolveDraftStopOrderMode`). Origem `suggested` ou `unordered` reordena tudo.
+- **Sem coordenada vai para o fim** (RF3), em ordem relativa atual. Geocodificação que termina depois **não** reordena sozinha: vale o botão.
+- **Botão Ordenar paradas.** `POST /trips/:id/stops/auto-order` (`trip.manage`, 409 em viagem despachada): refaz também a ordem manual e recongela a rota. Escrita sempre por `reorderTripStops` (`source` padrão `manual`), nunca pelo repositório.
+- **Viagem antiga não é reordenada.** A migration `trip_stop_order_source` deixa tudo `unordered`; só viagem tocada depois entra no ordenador.
+- **Testes:** contratos `test/trip-domain/draft-stop-order.contract.ts` (propriedades com semente fixa) e `test/trip-stops/order-draft-trip-stops.contract.ts`; integração com Postgres `test/integration/draft-stop-order.integration.ts` (CA1–CA4, na lista do `test:integration`). Detalhe e evidência: `specs/323-paradas-ordenadas-no-rascunho/evidence.md`.

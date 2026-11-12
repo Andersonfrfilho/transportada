@@ -62,7 +62,7 @@ export function resolveTripTimelineIcon(
 }
 
 export type TripTimelineChip = Readonly<{
-  id: 'late' | 'stop' | 'transition'
+  id: 'late' | 'stop' | 'together' | 'transition'
   label: string
   tone: 'copper' | 'neutral'
 }>
@@ -114,6 +114,11 @@ function resolveLateChip(item: TripTimelineItem, t: Translate): TripTimelineChip
   return { id: 'late', label: t('eventTimeline.chip.recordedLaterUnknown'), tone: 'copper' }
 }
 
+function resolveTogetherChip(item: TripTimelineItem, t: Translate): TripTimelineChip | null {
+  if (item.recordedTogether !== true) return null
+  return { id: 'together', label: t('eventTimeline.chip.recordedTogether'), tone: 'neutral' }
+}
+
 /**
  * Só o que o item já publica: chip sem dado correspondente não é desenhado. `shouldOmitStop` é da
  * seção cujos eventos são todos da mesma parada ("Eventos desta entrega"): o chip dizia a mesma coisa
@@ -132,9 +137,12 @@ export function resolveTripTimelineChips(
           label: t('eventTimeline.chip.stop', { sequence: item.stop.sequence }),
           tone: 'neutral',
         }
-  return [stopChip, resolveTransitionChip(item, t), resolveLateChip(item, t)].filter(
-    (chip): chip is TripTimelineChip => chip !== null,
-  )
+  return [
+    stopChip,
+    resolveTransitionChip(item, t),
+    resolveLateChip(item, t),
+    resolveTogetherChip(item, t),
+  ].filter((chip): chip is TripTimelineChip => chip !== null)
 }
 
 export type TripTimelineInterval =

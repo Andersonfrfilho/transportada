@@ -388,6 +388,11 @@
     "status": "Status",
     "vehicleId": "Vehicle"
   },
+  "columnsMenu": {
+    "moveDown": "Move the column down",
+    "moveUp": "Move the column up",
+    "title": "Columns"
+  },
   "contact": {
     "contractor": "Contractor: {{name}}",
     "phone": "Phone: {{phone}}",
@@ -857,9 +862,10 @@
       },
       "origin": {
         "contractor": "Corrected by the contractor",
-        "driver": "Corrected by the driver",
+        "driver": "Address corrected by the driver's arrival",
         "operator": "Corrected by the office",
-        "refinement": "Precision refinement"
+        "refinement": "Precision refinement",
+        "unknown": "Unknown origin"
       }
     },
     "attachmentCount_one": "{{count}} photo attached",
@@ -952,6 +958,8 @@
     "chip": {
       "recordedLater": "recorded {{duration}} later",
       "recordedLaterUnknown": "recorded later",
+      "recordedTogether": "Marked together",
+      "recordedTogetherHint": "The driver skipped this step; it was recorded together with the next event.",
       "stop": "Stop {{sequence}}",
       "transition": "{{from}} → {{to}}"
     },
@@ -1376,6 +1384,41 @@
       "overdueWithDays_other": "Overdue by {{count}} business days"
     }
   },
+  "canhotoPickup": {
+    "availableList": "Receipt pickups that can be scheduled on this trip",
+    "availableTitle": "Pending pickups",
+    "document": "Invoice {{number}}",
+    "errors": {
+      "CANHOTO_PICKUP_CHANGED": "The pickup changed while you were working. Refresh and try again.",
+      "CANHOTO_PICKUP_CLOSED": "This pickup is already done or cancelled.",
+      "CANHOTO_PICKUP_NOT_FOUND": "Pickup not found.",
+      "CANHOTO_PICKUP_NOT_SCHEDULED": "This pickup is not scheduled on any trip.",
+      "CANHOTO_PICKUP_ORIGIN_TRIP": "A receipt that goes back to the same driver is the photo on the origin trip, not a pickup.",
+      "CANHOTO_PICKUP_TRIP_CLOSED": "This trip has ended and takes no pickups.",
+      "CANHOTO_PICKUP_WITHOUT_ADDRESS": "The origin delivery has no stop address for the pickup.",
+      "NETWORK": "No connection to the server. Try again.",
+      "REQUEST_FAILED": "The action could not be completed. Try again.",
+      "RESPONSE_INVALID": "The server answered something unexpected. Refresh the page.",
+      "TRIP_NOT_FOUND": "Trip not found."
+    },
+    "flag": {
+      "pickup": {
+        "badge": "Receipt pickup",
+        "hint": "This invoice comes back only to collect the receipt; its weight and size do not count in this trip's load."
+      },
+      "retained": {
+        "badge": "Receipt retained",
+        "hint": "The client kept this invoice's receipt. The delivery counts as done; another driver collects the receipt on another trip."
+      }
+    },
+    "hint": "The client kept the receipt. Schedule the pickup on another driver's trip; the invoice's weight and size do not count in this trip's load.",
+    "noDocument": "Invoice without number",
+    "noOriginStop": "Origin stop without a label",
+    "schedule": "Schedule on this trip",
+    "scheduledList": "Receipt pickups scheduled on this trip",
+    "title": "Receipt pickups",
+    "unschedule": "Unschedule"
+  },
   "proofPending": {
     "badge": "Receipt pending",
     "hint": "Document delivered without its receipt, and the company settings require it. It stays pending until the receipt arrives."
@@ -1653,7 +1696,12 @@
     }
   },
   "pagination": {
+    "first": "First page",
+    "goTo": "Go to page {{page}}",
+    "last": "Last page",
     "next": "Next page",
+    "pageSize": "Trips per page",
+    "position": "Page {{current}} of {{count}}",
     "previous": "Previous page"
   },
   "proposal": {
@@ -1718,6 +1766,10 @@
     "accessKey": "Note number or key",
     "accessKeyPlaceholder": "Note number or the 44 characters of the key",
     "add": "Add",
+    "addAllReady": "Add all ready ({{count}})",
+    "bipped": "Scanned",
+    "bippedDocumentFailed": "Could not check this invoice in the registry.",
+    "bippedRetry": "Try again",
     "cancel": "Cancel",
     "clearFilteredSelection": "Unselect all {{count}} from the filter",
     "close": "Close",
@@ -1732,9 +1784,10 @@
     },
     "empty": "No invoice scanned yet.",
     "failed": "Could not create the trip. Check the invoices and try again.",
+    "foundNotes": "Found invoices",
     "hiddenBySelection_one": "{{count}} selected invoice is outside the current filter and will not be included.",
     "hiddenBySelection_other": "{{count}} selected invoices are outside the current filter and will not be included.",
-    "intro": "Scan, read with the camera, or type the number or key of the notes that leave together. Only notes that are not on any trip yet are accepted.",
+    "intro": "Scan with the reader, use the camera or search the invoices that leave together. They appear under Found invoices and only join the trip with Add. Only invoices that are not on any trip yet are accepted.",
     "issue": {
       "dailyAllowanceDaysInvalid": "Daily allowance: enter a whole number of days, starting at 1.",
       "driverRequired": "Select at least one driver.",
@@ -1742,14 +1795,25 @@
       "noDocument": "Scan at least one available invoice.",
       "vehicleRequired": "Select the trip vehicle."
     },
+    "notice": {
+      "alreadyAdded": "This note is already on the trip.",
+      "alreadyScanned": "This key was already scanned.",
+      "loadingDocuments": "Loading the available notes… Scan again in a moment.",
+      "notFound": "No free note with this number in this company.",
+      "unrecognized": "Scan the note key or type its number."
+    },
+    "reader": {
+      "field": "Invoice key",
+      "idle": "Enable the reader",
+      "placeholder": "Scan the 44-digit key or type the invoice number",
+      "ready": "Reader ready"
+    },
+    "movesFromTrip": "This note is on another trip. Adding it takes it off that trip and onto this one, and the change is recorded in both trips' history.",
     "refusal": {
       "alreadyOnTrip": "Already on another trip",
-      "lookupFailed": "Could not look it up",
-      "notAuthorized": "Not authorised at SEFAZ",
-      "notFound": "Not found in this company"
+      "notAuthorized": "Not authorised at SEFAZ"
     },
     "remove": "Remove this invoice",
-    "resolving": "Looking the invoice up…",
     "scan": "Scan with the camera",
     "search": "Search invoices",
     "searchLoading": "Loading available invoices…",
@@ -1768,15 +1832,25 @@
     "submit": "Create trip",
     "submitDraft": "Save draft",
     "title": "New trip",
-    "weightEstimated": "estimated",
-    "weightEstimatedHint": "Weight computed from the volume count and the company default weight — the invoice declared no mass.",
-    "weightValue": "{{weight}} kg",
     "typed": {
       "ambiguous": "{{count}} free notes share this number. Which one?",
+      "inAnotherTrip": "This note is already on another trip. Release it there before adding it.",
+      "notAuthorized": "This note is not authorized at SEFAZ and cannot join the trip.",
       "notFound": "No free note with this number or key in this company.",
+      "notImported": "This key has not been imported yet. Import the note (XML or key lookup) and try again.",
       "option": "Note {{number}}/{{series}} · {{emitter}} to {{recipient}}",
       "pickTitle": "Choose the note",
       "unrecognized": "Type the note number or the 44 characters of the key."
+    },
+    "weightEstimated": "estimated",
+    "weightEstimatedHint": "Weight computed from the volume count and the company default weight — the invoice declared no mass.",
+    "weightValue": "{{weight}} kg",
+    "xml": {
+      "action": "Send XML",
+      "field": "Invoice XML",
+      "placeholder": "No XML chosen",
+      "failed": "Could not send the XML. Try again.",
+      "notImported": "The XML was sent, but the invoice is not registered yet."
     }
   },
   "readiness": {
@@ -1948,6 +2022,7 @@
     "clear": "Clear selection",
     "closeTrips": "Close {{count}} trip",
     "closeTrips_other": "Close {{count}} trips",
+    "closeTrips_zero": "Close {{count}} trips",
     "count_one": "{{count}} trip selected",
     "count_other": "{{count}} trips selected",
     "selectAll": "Select every trip on this page that accepts a bulk action",
@@ -2135,6 +2210,20 @@
     "route_planned": "Route planned",
     "separating": "Separating"
   },
+  "stopOrder": {
+    "action": "Order stops",
+    "ordering": "Ordering…",
+    "source": {
+      "manual": "Order adjusted by you. A new invoice is fitted in without moving the others.",
+      "suggested": "Order suggested by the road route.",
+      "unordered": "Stops in the order the invoices came in."
+    },
+    "error": {
+      "ROUTING_DEPOT_NOT_GEOCODED": "Could not order the stops now: the depot address has no location yet. Stops stay in the order the invoices came in.",
+      "ROUTING_MATRIX_UNAVAILABLE": "Could not order the stops now: the routing service did not answer. Stops stay in the order the invoices came in.",
+      "ROUTING_TOO_MANY_STOPS": "There are too many stops to order at once. Stops stay in the order the invoices came in."
+    }
+  },
   "stops": {
     "arrivedAt": "Arrived at {{time}}",
     "cargoValue": "Cargo: {{amount}}",
@@ -2297,6 +2386,8 @@
     }
   },
   "fieldOccurrence": {
+    "alreadyExisted": "This invoice already had an occurrence of this type, opened by the driver or the office. The new one was registered anyway; check that it is not a duplicate.",
+    "alreadyExisted_other": "{{count}} invoices already had an occurrence of this type, opened by the driver or the office. The new ones were registered anyway; check that none is a duplicate.",
     "batchSubmit": "Register on {{count}} document",
     "batchSubmit_other": "Register on {{count}} documents",
     "batchTitle": "Occurrence on {{count}} document",
@@ -2389,7 +2480,9 @@
       "alreadyResolved": "It was already resolved. The screen was refreshed.",
       "cancelled": "This occurrence was cancelled and cannot be resolved.",
       "generic": "Could not resolve the occurrence. Try again."
-    }
+    },
+    "receiptMessage": "PIX receipt",
+    "receiptFailed": "The PIX receipt could not be sent to the driver; the occurrence was resolved without it."
   },
   "occurrenceSettlement": {
     "title": "Goods settlement",
@@ -2496,7 +2589,8 @@
     "channel": {
       "driver_app": "driver app",
       "office": "office",
-      "whatsapp": "WhatsApp"
+      "whatsapp": "WhatsApp",
+      "whatsapp_group_bot": "WhatsApp, via the group bot"
     },
     "summary": {
       "title": "Summary",
@@ -2558,7 +2652,8 @@
       "ariaLabel": "Occurrence sections",
       "summary": "Summary",
       "contractor": "Contractor",
-      "driver": "Driver"
+      "driver": "Driver",
+      "client": "Client"
     },
     "correction": {
       "cancel": {
@@ -2657,7 +2752,9 @@
       "resolvedInternal": "Resolved by {{name}}: {{note}}",
       "resolvedAutomatic": "Resolved automatically when the case was closed",
       "resolvedOnDelivery": "Resolved automatically when the document was delivered to the driver",
+      "resolvedCanhotoCollected": "Resolved automatically: the collected canhoto was approved in the review",
       "reopened": "Reopened by the driver {{name}}",
+      "reopenedAutomatic": "Reopened automatically: the collected canhoto was rejected in the review",
       "contractorReply": "Contractor reply: {{status}}",
       "documentConfirmed": "Boleto checked",
       "documentNotConfirmed": "Boleto not confirmed",
@@ -2666,7 +2763,21 @@
       "deliveryFailed": "Delivery to the driver failed",
       "deliveryPending": "Delivery to the driver pending",
       "driverReadBoleto": "The driver read the boleto",
-      "driverReadDocument": "The driver read the document"
+      "driverReadDocument": "The driver read the document",
+      "clientWhatsappSent": "Boleto sent by WhatsApp",
+      "clientWhatsappFailed": "Boleto sending by WhatsApp failed",
+      "clientWhatsappPending": "Boleto sending by WhatsApp pending",
+      "clientEmailSent": "Boleto sent by e-mail",
+      "clientEmailFailed": "Boleto sending by e-mail failed",
+      "clientEmailSkipped": "Boleto not sent by e-mail",
+      "clientEmailPending": "Boleto sending by e-mail pending",
+      "groupReturn": {
+        "posted_to_group": "Boleto posted to the WhatsApp group",
+        "sent_to_client": "Group told: boleto sent to the client",
+        "office": "Group told: boleto is with the office",
+        "overdue": "Group told: boleto overdue",
+        "failed": "Failed to reply in the WhatsApp group"
+      }
     },
     "detail": {
       "documentConfirmed": "Payment line and note number {{note}} found in the PDF.",
@@ -2686,7 +2797,14 @@
       "driver_without_account": "The driver has no app access",
       "driver_unreachable": "The driver could not be reached",
       "whatsapp_window_closed": "The WhatsApp window is closed",
-      "send_failed": "Sending failed"
+      "send_failed": "Sending failed",
+      "whatsapp_number_not_found": "The number has no WhatsApp",
+      "whatsapp_disconnected": "WhatsApp was disconnected",
+      "attachment_too_large_for_whatsapp": "The file is too large for WhatsApp",
+      "client_without_email": "The client has no e-mail registered for the boleto",
+      "client_without_whatsapp": "The client has no WhatsApp number registered",
+      "template_missing": "The channel is on but has no message template",
+      "attachment_too_large_for_email": "The file is too large for e-mail"
     },
     "stagesTitle": "Stages",
     "stageRunning": "running for {{elapsed}}",
@@ -2733,7 +2851,8 @@
     "reasonLabel": "Reason for closing",
     "subtitle": "Documents without delivery stay as a pending receipt — closing does not wait for them.",
     "title": "Close {{count}} trip",
-    "title_other": "Close {{count}} trips"
+    "title_other": "Close {{count}} trips",
+    "title_zero": "Close {{count}} trips"
   },
   "proofPdfExport": {
     "planning": "Counting the stubs to split the PDF…",

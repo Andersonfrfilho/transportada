@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverNfeProduct } from './driverTrip.types'
 import { resolveOccurrenceAmounts } from './occurrenceAmount.service'
+import { readNewDueDate } from './occurrenceNewDueDate.service'
 import { isReferenceNumberValid, toReferenceNumber } from './occurrenceDecimalInput.service'
 import {
   EMPTY_OCCURRENCE_ITEM_DRAFT,
@@ -71,6 +72,7 @@ function buildTotals(input: {
 function buildPayload(input: {
   readonly declaredAmount: string | undefined
   readonly lines: readonly OccurrenceItemLine[]
+  readonly newDueDate: string | undefined
   readonly referenceNumber: string | undefined
 }): OccurrenceValuesPayload {
   const items = input.lines.flatMap((line) =>
@@ -87,15 +89,20 @@ function buildPayload(input: {
   return {
     ...(input.declaredAmount === undefined ? {} : { declaredAmount: input.declaredAmount }),
     ...(items.length === 0 ? {} : { items }),
+    ...(input.newDueDate === undefined ? {} : { newDueDate: input.newDueDate }),
     ...(input.referenceNumber === undefined ? {} : { referenceNumber: input.referenceNumber }),
   }
 }
 
 export function evaluateOccurrenceValues(input: {
+  /** O tipo pede o campo opcional "nova data de vencimento"; ausente é não pede. */
+  readonly asksNewDueDate?: boolean
   readonly drafts: OccurrenceItemDrafts
+  /** Hoje, para recusar data que já passou; ausente é o relógio do aparelho. */
+  readonly now?: Date
   readonly products: readonly DriverNfeProduct[]
   readonly requirements: OccurrenceRequirements
-  readonly texts: Readonly<{ declaredAmount: string; referenceNumber: string }>
+  readonly texts: Readonly<{ declaredAmount: string; newDueDate?: string; referenceNumber: string }>
 }): OccurrenceValues {
   const { requirements } = input
   const hasItems = requirements.itemsMode !== OCCURRENCE_FIELD_MODE.off
@@ -133,12 +140,17 @@ export function evaluateOccurrenceValues(input: {
   const hasInvalidReferenceNumber =
     requirements.referenceNumberMode !== OCCURRENCE_FIELD_MODE.off &&
     !isReferenceNumberValid(input.texts.referenceNumber)
+  const newDueDate =
+    input.asksNewDueDate === true
+      ? readNewDueDate({ now: input.now ?? new Date(), text: input.texts.newDueDate ?? '' })
+      : undefined
   const selected = lines.filter((line) => line.isSelected)
 
   return {
     amountTarget,
     facts: {
       hasDeclaredAmount: declaredAmount !== undefined,
+      hasInvalidNewDueDate: newDueDate?.problem !== undefined,
       hasInvalidReferenceNumber,
       hasInvalidItemQuantity: selected.some((line) => line.quantityProblem !== undefined),
       hasReferenceNumber: referenceNumber !== undefined,
@@ -151,7 +163,7 @@ export function evaluateOccurrenceValues(input: {
         : 0,
     },
     lines,
-    payload: buildPayload({ declaredAmount, lines, referenceNumber }),
+    payload: buildPayload({ declaredAmount, lines, newDueDate: newDueDate?.iso, referenceNumber }),
     totals: buildTotals({ declaredAmount, lines }),
   }
 }

@@ -18,6 +18,12 @@ export const OCCURRENCE_AUTOMATIC_MAIL_KEY_PREFIX = 'occurrence-auto-mail:'
 export const OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION = 'occurrence-conversation.mail.send'
 
 /**
+ * Spec 318: o aviso que saiu no grupo de WhatsApp da contratante grava a mesma chave nesta operação, `completed`. A fila
+ * não pede de novo; o `failed` (nada saiu) continua na fila, e é assim que o grupo é tentado outra vez.
+ */
+export const OCCURRENCE_CONTRACTOR_GROUP_SEND_OPERATION = 'occurrence-contractor-group.send'
+
+/**
  * Spec 271 (ADR-0108): o modelo de e-mail à contratante mora em `notification.templates`. A fila só pede a ocorrência cujo tipo
  * escolheu uma chave com versão ativa utilizável — mesmo critério da API (`blocksContractorMailSend`): e-mail `pt-BR`, assunto
  * preenchido (`HTML_BODY_PATTERN` é cópia do da API; os dois contratos fixam o mesmo valor e os mesmos casos). Spec 272: corpo com HTML

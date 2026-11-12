@@ -579,3 +579,76 @@
 .clientEmailRowButton {
   white-space: nowrap;
 }
+
+/*
+ * Painéis hospedados em Configurações (respostas rápidas, responsáveis por ocorrências, transcrição de áudios):
+ * vestem o molde da aba Calendário — texto em Avenir, campos na altura `--field-*`, blocos com borda — em vez
+ * da fonte utilitária compacta do chat.
+ */
+.settingsPanel {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.settingsPanel .hint {
+  color: var(--color-slate-ink);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+}
+
+.settingsPanel .error {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--color-alert) 72%, var(--color-fog));
+}
+
+.settingsPanel .field {
+  color: var(--color-slate-ink);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+}
+
+.settingsPanel .field input,
+.settingsPanel .field textarea {
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border-radius: 0;
+  color: var(--color-fog);
+  font-family: var(--font-body);
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.settingsPanel .quickReplyText,
+.settingsPanel .watcherRow {
+  font-family: var(--font-body);
+}
+
+.settingsHeading {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.settingsHeading h2,
+.settingsBlock h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.settingsBlock {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-graphite) 86%, transparent),
+      color-mix(in srgb, var(--color-asphalt) 72%, transparent)
+    ),
+    color-mix(in srgb, var(--color-graphite) 65%, transparent);
+}

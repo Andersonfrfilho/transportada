@@ -77,6 +77,7 @@ describe('GET /pending-items lista o cadastro sem carroceria (spec 147 T14)', ()
         })
         expect(beforeFix.items).toEqual([
           {
+            createdAt: expect.any(Date),
             entityId: truckId,
             entityType: 'vehicle',
             kind: 'vehicleBodyTypeMissing',

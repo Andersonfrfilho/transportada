@@ -15,8 +15,9 @@ import { ContractorContactsPanel } from '../components/ContractorContactsPanel.c
 import { ContractorDirectoryPanel } from '../components/ContractorDirectoryPanel.component'
 import { ContractorMailSettingsRequestError } from '../shared/contractorMailSettingsClient.service'
 import { ContractorMailSettingsPanel } from '../components/ContractorMailSettingsPanel.component'
-import { ContractorMailTemplatesPanel } from '../components/ContractorMailTemplatesPanel.component'
+import { DeliveryClientReceivingChargeFlag } from '../components/DeliveryClientReceivingChargeFlag.component'
 import { DeliveryClientEmailsPanel } from '../components/DeliveryClientEmailsPanel.component'
+import { DeliveryClientWhatsAppPanel } from '../components/DeliveryClientWhatsAppPanel.component'
 import { DeliveryClientForm } from '../components/DeliveryClientForm.component'
 import { DeliveryWindowEditor } from '../components/DeliveryWindowEditor.component'
 import { MailSendReadinessSummary } from '../components/MailSendReadinessSummary.component'
@@ -122,7 +123,6 @@ export function DeliveryClientWorkspacePage(): JSX.Element {
           testEmailPending={contractorMail.sendTestEmailMutation.isPending}
           testEmailSent={contractorMail.sendTestEmailMutation.isSuccess}
         />
-        <ContractorMailTemplatesPanel isDisabled={!canManageContractorMail} />
         <ContractorContactsPanel
           isDisabled={!canManageContractorMail}
           onOpenContractors={() => setActiveTab('contractors')}
@@ -306,9 +306,19 @@ function ClientsListPanel({ controller, isReadOnly, t }: ClientsListPanelProps):
             }
             windows={controller.selectedClient.windows}
           />
+          <DeliveryClientReceivingChargeFlag
+            deliveryClientId={controller.selectedClient.id}
+            isDisabled={isReadOnly}
+            key={`charge-flag-${controller.selectedClient.id}`}
+          />
           <DeliveryClientEmailsPanel
             isDisabled={isReadOnly}
             key={controller.selectedClient.taxId}
+            taxId={controller.selectedClient.taxId}
+          />
+          <DeliveryClientWhatsAppPanel
+            isDisabled={isReadOnly}
+            key={`whatsapp-${controller.selectedClient.taxId}`}
             taxId={controller.selectedClient.taxId}
           />
         </section>

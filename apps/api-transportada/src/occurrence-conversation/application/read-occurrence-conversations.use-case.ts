@@ -24,7 +24,9 @@ import type {
 type Scope = { readonly companyId: string; readonly userId: string }
 
 export type ListOccurrenceConversationsUseCase = Readonly<{
-  list: (input: Scope & { readonly occurrenceId: string }) => Promise<OccurrenceConversationsView>
+  list: (
+    input: Scope & { readonly includeClient?: boolean; readonly occurrenceId: string },
+  ) => Promise<OccurrenceConversationsView>
 }>
 
 export type MarkOccurrenceConversationReadUseCase = Readonly<{

@@ -44,6 +44,16 @@ export class CteEmissionProfileUnresolvedError extends ApiError {
   }
 }
 
+export class CteEmissionProfileCityNotCoveredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CTE_PROFILE_CITY_NOT_COVERED',
+      message: 'The destination city of the invoice is not in any region of the matching profiles',
+      status: 422,
+    })
+  }
+}
+
 export class CteEmissionProfileInvalidTaxIdError extends ApiError {
   public constructor() {
     super({
@@ -69,6 +79,17 @@ export class CteEmissionProfileNameTakenError extends ApiError {
     super({
       code: 'CTE_PROFILE_NAME_TAKEN',
       message: 'Another CT-e emission profile already uses this name',
+      status: 409,
+    })
+  }
+}
+
+export class CteEmissionProfileMatcherConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CTE_PROFILE_MATCHER_CONFLICT',
+      message:
+        'Another CT-e emission profile already uses this tax identifier; both need disjoint destination city lists to share it',
       status: 409,
     })
   }

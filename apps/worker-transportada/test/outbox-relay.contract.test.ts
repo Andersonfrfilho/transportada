@@ -3,6 +3,7 @@
  */
 import { beforeEach, describe, expect, it } from 'bun:test'
 
+import type { NfeAccessKeyEnvelopeV1 } from '../src/messaging/nfe-access-key-envelope.schema.js'
 import {
   nfeProcessingEnvelopeV1Schema,
   type NfeProcessingEnvelopeV1,
@@ -11,12 +12,18 @@ import {
   buildNfeDistributionRabbitMqTopology,
   buildNfeImportRabbitMqTopology,
 } from '../src/messaging/nfe-rabbitmq-topology.js'
+import { buildNfeAccessKeyRabbitMqTopology } from '../src/messaging/nfe-access-key-rabbitmq-topology.js'
+import { nfeAccessKeyEnvelopeV1Schema } from '../src/messaging/nfe-access-key-envelope.schema.js'
 import { OutboxRelayService } from '../src/outbox/application/outbox-relay.service.js'
 
 const importTopology = buildNfeImportRabbitMqTopology({
   queuePrefix: 'transportada.contract',
 })
 const distributionTopology = buildNfeDistributionRabbitMqTopology({
+  queuePrefix: 'transportada.contract',
+})
+
+const accessKeyTopology = buildNfeAccessKeyRabbitMqTopology({
   queuePrefix: 'transportada.contract',
 })
 
@@ -32,7 +39,9 @@ type OutboxEntry = {
   readonly eventType:
     | 'transportada.nfe.import.requested'
     | 'transportada.nfe.distribution.requested'
+    | 'transportada.nfe.access-key.requested'
   readonly importId: string
+  readonly lookupId?: string
   publishedAt?: Date | undefined
 }
 
@@ -61,7 +70,7 @@ describe('outbox relay contract', () => {
       clock: { now: () => now },
       publisher: {
         async publish(params: {
-          readonly envelope: NfeProcessingEnvelopeV1
+          readonly envelope: NfeProcessingEnvelopeV1 | NfeAccessKeyEnvelopeV1
           readonly topology: { readonly queue: string }
         }) {
           calls.push(`publish:${params.envelope.eventId}:${params.topology.queue}`)
@@ -209,13 +218,13 @@ describe('automation-origin distribution regression (T017)', () => {
       { ...automationEntry, actorId: SYSTEM_DISTRIBUTION_ACTOR_USER_ID, importId },
     ]
 
-    let publishedEnvelope: NfeProcessingEnvelopeV1 | undefined
+    let publishedEnvelope: NfeProcessingEnvelopeV1 | NfeAccessKeyEnvelopeV1 | undefined
     let publishedQueue: string | undefined
     const relay = new OutboxRelayService({
       clock: { now: () => now },
       publisher: {
         async publish(params: {
-          readonly envelope: NfeProcessingEnvelopeV1
+          readonly envelope: NfeProcessingEnvelopeV1 | NfeAccessKeyEnvelopeV1
           readonly topology: { readonly queue: string }
         }) {
           publishedEnvelope = params.envelope
@@ -250,6 +259,76 @@ describe('automation-origin distribution regression (T017)', () => {
     expect(parsed.version).toBe(1)
     expect(parsed.actorId).toBe(SYSTEM_DISTRIBUTION_ACTOR_USER_ID)
     expect(parsed.payload.importId).toBe(importId)
+  })
+  it('routes the access key lookup event to its own route carrying the lookup id', async () => {
+    const lookupId = '5b7c2f0e-3a41-4c6d-9d1e-0a1b2c3d4e5f'
+    const entries: OutboxEntry[] = [
+      {
+        ...createOutboxEntry({
+          eventId: 'aaaaaaaa-8888-4777-8666-555544443333',
+          eventType: 'transportada.nfe.access-key.requested',
+        }),
+        lookupId,
+      },
+    ]
+    let publishedEnvelope: NfeProcessingEnvelopeV1 | NfeAccessKeyEnvelopeV1 | undefined
+    let publishedQueue: string | undefined
+    const relay = new OutboxRelayService({
+      clock: { now: () => now },
+      publisher: {
+        async publish(params: {
+          readonly envelope: NfeProcessingEnvelopeV1 | NfeAccessKeyEnvelopeV1
+          readonly topology: { readonly queue: string }
+        }) {
+          publishedEnvelope = params.envelope
+          publishedQueue = params.topology.queue
+        },
+      },
+      repository: createOutboxRepository(entries, []),
+      retryPolicy: {
+        classify(error: unknown) {
+          throw error
+        },
+      },
+      topologyResolver: {
+        resolve(params: { readonly eventType: OutboxEntry['eventType'] }) {
+          return params.eventType === 'transportada.nfe.access-key.requested'
+            ? accessKeyTopology
+            : distributionTopology
+        },
+      },
+    })
+
+    await relay.relayDueEntries({ claimOwner: 'relay-a', leaseMs: 30_000, limit: 10 })
+
+    expect(publishedQueue).toBe('transportada.contract.nfe-access-key.v1.main.queue')
+    const parsed = nfeAccessKeyEnvelopeV1Schema.parse(publishedEnvelope)
+    expect(parsed.payload).toEqual({ importId: entries[0]!.importId, lookupId })
+  })
+
+  it('refuses to publish an access key event without the lookup id', async () => {
+    const entries = [
+      createOutboxEntry({
+        eventId: 'bbbbbbbb-8888-4777-8666-555544443333',
+        eventType: 'transportada.nfe.access-key.requested',
+      }),
+    ]
+    const relay = new OutboxRelayService({
+      clock: { now: () => now },
+      publisher: { async publish() {} },
+      repository: createOutboxRepository(entries, []),
+      retryPolicy: {
+        classify(error: unknown) {
+          throw error
+        },
+      },
+      topologyResolver: { resolve: () => accessKeyTopology },
+    })
+
+    await expect(
+      relay.relayDueEntries({ claimOwner: 'relay-a', leaseMs: 30_000, limit: 10 }),
+    ).rejects.toThrow('lookupId')
+    expect(entries[0]!.publishedAt).toBeUndefined()
   })
 })
 
@@ -297,6 +376,7 @@ function createOutboxRepository(entries: OutboxEntry[], calls: string[]) {
           eventId: entry.eventId,
           eventType: entry.eventType,
           importId: entry.importId,
+          ...(entry.lookupId === undefined ? {} : { lookupId: entry.lookupId }),
           occurredAt: now.toISOString(),
           version: 1 as const,
         }

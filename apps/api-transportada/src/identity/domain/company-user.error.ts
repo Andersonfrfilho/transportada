@@ -108,3 +108,18 @@ export class UsernameChangeRefusedError extends ApiError {
     this.name = 'UsernameChangeRefusedError'
   }
 }
+
+/**
+ * ADR-0047, emenda 2026-11-05: a membership sintética de um serviço não ganha papel de gente. Os
+ * papéis dela nascem e mudam só pelo provisionamento do serviço, nunca pela tela de usuários.
+ */
+export class CompanyUserIsServiceAccountError extends ApiError {
+  public constructor() {
+    super({
+      code: 'COMPANY_USER_IS_SERVICE_ACCOUNT',
+      message: 'Service account roles cannot be changed here.',
+      status: 409,
+    })
+    this.name = 'CompanyUserIsServiceAccountError'
+  }
+}

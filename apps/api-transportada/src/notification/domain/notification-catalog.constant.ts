@@ -11,6 +11,7 @@ import { NOTIFICATION_CHANNEL } from '@adatechnology/notification-contracts'
 export const NOTIFICATION_CATEGORY = {
   BILLING: 'billing',
   CTE_BATCH: 'cte-batch',
+  FISCAL: 'fiscal',
   IDENTITY: 'identity',
   MDFE: 'mdfe',
   NFSE: 'nfse',
@@ -33,7 +34,19 @@ export type NotificationProductChannel = (typeof NOTIFICATION_PRODUCT_CHANNELS)[
 export const NOTIFICATION_TEMPLATE_KEY = {
   BILLING_INVOICE_DUE: 'billing.invoice-due',
   CTE_BATCH_ISSUANCE_FAILED: 'cte-batch.issuance-failed',
+  /**
+   * O certificado digital A1 está perto de vencer / já venceu. Quem dispara é o worker
+   * (`notification.schedules.run`); sem ele a única pista era o motivo `certificate_expired` no cartão
+   * da importação automática, depois que a SEFAZ já tinha parado de responder.
+   */
+  FISCAL_CERTIFICATE_EXPIRED: 'fiscal.certificate-expired',
+  FISCAL_CERTIFICATE_EXPIRING: 'fiscal.certificate-expiring',
   MDFE_MANIFEST_ISSUANCE_FAILED: 'mdfe.manifest-issuance-failed',
+  /**
+   * Spec 301: um XML de NF-e recebido por e-mail ou WhatsApp esgotou as tentativas e não foi importado. Sem o
+   * conteúdo, o remetente nem o arquivo: o canal e o código do erro; o detalhe está em Notas fiscais.
+   */
+  NFE_XML_RECEIPT_FAILED: 'fiscal.nfe-xml-receipt-failed',
   NFSE_INVOICE_REJECTED: 'nfse.invoice-rejected',
   TRIP_DELIVERY_OCCURRENCE: 'trip.delivery-occurrence',
   /**
@@ -314,6 +327,21 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
     },
   },
   {
+    category: NOTIFICATION_CATEGORY.FISCAL,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['channel', 'errorCode'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.NFE_XML_RECEIPT_FAILED,
+    templates: {
+      email: {
+        body: 'Um envio de XML de notas recebido por {{channel}} não foi importado depois de várias tentativas (erro {{errorCode}}).\nQuem enviou já foi avisado. Abra Notas fiscais no TransportAdA para conferir e peça o reenvio.',
+        subject: 'Envio de XML de notas não foi importado',
+      },
+      inbox: {
+        body: 'Um envio de XML recebido por {{channel}} não foi importado (erro {{errorCode}}). Confira em Notas fiscais.',
+      },
+    },
+  },
+  {
     category: NOTIFICATION_CATEGORY.NFSE,
     channels: NOTIFICATION_PRODUCT_CHANNELS,
     placeholders: ['invoiceNumber', 'rejectionReason'],
@@ -325,6 +353,36 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
       },
       inbox: {
         body: 'A NFS-e {{invoiceNumber}} foi rejeitada: {{rejectionReason}}',
+      },
+    },
+  },
+  {
+    category: NOTIFICATION_CATEGORY.FISCAL,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['daysLeft', 'expiresAt'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.FISCAL_CERTIFICATE_EXPIRING,
+    templates: {
+      email: {
+        body: 'O certificado digital da empresa vence em {{expiresAt}} (faltam {{daysLeft}} dias).\nDepois dessa data a importação automática de notas e a emissão de documentos param.\nEnvie o certificado novo em Configurações da empresa no TransportAdA.',
+        subject: 'Certificado digital vence em {{daysLeft}} dias',
+      },
+      inbox: {
+        body: 'O certificado digital vence em {{expiresAt}} (faltam {{daysLeft}} dias). Envie o novo em Configurações da empresa.',
+      },
+    },
+  },
+  {
+    category: NOTIFICATION_CATEGORY.FISCAL,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['expiresAt'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.FISCAL_CERTIFICATE_EXPIRED,
+    templates: {
+      email: {
+        body: 'O certificado digital da empresa venceu em {{expiresAt}}.\nA importação automática de notas e a emissão de documentos estão paradas até o envio de um certificado novo.\nEnvie o certificado novo em Configurações da empresa no TransportAdA.',
+        subject: 'Certificado digital vencido',
+      },
+      inbox: {
+        body: 'O certificado digital venceu em {{expiresAt}}. Importação e emissão estão paradas: envie o novo em Configurações da empresa.',
       },
     },
   },

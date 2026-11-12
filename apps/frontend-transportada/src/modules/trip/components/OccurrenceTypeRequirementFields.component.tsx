@@ -18,6 +18,7 @@ import styles from '@/modules/trip/styles/occurrenceTypeRequirement.module.css'
 import { OccurrenceRequirementModeSelect } from './OccurrenceRequirementModeSelect.component'
 import { OccurrenceTypeMinimums } from './OccurrenceTypeMinimums.component'
 import { OccurrenceTypeRecordFields } from './OccurrenceTypeRecordFields.component'
+import { OccurrenceTypeStopFields } from './OccurrenceTypeStopFields.component'
 
 type OccurrenceTypeRequirementFieldsProps = Readonly<{
   disabled: boolean
@@ -76,6 +77,7 @@ export function OccurrenceTypeRequirementFields({
           />
         ))}
       </div>
+      <OccurrenceTypeStopFields disabled={disabled} onEdit={onEdit} type={type} />
       <OccurrenceTypeRecordFields
         disabled={disabled}
         fields={scope.recordFields}

@@ -11,15 +11,24 @@ import { DriverSyncStatus } from '../components/DriverSyncStatus.component'
 import type { DriverTripStop } from '../shared/driverTrip.types'
 import {
   hasSendableEvents,
+  isEventQueueItemCancellable,
   isEventQueueItemDiscardable,
   resolveEventQueueDepartBlock,
   resolveEventQueueStopSequence,
   type EventQueueItemView,
 } from '../shared/eventQueueView.service'
 import type { DriverTripErrorDetail } from '../shared/offlineQueue.service'
-import { resolveRejectionCauseLabelKey } from '../shared/rejectionCauseLabel.service'
+import {
+  resolveRejectionCauseCode,
+  resolveRejectionCauseLabelKey,
+} from '../shared/rejectionCauseLabel.service'
 import { formatQueuedAt } from '../shared/stalePending.service'
 import type { SentHistoryEntry } from '../shared/sentHistory.service'
+import {
+  formatDocumentNumbers,
+  resolveRejectedDocumentNumbers,
+  UNLOADED_DOCUMENTS_CODE,
+} from '../shared/unloadedDocuments.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverEventQueuePageProps = Readonly<{
@@ -33,6 +42,8 @@ type DriverEventQueuePageProps = Readonly<{
   /** Pedido do usuário (01/10): de quando é a última leitura do servidor — `0` é "nunca nesta sessão". */
   lastSyncedAtMs: number
   onBack: () => void
+  /** O motorista cancela o envio de uma ocorrência que só existe no aparelho (o atendimento já resolveu). */
+  onCancel: (idempotencyKey: string) => void
   /** Spec 227: só o recusado de negócio, e só depois da confirmação na tela. */
   onDiscard: (idempotencyKey: string) => void
   /** Spec 206 D6: o mesmo atalho do cartão — rola até o cabeçalho da parada e põe o foco (RF8b). */
@@ -68,6 +79,8 @@ const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   occurrence: 'eventQueue.kind.occurrence',
   /** Spec 209: a foto do "Deu problema", atrás da ocorrência — pendente sem segurar o relato. */
   stopOccurrencePhoto: 'eventQueue.kind.stopOccurrencePhoto',
+  /** Spec 317: a cobrança no recebimento — as fotos por vaga e o valor sobem juntos. */
+  stopOccurrenceCharge: 'eventQueue.kind.stopOccurrenceCharge',
   /** Grupo de anexos cujo evento já subiu — só os arquivos aguardam. */
   proof: 'eventQueue.kind.proof',
   /** Spec 193 D7: quem recebeu chegado depois do anexo — o PATCH `.../proof/receiver`. */
@@ -88,6 +101,7 @@ export function DriverEventQueuePage({
   items,
   lastSyncedAtMs,
   onBack,
+  onCancel,
   onDiscard,
   onFocusStop,
   onSendAll,
@@ -97,6 +111,8 @@ export function DriverEventQueuePage({
   const { t } = useTranslation('driverTrip')
   /** O descarte não se desfaz: o primeiro toque só abre o aviso, e o segundo é que apaga. */
   const [confirmingDiscardKey, setConfirmingDiscardKey] = useState<string | undefined>(undefined)
+  /** Cancelar também não se desfaz: mesmo molde de dois toques. */
+  const [confirmingCancelKey, setConfirmingCancelKey] = useState<string | undefined>(undefined)
   /** O que a drenagem ainda pode levar: recusado não conta, porque só sai de lá por decisão humana. */
   const pendingCount = items.filter((item) => item.status.state !== 'rejected').length
 
@@ -107,7 +123,17 @@ export function DriverEventQueuePage({
   }): string {
     const key = resolveRejectionCauseLabelKey(input.cause, input.details)
     const { cause } = input
-    return key === undefined ? cause : t(key)
+    if (key === undefined) return cause
+    if (resolveRejectionCauseCode(cause) === UNLOADED_DOCUMENTS_CODE) {
+      const numbers = resolveRejectedDocumentNumbers({ details: input.details, stops })
+      if (numbers.length > 0) {
+        return t('eventQueue.cause.unloadedDocumentsNamed', {
+          count: numbers.length,
+          notes: formatDocumentNumbers(numbers),
+        })
+      }
+    }
+    return t(key)
   }
 
   /** Spec 206 RF8: "Iniciar rota — parada N", sem número quando a parada saiu do snapshot. */
@@ -266,6 +292,33 @@ export function DriverEventQueuePage({
                         </button>
                       </p>
                     )}
+                    {confirmingCancelKey === item.idempotencyKey ? (
+                      <div className={styles.eventQueueDiscardConfirm}>
+                        <p className={styles.eventQueueStatusRejected} role="alert">
+                          {t('eventQueue.cancel.warning')}
+                        </p>
+                        <div className={styles.eventQueueItemActions}>
+                          <Button
+                            disabled={isSyncing}
+                            type="button"
+                            onClick={() => {
+                              setConfirmingCancelKey(undefined)
+                              onCancel(item.idempotencyKey)
+                            }}
+                          >
+                            <Icon name="trash" />
+                            {t('eventQueue.cancel.confirm')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setConfirmingCancelKey(undefined)}
+                          >
+                            {t('eventQueue.cancel.keep')}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
                     {confirmingDiscardKey === item.idempotencyKey ? (
                       <div className={styles.eventQueueDiscardConfirm}>
                         <p className={styles.eventQueueStatusRejected} role="alert">
@@ -296,6 +349,7 @@ export function DriverEventQueuePage({
                   </div>
                   {/* Não verificado sobe pela confirmação da faixa da viagem, não item a item. */}
                   {item.status.state === 'unverified' ||
+                  confirmingCancelKey === item.idempotencyKey ||
                   confirmingDiscardKey === item.idempotencyKey ? null : (
                     <div className={styles.eventQueueItemActions}>
                       <Button
@@ -307,6 +361,16 @@ export function DriverEventQueuePage({
                         <Icon name="upload" />
                         {t('eventQueue.sendNow')}
                       </Button>
+                      {isEventQueueItemCancellable(item) ? (
+                        <Button
+                          disabled={isSyncing}
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setConfirmingCancelKey(item.idempotencyKey)}
+                        >
+                          {t('eventQueue.cancel.open')}
+                        </Button>
+                      ) : null}
                       {isEventQueueItemDiscardable(item) ? (
                         <Button
                           disabled={isSyncing}

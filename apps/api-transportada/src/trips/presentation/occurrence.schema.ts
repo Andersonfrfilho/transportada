@@ -29,6 +29,10 @@ import { parseBody } from '../../http/request-parsing.service.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { DECLARED_AMOUNT_DECIMAL } from '../../shared/money.constant.js'
+import {
+  OCCURRENCE_CLIENT_CHANNEL_SEND_MODES,
+  OCCURRENCE_CLIENT_CHANNEL_TEMPLATE_KEY_MAX_LENGTH,
+} from '../../shared/occurrence-client-channel.constant.js'
 import { OCCURRENCE_TYPE_ICON_NAMES } from '../../shared/trip-occurrence.constant.js'
 import { buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
@@ -37,6 +41,7 @@ import { TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import {
   OCCURRENCE_DECLARED_AMOUNT_FIELD,
   OCCURRENCE_DECLARED_AMOUNT_SCOPES,
+  OCCURRENCE_MIN_WAIT_MINUTES,
   OCCURRENCE_ITEMS_MINIMUM_COUNT_MAX,
   OCCURRENCE_MOMENTS,
   OCCURRENCE_TYPE_CONTRACTOR_SCOPE_MAX_CONTRACTORS,
@@ -47,6 +52,7 @@ import {
   OCCURRENCE_TYPE_FLOWS,
 } from '../../shared/trip-occurrence.constant.js'
 import { DELIVERY_PROOF_FIELD_MODES } from '../domain/delivery-proof-settings.policy.js'
+import { isRealIsoDate } from '../domain/occurrence-new-due-date.policy.js'
 import {
   OFFICE_MULTIPART_FILE_FIELD,
   readOfficeMultipartFile,
@@ -99,6 +105,18 @@ const referenceNumberSchema = z
   .transform((value) => (value === '' ? undefined : value))
   .pipe(z.string().regex(new RegExp(OCCURRENCE_REFERENCE_NUMBER_PATTERN)).optional())
 
+/** A nova data de vencimento do pedido de prorrogação: vazio é "não informada"; presente, `AAAA-MM-DD` que existe. */
+const newDueDateSchema = z
+  .string()
+  .trim()
+  .transform((value) => (value === '' ? undefined : value))
+  .pipe(
+    z
+      .string()
+      .refine((value) => isRealIsoDate(value))
+      .optional(),
+  )
+
 /**
  * ⚠️ `stage` **não entra no corpo**: ele é derivado do tipo, e aceitá-lo do cliente deixaria quem
  * tem `trip.manage` declarar que uma ocorrência de rua é de galpão para caber na própria permissão.
@@ -111,6 +129,12 @@ const registerOccurrenceSchema = z
      * "sem anexo", recusado pelo caso de uso quando o tipo exige (`attachmentMode = 'required'`).
      */
     attachmentObjectId: z.string().uuid().optional(),
+    /**
+     * Spec 320 (D6): a hora do toque e o desvio do relógio (os mesmos campos da spec 234). Opcionais: o app antigo
+     * não os manda e então a ocorrência nunca é retida. Só a rota do motorista os lê; o escritório os ignora.
+     */
+    clockOffsetMs: z.int().optional(),
+    tappedAt: z.iso.datetime().optional(),
     /**
      * Spec 246 (T2.7): a **lista** de uploads confirmados (1 a 5, sem repetir), para o tipo que exige mais
      * de uma foto. Retrocompatível: o app antigo manda só o campo único acima, e mandar os dois juntos é
@@ -144,6 +168,8 @@ const registerOccurrenceSchema = z
       .optional(),
     /** Spec 247 (T4.4): o número do documento do cliente. */
     referenceNumber: referenceNumberSchema.optional(),
+    /** A nova data de vencimento (pedido de prorrogação do boleto); só o tipo que a pede a grava. */
+    newDueDate: newDueDateSchema.optional(),
   })
   .strict()
   .superRefine(refineAttachmentSelection)
@@ -449,6 +475,20 @@ const requirementLabelSchema = z.string().trim().min(1).max(OCCURRENCE_REQUIREME
  * escondido aqui daria permissão por omissão. O `strict()` recusa campo a mais — inclusive
  * `companyId` vindo do cliente.
  */
+/** Spec 286 (RF2): um canal da matriz "Retorno ao cliente" — inteiro: o canal mandado substitui o gravado. */
+const occurrenceClientChannelSettingSchema = z
+  .object({
+    enabled: z.boolean(),
+    sendMode: z.enum(OCCURRENCE_CLIENT_CHANNEL_SEND_MODES),
+    templateKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(OCCURRENCE_CLIENT_CHANNEL_TEMPLATE_KEY_MAX_LENGTH)
+      .nullable(),
+  })
+  .strict()
+
 const occurrenceTypeSchema = z
   .object({
     active: z.boolean().default(true),
@@ -465,6 +505,15 @@ const occurrenceTypeSchema = z
     iconName: z.enum(OCCURRENCE_TYPE_ICON_NAMES).nullable().optional(),
     referenceNumberLabel: requirementLabelSchema.optional(),
     referenceNumberMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    /** Spec 315 (D1, D10): ausente mantém; a espera mínima `null` a limpa. */
+    arrivalTimeMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    locationMode: z.enum(DELIVERY_PROOF_FIELD_MODES).optional(),
+    minWaitAfterArrivalMinutes: z
+      .int()
+      .min(OCCURRENCE_MIN_WAIT_MINUTES.min)
+      .max(OCCURRENCE_MIN_WAIT_MINUTES.max)
+      .nullable()
+      .optional(),
     /**
      * Spec 269 D9: o painel antigo ainda manda o texto antigo do e-mail durante a publicação em etapas. Aceito
      * e descartado antes do mapeador, sem conferir marcador, até a etapa B tirar as chaves.
@@ -493,12 +542,32 @@ const occurrenceTypeSchema = z
     contractorReplyResolveOnDelivery: z.boolean().optional(),
     /** Spec 276 T4: a trava de pedido repetido; ausente não mexe. */
     duplicateRequestPolicy: z.enum(DUPLICATE_REQUEST_POLICIES).optional(),
+    /** Minutos em que o motorista fica travado depois de existir a mesma ocorrência do tipo na mesma nota da viagem; `null` desliga, ausente não mexe. */
+    driverLockMinutes: z.number().int().min(1).max(10_080).nullable().optional(),
     /** Spec 279 RF9: `off` ou o tipo de e-mail do cliente do botão "Enviar ao cliente"; ausente não mexe. */
     clientEmailType: z.enum(CLIENT_EMAIL_TYPES).optional(),
     /** Spec 279 RF10: `manual` ou `automatic` (o boleto aceito sai sozinho ao cliente); ausente não mexe. */
     clientEmailSendMode: z.enum(CLIENT_EMAIL_SEND_MODES).optional(),
     /** Spec 281 RF8: `off`, `email`, `whatsapp` ou `both` — por qual canal a ocorrência fala com o cliente; ausente não mexe. */
     clientChannel: z.enum(CLIENT_CHANNELS).optional(),
+    /**
+     * Spec 286 (RF2): a matriz "Retorno ao cliente", por canal (caixa, modo e chave do modelo do módulo). Canal ausente
+     * é "não mexa". Presente, ela vence `clientChannel`, que passa a ser gravado derivado dela; a chave é conferida na
+     * gravação (400 com todos os problemas).
+     */
+    clientChannels: z
+      .object({
+        email: occurrenceClientChannelSettingSchema.optional(),
+        whatsapp: occurrenceClientChannelSettingSchema.optional(),
+      })
+      .strict()
+      .optional(),
+    /** Spec 281 T8b: liga/desliga pedir o contato do cliente na abertura da ocorrência; ausente não mexe. */
+    asksClientContact: z.boolean().optional(),
+    /** Liga/desliga o campo opcional "nova data de vencimento" no app do motorista; ausente não mexe. */
+    asksNewDueDate: z.boolean().optional(),
+    /** Spec 317 (E7, RF13): mostra ao motorista o selo "possível cobrança na entrega" do cliente; ausente não mexe. */
+    showClientChargeSealToDriver: z.boolean().optional(),
     /** Spec 276 T5: `null` desliga; ausente não mexe. */
     contractorReplyAcknowledgementQuickReplyId: z.string().uuid().nullable().optional(),
     contractorReplyMode: z.enum(CONTRACTOR_REPLY_MODES).optional(),
@@ -573,6 +642,17 @@ const occurrenceTypeSchema = z
      * mesmo motivo do `attachmentMode`: ausente é "não mexa", nunca desligar o aviso de carona.
      */
     emailsContractor: z.boolean().optional(),
+    /**
+     * Spec 321 (D2): o tipo nunca avisa a contratante, em canal nenhum. Ausente é "não mexa".
+     */
+    blocksContractorNotice: z.boolean().optional(),
+    /**
+     * Spec 321 (D4c): se a coleta de canhoto soma peso e dimensão na viagem que a busca. Ausente é "não mexa"; no tipo
+     * com coleta a fase 1 recusa `true` (422 `OCCURRENCE_TYPE_PICKUP_CARGO_UNSUPPORTED`).
+     */
+    countsCargoOnPickupTrip: z.boolean().optional(),
+    /** Spec 321 T2 (D4): o tipo cria a coleta de canhoto ao ser registrado. Ausente é "não mexa". */
+    createsCanhotoPickup: z.boolean().optional(),
     /**
      * Spec 271 (D14): a chave da 269 (modelo do cadastro da 150, por id) é **aceita e ignorada** até as telas novas
      * estarem em produção — o painel antigo ainda a manda; depois disso sai daqui e o `.strict()` a recusa (T5.5).

@@ -9,6 +9,7 @@ import type {
   ForwardToNoteRecipientMode,
   DuplicateRequestPolicy,
 } from '../../shared/occurrence-contractor-reply.constant.js'
+import type { OccurrenceClientChannelMatrixChange } from '../domain/occurrence-client-channels.policy.js'
 import type { RedeliveryPolicy } from '../../database/trip.schema.js'
 import type {
   ClientChannel,
@@ -65,6 +66,7 @@ import type {
 import type { CompanyAnyPermissionPolicy } from '../../identity/domain/authorization.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
+import { MdfeAutoIssueDisabledError } from '../domain/trip.error.js'
 import { OFFICE_REPORT_POLICY } from './trip-field-office.support.js'
 import {
   resolveTripAllowedActions,
@@ -165,6 +167,7 @@ import type {
 import { markCargoLayoutRequested } from '../domain/cargo-layout-state.policy.js'
 import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
+import type { DraftStopOrderOutcome } from '../application/order-draft-trip-stops.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
 import type { ListDeliveryAddressHistoryResult } from '../application/list-delivery-address-history.use-case.js'
 import type { DeliveryAddressOverrideRecord } from '../application/override-delivery-address.use-case.js'
@@ -350,9 +353,15 @@ type SaveOccurrenceTypeInput = {
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   readonly contractorReplyResolveOnDelivery?: boolean | undefined
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+  readonly driverLockMinutes?: null | number | undefined
   readonly clientEmailType?: ClientEmailType | undefined
   readonly clientEmailSendMode?: ClientEmailSendMode | undefined
   readonly clientChannel?: ClientChannel | undefined
+  /** Spec 286 (RF2): a matriz por canal; canal ausente é "não mexa" e, presente, ela deriva `clientChannel`. */
+  readonly clientChannels?: OccurrenceClientChannelMatrixChange | undefined
+  readonly asksClientContact?: boolean | undefined
+  readonly asksNewDueDate?: boolean | undefined
+  readonly showClientChargeSealToDriver?: boolean | undefined
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string | undefined
   readonly contractorReplyMode?: ContractorReplyMode | undefined
   readonly contractorReplyWaitHours?: null | number | undefined
@@ -363,6 +372,11 @@ type SaveOccurrenceTypeInput = {
   readonly forwardEmailBody?: string | undefined
   /** Spec 183 T802: ausente é "não mexa". */
   readonly emailsContractor?: boolean | undefined
+  /** Spec 321 (D2, D4c): ausentes são "não mexa". */
+  readonly blocksContractorNotice?: boolean | undefined
+  readonly countsCargoOnPickupTrip?: boolean | undefined
+  /** Spec 321 T2 (D4): o tipo cria a coleta de canhoto; ausente é "não mexa". */
+  readonly createsCanhotoPickup?: boolean | undefined
   /** Spec 271: a chave do modelo do módulo de notificação; ausente é "não mexa", `null` limpa. */
   readonly contractorNotificationTemplateKey?: null | string | undefined
   /** Spec 271 (D10): os responsáveis em cópia do tipo; ausente é "não mexa". */
@@ -395,6 +409,10 @@ type SaveOccurrenceTypeInput = {
   readonly photoMinimumCount?: number | undefined
   /** Spec 164 RF1/T21: ausente é "não mexa" — ver `save-occurrence-type.use-case.ts`. */
   readonly redeliveryPolicy?: RedeliveryPolicy | undefined
+  /** Spec 315: localização, horário de chegada e espera mínima do registro de parada; ausente é "não mexa". */
+  readonly arrivalTimeMode?: DeliveryProofFieldMode | undefined
+  readonly locationMode?: DeliveryProofFieldMode | undefined
+  readonly minWaitAfterArrivalMinutes?: null | number | undefined
   /** Spec 247 (RF1): o número do documento do cliente; ausente é "não mexa". */
   readonly referenceNumberLabel?: string | undefined
   readonly referenceNumberMode?: DeliveryProofFieldMode | undefined
@@ -478,6 +496,8 @@ const TRIP_OCCURRENCE_FEED_PATH = '/trip-occurrences'
 const TRIP_OCCURRENCE_RESOLUTION_SUMMARY_PATH = '/trip-occurrence-resolution-summary'
 const TRIP_OCCURRENCE_FEED_ATTACHMENTS_PATH = `${TRIP_OCCURRENCE_FEED_PATH}/:id/attachments`
 const TRIP_STOPS_ORDER_PATH = `${TRIP_STOPS_PATH}/order`
+/** Spec 323 RF4: o botão "Ordenar paradas" do rascunho. */
+const TRIP_STOPS_AUTO_ORDER_PATH = `${TRIP_STOPS_PATH}/auto-order`
 /**
  * Spec 060 D3: pedir, confirmar ou registrar a recusa do agendamento daquela parada. É `trip.manage`
  * porque quem fala com o cliente é quem monta a viagem — o motorista só **lê** a hora e o protocolo.
@@ -710,6 +730,8 @@ type Dependencies = {
   /** D16/D18: o polling reabre o pedido parado ou falho além da espera. */
   readonly reopenCargoLayout: ReopenCargoLayoutUseCase
   readonly logger: ApiLogger
+  /** ADR-0047, emenda 2026-11-05: desligado, a rota automática responde 404 antes do caso de uso. */
+  readonly mdfeAutoIssueEnabled: boolean
   readonly issueManifestAutomatically: {
     execute(input: {
       readonly companyId: string
@@ -799,6 +821,10 @@ type Dependencies = {
   }
   readonly reorderStops: {
     execute(input: TenantInput<ReorderStopsInput>): Promise<ReorderTripStopsResult>
+  }
+  /** Spec 323 RF4: ordena as paradas do rascunho pela estrada, refazendo inclusive a ordem manual. */
+  readonly autoOrderStops: {
+    execute(input: TenantInput<TripIdInput>): Promise<DraftStopOrderOutcome>
   }
   readonly separateTripDocument: {
     execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
@@ -900,7 +926,15 @@ export function createTripRoutes(
           ...(trip.occupancy === undefined ? {} : { occupancy: trip.occupancy }),
         }))
         return jsonResponse({
-          body: { data, page: { nextCursor: page.nextCursor } },
+          body: {
+            data,
+            page: {
+              nextCursor: page.nextCursor,
+              offset: page.offset ?? null,
+              previousCursor: page.previousCursor ?? null,
+              total: page.total ?? null,
+            },
+          },
           status: 200,
         })
       },
@@ -943,6 +977,7 @@ export function createTripRoutes(
     }),
     defineRoute<{ readonly correlationId: string; readonly tripId: string }>({
       async handle({ context, input }): Promise<Response> {
+        if (!dependencies.mdfeAutoIssueEnabled) throw new MdfeAutoIssueDisabledError()
         const result = await dependencies.issueManifestAutomatically.execute({
           companyId: context.scope.companyId,
           correlationId: input.correlationId,
@@ -2236,6 +2271,21 @@ export function createTripRoutes(
       pathname: TRIP_STOPS_ORDER_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
+    defineRoute<{ readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const outcome = await dependencies.autoOrderStops.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: outcome }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_STOPS_AUTO_ORDER_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
     defineRoute<Omit<OverrideDeliveryAddressInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.overrideDeliveryAddress.execute({
@@ -2503,6 +2553,8 @@ function serializeTripDetail(input: {
     occupancy: trip.occupancy === null ? null : { ...trip.occupancy },
     /** Spec 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */
     trailer: trip.trailer === null ? null : { ...trip.trailer },
+    stopOrderErrorCode: trip.stopOrderErrorCode ?? null,
+    stopOrderSource: trip.stopOrderSource ?? 'unordered',
     stops: trip.stops.map((stop) =>
       serializeTripStopDetail({ canReadFinancials: input.canReadFinancials, stop }),
     ),
@@ -2559,6 +2611,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
     fiscalStatus: TripDocumentDetail['fiscalStatus']
     freightAmount: TripDocumentDetail['freightAmount']
     freightRuleName: TripDocumentDetail['freightRuleName']
+    canhotoRetained: TripDocumentDetail['canhotoRetained']
     freightSource: TripDocumentDetail['freightSource']
     leavesBehindOnDispatch: TripDocumentDetail['leavesBehindOnDispatch']
     nfeIssuedAt: TripDocumentDetail['nfeIssuedAt']
@@ -2579,6 +2632,7 @@ type SerializedTripDocumentDetail = SerializedTripDocument &
 const TRIP_DOCUMENT_DETAIL_FIELD_POLICY = {
   cargoGrossWeight: 'safe',
   cargoWeightSource: 'safe',
+  canhotoRetained: 'safe',
   contact: 'safe',
   createdAt: 'safe',
   cteAuthorized: 'safe',
@@ -2621,6 +2675,7 @@ function serializeTripDocumentDetail(input: {
     ...serializeTripDocument(document),
     cargoGrossWeight: document.cargoGrossWeight,
     cargoWeightSource: document.cargoWeightSource,
+    canhotoRetained: document.canhotoRetained,
     contact: document.contact === null ? null : { ...document.contact },
     cteAuthorized: document.cteAuthorized,
     /** Spec 236: só no detalhe — o `TripDocument` do painel tem chaves exatas. */

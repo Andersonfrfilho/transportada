@@ -3,11 +3,16 @@
  */
 import type { RabbitMqTopology } from '@adatechnology/rabbitmq-provider'
 
+import {
+  NFE_ACCESS_KEY_EVENT_TYPE,
+  type NfeAccessKeyEnvelopeV1,
+} from '../../messaging/nfe-access-key-envelope.schema.js'
 import type { NfeProcessingEnvelopeV1 } from '../../messaging/nfe-processing-envelope.schema.js'
 
 type ProcessingEventType =
   | 'transportada.nfe.import.requested'
   | 'transportada.nfe.distribution.requested'
+  | typeof NFE_ACCESS_KEY_EVENT_TYPE.REQUESTED
 
 type ClaimedOutboxEntry = {
   readonly actorId: string
@@ -17,6 +22,7 @@ type ClaimedOutboxEntry = {
   readonly eventId: string
   readonly eventType: ProcessingEventType
   readonly importId: string
+  readonly lookupId?: string
   readonly occurredAt: string
   readonly version: 1
 }
@@ -38,7 +44,7 @@ type OutboxRelayClock = {
 
 type OutboxRelayPublisher = {
   publish(params: {
-    readonly envelope: NfeProcessingEnvelopeV1
+    readonly envelope: NfeProcessingEnvelopeV1 | NfeAccessKeyEnvelopeV1
     readonly topology: RabbitMqTopology
   }): Promise<void>
 }
@@ -103,18 +109,7 @@ export class OutboxRelayService {
 
       try {
         await this.#publisher.publish({
-          envelope: {
-            actorId: entry.actorId,
-            companyId: entry.companyId,
-            correlationId: entry.correlationId,
-            eventId: entry.eventId,
-            occurredAt: entry.occurredAt,
-            payload: {
-              importId: entry.importId,
-            },
-            type: entry.eventType,
-            version: entry.version,
-          },
+          envelope: buildEnvelope(entry),
           topology: this.#topologyResolver.resolve({
             eventType: entry.eventType,
           }),
@@ -136,5 +131,29 @@ export class OutboxRelayService {
       claimedCount: claimedEntries.length,
       publishedCount,
     }
+  }
+}
+
+function buildEnvelope(
+  entry: ClaimedOutboxEntry,
+): NfeProcessingEnvelopeV1 | NfeAccessKeyEnvelopeV1 {
+  const base = {
+    actorId: entry.actorId,
+    companyId: entry.companyId,
+    correlationId: entry.correlationId,
+    eventId: entry.eventId,
+    occurredAt: entry.occurredAt,
+    version: entry.version,
+  }
+  if (entry.eventType !== NFE_ACCESS_KEY_EVENT_TYPE.REQUESTED) {
+    return { ...base, payload: { importId: entry.importId }, type: entry.eventType }
+  }
+  if (entry.lookupId === undefined) {
+    throw new Error('Access key outbox entry without lookupId')
+  }
+  return {
+    ...base,
+    payload: { importId: entry.importId, lookupId: entry.lookupId },
+    type: entry.eventType,
   }
 }

@@ -137,6 +137,7 @@ function buildWorld(
     readonly metadata: Record<string, unknown>
   }[] = []
   const repository: DeliveryProofPort = {
+    findCanhotoByHash: () => Promise.resolve(null),
     countProofsForEvent: () => Promise.resolve(0),
     findDeliveryContext: () =>
       Promise.resolve({

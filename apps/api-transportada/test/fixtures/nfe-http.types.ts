@@ -204,6 +204,16 @@ export type NfeHttpRouteDependencies = {
       readonly nextCursor: string | null
     }>
   }
+  readonly previewReprocess: {
+    execute(input: { readonly context: CompanyContext; readonly importId: string }): Promise<{
+      readonly busy: boolean
+      readonly failedItems: number
+      readonly reprocessable: boolean
+      readonly reprocessableRejectionCodes: readonly string[]
+      readonly rejectedItems: number
+      readonly total: number
+    }>
+  }
   readonly reprocessImport: {
     execute(input: ReprocessImportCall): Promise<NfeImportSummary>
   }

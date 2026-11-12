@@ -106,7 +106,9 @@ function buildDeps(
       stage: 'delivery',
       typeName: 'Recusa total',
     }),
+    reportArrival: async () => ({}),
     reportDelivery: async () => ({ alreadySettled: false }),
+    reportDeparture: async () => ({ changed: true }),
     reportReturn: async () => ({ alreadySettled: false }),
     resolveDriverId: async () => DRIVER_ID,
     ...overrides,
@@ -464,7 +466,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     const [message] = sent
     expect(message?.kind).toBe('list')
     if (message?.kind !== 'list') throw new Error('esperava lista')
-    expect(message.rows).toEqual([{ id: DOCUMENT_ID, title: '1 · Cliente Um' }])
+    expect(message.rows).toEqual([{ id: DOCUMENT_ID, title: 'NF 1 · Cliente Um' }])
     expect(result).toEqual({
       context: WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
       next: DRIVER_FLOW_NODE.documentEntry,
@@ -538,7 +540,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
         location: null,
       },
     ])
-    expect(sent).toEqual([{ body: 'Entrega registrada. ✅', kind: 'text' }])
+    expect(sent).toEqual([{ body: '*Entrega registrada* ✅', kind: 'text' }])
     expect(result).toEqual({
       context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined },
       next: DRIVER_FLOW_NODE.tripMenu,
@@ -580,7 +582,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
 
     expect(sent).toEqual([
       {
-        body: 'A viagem ainda não foi despachada — entregar e devolver só depois da saída.',
+        body: '🚫 *A viagem ainda não foi despachada.* Entregar e devolver só depois da saída.',
         kind: 'text',
       },
     ])
@@ -604,7 +606,10 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
 
     expect(sent).toEqual([
-      { body: 'Essa nota não está mais disponível na sua viagem.', kind: 'text' },
+      {
+        body: '🚫 *Essa nota não está mais na viagem do motorista.*\n➡️ _Próximo passo:_ confira com o escritório.',
+        kind: 'text',
+      },
     ])
   })
 
@@ -657,7 +662,12 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
         reason: 'recipient_absent',
       },
     ])
-    expect(sent).toEqual([{ body: 'Devolução registrada. ↩️', kind: 'text' }])
+    expect(sent).toEqual([
+      {
+        body: '↩️ *NF `1` não entregue* · Destinatário ausente\nA nota volta com você para o armazém.',
+        kind: 'text',
+      },
+    ])
   })
 
   test('catálogo de ocorrência vazio avisa e volta ao menu, sem tipos de outro estágio', async () => {
@@ -768,7 +778,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
 
     expect(sent[0]?.body).toBe(
-      'Este tipo não vale para a contratante desta nota. Escolha outro tipo.',
+      '🚫 *Este tipo não vale para a contratante desta nota.*\n➡️ _Próximo passo:_ escolha outro tipo.',
     )
     expect(result).toEqual({ next: DRIVER_FLOW_NODE.listOccurrenceTypes })
   })
@@ -888,7 +898,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
 
     expect((calls[0] as { note: string }).note).toBe('Cliente recusou por avaria')
-    expect(sent).toEqual([{ body: 'Ocorrência registrada. ⚠️', kind: 'text' }])
+    expect(sent).toEqual([{ body: '✅ *Ocorrência registrada.*', kind: 'text' }])
   })
 })
 
@@ -1144,5 +1154,96 @@ describe('o WhatsApp não colhe assinatura: o erro diz o campo que falta (spec 2
     await callAction({ channel, deps, kind: DRIVER_FLOW_ACTION_KIND.listOccurrenceTypes })
 
     expect(sent[0]).toMatchObject({ kind: 'list', rows: [{ id: OCCURRENCE_TYPE_ID }] })
+  })
+})
+
+describe('spec 293 T15: a ocorrência que pede foto, número ou valor é colhida na conversa individual', () => {
+  test('com coleta aberta, o roteador da observação pede o que falta e não registra ainda', async () => {
+    const { channel, sent } = buildChannel()
+    const begun: unknown[] = []
+    let registered = false
+    const result = await callAction({
+      channel,
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.noteAnswer]: 'cliente devolveu',
+        [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeId]: OCCURRENCE_TYPE_ID,
+      },
+      deps: buildDeps({
+        occurrenceDrafts: {
+          answer: async () => null,
+          awaitingText: async () => false,
+          async begin(input) {
+            begun.push(input)
+            return {
+              awaitingText: false,
+              documentNumber: '1',
+              finished: false,
+              texts: ['Ocorrência da NF 1: mande 1 foto.'],
+            }
+          },
+          hasOpen: async () => true,
+          receiveLocation: async () => undefined,
+          receivePhoto: async () => null,
+          wantsPhoto: async () => true,
+        },
+        registerOccurrence: async () => {
+          registered = true
+          throw new Error('não deveria registrar')
+        },
+      }),
+      kind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
+    })
+
+    expect(registered).toBe(false)
+    expect(begun).toEqual([
+      {
+        actor: { actorUserId: USER_ID, companyId: COMPANY_ID, driverId: DRIVER_ID },
+        channel: 'individual',
+        documentId: DOCUMENT_ID,
+        documentNumber: '1',
+        location: null,
+        note: 'cliente devolveu',
+        occurrenceTypeId: OCCURRENCE_TYPE_ID,
+      },
+    ])
+    expect(sent.map((message) => message.body)).toEqual(['Ocorrência da NF 1: mande 1 foto.'])
+    expect(result).toMatchObject({ next: DRIVER_FLOW_NODE.tripMenu })
+  })
+
+  test('sem nada a colher (begin devolve null), registra como sempre', async () => {
+    let registered = 0
+    await callAction({
+      context: {
+        [DRIVER_FLOW_CONTEXT_KEY.documentId]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.noteAnswer]: 'skip',
+        [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeId]: OCCURRENCE_TYPE_ID,
+      },
+      deps: buildDeps({
+        occurrenceDrafts: {
+          answer: async () => null,
+          awaitingText: async () => false,
+          begin: async () => null,
+          hasOpen: async () => false,
+          receiveLocation: async () => undefined,
+          receivePhoto: async () => null,
+          wantsPhoto: async () => false,
+        },
+        registerOccurrence: async () => {
+          registered += 1
+          return {
+            createdAt: NOW.toISOString(),
+            id: crypto.randomUUID(),
+            note: '',
+            occurrenceTypeId: OCCURRENCE_TYPE_ID,
+            productCode: '',
+            stage: 'delivery',
+            typeName: 'Recusa total',
+          }
+        },
+      }),
+      kind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
+    })
+    expect(registered).toBe(1)
   })
 })

@@ -19,6 +19,7 @@
  * **O que isto não é:** substituto da DANFE impressa. A DANFE que acompanha a mercadoria é a que o
  * emitente imprimiu e mandou na caixa; isto é a cópia digital, para conferência e consulta.
  */
+import type { GeocodingPrecision } from '../../database/geocoding.schema.js'
 import type { HolidayWarning } from '../../business-calendar/domain/holiday-warning.policy.js'
 import type { DriverScorePort } from '../../fleet/application/driver-score.port.js'
 import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
@@ -27,6 +28,8 @@ import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settin
 import type { DriverDocumentProduct } from '../domain/driver-document-products.policy.js'
 import type { ContractorReplyStatus } from '../../shared/occurrence-contractor-reply.constant.js'
 import { attachDriverDocumentContractorReplies } from './attach-driver-document-contractor-replies.service.js'
+import { attachDriverStopChargeSeal } from './attach-driver-stop-charge-seal.service.js'
+import type { DriverChargeSealDependency } from './driver-stop-charge-seal.port.js'
 import { attachDriverStopHolidayWarnings } from './attach-driver-stop-holiday-warnings.service.js'
 import type { DriverContractorRepliesDependency } from './driver-document-contractor-reply.port.js'
 import type { DriverHolidayWarningsDependency } from './driver-stop-holiday-warning.port.js'
@@ -109,8 +112,26 @@ export type DriverStopSchedule = {
   readonly status: string
 }
 
+/**
+ * Spec 321 T6 (D4b): a coleta de canhoto encaixada nesta parada. O motorista da viagem nova a conclui fotografando o
+ * canhoto (`POST /me/trips/current/canhoto-pickups/:id/proof`); `photoSentAt` preenchido é a foto que espera a conferência.
+ * Só o necessário para a tela: nenhuma nota, valor nem peso da entrega de origem sai daqui.
+ */
+export type DriverCanhotoPickup = {
+  readonly documentNumber: string
+  readonly documentSeries: string
+  readonly id: string
+  readonly photoSentAt: string | null
+  readonly recipientDisplayName: string
+}
+
 export type DriverTripStop = {
   readonly arrivedAt: string | null
+  /**
+   * Spec 321 T6: as coletas de canhoto `scheduled` desta parada. Ausente quando não há coleta ou a leitura falhou
+   * (refinamento isolado: o snapshot não cai junto).
+   */
+  readonly canhotoPickups?: readonly DriverCanhotoPickup[]
   readonly completedAt: string | null
   readonly deliveryWindowEnd: string | null
   readonly deliveryWindowStart: string | null
@@ -124,10 +145,19 @@ export type DriverTripStop = {
    * nada. Ausente quando não há aviso (parada concluída, sem ETA, dia útil) ou quando o aviso falhou.
    */
   readonly holidayWarnings?: readonly HolidayWarning[]
+  /**
+   * Spec 317 (E7, RF13): o cliente da parada está marcado como "possível cobrança na entrega" e o tipo liga o selo ao
+   * motorista. Somente leitura; ausente quando não há selo.
+   */
+  readonly clientChargeSeal?: { readonly flaggedAt: string }
   readonly id: string
+  /** Spec 294 RF12/RF13: sem coordenada, ou com precisão de CEP/município — o app avisa antes da rota. */
+  readonly isAddressReliable: boolean
   readonly label: string
   readonly latitude: string | null
   readonly longitude: string | null
+  /** Spec 294 RF13: a precisão da coordenada em `geocoded_addresses`; `null` sem coordenada. */
+  readonly precision: GeocodingPrecision | null
   /** `null` quando a parada não exige agendamento — que é o caso da maioria. */
   readonly schedule: DriverStopSchedule | null
   readonly sequence: number
@@ -211,6 +241,8 @@ export type FindCurrentDriverTripInput = {
   readonly companyId: string
   /** Spec 248 T5.4: o estado do retorno da contratante nas notas. Ausente = sem o campo e sem consulta a mais. */
   readonly contractorReplies?: DriverContractorRepliesDependency
+  /** Spec 317 (E7): o selo "possível cobrança" nas paradas. Ausente = sem selo e sem consulta a mais. */
+  readonly chargeSeal?: DriverChargeSealDependency
   /** Spec 252 T4.3: o aviso de feriado nas paradas. Ausente = sem aviso e sem consulta a mais. */
   readonly holidayWarnings?: DriverHolidayWarningsDependency
   readonly membershipId: string
@@ -275,10 +307,17 @@ export async function findCurrentDriverTrip(
     trips: tripsWithWarnings,
   })
 
+  /** Também depois do recorte pelo vínculo: só as paradas das viagens dele entram na consulta. */
+  const tripsWithSeal = await attachDriverStopChargeSeal({
+    companyId: input.companyId,
+    ...(input.chargeSeal === undefined ? {} : { dependency: input.chargeSeal }),
+    trips: tripsWithReplies,
+  })
+
   return {
     isRegisteredDriver: true,
     pendingProofs,
     score: scores.get(driverId) ?? null,
-    trips: tripsWithReplies,
+    trips: tripsWithSeal,
   }
 }

@@ -15,6 +15,8 @@ import type {
   ContractorReplyDeliveryReason,
   ContractorReplyDeliveryStatus,
   ContractorReplyDeliveryTarget,
+  ContractorReplyDeliveryTrigger,
+  ContractorReplyFallbackFrom,
 } from '../../shared/occurrence-contractor-reply.constant.js'
 import type { OccurrenceMailSettings } from './occurrence-mail.port.js'
 
@@ -81,10 +83,29 @@ export type RecordContractorReplyMailParams = {
   readonly companyId: string
   readonly correlationId: string
   readonly fromAddress: string
+  /** O logo da empresa vai como parte inline (`cid:company-logo`) no layout. */
+  readonly hasInlineLogo: boolean
   readonly subject: string
   readonly threadId: string
   readonly toAddress: string
 }
+
+/** Spec 286: o e-mail já no modelo padrão de e-mail das Notificações (o mesmo layout do chat da contratante). */
+export type ContractorReplyLayoutMail = {
+  readonly hasInlineLogo: boolean
+  readonly html: string
+  readonly subject: string
+  readonly text: string
+}
+
+/** Spec 286 T3: o texto do boleto ao cliente no canal, do modelo do módulo escolhido no tipo (ou o texto livre antigo). */
+export type ContractorReplyClientTextsLookup =
+  /** `legacy`: o tipo não escolheu modelo e o texto livre antigo está vazio (o alvo segue "desligado", como na 248). */
+  | { readonly kind: 'template_missing'; readonly legacy: boolean }
+  | {
+      readonly kind: 'texts'
+      readonly texts: { readonly body: string; readonly subject: string }
+    }
 
 export type ContractorReplyEmailTransactionPort = {
   countEmailDeliveries(params: {
@@ -96,7 +117,6 @@ export type ContractorReplyEmailTransactionPort = {
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<ContractorReplyEmailAttachment | null>
-  findCarrierName(params: { readonly companyId: string }): Promise<string | undefined>
   /** Spec 279 RF9: o `client_email_type` do tipo da ocorrência (`off` quando o tipo não existe mais). */
   findClientEmailType(params: {
     readonly companyId: string
@@ -140,6 +160,19 @@ export type ContractorReplyEmailTransactionPort = {
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<ContractorReplyEmailReply | null>
+  /** Spec 286 T3: no WhatsApp o assunto vem vazio e o corpo é a legenda inteira. */
+  renderMail(params: {
+    readonly body: string
+    readonly companyId: string
+    readonly subject: string
+  }): Promise<ContractorReplyLayoutMail>
+  resolveClientTexts(params: {
+    readonly channel: 'email' | 'whatsapp'
+    readonly companyId: string
+    readonly config: unknown
+    readonly occurrenceId: string
+    readonly variableOverrides?: Readonly<Record<string, string>>
+  }): Promise<ContractorReplyClientTextsLookup>
   /** Spec 279 T3: os e-mails do cliente de um tipo (no máximo 10, D2), na ordem do cadastro. */
   listClientEmails(params: {
     readonly companyId: string
@@ -181,11 +214,15 @@ export type ContractorReplyEmailOptions = {
     readonly address: null | string
     readonly addressMasked: null | string
     readonly createdAt: string
+    /** Spec 286 (RF4): `whatsapp` quando o e-mail saiu como reserva do WhatsApp automático que não mandou. */
+    readonly fallbackFrom: ContractorReplyFallbackFrom
     readonly id: string
     readonly reason: ContractorReplyDeliveryReason | null
     readonly sentAt: null | string
     readonly status: ContractorReplyDeliveryStatus
     readonly target: ContractorReplyEmailTarget
+    /** Spec 286 T4 (RF4b): `automatic` ou `operator` — a lista "Envios ao cliente" diz quem disparou. */
+    readonly trigger: ContractorReplyDeliveryTrigger
   }[]
   readonly forwardToInformedEmail: 'manual' | 'off'
   readonly forwardToNoteRecipient: 'automatic' | 'manual' | 'off'

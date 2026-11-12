@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { OnStopEventParams } from '../../driver-stop-reminders/application/driver-stop-reminder.port.js'
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type {
@@ -11,17 +12,35 @@ import type {
   TripStatus,
   TripStopEventKind,
   TripStopOccurrenceKind,
+  StopOccurrencePaidBy,
 } from '../../database/trip.schema.js'
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
+import type { ArrivalLocationSource } from '../domain/address-arrival-correction.policy.js'
 import type { CorrectedClock } from '../domain/occurred-at.policy.js'
+import type { StopOccurrenceTypeRequirements } from '../domain/stop-occurrence-requirements.policy.js'
+import type {
+  ReceivingChargeLine,
+  ReceivingChargeStopDocument,
+} from '../domain/receiving-charge.policy.js'
+import type {
+  StopOccurrencePhotoSlot,
+  StopOccurrenceSlotPhoto,
+} from '../domain/stop-occurrence-photo-slots.policy.js'
+import type { PixKeyType } from '../../shared/pix-key-type.constant.js'
+import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import type { ReceivedByFields } from '../domain/received-by.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { AttachedCanhoto } from './canhoto-attachment.types.js'
 import type {
   DriverDocumentOccurrence,
   DriverDocumentOccurrenceLineInput,
 } from './driver-document-occurrence.types.js'
+import type { NextStopCandidates } from './driver-next-stop.types.js'
 import type { FieldAuthorship, FieldTripTarget } from './field-trip-target.types.js'
 import type { TripFieldOfficeAuditInput } from './trip-field-office-audit.port.js'
+
+/** Spec 294 RF14: o que a chegada com ponto fez pelo endereço — corrigiu, virou sugestão, nada, ou falhou (contida). */
+export type ArrivalAddressCorrectionOutcome = 'applied' | 'failed' | 'ignored' | 'suggested'
 
 /** A posição que o aparelho conseguiu ler. `null` inteiro quando ele não conseguiu ler nenhuma. */
 export type ReportedLocation = {
@@ -80,7 +99,11 @@ export type FieldReportClaim = {
  * um `insert` com unique, e o reenvio concorrente fica bloqueado nele até o primeiro confirmar — em
  * vez de os dois lerem "não existe" e executarem o efeito duas vezes.
  */
+/** Spec 299: o lembrete do motorista abre e fecha na transação do evento; sem a chave global, é um no-op. */
+export type StopReminderEventRecorder = (input: OnStopEventParams) => Promise<void>
+
 export type DriverFieldReportTransactionPort = {
+  onStopEvent: StopReminderEventRecorder
   claim(input: {
     readonly actorUserId: string
     /** ADR-0067 §2: gravada mesmo na reserva da chave — a linha de idempotência também é registro de campo. */
@@ -259,6 +282,8 @@ export type DriverFieldReportTransactionPort = {
     readonly occurredAt?: Date
     /** ADR-0067 §3: quando o registro foi gravado. Ausente cai no `defaultNow()`. */
     readonly recordedAt?: Date
+    /** ADR-0113 §1: a etapa pulada, gravada junto do evento pedido. Ausente cai no default `false`. */
+    readonly recordedTogether?: boolean
     /**
      * Spec 159 T11: o cadastro do motorista que reportou pelo app ou pelo WhatsApp — a nota lê
      * daqui, não do vínculo atual da conta. Ausente no escritório (ele usa `onBehalfOfDriverId`).
@@ -369,6 +394,11 @@ export type DriverFieldReportTransactionPort = {
    * Spec 156 T15 M1: o comprovante já gravado daquele evento e tipo — o canal decide se o escritório
    * pode substituí-lo, e o objeto vai para a auditoria da substituição.
    */
+  /** Spec 294 RF26: o canhoto da empresa com a mesma imagem, ou `null`. */
+  findCanhotoByHash(input: {
+    readonly companyId: string
+    readonly sha256: string
+  }): Promise<AttachedCanhoto | null>
   findProofForEvent(input: {
     readonly companyId: string
     readonly eventId: string
@@ -381,7 +411,47 @@ export type DriverFieldReportTransactionPort = {
   findStopOccurrenceType(input: {
     readonly companyId: string
     readonly occurrenceTypeId: string
-  }): Promise<{ readonly stopKind: TripStopOccurrenceKind | null } | null>
+  }): Promise<{
+    /** Spec 317 (E1): as vagas de foto do tipo, na ordem; vazio é o tipo sem vagas. Ausente só nos dublês antigos. */
+    readonly photoSlots?: readonly StopOccurrencePhotoSlot[]
+    /** Spec 315: o que o tipo cobra do registro de parada. Ausente só nos dublês de teste antigos. */
+    readonly requirements?: StopOccurrenceTypeRequirements
+    readonly stopKind: TripStopOccurrenceKind | null
+  } | null>
+  /**
+   * Spec 317 (E4, E5, E8): as notas ainda na parada (nunca as liberadas), com cliente e contratante lidos da
+   * própria nota no servidor — destinatário → `delivery_clients`, emitente → `contractors`. Uma consulta só.
+   */
+  listStopChargeDocuments(input: {
+    readonly companyId: string
+    readonly stopId: string
+  }): Promise<readonly ReceivingChargeStopDocument[]>
+  /** Spec 317 (E2, E6): uma linha por vaga em `trip_stop_occurrence_photos`; o reenvio não duplica. */
+  recordStopOccurrencePhotos(input: {
+    readonly companyId: string
+    readonly photos: readonly StopOccurrenceSlotPhoto[]
+    readonly stopOccurrenceId: string
+  }): Promise<void>
+  /**
+   * Spec 317 (E4, E5, E6): as linhas `receiving_charge` em `delivery_charges` (`recorded`, origem `occurrence`), e as
+   * notas da linha agrupada em `delivery_charge_documents`. Os índices únicos parciais seguram o reenvio.
+   */
+  recordReceivingCharges(input: {
+    readonly actorUserId: string
+    /** A data civil do registro (`charged_on`). */
+    readonly chargedOn: string
+    readonly companyId: string
+    readonly lines: readonly ReceivingChargeLine[]
+    /** O comprovante principal (`proof_object_id`): a foto do comprovante de pagamento, quando há. */
+    readonly proofObjectId: null | string
+    readonly stopOccurrenceId: string
+  }): Promise<void>
+  /** Spec 317 (E7): marca o cliente; a primeira vez grava a origem, a repetida só atualiza a data. */
+  flagReceivingChargeClients(input: {
+    readonly companyId: string
+    readonly deliveryClientIds: readonly string[]
+    readonly stopOccurrenceId: string
+  }): Promise<void>
   recordOccurrence(input: {
     readonly actorUserId: string
     readonly attachmentObjectId: string | null
@@ -396,12 +466,50 @@ export type DriverFieldReportTransactionPort = {
     readonly locationStamp: EventLocationStampColumns
     /** Spec 218 D2: o tipo do catálogo; `null` no corpo antigo, que só manda `kind`. */
     readonly occurrenceTypeId: string | null
+    /** Spec 317 (E3, E11): o total pago e quem pagou; ausente em todo tipo que não é a cobrança no recebimento. */
+    readonly receivingCharge?: {
+      readonly declaredAmount: string
+      readonly driverPixKey: null | string
+      readonly driverPixKeyType: null | PixKeyType
+      readonly paidBy: StopOccurrencePaidBy
+    }
     readonly stopId: string
   }): Promise<{ readonly id: string }>
   findEventById(input: {
     readonly companyId: string
     readonly eventId: string
   }): Promise<{ readonly id: string } | null>
+  /**
+   * Spec 294: o reenvio deriva as etapas marcadas junto do evento que a chave já liquidou — as da
+   * mesma parada gravadas na mesma transação (mesmo `created_at`), na ordem saída, chegada.
+   */
+  findRecordedTogetherSteps(input: {
+    readonly companyId: string
+    readonly eventId: string
+  }): Promise<readonly StopEventStep[]>
+  /**
+   * Spec 294 RF14/RF15 (ADR-0113 §2): o ponto da chegada corrige o endereço da parada, vira sugestão
+   * ao escritório ou nada. Nunca falha a chegada: o erro fica contido e vai só ao log.
+   */
+  correctAddressFromArrival(input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly eventId: string
+    /** Spec 294 S3: chegada tardia (fila offline além do prazo) não corrige nem sugere. */
+    readonly isLate: boolean
+    readonly location: ReportedLocation
+    /** Spec 294: o ponto do WhatsApp não traz precisão; em tempo real ele vale como o do app. */
+    readonly locationSource: ArrivalLocationSource
+    readonly stopId: string
+  }): Promise<ArrivalAddressCorrectionOutcome>
+  /**
+   * Spec 294 RF8: as paradas da viagem com o que a oferta da próxima mostra — duas leituras para a
+   * viagem inteira (paradas com a coordenada e notas), nunca uma por parada.
+   */
+  findNextStopCandidates(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<NextStopCandidates>
   /**
    * Spec 159 T11: o último evento daquele tipo da nota — o que o no-op idempotente devolve em vez de
    * gravar outro. `null` quando a nota foi resolvida sem evento (dado legado).
@@ -410,6 +518,15 @@ export type DriverFieldReportTransactionPort = {
     readonly companyId: string
     readonly documentId: string
     readonly kind: TripStopEventKind
+  }): Promise<{ readonly id: string } | null>
+  /**
+   * Chegada repetida (outro canal, outra chave): o último evento daquele tipo da parada — o que o no-op
+   * devolve em vez de gravar outro. `null` quando a parada chegou sem evento (dado legado).
+   */
+  findLatestEventForStop(input: {
+    readonly companyId: string
+    readonly kind: TripStopEventKind
+    readonly stopId: string
   }): Promise<{ readonly id: string } | null>
   findOccurrenceById(input: {
     readonly companyId: string
@@ -452,6 +569,8 @@ export type DriverFieldReportTransactionPort = {
     readonly items?: readonly DriverDocumentOccurrenceLineInput[]
     /** Spec 247 (T4.4): o número do documento do cliente; ausente/nulo é não informado. */
     readonly referenceNumber?: null | string
+    /** A nova data de vencimento (`AAAA-MM-DD`); ausente/nula é não informada. */
+    readonly newDueDate?: null | string
   }): Promise<null | DriverDocumentOccurrence>
   /** O reenvio da fila offline: a ocorrência de nota já gravada por esta chave. */
   findDocumentOccurrenceById(input: {

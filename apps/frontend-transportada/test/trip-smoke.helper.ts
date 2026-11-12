@@ -840,6 +840,10 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
       : { cargoLayout: null, occupancy: null }),
     cargoWeight: null,
     trailer: null,
+    /** Spec 323: origem da ordem das paradas; o print de erro liga `SMOKE_STOP_ORDER_ERROR`. */
+    ...(process.env.SMOKE_STOP_ORDER_ERROR
+      ? { stopOrderErrorCode: process.env.SMOKE_STOP_ORDER_ERROR, stopOrderSource: 'unordered' }
+      : { stopOrderErrorCode: null, stopOrderSource: 'suggested' }),
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops: isDocumentCostMode(mode)
       ? DOCUMENT_COST_STOPS
@@ -961,6 +965,21 @@ async function registerEmptyListMock(
       return
     }
     await fulfillJson(route, { data: [], page: { nextCursor: null } })
+  })
+}
+
+/**
+ * Spec 321: o detalhe da viagem sempre consulta `GET /trip-canhoto-pickups` (coletas de canhoto).
+ * Sem dublê a chamada vira `ERR_FAILED` e todo smoke que afirma `failures()` vazio reprova. Fila
+ * vazia por padrão; quem precisa de coletas registra a rota depois (o mais recente vence).
+ */
+async function registerEmptyCanhotoPickupsMock(page: Page): Promise<void> {
+  await page.route(/\/trip-canhoto-pickups(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
   })
 }
 
@@ -1433,6 +1452,7 @@ export async function mockTripWorkspaceApi(
     registerEmptyListMock({ page: input.page, pattern: /\/fleet\/vehicles(?:\?.*)?$/ }),
     registerEmptyListMock({ page: input.page, pattern: /\/fleet\/drivers(?:\?.*)?$/ }),
     registerEmptyReviewQueueMock(input.page),
+    registerEmptyCanhotoPickupsMock(input.page),
   ])
   return {
     failures: () => state.failures,
@@ -1451,8 +1471,8 @@ export async function mockTripWorkspaceApi(
  * lidar com um veículo que nunca usam. Quem precisa do pedágio chama este registro depois.
  */
 export const TOLL_VEHICLE_ID = '00000000-0000-4000-8000-000000000701'
-export const TOLL_ACCESS_KEY_ONE = '35260700000000000000570010000000011000000011'
-export const TOLL_ACCESS_KEY_TWO = '35260700000000000000570010000000011000000022'
+export const TOLL_ACCESS_KEY_ONE = '35260700000000000000570010000000011000000018'
+export const TOLL_ACCESS_KEY_TWO = '35260700000000000000570010000000011000000026'
 
 /**
  * ⚠️ **Precisão `rooftop` com latitude/longitude é o que dispensa a malha do IBGE.** Sem isto o
@@ -1721,6 +1741,21 @@ export async function registerTripQuickCreateTollApi(
     await fulfillJson(route, {
       data: document === undefined ? [] : [document],
       page: { nextCursor: null },
+    })
+  })
+
+  /** A nota bipada vira linha pela conferência em lote; o cadastro dela vem do GET acima. */
+  await input.page.route(/\/nfe-documents\/access-key-checks$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    const body = route.request().postDataJSON() as { accessKeys: string[] }
+    await fulfillJson(route, {
+      data: body.accessKeys.map((accessKey) => ({
+        accessKey,
+        documentId: documentsByAccessKey.get(accessKey)?.id ?? null,
+      })),
     })
   })
 

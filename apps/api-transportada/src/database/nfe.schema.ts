@@ -22,10 +22,15 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { companies, identityUsers, userCompanyMemberships } from './identity.schema.js'
+import { contractors } from './delivery-client.schema.js'
 import { storedObjects } from './storage.schema.js'
 
-export const NFE_IMPORT_SOURCES = ['upload', 'distribution'] as const
+export const NFE_IMPORT_SOURCES = ['upload', 'distribution', 'access_key'] as const
 export type NfeImportSource = (typeof NFE_IMPORT_SOURCES)[number]
+
+/** Spec 301: por onde o arquivo chegou. `source` segue `upload`; isto só diz o canal. */
+export const NFE_IMPORT_RECEIVED_VIA = ['screen', 'email', 'whatsapp'] as const
+export type NfeImportReceivedVia = (typeof NFE_IMPORT_RECEIVED_VIA)[number]
 
 export const NFE_ORIGIN_TRIGGERS = ['user', 'automation'] as const
 export type NfeOriginTrigger = (typeof NFE_ORIGIN_TRIGGERS)[number]
@@ -67,6 +72,35 @@ export type NfeEventOrigin = (typeof NFE_EVENT_ORIGINS)[number]
 export const NFE_DOCUMENT_STATUS_CHANGE_CAUSES = ['event', 'summary', 'document_insert'] as const
 export type NfeDocumentStatusChangeCause = (typeof NFE_DOCUMENT_STATUS_CHANGE_CAUSES)[number]
 
+export const NFE_ACCESS_KEY_LOOKUP_STATUSES = [
+  'queued',
+  'querying',
+  'waiting',
+  'imported',
+  'refused',
+  'failed',
+] as const
+export type NfeAccessKeyLookupStatus = (typeof NFE_ACCESS_KEY_LOOKUP_STATUSES)[number]
+
+export const NFE_ACCESS_KEY_LOOKUP_ACTIVE_STATUSES = [
+  'queued',
+  'querying',
+  'waiting',
+] as const satisfies readonly NfeAccessKeyLookupStatus[]
+
+export const NFE_ACCESS_KEY_LOOKUP_REASONS = [
+  'not_interested',
+  'summary_only',
+  'not_found',
+  'expired',
+  'cancelled',
+  'denied',
+  'certificate_mismatch',
+  'invalid_key',
+  'sefaz_unavailable',
+] as const
+export type NfeAccessKeyLookupReason = (typeof NFE_ACCESS_KEY_LOOKUP_REASONS)[number]
+
 const decimalColumn = (name: string) => numeric(name, { precision: 19, scale: 4 })
 
 export const nfeImports = pgTable(
@@ -83,6 +117,13 @@ export const nfeImports = pgTable(
     triggeredBy: text('triggered_by').$type<NfeOriginTrigger>().notNull().default('user'),
     automationJob: text('automation_job'),
     requestedByUserId: uuid('requested_by_user_id').notNull(),
+    receivedVia: text('received_via').$type<NfeImportReceivedVia>().notNull().default('screen'),
+    receivedFrom: text('received_from'),
+    /** Spec 313: e-mail liberado por domínio amarrado a um contratante só traz nota emitida por ele. */
+    restrictedContractorId: uuid('restricted_contractor_id').references(() => contractors.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    }),
     correlationId: text('correlation_id').notNull(),
     idempotencyKey: text('idempotency_key').notNull(),
     requestFingerprint: text('request_fingerprint').notNull(),
@@ -112,7 +153,18 @@ export const nfeImports = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
-    check('nfe_imports_source_check', sql`${table.source} in ('upload', 'distribution')`),
+    check(
+      'nfe_imports_received_via_check',
+      sql`${table.receivedVia} in ('screen', 'email', 'whatsapp')`,
+    ),
+    check(
+      'nfe_imports_received_from_check',
+      sql`(${table.receivedVia} = 'screen' and ${table.receivedFrom} is null) or (${table.receivedVia} <> 'screen' and ${table.receivedFrom} is not null and char_length(${table.receivedFrom}) between 3 and 254)`,
+    ),
+    check(
+      'nfe_imports_source_check',
+      sql`${table.source} in ('upload', 'distribution', 'access_key')`,
+    ),
     check(
       'nfe_imports_origin_ck',
       sql`(${table.triggeredBy} = 'user' and ${table.automationJob} is null) or (${table.triggeredBy} = 'automation' and ${table.automationJob} is not null)`,
@@ -353,7 +405,10 @@ export const nfeDocuments = pgTable(
       'nfe_documents_authorization_protocol_presence_check',
       sql`(${table.status} <> 'authorized') or (${table.authorizationProtocol} is not null)`,
     ),
-    check('nfe_documents_source_check', sql`${table.source} in ('upload', 'distribution')`),
+    check(
+      'nfe_documents_source_check',
+      sql`${table.source} in ('upload', 'distribution', 'access_key')`,
+    ),
     check(
       'nfe_documents_values_check',
       sql`${table.totalValue} >= 0 and ${table.productsValue} >= 0 and ${table.freightValue} >= 0 and ${table.insuranceValue} >= 0 and ${table.discountValue} >= 0 and ${table.otherExpensesValue} >= 0`,
@@ -1070,6 +1125,257 @@ export const nfeDistributionCursors = pgTable(
     check(
       'nfe_distribution_cursors_lease_check',
       sql`(${table.leaseOwner} is null) = (${table.leaseExpiresAt} is null)`,
+    ),
+  ],
+)
+
+export const nfeAccessKeyLookups = pgTable(
+  'nfe_access_key_lookups',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      }),
+    environment: text().$type<NfeFiscalEnvironment>().notNull(),
+    accessKey: text('access_key').notNull(),
+    status: text().$type<NfeAccessKeyLookupStatus>().notNull(),
+    reason: text().$type<NfeAccessKeyLookupReason>(),
+    cStat: text('c_stat'),
+    notBefore: timestamp('not_before', { withTimezone: true }),
+    documentId: uuid('document_id'),
+    importId: uuid('import_id'),
+    requestedByUserId: uuid('requested_by_user_id').notNull(),
+    correlationId: text('correlation_id').notNull(),
+    attempts: bigint({ mode: 'bigint' }).notNull().default(0n),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('nfe_access_key_lookups_company_id_id_unique').on(table.companyId, table.id),
+    uniqueIndex('nfe_access_key_lookups_active_unique')
+      .on(table.companyId, table.environment, table.accessKey)
+      .where(
+        sql`${table.status} in (${sql.join(
+          NFE_ACCESS_KEY_LOOKUP_ACTIVE_STATUSES.map((status) => sql.raw(`'${status}'`)),
+          sql.raw(', '),
+        )})`,
+      ),
+    index('nfe_access_key_lookups_refusal_window_idx').on(
+      table.companyId,
+      table.environment,
+      table.accessKey,
+      table.finishedAt.desc().nullsFirst(),
+    ),
+    index('nfe_access_key_lookups_waiting_not_before_idx')
+      .on(table.status, table.notBefore)
+      .where(sql`${table.status} = 'waiting'`),
+    foreignKey({
+      columns: [table.companyId, table.documentId],
+      foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],
+      name: 'nfe_access_key_lookups_company_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.importId],
+      foreignColumns: [nfeImports.companyId, nfeImports.id],
+      name: 'nfe_access_key_lookups_company_import_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.requestedByUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'nfe_access_key_lookups_requested_by_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'nfe_access_key_lookups_environment_check',
+      sql`${table.environment} in ('homologation', 'production')`,
+    ),
+    check(
+      'nfe_access_key_lookups_access_key_check',
+      sql`${table.accessKey} ~ '^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$'`,
+    ),
+    check(
+      'nfe_access_key_lookups_status_check',
+      sql`${table.status} in ('queued', 'querying', 'waiting', 'imported', 'refused', 'failed')`,
+    ),
+    check(
+      'nfe_access_key_lookups_reason_check',
+      sql`${table.reason} is null or ${table.reason} in ('not_interested', 'summary_only', 'not_found', 'expired', 'cancelled', 'denied', 'certificate_mismatch', 'invalid_key', 'sefaz_unavailable')`,
+    ),
+    check(
+      'nfe_access_key_lookups_imported_document_check',
+      sql`(${table.status} <> 'imported') or (${table.documentId} is not null)`,
+    ),
+    check(
+      'nfe_access_key_lookups_refused_reason_check',
+      sql`(${table.status} <> 'refused') or (${table.reason} is not null)`,
+    ),
+    check(
+      'nfe_access_key_lookups_waiting_not_before_check',
+      sql`(${table.status} <> 'waiting') or (${table.notBefore} is not null)`,
+    ),
+    check('nfe_access_key_lookups_attempts_check', sql`${table.attempts} >= 0`),
+  ],
+)
+
+export const nfeAccessKeyLookupBudgets = pgTable(
+  'nfe_access_key_lookup_budgets',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, {
+        onDelete: 'restrict',
+        onUpdate: 'cascade',
+      }),
+    environment: text().$type<NfeFiscalEnvironment>().notNull(),
+    windowStartedAt: timestamp('window_started_at', { withTimezone: true }).notNull(),
+    usedInWindow: integer('used_in_window').notNull().default(0),
+    blockedUntil: timestamp('blocked_until', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.companyId, table.environment],
+      name: 'nfe_access_key_lookup_budgets_company_environment_pk',
+    }),
+    check(
+      'nfe_access_key_lookup_budgets_environment_check',
+      sql`${table.environment} in ('homologation', 'production')`,
+    ),
+    check('nfe_access_key_lookup_budgets_used_check', sql`${table.usedInWindow} >= 0`),
+  ],
+)
+
+/**
+ * Spec 301: o recibo de um envio de XML por e-mail ou WhatsApp. É a caixa de entrada durável: o webhook só
+ * grava a linha (`pending`) e o worker processa em lotes, com tentativas e motivo de recusa. O e-mail entra já
+ * processado (`imported`/`rejected`); o WhatsApp espera o worker baixar a mídia.
+ */
+export const NFE_XML_RECEIPT_CHANNELS = ['email', 'whatsapp'] as const
+export type NfeXmlReceiptChannel = (typeof NFE_XML_RECEIPT_CHANNELS)[number]
+export const NFE_XML_RECEIPT_STATUSES = [
+  'pending',
+  'processing',
+  'imported',
+  'rejected',
+  'failed',
+] as const
+export type NfeXmlReceiptStatus = (typeof NFE_XML_RECEIPT_STATUSES)[number]
+
+export const nfeXmlReceipts = pgTable(
+  'nfe_xml_receipts',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    channel: text().$type<NfeXmlReceiptChannel>().notNull(),
+    providerMessageId: text('provider_message_id').notNull(),
+    sender: text().notNull(),
+    /** Quem responde pela importação: o dono do número (WhatsApp); o e-mail usa o ator de sistema e deixa nulo. */
+    requestedByUserId: uuid('requested_by_user_id'),
+    /** WhatsApp: o chat (grupo ou conversa) onde a resposta sai; e-mail responde ao remetente. */
+    replyTo: text('reply_to'),
+    /** WhatsApp: a mensagem do webhook (o Evolution só baixa a mídia com ela) e o que se sabe do arquivo. */
+    media: jsonb(),
+    status: text().$type<NfeXmlReceiptStatus>().notNull().default('pending'),
+    rejectReason: text('reject_reason'),
+    attempts: integer().notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    filesCount: integer('files_count').notNull().default(0),
+    importId: uuid('import_id'),
+    lastErrorCode: text('last_error_code'),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    summarySentAt: timestamp('summary_sent_at', { withTimezone: true }),
+    /** Quantas vezes o resumo falhou ao sair; passado o teto, o recibo deixa de ser tentado e a operação vê o log. */
+    summaryAttempts: integer('summary_attempts').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('nfe_xml_receipts_company_channel_message_unique').on(
+      table.companyId,
+      table.channel,
+      table.providerMessageId,
+    ),
+    foreignKey({
+      columns: [table.companyId, table.importId],
+      foreignColumns: [nfeImports.companyId, nfeImports.id],
+      name: 'nfe_xml_receipts_company_import_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check('nfe_xml_receipts_channel_check', sql`${table.channel} in ('email', 'whatsapp')`),
+    check(
+      'nfe_xml_receipts_status_check',
+      sql`${table.status} in ('pending', 'processing', 'imported', 'rejected', 'failed')`,
+    ),
+    check('nfe_xml_receipts_sender_check', sql`char_length(${table.sender}) between 3 and 254`),
+    check(
+      'nfe_xml_receipts_attempts_check',
+      sql`${table.attempts} >= 0 and ${table.filesCount} >= 0 and ${table.summaryAttempts} >= 0`,
+    ),
+    check(
+      'nfe_xml_receipts_imported_import_check',
+      sql`${table.status} <> 'imported' or ${table.importId} is not null`,
+    ),
+    check(
+      'nfe_xml_receipts_rejected_reason_check',
+      sql`${table.status} <> 'rejected' or ${table.rejectReason} is not null`,
+    ),
+    index('nfe_xml_receipts_pending_idx')
+      .on(table.status, table.nextAttemptAt)
+      .where(sql`${table.status} in ('pending', 'processing')`),
+    index('nfe_xml_receipts_summary_pending_idx')
+      .on(table.companyId, table.status)
+      .where(
+        sql`${table.summarySentAt} is null and ${table.status} in ('imported', 'rejected', 'failed')`,
+      ),
+  ],
+)
+
+/**
+ * Spec 311: domínios de e-mail liberados a enviar XML de NF-e. Quem escreve de um endereço desses (com DKIM alinhado)
+ * é aceito sem estar cadastrado como contato. É da empresa, não do contratante: a importação já sai com o ator da caixa.
+ */
+export const nfeXmlAllowedEmailDomains = pgTable(
+  'nfe_xml_allowed_email_domains',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    /** Minúsculo, sem `@`, com ao menos um ponto. */
+    domain: text().notNull(),
+    status: text().notNull().default('active'),
+    /** Spec 313: a quem o domínio pertence; nulo nos domínios liberados antes do vínculo. */
+    contractorId: uuid('contractor_id').references(() => contractors.id, {
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('nfe_xml_allowed_email_domains_company_domain_unique').on(table.companyId, table.domain),
+    check(
+      'nfe_xml_allowed_email_domains_domain_check',
+      sql`${table.domain} = lower(${table.domain}) and ${table.domain} ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$' and char_length(${table.domain}) <= 253`,
+    ),
+    check(
+      'nfe_xml_allowed_email_domains_public_provider_check',
+      sql`${table.domain} not in ('gmail.com', 'googlemail.com', 'hotmail.com', 'outlook.com', 'live.com', 'msn.com', 'yahoo.com', 'yahoo.com.br', 'icloud.com', 'me.com', 'bol.com.br', 'uol.com.br', 'terra.com.br', 'ig.com.br', 'globo.com', 'protonmail.com', 'proton.me', 'aol.com')`,
+    ),
+    check(
+      'nfe_xml_allowed_email_domains_status_check',
+      sql`${table.status} in ('active', 'inactive')`,
     ),
   ],
 )

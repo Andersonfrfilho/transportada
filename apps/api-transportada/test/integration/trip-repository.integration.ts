@@ -540,10 +540,45 @@ describe('trip repository integration', () => {
         expect(secondPage.items).toHaveLength(1)
         expect(secondPage.items[0]?.id).not.toBe(firstPage.items[0]?.id)
 
+        // Volta: a primeira página não tem para onde voltar; a segunda devolve a primeira.
+        expect(firstPage.previousCursor).toBeNull()
+        expect(secondPage.previousCursor).not.toBeNull()
+        const backToFirst = await repository.list({
+          companyId,
+          cursor: secondPage.previousCursor ?? null,
+          direction: 'backward',
+          limit: 1,
+        })
+        expect(backToFirst.items.map((trip) => trip.id)).toEqual(
+          firstPage.items.map((trip) => trip.id),
+        )
+        expect(backToFirst.previousCursor).toBeNull()
+        expect(backToFirst.nextCursor).not.toBeNull()
+
+        // Numeração: total e posição acompanham a página, e `offset` salta direto para ela.
+        expect(firstPage.offset).toBe(0)
+        expect(secondPage.offset).toBe(1)
+        expect(firstPage.total).toBeGreaterThanOrEqual(2)
+        expect(secondPage.total).toBe(firstPage.total)
+        const jumped = await repository.list({ companyId, cursor: null, limit: 1, offset: 1 })
+        expect(jumped.items.map((trip) => trip.id)).toEqual(secondPage.items.map((trip) => trip.id))
+        expect(jumped.offset).toBe(1)
+        expect(jumped.previousCursor).not.toBeNull()
+        const lastOffset = (firstPage.total ?? 1) - 1
+        const lastPage = await repository.list({
+          companyId,
+          cursor: null,
+          limit: 1,
+          offset: lastOffset,
+        })
+        expect(lastPage.items).toHaveLength(1)
+        expect(lastPage.nextCursor).toBeNull()
+        expect(lastPage.offset).toBe(lastOffset)
+
         // Tenant vizinho não enxerga nenhuma viagem, mesmo sem filtro.
         expect(
           await repository.list({ companyId: otherCompanyId, cursor: null, limit: 10 }),
-        ).toEqual({ items: [], nextCursor: null })
+        ).toEqual({ items: [], nextCursor: null, offset: 0, previousCursor: null, total: 0 })
       })
     },
     30_000,

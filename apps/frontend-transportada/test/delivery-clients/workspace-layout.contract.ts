@@ -28,7 +28,7 @@ describe('a página de clientes no padrão (revisão da spec 183)', () => {
 
     expect(page).toContain('className={styles.kicker}')
     expect(block(css, '.header')).toContain('padding: var(--space-4)')
-    expect(block(css, '.header h1')).toContain('font-size: 1.75rem')
+    expect(block(css, '.header h1')).not.toContain('font-size')
   })
 
   test('a página centraliza na largura da casa, como o cabeçalho da aplicação', async () => {

@@ -40,6 +40,7 @@ export function buildWorld(
   const stored: Array<{ readonly objectKey: string }> = []
 
   const repository: DeliveryProofPort = {
+    findCanhotoByHash: () => Promise.resolve(null),
     findDeliveryContext: () =>
       Promise.resolve({
         deliveredAt: input.deliveredAt ?? DELIVERED_AT,

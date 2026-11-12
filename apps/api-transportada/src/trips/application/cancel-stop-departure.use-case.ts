@@ -122,6 +122,13 @@ export async function cancelStopDeparture(
           stopId: input.stopId,
           tappedAt: resolvedTappedAt,
         })
+        await transaction.onStopEvent({
+          channel: authorship.channel,
+          companyId: input.companyId,
+          kind: 'departure_cancelled',
+          occurredAt: input.now,
+          target: { stopId: input.stopId },
+        })
 
         return { changed: true, id: event.id }
       },

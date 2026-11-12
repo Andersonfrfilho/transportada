@@ -155,6 +155,8 @@ export type TripOccurrenceFeedItem = {
   /** Spec 156 T9 (D3): só quando `channel = 'office'` — o motorista em nome de quem se registrou. */
   readonly onBehalfOfDriverName: string | null
   readonly source: 'document' | 'stop'
+  /** Spec 292: aberta pelo bot no grupo do WhatsApp (o canal segue `whatsapp`). */
+  readonly viaGroupBot?: boolean
   readonly stage: null | TripOccurrenceStage
   readonly stopLabel: null | string
   readonly tripId: string
@@ -192,6 +194,8 @@ export type TripOccurrenceFeedFilters = {
   /** Spec 277 RF1: texto livre, já aparado; casa em qualquer campo da linha (nota, motorista, veículo, empresas, cidade, andamento). */
   readonly search?: string
   readonly stageIn?: readonly TripOccurrenceFeedStage[]
+  /** Spec 321 T7: id do tipo cadastrado. Só ocorrência de nota tem tipo cadastrado; a de parada não casa. */
+  readonly typeIdIn?: readonly string[]
   readonly typeIn?: readonly string[]
 }
 

@@ -26,7 +26,7 @@ describe('a fronteira entre a conversa e os contatos (spec 183 T903, F5)', () =>
   test('a conversa não importa hook, formulário nem diálogo internos de delivery-clients', async () => {
     const offenders = (await sourcesOf('occurrence-conversation'))
       .filter(([, source]) =>
-        /@\/modules\/delivery-clients\/(hooks\/|components\/(?!AddContractorContactAction\.component))/u.test(
+        /@\/modules\/delivery-clients\/(hooks\/|components\/(?!(?:AddContractorContactAction|ClientContactsAction)\.component))/u.test(
           source,
         ),
       )

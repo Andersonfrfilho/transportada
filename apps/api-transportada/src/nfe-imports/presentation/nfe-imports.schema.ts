@@ -93,8 +93,8 @@ export function parseImportList(url: URL): {
     readonly rejectedCountNe?: string
     readonly requestedByUserIdEq?: string
     readonly requestedByUserIdNe?: string
-    readonly sourceEq?: 'distribution' | 'upload'
-    readonly sourceNe?: 'distribution' | 'upload'
+    readonly sourceEq?: 'access_key' | 'distribution' | 'upload'
+    readonly sourceNe?: 'access_key' | 'distribution' | 'upload'
     readonly statusEq?:
       | 'pending'
       | 'queued'
@@ -394,9 +394,9 @@ function parsePositiveInteger(value: string | null): string | undefined {
   return value
 }
 
-function parseSource(value: string | null): 'distribution' | 'upload' | undefined {
+function parseSource(value: string | null): 'access_key' | 'distribution' | 'upload' | undefined {
   if (value === null) return undefined
-  if (value === 'distribution' || value === 'upload') return value
+  if (value === 'access_key' || value === 'distribution' || value === 'upload') return value
   throw invalidRequest()
 }
 

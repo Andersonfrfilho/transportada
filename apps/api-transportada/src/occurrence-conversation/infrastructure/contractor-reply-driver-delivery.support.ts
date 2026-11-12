@@ -256,7 +256,7 @@ export async function deliverContractorReplyToDriver(
   await rowsOf(
     runner,
     sql`update occurrence_contractor_replies
-        set status = 'delivered', updated_at = ${queuedAt}::timestamptz
+        set status = 'delivered', reason = null, updated_at = ${queuedAt}::timestamptz
         where company_id = ${companyId}::uuid and id = ${replyId}::uuid and status <> 'delivered'`,
   )
   let resolvedOccurrence = false

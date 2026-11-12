@@ -101,3 +101,57 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Spec 286 T4 (RF2): "Retorno ao cliente" — uma linha por canal: caixa à esquerda, modelo e envio ao lado (empilha no estreito). */
+.channelList {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  list-style: none;
+}
+
+.channelRow {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 10%, transparent);
+}
+
+.channelBox {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.channelFields {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.sdkPreview {
+  min-width: 0;
+  max-width: 100%;
+  padding-top: var(--space-2);
+  overflow-x: auto;
+}
+
+@media (min-width: 40rem) {
+  .channelRow {
+    grid-template-columns: 9rem minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .channelRow > :nth-child(n + 3) {
+    grid-column: 2;
+  }
+
+  .channelFields {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}

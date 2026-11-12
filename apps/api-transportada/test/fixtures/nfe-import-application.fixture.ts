@@ -69,6 +69,8 @@ export type NfeImportSummary = {
   readonly invalidCount: bigint
   readonly processedCount: bigint
   readonly receivedCount: bigint
+  readonly receivedFrom?: string | null
+  readonly receivedVia?: 'email' | 'screen' | 'whatsapp'
   readonly rejectedCount: bigint
   readonly requestedByUserId: string
   readonly source: 'distribution' | 'upload'

@@ -74,6 +74,7 @@ function UnassignedItem({
               />
               <span>
                 <strong>{candidate.contractorName}</strong>
+                <span className={styles.tag}>{t(`participant.${candidate.participant}`)}</span>
                 {candidate.lastOutbound === null ? null : (
                   <span className={styles.hint}>
                     {t('unassigned.lastOutbound', {

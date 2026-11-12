@@ -4,5 +4,7 @@
 import './delivery-clients-http/contractor.contract.js'
 import './delivery-clients-http/emails.contract.js'
 import './delivery-clients-http/occurrence-charge-report.contract.js'
+import './delivery-clients-http/receiving-charge.contract.js'
 import './delivery-clients-http/public-batch.contract.js'
 import './delivery-clients-http/routes.contract.js'
+import './delivery-clients-http/whatsapp.contract.js'

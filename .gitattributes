@@ -1,3 +1,6 @@
 # O OpenCV.js do build próprio (ADR-0065) leva o WASM como literal com bytes NUL: diff, merge e
 # conversão de fim de linha o corromperiam, e o contrato confere o sha256 byte a byte.
 apps/frontend-transportada/vendor/opencv/opencv.js binary
+
+# Modelo do detector de rosto da CNH (spec 295): conferido por sha256 no contrato.
+apps/worker-transportada/assets/*.onnx binary

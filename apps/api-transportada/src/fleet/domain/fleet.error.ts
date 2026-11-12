@@ -143,6 +143,30 @@ export class FleetDriverNotFoundError extends ApiError {
   }
 }
 
+/** Spec 292 T1: o grupo é a identidade do motorista, então ele não pode pertencer a dois. */
+export class FleetDriverWhatsappGroupTakenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_DRIVER_WHATSAPP_GROUP_TAKEN',
+      details: [{ field: 'groupJid', message: 'already linked to another driver' }],
+      message: 'This WhatsApp group is already linked to another driver',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 318 RF5: o grupo já é o canal de aviso de ocorrência de uma contratante. */
+export class FleetDriverWhatsappGroupTakenByContractorError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_DRIVER_WHATSAPP_GROUP_TAKEN_BY_CONTRACTOR',
+      details: [{ field: 'groupJid', message: 'already linked to a contractor' }],
+      message: 'This WhatsApp group is already linked to a contractor',
+      status: 409,
+    })
+  }
+}
+
 export class FleetDriverVersionConflictError extends ApiError {
   public constructor() {
     super({

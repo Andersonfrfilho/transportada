@@ -13,12 +13,10 @@ import {
 import { buildAddressCorrectionMailRequestBody } from './addressCorrectionMail.service'
 import {
   mapAddressCorrectionMailSendResult,
-  mapAddressCorrectionMailTemplateList,
-  mapAddressCorrectionMailTemplatePreview,
+  mapAddressCorrectionMailTemplateState,
   mapAddressCorrectionRecipients,
   type AddressCorrectionMailSendResult,
-  type AddressCorrectionMailTemplate,
-  type AddressCorrectionMailTemplatePreview,
+  type AddressCorrectionMailTemplateState,
   type AddressCorrectionRecipients,
 } from './addressCorrectionMail.validation'
 import {
@@ -47,8 +45,12 @@ export type NfeImportSummary = Readonly<{
   invalidCount: number
   processedCount: number
   receivedCount: number
+  /** Spec 301: de quem veio (e-mail ou número mascarado no servidor não — o painel mascara). */
+  receivedFrom?: null | string
+  /** Spec 301: por onde chegou; `screen` é o "Enviar XML" da tela. */
+  receivedVia?: 'email' | 'screen' | 'whatsapp'
   rejectedCount: number
-  source: 'distribution' | 'upload'
+  source: 'access_key' | 'distribution' | 'upload'
   status:
     | 'cancelled'
     | 'completed'
@@ -269,8 +271,6 @@ export type NfeWorkspaceClient = Readonly<{
   getAddressReport: () => Promise<AddressReport>
   getDistributionStatus: () => Promise<NfeDistributionStatus>
   getImportDetail: (input: Readonly<{ id: string }>) => Promise<NfeImportSummary>
-  /** `GET /contractor-mail-templates?mailType=address_correction` (spec 150, T405). */
-  listAddressCorrectionMailTemplates: () => Promise<readonly AddressCorrectionMailTemplate[]>
   listAddressCorrectionRequests: () => Promise<readonly AddressCorrectionRequestRecord[]>
   listDocuments: (
     input: Readonly<{ cursor: null | string; limit: number }>,
@@ -278,10 +278,10 @@ export type NfeWorkspaceClient = Readonly<{
   listImports: (
     input: Readonly<{ cursor: null | string; filters?: NfeImportFilters; limit: number }>,
   ) => Promise<NfeImportListPage>
-  /** `POST /contractor-mail-templates/preview` com `{templateId}` — sempre dados de exemplo. */
-  previewAddressCorrectionMailTemplate: (
-    input: Readonly<{ templateId: string }>,
-  ) => Promise<AddressCorrectionMailTemplatePreview>
+  /** `GET /address-correction-requests/mail-template` (spec 286): o estado do modelo do módulo de notificação e a prévia com dados de exemplo. */
+  readAddressCorrectionMailTemplate: () => Promise<AddressCorrectionMailTemplateState>
+  /** `GET /nfe-imports/:id/reprocess-preview` (spec 314): só conta o que o reprocesso refaria. */
+  previewReprocess: (input: Readonly<{ id: string }>) => Promise<NfeImportReprocessPreview>
   reprocessImport: (
     input: Readonly<{ id: string; idempotencyKey: string }>,
   ) => Promise<NfeImportSummary>
@@ -297,7 +297,6 @@ export type NfeWorkspaceClient = Readonly<{
       excludedWatcherUserIds?: readonly string[]
       idempotencyKey: string
       requestIds?: readonly string[]
-      templateId?: string
     }>,
   ) => Promise<AddressCorrectionMailSendResult>
 }>
@@ -396,7 +395,9 @@ function isNfeImportSummary(value: unknown): value is NfeImportSummary {
     isNumber(value.processedCount) &&
     isNumber(value.receivedCount) &&
     isNumber(value.rejectedCount) &&
-    (value.source === 'distribution' || value.source === 'upload') &&
+    (value.source === 'access_key' ||
+      value.source === 'distribution' ||
+      value.source === 'upload') &&
     isImportStatus(value.status) &&
     isTerminalError(value.terminalError) &&
     isString(value.updatedAt) &&
@@ -475,6 +476,34 @@ function pageNextCursor(value: unknown): null | string {
   return nextCursor
 }
 
+/** O que o servidor refaria no reprocesso; a tela não reimplementa a regra de elegibilidade (spec 314 RF6). */
+export type NfeImportReprocessPreview = Readonly<{
+  busy: boolean
+  failedItems: number
+  reprocessable: boolean
+  rejectedItems: number
+  total: number
+}>
+
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
+
+function mapReprocessPreview(value: unknown): NfeImportReprocessPreview {
+  if (
+    !isRecord(value) ||
+    typeof value.busy !== 'boolean' ||
+    typeof value.reprocessable !== 'boolean'
+  ) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  const { failedItems, rejectedItems, total } = value
+  if (!isCount(failedItems) || !isCount(rejectedItems) || !isCount(total)) {
+    throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
+  }
+  return { busy: value.busy, failedItems, reprocessable: value.reprocessable, rejectedItems, total }
+}
+
 function mapImportSummary(value: unknown): NfeImportSummary {
   if (!isRecord(value) || !isRecord(value.counters)) {
     throw requestError('NFE_WORKSPACE_RESPONSE_INVALID')
@@ -497,6 +526,12 @@ function mapImportSummary(value: unknown): NfeImportSummary {
     invalidCount,
     processedCount,
     receivedCount,
+    ...(value.receivedVia === 'email' || value.receivedVia === 'whatsapp'
+      ? {
+          receivedFrom: typeof value.receivedFrom === 'string' ? value.receivedFrom : null,
+          receivedVia: value.receivedVia,
+        }
+      : {}),
     rejectedCount,
     source: value.source,
     status: value.status,
@@ -858,7 +893,6 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
               ? {}
               : { excludedWatcherUserIds: input.excludedWatcherUserIds }),
             ...(input.requestIds === undefined ? {} : { requestIds: input.requestIds }),
-            ...(input.templateId === undefined ? {} : { templateId: input.templateId }),
           }),
         ),
         headers: {
@@ -874,28 +908,16 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
     return result
   },
-  async listAddressCorrectionMailTemplates() {
+  async readAddressCorrectionMailTemplate() {
     const response = await requestJsonWithDetails({
       dependencies,
       init: { method: 'GET' },
-      path: '/contractor-mail-templates?mailType=address_correction',
+      path: '/address-correction-requests/mail-template',
     })
-    return mapAddressCorrectionMailTemplateList(response)
-  },
-  async previewAddressCorrectionMailTemplate(input) {
-    const response = await requestJsonWithDetails({
-      dependencies,
-      init: {
-        body: JSON.stringify({ templateId: input.templateId }),
-        headers: { 'content-type': 'application/json' },
-        method: 'POST',
-      },
-      path: '/contractor-mail-templates/preview',
-    })
-    const preview = mapAddressCorrectionMailTemplatePreview(response)
-    if (preview === null)
+    const state = mapAddressCorrectionMailTemplateState(response)
+    if (state === null)
       throw new AddressCorrectionRequestError({ code: 'NFE_WORKSPACE_RESPONSE_INVALID' })
-    return preview
+    return state
   },
   async downloadDocumentXml(input) {
     const request = await getAccessTokenRequest({
@@ -948,6 +970,14 @@ export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies
       path: buildImportSearchPath(input),
     })
     return mapImportListPage(response)
+  },
+  async previewReprocess(input) {
+    const response = await requestJson({
+      dependencies,
+      init: { method: 'GET' },
+      path: `/nfe-imports/${input.id}/reprocess-preview`,
+    })
+    return mapReprocessPreview(envelopeData(response))
   },
   async reprocessImport(input) {
     const response = await requestJson({

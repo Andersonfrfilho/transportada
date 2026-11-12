@@ -45,7 +45,7 @@ describe('posição do bloco de vínculo de nota na tela de detalhe', () => {
     const panel = readFileSync(PANEL, 'utf8')
     expect(panel).toInclude("t('detail.linkDocumentTitle')")
     expect(panel).toInclude('<TripScanQueue')
-    expect(panel).toInclude('<BarcodeScanner')
+    expect(panel).toInclude('<TripBippedNotes')
   })
 
   it('o painel oferece busca com os filtros da tela de notas e a inserção rápida', () => {

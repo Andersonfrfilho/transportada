@@ -19,6 +19,8 @@ import type {
 export const CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
 export const CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'
 export const CONTRACTOR_MAIL_TEST_EMAIL_PATH = '/contractor-mail-settings/test-email'
+/** Spec 286 (RF6): o modelo do e-mail de correção de endereço mora no módulo de notificação. */
+export const ADDRESS_CORRECTION_MAIL_TEMPLATE_PATH = '/address-correction-requests/mail-template'
 
 export const CONTRACTOR_MAIL_SETTINGS_ERROR = {
   REQUEST_FAILED: 'REQUEST_FAILED',
@@ -57,6 +59,8 @@ type ClientDependencies = Readonly<{
 export type ContractorMailSettingsClient = Readonly<{
   getChecks: () => Promise<readonly ContractorMailCheckItem[]>
   getSettings: () => Promise<ContractorMailSettingsRead>
+  /** `true` quando o módulo de notificação tem um modelo utilizável para o e-mail de correção. */
+  isAddressCorrectionTemplateUsable: () => Promise<boolean>
   saveSettings: (body: ContractorMailSettingsSaveBody) => Promise<ContractorMailSettingsSummary>
   sendTestEmail: () => Promise<ContractorMailTestEmailResult>
 }>
@@ -138,6 +142,23 @@ export function createContractorMailSettingsClient(
       return settingsReadFromApi(
         await request({ dependencies, method: 'GET', path: CONTRACTOR_MAIL_SETTINGS_PATH }),
       )
+    },
+    async isAddressCorrectionTemplateUsable() {
+      const payload = await request({
+        dependencies,
+        method: 'GET',
+        path: ADDRESS_CORRECTION_MAIL_TEMPLATE_PATH,
+      })
+      const data =
+        typeof payload === 'object' && payload !== null
+          ? (payload as { data?: { usable?: unknown } }).data
+          : undefined
+      if (typeof data?.usable !== 'boolean') {
+        throw new ContractorMailSettingsRequestError({
+          code: CONTRACTOR_MAIL_SETTINGS_ERROR.RESPONSE_INVALID,
+        })
+      }
+      return data.usable
     },
     async saveSettings(body) {
       return settingsFromApi(

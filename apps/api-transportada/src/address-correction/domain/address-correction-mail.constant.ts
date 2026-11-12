@@ -3,9 +3,9 @@
  */
 
 /**
- * Cores e medidas do e-mail de correção (RF9–RF11), copiadas de `email-template.html` (spec 150) —
- * a referência visual aprovada pelo usuário em 2026-09-15. Nomeadas aqui porque cada uma se repete
- * em mais de um bloco do HTML (cabeçalho, rótulo numerado, bloco "endereço correto", motivo, rodapé).
+ * Cores dos blocos de endereço do e-mail de correção (RF9–RF11), copiadas de `email-template.html` (spec 150) —
+ * a referência visual aprovada pelo usuário em 2026-09-15. O resto do layout (cabeçalho, textos, rodapé) mora no
+ * modelo do módulo de notificação (spec 286); só os blocos são montados aqui, como o HTML do sistema.
  */
 export const ADDRESS_CORRECTION_MAIL_COLOR = {
   amber: '#8a4f1d',
@@ -17,15 +17,11 @@ export const ADDRESS_CORRECTION_MAIL_COLOR = {
   headerBackground: '#10222c',
   headerText: '#f0f2ee',
   ink: '#10222c',
-  pageBackground: '#f2efe9',
   rowLabel: '#f7f5f0',
   slate: '#6b7c85',
-  white: '#ffffff',
 } as const
 
 export const ADDRESS_CORRECTION_MAIL_FONT_FAMILY = 'Arial,Helvetica,sans-serif'
-
-export const ADDRESS_CORRECTION_MAIL_WIDTH_PIXELS = 600
 
 /**
  * Nome da operação de idempotência do envio (T304/RF6), repetido entre o caso de uso e o

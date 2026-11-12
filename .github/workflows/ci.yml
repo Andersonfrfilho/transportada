@@ -30,7 +30,7 @@ jobs:
   # sintaxe no GitHub, por isso o `if` — e o `quality` abaixo continua reportando verde.
   quality-app:
     if: inputs.apps != '[]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -59,7 +59,27 @@ jobs:
       # pagam o download.
       - name: Install Playwright Chromium
         if: matrix.app == 'frontend-transportada'
-        run: bun run --cwd apps/frontend-transportada playwright install --with-deps chromium
+        run: bun run --cwd apps/frontend-transportada playwright install chromium
+      - name: Bibliotecas de sistema do Chromium
+        if: matrix.app == 'frontend-transportada'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: bun run --cwd apps/frontend-transportada playwright install-deps chromium
+      # O apt só instala o que o Chromium precisa de biblioteca de sistema. Quando o DNS do runner cai
+      # (11/11/2026: `Temporary failure resolving 'archive.ubuntu.com'` em todo job, 3h seguidas, zero
+      # teste rodado), a falha do apt não diz nada sobre o código — mas o que importa é se o Chromium
+      # abre. Este passo cobra isso: `ldd` no binário do cache, e falha se faltar biblioteca de verdade.
+      - name: Chromium tem as bibliotecas de sistema?
+        if: matrix.app == 'frontend-transportada'
+        run: |
+          bin=$(find ~/.cache/ms-playwright -type f \( -name headless_shell -o -name chrome \) | head -1)
+          test -n "$bin" || { echo "::error::binário do Chromium não encontrado no cache"; exit 1; }
+          missing=$(ldd "$bin" | grep 'not found' || true)
+          if [ -n "$missing" ]; then
+            echo "::error::faltam bibliotecas para o Chromium:"
+            echo "$missing"
+            exit 1
+          fi
       - run: bun run --cwd apps/${{ matrix.app }} test
       - run: bun run --cwd apps/${{ matrix.app }} build
 
@@ -74,7 +94,7 @@ jobs:
   quality:
     if: always()
     needs: quality-app
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -93,6 +113,8 @@ jobs:
       # Contrato do watchdog que destranca o deploy (`deploy-watchdog.yml`): sem ele, a única
       # prova de que as travas de segurança valem seria o próprio incidente de produção.
       - run: bun test test/deploy-watchdog.contract.test.ts
+      # As quatro cópias do catálogo de rotinas (api, worker, cron, painel) têm de ser idênticas.
+      - run: bun test test/job-catalog-parity.contract.test.ts
       - name: Conferir a matriz
         run: |
           result='${{ needs.quality-app.result }}'
@@ -117,7 +139,7 @@ jobs:
   # (`provision-integration-database.ts`) — não depende do banco compartilhado nem do
   # `migration-test`, por isso é job à parte e não um shard a mais.
   integration-migration:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +166,7 @@ jobs:
   # arquivos estavam sem peso. Pesos refeitos pela duração real de cada arquivo e 6 shards: o mais lento
   # cai para ~530s de teste. `test/integration-shard.contract.test.ts` prende `matrix` e `/N` juntos.
   integration-api:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -182,7 +204,7 @@ jobs:
   # não são citados por nenhum teste de integração, e o Keycloak (o serviço mais lento a subir) só é
   # usado por estes arquivos (`IDENTITY_FILES` em `scripts/integration-shard.ts`).
   integration-identity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -213,7 +235,7 @@ jobs:
         run: make down
 
   integration-worker:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -254,7 +276,7 @@ jobs:
           - suite: apps
             targets: smoke-landing smoke-driver
     name: integration-smoke (${{ matrix.suite }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Folga de mais de 10 min sobre o teto do passo de apt (5 min) — contrato em
     # test/deploy/integration-gate.contract.ts.
     timeout-minutes: 20
@@ -309,8 +331,23 @@ jobs:
       # Teto próprio: espelho pendurado vira passo vermelho em 5 minutos, com nome, em vez de gate
       # cancelado no fim do job sem dizer onde parou.
       - name: Bibliotecas de sistema do Chromium
+        continue-on-error: true
         timeout-minutes: 5
         run: bun run --cwd apps/frontend-transportada playwright install-deps chromium
+      # O apt só instala o que o Chromium precisa de biblioteca de sistema. Quando o DNS do runner cai
+      # (11/11/2026: `Temporary failure resolving 'archive.ubuntu.com'` em todo job, 3h seguidas, zero
+      # teste rodado), a falha do apt não diz nada sobre o código — mas o que importa é se o Chromium
+      # abre. Este passo cobra isso: `ldd` no binário do cache, e falha se faltar biblioteca de verdade.
+      - name: Chromium tem as bibliotecas de sistema?
+        run: |
+          bin=$(find ~/.cache/ms-playwright -type f \( -name headless_shell -o -name chrome \) | head -1)
+          test -n "$bin" || { echo "::error::binário do Chromium não encontrado no cache"; exit 1; }
+          missing=$(ldd "$bin" | grep 'not found' || true)
+          if [ -n "$missing" ]; then
+            echo "::error::faltam bibliotecas para o Chromium:"
+            echo "$missing"
+            exit 1
+          fi
       - run: make identity-bootstrap
       - name: Local authenticated smoke
         run: |
@@ -354,7 +391,7 @@ jobs:
         integration-worker,
         integration-smoke,
       ]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Conferir as quatro frentes

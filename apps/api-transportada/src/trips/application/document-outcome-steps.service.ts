@@ -21,7 +21,9 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import { checkTripDocumentTransition } from '../domain/trip-state.policy.js'
+import type { StopEventStep } from '../domain/stop-event-sequence.policy.js'
 import { toFieldTripTarget } from './field-trip-target.types.js'
+import { recordSkippedSteps } from './recorded-together-steps.service.js'
 import type { OutcomeContext, ReachableDocument } from './report-document-outcome.types.js'
 import { buildOfficeAuditEntry } from './trip-field-office-audit.port.js'
 
@@ -89,20 +91,12 @@ export async function assertOfficeOutcomeAllowed(input: {
  * "último" `delivered` da nota — sem foto — e esconder a foto do evento verdadeiro.
  */
 export async function settleAndRecordEvent(input: {
+  readonly alreadySettled: boolean
   readonly context: OutcomeContext
   readonly document: ReachableDocument
 }): Promise<{ readonly alreadySettled: boolean; readonly eventId: string }> {
-  const { context, document } = input
-  const { action, input: report, kind, settle } = context.params
-  const transition = checkTripDocumentTransition({
-    action,
-    documentStatus: document.separationStatus,
-    tripStatus: document.tripStatus,
-  })
-  if (transition.outcome === 'blocked') {
-    throw new TripStateTransitionNotAllowedError(transition.reason)
-  }
-  const alreadySettled = transition.outcome === 'unchanged'
+  const { alreadySettled, context, document } = input
+  const { input: report, kind, settle } = context.params
 
   if (!alreadySettled) await settle(context.transaction, report.documentId)
   const existingEvent = alreadySettled
@@ -115,6 +109,74 @@ export async function settleAndRecordEvent(input: {
   const event = existingEvent ?? (await recordOutcomeEvent({ context, document }))
 
   return { alreadySettled, eventId: event.id }
+}
+
+/**
+ * Spec 294: a transição é calculada antes das etapas marcadas junto — nota em viagem cancelada
+ * continua recusada, e o no-op (`unchanged`) não marca etapa nenhuma.
+ */
+export function resolveOutcomeAlreadySettled(input: {
+  readonly context: OutcomeContext
+  readonly document: ReachableDocument
+}): boolean {
+  const { context, document } = input
+  const transition = checkTripDocumentTransition({
+    action: context.params.action,
+    documentStatus: document.separationStatus,
+    tripStatus: document.tripStatus,
+  })
+  if (transition.outcome === 'blocked') {
+    throw new TripStateTransitionNotAllowedError(transition.reason)
+  }
+
+  return transition.outcome === 'unchanged'
+}
+
+/**
+ * Spec 294: a trava das paradas vem antes da nota em todo canal (paradas, notas, viagem) e a nota é
+ * lida de novo sob ela — a baixa do escritório e a do motorista na mesma nota se serializam, e quem
+ * perde enxerga a nota já baixada em vez de baixar duas vezes ou cruzar a ordem das travas (40P01).
+ */
+export async function lockTripStopsAndReread(input: {
+  readonly context: OutcomeContext
+  readonly document: ReachableDocument
+}): Promise<ReachableDocument> {
+  await input.context.transaction.lockTripStops({
+    companyId: input.context.params.input.companyId,
+    tripId: input.document.tripId,
+  })
+
+  return findReachableDocument(input.context)
+}
+
+/** Só o motorista e o ajudante têm a saída e a chegada que faltam marcadas junto. */
+export async function recordStepsBeforeOutcome(input: {
+  readonly alreadySettled: boolean
+  readonly context: OutcomeContext
+  readonly document: ReachableDocument
+}): Promise<readonly StopEventStep[]> {
+  const { alreadySettled, context, document } = input
+  const report = context.params.input
+  if (context.isOffice) return []
+  if (alreadySettled) return []
+
+  const stop = await context.transaction.findStopForDriver({
+    companyId: report.companyId,
+    stopId: document.stopId,
+    target: toFieldTripTarget(report),
+  })
+  if (stop === null) return []
+
+  const skipped = await recordSkippedSteps({
+    authorship: context.authorship,
+    report,
+    requestedEvent: context.params.kind,
+    stop,
+    stopId: document.stopId,
+    transaction: context.transaction,
+  })
+
+  return skipped.recordedTogether
 }
 
 function recordOutcomeEvent(input: {
@@ -174,6 +236,14 @@ export async function closeStopAndTrip(input: {
   const tripCompleted = stopCompleted
     ? await context.transaction.completeTripIfSettled(tripChange)
     : false
+  await context.transaction.onStopEvent({
+    channel: context.authorship.channel,
+    companyId: report.companyId,
+    kind: context.params.kind,
+    occurredAt: report.now,
+    stopClosed: stopCompleted,
+    target: { stopId: document.stopId },
+  })
   if (!input.alreadySettled && !tripCompleted) {
     await context.transaction.advanceTripFromSettledDocuments(tripChange)
   }

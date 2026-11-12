@@ -279,7 +279,8 @@ consequências que ficam escritas para não serem redescobertas:
   mude do outro. Dentro da API não há cópia: o CHECK do banco e o `z.enum` da rota saem da mesma
   constante. Sigla fora da lista vira ausência, não erro. O trio aparece nas duas fichas (`DriverForm` e `DriverQuickCreateDialog`) porque as duas
   renderizam `DriverPersonalFields`.
-- **A ADR-0039 já decidiu criptografar esses campos, e ainda não foi executada.** Envelope A256GCM
+- **A ADR-0039 foi revogada em 2026-11-05 (perder a chave é perder o dado): nada disto se criptografa.** O texto abaixo é o
+  histórico da decisão revogada. Envelope A256GCM
   único para `birth_date`, `license_number`, endereço e telefone — mais o trio do RG, pelo adendo de
   2026-08-23 —, AAD
   `transportada:fleet-driver:v1:${companyId}:${driverId}`, e índice cego com HMAC para a CNH seguir
@@ -3928,3 +3929,11 @@ a 183 RF14, a 263 T5.2-C e a ADR-0073 (aviso do portal).
   e o `warn` parcial aparece. Usuário real do painel tem perfil; dublê de integração precisa semear `identity_user_profiles`.
 - **Testes:** `test/trip-occurrence/driver-notification.contract.ts` (caso de uso, serviço e a ligação no `main.ts`) e
   `test/integration/driver-occurrence-notification.integration.ts` (Postgres + migrations do módulo).
+
+## Spec 294 — a ordem da parada
+
+Ver `apps/api-transportada/CLAUDE.md` § "A ordem da parada (spec 294)" e `specs/294-o-motorista-segue-a-ordem-da-parada/evidence.md`. O painel lista as sugestões de endereço em `/pendencias` (`modules/pending-items`, mapa atual x sugerido, aplicar/descartar só com `trip.manage`).
+
+## Spec 321 T7 — filtro `typeIdIn` e `canhotoRetained`
+
+`/trip-occurrences` aceita `typeIdIn` (UUIDs separados por vírgula; não-UUID é 400; ocorrência de parada não casa). O detalhe do documento da viagem devolve `canhotoRetained` (coleta de canhoto aberta na nota de origem), pela leitura fixa `loadCanhotoRetainedDocumentIds`. Ver `apps/api-transportada/CLAUDE.md` § "Canhoto retido pelo cliente".

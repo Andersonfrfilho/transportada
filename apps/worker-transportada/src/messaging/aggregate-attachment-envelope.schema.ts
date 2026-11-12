@@ -24,6 +24,13 @@ export const AGGREGATE_ATTACHMENT_TYPES = [
 export type AggregateAttachmentType = (typeof AGGREGATE_ATTACHMENT_TYPES)[number]
 
 /**
+ * De quem é o anexo: da candidatura do agregado (o padrão, e o que as mensagens antigas da fila
+ * dizem por omissão) ou da ficha do motorista (spec 091). Decide em que tabela a leitura é gravada.
+ */
+export const AGGREGATE_ATTACHMENT_SUBJECTS = ['aggregate_application', 'fleet_driver'] as const
+export type AggregateAttachmentSubject = (typeof AGGREGATE_ATTACHMENT_SUBJECTS)[number]
+
+/**
  * Sem `actorId`, como o envelope de recuperação de senha: quem anexa é anônimo, e um campo de ator
  * aqui seria um valor inventado viajando como se fosse verdade (ADR-0053).
  *
@@ -43,6 +50,7 @@ export const aggregateAttachmentEnvelopeV1Schema = z.strictObject({
     bucket: z.string().trim().min(1),
     objectKey: z.string().trim().min(1),
     type: z.enum(AGGREGATE_ATTACHMENT_TYPES),
+    subject: z.enum(AGGREGATE_ATTACHMENT_SUBJECTS).optional(),
   }),
 })
 

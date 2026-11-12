@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import type { DriverAllowanceSettings } from '../shared/driverAllowance.validation'
@@ -11,7 +12,7 @@ import {
   startDriverAllowanceDraft,
   typeDriverAllowanceAmount,
 } from '../shared/driverAllowanceForm.service'
-import styles from '../styles/companySettings.module.css'
+import styles from '../styles/businessCalendar.module.css'
 
 export type DriverAllowancePanelProps = Readonly<{
   disabled: boolean
@@ -51,36 +52,48 @@ function DriverAllowanceForm(props: DriverAllowancePanelProps) {
   }
 
   return (
-    <div className={styles.settingsFormFields}>
-      <label htmlFor="driver-allowance-amount">
-        {t('driverAllowance.amountLabel')}
-        <input
-          disabled={props.disabled}
-          id="driver-allowance-amount"
-          inputMode="numeric"
-          maxLength={DRIVER_ALLOWANCE_MAX_LENGTH}
-          value={amount}
-          onChange={(event) => handleAmountChange(event.target.value)}
-        />
-      </label>
-      {props.stored === undefined ? null : (
-        <span className={styles.settingsFormOrigin}>
-          {t(`driverAllowance.origin.${props.stored.rateOrigin}`)}
-        </span>
-      )}
-      <div className={styles.settingsFormActions}>
-        <button disabled={props.disabled || submission === null} type="button" onClick={handleSave}>
-          <Icon name="save" />
-          {t('driverAllowance.save')}
-        </button>
-        {props.stored?.rateOrigin === 'company' ? (
-          <button disabled={props.disabled} type="button" onClick={props.onClear}>
-            <Icon name="refresh" />
-            {t('driverAllowance.clear')}
-          </button>
-        ) : null}
+    <section className={styles.block}>
+      <div className={styles.form}>
+        <div className={styles.field}>
+          <label className={styles.fieldLabel} htmlFor="driver-allowance-amount">
+            {t('driverAllowance.amountLabel')}
+          </label>
+          <input
+            className={styles.input}
+            disabled={props.disabled}
+            id="driver-allowance-amount"
+            inputMode="numeric"
+            maxLength={DRIVER_ALLOWANCE_MAX_LENGTH}
+            value={amount}
+            onChange={(event) => handleAmountChange(event.target.value)}
+          />
+          {props.stored === undefined ? null : (
+            <p className={styles.hint}>{t(`driverAllowance.origin.${props.stored.rateOrigin}`)}</p>
+          )}
+        </div>
+        <div className={styles.actions}>
+          <Button
+            disabled={props.disabled || submission === null}
+            type="button"
+            onClick={handleSave}
+          >
+            <Icon name="save" />
+            {t('driverAllowance.save')}
+          </Button>
+          {props.stored?.rateOrigin === 'company' ? (
+            <Button
+              disabled={props.disabled}
+              type="button"
+              variant="secondary"
+              onClick={props.onClear}
+            >
+              <Icon name="refresh" />
+              {t('driverAllowance.clear')}
+            </Button>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -91,20 +104,26 @@ function DriverAllowanceForm(props: DriverAllowancePanelProps) {
 export function DriverAllowancePanel(props: DriverAllowancePanelProps) {
   const { t } = useTranslation('companySettings')
   return (
-    <section className={styles.settingsPanel} aria-labelledby="driver-allowance-title">
-      <div className={styles.sectionHeading}>
-        <p className={styles.sectionKicker}>{t('driverAllowance.kicker')}</p>
+    <section aria-labelledby="driver-allowance-title" className={styles.panel}>
+      <div className={styles.panelHeading}>
+        <p className={styles.kicker}>{t('driverAllowance.kicker')}</p>
         <h2 id="driver-allowance-title">{t('driverAllowance.title')}</h2>
+        <p className={styles.hint}>{t('driverAllowance.hint')}</p>
       </div>
-      <p className={styles.settingsFormNote}>{t('driverAllowance.hint')}</p>
       {props.loading ? (
         <DriverAllowanceSkeleton />
       ) : (
         <DriverAllowanceForm key={props.stored?.updatedAt ?? 'default'} {...props} />
       )}
-      {props.saved ? <p role="status">{t('driverAllowance.saved')}</p> : null}
+      {props.saved ? (
+        <p className={styles.status} role="status">
+          {t('driverAllowance.saved')}
+        </p>
+      ) : null}
       {props.errorCode === undefined ? null : (
-        <p role="alert">{t('driverAllowance.error', { code: props.errorCode })}</p>
+        <p className={styles.refusal} role="alert">
+          {t('driverAllowance.error', { code: props.errorCode })}
+        </p>
       )}
     </section>
   )

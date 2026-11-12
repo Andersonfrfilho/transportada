@@ -87,6 +87,8 @@ function createFakeTransaction() {
               occurrenceTypeId: 'type-1',
               /** Spec 276 T4: o tipo permite o pedido repetido — a trava não entra neste contrato. */
               policy: 'allow',
+              /** A trava de motorista do tipo (minutos) está desligada — o contrato é só do carimbo. */
+              minutes: null,
               productCode: '',
               referenceNumber: null,
               stage: 'delivery',

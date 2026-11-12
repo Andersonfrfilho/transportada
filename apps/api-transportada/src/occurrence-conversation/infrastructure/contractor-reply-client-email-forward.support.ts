@@ -10,6 +10,11 @@
  * botão depois não manda de novo ao mesmo endereço. Sem e-mail do tipo no cadastro, nada sai e fica uma linha
  * `skipped / client_without_email` para o operador ver.
  *
+ * Spec 286 T3: o texto é o modelo `email` do módulo de notificação que o tipo escolheu (`contractor-reply-client-template`),
+ * e o canal liga pela caixa do tipo (`company_occurrence_type_client_channels`, e-mail ligado e automático); sem modelo
+ * utilizável nada sai e fica `skipped / template_missing`. Com `fallbackFrom = whatsapp` é a queda do WhatsApp (RF4):
+ * basta a caixa do e-mail ligada, manual ou automática.
+ *
  * ⚠️ SQL puro, sem tabela importada, para viver idêntico na API e no worker (nenhuma app importa a outra); o
  * contrato `contractor-reply-parity.contract.ts` do worker compara os dois arquivos.
  * Falha do envio nunca desfaz o retorno: tudo roda num savepoint e o erro vira uma linha `failed`.
@@ -21,7 +26,13 @@ import { sql, type SQL } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { CONVERSATION_ATTACHMENT_LIMITS } from '../domain/conversation-attachment.policy.js'
+import { buildContractorReplyLayoutMail } from './contractor-reply-client-email-layout.support.js'
 import {
+  readContractorReplyClientChannel,
+  resolveContractorReplyClientTexts,
+} from './contractor-reply-client-template.support.js'
+import {
+  type ContractorReplyFallbackFrom,
   CONTRACTOR_REPLY_EMAIL_MAX_PER_OCCURRENCE,
   CONTRACTOR_REPLY_EMAIL_TARGETS,
 } from '../../shared/occurrence-contractor-reply.constant.js'
@@ -32,7 +43,7 @@ export type ContractorReplyClientEmailRunner = {
 
 export type QueueContractorReplyToClientEmailsResult =
   | { readonly kind: 'not_applicable' }
-  | { readonly kind: 'skipped'; readonly reason: 'client_without_email' }
+  | { readonly kind: 'skipped'; readonly reason: 'client_without_email' | 'template_missing' }
   | { readonly kind: 'failed'; readonly reason: 'send_failed' }
   | {
       readonly alreadyQueued: number
@@ -42,17 +53,24 @@ export type QueueContractorReplyToClientEmailsResult =
       readonly queued: number
     }
 
+export type QueueContractorReplyToClientEmailsParams = {
+  readonly companyId: string
+  /** Spec 286 T3 (RF4): a queda do WhatsApp que não saiu; o e-mail sai com a caixa ligada, mesmo em modo manual. */
+  readonly fallbackFrom?: 'whatsapp'
+  readonly replyId: string
+}
+
 type Row = Record<string, unknown>
 
 const TARGET = 'client_boleto_emails'
 const SAVEPOINT = 'client_email_forward'
 const AUTOMATIC_MODE = 'automatic'
 const OFF_TYPE = 'off'
+const EMAIL_CLIENT_CHANNELS: readonly string[] = ['email', 'both']
 const RECIPIENT_ROLE = 'recipient'
 const COUNTED_STATUSES = ['queued', 'sent'] as const
 const ADDRESS_MAX_LENGTH = 254
 const UNSAFE_ADDRESS_CHARACTERS = /[\r\n,;<>]/u
-const WHITESPACE_RUN = /\s+/gu
 const DIGEST_LENGTH = 32
 
 async function rowsOf(
@@ -68,63 +86,11 @@ function text(row: Row | undefined, key: string): string | null {
 }
 
 /** Mesma regra de `resolveCompanyDisplayName` da API, repetida porque este arquivo vive idêntico nas duas apps. */
-function chosenCarrierName(input: {
-  displayNameMode: null | string
-  legalName: string
-  tradeName: string
-}): string {
-  const legalName = input.legalName.trim()
-  const tradeName = input.tradeName.trim()
-  if (input.displayNameMode === 'legal_name') return legalName === '' ? tradeName : legalName
-  return tradeName === '' ? legalName : tradeName
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
-}
-
 function parseAddress(raw: null | string): null | string {
   const address = (raw ?? '').trim()
   if (address === '' || address.length > ADDRESS_MAX_LENGTH) return null
   if (UNSAFE_ADDRESS_CHARACTERS.test(address)) return null
   return z.string().email().safeParse(address).success ? address : null
-}
-
-function buildMail(params: {
-  readonly body: string
-  readonly carrierName: string
-  readonly subject: string
-}) {
-  const signature = params.carrierName.trim()
-  const paragraphs = params.body
-    .split(/\n{2,}/u)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph !== '')
-    .map((paragraph) => `<p>${escapeHtml(paragraph).replaceAll('\n', '<br>')}</p>`)
-  const html = [
-    ...paragraphs,
-    ...(signature === '' ? [] : [`<p>--<br>${escapeHtml(signature)}</p>`]),
-  ].join('\n')
-  return {
-    html,
-    subject: params.subject.replace(WHITESPACE_RUN, ' ').trim(),
-    text: signature === '' ? params.body : `${params.body}\n\n--\n${signature}`,
-  }
-}
-
-/** O texto do e-mail da cópia do retorno (248): sem assunto ou corpo, o automático não sai (RF10). */
-function readTexts(config: unknown): { readonly body: string; readonly subject: string } | null {
-  if (typeof config !== 'object' || config === null) return null
-  const fields = config as Record<string, unknown>
-  const body = typeof fields.forwardEmailBody === 'string' ? fields.forwardEmailBody.trim() : ''
-  const subject =
-    typeof fields.forwardEmailSubject === 'string' ? fields.forwardEmailSubject.trim() : ''
-  return body === '' || subject === '' ? null : { body, subject }
 }
 
 /** D3: a mesma chave do envio manual (`deriveClientDeliveryKey` do caso de uso) — um boleto, um endereço, uma vez. */
@@ -163,6 +129,8 @@ async function recordDelivery(
     readonly address: null | string
     readonly attachmentId: string
     readonly companyId: string
+    /** Spec 286 (RF4): a entrega é a queda do WhatsApp que não saiu; `null` no envio do próprio e-mail. */
+    readonly fallbackFrom: ContractorReplyFallbackFrom
     readonly idempotencyKey: string
     readonly mailMessageId: null | string
     readonly reason: null | string
@@ -174,10 +142,10 @@ async function recordDelivery(
     runner,
     sql`insert into occurrence_contractor_reply_deliveries
           (company_id, reply_id, target, trigger, status, reason, attachment_id, address, mail_message_id,
-           actor_user_id, idempotency_key)
+           actor_user_id, idempotency_key, fallback_from)
         values (${params.companyId}::uuid, ${params.replyId}::uuid, ${TARGET}, 'automatic', ${params.status},
                 ${params.reason}, ${params.attachmentId}::uuid, ${params.address}, ${params.mailMessageId}::uuid, null,
-                ${params.idempotencyKey})`,
+                ${params.idempotencyKey}, ${params.fallbackFrom})`,
   )
 }
 
@@ -224,6 +192,7 @@ async function prepareMail(
     readonly texts: { readonly body: string; readonly subject: string }
   },
 ): Promise<null | {
+  readonly hasInlineLogo: boolean
   readonly html: string
   readonly senderAddress: string
   readonly subject: string
@@ -245,25 +214,74 @@ async function prepareMail(
   const senderAddress = text(settings, 'sender_address')
   const threadId = text(thread, 'id')
   if (senderAddress === null || threadId === null) return null
-  const [carrier] = await rowsOf(
-    runner,
-    sql`select trade_name, legal_name, display_name_mode from company_fiscal_profiles where company_id = ${companyId}::uuid`,
-  )
-  const mail = buildMail({
+  const mail = await buildContractorReplyLayoutMail(runner, {
     body: texts.body,
-    carrierName: chosenCarrierName({
-      displayNameMode: text(carrier, 'display_name_mode'),
-      legalName: text(carrier, 'legal_name') ?? '',
-      tradeName: text(carrier, 'trade_name') ?? '',
-    }),
+    companyId,
     subject: texts.subject,
   })
   return { ...mail, senderAddress, threadId }
 }
 
+/** Uma linha por (retorno, anexo) quando a tentativa inteira não sai: o operador vê o motivo na linha do tempo. */
+async function recordSkippedAttempt(
+  runner: ContractorReplyClientEmailRunner,
+  params: {
+    readonly attachmentId: string
+    readonly companyId: string
+    readonly fallbackFrom: ContractorReplyFallbackFrom
+    readonly reason: 'client_without_email' | 'template_missing'
+    readonly replyId: string
+  },
+): Promise<void> {
+  const { attachmentId, companyId, replyId } = params
+  const idempotencyKey = deriveAttemptKey({ attachmentId, replyId })
+  const [existing] = await rowsOf(
+    runner,
+    sql`select id from occurrence_contractor_reply_deliveries
+        where company_id = ${companyId}::uuid and idempotency_key = ${idempotencyKey}`,
+  )
+  if (existing !== undefined) return
+  await recordDelivery(runner, {
+    fallbackFrom: params.fallbackFrom,
+    address: null,
+    attachmentId,
+    companyId,
+    idempotencyKey,
+    mailMessageId: null,
+    reason: params.reason,
+    replyId,
+    status: 'skipped',
+  })
+}
+
+/**
+ * Spec 286 T3: a caixa do e-mail no tipo decide; tipo sem a linha lê os campos antigos (279). Na queda do WhatsApp
+ * basta a caixa ligada.
+ */
+async function isEmailOn(
+  runner: ContractorReplyClientEmailRunner,
+  params: {
+    readonly companyId: string
+    readonly fallback: boolean
+    readonly legacy: { readonly channel: null | string; readonly sendMode: null | string }
+    readonly occurrenceId: string
+  },
+): Promise<boolean> {
+  const setting = await readContractorReplyClientChannel(runner, {
+    channel: 'email',
+    companyId: params.companyId,
+    occurrenceId: params.occurrenceId,
+  })
+  if (setting === null) {
+    if (params.fallback) return EMAIL_CLIENT_CHANNELS.includes(params.legacy.channel ?? OFF_TYPE)
+    return params.legacy.sendMode === AUTOMATIC_MODE
+  }
+  return setting.enabled && (params.fallback || setting.sendMode === AUTOMATIC_MODE)
+}
+
 async function queue(
   runner: ContractorReplyClientEmailRunner,
-  params: { readonly companyId: string; readonly replyId: string },
+  params: QueueContractorReplyToClientEmailsParams,
 ): Promise<QueueContractorReplyToClientEmailsResult> {
   const { companyId, replyId } = params
   const [reply] = await rowsOf(
@@ -273,15 +291,14 @@ async function queue(
         where company_id = ${companyId}::uuid and id = ${replyId}::uuid
         for update`,
   )
-  const texts = readTexts(reply?.config)
   const attachmentId = text(reply, 'reply_attachment_id')
   const occurrenceId = text(reply, 'occurrence_id')
-  if (texts === null || attachmentId === null || occurrenceId === null)
-    return { kind: 'not_applicable' }
+  if (attachmentId === null || occurrenceId === null) return { kind: 'not_applicable' }
 
   const [type] = await rowsOf(
     runner,
-    sql`select occurrence_type.client_email_type, occurrence_type.client_email_send_mode
+    sql`select occurrence_type.client_email_type, occurrence_type.client_email_send_mode,
+               occurrence_type.client_channel
         from trip_document_occurrences occurrence
         join company_occurrence_types occurrence_type
           on occurrence_type.company_id = occurrence.company_id
@@ -290,28 +307,43 @@ async function queue(
   )
   const purpose = text(type, 'client_email_type')
   if (purpose === null || purpose === OFF_TYPE) return { kind: 'not_applicable' }
-  if (text(type, 'client_email_send_mode') !== AUTOMATIC_MODE) return { kind: 'not_applicable' }
+  const isOn = await isEmailOn(runner, {
+    companyId,
+    fallback: params.fallbackFrom !== undefined,
+    legacy: {
+      channel: text(type, 'client_channel'),
+      sendMode: text(type, 'client_email_send_mode'),
+    },
+    occurrenceId,
+  })
+  if (!isOn) return { kind: 'not_applicable' }
+
+  const resolved = await resolveContractorReplyClientTexts(runner, {
+    channel: 'email',
+    companyId,
+    occurrenceId,
+  })
+  if (resolved.kind === 'template_missing') {
+    await recordSkippedAttempt(runner, {
+      attachmentId,
+      companyId,
+      fallbackFrom: params.fallbackFrom ?? null,
+      reason: 'template_missing',
+      replyId,
+    })
+    return { kind: 'skipped', reason: 'template_missing' }
+  }
+  const { texts } = resolved
 
   const addresses = await listClientAddresses(runner, { companyId, occurrenceId, purpose })
   if (addresses.length === 0) {
-    const idempotencyKey = deriveAttemptKey({ attachmentId, replyId })
-    const [existing] = await rowsOf(
-      runner,
-      sql`select id from occurrence_contractor_reply_deliveries
-          where company_id = ${companyId}::uuid and idempotency_key = ${idempotencyKey}`,
-    )
-    if (existing === undefined) {
-      await recordDelivery(runner, {
-        address: null,
-        attachmentId,
-        companyId,
-        idempotencyKey,
-        mailMessageId: null,
-        reason: 'client_without_email',
-        replyId,
-        status: 'skipped',
-      })
-    }
+    await recordSkippedAttempt(runner, {
+      attachmentId,
+      companyId,
+      fallbackFrom: params.fallbackFrom ?? null,
+      reason: 'client_without_email',
+      replyId,
+    })
     return { kind: 'skipped', reason: 'client_without_email' }
   }
 
@@ -329,7 +361,16 @@ async function queue(
   }
   const tally = { alreadyQueued, failed: 0, overLimit: 0, queued: 0 }
   if (planned.length > 0)
-    await send(runner, { attachmentId, companyId, occurrenceId, planned, replyId, tally, texts })
+    await send(runner, {
+      attachmentId,
+      companyId,
+      fallbackFrom: params.fallbackFrom ?? null,
+      occurrenceId,
+      planned,
+      replyId,
+      tally,
+      texts,
+    })
   return { kind: 'processed', ...tally }
 }
 
@@ -340,6 +381,7 @@ async function send(
   params: {
     readonly attachmentId: string
     readonly companyId: string
+    readonly fallbackFrom: ContractorReplyFallbackFrom
     readonly occurrenceId: string
     readonly planned: readonly { readonly address: string; readonly idempotencyKey: string }[]
     readonly replyId: string
@@ -347,7 +389,8 @@ async function send(
     readonly texts: { readonly body: string; readonly subject: string }
   },
 ): Promise<void> {
-  const { attachmentId, companyId, occurrenceId, planned, replyId, tally, texts } = params
+  const { attachmentId, companyId, fallbackFrom, occurrenceId, planned, replyId, tally, texts } =
+    params
 
   const [attachment] = await rowsOf(
     runner,
@@ -357,6 +400,7 @@ async function send(
   if (Number(attachment?.size_bytes ?? 0) > CONVERSATION_ATTACHMENT_LIMITS.email.document) {
     for (const item of planned) {
       await recordDelivery(runner, {
+        fallbackFrom,
         address: item.address,
         attachmentId,
         companyId,
@@ -391,6 +435,7 @@ async function send(
   for (const item of sending) {
     if (mail === null) {
       await recordDelivery(runner, {
+        fallbackFrom,
         address: item.address,
         attachmentId,
         companyId,
@@ -406,9 +451,10 @@ async function send(
     const [message] = await rowsOf(
       runner,
       sql`insert into contractor_mail_messages
-            (company_id, thread_id, direction, from_address, subject, to_addresses, body_text, body_html, delivery_status)
+            (company_id, thread_id, direction, from_address, subject, to_addresses, body_text, body_html,
+             has_inline_logo, delivery_status)
           values (${companyId}::uuid, ${mail.threadId}::uuid, 'outbound', ${mail.senderAddress}, ${mail.subject},
-                  ARRAY[${item.address}]::text[], ${mail.text}, ${mail.html}, 'queued')
+                  ARRAY[${item.address}]::text[], ${mail.text}, ${mail.html}, ${mail.hasInlineLogo}, 'queued')
           returning id`,
     )
     const messageId = text(message, 'id')
@@ -420,6 +466,7 @@ async function send(
                   ${messageId}::uuid, '{}'::jsonb)`,
     )
     await recordDelivery(runner, {
+      fallbackFrom,
       address: item.address,
       attachmentId,
       companyId,
@@ -435,7 +482,7 @@ async function send(
 
 async function recordFailure(
   runner: ContractorReplyClientEmailRunner,
-  params: { readonly companyId: string; readonly replyId: string },
+  params: QueueContractorReplyToClientEmailsParams,
 ): Promise<void> {
   const { companyId, replyId } = params
   const [reply] = await rowsOf(
@@ -478,7 +525,7 @@ async function runIsolated<TResult>(
  */
 export async function queueContractorReplyToClientEmails(
   runner: ContractorReplyClientEmailRunner,
-  params: { readonly companyId: string; readonly replyId: string },
+  params: QueueContractorReplyToClientEmailsParams,
 ): Promise<QueueContractorReplyToClientEmailsResult> {
   const attempt = await runIsolated(runner, () => queue(runner, params))
   if (attempt.ok) return attempt.value

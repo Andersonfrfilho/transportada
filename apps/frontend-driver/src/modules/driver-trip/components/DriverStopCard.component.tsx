@@ -11,10 +11,14 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { DocumentConversationSlot } from '@/modules/conversation/components/DocumentConversationSlot.component'
 
 import { DriverContractorReplyStatus } from './DriverContractorReplyStatus.component'
+import type { DriverCanhotoPickupOutcome } from '../hooks/useDriverTrip.hook'
+import { DriverCanhotoPickupList } from './DriverCanhotoPickupList.component'
+import { DriverChargeSealNotice } from './DriverChargeSealNotice.component'
 import { DriverHolidayNotice } from './DriverHolidayNotice.component'
 import { DriverNotDeliveredForm } from './DriverNotDeliveredForm.component'
 import { ARRIVED_HIGHLIGHT_MS, resolveStopPlace } from '../shared/stopPlace.service'
 import { resolveProofFocusTargets } from '../shared/proofFocusTargets.service'
+import { isCanhotoReplacement } from '../shared/canhotoReplacePrompt.service'
 import {
   NEXT_STEP_FOCUS_DELAY_MS,
   armNextStepFocus,
@@ -86,6 +90,9 @@ import {
   type EventQueueItemView,
 } from '../shared/eventQueueView.service'
 import { canOfferLateRegistration } from '../shared/lateRegistration.service'
+import type { StopEventStep } from '../shared/fieldReportResponse.service'
+import { listStepsToRecordTogether } from '../shared/recordedTogether.service'
+import { DriverRecordedTogetherNotice } from './DriverRecordedTogetherNotice.component'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
 import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
 import type { RouteOccurrenceStopGroup } from '../shared/routeOccurrenceView.types'
@@ -178,6 +185,8 @@ export type DriverProofAttachment = Readonly<{
   receivedByDetail?: string
   receiverDocument?: string
   receiverName?: string
+  /** "Substituir" o canhoto já enviado: a troca vai confirmada ao servidor (spec 294 RF26). */
+  replaceCanhoto?: true
 }>
 
 /** Spec 203/193: o mesmo conjunto de campos de `DriverProofAttachment`, sem o arquivo — só a atualização tardia. */
@@ -190,6 +199,11 @@ export type DriverProofFieldsUpdate = Readonly<{
 }>
 
 type DriverStopCardProps = Readonly<{
+  /** Spec 321 T6: a foto do canhoto da coleta encaixada na parada; ausente (listas antigas) não mostra o envio. */
+  onSendCanhotoPickup?: (input: {
+    file: File
+    pickupId: string
+  }) => Promise<DriverCanhotoPickupOutcome>
   /**
    * Spec 206 D9: o número da parada bloqueante — o cartão só tem a própria parada, nunca a lista
    * inteira; sem isto o motivo não teria "N" para nomear (D6).
@@ -248,6 +262,7 @@ type DriverStopCardProps = Readonly<{
   onDiscardProofAwaitingDelivery: (documentId: string) => void
   onSendAllNow?: () => void
   /** Spec 209 + 218 D2: a ocorrência de parada, com o tipo do catálogo e a foto dela. */
+  onReceivingCharge: OccurrenceRegistrationHandlers['reportReceivingCharge']
   onStopOccurrence: OccurrenceRegistrationHandlers['reportStopOccurrence']
   /** Spec 179: "Não entreguei" — ocorrência com foto e devolução, no mesmo toque. */
   onNotDelivered: (input: {
@@ -306,10 +321,12 @@ export function DriverStopCard({
   occurrenceTypes,
   onNotDelivered,
   onProof,
+  onSendCanhotoPickup,
   onQueuedDocumentOccurrence,
   onProofFieldsUpdate,
   onRemoveProof,
   onRetryOccurrenceTypes,
+  onReceivingCharge,
   onStopOccurrence,
   onToggle,
   queueView,
@@ -415,6 +432,13 @@ export function DriverStopCard({
     return undefined
   }, [isArrivalRecorded])
   const offersLateRegistration = canOfferLateRegistration({ canActOnDocuments, stop })
+  /** Spec 294 RF3/RF5: sem chegada, a baixa marca "Cheguei" (e a saída, se faltar) junto — o aviso vem antes do toque. */
+  const stepsTogether = listStepsToRecordTogether({
+    isArrived: isArrivalRecorded,
+    isCompleted,
+    isEnRoute: (stop.enRouteSince ?? null) !== null,
+    requestedEvent: 'delivered',
+  })
 
   function handleConfirmLateRegistration(): void {
     setIsLateRegistration(true)
@@ -429,6 +453,10 @@ export function DriverStopCard({
     enqueueDocumentOccurrence: (input) => {
       onQueuedDocumentOccurrence(input)
       announce(input.documentId, t('activity.toast.documentOccurrence'))
+    },
+    reportReceivingCharge: (input) => {
+      onReceivingCharge(input)
+      announce(stop.id, t('activity.toast.occurrence'))
     },
     reportStopOccurrence: (input) => {
       onStopOccurrence(input)
@@ -535,6 +563,9 @@ export function DriverStopCard({
                 <Icon aria-hidden="true" name="check" size="sm" />
                 {t('stopCompleted')}
               </>
+            ) : stop.documents.length === 0 && (stop.canhotoPickups?.length ?? 0) > 0 ? (
+              /** Spec 321 T6: parada só de coleta — "0 nota para entregar" seria mentira. */
+              t('canhotoPickup.pending', { count: stop.canhotoPickups?.length ?? 0 })
             ) : (
               t('documentsPending', { count: countPendingDocuments(stop) })
             )}
@@ -578,8 +609,13 @@ export function DriverStopCard({
         </p>
       ) : null}
 
-      {/* Spec 252 T5.4: fora do botão e do corpo recolhido — aparece com o cartão fechado e nunca decide ação. */}
-      <DriverHolidayNotice nowMs={readCorrectedNowMs()} warnings={stop.holidayWarnings} />
+      {/* Spec 252 T5.4 + 317 T14a: um fragmento só, para os avisos não deslocarem o caminho dos irmãos seguintes (ids do React). */}
+      <>
+        {stop.clientChargeSeal === undefined ? null : (
+          <DriverChargeSealNotice seal={stop.clientChargeSeal} />
+        )}
+        <DriverHolidayNotice nowMs={readCorrectedNowMs()} warnings={stop.holidayWarnings} />
+      </>
 
       {notice === undefined ? null : (
         <p className={styles.activityNotice} role="status">
@@ -606,6 +642,11 @@ export function DriverStopCard({
            * tocava de novo. `isArrivalRecorded` é a mesma chegada que já libera as ações da parada:
            * conta o "Cheguei" ainda na fila.
            */}
+          {areFieldActionsHidden || isArrivalRecorded || stop.isAddressReliable !== false ? null : (
+            <p className={styles.proofPendingWarningLead} role="status">
+              {t('nextStop.unreliableAddress')}
+            </p>
+          )}
           {areFieldActionsHidden || isArrivalRecorded ? null : canReportArrival ? (
             <Button onClick={() => onArrive(stop.id)} type="button">
               <Icon name="check" />
@@ -729,10 +770,24 @@ export function DriverStopCard({
               onRetryOccurrenceTypes={onRetryOccurrenceTypes}
               queueView={queueView}
               returnActivity={returnActivityByDocumentId.get(document.id)}
+              stepsTogether={stepsTogether}
               stop={stop}
             />
           ))}
         </ul>
+        {onSendCanhotoPickup === undefined ? (
+          <DriverCanhotoPickupList
+            isReadOnly
+            onSend={() => Promise.resolve('failed')}
+            pickups={stop.canhotoPickups}
+          />
+        ) : (
+          <DriverCanhotoPickupList
+            isReadOnly={isReadOnly}
+            onSend={onSendCanhotoPickup}
+            pickups={stop.canhotoPickups}
+          />
+        )}
 
         {/*
          * Pedido do usuário (25/09): quem não tocou "Cheguei" na hora ainda registra a entrega —
@@ -741,6 +796,7 @@ export function DriverStopCard({
          */}
         {areFieldActionsHidden || !offersLateRegistration ? null : isConfirmingLateRegistration ? (
           <div role="alertdialog">
+            <DriverRecordedTogetherNotice mode="confirm" steps={stepsTogether} />
             <p role="alert">{t('lateRegistration.warning')}</p>
             <div className={styles.actions}>
               <Button onClick={handleConfirmLateRegistration} type="button">
@@ -813,6 +869,8 @@ type DocumentRowProps = Readonly<{
   queueView: readonly EventQueueItemView[]
   /** Pedido do usuário (25/09): "devolvida às HH:MM — motivo", mesmo retorno de fila da entrega. */
   returnActivity: DocumentReturnActivityView | undefined
+  /** Spec 294 RF5: as etapas que a baixa desta parada marcaria junto (vazio com a chegada já registrada). */
+  stepsTogether: readonly StopEventStep[]
   /** A configuração de comprovante antiga (da parada) e o destino da ocorrência de parada. */
   stop: DriverTripStop
 }>
@@ -857,6 +915,7 @@ function DocumentRow({
   onRetryOccurrenceTypes,
   queueView,
   returnActivity,
+  stepsTogether,
   stop,
 }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
@@ -1055,6 +1114,9 @@ function DocumentRow({
         <div className={styles.proofPendingWarning} role="status">
           <p className={styles.proofPendingWarningLead}>{t('locationOffWarning')}</p>
         </div>
+      ) : null}
+      {isLateRegistration || openReturn ? (
+        <DriverRecordedTogetherNotice mode="confirm" steps={stepsTogether} />
       ) : null}
       <div className={styles.actions}>
         {canActOnDocuments ? (
@@ -1714,6 +1776,11 @@ function ProofCaptureFields({
   function attach(kind: 'photo' | 'signature', file: File): void {
     /* Spec 207: gerada aqui — é a chave que "Remover" vai pedir de volta, por item, nunca por nota. */
     const attachmentKey = crypto.randomUUID()
+    const replacesCanhoto = isCanhotoReplacement({
+      hasPhoto: attached.photo || isPhotoConfirmedByServer,
+      isProofQueued,
+      kind,
+    })
     setRefusedKind(undefined)
     void onProof({
       attachmentKey,
@@ -1721,6 +1788,7 @@ function ProofCaptureFields({
       file,
       kind,
       ...(lateRegistration === true ? { lateRegistration: true } : {}),
+      ...(replacesCanhoto ? { replaceCanhoto: true as const } : {}),
       ...currentFields(),
     }).then((isAccepted) => {
       if (!isAccepted) {

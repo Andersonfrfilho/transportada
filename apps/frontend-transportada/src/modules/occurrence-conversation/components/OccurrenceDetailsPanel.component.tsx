@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { ClientContactsAction } from '@/modules/delivery-clients/components/ClientContactsAction.component'
+import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { formatPersonName } from '@/lib/personName'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 import { OccurrenceResolutionBadge } from '@/modules/trip/components/OccurrenceResolutionBadge.component'
@@ -18,7 +20,6 @@ import {
 import { describeOccurrenceTimelineEvent } from '@/modules/trip/shared/tripOccurrenceTimeline.service'
 import type { OccurrenceTimelineEvent } from '@/modules/trip/shared/tripOccurrenceTimeline.service'
 
-import { useOccurrenceClientEmailsQuery } from '../queries/occurrenceClientEmails.query'
 import { useOccurrenceConversationsQuery } from '../queries/occurrenceConversation.query'
 import type { OccurrenceConversationAttachment } from '../shared/occurrenceConversation.types'
 import styles from '../styles/occurrenceDetails.module.css'
@@ -143,27 +144,23 @@ function BoletoSection({
   )
 }
 
-function ClientEmailsSection({ taxId }: Readonly<{ taxId: string }>) {
+/**
+ * Spec 281 T8b: o escritório completa o contato do cliente pela página da ocorrência quando o motorista não informou —
+ * os mesmos painéis do cadastro do cliente (vários e-mails e números; adicionar, editar, remover). Sem `fleet.manage`
+ * a lista fica só para leitura.
+ */
+function ClientContactsSection({
+  canManage,
+  taxId,
+}: Readonly<{ canManage: boolean; taxId: string }>) {
   const { t } = useTranslation('occurrenceConversation')
-  const query = useOccurrenceClientEmailsQuery({ taxId })
 
   return (
     <Section title={t('details.clientEmails.title')}>
-      {taxId === '' ? <p className={styles.hint}>{t('details.clientEmails.noClient')}</p> : null}
-      {query.isLoading ? <Skeleton height="2rem" width="100%" /> : null}
-      {query.isError ? <p className={styles.hint}>{t('details.clientEmails.error')}</p> : null}
-      {query.isSuccess && query.data.length === 0 ? (
-        <p className={styles.hint}>{t('details.clientEmails.none')}</p>
-      ) : null}
-      {query.data === undefined || query.data.length === 0 ? null : (
-        <ul className={styles.list}>
-          {query.data.map((email) => (
-            <li key={email.id}>
-              <span>{email.addressMasked}</span>
-              {email.label === '' ? null : <span className={styles.labelNote}>{email.label}</span>}
-            </li>
-          ))}
-        </ul>
+      {taxId === '' ? (
+        <p className={styles.hint}>{t('details.clientEmails.noClient')}</p>
+      ) : (
+        <ClientContactsAction isDisabled={!canManage} taxId={taxId} />
       )}
     </Section>
   )
@@ -208,7 +205,7 @@ function SummarySections({ occurrence }: Readonly<{ occurrence: TripOccurrenceDe
 
 /**
  * Spec 279 T6c (RF13): o detalhe da ocorrência para quem está na conversa — tipo, nota, cliente, motorista, status,
- * linha do tempo, boleto e e-mails do cliente. É leitura: nenhuma ação sai daqui, e o endereço chega mascarado.
+ * linha do tempo, boleto e contatos do cliente (spec 281 T8b: o escritório completa e-mails e números daqui). O endereço chega mascarado.
  */
 export function OccurrenceDetailsPanel({
   companyId,
@@ -216,6 +213,7 @@ export function OccurrenceDetailsPanel({
   sendState,
 }: OccurrenceDetailsPanelProps) {
   const { t } = useTranslation('occurrenceConversation')
+  const permissions = useAuthMeQuery().data?.data.permissions ?? []
   const detail = useTripOccurrenceDetailQuery({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: true,
@@ -250,7 +248,10 @@ export function OccurrenceDetailsPanel({
         {...(companyId === undefined ? {} : { companyId })}
         occurrenceId={occurrenceId}
       />
-      <ClientEmailsSection taxId={describeOccurrenceClientCells(occurrence.document).taxId} />
+      <ClientContactsSection
+        canManage={permissions.includes('fleet.manage')}
+        taxId={describeOccurrenceClientCells(occurrence.document).taxId}
+      />
       {sendState === undefined ? null : (
         <Section title={t('details.sendState.title')}>{sendState}</Section>
       )}

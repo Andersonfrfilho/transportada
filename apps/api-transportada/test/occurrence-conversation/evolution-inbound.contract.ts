@@ -42,6 +42,7 @@ describe('política do Evolution', () => {
       resolveEvolutionAttribution({
         ...NOBODY,
         replyTo: driverReply,
+        replyToClientConversationId: null,
         replyToRecipientPhoneKey: '551699998888',
         senderPhoneKey: '551699998888',
       }),
@@ -53,11 +54,65 @@ describe('política do Evolution', () => {
     })
   })
 
+  test('spec 283 (RF3): com a conversa do cliente, a resposta de quem recebeu entra nela', () => {
+    expect(
+      resolveEvolutionAttribution({
+        ...NOBODY,
+        replyTo: driverReply,
+        replyToClientConversationId: 'conversation-client',
+        replyToRecipientPhoneKey: '551699998888',
+        senderPhoneKey: '551699998888',
+      }),
+    ).toEqual({
+      conversationId: 'conversation-client',
+      driverUserId: null,
+      kind: 'conversation',
+      via: 'recipient_reply',
+    })
+  })
+
+  test('spec 283: outro número citando o aviso não entra na conversa do cliente', () => {
+    expect(
+      resolveEvolutionAttribution({
+        ...NOBODY,
+        replyTo: driverReply,
+        replyToClientConversationId: 'conversation-client',
+        replyToRecipientPhoneKey: '551699998888',
+        senderPhoneKey: '551188887777',
+      }),
+    ).toEqual({ kind: 'unassigned', reason: 'not_a_contact' })
+  })
+
+  test('spec 283 T5: quem recebeu a resposta do painel responde citando ela e cai na conversa do cliente', () => {
+    expect(
+      resolveEvolutionAttribution({
+        ...NOBODY,
+        replyToClientConversationId: 'conversation-client',
+        replyToRecipientPhoneKey: '551699998888',
+        senderPhoneKey: '551699998888',
+      }),
+    ).toEqual({
+      conversationId: 'conversation-client',
+      driverUserId: null,
+      kind: 'conversation',
+      via: 'recipient_reply',
+    })
+    expect(
+      resolveEvolutionAttribution({
+        ...NOBODY,
+        replyToClientConversationId: 'conversation-client',
+        replyToRecipientPhoneKey: '551699998888',
+        senderPhoneKey: '551188887777',
+      }),
+    ).toEqual({ kind: 'unassigned', reason: 'not_a_contact' })
+  })
+
   test('outro número citando o mesmo aviso não entra na conversa', () => {
     expect(
       resolveEvolutionAttribution({
         ...NOBODY,
         replyTo: driverReply,
+        replyToClientConversationId: null,
         replyToRecipientPhoneKey: '551699998888',
         senderPhoneKey: '551188887777',
       }),
@@ -69,6 +124,7 @@ describe('política do Evolution', () => {
       resolveEvolutionAttribution({
         ...NOBODY,
         replyTo: driverReply,
+        replyToClientConversationId: null,
         replyToRecipientPhoneKey: null,
         sender: { contractorContacts: [], driverUserId: 'driver-1' },
         senderPhoneKey: '551699998888',
@@ -87,7 +143,13 @@ describe('política do Evolution', () => {
       driverUserId: null,
     }
     const one = [{ contractorId: 'contractor-1', conversationId: 'conversation-1' }]
-    const base = { replyTo: null, replyToRecipientPhoneKey: null, sender, senderPhoneKey: 'k' }
+    const base = {
+      replyTo: null,
+      replyToClientConversationId: null,
+      replyToRecipientPhoneKey: null,
+      sender,
+      senderPhoneKey: 'k',
+    }
 
     expect(resolveEvolutionAttribution({ ...base, openContractorConversations: one })).toEqual({
       conversationId: 'conversation-1',
@@ -107,7 +169,12 @@ describe('política do Evolution', () => {
   })
 
   test('motorista sem citar e número desconhecido vão para não atribuídas, nunca recusados', () => {
-    const base = { openContractorConversations: [], replyTo: null, replyToRecipientPhoneKey: null }
+    const base = {
+      openContractorConversations: [],
+      replyTo: null,
+      replyToClientConversationId: null,
+      replyToRecipientPhoneKey: null,
+    }
 
     expect(
       resolveEvolutionAttribution({
@@ -124,7 +191,12 @@ describe('política do Evolution', () => {
 })
 
 function createInbound(
-  options: { context?: WhatsAppAttributionInput; recipient?: null | string } = {},
+  options: {
+    clientConversationId?: null | string
+    latestClientConversationId?: null | string
+    context?: WhatsAppAttributionInput
+    recipient?: null | string
+  } = {},
 ) {
   const recorded: { kind: string; input: unknown }[] = []
   const loaded: unknown[] = []
@@ -132,9 +204,15 @@ function createInbound(
   const statuses: unknown[] = []
   const logs: unknown[] = []
   const port: EvolutionConversationInboundPort = {
+    async findLatestClientConversation() {
+      return options.latestClientConversationId ?? null
+    },
     async findReplyRecipient(input) {
       recipients.push(input)
-      return options.recipient ?? null
+      const address = options.recipient ?? null
+      return address === null
+        ? null
+        : { address, clientConversationId: options.clientConversationId ?? null }
     },
     async loadAttributionContext(input) {
       loaded.push(input)
@@ -252,6 +330,7 @@ describe('recebimento pelo Evolution', () => {
       },
       clock: () => NOW,
       inbound: {
+        findLatestClientConversation: async () => null,
         findReplyRecipient: async () => null,
         loadAttributionContext: async () => {
           throw new TypeError('db down')
@@ -296,5 +375,117 @@ describe('recebimento pelo Evolution', () => {
     expect(statuses).toEqual([
       { at: NOW, companyId: COMPANY_ID, incoming: 'delivered', providerMessageId: 'EVO-OUT-1' },
     ])
+  })
+})
+
+describe('spec 283 (RF3): a resposta do cliente entra na conversa do cliente', () => {
+  test('citando o envio, do número que recebeu, grava na conversa do cliente com o número', async () => {
+    const { inbound, recorded } = createInbound({
+      clientConversationId: 'conversation-client',
+      context: { ...NOBODY, replyTo: driverReply },
+      recipient: `+${PHONE}`,
+    })
+
+    const outcome = await inbound.receiveMessage({
+      companyId: COMPANY_ID,
+      message: message({ replyTo: 'EVO-OUT-1' }),
+    })
+
+    expect(outcome).toBe('conversation')
+    expect(recorded).toMatchObject([
+      {
+        input: {
+          conversationId: 'conversation-client',
+          driverUserId: null,
+          senderAddress: PHONE,
+        },
+        kind: 'conversation',
+      },
+    ])
+  })
+})
+
+describe('a resposta sem citar de quem recebeu o boleto', () => {
+  test('"obrigado" sem citar entra na conversa do cliente a que o painel escreveu por último', async () => {
+    const { inbound, recorded } = createInbound({
+      latestClientConversationId: 'client-conversation-9',
+    })
+
+    const outcome = await inbound.receiveMessage({ companyId: COMPANY_ID, message: message({}) })
+
+    expect(outcome).toBe('conversation')
+    expect(recorded).toEqual([
+      {
+        input: expect.objectContaining({
+          conversationId: 'client-conversation-9',
+          driverUserId: null,
+          senderAddress: PHONE,
+        }),
+        kind: 'conversation',
+      },
+    ])
+  })
+
+  test('número sem envio do painel segue para não atribuídas', async () => {
+    const { inbound, recorded } = createInbound()
+
+    const outcome = await inbound.receiveMessage({ companyId: COMPANY_ID, message: message({}) })
+
+    expect(outcome).toBe('unassigned')
+    expect(recorded.map((entry) => entry.kind)).toEqual(['unassigned'])
+  })
+})
+
+describe('spec 308: o chat direto do motorista antes do bot', () => {
+  test('a citação que casa numa conversa do painel fica no painel; só lê, não grava', async () => {
+    const { inbound, recorded } = createInbound({
+      context: {
+        ...NOBODY,
+        replyTo: driverReply,
+        sender: { contractorContacts: [], driverUserId: 'driver-1' },
+      },
+    })
+
+    expect(
+      await inbound.quotesConversation?.({
+        companyId: COMPANY_ID,
+        message: message({ replyTo: 'EVO-OUT-1' }),
+      }),
+    ).toBe(true)
+    expect(recorded).toEqual([])
+  })
+
+  test('sem citação, ou citando o que não é do painel (o menu do bot), vai ao bot', async () => {
+    const { inbound } = createInbound({
+      context: { ...NOBODY, sender: { contractorContacts: [], driverUserId: 'driver-1' } },
+    })
+
+    expect(
+      await inbound.quotesConversation?.({ companyId: COMPANY_ID, message: message({}) }),
+    ).toBe(false)
+    expect(
+      await inbound.quotesConversation?.({
+        companyId: COMPANY_ID,
+        message: message({ replyTo: 'BOT-MENU-1' }),
+      }),
+    ).toBe(false)
+  })
+
+  test('o teto do 1:1 é o mesmo balde do painel, pela chave do número', async () => {
+    const { inbound } = createInbound()
+
+    for (let index = 0; index < 29; index += 1) {
+      expect(inbound.consumeDirectLimit?.({ companyId: COMPANY_ID, from: PHONE })).toBe(true)
+    }
+    // A 30ª pelo painel ainda cabe; a seguinte, pelo 1:1 com a outra grafia do número, não.
+    expect(await inbound.receiveMessage({ companyId: COMPANY_ID, message: message({}) })).toBe(
+      'unassigned',
+    )
+    expect(inbound.consumeDirectLimit?.({ companyId: COMPANY_ID, from: PHONE_WITHOUT_NINTH })).toBe(
+      false,
+    )
+    expect(await inbound.receiveMessage({ companyId: COMPANY_ID, message: message({}) })).toBe(
+      'rate_limited',
+    )
   })
 })

@@ -3,13 +3,13 @@ import { describe, expect, test } from 'bun:test'
 
 import { loadFutureModule } from './nfe-workspace.fixture'
 
-type NfeImportMechanism = 'manual' | 'remote'
+type NfeImportMechanism = 'accessKey' | 'manual' | 'remote'
 
 type NfeImportMechanismView = {
   readonly mechanism: NfeImportMechanism
   readonly showsDistribution: boolean
   readonly showsUpload: boolean
-  readonly sourceEq: 'distribution' | 'upload'
+  readonly sourceEq: 'access_key' | 'distribution' | 'upload'
 }
 
 type NfeImportMechanismModule = {
@@ -23,12 +23,12 @@ type NfeImportMechanismModule = {
 const MODULE_PATH = '../../src/modules/nfe-workspace/shared/nfeImportMechanism.service'
 
 describe('nfe import mechanism selector contract', () => {
-  test('defaults to remote intake and lists remote before manual', async () => {
+  test('defaults to remote intake and lists remote, manual, then key lookup', async () => {
     const { DEFAULT_NFE_IMPORT_MECHANISM, NFE_IMPORT_MECHANISM_ORDER } =
       await loadFutureModule<NfeImportMechanismModule>(MODULE_PATH)
 
     expect(DEFAULT_NFE_IMPORT_MECHANISM).toBe('remote')
-    expect(NFE_IMPORT_MECHANISM_ORDER).toEqual(['remote', 'manual'])
+    expect(NFE_IMPORT_MECHANISM_ORDER).toEqual(['remote', 'manual', 'accessKey'])
   })
 
   test('manual intake shows the upload panel and pre-filters imports to uploads', async () => {
@@ -52,6 +52,18 @@ describe('nfe import mechanism selector contract', () => {
       showsDistribution: true,
       showsUpload: false,
       sourceEq: 'distribution',
+    })
+  })
+
+  test('key lookup shows no intake panel and pre-filters imports to the access-key origin', async () => {
+    const { resolveNfeImportMechanismView } =
+      await loadFutureModule<NfeImportMechanismModule>(MODULE_PATH)
+
+    expect(resolveNfeImportMechanismView({ mechanism: 'accessKey' })).toEqual({
+      mechanism: 'accessKey',
+      showsDistribution: false,
+      showsUpload: false,
+      sourceEq: 'access_key',
     })
   })
 })

@@ -151,6 +151,7 @@
   --tone-contractor-color: color-mix(in srgb, var(--color-zone-0) 62%, var(--color-fog));
   --tone-driver-color: var(--color-copper-ink);
   --tone-operator-color: var(--color-ready-ink);
+  --tone-client-color: color-mix(in srgb, var(--color-zone-3) 70%, var(--color-fog));
 }
 
 .toneContractor {
@@ -163,6 +164,10 @@
 
 .toneOperator {
   --participant-color: var(--tone-operator-color);
+}
+
+.toneClient {
+  --participant-color: var(--tone-client-color);
 }
 
 .badge {
@@ -293,7 +298,8 @@
 
 .columnHeader {
   display: flex;
-  flex-wrap: wrap;
+  /* O botão é só o ícone (o nome fica no rótulo e na dica): o cabeçalho nunca quebra, igual nas três colunas. */
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
   padding-bottom: var(--space-2);
@@ -317,16 +323,29 @@
 
 @media (min-width: 64rem) {
   .columns {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    --column-1: minmax(0, 1fr);
+    --column-2: minmax(0, 1fr);
+    --column-3: minmax(0, 1fr);
+
+    grid-template-columns: var(--column-1) var(--column-2);
   }
 
-  /* Uma conversa minimizada fica só com o cabeçalho; a outra ocupa o resto da largura. */
+  /* Spec 283 RF6: com a conversa do cliente (≥ 80 rem), a terceira coluna entra à direita. */
+  .columnsThree {
+    grid-template-columns: var(--column-1) var(--column-2) var(--column-3);
+  }
+
+  /* Uma conversa minimizada fica só com o cabeçalho; as outras ocupam todo o resto da largura (a trilha é só a do cabeçalho, sem faixa em branco). */
   .columnsFirstCollapsed {
-    grid-template-columns: minmax(12rem, 20rem) minmax(0, 1fr);
+    --column-1: max-content;
   }
 
   .columnsSecondCollapsed {
-    grid-template-columns: minmax(0, 1fr) minmax(12rem, 20rem);
+    --column-2: max-content;
+  }
+
+  .columnsThirdCollapsed {
+    --column-3: max-content;
   }
 }
 

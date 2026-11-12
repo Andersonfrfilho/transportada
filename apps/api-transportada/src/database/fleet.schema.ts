@@ -734,6 +734,51 @@ export const fleetDriverVehicleAssignments = pgTable(
 )
 
 /**
+ * Spec 292 T1: **o grupo de WhatsApp do motorista** (suporte + o motorista), 1 para 1. O identificador
+ * `@g.us` é a identidade: toda mensagem do grupo é "do motorista dono do grupo". O mesmo grupo não
+ * pode estar em dois motoristas (`..._company_group_unique`) nem o motorista ter dois grupos
+ * (`..._company_driver_unique`). `group_name` é só rótulo da tela (o grupo pode ser renomeado no WhatsApp).
+ * Apagar a ficha apaga o vínculo (cascade).
+ */
+export const fleetDriverWhatsappGroups = pgTable(
+  'fleet_driver_whatsapp_groups',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    driverId: uuid('driver_id').notNull(),
+    groupJid: text('group_jid').notNull(),
+    groupName: text('group_name').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'fleet_driver_whatsapp_groups_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.driverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'fleet_driver_whatsapp_groups_company_driver_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    unique('fleet_driver_whatsapp_groups_company_driver_unique').on(
+      table.companyId,
+      table.driverId,
+    ),
+    unique('fleet_driver_whatsapp_groups_company_group_unique').on(table.companyId, table.groupJid),
+    check(
+      'fleet_driver_whatsapp_groups_group_jid_check',
+      sql`${table.groupJid} ~ '^[0-9]+(-[0-9]+)?@g\\.us$'`,
+    ),
+  ],
+)
+
+/**
  * Vincula a conta do agregado (schema `user`, de outro módulo) ao CPF, não à ficha — a conta pode
  * nascer **antes** da aprovação (candidatura ainda pendente, sem `fleet_drivers` nenhuma ainda), e
  * o portal resolve o status lendo `aggregate_applications`/`fleet_drivers` por este CPF em tempo de

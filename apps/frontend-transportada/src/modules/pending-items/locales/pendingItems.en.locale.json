@@ -7,14 +7,45 @@
   },
   "status": {
     "loading": "Loading pending items",
-    "error": "Failed to load pending items"
+    "error": "Failed to load pending items",
+    "decisionError": "Could not record the decision. The suggestion is back in the list."
   },
   "empty": "No pending items.",
   "items": {
-    "vehicleBodyTypeMissing": "Vehicle {{plate}} has no body type set"
+    "vehicleBodyTypeMissing": "Vehicle {{plate}} has no body type set",
+    "addressSuggestedByDriver": "Address suggested by the driver: {{address}}"
   },
   "actions": {
     "openVehicle": "Open record",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "apply": "Apply",
+    "dismiss": "Dismiss"
+  },
+  "map": {
+    "current": "Current point",
+    "suggested": "Suggested point",
+    "noCurrent": "Address has no stored point",
+    "loading": "Loading map",
+    "unavailable": "Map unavailable."
+  },
+  "distance": "{{meters}} m from the current point",
+  "distanceUnknown": "No current point to compare",
+  "holds": {
+    "title": "App occurrences on hold",
+    "intro": "Occurrences the driver app sent from another day. They only go in when you release them; discarding does not delete anything already recorded.",
+    "error": "Failed to load held occurrences",
+    "decisionError": "Could not record the decision. The occurrence is still on hold.",
+    "unknownType": "Occurrence",
+    "invoice": "Invoice {{number}}",
+    "tapped": "Happened on {{moment}}",
+    "received": "Arrived on {{moment}}",
+    "probableDuplicate": "Probably a duplicate: a similar occurrence already exists on this invoice.",
+    "release": "Release",
+    "discard": "Discard",
+    "setting": {
+      "label": "Hold driver-app occurrences from another day",
+      "help": "Off, everything the driver app sends goes in at once. On, an occurrence tapped on another day (more than 3 hours before arriving) waits here for your decision.",
+      "error": "Could not read or save this setting."
+    }
   }
 }

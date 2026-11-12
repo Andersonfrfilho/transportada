@@ -12,6 +12,9 @@ export type ContractorReplyEmailClient = Pick<
   | 'forwardContractorReplyByEmail'
   | 'forwardContractorReplyToClient'
   | 'readContractorReplyEmailOptions'
+  | 'forwardContractorReplyToClientWhatsApp'
+  | 'readContractorReplyWhatsAppOptions'
+  | 'resendContractorReplyWhatsAppDelivery'
   | 'retryContractorReplyClientDelivery'
 >
 

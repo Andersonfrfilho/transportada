@@ -132,6 +132,8 @@ export const CONTRACTOR_CONTACT_TYPES = [
   'scheduling',
   'invoices',
   'cte_xml',
+  /** Spec 302: o contato pode ENVIAR XML de NF-e por e-mail e WhatsApp (a caixa `notas@` e o bot). */
+  'nfe_xml',
 ] as const
 export type ContractorContactType = (typeof CONTRACTOR_CONTACT_TYPES)[number]
 
@@ -280,6 +282,9 @@ export const CONTRACTOR_MAIL_THREAD_SUBJECT_TYPES = [
   'delivery_charge',
   'setup_test',
   'address_correction',
+  /** Spec 287: o fio do cliente (e-mail livre do chat do cliente); a resposta cai na conversa `client`, não na da contratante. */
+  'client_document_occurrence',
+  'client_stop_occurrence',
 ] as const
 export type ContractorMailThreadSubjectType = (typeof CONTRACTOR_MAIL_THREAD_SUBJECT_TYPES)[number]
 

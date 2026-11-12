@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { NfeXmlEmailDkimUnverifiableError } from '../nfe-xml-receipts/application/intake-nfe-xml-email.use-case.js'
 import type { RabbitMqConsumer, RabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 
 import {
@@ -40,7 +41,23 @@ function isPermanentFailure(error: unknown): boolean {
 
 /** Spec 237 T4.7a: o DKIM sem veredito do encaminhador é transitório e tem motivo próprio no log. */
 function describeTransientFailure(error: unknown): string {
-  return error instanceof CargoPreviewEmailDkimUnverifiableError ? 'dkim_unverifiable' : 'transient'
+  return error instanceof CargoPreviewEmailDkimUnverifiableError ||
+    error instanceof NfeXmlEmailDkimUnverifiableError
+    ? 'dkim_unverifiable'
+    : 'transient'
+}
+
+/**
+ * Só o nome da classe e o `code` (ex.: `ECONNREFUSED`, `23505`, `NoSuchBucket`) — nunca a mensagem,
+ * que pode carregar endereço, assunto ou trecho do corpo. Diz onde a falha transitória nasceu.
+ */
+function describeFailureOrigin(error: unknown): Record<string, string> {
+  if (!(error instanceof Error)) return {}
+  const code = (error as { code?: unknown }).code
+  return {
+    errorName: error.name,
+    ...(typeof code === 'string' || typeof code === 'number' ? { errorCode: String(code) } : {}),
+  }
 }
 
 function describePermanentFailure(error: unknown): string {
@@ -84,6 +101,19 @@ export async function startContractorMailInboundConsumer(params: {
           })
           return { type: 'ack' }
         }
+        if (result.outcome === 'nfe_xml') {
+          safeLogInfo({
+            logger: params.logger,
+            message: 'inbound_email_nfe_xml',
+            metadata: {
+              ...baseMetadata,
+              kind: result.nfeXml.kind,
+              ...(result.nfeXml.kind === 'rejected' ? { reason: result.nfeXml.reason } : {}),
+              ...(result.nfeXml.kind === 'imported' ? { files: result.nfeXml.files } : {}),
+            },
+          })
+          return { type: 'ack' }
+        }
         if (result.outcome === 'preview') {
           logPreviewOutcome({ baseMetadata, logger: params.logger, preview: result.preview })
           return { type: 'ack' }
@@ -122,7 +152,11 @@ export async function startContractorMailInboundConsumer(params: {
         safeLogError({
           logger: params.logger,
           message: 'inbound_email_webhook_rejected',
-          metadata: { ...baseMetadata, reason: describeTransientFailure(error) },
+          metadata: {
+            ...baseMetadata,
+            ...describeFailureOrigin(error),
+            reason: describeTransientFailure(error),
+          },
         })
         return { type: 'retry' }
       }

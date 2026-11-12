@@ -17,11 +17,17 @@ export function buildFieldOccurrenceType(
 ): FieldOccurrenceType {
   const photoMode = overrides.photoMode ?? overrides.attachmentMode ?? 'off'
   return {
+    asksClientContact: false,
+    asksNewDueDate: false,
+    arrivalTimeMode: 'off',
     attachmentMode: photoMode,
+    clientChannel: 'email',
     declaredAmountLabel: 'Valor pago',
     declaredAmountMode: 'off',
     declaredAmountScope: 'item',
     iconName: null,
+    locationMode: 'off',
+    minWaitAfterArrivalMinutes: null,
     flow: 'document',
     itemsMinimumCount: null,
     itemsMode: 'optional',

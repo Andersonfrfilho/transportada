@@ -1,0 +1,75 @@
+<!-- subject: Correção de endereço de entrega — {{clientes}} -->
+<table
+  role="presentation"
+  width="100%"
+  align="center"
+  cellpadding="0"
+  cellspacing="0"
+  border="0"
+  style="
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid #d9d4ca;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #10222c;
+  "
+>
+  <tr>
+    <td style="background: #10222c; padding: 20px 28px; border-bottom: 4px solid #d58a47">
+      <div style="font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #d58a47">
+        Correção de cadastro
+      </div>
+      <div style="font-size: 22px; font-weight: bold; color: #f0f2ee; padding-top: 6px">
+        {{transportadora}}
+      </div>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding: 28px 28px 8px">
+      <h1 style="margin: 0 0 16px; font-size: 20px; line-height: 1.3">
+        Correção de endereço de entrega — {{clientes}}
+      </h1>
+      <!-- mensagem -->
+      <p style="margin: 0 0 12px; font-size: 15px; line-height: 1.6">
+        Olá, equipe {{contratante}},
+      </p>
+      <p style="margin: 0 0 12px; font-size: 15px; line-height: 1.6">
+        Ao roteirizar as entregas das suas notas, não conseguimos localizar os endereços abaixo.
+        Hoje a entrega aponta para o centro do município.
+      </p>
+      <p style="margin: 0; font-size: 15px; line-height: 1.6">
+        Pedimos que confira e corrija o cadastro desses clientes no seu sistema, para que as
+        próximas notas já saiam com o endereço certo.
+      </p>
+      <!-- /mensagem -->
+    </td>
+  </tr>
+  {{blocosEnderecos}}
+  <tr>
+    <td style="padding: 24px 28px 8px">
+      <p style="margin: 0 0 20px; font-size: 15px; line-height: 1.6">
+        Qualquer dúvida, é só responder este e-mail.
+      </p>
+      <p style="margin: 0; font-size: 15px; line-height: 1.5">
+        <strong>{{operador}}</strong><br /><span style="color: #6b7c85">{{transportadora}}</span>
+      </p>
+    </td>
+  </tr>
+  <tr>
+    <td
+      style="
+        padding: 20px 28px;
+        border-top: 1px solid #e6e1d8;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #6b7c85;
+      "
+    >
+      Você recebeu este e-mail por ser contato cadastrado da {{contratante}} junto à
+      {{transportadora}}. As notas fiscais não foram alteradas: a correção vale a partir do seu
+      cadastro.
+    </td>
+  </tr>
+</table>

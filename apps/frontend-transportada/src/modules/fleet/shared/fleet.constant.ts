@@ -27,7 +27,17 @@ export const TOLL_BOOTH_EXTRACTS_PATH = '/toll-booths/extracts'
 export const TOLL_BOOTH_RELOAD_PATH = '/toll-booths/reload'
 /** Spec 149/239: a diária geral do ajudante; `fleet.read` lê e `fleet.manage` grava. */
 export const COMPANY_CREW_SETTINGS_PATH = '/company-crew-settings'
+/** Spec 292 T1: o grupo de WhatsApp da ficha do motorista e a lista de grupos do Evolution. */
+export const FLEET_WHATSAPP_GROUPS_PATH = '/fleet/whatsapp-groups'
+export function driverWhatsappGroupPath(driverId: string): string {
+  return `${FLEET_DRIVERS_PATH}/${driverId}/whatsapp-group`
+}
+/** Spec 091: o documento do motorista (CNH, RG, comprovante) — listar `fleet.read`, anexar `fleet.manage`, abrir `fleet.reveal`. */
+export function driverAttachmentsPath(driverId: string): string {
+  return `${FLEET_DRIVERS_PATH}/${driverId}/attachments`
+}
 export const FLEET_READ_PERMISSION = 'fleet.read'
+export const FLEET_REVEAL_PERMISSION = 'fleet.reveal'
 export const FLEET_MANAGE_PERMISSION = 'fleet.manage'
 
 export const FLEET_ERROR = {

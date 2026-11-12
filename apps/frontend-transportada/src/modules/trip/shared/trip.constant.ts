@@ -70,7 +70,9 @@ export const DATABASE_UNAVAILABLE_ERROR_CODE = 'DATABASE_UNAVAILABLE'
 /** Viagem grande leva segundos para montar o mapa de carga — o aviso só aparece depois deste prazo. */
 export const SLOW_LOAD_NOTICE_DELAY_MS = 4000
 
-export const TRIP_PAGE_SIZE = 25
+/** Tamanhos oferecidos no seletor — o mesmo conjunto das outras listas do painel (NFS-e). */
+export const TRIP_PAGE_SIZES = [25, 50, 100] as const
+export type TripPageSize = (typeof TRIP_PAGE_SIZES)[number]
 
 export const CANHOTO_REVIEW_ALREADY_RESOLVED_CODE = 'CANHOTO_REVIEW_ALREADY_RESOLVED'
 export const CANHOTO_REVIEW_OUTCOME = {
@@ -310,6 +312,8 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
   'leavesBehindOnDispatch',
   /** Spec 223 RF4: ausente é API anterior ao campo — o selo só aparece com `true`. */
   'proofPending',
+  /** Spec 321 D4d: a nota de origem do canhoto retido. Ausente é API anterior ao campo — o selo só aparece com `true`. */
+  'canhotoRetained',
   'contact',
   'nfeIssuedAt',
   'nfeNumber',
@@ -442,7 +446,28 @@ export const TRIP_DETAIL_OPTIONAL_KEYS = [
   'cargoWeight',
   /** Spec 147 D3/RF5: a carreta atrelada — campo novo, mesma regra do opcional acima. */
   'trailer',
+  /** Spec 323 D4: a origem da ordem das paradas — campo novo, mesma regra do opcional acima. */
+  'stopOrderErrorCode',
+  'stopOrderSource',
 ] as const
+
+/** Spec 323 D4: quem decidiu a ordem das paradas da viagem — o espelho de `STOP_ORDER_SOURCES` da API. */
+export const STOP_ORDER_SOURCE = {
+  manual: 'manual',
+  suggested: 'suggested',
+  unordered: 'unordered',
+} as const
+export const STOP_ORDER_SOURCES = Object.values(STOP_ORDER_SOURCE)
+
+/** Spec 323: os códigos estáveis da falha do ordenador — o espelho de `STOP_ORDER_ERROR_CODES` da API. */
+export const STOP_ORDER_ERROR_CODE = {
+  depotNotGeocoded: 'ROUTING_DEPOT_NOT_GEOCODED',
+  matrixUnavailable: 'ROUTING_MATRIX_UNAVAILABLE',
+  tooManyStops: 'ROUTING_TOO_MANY_STOPS',
+} as const
+export const STOP_ORDER_ERROR_CODES = Object.values(STOP_ORDER_ERROR_CODE)
+
+export const AUTO_ORDER_STOPS_STATUSES = ['ordered', 'skipped', 'unchanged', 'unordered'] as const
 
 export const TRIP_CARGO_LAYOUT_STATE_KEYS = [
   'computedAt',
@@ -565,7 +590,15 @@ export const FIELD_OCCURRENCE_TYPE_KEYS = ['id', 'name'] as const
  * não usa o valor (quem decide se a observação é obrigatória hoje é a app do motorista).
  */
 export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
+  /** Spec 281 T8b: pedir o contato do cliente ao motorista na abertura; esta tela só o tolera. */
+  'asksClientContact',
+  /** O campo opcional "nova data de vencimento" no app do motorista; esta tela só o tolera. */
+  'arrivalTimeMode',
+  'asksNewDueDate',
+  /** Spec 317 T14a: o aviso de possível cobrança ao motorista; esta tela só o tolera. */
+  'showClientChargeSealToDriver',
   'attachmentMode',
+  'clientChannel',
   /** Spec 247 TP.1 (ADR-0081 §9): os requisitos efetivos da devolução. */
   'declaredAmountLabel',
   'declaredAmountMode',
@@ -575,6 +608,8 @@ export const FIELD_OCCURRENCE_TYPE_OPTIONAL_KEYS = [
   'iconName',
   'itemsMinimumCount',
   'itemsMode',
+  'locationMode',
+  'minWaitAfterArrivalMinutes',
   'noteMode',
   'photoMinimumCount',
   'photoMode',
@@ -622,6 +657,7 @@ export const TRIP_TIMELINE_ITEM_OPTIONAL_KEYS = [
   /** Opcional enquanto a API anterior ao campo não o manda; depois da promoção vira obrigatório. */
   'isSystemActor',
   'lateRegistration',
+  'recordedTogether',
 ] as const
 
 /** A retirada da nota: chave exata, nenhuma opcional. */

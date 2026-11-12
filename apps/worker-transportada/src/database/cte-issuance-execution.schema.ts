@@ -152,6 +152,7 @@ export const digitalCertificates = pgTable('digital_certificates', {
   validatedCnpj: text('validated_cnpj').notNull(),
   validFrom: timestamp('valid_from', { withTimezone: true }).notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdByUserId: uuid('created_by_user_id').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 })
 

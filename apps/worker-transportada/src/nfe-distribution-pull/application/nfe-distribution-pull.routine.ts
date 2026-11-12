@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { AccessKeyLookupRequeuePort } from '../../nfe-access-key-lookup/application/requeue-waiting-lookups.port.js'
 import type {
   JobRoutine,
   JobRoutineContext,
@@ -33,12 +34,15 @@ export type NfeDistributionPullRoutineDependencies = Omit<
 > & {
   readonly logger: WorkerLogger
   readonly now: () => Date
+  /** Buscas por chave em espera voltam ao trilho no mesmo ciclo (spec 298 D5). */
+  readonly requeue?: AccessKeyLookupRequeuePort
   readonly source: DistributionCandidateSourcePort
 }
 
 type CycleTally = {
   enqueuedCount: number
   failedCount: number
+  requeuedCount: number
   skippedCount: number
 }
 
@@ -71,6 +75,7 @@ async function runCycle({ context, dependencies }: RunCycleParams): Promise<JobR
   })
 
   const tally = await enqueueEligibleCompanies({ context, dependencies, eligible })
+  await requeueWaitingLookups({ context, dependencies, tally })
 
   safeLogInfo({
     logger: dependencies.logger,
@@ -81,12 +86,18 @@ async function runCycle({ context, dependencies }: RunCycleParams): Promise<JobR
       enqueuedCount: tally.enqueuedCount,
       executionId: context.executionId,
       failedCount: tally.failedCount,
+      ...(dependencies.requeue === undefined ? {} : { requeuedCount: tally.requeuedCount }),
       skippedCount: tally.skippedCount,
     },
   })
 
   return {
-    counters: buildCounters({ eligibleCount: eligible.length, ineligibleCounts, tally }),
+    counters: buildCounters({
+      eligibleCount: eligible.length,
+      hasRequeueStep: dependencies.requeue !== undefined,
+      ineligibleCounts,
+      tally,
+    }),
     outcome: resolveOutcome({ context, ineligibleCounts, tally }),
   }
 }
@@ -102,7 +113,7 @@ async function enqueueEligibleCompanies({
   dependencies,
   eligible,
 }: EnqueueEligibleCompaniesParams): Promise<CycleTally> {
-  const tally: CycleTally = { enqueuedCount: 0, failedCount: 0, skippedCount: 0 }
+  const tally: CycleTally = { enqueuedCount: 0, failedCount: 0, requeuedCount: 0, skippedCount: 0 }
 
   for (const company of eligible) {
     // Lido entre duas empresas, nunca no meio de uma: o que a anterior gravou fica gravado.
@@ -111,6 +122,34 @@ async function enqueueEligibleCompanies({
   }
 
   return tally
+}
+
+/**
+ * Falha aqui não desfaz o que o ciclo já enfileirou da distribuição: conta como falha do ciclo (o
+ * painel mostra `unexpected_error`) e a próxima rodada tenta de novo, porque a linha segue `waiting`.
+ */
+async function requeueWaitingLookups(params: {
+  readonly context: JobRoutineContext
+  readonly dependencies: NfeDistributionPullRoutineDependencies
+  readonly tally: CycleTally
+}): Promise<void> {
+  const { context, dependencies, tally } = params
+  if (dependencies.requeue === undefined || context.isStopRequested()) return
+
+  try {
+    const result = await dependencies.requeue.requeueDueLookups({ now: dependencies.now() })
+    tally.requeuedCount = result.requeuedCount
+  } catch (error: unknown) {
+    tally.failedCount += 1
+    safeLogError({
+      logger: dependencies.logger,
+      message: 'nfe_access_key_requeue_failed',
+      metadata: {
+        correlationId: context.correlationId,
+        reason: error instanceof Error ? error.name : 'UnknownError',
+      },
+    })
+  }
 }
 
 type EnqueueOneParams = {
@@ -159,12 +198,14 @@ async function enqueueOne({
 
 type BuildCountersParams = {
   readonly eligibleCount: number
+  readonly hasRequeueStep: boolean
   readonly ineligibleCounts: DistributionIneligibleCounts
   readonly tally: CycleTally
 }
 
 function buildCounters({
   eligibleCount,
+  hasRequeueStep,
   ineligibleCounts,
   tally,
 }: BuildCountersParams): Readonly<Record<string, number>> {
@@ -174,6 +215,7 @@ function buildCounters({
     failed: tally.failedCount,
     skipped: tally.skippedCount,
   }
+  if (hasRequeueStep) counters.requeued = tally.requeuedCount
 
   // Razão zerada fica fora: o cartão do painel mostra o que aconteceu, não a lista de tudo que não.
   for (const reason of DISTRIBUTION_INELIGIBILITY_REASONS) {
@@ -200,7 +242,9 @@ function resolveOutcome({ context, ineligibleCounts, tally }: ResolveOutcomePara
   // Parada pedida vira `cancelled` no invólucro, e só de cima de um `succeeded`.
   if (context.isStopRequested()) return COMPLETED_OUTCOME
 
-  if (tally.enqueuedCount > 0 || tally.skippedCount > 0) return COMPLETED_OUTCOME
+  if (tally.enqueuedCount > 0 || tally.skippedCount > 0 || tally.requeuedCount > 0) {
+    return COMPLETED_OUTCOME
+  }
 
   for (const reason of DISTRIBUTION_INELIGIBILITY_REASONS) {
     if (ineligibleCounts[reason] > 0) return reason

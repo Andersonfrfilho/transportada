@@ -25,8 +25,6 @@ const TYPE: ContractorReplyTypeConfiguration = {
   driverReplyTemplate: 'Segue o boleto.',
   driverReplyWindowClosedAction: 'wait_for_driver',
   emailsContractor: true,
-  forwardEmailBody: 'Corpo',
-  forwardEmailSubject: 'Assunto',
   forwardToInformedEmail: 'manual',
   forwardToNoteRecipient: 'manual',
   mode: 'forward_after_approval',
@@ -60,8 +58,6 @@ describe('a configuração efetiva do retorno (spec 248 D8)', () => {
       driverReplyChannel: 'both',
       driverReplyTemplate: 'Segue o boleto.',
       driverReplyWindowClosedAction: 'wait_for_driver',
-      forwardEmailBody: 'Corpo',
-      forwardEmailSubject: 'Assunto',
       forwardToInformedEmail: 'manual',
       forwardToNoteRecipient: 'manual',
       mode: 'forward_after_approval',
@@ -137,8 +133,6 @@ describe('a configuração efetiva do retorno (spec 248 D8)', () => {
     ['o tipo não manda e-mail à contratante', { emailsContractor: false }],
     ['o texto ao motorista está em branco', { driverReplyTemplate: '   ' }],
     ['alerta ligado sem prazo (a exceção não traz prazo)', { waitHours: null }],
-    ['encaminha com assunto em branco', { forwardEmailSubject: ' ' }],
-    ['encaminha com corpo em branco', { forwardEmailBody: '' }],
   ] as const)('combinação efetiva inválida não abre: %s', (_, type) => {
     expect(
       resolveContractorReplyConfiguration({

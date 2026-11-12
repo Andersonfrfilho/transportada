@@ -19,7 +19,9 @@ import type { ContractorReplyView } from '../shared/contractorReply.types'
 import styles from '../styles/contractorReply.module.css'
 import conversationStyles from '../styles/occurrenceConversation.module.css'
 import { ClientBoletoEmailAction } from './ClientBoletoEmailAction.component'
+import { ClientBoletoWhatsAppAction } from './ClientBoletoWhatsAppAction.component'
 import { ClientEmailSendState } from './ClientEmailSendState.component'
+import { ClientWhatsAppSendState } from './ClientWhatsAppSendState.component'
 import { ContractorReplyHandledForm } from './ContractorReplyHandledForm.component'
 import { ContractorReplyResendAction } from './ContractorReplyResendAction.component'
 import { ContractorReplyTimeline } from './ContractorReplyTimeline.component'
@@ -179,10 +181,14 @@ export function ContractorReplyPanel({
       {canResolve && isContractorReplyBoletoAccepted(reply.status) ? (
         <div className={styles.actions}>
           <ClientBoletoEmailAction occurrenceId={occurrenceId} placement="page" />
+          <ClientBoletoWhatsAppAction occurrenceId={occurrenceId} placement="page" />
         </div>
       ) : null}
       {canResolve && isContractorReplyBoletoAccepted(reply.status) ? (
         <ClientEmailSendState isStandalone occurrenceId={occurrenceId} />
+      ) : null}
+      {canResolve && isContractorReplyBoletoAccepted(reply.status) ? (
+        <ClientWhatsAppSendState isStandalone occurrenceId={occurrenceId} />
       ) : null}
       <ContractorReplyTimeline deliveries={reply.deliveries} events={reply.events} />
     </section>

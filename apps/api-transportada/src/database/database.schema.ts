@@ -73,6 +73,7 @@ import {
   aggregateAccounts,
   aggregateDocuments,
   fleetDriverVehicleAssignments,
+  fleetDriverWhatsappGroups,
   fleetDrivers,
   fleetVehicles,
 } from './fleet.schema.js'
@@ -83,7 +84,10 @@ import { vehicleVolumeReferences } from './vehicle-volume-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
 import { companyDriverAllowanceSettings } from './company-driver-allowance-settings.schema.js'
+import { companyDriverReminderSettings } from './company-driver-reminder-settings.schema.js'
+import { driverStopReminders } from './driver-stop-reminder.schema.js'
 import { companyLocationRetentionSettings } from './company-location-retention-settings.schema.js'
+import { companyFieldReportHoldSettings, tripFieldReportHolds } from './field-report-hold.schema.js'
 import { companyBusinessCalendarSettings } from './company-business-calendar-settings.schema.js'
 import { municipalHolidayRules } from './municipal-holiday-rule.schema.js'
 import { stateHolidays } from './state-holiday.schema.js'
@@ -150,6 +154,10 @@ import {
   aggregateAttachmentOutbox,
   aggregateApplications,
 } from './aggregate-application.schema.js'
+import {
+  fleetDriverAttachmentOutbox,
+  fleetDriverAttachments,
+} from './fleet-driver-attachment.schema.js'
 import { geocodedAddresses } from './geocoding.schema.js'
 import { municipalityCentroids } from './municipality-centroid.schema.js'
 import { geocodingRefinementRequests } from './geocoding-refinement.schema.js'
@@ -157,6 +165,7 @@ import { geocodedAddressCorrections } from './geocoded-address-correction.schema
 import { clientDeliveryAddresses } from './client-delivery-address.schema.js'
 import { addressComparisons } from './address-comparison.schema.js'
 import { addressCorrectionRequests } from './address-correction.schema.js'
+import { addressCorrectionSuggestions } from './address-correction-suggestion.schema.js'
 import {
   companyRouteOptimizationSettings,
   driverAssignmentFeedback,
@@ -177,8 +186,17 @@ import {
   contractorMailTemplates,
   contractorMailThreads,
 } from './contractor-mail.schema.js'
+import { contractorOccurrenceChannels } from './contractor-occurrence-channel.schema.js'
 import { whatsappChannels } from './whatsapp-channel.schema.js'
 import { whatsappEvolutionSettings } from './whatsapp-evolution.schema.js'
+import { whatsappChatMessages, whatsappChats } from './whatsapp-chat.schema.js'
+import {
+  whatsappGroupRequestMessages,
+  whatsappGroupRequests,
+} from './whatsapp-group-request.schema.js'
+import { whatsappCanhotoQuestions } from './whatsapp-canhoto-question.schema.js'
+import { whatsappDeliveryPreparations } from './whatsapp-delivery-preparation.schema.js'
+import { whatsappOccurrenceDrafts } from './whatsapp-occurrence-draft.schema.js'
 import {
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
@@ -210,7 +228,10 @@ import {
 } from './trip.schema.js'
 
 export * from './company-driver-allowance-settings.schema.js'
+export * from './company-driver-reminder-settings.schema.js'
+export * from './driver-stop-reminder.schema.js'
 export * from './company-location-retention-settings.schema.js'
+export * from './field-report-hold.schema.js'
 export * from './company-business-calendar-settings.schema.js'
 export * from './municipal-holiday-rule.schema.js'
 export * from './state-holiday.schema.js'
@@ -257,6 +278,7 @@ export * from './event-location.schema.js'
 export * from './trip.schema.js'
 export * from './occurrence-type-moment.schema.js'
 export * from './occurrence-type-contractor.schema.js'
+export * from './occurrence-type-client-channel.schema.js'
 export * from './occurrence-type-mail.schema.js'
 export * from './geocoding.schema.js'
 export * from './municipality-centroid.schema.js'
@@ -265,6 +287,7 @@ export * from './geocoded-address-correction.schema.js'
 export * from './client-delivery-address.schema.js'
 export * from './address-comparison.schema.js'
 export * from './address-correction.schema.js'
+export * from './address-correction-suggestion.schema.js'
 export * from './delivery-client.schema.js'
 export * from './delivery-client-contact.schema.js'
 export * from './contractor-receiving-profile.schema.js'
@@ -281,14 +304,21 @@ export * from './contractor-recipient-alias.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
 export * from './contractor-mail.schema.js'
+export * from './contractor-occurrence-channel.schema.js'
 export * from './whatsapp-channel.schema.js'
 export * from './whatsapp-evolution.schema.js'
+export * from './whatsapp-chat.schema.js'
+export * from './whatsapp-group-request.schema.js'
+export * from './whatsapp-canhoto-question.schema.js'
+export * from './whatsapp-delivery-preparation.schema.js'
+export * from './whatsapp-occurrence-draft.schema.js'
 export * from './user-whatsapp-phone.schema.js'
 export * from './whatsapp-flow-graph-version.schema.js'
 export * from './whatsapp-command.schema.js'
 export * from './route-suggestion.schema.js'
 export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
+export * from './fleet-driver-attachment.schema.js'
 export * from './identity-user-picture.schema.js'
 
 export const databaseSchema = {
@@ -305,7 +335,11 @@ export const databaseSchema = {
   companyDeliveryProofSettings,
   companyDistributionSettings,
   companyDriverAllowanceSettings,
+  companyDriverReminderSettings,
+  driverStopReminders,
   companyLocationRetentionSettings,
+  companyFieldReportHoldSettings,
+  tripFieldReportHolds,
   companyBusinessCalendarSettings,
   municipalHolidayRules,
   stateHolidays,
@@ -332,6 +366,9 @@ export const databaseSchema = {
   fiscalSequences,
   fleetDriverRegions,
   fleetDriverVehicleAssignments,
+  fleetDriverWhatsappGroups,
+  fleetDriverAttachmentOutbox,
+  fleetDriverAttachments,
   fleetDrivers,
   fleetVehicles,
   freightCalculations,
@@ -419,6 +456,7 @@ export const databaseSchema = {
   clientDeliveryAddresses,
   addressComparisons,
   addressCorrectionRequests,
+  addressCorrectionSuggestions,
   landingSettings,
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,
@@ -430,6 +468,7 @@ export const databaseSchema = {
   storedObjects,
   companyTaxSettings,
   contractorContacts,
+  contractorOccurrenceChannels,
   contractorInboundEmailOutbox,
   contractorMailMessages,
   contractorMailOutbox,
@@ -442,6 +481,13 @@ export const databaseSchema = {
   tripLocationPings,
   whatsappChannels,
   whatsappEvolutionSettings,
+  whatsappChats,
+  whatsappChatMessages,
+  whatsappGroupRequestMessages,
+  whatsappGroupRequests,
+  whatsappCanhotoQuestions,
+  whatsappDeliveryPreparations,
+  whatsappOccurrenceDrafts,
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
   whatsappFlowGraphVersions,
@@ -488,3 +534,6 @@ export * from './occurrence-conversation.schema.js'
 export * from './occurrence-contractor-reply.schema.js'
 export * from './occurrence-conversation-audio-transcription.schema.js'
 export * from './company-audio-transcription-settings.schema.js'
+export * from './company-driver-occurrence-email-settings.schema.js'
+export * from './contractor-automation.schema.js'
+export * from './salesperson.schema.js'

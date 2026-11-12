@@ -18,6 +18,8 @@ import type {
   ClientChannel,
   ClientEmailSendMode,
   ClientEmailType,
+  ClientReturnChannel,
+  ClientReturnChannelSetting,
   ContractorReplyAlertMode,
   ContractorReplyAttachmentKind,
   ContractorReplyMode,
@@ -32,6 +34,10 @@ export type OccurrenceTypeSaveInput = Readonly<{
   allowsMultipleItems: boolean
   /** Spec 179 RF1: só tem efeito em tipo de rua — é o motorista quem tira a foto. */
   attachmentMode: OccurrenceAttachmentMode
+  /** Spec 315 RF6: `undefined` é "não mexe"; a espera mínima `null` a desliga. */
+  arrivalTimeMode?: OccurrenceAttachmentMode | undefined
+  locationMode?: OccurrenceAttachmentMode | undefined
+  minWaitAfterArrivalMinutes?: null | number | undefined
   /** Spec 247 RF1: o valor pago digitado — `undefined` é "não mexe", como todo campo opcional do tipo. */
   declaredAmountLabel?: string | undefined
   declaredAmountMode?: OccurrenceAttachmentMode | undefined
@@ -56,8 +62,25 @@ export type OccurrenceTypeSaveInput = Readonly<{
   clientEmailType?: ClientEmailType | undefined
   /** Spec 279 RF10: `undefined` é "não mexe". */
   clientEmailSendMode?: ClientEmailSendMode | undefined
+  /**
+   * Spec 286 (RF2): a matriz por canal. Cada canal mandado substitui o gravado inteiro; o ausente é "não mexe". Presente,
+   * vence `clientChannel`, que a API passa a derivar dela.
+   */
+  clientChannels?:
+    | Readonly<Partial<Record<ClientReturnChannel, ClientReturnChannelSetting>>>
+    | undefined
   /** Spec 281 RF8: `undefined` é "não mexe". */
   clientChannel?: ClientChannel | undefined
+  /** Spec 281 T8b: `undefined` é "não mexe". */
+  asksClientContact?: boolean | undefined
+  /** `undefined` é "não mexe". */
+  asksNewDueDate?: boolean | undefined
+  /** Spec 317 T14a: o motorista vê o aviso de possível cobrança. `undefined` é "não mexe". */
+  showClientChargeSealToDriver?: boolean | undefined
+  /** Spec 321 T5: `undefined` é "não mexe". As três chaves vão juntas quando uma delas muda. */
+  blocksContractorNotice?: boolean | undefined
+  countsCargoOnPickupTrip?: boolean | undefined
+  createsCanhotoPickup?: boolean | undefined
   contractorReplyAlertMode?: ContractorReplyAlertMode | undefined
   contractorReplyAttachmentKind?: ContractorReplyAttachmentKind | undefined
   contractorReplyMode?: ContractorReplyMode | undefined
@@ -66,6 +89,8 @@ export type OccurrenceTypeSaveInput = Readonly<{
   driverReplyTemplate?: string | undefined
   /** Spec 276 T4: `undefined` é "não mexe". */
   duplicateRequestPolicy?: DuplicateRequestPolicy | undefined
+  /** `undefined` é "não mexe"; `null` desliga a trava de motorista. */
+  driverLockMinutes?: null | number | undefined
   forwardEmailBody?: string | undefined
   forwardEmailSubject?: string | undefined
   forwardToInformedEmail?: InformedEmailForwardMode | undefined
@@ -109,6 +134,9 @@ export type OccurrenceTypeEdit = Readonly<
       | 'active'
       | 'allowsMultipleItems'
       | 'attachmentMode'
+      | 'arrivalTimeMode'
+      | 'locationMode'
+      | 'minWaitAfterArrivalMinutes'
       | 'declaredAmountLabel'
       | 'declaredAmountMode'
       | 'declaredAmountScope'
@@ -122,11 +150,19 @@ export type OccurrenceTypeEdit = Readonly<
       | 'clientEmailType'
       | 'clientEmailSendMode'
       | 'clientChannel'
+      | 'clientChannels'
+      | 'asksClientContact'
+      | 'asksNewDueDate'
+      | 'showClientChargeSealToDriver'
+      | 'blocksContractorNotice'
+      | 'countsCargoOnPickupTrip'
+      | 'createsCanhotoPickup'
       | 'contractorReplyAlertMode'
       | 'contractorReplyAttachmentKind'
       | 'contractorReplyMode'
       | 'contractorReplyResolveOnDelivery'
       | 'duplicateRequestPolicy'
+      | 'driverLockMinutes'
       | 'contractorReplyWaitHours'
       | 'contractorScope'
       | 'driverReplyTemplate'

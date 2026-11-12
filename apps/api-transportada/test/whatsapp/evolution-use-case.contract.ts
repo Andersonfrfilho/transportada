@@ -21,6 +21,7 @@ import {
   WhatsAppEvolutionDisabledError,
   WhatsAppEvolutionNotConfiguredError,
   WhatsAppEvolutionProviderNotEnabledError,
+  WhatsAppEvolutionProvisioningUnavailableError,
   WhatsAppEvolutionRiskNotAcknowledgedError,
   WhatsAppEvolutionUnavailableError,
   WhatsAppEvolutionUnreachableError,
@@ -97,7 +98,10 @@ const VALUES = {
 async function buildFixture(
   input: {
     readonly existing?: WhatsAppEvolutionSummary | null
+    readonly emptyQrs?: number
     readonly gatewayFails?: boolean
+    readonly owner?: string
+    readonly provisioner?: 'fails' | 'ok'
     readonly state?: 'close' | 'connecting' | 'open'
     readonly status?: 'active' | 'disabled'
   } = {},
@@ -111,6 +115,8 @@ async function buildFixture(
   const saved: WhatsAppEvolutionSaveRecord[] = []
   const recorded: { audited: boolean; state: string }[] = []
   const qrAudits: string[] = []
+  const provisioned: string[] = []
+  const warnings: string[] = []
   const gatewayCalls: { apiKey: string; baseUrl: string; instanceName: string; method: string }[] =
     []
 
@@ -147,18 +153,58 @@ async function buildFixture(
     },
     getQrCode: async (request) => {
       gatewayCalls.push({ ...request, method: 'qr' })
+      if (gatewayCalls.filter((call) => call.method === 'qr').length <= (input.emptyQrs ?? 0)) {
+        return { pairingCode: null, qrBase64: null }
+      }
       return { pairingCode: 'ABCD-1234', qrBase64: 'iVBORw0KGgo=' }
+    },
+    getOwnerNumber: async (request) => {
+      gatewayCalls.push({ ...request, method: 'owner' })
+      return input.owner ?? null
+    },
+    logout: async (request) => {
+      gatewayCalls.push({ ...request, method: 'logout' })
+      if (input.gatewayFails === true) throw new Error('boom: https://evolution/secret')
+    },
+    listGroups: async (request) => {
+      gatewayCalls.push({ ...request, method: 'groups' })
+      if (input.gatewayFails === true) throw new Error('boom: https://evolution/secret')
+      return [{ groupJid: '120363000000000001@g.us', name: 'Motorista João' }]
     },
   }
   const useCase = createWhatsAppEvolutionUseCase({
     gateway,
+    logger: { warn: (message) => warnings.push(message) },
     newSettingsId: () => NEW_SETTINGS_ID,
     now: () => new Date('2026-10-27T12:00:00.000Z'),
+    sleep: async () => {},
+    ...(input.provisioner === undefined
+      ? {}
+      : {
+          provisioner: {
+            baseUrl: 'https://evolution.exemplo.com',
+            createInstance: async (request: { readonly instanceName: string }) => {
+              provisioned.push(request.instanceName)
+              if (input.provisioner === 'fails') throw new Error('boom: chave-global')
+              return { token: 'token-da-instancia' }
+            },
+          },
+        }),
     repository,
     secrets,
   })
 
-  return { gatewayCalls, qrAudits, recorded, saved, secrets, sealed, useCase }
+  return {
+    gatewayCalls,
+    provisioned,
+    warnings,
+    qrAudits,
+    recorded,
+    saved,
+    secrets,
+    sealed,
+    useCase,
+  }
 }
 
 describe('a configuração do Evolution (spec 281 T4)', () => {
@@ -274,11 +320,98 @@ describe('o QR e o estado da conexão (spec 281 T4)', () => {
     const result = await fixture.useCase.connection({ context: CONTEXT, correlationId: 'c1' })
 
     expect(result).toEqual({ checkedAt: '2026-10-27T12:00:00.000Z', state: 'open' })
-    expect(fixture.gatewayCalls).toEqual([
-      { apiKey: API_KEY, baseUrl: SUMMARY.baseUrl, instanceName: 'transportada', method: 'state' },
-    ])
+    expect(fixture.gatewayCalls.map((call) => call.method)).toEqual(['state', 'owner'])
+    expect(fixture.gatewayCalls[0]).toEqual({
+      apiKey: API_KEY,
+      baseUrl: SUMMARY.baseUrl,
+      instanceName: 'transportada',
+      method: 'state',
+    })
     expect(fixture.recorded).toEqual([{ audited: true, state: 'open' }])
     expect(JSON.stringify(result)).not.toContain(API_KEY)
+  })
+
+  test('conectado, mostra o número do chip mascarado, nunca inteiro', async () => {
+    const fixture = await buildFixture({ owner: '5516993056772', state: 'open' })
+
+    const result = await fixture.useCase.connection({ context: CONTEXT, correlationId: 'c1' })
+
+    expect(result.ownerMasked).toBe('+55 ••••6772')
+    expect(JSON.stringify(result)).not.toContain('993056772')
+  })
+
+  test('revelar mostra o número do chip por inteiro; sem número, nulo', async () => {
+    const withOwner = await buildFixture({ owner: '5516993857105', state: 'open' })
+    expect(await withOwner.useCase.revealOwner({ context: CONTEXT, correlationId: 'c1' })).toEqual({
+      ownerNumber: '+55 (16) 99385-7105',
+    })
+
+    const without = await buildFixture({ state: 'open' })
+    expect(await without.useCase.revealOwner({ context: CONTEXT, correlationId: 'c1' })).toEqual({
+      ownerNumber: null,
+    })
+  })
+
+  test('sem conexão não pergunta o número', async () => {
+    const fixture = await buildFixture({ owner: '5516993056772', state: 'close' })
+
+    const result = await fixture.useCase.connection({ context: CONTEXT, correlationId: 'c1' })
+
+    expect(result.ownerMasked).toBeUndefined()
+    expect(fixture.gatewayCalls.map((call) => call.method)).toEqual(['state'])
+  })
+
+  test('desconectar faz o logout com a chave aberta, grava "close" e audita', async () => {
+    const fixture = await buildFixture({ state: 'open' })
+
+    const result = await fixture.useCase.disconnect({ context: CONTEXT, correlationId: 'c1' })
+
+    expect(result).toEqual({ checkedAt: '2026-10-27T12:00:00.000Z', state: 'close' })
+    expect(fixture.gatewayCalls).toEqual([
+      { apiKey: API_KEY, baseUrl: SUMMARY.baseUrl, instanceName: 'transportada', method: 'logout' },
+    ])
+    expect(fixture.recorded).toEqual([{ audited: true, state: 'close' }])
+  })
+
+  test('desconectar sem configuração diz que falta configurar, sem chamar o Evolution', async () => {
+    const fixture = await buildFixture({ existing: null })
+
+    await expect(
+      fixture.useCase.disconnect({ context: CONTEXT, correlationId: 'c1' }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionNotConfiguredError)
+    expect(fixture.gatewayCalls).toEqual([])
+  })
+
+  test('falha do logout vira erro tipado e não grava estado', async () => {
+    const fixture = await buildFixture({ gatewayFails: true })
+
+    await expect(
+      fixture.useCase.disconnect({ context: CONTEXT, correlationId: 'c1' }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionUnreachableError)
+    expect(fixture.recorded).toEqual([])
+  })
+
+  test('listar grupos abre a chave, chama o Evolution e devolve identificador e nome', async () => {
+    const fixture = await buildFixture({ state: 'open' })
+
+    const groups = await fixture.useCase.listGroups({ companyId: COMPANY_ID })
+
+    expect(groups).toEqual([{ groupJid: '120363000000000001@g.us', name: 'Motorista João' }])
+    expect(fixture.gatewayCalls).toEqual([
+      { apiKey: API_KEY, baseUrl: SUMMARY.baseUrl, instanceName: 'transportada', method: 'groups' },
+    ])
+  })
+
+  test('listar grupos sem configuração, desligado ou com o Evolution fora vira erro tipado', async () => {
+    await expect(
+      (await buildFixture({ existing: null })).useCase.listGroups({ companyId: COMPANY_ID }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionNotConfiguredError)
+    await expect(
+      (await buildFixture({ status: 'disabled' })).useCase.listGroups({ companyId: COMPANY_ID }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionDisabledError)
+    await expect(
+      (await buildFixture({ gatewayFails: true })).useCase.listGroups({ companyId: COMPANY_ID }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionUnreachableError)
   })
 
   test('o QR vem como imagem pronta, com a renovação, e o pedido é auditado sem o QR', async () => {
@@ -369,5 +502,91 @@ describe('a chave selada e o endereço (spec 281 T4)', () => {
     'não é url',
   ])('recusa %s', (raw) => {
     expect(() => normalizeEvolutionBaseUrl(raw)).toThrow(WhatsAppEvolutionBaseUrlRejectedError)
+  })
+})
+
+describe('o QR que o Evolution ainda não gerou (spec 281 T4c)', () => {
+  test('tenta de novo até o QR existir', async () => {
+    const fixture = await buildFixture({ emptyQrs: 2, state: 'connecting' })
+
+    const result = await fixture.useCase.qr({ context: CONTEXT, correlationId: 'c1' })
+
+    expect(result.qrCode).toBe('data:image/png;base64,iVBORw0KGgo=')
+    expect(fixture.gatewayCalls.filter((call) => call.method === 'qr')).toHaveLength(3)
+    expect(fixture.warnings).toEqual([])
+  })
+
+  test('sem QR depois das tentativas, devolve vazio e registra no log', async () => {
+    const fixture = await buildFixture({ emptyQrs: 9, state: 'connecting' })
+
+    const result = await fixture.useCase.qr({ context: CONTEXT, correlationId: 'c1' })
+
+    expect(result.qrCode).toBeNull()
+    expect(fixture.warnings).toEqual(['whatsapp_evolution.qr_empty'])
+  })
+})
+
+describe('criar a instância pelo portal (spec 281 T4b)', () => {
+  test('sem o Evolution do ambiente, a API não cria e a tela cai na digitação', async () => {
+    const fixture = await buildFixture({ existing: null })
+
+    expect(fixture.useCase.provisioningAvailable).toBe(false)
+    await expect(
+      fixture.useCase.provision({ acknowledgeRisk: true, context: CONTEXT, correlationId: 'c1' }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionProvisioningUnavailableError)
+  })
+
+  test('cria a instância, sela o token como chave da empresa e liga o canal', async () => {
+    const fixture = await buildFixture({ existing: null, provisioner: 'ok' })
+
+    await fixture.useCase.provision({
+      acknowledgeRisk: true,
+      context: CONTEXT,
+      correlationId: 'c1',
+    })
+
+    expect(fixture.provisioned).toEqual(['transportada-000000000000'])
+    const record = fixture.saved[0] as WhatsAppEvolutionSaveRecord
+    expect(record.status).toBe('active')
+    expect(record.baseUrl).toBe('https://evolution.exemplo.com')
+    const opened = await fixture.secrets.decrypt({
+      companyId: COMPANY_ID,
+      envelope: record.secretEnvelope as SecretEnvelopeV1,
+      settingsId: NEW_SETTINGS_ID,
+    })
+    expect(opened.apiKey).toBe('token-da-instancia')
+    expect(JSON.stringify(record.audit)).not.toContain('token-da-instancia')
+  })
+
+  test('exige o aviso de risco antes de criar qualquer coisa no Evolution', async () => {
+    const fixture = await buildFixture({ existing: null, provisioner: 'ok' })
+
+    await expect(
+      fixture.useCase.provision({ acknowledgeRisk: false, context: CONTEXT, correlationId: 'c1' }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionRiskNotAcknowledgedError)
+    expect(fixture.provisioned).toEqual([])
+  })
+
+  test('falha do Evolution vira 502 sem vazar a chave global', async () => {
+    const fixture = await buildFixture({ existing: null, provisioner: 'fails' })
+
+    await expect(
+      fixture.useCase.provision({ acknowledgeRisk: true, context: CONTEXT, correlationId: 'c1' }),
+    ).rejects.toBeInstanceOf(WhatsAppEvolutionUnreachableError)
+    expect(fixture.saved).toEqual([])
+  })
+
+  test('já criada no mesmo Evolution: religa sem criar outra instância nem trocar a chave', async () => {
+    const fixture = await buildFixture({ provisioner: 'ok' })
+
+    await fixture.useCase.provision({
+      acknowledgeRisk: true,
+      context: CONTEXT,
+      correlationId: 'c1',
+    })
+
+    expect(fixture.provisioned).toEqual([])
+    expect(fixture.saved[0]?.status).toBe('active')
+    expect(fixture.saved[0]?.secretEnvelope).toBeUndefined()
   })
 })

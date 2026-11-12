@@ -93,6 +93,19 @@ async function isCompanyUserSender(
   return row !== undefined
 }
 
+async function isClientEmailConversation(
+  transaction: OccurrenceConversationTransaction,
+  input: { readonly companyId: string; readonly conversationId: string },
+): Promise<boolean> {
+  const rows = await transaction.execute(
+    sql`select participant from occurrence_conversations
+        where company_id = ${input.companyId}::uuid and id = ${input.conversationId}::uuid
+        limit 1`,
+  )
+  const [row] = rows as unknown as readonly { readonly participant: string }[]
+  return row?.participant === 'client_email'
+}
+
 /**
  * Chamada só quando a mensagem da 143 acabou de nascer — a reentrega não chega aqui, e é isso que a
  * torna única. O corpo acima do teto da conversa entra cortado; o inteiro segue na 143 e no MIME.
@@ -160,6 +173,15 @@ export async function recordOccurrenceConversationMailReply(
       storedObjectId: object.id,
     })
     if (attachment.textLayer !== undefined) textByStoredObject.set(object.id, attachment.textLayer)
+  }
+  /**
+   * Spec 287: a resposta do cliente (conversa `client_email`) é só mensagem da conversa dele. Não é "a resposta da
+   * contratante": não avança o retorno, não lê boleto e não avisa o motorista.
+   */
+  if (
+    await isClientEmailConversation(transaction, { companyId: input.companyId, conversationId })
+  ) {
+    return { driverNotice: undefined, linkedAttachments: input.attachments.length }
   }
   /** O responsável não é "a resposta da contratante": não avança o retorno nem chega ao motorista (spec 267 RF9). */
   if (await isCompanyUserSender(transaction, input)) {

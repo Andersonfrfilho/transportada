@@ -236,6 +236,8 @@ function createTransactionPort(transaction: TripQueryable): ContractorReplyWhats
 
     lockReply: (params) => email.lockReply(params),
 
+    resolveClientTexts: (params) => email.resolveClientTexts(params),
+
     async recordDelivery(params) {
       const [row] = await transaction
         .insert(occurrenceContractorReplyDeliveries)
@@ -362,7 +364,7 @@ export function createDrizzleContractorReplyWhatsAppCompletion(
         )
     },
 
-    async markSent({ companyId, deliveryId, providerMessageId }) {
+    async markSent({ caption, companyId, deliveryId, providerMessageId }) {
       await database.transaction(async (transaction) => {
         const [closed] = await transaction
           .update(occurrenceContractorReplyDeliveries)
@@ -377,11 +379,19 @@ export function createDrizzleContractorReplyWhatsAppCompletion(
           .returning({ id: occurrenceContractorReplyDeliveries.id })
         if (closed === undefined) return
         await transaction.execute(
+          sql`update occurrence_conversation_messages set body_text = ${caption}
+              where company_id = ${companyId}::uuid and client_delivery_id = ${deliveryId}::uuid and body_text = ''`,
+        )
+        await transaction.execute(
           sql`insert into occurrence_conversation_messages
                 (company_id, conversation_id, channel, direction, automatic, body_text, status, status_times,
                  provider_message_id, system_notice)
               select d.company_id, c.id, 'whatsapp', 'outbound', true,
-                     ${NOTICE_BODY_PREFIX} || d.address,
+                     ${NOTICE_BODY_PREFIX} || case
+                 when d.address ~ '^[+]55[0-9]{10,11}$'
+                   then '(' || substr(d.address, 4, 2) || ') ' || substr(d.address, 6, length(d.address) - 9) || '-' || right(d.address, 4)
+                 else d.address
+               end,
                      'sent',
                      jsonb_build_object('sent', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')),
                      d.provider_message_id,
@@ -448,6 +458,7 @@ export function createDrizzleContractorReplyWhatsAppReader(
             reason: occurrenceContractorReplyDeliveries.reason,
             sentAt: occurrenceContractorReplyDeliveries.sentAt,
             status: occurrenceContractorReplyDeliveries.status,
+            trigger: occurrenceContractorReplyDeliveries.trigger,
           })
           .from(occurrenceContractorReplyDeliveries)
           .where(
@@ -480,6 +491,7 @@ export function createDrizzleContractorReplyWhatsAppReader(
           reason: delivery.reason,
           sentAt: delivery.sentAt?.toISOString() ?? null,
           status: delivery.status,
+          trigger: delivery.trigger,
         })),
         evolution: {
           connectionState: evolution?.connectionState ?? null,

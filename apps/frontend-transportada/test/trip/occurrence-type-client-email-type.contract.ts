@@ -97,6 +97,7 @@ describe('canal com o cliente no tipo da ocorrência (spec 281 RF8)', () => {
 
   it('a resposta aceita o canal ausente (API anterior) ou da lista, e recusa o resto', () => {
     expect(hasValidContractorReplyTypeFields({})).toBe(true)
+    expect(hasValidContractorReplyTypeFields({ showClientChargeSealToDriver: 'sim' })).toBe(false)
     expect(hasValidContractorReplyTypeFields({ clientChannel: 'whatsapp' })).toBe(true)
     expect(hasValidContractorReplyTypeFields({ clientChannel: 'sms' })).toBe(false)
   })
@@ -115,6 +116,77 @@ describe('canal com o cliente no tipo da ocorrência (spec 281 RF8)', () => {
       for (const channel of CLIENT_CHANNELS) {
         expect(locale.occurrenceTypeCatalog.clientChannelOptions[channel]).toBeString()
       }
+    }
+  })
+})
+
+describe('pedido de contato do cliente no tipo da ocorrência (spec 281 T8b)', () => {
+  it('a resposta aceita o campo ausente (API anterior) ou booleano, e recusa o resto', () => {
+    expect(hasValidContractorReplyTypeFields({})).toBe(true)
+    expect(hasValidContractorReplyTypeFields({ asksClientContact: true })).toBe(true)
+    expect(hasValidContractorReplyTypeFields({ asksClientContact: 'sim' })).toBe(false)
+  })
+
+  it('a edição manda o valor escolhido e a de outro campo não mexe nele', () => {
+    expect(
+      buildOccurrenceTypeUpdate({ ...TYPE, asksClientContact: false }, { asksClientContact: true }),
+    ).toMatchObject({ asksClientContact: true, occurrenceTypeId: 'type-1' })
+    expect(buildOccurrenceTypeUpdate(TYPE, { name: 'Boleto' })).not.toHaveProperty(
+      'asksClientContact',
+    )
+  })
+
+  it('o rótulo e a dica existem nos dois idiomas', () => {
+    for (const locale of [settingsPt, settingsEn]) {
+      expect(locale.occurrenceTypeCatalog.asksClientContact).toBeString()
+      expect(locale.occurrenceTypeCatalog.asksClientContactHint).toBeString()
+    }
+  })
+})
+
+describe('nova data de vencimento opcional no tipo da ocorrência', () => {
+  it('a resposta aceita o campo ausente (API anterior) ou booleano, e recusa o resto', () => {
+    expect(hasValidContractorReplyTypeFields({ asksNewDueDate: true })).toBe(true)
+    expect(hasValidContractorReplyTypeFields({ asksNewDueDate: 'sim' })).toBe(false)
+  })
+
+  it('a edição manda o valor escolhido e a de outro campo não mexe nele', () => {
+    expect(
+      buildOccurrenceTypeUpdate({ ...TYPE, asksNewDueDate: false }, { asksNewDueDate: true }),
+    ).toMatchObject({ asksNewDueDate: true, occurrenceTypeId: 'type-1' })
+    expect(buildOccurrenceTypeUpdate(TYPE, { name: 'Boleto' })).not.toHaveProperty('asksNewDueDate')
+  })
+
+  it('o rótulo e a dica existem nos dois idiomas', () => {
+    for (const locale of [settingsPt, settingsEn]) {
+      expect(locale.occurrenceTypeCatalog.asksNewDueDate).toBeString()
+      expect(locale.occurrenceTypeCatalog.asksNewDueDateHint).toBeString()
+    }
+  })
+})
+
+describe('selo de possível cobrança ao motorista no tipo (spec 317 T14a)', () => {
+  it('a resposta aceita o campo ausente (API anterior) ou booleano, e recusa o resto', () => {
+    expect(hasValidContractorReplyTypeFields({ showClientChargeSealToDriver: false })).toBe(true)
+    expect(hasValidContractorReplyTypeFields({})).toBe(true)
+  })
+
+  it('a edição manda o valor escolhido e a de outro campo não mexe nele', () => {
+    expect(
+      buildOccurrenceTypeUpdate(
+        { ...TYPE, showClientChargeSealToDriver: true },
+        { showClientChargeSealToDriver: false },
+      ),
+    ).toMatchObject({ showClientChargeSealToDriver: false, occurrenceTypeId: 'type-1' })
+    expect(buildOccurrenceTypeUpdate(TYPE, { name: 'Boleto' })).not.toHaveProperty(
+      'showClientChargeSealToDriver',
+    )
+  })
+
+  it('o rótulo e a dica existem nos dois idiomas', () => {
+    for (const locale of [settingsPt, settingsEn]) {
+      expect(locale.occurrenceTypeCatalog.showClientChargeSealToDriver).toBeString()
+      expect(locale.occurrenceTypeCatalog.showClientChargeSealToDriverHint).toBeString()
     }
   })
 })

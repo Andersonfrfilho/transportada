@@ -15,6 +15,7 @@ import {
   buildNfeDistributionRabbitMqTopology,
   buildNfeImportRabbitMqTopology,
 } from './messaging/nfe-rabbitmq-topology.js'
+import { buildNfeAccessKeyRabbitMqTopology } from './messaging/nfe-access-key-rabbitmq-topology.js'
 import { buildCteIssuanceRabbitMqTopology } from './messaging/cte-rabbitmq-topology.js'
 import type { CteProcessingEnvelopeV1 } from './messaging/cte-processing-envelope.schema.js'
 import type { MdfeProcessingEnvelopeV1 } from './messaging/mdfe-processing-envelope.schema.js'
@@ -37,7 +38,10 @@ import { createAdatechnologyCteFiscalProvider } from './cte-issuance/infrastruct
 import { CteOutboxPublisherService } from './cte-issuance/application/cte-outbox-publisher.service.js'
 import { CteOutboxRelayService } from './cte-issuance/application/cte-outbox-relay.service.js'
 import { createCteIssuanceWorkerEffect } from './cte-issuance/application/cte-issuance-consumer.effect.js'
-import { createMdfeAutoIssueTrigger } from './mdfe-auto-issue/application/mdfe-auto-issue.service.js'
+import {
+  createMdfeAutoIssueTrigger,
+  selectMdfeAutoIssueTrigger,
+} from './mdfe-auto-issue/application/mdfe-auto-issue.service.js'
 import { createAutomaticManifestApiGateway } from './mdfe-auto-issue/infrastructure/automatic-manifest-api.gateway.js'
 import { createDrizzleTripByBatchItemRepository } from './mdfe-auto-issue/infrastructure/drizzle-trip-by-batch-item.repository.js'
 import { DrizzleCteBatchDocumentAuthorizationRepository } from './cte-issuance/infrastructure/drizzle-cte-batch-document-authorization.repository.js'
@@ -110,6 +114,7 @@ import { DrizzlePasswordResetDeliveryRepository } from './identity/infrastructur
 import { createPasswordResetCodeSecretGateway } from './identity/infrastructure/password-reset-code-secret.gateway.js'
 import type { PasswordResetDeliveryDependencies } from './identity/application/deliver-password-reset-code.service.js'
 import { startPasswordResetDeliveryConsumer } from './runtime/password-reset-delivery-consumer.service.js'
+import { fleetDriverAttachmentOutbox } from './database/aggregate-attachment.schema.js'
 import { buildAggregateAttachmentRabbitMqTopology } from './messaging/aggregate-attachment-rabbitmq-topology.js'
 import { AggregateAttachmentOutboxPublisherService } from './aggregate-attachment/application/aggregate-attachment-outbox-publisher.service.js'
 import { AggregateAttachmentOutboxRelayService } from './aggregate-attachment/application/aggregate-attachment-outbox-relay.service.js'
@@ -122,8 +127,14 @@ import { startCargoLayoutConsumer } from './runtime/cargo-layout-consumer.servic
 import { CargoLayoutOutboxPublisherService } from './cargo-layout/application/cargo-layout-outbox-publisher.service.js'
 import { CargoLayoutOutboxRelayService } from './cargo-layout/application/cargo-layout-outbox-relay.service.js'
 import { DrizzleCargoLayoutOutboxRepository } from './cargo-layout/infrastructure/drizzle-cargo-layout-outbox.repository.js'
+import { createDrizzleFleetDriverAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-fleet-driver-attachment-write-back.repository.js'
 import { createDrizzleAggregateAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-write-back.repository.js'
+import { createThreadedCnhFaceGateway } from './cnh-face/infrastructure/threaded-cnh-face.gateway.js'
+import { createCnhPictureApiGateway } from './cnh-face/infrastructure/cnh-picture-api.gateway.js'
 import { createStorageAttachmentReaderGateway } from './aggregate-attachment/infrastructure/storage-attachment-reader.gateway.js'
+import { createDriverStopReminderRoutine } from './driver-stop-reminders/application/driver-stop-reminder.routine.js'
+import { createDriverStopReminderApiGateway } from './driver-stop-reminders/infrastructure/driver-stop-reminder-api.gateway.js'
+import { createDrizzleDriverStopReminderQueue } from './driver-stop-reminders/infrastructure/drizzle-driver-stop-reminder-queue.repository.js'
 import { createCanhotoImageReader } from './canhoto-read/application/canhoto-image-reader.service.js'
 import { createCanhotoReadRoutine } from './canhoto-read/application/canhoto-read.routine.js'
 import { createCanhotoReviewApiGateway } from './canhoto-read/infrastructure/canhoto-review-api.gateway.js'
@@ -182,6 +193,11 @@ import { createDrizzleCargoPreviewEmailRepository } from './cargo-preview-email/
 import { createDriverReplyNotifier } from './occurrence-conversation/infrastructure/driver-reply-notifier.gateway.js'
 import { createDrizzleContractorMailInboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { createNfeXmlEmailIntake } from './nfe-xml-receipts/infrastructure/nfe-xml-email-intake.factory.js'
+import {
+  createNfeXmlReceiptRuntime,
+  createReceiptLogger,
+} from './nfe-xml-receipts/infrastructure/nfe-xml-receipt-runtime.js'
 import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
 import { createSandboxSmtpMailGateway } from './contractor-mail/infrastructure/sandbox-smtp-mail.gateway.js'
 import {
@@ -192,6 +208,16 @@ import { startContractorMailOutboundConsumer } from './runtime/contractor-mail-o
 import { startContractorMailInboundConsumer } from './runtime/contractor-mail-inbound-consumer.service.js'
 import type { SendContractorMailOutboundMessageDependencies } from './contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import type { RecordContractorMailInboundMessageDependencies } from './contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
+import { createContractorReplyClientWhatsAppDispatcher } from './occurrence-conversation/infrastructure/contractor-reply-client-whatsapp-dispatcher.adapter.js'
+import {
+  chainContractorReplyDispatchers,
+  createWhatsAppGroupBoletoReturnDispatcher,
+} from './occurrence-conversation/infrastructure/whatsapp-group-boleto-return-dispatcher.adapter.js'
+import {
+  createDrizzleEvolutionSendSlotClaimer,
+  createEvolutionSendPacer,
+} from './whatsapp/infrastructure/evolution-send-pacer.js'
+import { createEvolutionClientDocumentSender } from './whatsapp/infrastructure/evolution-client-document-sender.gateway.js'
 import { createInboundConversationAttachmentStore } from './occurrence-conversation/application/inbound-mail-attachments.service.js'
 import { createOccurrenceConversationUploadExpireRoutine } from './occurrence-conversation-upload-expire/application/occurrence-conversation-upload-expire.routine.js'
 import { OCCURRENCE_CONVERSATION_UPLOAD_EXPIRE_JOB } from './occurrence-conversation-upload-expire/domain/occurrence-conversation-upload-expire.constant.js'
@@ -216,6 +242,13 @@ import { DrizzleJobExecutionRepository } from './job-run/infrastructure/drizzle-
 import { buildJobRunRabbitMqTopology } from './messaging/job-run-rabbitmq-topology.js'
 import { startFoundationSyntheticConsumer } from './runtime/foundation-synthetic-consumer.service.js'
 import { startNfeDistributionConsumer } from './runtime/nfe-distribution-consumer.service.js'
+import { startNfeAccessKeyConsumer } from './runtime/nfe-access-key-consumer.service.js'
+import { createProcessAccessKeyLookupUseCase } from './nfe-access-key-lookup/application/process-access-key-lookup.use-case.js'
+import { createAccessKeyLookupDocumentStorage } from './nfe-access-key-lookup/infrastructure/access-key-lookup-document-storage.js'
+import { DrizzleAccessKeyLookupBudgetRepository } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup-budget.repository.js'
+import { createDrizzleAccessKeyLookupRequeue } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup-requeue.repository.js'
+import { DrizzleAccessKeyLookupRepository } from './nfe-access-key-lookup/infrastructure/drizzle-access-key-lookup.repository.js'
+import { PersistentProcessedMessageService } from './outbox/application/persistent-processed-message.service.js'
 import { createNfeDistributionConsumer } from './nfe-distribution/application/nfe-distribution-consumer.service.js'
 import { createAdatechnologyNfeDistributionProvider } from './nfe-distribution/infrastructure/adatechnology-nfe-distribution-provider.factory.js'
 import { createNfeDistributionGatewayFactory } from './nfe-distribution/infrastructure/nfe-distribution-gateway.js'
@@ -242,8 +275,10 @@ import { createDrizzleEnergyTariffGateway } from './fuel-price-pull/infrastructu
 import { createDrizzleFuelReferenceGateway } from './fuel-price-pull/infrastructure/drizzle-fuel-reference.gateway.js'
 import { createNotificationSchedulesRoutine } from './notification-schedules/application/notification-schedules.routine.js'
 import { createSweepDueInvoices } from './notification-schedules/application/sweep-due-invoices.use-case.js'
+import { createSweepExpiringCertificates } from './notification-schedules/application/sweep-expiring-certificates.use-case.js'
 import { NOTIFICATION_SCHEDULES_JOB } from './notification-schedules/domain/notification-schedules.constant.js'
 import { createDueInvoicesQuery } from './notification-schedules/infrastructure/drizzle-due-invoices.query.js'
+import { createExpiringCertificatesQuery } from './notification-schedules/infrastructure/drizzle-expiring-certificates.query.js'
 import {
   createDrizzleNfseReconciliationSource,
   createDrizzleNfseReconciliationWriteBack,
@@ -265,6 +300,7 @@ import { createWhatsAppCommandSettlementApiGateway } from './whatsapp-command-se
 import { TRIP_LOCATION_PURGE_JOB } from './trip-location-purge/domain/trip-location-purge.constant.js'
 import {
   createDrizzleCountEligibleCompanies,
+  createDrizzlePurgeAddressSuggestions,
   createDrizzlePurgeStalePings,
   createDrizzleRedactDeliveryProofLocations,
   createDrizzleRedactDocumentOccurrenceLocations,
@@ -278,6 +314,9 @@ import { createDrizzlePurgeStaleCargoLayoutPreviews } from './trip-cargo-layout-
 import { createRateLimitWindowPurgeRoutine } from './rate-limit-window-purge/application/rate-limit-window-purge.routine.js'
 import { RATE_LIMIT_WINDOW_PURGE_JOB } from './rate-limit-window-purge/domain/rate-limit-window-purge.constant.js'
 import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-purge/infrastructure/drizzle-rate-limit-window-purge.repository.js'
+import { createWhatsAppInboxExpireRoutine } from './whatsapp-inbox-expire/application/whatsapp-inbox-expire.routine.js'
+import { WHATSAPP_INBOX_CHAT_EXPIRE_JOB } from './whatsapp-inbox-expire/domain/whatsapp-inbox-expire.constant.js'
+import { createDrizzleExpireDueWhatsAppChats } from './whatsapp-inbox-expire/infrastructure/drizzle-whatsapp-inbox-expire.repository.js'
 import { buildHolidayProviderPullRegistry } from './holiday-provider-pull/infrastructure/holiday-provider-pull.registry.js'
 import { createStorageAudioObjectReader } from './conversation-audio-transcription/storage-audio-object-reader.gateway.js'
 import { isAudioTranscriptionConfigured } from './conversation-audio-transcription/audio-transcription-configured.policy.js'
@@ -483,6 +522,9 @@ type WorkerRuntimeDependencies = {
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startAccessKeyLookupConsumer?: (
+    input: Parameters<typeof startNfeAccessKeyConsumer>[0],
+  ) => Promise<RuntimeConsumer | undefined>
   readonly startCargoPreviewConsumer?: (
     input: Parameters<typeof startCargoPreviewConsumer>[0],
   ) => Promise<RuntimeConsumer | undefined>
@@ -566,6 +608,8 @@ export async function startWorkerRuntime(
     dependencies.startFoundationSyntheticConsumer ?? startFoundationSyntheticConsumer
   const importStarter = dependencies.startImportConsumer ?? startNfeImportConsumer
   const distributionStarter = dependencies.startDistributionConsumer ?? startNfeDistributionConsumer
+  const accessKeyLookupStarter =
+    dependencies.startAccessKeyLookupConsumer ?? startNfeAccessKeyConsumer
   const cteIssuanceStarter = dependencies.startCteIssuanceConsumer ?? startCteIssuanceConsumer
   const mdfeIssuanceStarter = dependencies.startMdfeIssuanceConsumer ?? startMdfeIssuanceConsumer
   const nfseIssuanceStarter = dependencies.startNfseIssuanceConsumer ?? startNfseIssuanceConsumer
@@ -628,6 +672,28 @@ export async function startWorkerRuntime(
     connection: { connection: { TimeZone: 'UTC' }, url: config.databaseUrl },
   })
   const storageGateway = storageGatewayFactory({ environment })
+  /**
+   * Spec 292 T7: o boleto da contratante volta ao grupo de onde o pedido saiu. Depois do despacho do WhatsApp do
+   * cliente (resposta por e-mail) e na batida do alarme do retorno vencido.
+   */
+  const whatsappGroupBoletoReturns = createWhatsAppGroupBoletoReturnDispatcher({
+    database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    logger,
+    readAttachment: async (location) =>
+      new Uint8Array(
+        await new Response(await storageGateway.getObjectStream(location)).arrayBuffer(),
+      ),
+    sender: createEvolutionClientDocumentSender({
+      envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+      pacer: createEvolutionSendPacer({
+        claimSlot: createDrizzleEvolutionSendSlotClaimer(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        maxWaitMs: 120_000,
+      }),
+      runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    }),
+  })
   /** Um só para os dois gateways: limitadores separados somariam as chamadas ao mesmo CNPJ. */
   const nfseProviderV3Fetch = createRateLimitedFetch({
     clock: () => Date.now(),
@@ -642,6 +708,9 @@ export async function startWorkerRuntime(
     queuePrefix: config.queuePrefix,
   })
   const nfeDistributionTopology = buildNfeDistributionRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
+  const nfeAccessKeyTopology = buildNfeAccessKeyRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
   const cteIssuanceTopology = buildCteIssuanceRabbitMqTopology({
@@ -690,6 +759,8 @@ export async function startWorkerRuntime(
   let importConsumer: RuntimeConsumer | undefined
   let importPublisher: RabbitMqProvider | undefined
   let distributionConsumer: RuntimeConsumer | undefined
+  let accessKeyPublisher: RabbitMqProvider | undefined
+  let accessKeyConsumer: RuntimeConsumer | undefined
   let cteIssuanceConsumer: RuntimeConsumer | undefined
   let relayLoop: OutboxRelayLoop | undefined
   let cteRelayLoop: OutboxRelayLoop | undefined
@@ -703,6 +774,7 @@ export async function startWorkerRuntime(
   let aggregateAttachmentConsumer: RuntimeConsumer | undefined
   let aggregateAttachmentPublisher: RabbitMqProvider | undefined
   let aggregateAttachmentRelayLoop: OutboxRelayLoop | undefined
+  let fleetDriverAttachmentRelayLoop: OutboxRelayLoop | undefined
   let cargoPreviewConsumer: RuntimeConsumer | undefined
   let cargoPreviewPublisher: RabbitMqProvider | undefined
   let cargoPreviewRelayLoop: OutboxRelayLoop | undefined
@@ -724,6 +796,7 @@ export async function startWorkerRuntime(
   let passwordResetDeliveryConsumer: RuntimeConsumer | undefined
   let passwordResetDeliveryPublisher: RabbitMqProvider | undefined
   let passwordResetDeliveryRelayLoop: OutboxRelayLoop | undefined
+  let nfeXmlReceiptLoop: OutboxRelayLoop | undefined
   let syntheticConsumer: RuntimeConsumer | undefined
   let jobRunConsumer: RuntimeConsumer | undefined
   let jobRunProvider: RabbitMqProvider | undefined
@@ -745,6 +818,10 @@ export async function startWorkerRuntime(
     distributionPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: nfeDistributionTopology,
+    })
+    accessKeyPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: nfeAccessKeyTopology,
     })
     cteIssuancePublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
@@ -837,6 +914,9 @@ export async function startWorkerRuntime(
         database.db as ReturnType<typeof createDrizzleProvider>['db'],
       ),
     })
+    const sefazBudget = new DrizzleAccessKeyLookupBudgetRepository(
+      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    )
     distributionConsumer = await distributionStarter({
       config,
       consumer: createNfeDistributionConsumer({
@@ -865,12 +945,43 @@ export async function startWorkerRuntime(
           ),
           xmlImporter: createNfeXmlImporter(),
         }),
+        sefazBudget,
       }),
       logger,
       provider: distributionPublisher,
       repository: new DrizzleNfeImportWorkerRepository(
         database.db as ReturnType<typeof createDrizzleProvider>['db'],
       ),
+    })
+    const lookupDatabase = database.db as ReturnType<typeof createDrizzleProvider>['db']
+    accessKeyConsumer = await accessKeyLookupStarter({
+      logger,
+      maxRetries: nfeAccessKeyTopology.retry?.maxRetries ?? 0,
+      provider: accessKeyPublisher,
+      useCase: createProcessAccessKeyLookupUseCase({
+        budget: sefazBudget,
+        clock: { now: () => new Date() },
+        gatewayFactory: createNfeDistributionGatewayFactory({
+          createProvider: createAdatechnologyNfeDistributionProvider(),
+        }),
+        logger,
+        processedMessages: new PersistentProcessedMessageService({
+          repository: new DrizzleOutboxRepository(lookupDatabase),
+        }),
+        profile: new DrizzleNfeDistributionProfileRepository(lookupDatabase, {
+          secretService: digitalCertificateSecretService,
+        }),
+        repository: new DrizzleAccessKeyLookupRepository(lookupDatabase, { logger }),
+        storage: createAccessKeyLookupDocumentStorage({
+          bucket: storageBucket,
+          gateway: storageGateway,
+          finalStorage: createNfeImportFinalStorage({
+            bucket: storageBucket,
+            gateway: storageGateway,
+          }),
+        }),
+        xmlImporter: createNfeXmlImporter(),
+      }),
     })
     // A mesma instância vai para o módulo (que reenfileira a próxima tentativa) e para o worker
     // dele (que consome): duas seriam dois canais e um `close` que fecha só metade.
@@ -915,6 +1026,24 @@ export async function startWorkerRuntime(
       bucket: storageBucket,
       gateway: storageGateway,
     })
+    const mdfeAutoIssueConfiguration = config.mdfeAutoIssue
+    const mdfeAutoIssue = selectMdfeAutoIssueTrigger({
+      create:
+        mdfeAutoIssueConfiguration === undefined
+          ? undefined
+          : () =>
+              createMdfeAutoIssueTrigger({
+                api: createAutomaticManifestApiGateway({
+                  configuration: mdfeAutoIssueConfiguration,
+                }),
+                logger,
+                trips: createDrizzleTripByBatchItemRepository(
+                  database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                ),
+              }),
+      enabled: config.mdfeAutoIssueEnabled,
+      logger,
+    })
     cteIssuanceConsumer = await cteIssuanceStarter({
       config,
       effect: createCteIssuanceWorkerEffect({
@@ -931,17 +1060,7 @@ export async function startWorkerRuntime(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
         logger,
-        ...(config.mdfeAutoIssue === undefined
-          ? {}
-          : {
-              mdfeAutoIssue: createMdfeAutoIssueTrigger({
-                api: createAutomaticManifestApiGateway({ configuration: config.mdfeAutoIssue }),
-                logger,
-                trips: createDrizzleTripByBatchItemRepository(
-                  database.db as ReturnType<typeof createDrizzleProvider>['db'],
-                ),
-              }),
-            }),
+        ...(mdfeAutoIssue === undefined ? {} : { mdfeAutoIssue }),
         settledAttemptGuard: new DrizzleCteSettledAttemptRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
@@ -1103,6 +1222,24 @@ export async function startWorkerRuntime(
         writeBack: createDrizzleAggregateAttachmentWriteBackRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
+        driverWriteBack: createDrizzleFleetDriverAttachmentWriteBackRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        ...(config.cnhPicture === undefined
+          ? {}
+          : {
+              cnhPicture: {
+                extractor: createThreadedCnhFaceGateway(),
+                onOutcome: ({ outcome, reason }) => {
+                  safeLogInfo({
+                    logger,
+                    message: `cnh_picture_${outcome}`,
+                    metadata: { reason },
+                  })
+                },
+                picture: createCnhPictureApiGateway({ configuration: config.cnhPicture }),
+              },
+            }),
       },
       logger,
       provider: aggregateAttachmentPublisher,
@@ -1187,12 +1324,73 @@ export async function startWorkerRuntime(
       provider: contractorMailOutboundPublisher,
     })
     const inboundDkimVerifier = createDkimVerifierGateway({ resolveDns: resolveDkimDnsRecord })
+    /**
+     * Spec 301: XML de NF-e por e-mail (caixa `notas@`) e por WhatsApp (marcando o bot). O e-mail decide no consumidor
+     * de entrada; o WhatsApp é gravado pelo webhook da API e drenado em lotes pelo laço abaixo, junto dos resumos.
+     */
+    const nfeXmlEvolutionSender = createEvolutionClientDocumentSender({
+      envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+      pacer: createEvolutionSendPacer({
+        claimSlot: createDrizzleEvolutionSendSlotClaimer(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        maxWaitMs: 120_000,
+      }),
+      runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    })
+    const nfeXmlMailGateway = createResendMailGateway({
+      fetch: (target, init) => fetch(target, init),
+    })
+    const nfeXmlReceipts = createNfeXmlReceiptRuntime({
+      database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+      evolution: nfeXmlEvolutionSender,
+      findReplySettings: (input) =>
+        createDrizzleContractorMailOutboundWorkerRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ).findSettingsByCompanyId(input),
+      logger,
+      mailGateway: nfeXmlMailGateway,
+      ...(config.emailResendDisabled === true ? { resendDisabled: true } : {}),
+      secretService: createContractorMailCredentialSecretService({
+        envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+      }),
+      sendNotification: (params) => notificationModule.useCases.sendNotification.execute(params),
+      storage: {
+        bucket: storageBucket,
+        put: (input) => storageGateway.storeObject(input),
+      },
+      whiteLogo: toWhiteLogoPng,
+    })
     const inboundMailGateway = createResendMailGateway({
       fetch: (target, init) => fetch(target, init),
     })
     contractorMailInboundConsumer = await contractorMailInboundStarter({
       config,
       dependencies: {
+        /** Spec 286 T3 (RF3/RF4): o boleto por WhatsApp ao cliente, pelo Evolution da empresa, depois do commit. */
+        /** Spec 292 T7: e, logo depois, o retorno do boleto ao grupo do pedido (ele precisa saber se o cliente recebeu). */
+        clientWhatsApp: chainContractorReplyDispatchers(
+          createContractorReplyClientWhatsAppDispatcher({
+            database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            logger,
+            readAttachment: async (location) =>
+              new Uint8Array(
+                await new Response(await storageGateway.getObjectStream(location)).arrayBuffer(),
+              ),
+            sender: createEvolutionClientDocumentSender({
+              envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+              /** Spec 289: o intervalo entre envios do número; no worker espera até 2 min, depois cai no e-mail. */
+              pacer: createEvolutionSendPacer({
+                claimSlot: createDrizzleEvolutionSendSlotClaimer(
+                  database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                ),
+                maxWaitMs: 120_000,
+              }),
+              runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            }),
+          }),
+          whatsappGroupBoletoReturns,
+        ),
         /** Spec 183 T702c1: o anexo do e-mail recebido vira anexo da mensagem da conversa. */
         conversationAttachments: createInboundConversationAttachmentStore({
           bucket: storageBucket,
@@ -1208,6 +1406,15 @@ export async function startWorkerRuntime(
         }),
         dkimVerifier: inboundDkimVerifier,
         mailGateway: inboundMailGateway,
+        /** Spec 301: a caixa `notas@` decide antes da prévia. */
+        nfeXmlIntake: createNfeXmlEmailIntake({
+          extraDomains: config.nfeXmlMailboxDomains,
+          dkimVerifier: inboundDkimVerifier,
+          importGateway: nfeXmlReceipts.importGateway,
+          logger: createReceiptLogger(logger),
+          mailGateway: inboundMailGateway,
+          repository: nfeXmlReceipts.repository,
+        }),
         /** Spec 237 T4.6: a prévia por e-mail encaminhado, antes do trilho da conversa. */
         previewIntake: createCargoPreviewEmailIntake({
           dkimVerifier: inboundDkimVerifier,
@@ -1413,6 +1620,9 @@ export async function startWorkerRuntime(
             countEligibleCompanies: createDrizzleCountEligibleCompanies(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
+            purgeAddressSuggestions: createDrizzlePurgeAddressSuggestions(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
             purgeStalePings: createDrizzlePurgeStalePings(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
@@ -1449,6 +1659,14 @@ export async function startWorkerRuntime(
             purge: createDrizzlePurgeExpiredRateLimitWindows(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
+          }),
+          /** Spec 319 T7: sempre registrada — nasce pausada no relógio, e ligar é decisão do dono. */
+          [WHATSAPP_INBOX_CHAT_EXPIRE_JOB]: createWhatsAppInboxExpireRoutine({
+            expire: createDrizzleExpireDueWhatsAppChats(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            logger,
+            now: () => new Date(),
           }),
           /**
            * Spec 161 RF21: sempre registrada, como as outras retenções — a foto de ocorrência tem
@@ -1536,6 +1754,9 @@ export async function startWorkerRuntime(
             identifiers: createCryptoDistributionIdentifiers(),
             logger,
             now: () => new Date(),
+            requeue: createDrizzleAccessKeyLookupRequeue({
+              database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            }),
             source: createDrizzleDistributionCandidateSource({
               database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
               logger,
@@ -1591,6 +1812,8 @@ export async function startWorkerRuntime(
            */
           ['occurrence.contractor-reply.alert' as const]:
             createOccurrenceContractorReplyAlertRoutine({
+              /** Spec 292 T7: o retorno que venceu (e o que ficou para trás) também avisa o grupo do pedido. */
+              afterCycle: () => whatsappGroupBoletoReturns.dispatch({}),
               errorTracker,
               logger,
               notifier: createContractorReplyAlertNotifier({
@@ -1624,6 +1847,22 @@ export async function startWorkerRuntime(
                     database.db as ReturnType<typeof createDrizzleProvider>['db'],
                   ),
                   reviewApi: createCanhotoReviewApiGateway({ configuration: config.mdfeAutoIssue }),
+                }),
+                /**
+                 * Spec 299 T2.4: registrada sempre que o crachá existe (como a leitura do canhoto); com
+                 * `DRIVER_REMINDERS_ENABLED=false` o ciclo fecha `succeeded` sem ler nada.
+                 */
+                ['driver.stop-reminder.dispatch' as const]: createDriverStopReminderRoutine({
+                  enabled: config.driverRemindersEnabled,
+                  errorTracker,
+                  logger,
+                  now: () => new Date(),
+                  queue: createDrizzleDriverStopReminderQueue(
+                    database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                  ),
+                  reminderApi: createDriverStopReminderApiGateway({
+                    configuration: config.mdfeAutoIssue,
+                  }),
                 }),
                 ['occurrence.automatic-mail.sweep' as const]:
                   createOccurrenceAutomaticMailSweepRoutine({
@@ -1695,6 +1934,13 @@ export async function startWorkerRuntime(
               ),
               send: (params) => notificationModule.useCases.sendNotification.execute(params),
             }),
+            sweepCertificates: createSweepExpiringCertificates({
+              logger,
+              selectExpiringCertificates: createExpiringCertificatesQuery(
+                database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              ),
+              send: (params) => notificationModule.useCases.sendNotification.execute(params),
+            }),
           }),
         },
       }),
@@ -1750,6 +1996,8 @@ export async function startWorkerRuntime(
     const relay = new OutboxRelayService({
       clock: { now: () => new Date() },
       publisher: new NfeOutboxPublisherService({
+        accessKeyProvider: accessKeyPublisher,
+        accessKeyTopology: nfeAccessKeyTopology,
         distributionProvider: distributionPublisher,
         distributionTopology: nfeDistributionTopology,
         importProvider: importPublisher,
@@ -1765,9 +2013,9 @@ export async function startWorkerRuntime(
       },
       topologyResolver: {
         resolve({ eventType }) {
-          return eventType === 'transportada.nfe.import.requested'
-            ? nfeImportTopology
-            : nfeDistributionTopology
+          if (eventType === 'transportada.nfe.import.requested') return nfeImportTopology
+          if (eventType === 'transportada.nfe.access-key.requested') return nfeAccessKeyTopology
+          return nfeDistributionTopology
         },
       },
     })
@@ -1868,6 +2116,32 @@ export async function startWorkerRuntime(
       }),
     })
     aggregateAttachmentRelayLoop.start()
+    /** Spec 091: a CNH anexada à ficha do motorista entra no mesmo trilho, por outra tabela de outbox. */
+    fleetDriverAttachmentRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.fleet-driver-attachment.relay.${crypto.randomUUID()}`,
+      failureMessage: 'fleet_driver_attachment_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new AggregateAttachmentOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new AggregateAttachmentOutboxPublisherService(aggregateAttachmentPublisher),
+        repository: new DrizzleAggregateAttachmentOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          fleetDriverAttachmentOutbox,
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error
+              ? error
+              : new Error('fleet driver attachment outbox relay publish failed')
+          },
+        },
+        subject: 'fleet_driver',
+      }),
+    })
+    fleetDriverAttachmentRelayLoop.start()
     cargoPreviewRelayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.cargo-preview.relay.${crypto.randomUUID()}`,
       failureMessage: 'cargo_preview_outbox_relay_failed',
@@ -2024,6 +2298,17 @@ export async function startWorkerRuntime(
       }),
     })
     passwordResetDeliveryRelayLoop.start()
+    /** Spec 301: a batida do recebimento de XML — o lote do WhatsApp e os resumos, um minuto de intervalo. */
+    nfeXmlReceiptLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.nfe-xml-receipts.${crypto.randomUUID()}`,
+      failureMessage: 'nfe_xml_receipt_cycle_failed',
+      intervalMs: 60_000,
+      leaseMs: 0,
+      limit: 0,
+      logger,
+      relay: { relayDueEntries: () => nfeXmlReceipts.runCycle() },
+    })
+    nfeXmlReceiptLoop.start()
     const shutdown = new WorkerShutdown({
       closeables: [
         // Antes do banco e do storage: a soltura graciosa devolve a tentativa da linha em voo.
@@ -2038,6 +2323,7 @@ export async function startWorkerRuntime(
         mdfeRelayLoop,
         nfseRelayLoop,
         aggregateAttachmentRelayLoop,
+        fleetDriverAttachmentRelayLoop,
         cargoPreviewRelayLoop,
         deliveryProofProcessingRelayLoop,
         contractorMailOutboundRelayLoop,
@@ -2045,6 +2331,7 @@ export async function startWorkerRuntime(
         cargoLayoutRelayLoop,
         invitationDeliveryRelayLoop,
         passwordResetDeliveryRelayLoop,
+        nfeXmlReceiptLoop,
         storageGateway,
         // Últimos a fechar: o desligamento gracioso é a chance final de drenar o que saiu do
         // processo pela rede. Depois deles não há mais para onde mandar nada.
@@ -2060,6 +2347,7 @@ export async function startWorkerRuntime(
         syntheticConsumer,
         importConsumer,
         distributionConsumer,
+        accessKeyConsumer,
         cteIssuanceConsumer,
         mdfeIssuanceConsumer,
         nfseIssuanceConsumer,
@@ -2081,6 +2369,7 @@ export async function startWorkerRuntime(
         provider,
         importPublisher,
         distributionPublisher,
+        accessKeyPublisher,
         cteIssuancePublisher,
         mdfeIssuancePublisher,
         nfseIssuancePublisher,
@@ -2106,6 +2395,9 @@ export async function startWorkerRuntime(
       ]),
     })
     runtimeShutdown.resolve(shutdown)
+    if (config.cnhPicture === undefined) {
+      safeLogInfo({ logger, message: 'cnh_picture_disabled', metadata: {} })
+    }
     safeLogInfo({
       logger,
       message: 'worker_started',
@@ -2121,6 +2413,7 @@ export async function startWorkerRuntime(
     await syntheticConsumer?.cancel().catch(() => undefined)
     await importConsumer?.cancel().catch(() => undefined)
     await distributionConsumer?.cancel().catch(() => undefined)
+    await accessKeyConsumer?.cancel().catch(() => undefined)
     await cteIssuanceConsumer?.cancel().catch(() => undefined)
     await mdfeIssuanceConsumer?.cancel().catch(() => undefined)
     await nfseIssuanceConsumer?.cancel().catch(() => undefined)
@@ -2133,6 +2426,7 @@ export async function startWorkerRuntime(
     await invitationDeliveryRelayLoop?.close().catch(() => undefined)
     await passwordResetDeliveryConsumer?.cancel().catch(() => undefined)
     await passwordResetDeliveryRelayLoop?.close().catch(() => undefined)
+    await nfeXmlReceiptLoop?.close().catch(() => undefined)
     await jobRunConsumer?.cancel().catch(() => undefined)
     await audioTranscriptionRuntime?.runner.close().catch(() => undefined)
     await relayLoop?.close().catch(() => undefined)
@@ -2140,6 +2434,7 @@ export async function startWorkerRuntime(
     await mdfeRelayLoop?.close().catch(() => undefined)
     await nfseRelayLoop?.close().catch(() => undefined)
     await aggregateAttachmentRelayLoop?.close().catch(() => undefined)
+    await fleetDriverAttachmentRelayLoop?.close().catch(() => undefined)
     await cargoPreviewConsumer?.cancel().catch(() => undefined)
     await cargoPreviewRelayLoop?.close().catch(() => undefined)
     await deliveryProofProcessingConsumer?.cancel().catch(() => undefined)
@@ -2148,6 +2443,7 @@ export async function startWorkerRuntime(
     await healthServer?.stop().catch(() => undefined)
     await storageGateway.close().catch(() => undefined)
     await distributionPublisher?.close().catch(() => undefined)
+    await accessKeyPublisher?.close().catch(() => undefined)
     await importPublisher?.close().catch(() => undefined)
     await cteIssuancePublisher?.close().catch(() => undefined)
     await mdfeIssuancePublisher?.close().catch(() => undefined)

@@ -64,6 +64,8 @@ const VIEW = {
 function createFixture(params: {
   readonly error?: Error
   readonly permissions?: CompanyContext['permissions']
+  /** Emenda 2026-11-05 da ADR-0047: a permissão do robô só abre para token de serviço. */
+  readonly serviceAccount?: boolean
 }) {
   const calls: unknown[] = []
   const canhotoReview: CanhotoReviewPort = {
@@ -79,7 +81,7 @@ function createFixture(params: {
       externalIdentityId: crypto.randomUUID(),
       issuer: 'http://localhost:58080/realms/transportada-local',
       platformAdmin: false,
-      serviceAccount: false,
+      serviceAccount: params.serviceAccount ?? false,
       subject: 'canhoto-review-contract',
       userId: COMPANY_CONTEXT.userId,
     },
@@ -303,7 +305,7 @@ describe('o mapa dos erros do domínio', () => {
  */
 describe('a rota do robô é de uma permissão só (CA13)', () => {
   test('o token da automação alcança a rota, com a empresa e o autor do contexto', async () => {
-    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
     const response = await patchAutomatic(fixture, ROBOT_READING)
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ data: VIEW })
@@ -326,7 +328,7 @@ describe('a rota do robô é de uma permissão só (CA13)', () => {
   })
 
   test('o token do robô não alcança a rota de gente', async () => {
-    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
     for (const body of [{ action: 'approve' }, AUTOMATIC_READING]) {
       expect((await patch(fixture, body)).status).toBe(403)
     }
@@ -346,7 +348,7 @@ describe('o corpo do robô não aceita ação nem veredito (CA16)', () => {
     { extra: { readNumber: '1'.repeat(44) }, label: 'chave disfarçada de número lido (RNF03)' },
     { extra: { readSeries: '1'.repeat(44) }, label: 'chave disfarçada de série (RNF03)' },
   ])('$label é 400 e não chega à porta', async ({ extra }) => {
-    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
     expect((await patchAutomatic(fixture, { ...ROBOT_READING, ...extra })).status).toBe(400)
     expect(fixture.calls).toEqual([])
   })
@@ -354,7 +356,7 @@ describe('o corpo do robô não aceita ação nem veredito (CA16)', () => {
   test.each(['readDocumentId', 'readNumber', 'readSeries', 'readSource'] as const)(
     'campo de leitura ausente (%s) é 400: `null` é leitura vazia, ausente é corpo malformado',
     async (field) => {
-      const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
+      const fixture = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
       const rest = Object.fromEntries(
         Object.entries(ROBOT_READING).filter(([key]) => key !== field),
       )
@@ -364,7 +366,7 @@ describe('o corpo do robô não aceita ação nem veredito (CA16)', () => {
   )
 
   test('leitura vazia (os quatro `null`) é legítima e chega à porta sem `action` do corpo', async () => {
-    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS })
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
     const response = await patchAutomatic(fixture, {
       readDocumentId: null,
       readNumber: null,
@@ -389,15 +391,14 @@ describe('o corpo do robô não aceita ação nem veredito (CA16)', () => {
   })
 
   test('o canal sai da rota, nunca do corpo: gente é `person`, o robô é `service`', async () => {
-    const fixture = createFixture({ permissions: new Set(['trip.manage', ...SERVICE_PERMISSIONS]) })
+    const fixture = createFixture({})
+    const robot = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
     await patch(fixture, AUTOMATIC_READING)
     await patch(fixture, { action: 'approve' })
-    await patchAutomatic(fixture, ROBOT_READING)
-    expect(fixture.calls.map((call) => (call as { channel: string }).channel)).toEqual([
-      'person',
-      'person',
-      'service',
-    ])
+    await patchAutomatic(robot, ROBOT_READING)
+    expect(
+      [...fixture.calls, ...robot.calls].map((call) => (call as { channel: string }).channel),
+    ).toEqual(['person', 'person', 'service'])
     expect((await patch(fixture, { ...AUTOMATIC_READING, channel: 'service' })).status).toBe(400)
   })
 })

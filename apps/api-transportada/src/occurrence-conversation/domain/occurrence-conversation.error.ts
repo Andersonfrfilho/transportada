@@ -204,6 +204,20 @@ export class OccurrenceConversationMessageInvalidError extends ApiError {
  * interna, a nota não tem contratante casada ou ninguém dela tem conta no portal. Escrever ali seria
  * mensagem que ninguém lê.
  */
+/**
+ * Spec 321 (D2): o tipo da ocorrência nunca avisa a contratante (`blocks_contractor_notice`) — nem à mão, em canal
+ * nenhum (e-mail, chat por e-mail, portal). A conversa com o motorista e com o cliente seguem.
+ */
+export class OccurrenceContractorNoticeBlockedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED',
+      message: 'This occurrence type never notifies the contracting party',
+      status: 409,
+    })
+  }
+}
+
 export class OccurrenceConversationPortalUnavailableError extends ApiError {
   public constructor() {
     super({

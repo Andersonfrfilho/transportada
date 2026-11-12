@@ -54,3 +54,62 @@
   color: var(--color-slate);
   border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
 }
+
+.suggestion {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+  min-width: 0;
+}
+
+.suggestionHeader {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.suggestionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.map {
+  --vector-map-height: var(--occurrence-trip-map-height);
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+  list-style: none;
+}
+
+.mapNote {
+  margin: 0;
+  color: var(--color-slate);
+}
+
+.holds {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-8);
+}
+
+.duplicateNote {
+  color: var(--color-alert-ink);
+}
+
+.holdSetting {
+  display: grid;
+  gap: var(--space-2);
+}

@@ -17,6 +17,11 @@ import {
   contractorMailThreads,
 } from '../../database/contractor-mail.schema.js'
 import {
+  CONTRACTOR_REPLY_CLIENT_EMAIL_TARGET,
+  CONTRACTOR_REPLY_WHATSAPP_TARGET,
+  type ContractorReplyDeliveryTarget,
+} from '../../shared/occurrence-contractor-reply.constant.js'
+import {
   occurrenceContractorReplies,
   occurrenceContractorReplyDeliveries,
   occurrenceContractorReplyEvents,
@@ -39,6 +44,7 @@ import type {
   OccurrenceTimelineDocumentKind,
   OccurrenceTimelineSource,
 } from '../domain/occurrence-timeline.policy.js'
+import { CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION } from '../../occurrence-conversation/domain/contractor-occurrence-group.policy.js'
 import { resolveSystemResolutionCausePhraseKey } from '../domain/occurrence-resolution.policy.js'
 import type { TripOccurrenceFeedItem } from '../application/trip-occurrence-feed.use-case.js'
 import { findTripOccurrenceFeedItem } from './trip-occurrence-feed.query.js'
@@ -173,6 +179,7 @@ async function listResolutionSources(
       actorKind: tripOccurrenceResolutionEvents.actorKind,
       actorName: identityUserProfiles.name,
       caseStatus: tripOccurrenceCaseEvents.toStatus,
+      canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
       contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
       createdAt: tripOccurrenceResolutionEvents.createdAt,
       id: tripOccurrenceResolutionEvents.id,
@@ -202,7 +209,17 @@ async function listResolutionSources(
   return rows.map((row): OccurrenceTimelineSource => {
     const occurredAt = row.createdAt.toISOString()
     if (row.kind === 'reopened') {
-      /** O CHECK `reopen_check` da tabela garante a mensagem em todo `reopened`. */
+      /** Spec 321 T4: o sistema reabre quando o canhoto coletado é reprovado (o CHECK exige a coleta como causa). */
+      if (row.actorKind === 'system') {
+        return {
+          actor: { kind: 'system', name: null },
+          id: row.id,
+          kind: 'resolution.reopened',
+          messageId: null,
+          occurredAt,
+        }
+      }
+      /** O CHECK `reopen_check` da tabela garante a mensagem em todo `reopened` do motorista. */
       if (row.messageId === null) throw new Error('OCCURRENCE_REOPENED_EVENT_WITHOUT_MESSAGE')
       return {
         actor: { kind: 'driver', name: row.actorName ?? null },
@@ -225,6 +242,7 @@ async function listResolutionSources(
         ? (resolveSystemResolutionCausePhraseKey({
             caseEventStatus: row.caseStatus ?? undefined,
             ...(row.contractorReplyId === null ? {} : { causedByContractorReply: true as const }),
+            ...(row.canhotoPickupId === null ? {} : { causedByCanhotoPickup: true as const }),
           }) ?? null)
         : null,
     }
@@ -330,6 +348,73 @@ async function listDriverDeliverySources(
 }
 
 /**
+ * Spec 281 T9: cada tentativa do boleto por WhatsApp ao cliente, na ordem. Só status e motivo: o número (`address`),
+ * o texto e o anexo ficam na entrega e nunca saem daqui.
+ */
+async function listClientWhatsappSources(
+  queryable: TripQueryable,
+  scope: Scope,
+  replyId: string,
+): Promise<readonly OccurrenceTimelineSource[]> {
+  return listClientChannelSources(queryable, scope, replyId, {
+    kind: 'contractor.client.whatsapp',
+    target: CONTRACTOR_REPLY_WHATSAPP_TARGET,
+  })
+}
+
+/** Spec 288: o mesmo para o e-mail ao cliente, com as linhas `skipped` (o que ficou de fora e por quê). */
+function listClientEmailSources(
+  queryable: TripQueryable,
+  scope: Scope,
+  replyId: string,
+): Promise<readonly OccurrenceTimelineSource[]> {
+  return listClientChannelSources(queryable, scope, replyId, {
+    kind: 'contractor.client.email',
+    target: CONTRACTOR_REPLY_CLIENT_EMAIL_TARGET,
+  })
+}
+
+async function listClientChannelSources(
+  queryable: TripQueryable,
+  scope: Scope,
+  replyId: string,
+  channel: {
+    readonly kind: 'contractor.client.email' | 'contractor.client.whatsapp'
+    readonly target: ContractorReplyDeliveryTarget
+  },
+): Promise<readonly OccurrenceTimelineSource[]> {
+  const rows = await queryable
+    .select({
+      createdAt: occurrenceContractorReplyDeliveries.createdAt,
+      id: occurrenceContractorReplyDeliveries.id,
+      reason: occurrenceContractorReplyDeliveries.reason,
+      status: occurrenceContractorReplyDeliveries.status,
+    })
+    .from(occurrenceContractorReplyDeliveries)
+    .where(
+      and(
+        eq(occurrenceContractorReplyDeliveries.companyId, scope.companyId),
+        eq(occurrenceContractorReplyDeliveries.replyId, replyId),
+        eq(occurrenceContractorReplyDeliveries.target, channel.target),
+      ),
+    )
+    .orderBy(
+      asc(occurrenceContractorReplyDeliveries.createdAt),
+      asc(occurrenceContractorReplyDeliveries.id),
+    )
+  return rows.map(
+    (row): OccurrenceTimelineSource => ({
+      actor: { kind: 'system', name: null },
+      id: row.id,
+      kind: channel.kind,
+      occurredAt: row.createdAt.toISOString(),
+      reason: row.reason ?? null,
+      status: row.status,
+    }),
+  )
+}
+
+/**
  * Spec 276 T3: o retorno da contratante (248) — a abertura (`created_at` do retorno, que não grava evento)
  * e cada mudança de status. Só status, motivo e ator; nunca a nota do operador nem o anexo. Só a
  * ocorrência de nota abre retorno. Spec 278: também o resultado da conferência do boleto (o motivo do evento),
@@ -358,6 +443,8 @@ async function listContractorReplySources(
   if (reply === undefined) return []
   const documentKind = documentKindOf(reply.config)
   const deliveries = listDriverDeliverySources(queryable, scope, { documentKind, id: reply.id })
+  const clientWhatsapp = listClientWhatsappSources(queryable, scope, reply.id)
+  const clientEmail = listClientEmailSources(queryable, scope, reply.id)
   const rows = await queryable
     .select({
       actorKind: occurrenceContractorReplyEvents.actorKind,
@@ -418,6 +505,8 @@ async function listContractorReplySources(
     ),
     ...checks,
     ...(await deliveries),
+    ...(await clientWhatsapp),
+    ...(await clientEmail),
   ]
 }
 
@@ -492,19 +581,114 @@ async function listMailSources(
   })
 }
 
+/**
+ * Spec 292 T7: as respostas do bot no grupo do WhatsApp onde o pedido foi aberto. O vínculo é a chave
+ * `whatsapp-group-request:<id>` em `trip_field_reports`; o que o bot disse fica em
+ * `whatsapp_group_requests.state.boletoReturn`. Só o tipo do aviso e a hora, nunca o texto nem o número.
+ */
+async function listGroupBoletoReturnSources(
+  queryable: TripQueryable,
+  scope: Scope,
+): Promise<readonly OccurrenceTimelineSource[]> {
+  const rows = (await queryable.execute(
+    sql`select request.state -> 'boletoReturn' as boleto_return
+        from trip_field_reports report
+        join whatsapp_group_requests request
+          on request.company_id = report.company_id
+         and report.idempotency_key = 'whatsapp-group-request:' || request.id::text
+        where report.company_id = ${scope.companyId}::uuid
+          and report.result_id = ${scope.occurrenceId}::uuid
+        limit 1`,
+  )) as readonly { boleto_return?: unknown }[]
+  const state = rows[0]?.boleto_return
+  if (typeof state !== 'object' || state === null) return []
+  const { lastFailedAt, notices, outcome, status } = state as {
+    lastFailedAt?: unknown
+    notices?: Record<string, unknown>
+    outcome?: unknown
+    status?: unknown
+  }
+  const system = { kind: 'system', name: null } as const
+  const found: OccurrenceTimelineSource[] = []
+  const add = (key: string, at: unknown, name: string) => {
+    if (typeof at === 'string' && !Number.isNaN(Date.parse(at))) {
+      found.push({
+        actor: system,
+        id: `${scope.occurrenceId}:group:${key}`,
+        kind: 'group.boleto_return',
+        occurredAt: new Date(at).toISOString(),
+        status: name,
+      })
+    }
+  }
+  add(
+    'delivered',
+    notices?.delivered,
+    outcome === 'sent_to_client' ? 'sent_to_client' : 'posted_to_group',
+  )
+  add('office', notices?.office, 'office')
+  add('overdue', notices?.overdue, 'overdue')
+  if (status === 'failed') add('failed', lastFailedAt, 'failed')
+  return found
+}
+
+/**
+ * Spec 318 (RF6): o aviso automático no grupo de WhatsApp da contratante, gravado em `idempotency_records` com a chave
+ * do aviso (`occurrence-auto-mail:<id>`). Só o desfecho e a falha; a linha `processing` (envio em curso) não aparece.
+ */
+async function listContractorGroupSources(
+  queryable: TripQueryable,
+  scope: Scope,
+): Promise<readonly OccurrenceTimelineSource[]> {
+  const rows = (await queryable.execute(
+    sql`select response, updated_at
+        from idempotency_records
+        where company_id = ${scope.companyId}::uuid
+          and operation = ${CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION}
+          and idempotency_key = ${`occurrence-auto-mail:${scope.occurrenceId}`}
+          and status in ('completed', 'failed')
+        limit 1`,
+  )) as readonly { response?: unknown; updated_at?: unknown }[]
+  const row = rows[0]
+  if (row === undefined || typeof row.response !== 'object' || row.response === null) return []
+  const { failure, status } = row.response as { failure?: unknown; status?: unknown }
+  if (typeof status !== 'string') return []
+  const updatedAt = row.updated_at
+  const occurredAt =
+    updatedAt instanceof Date
+      ? updatedAt
+      : typeof updatedAt === 'string'
+        ? new Date(updatedAt)
+        : null
+  if (occurredAt === null || Number.isNaN(occurredAt.getTime())) return []
+  return [
+    {
+      actor: { kind: 'system', name: null },
+      id: `${scope.occurrenceId}:contractor-group`,
+      kind: 'contractor.group.whatsapp',
+      occurredAt: occurredAt.toISOString(),
+      reason: typeof failure === 'string' ? failure : null,
+      status,
+    },
+  ]
+}
+
 export async function findTripOccurrenceTimelineSources(
   queryable: TripQueryable,
   scope: Scope,
 ): Promise<readonly OccurrenceTimelineSource[] | null> {
   const item = await findTripOccurrenceFeedItem(queryable, scope)
   if (item === null) return null
-  const [photos, caseEvents, mails, resolutions, replies] = await Promise.all([
-    listPhotoSources(queryable, scope, item),
-    listCaseSources(queryable, scope),
-    listMailSources(queryable, scope, item),
-    listResolutionSources(queryable, scope, item),
-    listContractorReplySources(queryable, scope, item),
-  ])
+  const [photos, caseEvents, mails, resolutions, replies, groupReturns, contractorGroup] =
+    await Promise.all([
+      listPhotoSources(queryable, scope, item),
+      listCaseSources(queryable, scope),
+      listMailSources(queryable, scope, item),
+      listResolutionSources(queryable, scope, item),
+      listContractorReplySources(queryable, scope, item),
+      listGroupBoletoReturnSources(queryable, scope),
+      listContractorGroupSources(queryable, scope),
+    ])
   const recorded: OccurrenceTimelineSource = {
     actor: recordingActor(item),
     id: item.id,
@@ -523,5 +707,15 @@ export async function findTripOccurrenceTimelineSources(
             reason: item.cancellation.reason,
           },
         ]
-  return [recorded, ...photos, ...caseEvents, ...mails, ...replies, ...cancelled, ...resolutions]
+  return [
+    recorded,
+    ...photos,
+    ...caseEvents,
+    ...mails,
+    ...contractorGroup,
+    ...replies,
+    ...groupReturns,
+    ...cancelled,
+    ...resolutions,
+  ]
 }

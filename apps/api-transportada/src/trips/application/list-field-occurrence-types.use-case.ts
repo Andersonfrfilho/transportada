@@ -16,6 +16,10 @@
  * herda do tipo. `attachmentMode` segue no corpo, igual a `photoMode`, para o app que não o conhece.
  */
 import { OCCURRENCE_MOMENT } from '../../shared/trip-occurrence.constant.js'
+import {
+  CLIENT_CHANNEL_DEFAULT,
+  type ClientChannel,
+} from '../../shared/delivery-client-email.constant.js'
 import type {
   OccurrenceDeclaredAmountScope,
   OccurrenceMoment,
@@ -38,6 +42,7 @@ import type {
 } from '../domain/occurrence-requirements.policy.js'
 import type { OccurrenceTypeRecord } from './register-trip-occurrence.use-case.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
+import type { StopOccurrencePhotoSlot } from '../domain/stop-occurrence-photo-slots.policy.js'
 import { resolveStopOccurrenceKind } from '../domain/stop-occurrence-kind.policy.js'
 
 /**
@@ -49,6 +54,13 @@ export type FieldOccurrenceType = OccurrenceCoreRequirements & {
   readonly declaredAmountMode: DeliveryProofFieldMode
   readonly declaredAmountScope: OccurrenceDeclaredAmountScope
   readonly iconName: null | OccurrenceTypeIconName
+  /**
+   * Spec 315 (D1, D10): o que o registro de parada pede de horário de chegada e localização, e a espera mínima
+   * depois do "Cheguei" (nulo: sem espera). Só o tipo os declara; nenhuma exceção os muda.
+   */
+  readonly arrivalTimeMode: DeliveryProofFieldMode
+  readonly locationMode: DeliveryProofFieldMode
+  readonly minWaitAfterArrivalMinutes: null | number
   readonly referenceNumberLabel: string
   readonly referenceNumberMode: DeliveryProofFieldMode
   /**
@@ -62,12 +74,22 @@ export type FieldOccurrenceType = OccurrenceCoreRequirements & {
    */
   readonly attachmentMode: DeliveryProofFieldMode
   /**
+   * Spec 281 T8b (D13): o app pede, na abertura, o contato do cliente que falta — só quando o tipo liga o canal
+   * (`clientChannel` diferente de `off`) e o pedido. O app lê os dois como o servidor resolveu; quem cobra é a API.
+   */
+  readonly asksClientContact: boolean
+  /** O app oferece o campo opcional "nova data de vencimento" ao abrir a ocorrência (pedido de prorrogação do boleto). */
+  readonly asksNewDueDate: boolean
+  readonly clientChannel: ClientChannel
+  /**
    * Spec 218 (D1, RF-B5): qual dos dois caminhos de registro este tipo alimenta — o app do
    * motorista usa este campo para rotear o registro (fase futura, RF-A5), sem decidir nada aqui.
    */
   readonly flow: OccurrenceTypeFlow
   readonly id: string
   readonly name: string
+  /** Spec 317 (RF8): as vagas de foto do tipo, rotuladas; o app trava o envio sem as `required`. Ausente é sem vagas. */
+  readonly photoSlots?: readonly StopOccurrencePhotoSlot[]
   /**
    * Spec 218 D2: qual dos 5 valores fixos de parada o tipo representa — a prévia do aviso no app
    * lê este campo. Nulo em tipo de nota; tipo de parada sem valor sai `other`, o mesmo que o
@@ -193,7 +215,13 @@ function toFieldOccurrenceType(params: {
   return {
     ...pickCoreRequirements(requirements),
     attachmentMode: requirements.photoMode,
+    asksClientContact: type.asksClientContact === true,
+    asksNewDueDate: type.asksNewDueDate === true,
+    clientChannel: type.clientChannel ?? CLIENT_CHANNEL_DEFAULT,
     iconName: type.iconName ?? null,
+    arrivalTimeMode: type.arrivalTimeMode ?? 'off',
+    locationMode: type.locationMode ?? 'off',
+    minWaitAfterArrivalMinutes: type.minWaitAfterArrivalMinutes ?? null,
     declaredAmountLabel: requirements.declaredAmountLabel,
     declaredAmountMode: requirements.declaredAmountMode,
     /** O tipo não conhece a nota: só o modo de Produtos conta aqui; a nota sem produto refina no snapshot. */
@@ -205,6 +233,9 @@ function toFieldOccurrenceType(params: {
     flow: type.flow ?? 'document',
     id: type.id,
     name: type.name,
+    ...(type.photoSlots === undefined || type.photoSlots.length === 0
+      ? {}
+      : { photoSlots: type.photoSlots }),
     referenceNumberLabel: requirements.referenceNumberLabel,
     referenceNumberMode: requirements.referenceNumberMode,
     stopKind: resolveFieldStopKind(type),

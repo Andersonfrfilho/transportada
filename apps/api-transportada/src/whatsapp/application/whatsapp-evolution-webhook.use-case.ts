@@ -31,6 +31,24 @@ import {
   WhatsAppEvolutionUnreachableError,
   WhatsAppEvolutionWebhookUrlMissingError,
 } from '../domain/whatsapp-evolution.error.js'
+import type { LazyEvolutionConnection } from './evolution-group-identity.service.js'
+import type { WhatsAppChatTakeoverGuard } from '../../whatsapp-inbox/application/whatsapp-chat-takeover-guard.service.js'
+import { directWhatsAppChatJid } from '../../whatsapp-inbox/domain/whatsapp-chat-jid.policy.js'
+import {
+  describeHeldMessage,
+  type EvolutionGroupInbound,
+  type EvolutionGroupInboundOutcome,
+  type EvolutionMessageEvent,
+  readGroupAudio,
+  readGroupMedia,
+  readGroupSenderLids,
+} from './evolution-group-inbound.service.js'
+import type { EvolutionConnectionRequest } from './whatsapp-evolution.port.js'
+import {
+  readWhatsAppXmlDocuments,
+  type WhatsAppXmlDocument,
+} from '../../nfe-xml-receipts/application/read-whatsapp-xml-documents.js'
+import type { WhatsAppXmlInbound } from '../../nfe-xml-receipts/application/receive-whatsapp-xml-document.service.js'
 import type { WhatsAppEvolutionSecretService } from './whatsapp-evolution-secret.service.js'
 import type {
   WhatsAppEvolutionWebhookGatewayPort,
@@ -83,10 +101,19 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
   /** `API_PUBLIC_URL`; ausente, receber continua funcionando, mas apontar o webhook é recusado. */
   readonly apiPublicUrl: string | undefined
   readonly apiKeySecrets: Pick<WhatsAppEvolutionSecretService, 'decrypt'>
+  /**
+   * Spec 319 T3 (RF2): o privado do motorista assumido por um atendente só grava a mensagem; o bot não responde nem
+   * avança o pedido. O grupo tem a mesma guarda dentro do `groupInbound`. Ausente, tudo como antes.
+   */
+  readonly chatTakeover?: WhatsAppChatTakeoverGuard
   readonly gateway: WhatsAppEvolutionWebhookGatewayPort
+  /** Spec 292 T3: a mensagem de grupo (lista de permissão, marcação do bot, dono do pedido). */
+  readonly groupInbound: EvolutionGroupInbound
   readonly inbound: EvolutionConversationInbound
   readonly logger: ApiLogger
   readonly repository: WhatsAppEvolutionWebhookRepositoryPort
+  /** Spec 301: o `.xml`/`.zip` mandado ao bot (privado ou grupo qualquer, marcando o bot); ausente, é ignorado. */
+  readonly xmlInbound?: WhatsAppXmlInbound
   readonly webhookSecrets: WhatsAppEvolutionWebhookSecretService
 }): WhatsAppEvolutionWebhookUseCase {
   const { gateway, logger, repository, webhookSecrets } = dependencies
@@ -206,10 +233,148 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         return { outcome: 'ignored' }
       }
 
-      const counts = { conversation: 0, ignored: 0, statuses: 0, unassigned: 0 }
+      const counts = {
+        conversation: 0,
+        direct: 0,
+        group: 0,
+        ignored: 0,
+        // Spec 308 (risco da T1): conversa 1:1 que chegou só com `@lid`, sem número para reconhecer.
+        lidOnly: 0,
+        statuses: 0,
+        // Spec 319 T3: mensagens de chat assumido por atendente (gravadas, sem resposta do bot).
+        takenOver: 0,
+        unassigned: 0,
+        xml: 0,
+      }
+      const groupIgnored: Partial<
+        Record<Exclude<EvolutionGroupInboundOutcome, 'admitted'>, number>
+      > = {}
       let connectionState: 'close' | 'connecting' | 'open' | undefined
+      let senderLids: ReadonlyMap<string, string> | undefined
+      let groupMedia: ReturnType<typeof readGroupMedia> | undefined
+      let groupAudio: ReturnType<typeof readGroupAudio> | undefined
+      const connection = lazyConnection(async () => {
+        const registration = await repository.findRegistration({ companyId })
+        if (registration === null) throw new WhatsAppEvolutionNotConfiguredError()
+        const { apiKey } = await dependencies.apiKeySecrets.decrypt({
+          companyId,
+          envelope: registration.apiKeyEnvelope,
+          settingsId: registration.settingsId,
+        })
+        return {
+          apiKey,
+          baseUrl: registration.baseUrl,
+          instanceName: registration.instanceName,
+        }
+      })
+      /**
+       * Spec 308 D2: o chat direto de um motorista ativo (pelo telefone) vai ao fluxo do grupo como "grupo de
+       * um só", menos a resposta que cita uma mensagem de conversa do painel (D2.2). `null` quando não é
+       * motorista ou cita o painel: segue para `receiveMessage`, como antes.
+       */
+      async function routeDirect(event: EvolutionMessageEvent): Promise<null | string> {
+        const { groupInbound, inbound } = dependencies
+        if (
+          groupInbound.findDirectDriver === undefined ||
+          groupInbound.receiveDirect === undefined
+        ) {
+          return null
+        }
+        const driver = await groupInbound.findDirectDriver({ companyId, phone: event.from })
+        // Spec 308 D2.4: quem tem envio de XML liberado vê a opção no menu (e, sem ser motorista, é orientado).
+        const canImportXml =
+          (await groupInbound.findDirectImporter?.({ companyId, phone: event.from })) === true
+        if (driver === null && (!canImportXml || event.text === null)) return null
+        const message = {
+          from: event.from,
+          providerMessageId: event.externalMessageId,
+          replyToProviderMessageId: event.replyToExternalMessageId,
+          text: event.text,
+        }
+        if (
+          event.replyToExternalMessageId !== null &&
+          (await inbound.quotesConversation?.({ companyId, message })) === true
+        ) {
+          return null
+        }
+        let outcome: string
+        // Spec 319 T3: antes do teto, para a mensagem do motorista assumido nunca se perder do histórico. Só o motorista
+        // tem chat na caixa; quem só importa XML segue como antes.
+        const chatJid = driver === null ? null : directWhatsAppChatJid(event.from)
+        const describeInbound = () => {
+          groupMedia ??= readGroupMedia(payload)
+          groupAudio ??= readGroupAudio(payload)
+          return describeHeldMessage({
+            audio: groupAudio.get(event.externalMessageId) ?? null,
+            author: 'driver',
+            event,
+            media: groupMedia.get(event.externalMessageId) ?? null,
+            sender: event.from,
+          })
+        }
+        const chatTakeover = chatJid === null ? undefined : dependencies.chatTakeover
+        const taken =
+          chatJid !== null &&
+          chatTakeover !== undefined &&
+          (await chatTakeover.holdIfTakenOver({ chatJid, companyId, message: describeInbound }))
+        // Spec 319 T4: o bot atende, mas a conversa fica no histórico. Sem esperar: o trilho não depende disso.
+        if (!taken && chatJid !== null && chatTakeover !== undefined) {
+          void chatTakeover.observeInbound({ chatJid, companyId, message: describeInbound })
+        }
+        if (taken) {
+          outcome = 'taken_over'
+        } else if (inbound.consumeDirectLimit?.({ companyId, from: event.from }) === false) {
+          outcome = 'rate_limited'
+        } else if (driver === null) {
+          outcome = groupInbound.receiveDirectImporter?.({ companyId, event }) ?? 'no_text'
+        } else {
+          groupMedia ??= readGroupMedia(payload)
+          groupAudio ??= readGroupAudio(payload)
+          outcome = await groupInbound.receiveDirect({
+            audio: groupAudio.get(event.externalMessageId) ?? null,
+            ...(canImportXml ? { canImportXml: true } : {}),
+            companyId,
+            connection,
+            driverId: driver.driverId,
+            event,
+            media: groupMedia.get(event.externalMessageId) ?? null,
+          })
+        }
+        // Só o desfecho e o formato, nunca o número nem o texto.
+        logger.info('whatsapp_evolution.direct_message', {
+          companyId,
+          correlationId,
+          hasText: event.text !== null,
+          isReply: event.replyToExternalMessageId !== null,
+          outcome,
+          providerMessageId: event.externalMessageId,
+        })
+        if (['admitted', 'audio', 'audio_answer', 'media'].includes(outcome)) counts.direct += 1
+        else if (outcome === 'taken_over') counts.takenOver += 1
+        else counts.ignored += 1
+        return outcome
+      }
+
+      const xmlDocuments =
+        dependencies.xmlInbound === undefined
+          ? new Map<string, WhatsAppXmlDocument>()
+          : readWhatsAppXmlDocuments(payload)
       for (const event of parseEvolutionWebhook(payload)) {
-        if (event.type === 'connection') {
+        const xmlDocument =
+          event.type === 'message' ? xmlDocuments.get(event.externalMessageId) : undefined
+        if (event.type === 'message' && xmlDocument !== undefined && dependencies.xmlInbound) {
+          // Documento XML/zip é do recebimento de notas e não passa pelo fluxo do motorista nem da conversa.
+          senderLids ??= readGroupSenderLids(payload)
+          const outcome = await dependencies.xmlInbound.receive({
+            companyId,
+            connection,
+            document: xmlDocument,
+            event,
+            senderLid: senderLids.get(event.externalMessageId) ?? null,
+          })
+          if (outcome === 'recorded' || outcome === 'rejected') counts.xml += 1
+          else counts.ignored += 1
+        } else if (event.type === 'connection') {
           connectionState = event.state
         } else if (event.type === 'status') {
           await dependencies.inbound.receiveStatus({
@@ -218,6 +383,13 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
             status: event.status,
           })
           counts.statuses += 1
+        } else if (
+          event.type === 'message' &&
+          !event.fromMe &&
+          event.chat === 'user' &&
+          (await routeDirect(event)) !== null
+        ) {
+          // Spec 308: o motorista no chat direto foi atendido pelo fluxo do grupo (ou parou no teto).
         } else if (event.type === 'message' && !event.fromMe && event.chat === 'user') {
           const outcome = await dependencies.inbound.receiveMessage({
             companyId,
@@ -230,9 +402,40 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
           })
           if (outcome === 'conversation' || outcome === 'unassigned') counts[outcome] += 1
           else counts.ignored += 1
+        } else if (event.type === 'message' && event.chat === 'group') {
+          senderLids ??= readGroupSenderLids(payload)
+          groupMedia ??= readGroupMedia(payload)
+          groupAudio ??= readGroupAudio(payload)
+          const outcome = await dependencies.groupInbound.receive({
+            audio: groupAudio.get(event.externalMessageId) ?? null,
+            companyId,
+            connection,
+            event,
+            media: groupMedia.get(event.externalMessageId) ?? null,
+            senderLid: senderLids.get(event.externalMessageId) ?? null,
+          })
+          // Por mensagem, para achar o porquê de um "3" marcado que não andou: só o desfecho e o formato,
+          // nunca o número de quem escreveu nem o texto.
+          logger.info('whatsapp_evolution.group_message', {
+            companyId,
+            correlationId,
+            hasMention: event.mentionedJids.length > 0,
+            hasText: event.text !== null,
+            isReply: event.replyToExternalMessageId !== null,
+            outcome,
+            providerMessageId: event.externalMessageId,
+          })
+          if (outcome === 'admitted' || outcome === 'audio' || outcome === 'media')
+            counts.group += 1
+          else if (outcome === 'taken_over') counts.takenOver += 1
+          else {
+            counts.ignored += 1
+            groupIgnored[outcome] = (groupIgnored[outcome] ?? 0) + 1
+          }
         } else {
-          // A própria mensagem enviada pelo celular, grupo, status ou evento que não lemos.
+          // A própria mensagem enviada pelo celular, status ou evento que não lemos.
           counts.ignored += 1
+          if (event.type === 'message' && !event.fromMe && event.chat === 'lid') counts.lidOnly += 1
         }
       }
       await repository.recordDelivery({
@@ -240,7 +443,12 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         ...(connectionState === undefined ? {} : { connectionState }),
       })
 
-      logger.info(WHATSAPP_EVOLUTION_WEBHOOK_LOG.received, { companyId, correlationId, ...counts })
+      logger.info(WHATSAPP_EVOLUTION_WEBHOOK_LOG.received, {
+        companyId,
+        correlationId,
+        ...counts,
+        ...(Object.keys(groupIgnored).length === 0 ? {} : { groupIgnored }),
+      })
       return { outcome: 'accepted' }
     },
 
@@ -263,6 +471,15 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
 
 export function webhookUrl(apiPublicUrl: string, webhookId: string): string {
   return `${apiPublicUrl.replace(/\/+$/u, '')}${API_PUBLIC_WHATSAPP_EVOLUTION_WEBHOOK_PATH.replace(':webhookId', webhookId)}`
+}
+
+/** Abre a chave da instância uma vez por entrega, só se alguma mensagem de grupo precisar do Evolution. */
+function lazyConnection(open: () => Promise<EvolutionConnectionRequest>): LazyEvolutionConnection {
+  let pending: Promise<EvolutionConnectionRequest> | undefined
+  return () => {
+    pending ??= open()
+    return pending
+  }
 }
 
 /** Corpo que não é JSON vira `undefined`, e o leitor do SDK o devolve como evento ignorado. */

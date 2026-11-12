@@ -51,6 +51,7 @@ function buildRoutine(input: {
     countEligibleCompanies: async () => 1,
     logger: { error() {}, info() {}, warn() {} } as never,
     now: () => NOW,
+    purgeAddressSuggestions: async () => 0,
     purgeStalePings: input.purgeStalePings,
     redact: async () => 0,
     redactDocumentOccurrenceLocations: async () => 0,

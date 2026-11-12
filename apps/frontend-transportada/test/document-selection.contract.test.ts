@@ -2,3 +2,4 @@
 
 /** Spec 103: o filtro decide o que pode ser despachado. */
 import './document-selection/scope.contract'
+import './document-selection/sheet.contract'

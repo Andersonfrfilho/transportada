@@ -277,18 +277,14 @@ describe('o operador separa, carrega e despacha pelo WhatsApp (spec 144 T016)', 
       /**
        * Spec 185 (D4, ADR-0074 §1): carregar a única nota fecha a carga sozinha — o gatilho
        * automático despacha a viagem na sequência, sem passar pelo botão "Despachar" manual.
-       * Quatro mensagens neste turno: a confirmação da carga, o desfecho do gatilho ("Viagem
-       * despachada."), o aviso de que a viagem saiu do menu de ações (ela não é mais "do armazém")
-       * e o nudge do menu raiz que sucede o "esta viagem não está mais disponível.".
+       * Neste turno: a confirmação da carga, o desfecho do gatilho ("Viagem despachada.") e o aviso
+       * de que a viagem saiu do menu de ações (ela não é mais "do armazém") — UMA mensagem (uma
+       * resposta por turno) — e o menu raiz interativo, separado por natureza.
        */
-      expect(scenario.sentMessages().at(-4)?.body).toMatchObject({
-        text: { body: 'Carregamento registrado. ✅' },
-      })
-      expect(scenario.sentMessages().at(-3)?.body).toMatchObject({
-        text: { body: 'Viagem despachada. 🚚' },
-      })
       expect(scenario.sentMessages().at(-2)?.body).toMatchObject({
-        text: { body: 'Esta viagem não está mais disponível.' },
+        text: {
+          body: 'Carregamento registrado. ✅\n\nViagem despachada. 🚚\n\nEsta viagem não está mais disponível.',
+        },
       })
 
       const [loaded] = await db

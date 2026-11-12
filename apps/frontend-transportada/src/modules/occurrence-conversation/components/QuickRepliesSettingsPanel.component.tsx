@@ -140,10 +140,8 @@ function AudienceSection({
   }
 
   return (
-    <section className={styles.panel} aria-label={t(`quickReplies.audience.${audience}`)}>
-      <div className={styles.panelHead}>
-        <h3>{t(`quickReplies.audience.${audience}`)}</h3>
-      </div>
+    <section className={styles.settingsBlock} aria-label={t(`quickReplies.audience.${audience}`)}>
+      <h3>{t(`quickReplies.audience.${audience}`)}</h3>
       {replies.length === 0 ? (
         <p className={styles.hint}>{t('quickReplies.empty')}</p>
       ) : (
@@ -227,8 +225,11 @@ export function QuickRepliesSettingsPanel({ enabled }: Readonly<{ enabled: boole
 
   const replies = query.data ?? []
   return (
-    <div className={styles.panel}>
-      <p className={styles.hint}>{t('quickReplies.description')}</p>
+    <div className={`${styles.panel} ${styles.settingsPanel}`}>
+      <div className={styles.settingsHeading}>
+        <h2>{t('quickReplies.title')}</h2>
+        <p className={styles.hint}>{t('quickReplies.description')}</p>
+      </div>
       {failed ? (
         <p className={styles.error} role="alert">
           {t('quickReplies.error.save')}

@@ -28,6 +28,7 @@ export function buildDocumentOccurrenceReport(input: {
     ...(occurrence.items === undefined ? {} : { items: occurrence.items }),
     kind: 'documentOccurrence',
     location: null,
+    ...(occurrence.newDueDate === undefined ? {} : { newDueDate: occurrence.newDueDate }),
     note: occurrence.note,
     occurrenceTypeId: occurrence.occurrenceTypeId,
     occurrenceTypeName: occurrence.occurrenceTypeName,

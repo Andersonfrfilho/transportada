@@ -11,9 +11,11 @@ import {
 } from '../queries/contractorReplyEmail.query'
 import {
   describeClientEmailSendState,
+  isWhatsAppFallback,
   type ClientEmailSendStateItem,
 } from '../shared/contractorReplyEmail.service'
 import styles from '../styles/occurrenceDetails.module.css'
+import { ClientDeliveryStatus } from './ClientDeliveryStatus.component'
 
 type ClientEmailSendStateProps = Readonly<{
   /** Na página da ocorrência: sem envio nenhum a seção some e, com envio, ganha o título. */
@@ -41,7 +43,10 @@ export function ClientEmailSendState({
   const formatMoment = useMomentFormatter()
   const query = useContractorReplyEmailOptionsQuery({ enabled: true, occurrenceId })
   const retry = useRetryClientDeliveryMutation(occurrenceId)
-  const items = describeClientEmailSendState(query.data?.deliveries ?? [])
+  const deliveries = query.data?.deliveries ?? []
+  const items = describeClientEmailSendState(deliveries)
+  const triggerOf = new Map(deliveries.map((delivery) => [delivery.id, delivery.trigger]))
+  const fallbackIds = new Set(deliveries.filter(isWhatsAppFallback).map((delivery) => delivery.id))
 
   if (query.isLoading) return isStandalone ? null : <Skeleton height="2rem" width="100%" />
   if (query.isError) return <p className={styles.hint}>{t('details.sendState.error')}</p>
@@ -59,13 +64,25 @@ export function ClientEmailSendState({
           <li className={styles.sendRow} key={item.deliveryId}>
             <span>{item.address ?? t('details.sendState.clientWithoutEmail')}</span>
             <span className={styles.sendStateLine}>
-              {item.state === 'skipped' ? null : (
-                <strong className={STATE_CLASS[item.state]}>
-                  {t(`details.sendState.state.${item.state}`)}
-                </strong>
+              {item.state === 'skipped' ? (
+                <time dateTime={item.at}>{formatMoment(item.at)}</time>
+              ) : (
+                <>
+                  <strong className={STATE_CLASS[item.state]}>
+                    {t(`details.sendState.state.${item.state}`)}
+                  </strong>
+                  <ClientDeliveryStatus
+                    at={item.at}
+                    channel="email"
+                    isWhatsAppFallback={fallbackIds.has(item.deliveryId)}
+                    state={item.state}
+                    stateLabel={t(`details.sendState.state.${item.state}`)}
+                    trigger={triggerOf.get(item.deliveryId)}
+                    triggerScope="sendState"
+                  />
+                </>
               )}
-              <time dateTime={item.at}>{formatMoment(item.at)}</time>
-              {item.canRetry ? (
+              {item.state === 'sent' || item.canRetry ? (
                 <Button
                   disabled={retry.isPending}
                   onClick={() => retry.mutate({ deliveryId: item.deliveryId })}
@@ -73,7 +90,11 @@ export function ClientEmailSendState({
                   type="button"
                   variant="secondary"
                 >
-                  {retry.isPending ? t('details.sendState.retrying') : t('details.sendState.retry')}
+                  {retry.isPending
+                    ? t('details.sendState.retrying')
+                    : item.state === 'sent'
+                      ? t('details.sendState.resend')
+                      : t('details.sendState.retry')}
                 </Button>
               ) : null}
             </span>

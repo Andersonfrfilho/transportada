@@ -64,6 +64,17 @@ export type WhatsAppPhoneRepositoryPort = {
   readonly closeRequestAfterCollision: (
     input: CompleteWhatsAppPhoneVerificationInput,
   ) => Promise<void>
+  /**
+   * O administrador grava o número já verificado (sem pedido de código): libera o vínculo **vencido** de outra pessoa na
+   * mesma chave, faz o upsert e grava a trilha, na mesma transação. Número verificado de outra pessoa dentro da
+   * validade lança `WhatsAppPhoneTakenError` e nada é gravado.
+   */
+  readonly bindVerifiedWithAudit: (input: {
+    readonly audit: WhatsAppPhoneAuditInput
+    readonly phone: string
+    readonly userId: string
+    readonly verifiedAt: Date
+  }) => Promise<void>
   /** Desfaz o vínculo e grava a trilha juntos; `false` quando não havia vínculo (e não há trilha). */
   readonly unbindWithAudit: (input: {
     readonly audit: WhatsAppPhoneAuditInput

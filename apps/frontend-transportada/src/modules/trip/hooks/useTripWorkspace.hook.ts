@@ -96,6 +96,8 @@ import type {
   OverrideDeliveryAddressInput,
   PlanTripRouteResult,
   RegisterFieldOccurrencesInput,
+  AutoOrderTripStopsInput,
+  AutoOrderTripStopsResult,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
   ReportFieldDeliveryInput,
@@ -174,7 +176,9 @@ export type TripController = Readonly<{
   /** Spec 156 T9: `POST /trips/:id/documents/field-occurrences`, uma nota ou o lote da seleção. */
   registerFieldOccurrences: (
     input: RegisterFieldOccurrencesInput,
-  ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
+  ) => Promise<
+    readonly Readonly<{ documentId: string; existingOccurrenceId?: string; id: string }>[]
+  >
   /** Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery`, uma chamada por nota. */
   reportFieldDelivery: (input: ReportFieldDeliveryInput) => Promise<ReportFieldDeliveryResult>
   /** Spec 184 D5: `POST .../field-proof` — a foto da carga sobe depois da baixa da nota. */
@@ -253,6 +257,8 @@ export type TripController = Readonly<{
     input: Readonly<{ routeChoice?: RouteChoice; tripId: string }>,
   ) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  /** Spec 323 RF4: "Ordenar paradas" do rascunho. */
+  autoOrderTripStops: (input: AutoOrderTripStopsInput) => Promise<AutoOrderTripStopsResult>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
   transitionTripDocument: (
     input: TransitionTripDocumentInput,
@@ -354,6 +360,8 @@ export function createTripController(
     planTripRoute: (body) => (canManageTrips ? input.client.planTripRoute(body) : forbidden()),
     releaseTripDocument: (body) =>
       canManageTrips ? input.client.releaseTripDocument(body) : forbidden(),
+    autoOrderTripStops: (body) =>
+      canManageTrips ? input.client.autoOrderTripStops(body) : forbidden(),
     reorderTripStops: (body) =>
       canManageTrips ? input.client.reorderTripStops(body) : forbidden(),
     transitionTripDocument: (body) =>
@@ -981,6 +989,11 @@ export function useTripWorkspace(
     mutationFn: controller.reorderTripStops,
     onSuccess: invalidate,
   })
+  /** Spec 323 RF4: a ordem e a rota mudam, e o detalhe mostra a origem nova. */
+  const autoOrderStopsMutation = useMutation({
+    mutationFn: controller.autoOrderTripStops,
+    onSuccess: invalidate,
+  })
   const overrideDeliveryAddressMutation = useMutation({
     mutationFn: controller.overrideDeliveryAddress,
     onSuccess: invalidate,
@@ -1135,6 +1148,7 @@ export function useTripWorkspace(
     overrideDeliveryAddressMutation,
     planRouteMutation,
     releaseDocumentMutation,
+    autoOrderStopsMutation,
     reorderStopsMutation,
     linkDocumentsAfterDispatchMutation,
     transferCrewMutation,

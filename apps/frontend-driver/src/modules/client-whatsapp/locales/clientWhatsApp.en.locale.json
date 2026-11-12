@@ -1,0 +1,69 @@
+{
+  "add": {
+    "another": "Send to another number",
+    "button": "Enter another number",
+    "invalid": "Check the number: it needs an area code, for example (16) 99999-8888.",
+    "number": "Customer WhatsApp",
+    "placeholder": "(16) 99999-8888"
+  },
+  "button": {
+    "ariaLabel": "Send the boleto to the customer by WhatsApp · {{context}}",
+    "label": "Send by WhatsApp"
+  },
+  "confirm": {
+    "back": "Fix it",
+    "question": "The boleto goes to this number. Is it right?",
+    "save": "Save this number for the customer",
+    "send": "Confirm and send"
+  },
+  "error": {
+    "dailyCap": "The company reached today's message limit. Send to the customer by e-mail.",
+    "failed": "Could not send. Tap to try again.",
+    "invalid": "The API refused the number. Check the area code and try again.",
+    "limit": "This customer already has the maximum of saved numbers.",
+    "unavailable": "This occurrence does not allow sending by WhatsApp right now."
+  },
+  "history": {
+    "failed": "Not sent",
+    "queued": "Sending",
+    "sent": "Sent",
+    "title": "WhatsApp sends",
+    "unknownNumber": "Customer number"
+  },
+  "pending": {
+    "discard": "Discard",
+    "failed": "A send was refused and did not go out.",
+    "queued_one": "{{count}} send in the queue — goes out when the signal is back.",
+    "queued_other": "{{count}} sends in the queue — go out when the signal is back.",
+    "retry": "Try again"
+  },
+  "reason": {
+    "attachment_too_large_for_whatsapp": "the boleto is too large for WhatsApp",
+    "send_failed": "WhatsApp did not accept it right now",
+    "whatsapp_disconnected": "the company WhatsApp is disconnected",
+    "whatsapp_number_not_found": "this number has no WhatsApp"
+  },
+  "resend": {
+    "button": "Try again · {{number}}"
+  },
+  "result": {
+    "already_sent": "Already sent",
+    "failed": "Not sent",
+    "in_progress": "Sending now",
+    "queuedOffline": "Queued: the boleto goes out by WhatsApp when the signal is back.",
+    "saved": "Number saved for the customer.",
+    "sent": "Sent",
+    "useEmail": "Use \"Send to customer\" by e-mail for this customer."
+  },
+  "sheet": {
+    "cancel": "Close",
+    "empty": "This customer has no WhatsApp saved for the boleto yet. Enter a number.",
+    "limit": "Sent: {{sent}} of {{limit}}",
+    "offlineHint": "No signal: the send is queued and goes out when the connection is back.",
+    "review": "Check the number",
+    "savedTitle": "Customer WhatsApp",
+    "send": "Send boleto",
+    "sending": "Sending…",
+    "title": "Send the boleto by WhatsApp"
+  }
+}

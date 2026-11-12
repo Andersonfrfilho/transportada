@@ -475,6 +475,7 @@ export class DrizzleTripValuationQuery {
     for (const row of rows) {
       const document: TripValuationDocument = {
         destinationCityCode: row.destinationCityCode,
+        destinationCity: row.destinationCity,
         destinationState: row.destinationState,
         icmsAmount: icmsByDocument.get(row.nfeDocumentId ?? '') ?? null,
         issuedAt: row.issuedAt === null ? null : row.issuedAt.toISOString(),
@@ -537,6 +538,8 @@ export class DrizzleTripValuationQuery {
         and(
           eq(tripStopEvents.companyId, tripStops.companyId),
           eq(tripStopEvents.stopId, tripStops.id),
+          /** Spec 294 RF2: etapa marcada junto não mede espera — o instante é o da baixa, não o do fato. */
+          eq(tripStopEvents.recordedTogether, false),
           inArray(tripStopEvents.kind, [...DWELL_EVENT_KINDS]),
         ),
       )
@@ -632,6 +635,7 @@ export class DrizzleTripValuationQuery {
 
     const rows = await this.database
       .select({
+        destinationCity: recipientAddress.city,
         destinationCityCode: recipientAddress.cityCode,
         destinationState: recipientAddress.state,
         issuedAt: nfeDocuments.issuedAt,
@@ -673,6 +677,7 @@ export class DrizzleTripValuationQuery {
 
     return rows.map((row) => ({
       destinationCityCode: row.destinationCityCode,
+      destinationCity: row.destinationCity,
       destinationState: row.destinationState,
       issuedAt: row.issuedAt === null ? null : row.issuedAt.toISOString(),
       /** Prévia não mede: o CT-e ainda não existe, então a receita é sempre a prevista. */
@@ -955,6 +960,7 @@ export class DrizzleTripValuationQuery {
       const current = byTrip.get(row.tripId)
       const document: TripValuationDocument = {
         destinationCityCode: row.destinationCityCode,
+        destinationCity: row.destinationCity,
         destinationState: row.destinationState,
         issuedAt: row.issuedAt === null ? null : row.issuedAt.toISOString(),
         measuredAmount: row.measuredAmount,
@@ -1003,6 +1009,7 @@ export class DrizzleTripValuationQuery {
 
     return this.database
       .select({
+        destinationCity: recipientAddress.city,
         destinationCityCode: recipientAddress.cityCode,
         tripId: tripDocuments.tripId,
         destinationState: recipientAddress.state,
@@ -1076,6 +1083,7 @@ export class DrizzleTripValuationQuery {
 
     return rows.map((row) => ({
       destinationCityCode: row.destinationCityCode,
+      destinationCity: row.destinationCity,
       destinationState: row.destinationState,
       icmsAmount: icmsByDocument.get(row.nfeDocumentId ?? '') ?? null,
       issuedAt: row.issuedAt === null ? null : row.issuedAt.toISOString(),

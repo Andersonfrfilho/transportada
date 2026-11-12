@@ -71,6 +71,7 @@ import {
 } from './proofUploadProgress.service'
 import type { ProofUploadFailure } from './proofUploadProgress.service'
 import { sendFormWithUploadProgress, type UploadProgress } from './xhrMultipartTransport.service'
+import { parseFieldReportResponse, type FieldReportResponse } from './fieldReportResponse.service'
 import { withLegacyLocation, type DriverTripErrorDetail } from './offlineQueue.service'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
@@ -256,6 +257,16 @@ export type DriverTripClient = Readonly<{
    * aqui não desfaz nada. Enfileirar arquivo é outro problema — tamanho, expurgo, cota do aparelho —
    * e está declarado como pendência em vez de resolvido pela metade.
    */
+  /**
+   * Spec 321 T6 (D4b): a foto do canhoto da coleta — `POST .../canhoto-pickups/:pickupId/proof`, só `kind=photo`.
+   * Vai direto (sem fila): a coleta já está encaixada e a falha volta como erro para a tela mandar de novo.
+   */
+  sendCanhotoPickupPhoto: (input: {
+    capturedAt?: string
+    clockOffsetMs?: number
+    file: File
+    pickupId: string
+  }) => Promise<Readonly<{ stopClosed: boolean; tripCompleted: boolean }>>
   attachProof: (input: {
     /** Spec 159 RF3/RF5-RF6: posição lida no momento da captura — opcional, e nunca bloqueia o anexo. */
     accuracyMeters?: number
@@ -287,10 +298,14 @@ export type DriverTripClient = Readonly<{
     receivedByDetail?: string
     receiverDocument?: string
     receiverName?: string
+    /** Spec 294 RF26: o motorista confirmou trocar o canhoto que a nota já tem. */
+    replaceCanhoto?: boolean
     /** Spec 220 RF17: a miniatura do comprovante — opcional, nunca condição para o anexo subir. */
     thumbnail?: File
   }) => Promise<
     Readonly<{
+      /** Spec 294 RF26: a mesma imagem já tinha chegado — nada foi gravado de novo; `attachedAt` é quando chegou. */
+      duplicate?: Readonly<{ attachedAt: string }>
       id: string
       /** Spec 265 RF6/RF10: só `received`/`processing` aparecem; `ready` e a API antiga (sem o campo) são `undefined`. */
       processingState?: ProofProcessingState
@@ -336,7 +351,8 @@ export type DriverTripClient = Readonly<{
   readLocationConsent: () => Promise<LocationConsent>
   /** `stamp` é o carimbo do item da fila (spec 234 D2); só os `kind` de `CLOCK_FIELD_REPORT_KINDS` o levam. */
   /** `attempt` (spec 254) só rotula o diagnóstico; não muda o envio. */
-  send: (stamped: StampedReport, options?: SendOptions) => Promise<void>
+  /** Spec 294: devolve o que a API respondeu ao toque de campo (etapas marcadas junto); `undefined` nos demais itens. */
+  send: (stamped: StampedReport, options?: SendOptions) => Promise<FieldReportResponse | undefined>
   /** Spec 254: sem diagnóstico sobre si mesmo — o envio do diagnóstico nunca passa pelo coletor. */
   sendClientDiagnostics: (batch: DiagnosticsBatch) => Promise<DiagnosticsSendResult>
   /** A posição ao vivo. Sem id de viagem: o servidor resolve a viagem do motorista (ADR-0050 §5). */
@@ -359,12 +375,17 @@ export type LocationConsent = Readonly<{ acceptedAt: string | null }>
 
 type DocumentOccurrenceReport = Extract<DriverFieldReport, { kind: 'documentOccurrence' }>
 type StopOccurrencePhotoReport = Extract<DriverFieldReport, { kind: 'stopOccurrencePhoto' }>
+/** Spec 317: a cobrança no recebimento — fotos por vaga e o corpo da cobrança num `POST` só. */
+type StopOccurrenceChargeReport = Extract<DriverFieldReport, { kind: 'stopOccurrenceCharge' }>
 /** Spec 193 D7: o PATCH `.../proof/receiver` — tem caminho e método próprios, fora do POST comum. */
 type ProofReceiverReport = Extract<DriverFieldReport, { kind: 'proofReceiver' }>
 /** Os relatos que são um `POST` JSON só — os que levam foto ou usam outro método têm caminho próprio. */
 type JsonFieldReport = Exclude<
   DriverFieldReport,
-  DocumentOccurrenceReport | StopOccurrencePhotoReport | ProofReceiverReport
+  | DocumentOccurrenceReport
+  | StopOccurrenceChargeReport
+  | StopOccurrencePhotoReport
+  | ProofReceiverReport
 >
 
 /** Spec 206: exportada — `stop-departure.contract.ts` prova o caminho de `depart`/`cancelDeparture`. */
@@ -396,8 +417,17 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
   const clockFields = buildClockFields({ kind: report.kind, stamp })
   switch (report.kind) {
     case 'arrive':
-      return JSON.stringify({ location: report.location, ...clockFields })
+      return JSON.stringify({
+        ...confirmationFields(report),
+        location: report.location,
+        ...clockFields,
+      })
     case 'depart':
+      return JSON.stringify({
+        ...confirmationFields(report),
+        location: report.location,
+        tappedAt: report.tappedAt,
+      })
     case 'cancelDeparture':
       return JSON.stringify({ location: report.location, tappedAt: report.tappedAt })
     case 'dispatch':
@@ -405,6 +435,7 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
     case 'deliver':
       return JSON.stringify({
         ...clockFields,
+        ...confirmationFields(report),
         location: report.location,
         ...(shouldSendLateRegistration({
           isFieldEnabled: LATE_REGISTRATION_FIELD_ENABLED,
@@ -416,6 +447,7 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
     case 'return':
       return JSON.stringify({
         ...clockFields,
+        ...confirmationFields(report),
         location: report.location,
         reason: report.reason,
         ...(report.returnToWarehouse === true ? { returnToWarehouse: true } : {}),
@@ -435,6 +467,13 @@ export function reportBody({ report, stamp }: StampedReport<JsonFieldReport>): s
         ...stopOccurrenceReference(report),
       })
   }
+}
+
+/** Spec 294 RF27: só entra o que o motorista confirmou; a API recusa a chave fora das quatro rotas da ordem. */
+function confirmationFields(report: {
+  readonly confirmOutOfOrder?: true
+}): Readonly<{ confirmOutOfOrder: true }> | Record<string, never> {
+  return report.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}
 }
 
 /**
@@ -468,6 +507,9 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       if (variant !== undefined) form.set('variant', variant)
       if (input.thumbnail !== undefined) form.set('thumbnail', input.thumbnail)
       if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
+      // Spec 294 RF26/RF27: trocar o canhoto só com a confirmação do motorista (o 409 já foi perguntado).
+      if (input.kind === 'photo' && input.replaceCanhoto === true)
+        form.set('replaceCanhoto', 'true')
       if (input.receivedBy !== undefined) form.set('receivedBy', input.receivedBy)
       if (input.receivedByDetail !== undefined) form.set('receivedByDetail', input.receivedByDetail)
       if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
@@ -510,6 +552,24 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         step: STEP_UPLOAD_PUT,
       })
       return toProofAttachResult(payload)
+    },
+    async sendCanhotoPickupPhoto(input) {
+      const form = new FormData()
+      form.set('file', input.file)
+      form.set('kind', 'photo')
+      if (input.capturedAt !== undefined) form.set('capturedAt', input.capturedAt)
+      if (input.clockOffsetMs !== undefined) form.set('clockOffsetMs', String(input.clockOffsetMs))
+      const payload = await request({
+        dependencies,
+        form,
+        method: 'POST',
+        path: `${CURRENT_TRIP_PATH}/canhoto-pickups/${input.pickupId}/proof`,
+      })
+      const data = ((payload as { readonly data?: unknown } | null)?.data ?? {}) as {
+        readonly stopClosed?: unknown
+        readonly tripCompleted?: unknown
+      }
+      return { stopClosed: data.stopClosed === true, tripCompleted: data.tripCompleted === true }
     },
     async listOccurrenceTypes() {
       /**
@@ -650,7 +710,7 @@ async function sendReport(input: {
   readonly dependencies: ClientDependencies
   readonly options: SendOptions | undefined
   readonly stamped: StampedReport
-}): Promise<void> {
+}): Promise<FieldReportResponse | undefined> {
   const { dependencies, options, stamped } = input
   const { report: queuedReport, stamp } = stamped
   const report = withLegacyLocation(queuedReport)
@@ -663,8 +723,9 @@ async function sendReport(input: {
         reportKind: report.kind,
       },
       report,
+      stamp,
     })
-    return
+    return undefined
   }
   if (report.kind === 'stopOccurrencePhoto') {
     await sendStopOccurrencePhoto({
@@ -677,7 +738,20 @@ async function sendReport(input: {
       report,
       stamp,
     })
-    return
+    return undefined
+  }
+  if (report.kind === 'stopOccurrenceCharge') {
+    await sendStopOccurrenceCharge({
+      dependencies,
+      diagnostics: {
+        attempt: options?.attempt,
+        idempotencyKey: report.idempotencyKey,
+        reportKind: report.kind,
+      },
+      report,
+      stamp,
+    })
+    return undefined
   }
   if (report.kind === 'proofReceiver') {
     await request({
@@ -687,15 +761,16 @@ async function sendReport(input: {
       method: 'PATCH',
       path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/proof/receiver`,
     })
-    return
+    return undefined
   }
-  await request({
+  const payload = await request({
     body: reportBody({ report, stamp }),
     dependencies,
     idempotencyKey: report.idempotencyKey,
     method: 'POST',
     path: reportPath(report),
   })
+  return parseFieldReportResponse(payload)
 }
 
 /**
@@ -707,8 +782,9 @@ async function sendDocumentOccurrence(input: {
   readonly dependencies: ClientDependencies
   readonly diagnostics: StepContext
   readonly report: DocumentOccurrenceReport
+  readonly stamp: EventClockStamp | undefined
 }): Promise<void> {
-  const { dependencies, diagnostics, report } = input
+  const { dependencies, diagnostics, report, stamp } = input
   const observer = dependencies.occurrenceUpload
   const key = report.idempotencyKey
   const photos = listDocumentOccurrencePhotos(report)
@@ -727,7 +803,7 @@ async function sendDocumentOccurrence(input: {
   }
   observer?.start(key)
   try {
-    await sendDocumentOccurrenceBody({ dependencies, diagnostics, report, reportProgress })
+    await sendDocumentOccurrenceBody({ dependencies, diagnostics, report, reportProgress, stamp })
     observer?.done(key)
   } catch (error) {
     const failure = describeAttachmentFailure(error)
@@ -742,8 +818,9 @@ async function sendDocumentOccurrenceBody(input: {
   readonly diagnostics: StepContext
   readonly report: DocumentOccurrenceReport
   readonly reportProgress: (index: number, progress: UploadProgress) => void
+  readonly stamp: EventClockStamp | undefined
 }): Promise<void> {
-  const { dependencies, diagnostics, report, reportProgress } = input
+  const { dependencies, diagnostics, report, reportProgress, stamp } = input
   const uploadsPath = `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`
   const photos = listDocumentOccurrencePhotos(report)
   /** Spec 246: fotos e assinatura sobem pelo mesmo par de upload, em paralelo — a ordem das fotos é a da lista. */
@@ -773,9 +850,12 @@ async function sendDocumentOccurrenceBody(input: {
   await request({
     body: JSON.stringify({
       ...buildAttachmentFields(attachmentObjectIds),
+      /** Spec 320: a API retém a ocorrência cujo toque foi de outro dia (`202 held`, que `request` já trata como sucesso). */
+      ...buildClockFields({ kind: report.kind, stamp }),
       ...(report.declaredAmount === undefined ? {} : { declaredAmount: report.declaredAmount }),
       ...(report.items === undefined ? {} : { items: report.items }),
       location: report.location,
+      ...(report.newDueDate === undefined ? {} : { newDueDate: report.newDueDate }),
       note: report.note,
       occurrenceTypeId: report.occurrenceTypeId,
       productCode: report.productCode,
@@ -840,6 +920,49 @@ async function sendStopOccurrencePhoto(input: {
     }),
     dependencies,
     idempotencyKey: report.occurrenceKey,
+    method: 'POST',
+    path: `${stopPath}/occurrences`,
+  })
+}
+
+/**
+ * Spec 317 (RF3, RF4): a cobrança no recebimento. Cada foto sobe pela rota da parada (par `occurrence-uploads` +
+ * `confirm`, sem o token no `PUT`), e só com **todas** confirmadas sai o `POST` único com `photos[{ slotKey, objectId }]`
+ * e `receivingCharge`: a API cobra as vagas obrigatórias e grava ocorrência, fotos, linhas de Ressarcimentos e a marca do
+ * cliente numa transação. A chave do item é a do registro — o reenvio da fila (queda no meio dos uploads) repete o `POST`
+ * com a mesma chave e não duplica linha nem foto.
+ */
+async function sendStopOccurrenceCharge(input: {
+  readonly dependencies: ClientDependencies
+  readonly diagnostics: StepContext
+  readonly report: StopOccurrenceChargeReport
+  readonly stamp: EventClockStamp | undefined
+}): Promise<void> {
+  const { dependencies, diagnostics, report, stamp } = input
+  const stopPath = `${CURRENT_TRIP_PATH}/stops/${report.stopId}`
+  const photos: { objectId: string; slotKey: string }[] = []
+  for (const entry of report.photos) {
+    const objectId = await uploadOccurrencePhoto({
+      dependencies,
+      diagnostics,
+      onProgress: () => undefined,
+      photo: entry.photo.blob,
+      uploadsPath: `${stopPath}/occurrence-uploads`,
+    })
+    photos.push({ objectId, slotKey: entry.slotKey })
+  }
+
+  await request({
+    body: JSON.stringify({
+      ...buildClockFields({ kind: report.kind, stamp }),
+      description: report.description,
+      location: report.location,
+      photos,
+      receivingCharge: report.receivingCharge,
+      ...stopOccurrenceReference(report),
+    }),
+    dependencies,
+    idempotencyKey: report.idempotencyKey,
     method: 'POST',
     path: `${stopPath}/occurrences`,
   })
@@ -1176,6 +1299,7 @@ async function requestFile(
 }
 
 function toProofAttachResult(payload: unknown): Readonly<{
+  duplicate?: Readonly<{ attachedAt: string }>
   id: string
   processingState?: ProofProcessingState
   punctuality: ProofPunctuality
@@ -1196,11 +1320,19 @@ function toProofAttachResult(payload: unknown): Readonly<{
   }
 
   const processingState = readProofProcessingState(record.processingState)
+  const duplicate = readCanhotoDuplicate(record.duplicate)
   return {
+    ...(duplicate === undefined ? {} : { duplicate }),
     id: record.id,
     ...(processingState === undefined ? {} : { processingState }),
     punctuality: record.punctuality as ProofPunctuality,
   }
+}
+
+function readCanhotoDuplicate(value: unknown): Readonly<{ attachedAt: string }> | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const attachedAt = (value as { readonly attachedAt?: unknown }).attachedAt
+  return typeof attachedAt === 'string' ? { attachedAt } : undefined
 }
 
 function readFileName(disposition: string | null, fallback: string): string {
@@ -1380,7 +1512,7 @@ async function request(
    * saiu da sua viagem", e trocá-lo por um genérico apagaria a única explicação que o motorista tem.
    */
   if (!response.ok) {
-    const details = readErrorDetails(payload)
+    const details = readErrorDetails(payload) ?? readOutOfOrderDetails(payload)
     throw new DriverTripRequestError({
       code: readErrorCode(payload),
       ...(details === undefined ? {} : { details }),
@@ -1442,6 +1574,22 @@ function readErrorCode(payload: unknown): string {
   if (typeof payload !== 'object' || payload === null) return 'REQUEST_FAILED'
   const error = (payload as { readonly error?: { readonly code?: unknown } }).error
   return typeof error?.code === 'string' ? error.code : 'REQUEST_FAILED'
+}
+
+/**
+ * Spec 294 RF27: o `409 TRIP_STOP_OUT_OF_ORDER` traz `outOfOrder` ao lado de `error`. Vira `details` (campo/texto)
+ * para seguir pela mesma fila e pela mesma tela de recusas que o `409 TRIP_HAS_STOP_EN_ROUTE`.
+ */
+function readOutOfOrderDetails(payload: unknown): readonly DriverTripErrorDetail[] | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined
+  const violation = (payload as { readonly outOfOrder?: unknown }).outOfOrder
+  if (typeof violation !== 'object' || violation === null) return undefined
+  const details = Object.entries(violation as Record<string, unknown>).flatMap(([field, value]) =>
+    typeof value === 'string' || typeof value === 'number'
+      ? [{ field, message: String(value) }]
+      : [],
+  )
+  return details.length > 0 ? details : undefined
 }
 
 /** Spec 206 D9: `error.details` — ausente na maioria das recusas, presente no `TRIP_HAS_STOP_EN_ROUTE`. */

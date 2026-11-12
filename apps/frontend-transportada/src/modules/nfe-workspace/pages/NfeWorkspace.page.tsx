@@ -19,6 +19,9 @@ import { AddressReportPanel } from '../components/AddressReportPanel.component'
 import { useAddressCorrectionRequests } from '../hooks/useAddressCorrectionRequests.hook'
 import { useAddressReport } from '../hooks/useAddressReport.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
+import { useContractorsQuery } from '@/modules/trip/queries/useContractors.query'
+import { useNfeXmlAllowedDomains } from '../hooks/useNfeXmlAllowedDomains.hook'
+import { useNfeXmlReceipts } from '../hooks/useNfeXmlReceipts.hook'
 import { CameraMeasurementSettingsPanel } from '../components/CameraMeasurementSettingsPanel.component'
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
 import { PackageBoxMeasurementPanel } from '../components/PackageBoxMeasurementPanel.component'
@@ -41,12 +44,17 @@ import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.com
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
 import { NfeImportQueue } from '../components/NfeImportQueue.component'
+import { NfeImportReprocessDialog } from '../components/NfeImportReprocessDialog.component'
+import { NfeXmlAllowedDomainsPanel } from '../components/NfeXmlAllowedDomainsPanel.component'
+import { NfeXmlReceiptsPanel } from '../components/NfeXmlReceiptsPanel.component'
+import { AccessKeyImportSection } from '../components/AccessKeyImportSection.component'
+import { NfeImportByScanShortcut } from '../components/NfeImportByScanShortcut.component'
 import { NfeUploadPanel } from '../components/NfeUploadPanel.component'
 import { NfeWorkspaceHeader } from '../components/NfeWorkspaceHeader.component'
 import { useNfeWorkspace } from '../hooks/useNfeWorkspace.hook'
 import { createNfeDistributionPullControl } from '../shared/nfeDistributionPull.service'
 import {
-  DEFAULT_NFE_IMPORT_MECHANISM,
+  readNfeImportMechanismFromSearch,
   type NfeImportMechanism,
   NFE_IMPORT_MECHANISM_ORDER,
   resolveNfeImportMechanismView,
@@ -198,7 +206,9 @@ function StatusMessage(
 export function NfeWorkspacePage() {
   const { t } = useTranslation('nfeWorkspace')
   const authQuery = useAuthMeQuery()
-  const [mechanism, setMechanism] = useState<NfeImportMechanism>(DEFAULT_NFE_IMPORT_MECHANISM)
+  const [mechanism, setMechanism] = useState<NfeImportMechanism>(() =>
+    readNfeImportMechanismFromSearch(window.location.search),
+  )
   const [statusEq, setStatusEq] = useState<
     | ''
     | 'cancelled'
@@ -242,6 +252,7 @@ export function NfeWorkspacePage() {
   const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null)
   const [downloadErrorId, setDownloadErrorId] = useState<string | null>(null)
   const [reprocessTargetId, setReprocessTargetId] = useState<string | null>(null)
+  const [reprocessDialogId, setReprocessDialogId] = useState<string | null>(null)
   /**
    * Spec 088 R4: a aba abre pela URL. A planta do baú manda o conferente medir a caixa que falta, e
    * um atalho que larga na aba errada faz ele procurar o botão em vez de medir. É leitura única, na
@@ -259,6 +270,15 @@ export function NfeWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.scheduledDistribution,
   })
+  const xmlReceipts = useNfeXmlReceipts({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: workspace.canRead,
+  })
+  const allowedDomains = useNfeXmlAllowedDomains({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings,
+  })
+  const domainContractors = useContractorsQuery({ enabled: canManageSettings })
   const distributionCursor = useDistributionCursor({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.distributionCursor,
@@ -309,6 +329,11 @@ export function NfeWorkspacePage() {
 
   function fileKey(file: File): string {
     return `${file.name}:${file.size}:${file.lastModified}`
+  }
+
+  function handleOpenImportByScan(): void {
+    setMechanism('accessKey')
+    setActiveTab('imports')
   }
 
   function handleFileSelection(files: readonly File[]): void {
@@ -376,12 +401,19 @@ export function NfeWorkspacePage() {
     })
   }
 
+  /** Abre o diálogo de confirmação; nada é gravado antes de "Confirmar" (spec 314). */
   function handleReprocess(id: string): void {
     setReprocessTargetId(id)
-    workspace.reprocessMutation.mutate({
-      id,
-      idempotencyKey: workspace.newIdempotencyKey(),
-    })
+    workspace.reprocessMutation.reset()
+    setReprocessDialogId(id)
+  }
+
+  function handleReprocessConfirm(): void {
+    if (reprocessDialogId === null) return
+    workspace.reprocessMutation.mutate(
+      { id: reprocessDialogId, idempotencyKey: workspace.newIdempotencyKey() },
+      { onSuccess: () => setReprocessDialogId(null) },
+    )
   }
 
   async function handleDownloadXml(document: NfeDocumentListItem): Promise<void> {
@@ -406,7 +438,17 @@ export function NfeWorkspacePage() {
 
   return (
     <main className={styles.workspaceShell}>
-      <NfeWorkspaceHeader status={viewModel.status} />
+      <NfeWorkspaceHeader
+        action={
+          viewModel.status === 'loading' ? null : (
+            <NfeImportByScanShortcut
+              canImport={workspace.canImport}
+              onOpen={handleOpenImportByScan}
+            />
+          )
+        }
+        status={viewModel.status}
+      />
 
       {viewModel.status === 'loading' ? (
         <SkeletonGroup
@@ -504,6 +546,13 @@ export function NfeWorkspacePage() {
                         uploadFailed={workspace.uploadMutation.isError}
                         uploadPending={workspace.uploadMutation.isPending}
                         uploadSucceeded={workspace.uploadMutation.isSuccess}
+                      />
+                    )}
+
+                    {mechanism === 'accessKey' && (
+                      <AccessKeyImportSection
+                        canImport={workspace.canImport}
+                        onOpenDocument={() => setActiveTab('documents')}
                       />
                     )}
 
@@ -642,6 +691,38 @@ export function NfeWorkspacePage() {
                       reprocessSuccess={workspace.reprocessMutation.isSuccess}
                       reprocessTargetId={reprocessTargetId}
                     />
+                    {reprocessDialogId !== null && (
+                      <NfeImportReprocessDialog
+                        importId={reprocessDialogId}
+                        isSubmitting={workspace.reprocessMutation.isPending}
+                        loadPreview={workspace.previewReprocess}
+                        onCancel={() => setReprocessDialogId(null)}
+                        onConfirm={handleReprocessConfirm}
+                      />
+                    )}
+                    {workspace.canRead && (
+                      <NfeXmlReceiptsPanel
+                        failed={xmlReceipts.isError}
+                        loading={xmlReceipts.isLoading}
+                        receipts={xmlReceipts.data}
+                      />
+                    )}
+                    {canManageSettings && (
+                      <NfeXmlAllowedDomainsPanel
+                        contractors={(domainContractors.data ?? []).map((contractor) => ({
+                          id: contractor.id,
+                          label: contractor.displayName,
+                        }))}
+                        domains={allowedDomains.query.data}
+                        failed={allowedDomains.query.isError}
+                        loading={allowedDomains.query.isLoading}
+                        onRelease={allowedDomains.release.mutateAsync}
+                        onSetStatus={allowedDomains.setStatus.mutateAsync}
+                        pending={
+                          allowedDomains.release.isPending || allowedDomains.setStatus.isPending
+                        }
+                      />
+                    )}
                   </>
                 ),
               },

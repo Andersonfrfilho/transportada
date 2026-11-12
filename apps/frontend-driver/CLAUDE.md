@@ -513,3 +513,57 @@ com a rede caindo no meio, o pedido vai para a fila própria (`clientBoletoEmail
 usa os gatilhos da fila de mensagens (`useClientEmailOutboxFlush`, montado na casca). O endereço novo só mora no aparelho
 até a fila entregar; log e resposta continuam mascarados. `test/client-email/*.contract.ts`; prints em
 `test/spec-279-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-279-prints.smoke.spec.ts`).
+
+## "Enviar por WhatsApp" (spec 281 T8)
+
+Módulo `src/modules/client-whatsapp`, irmão do `client-email`: o botão (`ClientWhatsAppSendButton`) fica ao lado do "Enviar ao
+cliente" nos mesmos três lugares e reaproveita a regra do boleto aceito (`hasBoletoArrived`). Quem decide é a API: o
+`GET .../client-boleto-whatsapp` responde `409`/`404` quando o `client_channel` do tipo não liga o WhatsApp, e o botão some; some
+também com `evolution.ready = false` (número da empresa desconectado), e o e-mail segue. A folha (`ClientWhatsAppSendSheet`,
+em portal no `body`, com o CSS da folha do e-mail) lista os números mascarados por `contactId` e o histórico de entregas; o
+número digitado passa pela **tela de confirmação** (número formatado, "Guardar este número para o cliente" = `save`) antes de
+sair — o app nunca manda o número sem esse passo. `parseClientWhatsAppNumber` é cópia por valor da política da API (teste de
+paridade lê o arquivo-fonte); a validação final é da API. Sem sinal, o pedido vai para a fila própria
+(`transportada.driver-client-whatsapp-outbox`) com a **mesma `idempotencyKey`** em toda tentativa; "Tentar de novo" de uma
+entrega que falhou (`POST .../deliveries/:id/resend`, chave nova por toque) só vale com sinal e só para `send_failed` e
+`whatsapp_disconnected` — número sem WhatsApp e arquivo grande apontam o e-mail. `test/client-whatsapp/*.contract.ts`; prints em
+`test/spec-281-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-281-prints.smoke.spec.ts`).
+
+## Contato do cliente na abertura (spec 281 T8b)
+
+Módulo `src/modules/client-contacts`. Quando o tipo escolhido traz `asksClientContact` e o `clientChannel` não é `off`, o
+formulário de ocorrência mostra `ClientContactsSection` (o app só lê o que o servidor resolveu: `resolveAskedContactChannels`).
+Os contatos são do **cliente da nota** (`/me/trips/current/documents/:documentId/client-contacts`): lista mascarada, vários
+números e e-mails; o do escritório (`editable: false`) é só leitura, o que o motorista informou ele edita e remove. Todo
+contato novo passa pela **tela de confirmação** (número formatado) antes de ir à API, que valida e normaliza. A escrita é
+**online, sem fila**: sem sinal a seção avisa e o registro da ocorrência segue. `DriverConversationHttp` ganhou `patchJson` e
+`deleteJson` (todo dublê do `http` em teste precisa dos dois). `test/client-contacts/*.contract.ts`; prints em
+`test/spec-281-t8b-prints.smoke.spec.ts` (fora da CI; o build do smoke precisa de `VITE_DRIVER_APP_URL=http://localhost:53112`).
+
+**A própria foto** (spec 295): `useOwnPicture` lê `GET /me/picture` (vira `blob:`, já aceito no `img-src`), troca por `PUT` e remove por `DELETE`; compressão no aparelho em `userPictureCompression.service.ts` (cópia do painel). `DriverAvatar` mostra a foto no cabeçalho e no Perfil e volta às iniciais se faltar ou quebrar.
+
+**A nota da CNH** (spec 295 Fase 4): `GET /me/picture` traz `x-picture-origin`; `ownPictureClient` o lê (`cnh|self|admin`, desconhecido vira `undefined`) e, enquanto a origem é `cnh`, o Perfil mostra o botão "Foto tirada da sua CNH — toque para trocar", que abre o seletor. Trocar grava `self` e a nota some.
+
+## Cobrança no recebimento (spec 317)
+
+Para o tipo de parada `unexpected_charge` **com `photoSlots` vindos do servidor**, `OccurrenceReceivingChargeSection` + `useReceivingChargeForm` pedem valor (máscara de centavos da 247, `0,00` é valor),
+notas e modo (por nota ou agrupada, só com mais de uma nota; uma só é assumida), "Quem pagou?", tipo e chave PIX se foi o motorista, e **uma foto por vaga com o rótulo do servidor**.
+Nenhuma `slotKey` fixa em `src/` (a exigência é lida do servidor; contrato de paridade em `test/driver-trip/receiving-charge.contract.ts`). "Registrar" só habilita com tudo e a segunda trava está em
+`dispatchOccurrenceRegistration`; a mensagem do botão diz **qual** foto falta. Sem `photoSlots` (API antiga) o tipo cai no formulário de sempre.
+
+- **Fila:** item `stopOccurrenceCharge` (fotos por vaga, valor, notas, PIX). Não reaproveita `stopOccurrencePhoto`: a API exige todas as vagas obrigatórias no **primeiro** registro. O `send` sobe cada foto
+  pela rota da parada e faz **um** `POST` com `photos[{ slotKey, objectId }]` e `receivingCharge`, com a chave do registro (reenvio não duplica). Entra na cota de bytes, no carimbo de hora e no cancelamento; fila cheia devolve o toque inteiro.
+- **Selo:** `DriverChargeSealNotice` no cartão da parada, somente leitura, só com `stops[].clientChargeSeal`; ausente/malformado some. Limite: o PIX não vem pré-preenchido (o snapshot não traz o PIX do cadastro).
+- Prints em `specs/317-*/prints/` (`test/spec-317-prints.smoke.spec.ts`, fora da CI). **Este app vai por último** (painel → API → app).
+
+## Ocorrência recusada sai das pendências (pedido de 10/11/2026)
+
+Na drenagem (`drainQueueWithAttachments`), recusa do servidor em `occurrence`, `documentOccurrence`, `stopOccurrencePhoto` e `stopOccurrenceCharge` tira o item e os anexos dele da fila na hora
+(`isClearedOnRejection`); a recusa fica no histórico "Enviados" (`remember(..., 'rejected')`). Entrega, chegada, devolução e despacho recusados **continuam à vista** (spec 227: o motorista precisa saber que não foram
+registrados; o despacho recusado explica "NF … não carregadas"). `test/driver-trip/occurrence-cleared-on-rejection.contract.ts`.
+
+## Viagem concluída não deixa pendência (pedido de 10/11/2026)
+
+A cada leitura de `GET /me/trips/current`, `purgeConcludedTripQueue` (`concludedTripQueue.service.ts`) tira da fila e dos anexos o item do dono que aponta (`documentId`, `stopId` ou `tripId`) para viagem
+`completed`/`cancelled` **da resposta**, e grava `discarded` no histórico. A API manda a viagem concluída só por 15 min (spec 225): item cuja viagem já saiu da resposta não é reconhecido. Referência que também
+aparece numa viagem aberta fica. `test/driver-trip/concluded-trip-queue.contract.ts`.

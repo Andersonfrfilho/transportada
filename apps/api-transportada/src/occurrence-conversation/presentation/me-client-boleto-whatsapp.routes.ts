@@ -28,6 +28,7 @@ const READ_POLICY = { permission: 'trip.read', scope: 'company' } as const
 const REPORT_POLICY = { permission: 'trip.report', scope: 'company' } as const
 const WHATSAPP_PATH = '/me/trips/current/occurrences/:id/client-boleto-whatsapp'
 const SEND_PATH = `${WHATSAPP_PATH}/send`
+const RESEND_PATH = `${WHATSAPP_PATH}/deliveries/:deliveryId/resend`
 
 /** O mesmo balde do envio por e-mail do app: os dois escrevem no trilho de entrega do cliente. */
 const SEND_RATE_LIMIT = DRIVER_CLIENT_BOLETO_EMAIL_SEND_RATE_LIMIT
@@ -42,13 +43,19 @@ const SEND_BODY_SCHEMA = z
   .strict()
   .readonly()
 
+/** O reenvio leva só a chave do pedido: a entrega e a ocorrência vêm do caminho. */
+const RESEND_BODY_SCHEMA = z
+  .object({ idempotencyKey: z.string().max(200) })
+  .strict()
+  .readonly()
+
 export function createMeClientBoletoWhatsAppRoutes(dependencies: {
   readonly findMyOccurrence: (input: {
     readonly companyId: string
     readonly driverId: string
     readonly occurrenceId: string
   }) => Promise<unknown>
-  readonly forwardByWhatsApp: Pick<ForwardContractorReplyByWhatsAppUseCase, 'forward'>
+  readonly forwardByWhatsApp: Pick<ForwardContractorReplyByWhatsAppUseCase, 'forward' | 'resend'>
   readonly resolveDriverId: (context: {
     readonly companyId: string
     readonly membershipId: string
@@ -130,6 +137,38 @@ export function createMeClientBoletoWhatsAppRoutes(dependencies: {
         }
       },
       pathname: SEND_PATH,
+      policy: REPORT_POLICY,
+      rateLimit: SEND_RATE_LIMIT,
+    }),
+    defineRoute<{
+      readonly correlationId: string
+      readonly deliveryId: string
+      readonly idempotencyKey: string
+      readonly occurrenceId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        await assertMine({ ...context.scope, occurrenceId: input.occurrenceId })
+        const outcome = await dependencies.forwardByWhatsApp.resend({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          deliveryId: input.deliveryId,
+          idempotencyKey: input.idempotencyKey,
+          occurrenceId: input.occurrenceId,
+        })
+        return whatsappOutcomeResponse(outcome)
+      },
+      method: 'POST',
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseBody(RESEND_BODY_SCHEMA, request)
+        return {
+          correlationId,
+          deliveryId: parseUuidPathIdentifier(pathParameters.deliveryId ?? ''),
+          idempotencyKey: parseIdempotencyKey(body.idempotencyKey),
+          occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: RESEND_PATH,
       policy: REPORT_POLICY,
       rateLimit: SEND_RATE_LIMIT,
     }),

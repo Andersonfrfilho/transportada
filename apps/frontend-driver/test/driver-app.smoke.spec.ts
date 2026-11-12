@@ -160,7 +160,9 @@ test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', as
   const api = await openTrip(page)
 
   expect(new URL(page.url()).pathname).toBe('/')
-  await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
+  await expect(
+    page.locator('main > header').getByRole('img', { name: /Placa GCQ8E47/u }),
+  ).toBeVisible()
   await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
 
   // Um toque, uma requisição, uma chave — é o que a idempotência do servidor casa no reenvio
@@ -636,7 +638,9 @@ test.describe('CA12: duas viagens e a janela de entrega', () => {
     await expect(
       trips.getByRole('button', { name: 'Rua das Flores, 20 · 1 parada' }),
     ).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.locator('main > header').getByText('Veículo ABC1D23')).toBeVisible()
+    await expect(
+      page.locator('main > header').getByRole('img', { name: /Placa ABC1D23/u }),
+    ).toBeVisible()
     // Pedido do usuário (25/09): a parada virou cabeçalho expansível — o rótulo mora no botão do
     // acordeão, não mais num `<h2>` isolado (o `<h2>` agora embrulha o botão inteiro, ver
     // DriverStopCard.component.tsx).
@@ -648,14 +652,18 @@ test.describe('CA12: duas viagens e a janela de entrega', () => {
     await expect(page.getByText('Janela 08:00–12:00')).toBeVisible()
 
     await trips.getByRole('button', { name: 'Praca da Se, 100 · 1 parada' }).click()
-    await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
+    await expect(
+      page.locator('main > header').getByRole('img', { name: /Placa GCQ8E47/u }),
+    ).toBeVisible()
     await expect(page.getByText('Praca da Se, 100').filter({ visible: true }).first()).toBeVisible()
     await expect(
       page.getByText('Rua das Flores, 20', { exact: true }).filter({ visible: true }),
     ).toHaveCount(0)
 
     await page.reload()
-    await expect(page.locator('main > header').getByText('Veículo GCQ8E47')).toBeVisible()
+    await expect(
+      page.locator('main > header').getByRole('img', { name: /Placa GCQ8E47/u }),
+    ).toBeVisible()
 
     await page.getByRole('button', { name: 'Perfil' }).click()
     await expect(page.getByText('Veículo GCQ8E47')).toBeVisible()

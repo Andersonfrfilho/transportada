@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { createHash } from 'node:crypto'
+
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type { Coordinate } from '../../addresses/domain/coordinate-distance.js'
@@ -42,6 +44,7 @@ import {
   TripDeliveryProofRejectedError,
   TripDocumentNotReachableError,
 } from '../domain/trip.error.js'
+import { TripCanhotoAlreadyAttachedError } from '../domain/stop-order.error.js'
 import { TripDeliveryProofCargoLimitError } from '../domain/trip-field-office.error.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import {
@@ -54,8 +57,11 @@ import {
   EMPTY_RECEIVED_BY,
   type ReceivedByFields,
 } from '../domain/received-by.policy.js'
+import type { AttachedCanhoto, CanhotoDuplicate } from './canhoto-attachment.types.js'
+import { CanhotoDuplicateError } from './canhoto-duplicate.error.js'
 import {
   deriveFieldAuthorship,
+  FIELD_TRIP_TARGET_KIND,
   toFieldTripTarget,
   type FieldAuthorship,
   type FieldTripLocator,
@@ -93,6 +99,8 @@ export type DeliveryProofUpload = {
    * comprovante sem o dado — nunca recusa (C1).
    */
   readonly receivedBy?: ReceivedByFields
+  /** Spec 294 RF26: a tripulação confirmou trocar o canhoto que a nota já tem; sem isso o canhoto diferente é 409. */
+  readonly replaceCanhoto?: boolean
   /** Nome de quem recebeu — na assinatura e, desde a spec 193 D4, também na foto do canhoto. */
   readonly receiverName: string
   /** Spec 220 RF17/RF19: miniatura gerada no cliente; ausente é o caso normal, nunca condição do comprovante. */
@@ -189,12 +197,22 @@ export type DeliveryProofPort = {
    * Spec 184 D3 / spec 220 RF08: quantos comprovantes daquele evento+tipo já existem — o teto de
    * cinco fotos da mercadoria vale para os dois canais.
    */
+  /** Spec 294 RF26: o canhoto da empresa com a mesma imagem, ou `null`. */
+  findCanhotoByHash(input: {
+    readonly companyId: string
+    readonly sha256: string
+  }): Promise<AttachedCanhoto | null>
   countProofsForEvent(input: {
     readonly companyId: string
     readonly eventId: string
     readonly kind: TripDeliveryProofKind
   }): Promise<number>
   saveProof(input: {
+    /**
+     * Spec 294 C5: o hash do conteúdo do canhoto, o mesmo da conferência de antes da gravação; presente, a transação
+     * trava por ele e relê — a mesma imagem gravada por outro pedido no meio vira `CanhotoDuplicateError`.
+     */
+    readonly canhotoSha256?: string
     readonly accuracyMeters: string | null
     readonly actorUserId: string
     readonly attachmentKey: string
@@ -246,6 +264,13 @@ export type DeliveryProofPort = {
 
 export type AttachDeliveryProofInput = FieldTripLocator & {
   readonly actorUserId: string
+  /**
+   * Spec 321 T4 (D4b): a foto do canhoto colhida pelo motorista de **outra** viagem (a da coleta). Ela vira o canhoto
+   * da entrega de origem: o evento é procurado na viagem de origem (o motorista que coleta não está nela), troca o
+   * canhoto que a nota já tinha (é o que se foi buscar) e não classifica pontualidade (a foto não é da entrega). Quem
+   * confere que a coleta é dele é o caso de uso da coleta, antes daqui.
+   */
+  readonly canhotoPickup?: { readonly originTripId: string }
   readonly companyId: string
   /** Spec 265 RF13: a correlação da requisição — vai no log e no pedido ao worker. Ausente cai no `proofId`. */
   readonly correlationId?: string
@@ -273,9 +298,11 @@ export type AttachedDeliveryProof = {
   /** Spec 265 RF6: o estado do tratamento do arquivo que a resposta publica. */
   readonly processingState: TripDeliveryProofProcessingState
   readonly punctuality: ProofPunctuality
+  /** Spec 294 RF26: presente quando a mesma imagem já era canhoto — nada foi gravado e `id` é o comprovante que já existia. */
+  readonly duplicate?: CanhotoDuplicate
 }
 
-type AttachOutcome = 'received' | 'replayed' | 'stored'
+type AttachOutcome = 'duplicate' | 'received' | 'replayed' | 'stored'
 
 /**
  * Spec 057, P2 "o comprovante". Ele anexa **a uma entrega que já aconteceu**: a confirmação nunca
@@ -399,7 +426,10 @@ async function attachDeliveryProofUnlogged(
   const eventId = await input.repository.findDeliveryEventId({
     companyId: input.companyId,
     documentId: input.documentId,
-    target: toFieldTripTarget(input),
+    target:
+      input.canhotoPickup === undefined
+        ? toFieldTripTarget(input)
+        : { kind: FIELD_TRIP_TARGET_KIND.trip, tripId: input.canhotoPickup.originTripId },
   })
   if (eventId === null) throw new TripDocumentNotReachableError()
 
@@ -427,6 +457,8 @@ async function attachDeliveryProofUnlogged(
   }
 
   const authorship = deriveFieldAuthorship(input)
+  const duplicate = await resolveCanhotoConflict({ authorship, eventId, input })
+  if (duplicate !== undefined) return { outcome: 'duplicate', proof: duplicate }
   const isCargo = input.upload.kind === CARGO_PROOF_KIND
   // Só evita subir o objeto ao bucket à toa; o teto de verdade é conferido dentro do `saveProof`.
   if (isCargo) {
@@ -488,7 +520,7 @@ async function attachDeliveryProofUnlogged(
       })
     : EMPTY_RECEIVED_BY
 
-  const proof = await input.repository.saveProof({
+  const saved = input.repository.saveProof({
     accuracyMeters: input.upload.position?.accuracyMeters?.toFixed(2) ?? null,
     actorUserId: input.actorUserId,
     attachmentKey: input.upload.attachmentKey,
@@ -521,10 +553,21 @@ async function attachDeliveryProofUnlogged(
     receiverName: carriesReceiverName ? input.upload.receiverName : '',
     receivedBy: receiver.receivedBy,
     receivedByDetail: receiver.receivedByDetail,
+    ...(input.upload.kind === PHOTO_PROOF_KIND
+      ? { canhotoSha256: createHash('sha256').update(input.upload.bytes).digest('hex') }
+      : {}),
     sha256: stored.sha256,
     sizeBytes: input.upload.bytes.byteLength,
     ...(thumbnail === undefined ? {} : { thumbnail }),
   })
+  // Spec 294 C5: a mesma imagem gravada por outro pedido enquanto este subia — a trava do hash acha a primeira.
+  const proof = await saved.catch((error: unknown) => {
+    if (error instanceof CanhotoDuplicateError) return error
+    throw error
+  })
+  if (proof instanceof CanhotoDuplicateError) {
+    return { outcome: 'duplicate', proof: toDuplicateProof(proof.found) }
+  }
 
   const isOriginal = file.variant === 'original'
 
@@ -535,6 +578,45 @@ async function attachDeliveryProofUnlogged(
       processingState: isOriginal ? 'received' : resolveDeliveryProofProcessingState(null),
       punctuality,
     },
+  }
+}
+
+/**
+ * Spec 294 RF26: só o canhoto (`photo`) é conferido. A mesma imagem já anexada na empresa não grava de novo;
+ * outro canhoto sobre um que a nota já tem só passa com `replaceCanhoto`. Nota entregue sem canhoto não tem o
+ * que trocar, e a foto entra como o canhoto que faltava.
+ */
+async function resolveCanhotoConflict(params: {
+  readonly authorship: FieldAuthorship
+  readonly eventId: string
+  readonly input: AttachDeliveryProofInput
+}): Promise<AttachedDeliveryProof | undefined> {
+  const { authorship, eventId, input } = params
+  if (input.upload.kind !== PHOTO_PROOF_KIND) return undefined
+
+  const found = await input.repository.findCanhotoByHash({
+    companyId: input.companyId,
+    sha256: createHash('sha256').update(input.upload.bytes).digest('hex'),
+  })
+  if (found !== null) return toDuplicateProof(found)
+  if (authorship.channel === TRIP_FIELD_CHANNELS.office) return undefined
+  if (input.upload.replaceCanhoto === true || input.canhotoPickup !== undefined) return undefined
+
+  const attached = await input.repository.countProofsForEvent({
+    companyId: input.companyId,
+    eventId,
+    kind: PHOTO_PROOF_KIND,
+  })
+  if (attached > 0) throw new TripCanhotoAlreadyAttachedError()
+  return undefined
+}
+
+function toDuplicateProof(found: AttachedCanhoto): AttachedDeliveryProof {
+  return {
+    duplicate: { attachedAt: found.attachedAt, documentId: found.documentId },
+    id: found.proofId,
+    processingState: resolveDeliveryProofProcessingState(null),
+    punctuality: PROOF_PUNCTUALITY.notRequired,
   }
 }
 
@@ -596,6 +678,8 @@ async function classifyUploadPunctuality(params: {
   const unclassified = { clockOffsetMs: null, punctuality: PROOF_PUNCTUALITY.notRequired }
   if (kind !== PHOTO_PROOF_KIND && kind !== CARGO_PROOF_KIND) return unclassified
   if (params.authorship.channel === TRIP_FIELD_CHANNELS.office) return unclassified
+  // Spec 321 T4: a foto da coleta não é da entrega; não pune nem lava o motorista de origem.
+  if (params.input.canhotoPickup !== undefined) return unclassified
 
   return classifyPhotoPunctuality(params)
 }

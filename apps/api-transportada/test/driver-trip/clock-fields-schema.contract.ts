@@ -366,10 +366,13 @@ describe('pela rota: os campos chegam à dependência como dado (spec 234 T1.4)'
       readManifestXml: NOT_CALLED,
       registerDriverOccurrence: NOT_CALLED,
       renderManifestDamdfe: NOT_CALLED,
-      reportArrival: record('reportArrival', { id: 'event-1' }),
+      reportArrival: record('reportArrival', { id: 'event-1', recordedTogether: ['departed'] }),
       reportDeparture: NOT_CALLED,
-      reportDelivery: record('reportDelivery', { id: 'event-1' } as never),
-      reportOccurrence: record('reportOccurrence', { id: 'event-1' }),
+      reportDelivery: record('reportDelivery', {
+        id: 'event-1',
+        recordedTogether: ['departed', 'arrived'],
+      } as never),
+      reportOccurrence: record('reportOccurrence', { arrivalRecorded: false, id: 'event-1' }),
       reportReturn: record('reportReturn', { id: 'event-1' } as never),
       resolveDriverId: async () => DRIVER_ID,
       startFieldTrip: NOT_CALLED,
@@ -462,6 +465,32 @@ describe('pela rota: os campos chegam à dependência como dado (spec 234 T1.4)'
       expect('tappedAt' in (oldClient.calls[callName] ?? {})).toBe(false)
     })
   }
+
+  it('chegada e baixa devolvem recordedTogether no corpo (spec 294 T2.3)', async () => {
+    const { routes } = buildRoutes()
+    const arrival = await execute({
+      body: '{}',
+      contentType: 'application/json',
+      pathParameters: { stopId: STOP_ID },
+      routes,
+      suffix: '/arrive',
+    })
+    const delivery = await execute({
+      body: '{}',
+      contentType: 'application/json',
+      pathParameters: { documentId: DOCUMENT_ID },
+      routes,
+      suffix: '/deliver',
+    })
+
+    expect(await arrival.json()).toEqual({
+      data: { id: 'event-1', recordedTogether: ['departed'] },
+    })
+    expect(((await delivery.json()) as { data: unknown }).data).toEqual({
+      id: 'event-1',
+      recordedTogether: ['departed', 'arrived'],
+    })
+  })
 
   it('/proof: o clockOffsetMs do multipart chega ao attachProof dentro do upload', async () => {
     const { calls, routes } = buildRoutes()

@@ -2,6 +2,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CountBadge } from '@/components/ui/count-badge'
 import { FilterPills, countFilterPills, type FilterPill } from '@/components/ui/filter-pills'
@@ -39,6 +40,7 @@ import {
 } from '../shared/viewPreferencesClient.service'
 import styles from '../styles/nfeWorkspace.module.css'
 import { NfeDocumentFilterPanel } from '@/modules/shared/nfe-filter/NfeDocumentFilterPanel.component'
+import { NfeSheetSelectionAction } from './NfeSheetSelectionAction.component'
 import { NfeTripReportExportAction } from './NfeTripReportExportAction.component'
 import { MultiVehicleSuggestionAction } from '@/modules/routing/components/MultiVehicleSuggestionAction.component'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
@@ -504,6 +506,10 @@ export function NfeDocumentTable({
         pills={pills}
       />
 
+      {cteEmission.canEmit && (
+        <NfeSheetSelectionAction documents={documents} onSelect={table.selectDocuments} />
+      )}
+
       {table.selectedCount === 0 && (
         <div className={styles.reportExportRow}>
           <NfeTripReportExportAction table={table} />
@@ -661,13 +667,15 @@ export function NfeDocumentTable({
                     <td className={styles.tableEmpty} colSpan={columnSpan}>
                       <p>{t('documents.emptyFiltered')}</p>
                       {table.hasActiveFilters && (
-                        <button
+                        <Button
                           className={styles.tableEmptyAction}
                           onClick={table.clearAllFilters}
                           type="button"
+                          variant="ghost"
                         >
+                          <Icon name="filter-clear" />
                           {t('documents.clearAll')}
-                        </button>
+                        </Button>
                       )}
                     </td>
                   </tr>

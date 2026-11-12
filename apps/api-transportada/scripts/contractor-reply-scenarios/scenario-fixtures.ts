@@ -283,7 +283,6 @@ export async function createOccurrenceType(
 ): Promise<string> {
   const { companyId, database } = context
   const id = crypto.randomUUID()
-  const forwards = input.forwardToNoteRecipient !== 'off'
   const templateKey = `${SCENARIO_TEMPLATE_KEY_PREFIX}${id}`
   await database.db.execute(
     sql`insert into notification.templates (company_id, key, channel, locale, version, subject, body, active)
@@ -304,8 +303,6 @@ export async function createOccurrenceType(
     contractorReplyWaitHours: 6,
     driverReplyTemplate: 'Segue o boleto prorrogado.',
     emailsContractor: true,
-    forwardEmailBody: forwards ? 'Segue o boleto prorrogado da nota {{numeroNota}}.' : '',
-    forwardEmailSubject: forwards ? 'Boleto prorrogado — NF {{numeroNota}}' : '',
     forwardToNoteRecipient: input.forwardToNoteRecipient,
     id,
     name: input.name,

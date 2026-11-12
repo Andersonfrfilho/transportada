@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '../shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '../shared/KeycloakAuthProvider.provider'
+import { recoverFromRejectedToken } from '../shared/rejectedSessionRecovery.service'
 import { isSmokeAuthBypassEnabled } from '../shared/smokeAuthBypass.service'
 
 export const AUTH_ME_QUERY_KEY = ['identity', 'auth-me'] as const
@@ -22,6 +23,8 @@ const COMPANY_ROLES = [
   'contractor',
   /** ADR-0047 §1: o papel do ator sintético. Não se convida um robô, e nenhuma tela o oferece. */
   'automation',
+  /** Spec 295: credencial própria da foto da CNH; nenhuma tela a oferece. */
+  'cnh-picture-service',
 ] as const
 export const COMPANY_PERMISSIONS = [
   'users.manage',
@@ -48,6 +51,8 @@ export const COMPANY_PERMISSIONS = [
   'addresses.read',
   'fleet.read',
   'fleet.manage',
+  /** Spec 091 D3: abrir o documento do motorista — anexar é `fleet.manage`, ver o arquivo é esta. */
+  'fleet.reveal',
   'mdfe.read',
   'mdfe.manage',
   'mdfe.issue',
@@ -75,8 +80,11 @@ export const COMPANY_PERMISSIONS = [
   'whatsapp.settle',
   /** Spec 222 / ADR-0092: também de máquina — a leitura automática do canhoto, sem tela. */
   'trip.canhoto-auto-review',
+  /** Spec 299: também de máquina — a entrega do lembrete vencido ao motorista, sem tela. */
+  'trip.stop-reminder-dispatch',
   /** Spec 248 T4.4b: também de máquina — o aviso automático da ocorrência à contratante, sem tela. */
   'occurrence.automatic-mail',
+  'driver.cnh-picture',
   /** Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`. */
   'cargo.measure',
   /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
@@ -192,6 +200,17 @@ async function fetchAuthMe(): Promise<AuthMeResponse> {
   const response = await fetch(`${apiBaseUrl}${AUTH_ME_PATH}`, {
     headers: { authorization: `Bearer ${accessToken}` },
   })
+
+  if (response.status === 401) {
+    /** Token recusado pela API: reautentica em vez de deixar o painel em "Indisponível". */
+    const provider = getKeycloakAuthProvider()
+    const restarted = await recoverFromRejectedToken({
+      now: () => Date.now(),
+      restartAuthentication: () => provider.restartAuthentication(),
+      storage: window.sessionStorage,
+    })
+    throw new Error(restarted ? 'IDENTITY_SESSION_REJECTED' : 'IDENTITY_AUTH_ME_UNAVAILABLE')
+  }
 
   if (!response.ok) {
     throw new Error('IDENTITY_AUTH_ME_UNAVAILABLE')

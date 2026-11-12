@@ -15,28 +15,6 @@
   gap: var(--space-1);
 }
 
-/* "Ressarcimentos" em caixa alta tem ~370px no h1 global: no celular o título cabe na coluna e quebra. */
-.longTitle h1 {
-  max-width: none;
-  font-size: clamp(2rem, 13vw, 9rem);
-  overflow-wrap: anywhere;
-}
-
-/* Dos pontos de quebra em diante vale o h1 global (index.css), o mesmo da staging. */
-@media (min-width: 40rem) {
-  .longTitle h1 {
-    max-width: 12ch;
-    font-size: clamp(3.5rem, 15vw, 9rem);
-    overflow-wrap: normal;
-  }
-}
-
-@media (min-width: 64rem) {
-  .longTitle h1 {
-    font-size: clamp(5rem, 11vw, 9rem);
-  }
-}
-
 .hint {
   color: var(--color-slate);
   margin: 0;
@@ -133,4 +111,56 @@
 .total {
   font-weight: 700;
   margin: 0;
+}
+
+/* Spec 317: o detalhe da cobrança no recebimento — fotos rotuladas, quem pagou, PIX e o link da ocorrência. */
+.receivingDetail {
+  display: grid;
+  gap: var(--space-2);
+  max-width: min(60rem, calc(100vw - 6rem));
+  white-space: normal;
+}
+
+.photoList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.photoItem {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+  max-width: 6rem;
+}
+
+.photoThumb {
+  border: 1px solid var(--color-graphite);
+  border-radius: 0.5rem;
+  display: block;
+  height: 4rem;
+  object-fit: cover;
+  width: 6rem;
+}
+
+.photoLabel {
+  color: var(--color-slate);
+  font-size: 0.8125rem;
+}
+
+.pixKey {
+  overflow-wrap: anywhere;
+}
+
+.occurrenceLink {
+  justify-self: start;
+  text-decoration: none;
+}
+
+/* O detalhe fica numa linha própria, abaixo da cobrança: em 390 px uma coluna a mais sairia da tela. */
+.detailRow td {
+  background: color-mix(in srgb, var(--color-graphite) 12%, transparent);
 }

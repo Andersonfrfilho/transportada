@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, type SQL } from 'drizzle-orm'
 
 import {
   externalIdentities,
@@ -56,6 +56,7 @@ export class DrizzleUserPictureRepository
       .select({
         contentBase64: identityUserPictures.contentBase64,
         mimeType: identityUserPictures.mimeType,
+        origin: identityUserPictures.origin,
         publicToken: identityUserPictures.publicToken,
         sha256: identityUserPictures.sha256,
       })
@@ -71,6 +72,7 @@ export class DrizzleUserPictureRepository
     return {
       bytes: Buffer.from(row.contentBase64, 'base64'),
       mimeType: row.mimeType,
+      origin: row.origin,
       publicToken: row.publicToken,
       sha256: row.sha256,
     }
@@ -87,6 +89,7 @@ export class DrizzleUserPictureRepository
       .select({
         contentBase64: identityUserPictures.contentBase64,
         mimeType: identityUserPictures.mimeType,
+        origin: identityUserPictures.origin,
         publicToken: identityUserPictures.publicToken,
         sha256: identityUserPictures.sha256,
       })
@@ -98,6 +101,7 @@ export class DrizzleUserPictureRepository
     return {
       bytes: Buffer.from(row.contentBase64, 'base64'),
       mimeType: row.mimeType,
+      origin: row.origin,
       publicToken: row.publicToken,
       sha256: row.sha256,
     }
@@ -122,6 +126,18 @@ export class DrizzleUserPictureRepository
     return row?.subject
   }
 
+  public async markPublished(input: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<void> {
+    if (!(await this.belongsToCompany(input))) return
+
+    await this.database
+      .update(identityUserPictures)
+      .set({ publishedAt: new Date() })
+      .where(eq(identityUserPictures.userId, input.userId))
+  }
+
   public async remove(input: {
     readonly companyId: string
     readonly userId: string
@@ -137,6 +153,26 @@ export class DrizzleUserPictureRepository
   }
 
   public async save(input: SaveUserPictureInput): Promise<UserPictureMetadata> {
+    const saved = await this.upsert(input, undefined)
+    if (saved === undefined) throw new UserPictureNotFoundError()
+
+    return saved
+  }
+
+  /** `setWhere` torna o conflito condicional: foto `self`/`admin` já existente não é tocada, nem numa corrida. */
+  public async saveFromCnh(
+    input: Omit<SaveUserPictureInput, 'origin'>,
+  ): Promise<UserPictureMetadata | null> {
+    return (
+      (await this.upsert({ ...input, origin: 'cnh' }, eq(identityUserPictures.origin, 'cnh'))) ??
+      null
+    )
+  }
+
+  private async upsert(
+    input: SaveUserPictureInput,
+    setWhere: SQL | undefined,
+  ): Promise<UserPictureMetadata | undefined> {
     /** Vínculo de outra empresa não vira foto: sem o portão, o id bastaria para escrever lá. */
     if (!(await this.belongsToCompany(input))) throw new UserPictureNotFoundError()
 
@@ -152,6 +188,7 @@ export class DrizzleUserPictureRepository
         byteSize: input.byteSize,
         contentBase64: input.contentBase64,
         mimeType: input.mimeType,
+        origin: input.origin,
         publicToken,
         sha256: input.sha256,
         updatedAt,
@@ -162,11 +199,14 @@ export class DrizzleUserPictureRepository
           byteSize: input.byteSize,
           contentBase64: input.contentBase64,
           mimeType: input.mimeType,
+          origin: input.origin,
           publicToken,
+          publishedAt: null,
           sha256: input.sha256,
           updatedAt,
         },
         target: identityUserPictures.userId,
+        ...(setWhere === undefined ? {} : { setWhere }),
       })
       .returning({
         byteSize: identityUserPictures.byteSize,
@@ -175,7 +215,6 @@ export class DrizzleUserPictureRepository
         sha256: identityUserPictures.sha256,
         updatedAt: identityUserPictures.updatedAt,
       })
-    if (row === undefined) throw new UserPictureNotFoundError()
 
     return row
   }

@@ -12,6 +12,8 @@ import { ApiError } from '../../shared/api.error.js'
 import { parseBody, parseOptionalBody } from '../../http/request-parsing.service.js'
 import { TRIP_STOP_OCCURRENCE_KINDS } from '../../database/trip.schema.js'
 import { DRIVER_RETURN_REASONS } from '../domain/driver-return-reason.policy.js'
+import type { ReceivingChargeInput } from '../domain/receiving-charge.policy.js'
+import { receivingChargeSchema, toReceivingChargeInput } from './receiving-charge.schema.js'
 
 export const OCCURRENCE_DESCRIPTION_MAX_LENGTH = 500
 
@@ -33,6 +35,16 @@ const occurrenceBodySchema = z.object({
   distanceMeters: z.int().min(0).nullish(),
   documentId: z.uuid().nullish(),
   driverId: z.uuid().optional(),
+  /**
+   * Spec 315 (D10): a hora exata em que o motorista chegou. Obrigatória (conferida no caso de uso) quando a parada não
+   * tem chegada e o tipo tem espera mínima; descartada quando a parada já tem.
+   */
+  arrivedAt: z.iso.datetime().optional(),
+  /**
+   * Spec 317 (E3, E4, E11): a cobrança no recebimento lançada pelo escritório — valor, notas e quem pagou. O
+   * escritório não manda foto (não tem o anexo da parada, spec 209), então as vagas não se cobram dele.
+   */
+  receivingCharge: receivingChargeSchema.optional(),
 })
 
 /**
@@ -76,10 +88,12 @@ export async function parseOfficeDriverSelection(
 }
 
 export type OfficeStopOccurrenceRequest = {
+  readonly arrivedAt: Date | undefined
   readonly description: string
   readonly distanceMeters: number | null
   readonly documentId: string | null
   readonly driverId: string | undefined
+  readonly receivingCharge?: ReceivingChargeInput
 } & (
   | {
       readonly kind: (typeof TRIP_STOP_OCCURRENCE_KINDS)[number]
@@ -93,10 +107,14 @@ export async function parseOfficeStopOccurrenceRequest(
 ): Promise<OfficeStopOccurrenceRequest> {
   const body = await parseBody(occurrenceSchema, request)
   const common = {
+    arrivedAt: body.arrivedAt === undefined ? undefined : parseDeliveredAt(body.arrivedAt),
     description: body.description ?? '',
     distanceMeters: body.distanceMeters ?? null,
     documentId: body.documentId ?? null,
     driverId: body.driverId,
+    ...(body.receivingCharge === undefined
+      ? {}
+      : { receivingCharge: toReceivingChargeInput(body.receivingCharge) }),
   }
 
   return 'occurrenceTypeId' in body
@@ -108,6 +126,8 @@ const officeReturnSchema = z
   .object({
     driverId: z.uuid().optional(),
     reason: z.enum(DRIVER_RETURN_REASONS),
+    /** Padrão `true`: a devolução do escritório solta a nota da viagem para ela poder seguir em outra. */
+    returnToWarehouse: z.boolean().optional(),
     /** ADR-0067 §3: ausente cai em "agora" — as mesmas travas valem, e "agora" sempre as cumpre. */
     returnedAt: deliveredAtSchema.optional(),
   })
@@ -117,6 +137,7 @@ const officeReturnSchema = z
 export async function parseOfficeFieldReturnRequest(request: Request): Promise<{
   readonly driverId: string | undefined
   readonly reason: (typeof DRIVER_RETURN_REASONS)[number]
+  readonly returnToWarehouse: boolean
   readonly returnedAt: Date | undefined
 }> {
   const body = await parseBody(officeReturnSchema, request)
@@ -124,6 +145,7 @@ export async function parseOfficeFieldReturnRequest(request: Request): Promise<{
   return {
     driverId: body.driverId,
     reason: body.reason,
+    returnToWarehouse: body.returnToWarehouse ?? true,
     returnedAt: body.returnedAt === undefined ? undefined : parseDeliveredAt(body.returnedAt),
   }
 }

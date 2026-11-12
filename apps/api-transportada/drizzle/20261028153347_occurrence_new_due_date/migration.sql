@@ -1,0 +1,2 @@
+ALTER TABLE "company_occurrence_types" ADD COLUMN "asks_new_due_date" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "trip_document_occurrences" ADD COLUMN "requested_due_date" date;

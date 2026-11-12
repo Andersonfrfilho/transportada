@@ -171,6 +171,18 @@ const CATALOG = [
     job: 'occurrence.contractor-reply.alert',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 299 T1.2: o lembrete ao motorista na hora certa; o worker pede, a API envia. Nasce pausada. */
+    failureOutcomes: ['api_unreachable'],
+    job: 'driver.stop-reminder.dispatch',
+    minimumIntervalSeconds: 300,
+  },
+  {
+    /** Spec 319 T7: devolve ao bot a conversa do WhatsApp vencida; toca só o próprio banco. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'whatsapp-inbox.chat.expire',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 describe('worker job catalog', () => {

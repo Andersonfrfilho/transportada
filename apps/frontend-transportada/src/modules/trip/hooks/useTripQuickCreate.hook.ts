@@ -2,7 +2,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { isCameraCapable } from '@/components/ui/barcodeScanner.service'
 import {
   invalidateMutationEffect,
   MUTATION_EFFECT,
@@ -12,6 +11,7 @@ import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.ser
 import { AVAILABLE_TRIP_DOCUMENTS_QUERY_KEY, TRIP_QUERY_KEY } from '../shared/trip.constant'
 
 import {
+  isCityOrderTouched,
   moveCity,
   reconcileCityOrder,
   resolveStopKey,
@@ -26,14 +26,9 @@ import { resolveBoundVehicleIds } from '../shared/driverBoundVehicles.service'
 import { withoutSelectedDrivers } from '../shared/tripCrewHelpers.service'
 import { useDriverVehicleBindings } from './useDriverVehicleBindings.hook'
 import type { ScannedNfeDocument, TripDetail } from '../shared/trip.types'
-import { resolveTypedNote, type TypedNoteFeedback } from '../shared/tripNoteLookup.service'
 import {
-  acceptQuickCreateScan,
   EMPTY_QUICK_CREATE_QUEUE,
-  listSelectableDocuments,
-  refuseQuickCreateEntry,
   removeQuickCreateEntry,
-  resolveQuickCreateEntry,
   stageQuickCreateDocuments,
   stagedDocumentIds,
   stagedDocuments,
@@ -65,7 +60,6 @@ export function useTripQuickCreate(
   const initialDocumentIds = input.initialDocumentIds ?? NO_INITIAL_DOCUMENT_IDS
   /** Quem chegou da seleção de notas não precisa clicar de novo no botão que ele acabou de clicar. */
   const [isOpen, setIsOpen] = useState(initialDocumentIds.length > 0)
-  const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [queue, setQueue] = useState<TripQuickCreateQueue>(EMPTY_QUICK_CREATE_QUEUE)
   const [driverIds, setDriverIds] = useState<readonly string[]>([])
   const [helperIds, setHelperIds] = useState<readonly string[]>([])
@@ -84,12 +78,7 @@ export function useTripQuickCreate(
   const [cityOrder, setCityOrder] = useState<AssemblyCityOrder>([])
   /** Spec 153: a rota que o mapa da montagem mostra — a que a viagem congela ao planejar. */
   const [routeChoice, setRouteChoice] = useState<RouteChoice | undefined>(undefined)
-  /** A câmera não aparece no meio da sessão: reler `navigator` a cada render não diria nada novo. */
-  const [canScan] = useState(() => isCameraCapable(globalThis.navigator))
-  /**
-   * Duas leituras do mesmo quadro veem o mesmo estado renderizado, e o veredito de uma nota chega
-   * enquanto outra ainda resolve: a fila autoritativa é a referência, não o instantâneo do render.
-   */
+  /** Duas inclusões no mesmo quadro veem o mesmo estado renderizado: a fila autoritativa é a referência. */
   const queueRef = useRef<TripQuickCreateQueue>(EMPTY_QUICK_CREATE_QUEUE)
 
   /**
@@ -117,8 +106,6 @@ export function useTripQuickCreate(
     })
   }
 
-  const [typedNote, setTypedNote] = useState<TypedNoteFeedback | undefined>(undefined)
-
   function updateQueue(next: TripQuickCreateQueue): void {
     queueRef.current = next
     setQueue(next)
@@ -140,64 +127,7 @@ export function useTripQuickCreate(
     updateQueue(stageQuickCreateDocuments({ documents, queue: queueRef.current }))
   }, [documentsQuery.data, initialDocumentIds])
 
-  async function lookupAccessKey(accessKey: string): Promise<void> {
-    try {
-      const document = await getTripClient().findNfeDocumentByAccessKey({ accessKey })
-      updateQueue(resolveQuickCreateEntry({ accessKey, document, queue: queueRef.current }))
-    } catch {
-      updateQueue(
-        refuseQuickCreateEntry({ accessKey, queue: queueRef.current, refusal: 'lookupFailed' }),
-      )
-    }
-  }
-
-  /** A câmera fica aberta entre leituras: confirmar nota a nota mata o ritmo de quem separa. */
-  function acceptScan(text: string): void {
-    const acceptance = acceptQuickCreateScan({ queue: queueRef.current, text })
-    if (acceptance.accessKey === undefined) return
-    updateQueue(acceptance.queue)
-    void lookupAccessKey(acceptance.accessKey)
-  }
-
-  /**
-   * A inserção rápida aceita chave **ou número da nota**. O número é resolvido entre as notas livres
-   * que ainda não estão na fila: uma vira linha, nenhuma ou texto sem sentido vira aviso, várias
-   * pedem escolha — escolher pela pessoa entregaria carga ao cliente errado.
-   */
-  function submitTyped(text: string): void {
-    const lookup = resolveTypedNote({
-      documents: listSelectableDocuments({
-        documents: documentsQuery.data ?? [],
-        queue: queueRef.current,
-      }),
-      text,
-    })
-    if (lookup.kind === 'empty') return
-    touch()
-    if (lookup.kind === 'accessKey') {
-      setTypedNote(undefined)
-      acceptScan(text)
-      return
-    }
-    if (lookup.kind === 'unrecognized') {
-      setTypedNote({ kind: 'unrecognized' })
-      return
-    }
-    const [only] = lookup.matches
-    if (lookup.matches.length === 1 && only !== undefined) {
-      setTypedNote(undefined)
-      updateQueue(stageQuickCreateDocuments({ documents: [only], queue: queueRef.current }))
-      return
-    }
-    setTypedNote(
-      lookup.matches.length === 0
-        ? { kind: 'notFound' }
-        : { candidates: lookup.matches, kind: 'ambiguous' },
-    )
-  }
-
   function reset(): void {
-    setTypedNote(undefined)
     setCityOrder([])
     setRouteChoice(undefined)
     updateQueue(EMPTY_QUICK_CREATE_QUEUE)
@@ -325,6 +255,7 @@ export function useTripQuickCreate(
     mutationFn: (variables: Readonly<{ asDraft: boolean }>): Promise<TripDetail> =>
       runQuickCreateTrip({
         cityOrder,
+        cityOrderTouched: isCityOrderTouched({ cityOrder, documents: staged }),
         client: getTripClient(),
         createBody: {
           /** Spec 143 D4: ausente sugere pela duração — nunca `dailyAllowanceDays: undefined`. */
@@ -361,13 +292,6 @@ export function useTripQuickCreate(
     stagedDocuments: staged,
     availableDocuments: documentsQuery.data ?? [],
     documentsQuery,
-    acceptScan: (text: string) => {
-      touch()
-      acceptScan(text)
-    },
-    canScan,
-    submitTyped,
-    typedNote,
     /** Cancelar guarda o rascunho; "Limpar rascunho" é o único caminho que o apaga antes de criar. */
     close: () => {
       draftStore.dismissNotice()
@@ -381,7 +305,6 @@ export function useTripQuickCreate(
     draftStore,
     hasDraft: draftStore.hasDraft,
     routeChoice,
-    closeScanner: () => setIsScannerOpen(false),
     createMutation,
     dailyAllowanceDays,
     dailyAllowanceDaysInput,
@@ -389,15 +312,12 @@ export function useTripQuickCreate(
     driverIds,
     helperIds,
     isOpen,
-    isScannerOpen,
     issues,
     open: () => setIsOpen(true),
     prefetchDocuments,
-    openScanner: () => setIsScannerOpen(true),
     queue,
     stageDocuments: (documents: readonly ScannedNfeDocument[]) => {
       touch()
-      setTypedNote(undefined)
       updateQueue(stageQuickCreateDocuments({ documents, queue: queueRef.current }))
     },
     removeEntry: (accessKey: string) => {

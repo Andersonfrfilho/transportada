@@ -12,7 +12,6 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import {
   CONTRACTOR_MAIL_OUTBOX_EVENT_TYPES,
   auditLogs,
-  companyFiscalProfiles,
   companyOccurrenceTypes,
   contractorMailMessages,
   contractorMailOutbox,
@@ -47,9 +46,10 @@ import type {
   ContractorReplyEmailTransactionPort,
   ContractorReplyEmailUnitOfWorkPort,
 } from '../application/forward-contractor-reply-by-email.port.js'
-import { resolveCompanyDisplayName } from '../../companies/domain/company-display-name.policy.js'
 import { contractorReplyConfigurationSchema } from '../domain/contractor-reply-configuration.policy.js'
 import { OCCURRENCE_THREAD_SUBJECT_TYPE } from '../domain/occurrence-conversation.constant.js'
+import { buildContractorReplyLayoutMail } from './contractor-reply-client-email-layout.support.js'
+import { resolveContractorReplyClientTexts } from './contractor-reply-client-template.support.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -120,20 +120,6 @@ export function createContractorReplyEmailTransactionPort(
         )
         .limit(1)
       return row ?? null
-    },
-
-    async findCarrierName({ companyId }) {
-      const [row] = await transaction
-        .select({
-          legalName: companyFiscalProfiles.legalName,
-          tradeName: companyFiscalProfiles.tradeName,
-          displayNameMode: companyFiscalProfiles.displayNameMode,
-        })
-        .from(companyFiscalProfiles)
-        .where(eq(companyFiscalProfiles.companyId, companyId))
-        .limit(1)
-      if (row === undefined) return undefined
-      return resolveCompanyDisplayName(row)
     },
 
     async findClientEmailType({ companyId, occurrenceId }) {
@@ -333,6 +319,15 @@ export function createContractorReplyEmailTransactionPort(
       return row === undefined ? null : { ...row, occurrenceKind: 'document' as const }
     },
 
+    renderMail: (params) => buildContractorReplyLayoutMail(transaction, params),
+
+    async resolveClientTexts(params) {
+      const resolved = await resolveContractorReplyClientTexts(transaction, params)
+      return resolved.kind === 'texts'
+        ? { kind: 'texts', texts: resolved.texts }
+        : { kind: 'template_missing', legacy: resolved.source === 'legacy' }
+    },
+
     async recordDelivery(params) {
       const [row] = await transaction
         .insert(occurrenceContractorReplyDeliveries)
@@ -419,6 +414,7 @@ export function createContractorReplyEmailTransactionPort(
           deliveryStatus: 'queued',
           direction: 'outbound',
           fromAddress: params.fromAddress,
+          hasInlineLogo: params.hasInlineLogo,
           subject: params.subject,
           threadId: params.threadId,
           toAddresses: [params.toAddress],
@@ -513,11 +509,13 @@ export function createDrizzleContractorReplyEmailReader(
         .select({
           address: occurrenceContractorReplyDeliveries.address,
           createdAt: occurrenceContractorReplyDeliveries.createdAt,
+          fallbackFrom: occurrenceContractorReplyDeliveries.fallbackFrom,
           id: occurrenceContractorReplyDeliveries.id,
           reason: occurrenceContractorReplyDeliveries.reason,
           sentAt: occurrenceContractorReplyDeliveries.sentAt,
           status: occurrenceContractorReplyDeliveries.status,
           target: occurrenceContractorReplyDeliveries.target,
+          trigger: occurrenceContractorReplyDeliveries.trigger,
         })
         .from(occurrenceContractorReplyDeliveries)
         .where(
@@ -546,11 +544,13 @@ export function createDrizzleContractorReplyEmailReader(
                   addressMasked:
                     delivery.address === null ? null : maskEmailAddress(delivery.address),
                   createdAt: delivery.createdAt.toISOString(),
+                  fallbackFrom: delivery.fallbackFrom,
                   id: delivery.id,
                   reason: delivery.reason,
                   sentAt: delivery.sentAt?.toISOString() ?? null,
                   status: delivery.status,
                   target: delivery.target,
+                  trigger: delivery.trigger,
                 },
               ]
             : [],

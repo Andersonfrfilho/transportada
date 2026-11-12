@@ -30,6 +30,8 @@
     },
     "sendState": {
       "title": "Sending to the client",
+      "resend": "Resend",
+      "resending": "Sending…",
       "clientWithoutEmail": "No client e-mail for the boleto",
       "state": {
         "sent": "Sent",

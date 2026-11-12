@@ -116,13 +116,13 @@ describe('company crew settings route contract', () => {
     // fleet.read não sobe a diária: só quem administra a frota parametriza
     expect(() =>
       authorization.authorize(
-        { identity: undefined, scope: READ_CONTEXT } as never,
+        { identity: { serviceAccount: false }, scope: READ_CONTEXT } as never,
         putRoute?.policy,
       ),
     ).toThrow(ApiError)
     expect(() =>
       authorization.authorize(
-        { identity: undefined, scope: MANAGE_CONTEXT } as never,
+        { identity: { serviceAccount: false }, scope: MANAGE_CONTEXT } as never,
         getRoute?.policy,
       ),
     ).toThrow(ApiError)

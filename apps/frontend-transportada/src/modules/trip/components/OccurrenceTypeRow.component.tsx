@@ -25,6 +25,7 @@ import {
 } from '../shared/occurrenceTypeUpdate.service'
 import { OccurrenceTypeContractorScope } from './OccurrenceTypeContractorScope.component'
 import { OccurrenceTypeContractorMail } from './OccurrenceTypeContractorMail.component'
+import { OccurrenceTypeClientReturn } from './OccurrenceTypeClientReturn.component'
 import { OccurrenceTypeContractorReply } from './OccurrenceTypeContractorReply.component'
 import { OccurrenceTypeExceptions } from './OccurrenceTypeExceptions.component'
 import { OccurrenceTypeIdentity } from './OccurrenceTypeIdentity.component'
@@ -111,6 +112,8 @@ export function OccurrenceTypeRow({
       {type.contractorReplyMode === undefined || type.emailsContractor !== true ? null : (
         <OccurrenceTypeContractorReply disabled={isDisabled} onEdit={handleEdit} type={type} />
       )}
+      {/* Spec 286 T4 (RF2): API anterior à matriz não manda `clientChannels` — sem o bloco, a tela antiga segue. */}
+      <OccurrenceTypeClientReturn disabled={isDisabled} onEdit={handleEdit} type={type} />
       <OccurrenceTypeNotification
         disabled={isDisabled}
         onEdit={handleEdit}

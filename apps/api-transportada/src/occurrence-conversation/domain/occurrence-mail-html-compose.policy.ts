@@ -133,6 +133,7 @@ export function composeOccurrenceMailHtml(params: {
     itemRows: source.itemRows,
     itemsSum: source.itemsSum,
     logoUrl: publicAssets?.logoWhite,
+    newDueDate: source.values.novaDataVencimento,
     signerInitials: signerValues.assinaturaIniciais,
     signerPictureUrl:
       params.signer.kind !== 'team' && params.signer.hasPicture === true

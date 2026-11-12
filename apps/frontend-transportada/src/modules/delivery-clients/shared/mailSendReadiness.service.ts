@@ -4,10 +4,6 @@ import type {
   ContractorMailCheckKey,
   ContractorMailSettingsSummary,
 } from './contractorMailSettings.types'
-import type {
-  ContractorMailTemplate,
-  ContractorMailTemplateType,
-} from './contractorMailTemplates.types'
 
 /**
  * Espelha `contractor-mail/domain/mail-send-readiness.policy.ts` da API (spec 150, RF16/RF17) —
@@ -27,17 +23,17 @@ const SENDING_VERIFICATION_GATE_KEYS: readonly ContractorMailCheckKey[] = [
   'sender_domain',
 ]
 
-export type MailSendReadinessShortcutTarget = 'checklist' | 'templates'
+export type MailSendReadinessShortcutTarget = 'checklist' | 'notifications'
 
 const REASON_SHORTCUT_TARGET: Readonly<
   Record<MailSendReadinessReason, MailSendReadinessShortcutTarget>
 > = {
   not_configured: 'checklist',
   sending_not_verified: 'checklist',
-  template_missing: 'templates',
+  template_missing: 'notifications',
 }
 
-/** T404: cada motivo leva a uma única seção — configuração/verificação para a lista, sem modelo para "Modelos" (T403). */
+/** T404: cada motivo leva a um único lugar — configuração/verificação para a lista, sem modelo para Notificações (spec 286). */
 export function resolveMailSendReadinessShortcutTarget(
   reason: MailSendReadinessReason,
 ): MailSendReadinessShortcutTarget {
@@ -55,10 +51,10 @@ export type MailSendReadinessView =
 
 export type MailSendReadinessViewParams = Readonly<{
   checks: readonly ContractorMailCheckItem[]
-  mailType: ContractorMailTemplateType
   /** `null`: nunca salva (equivale ao `settings: undefined` da API). */
   settings: ContractorMailSettingsSummary | null
-  templates: readonly ContractorMailTemplate[]
+  /** O módulo de notificação tem um modelo utilizável para o e-mail de correção (spec 286). */
+  templateUsable: boolean
 }>
 
 function resolveFailingChecklistKeys(
@@ -69,27 +65,16 @@ function resolveFailingChecklistKeys(
   )
 }
 
-/** RF17/T402: arquivado, de outro tipo ou sem marca de padrão não contam como modelo pronto. */
-function findDefaultActiveTemplate(
-  templates: readonly ContractorMailTemplate[],
-  mailType: ContractorMailTemplateType,
-): ContractorMailTemplate | undefined {
-  return templates.find(
-    (template) =>
-      template.mailType === mailType && template.status === 'active' && template.isDefault,
-  )
-}
-
 /**
  * Espelha `resolveMailSendReadiness` da API (RF16/RF17): `not_configured` sem cadastro salvo,
  * `sending_not_verified` sem a chave e o domínio aceitos (T401), `template_missing` sem modelo
- * ativo padrão do tipo (T402). O `status` da ida e volta (143) nunca entra aqui — ver
+ * utilizável no módulo de notificação (spec 286). O `status` da ida e volta (143) nunca entra aqui — ver
  * `isMailRoundTripConfigured`.
  */
 export function resolveMailSendReadinessView(
   params: MailSendReadinessViewParams,
 ): MailSendReadinessView {
-  const { checks, mailType, settings, templates } = params
+  const { checks, settings, templateUsable } = params
 
   if (settings === null) {
     return {
@@ -105,7 +90,7 @@ export function resolveMailSendReadinessView(
       ready: false,
     }
   }
-  if (findDefaultActiveTemplate(templates, mailType) === undefined) {
+  if (!templateUsable) {
     return { failingChecklistKeys: [], reason: 'template_missing', ready: false }
   }
   return { ready: true }

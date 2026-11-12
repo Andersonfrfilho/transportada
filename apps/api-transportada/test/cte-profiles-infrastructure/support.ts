@@ -22,6 +22,7 @@ const UPDATED_AT = new Date('2026-07-27T22:43:24.353Z')
 export function buildProfileRecord(overrides: Partial<ProfileRecord> = {}): ProfileRecord {
   return {
     cargoInsuranceDeclared: false,
+    destinationCities: null,
     municipalServicePolicy: 'allow',
     cfopInternal: '5353',
     cfopInterstate: '6353',

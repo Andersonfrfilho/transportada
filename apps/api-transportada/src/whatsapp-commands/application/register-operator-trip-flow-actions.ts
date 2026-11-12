@@ -68,6 +68,13 @@ import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
 import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
 import { OccurrenceTypeNotAvailableForContractorError } from '../../trips/domain/occurrence-type-contractor-scope.error.js'
 import { OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE } from './driver-occurrence-refusal.service.js'
+import {
+  CATALOG_BOT_SPEECH,
+  createBotSayer,
+  type BotSpeechLine,
+  type WhatsAppBotSpeechPort,
+} from './whatsapp-bot-speech.service.js'
+import type { BotSpeechKey } from '../domain/whatsapp-bot-speech.constant.js'
 import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import {
   rejectListAnswer,
@@ -89,6 +96,8 @@ const OPERATOR_ACTION_LABEL: Readonly<Record<OperatorTripActionId, string>> = {
 }
 
 export type OperatorFlowActionDependencies = {
+  /** Spec 286 T8: as falas vêm do grafo publicado; sem isto, o padrão do código. */
+  readonly speech?: WhatsAppBotSpeechPort
   /** Spec 161 T15 (RF18c): segunda foto em diante da mesma ocorrência — a mesma
    * `attachOccurrencePhoto` (T7) que `POST .../occurrences/:occurrenceId/attachments` usa. */
   readonly attachOccurrencePhoto: (input: {
@@ -216,6 +225,8 @@ function isOperatorAction(value: string | undefined): value is OperatorTripActio
 export function createOperatorWhatsAppFlowActions(
   deps: OperatorFlowActionDependencies,
 ): readonly WhatsAppFlowActionDefinition[] {
+  const say = createBotSayer(deps.speech ?? CATALOG_BOT_SPEECH)
+
   async function findWarehouseTrip(input: {
     readonly companyId: string
     readonly tripId: string
@@ -232,7 +243,7 @@ export function createOperatorWhatsAppFlowActions(
   }) => {
     const trips = await deps.listWarehouseTrips({ companyId: actor.scope.companyId })
     if (trips.length === 0) {
-      await channel.sendText(session.whatsappNumber, 'Não há viagens no armazém agora.')
+      await say({ actor, channel, session }, 'operatorNoTrips')
       return { next: 'menu' }
     }
 
@@ -265,7 +276,7 @@ export function createOperatorWhatsAppFlowActions(
 
     const trip = await findWarehouseTrip({ companyId: actor.scope.companyId, tripId: answer })
     if (trip === undefined) {
-      await channel.sendText(session.whatsappNumber, 'Esta viagem não está mais disponível.')
+      await say({ actor, channel, session }, 'tripUnavailable')
       return { context: { [OPERATOR_FLOW_CONTEXT_KEY.listPage]: undefined }, next: 'menu' }
     }
 
@@ -289,7 +300,7 @@ export function createOperatorWhatsAppFlowActions(
 
     const trip = await findWarehouseTrip({ companyId: actor.scope.companyId, tripId })
     if (trip === undefined) {
-      await channel.sendText(session.whatsappNumber, 'Esta viagem não está mais disponível.')
+      await say({ actor, channel, session }, 'tripUnavailable')
       return { context: { [OPERATOR_FLOW_CONTEXT_KEY.tripId]: undefined }, next: 'menu' }
     }
 
@@ -299,7 +310,7 @@ export function createOperatorWhatsAppFlowActions(
       tripStatus: trip.status,
     })
     if (actions.length === 0) {
-      await channel.sendText(session.whatsappNumber, 'Esta viagem não aceita mais ações por aqui.')
+      await say({ actor, channel, session }, 'operatorTripNoMoreActions')
       return { context: { [OPERATOR_FLOW_CONTEXT_KEY.tripId]: undefined }, next: 'menu' }
     }
 
@@ -339,10 +350,9 @@ export function createOperatorWhatsAppFlowActions(
       const trip = await findWarehouseTrip({ companyId: actor.scope.companyId, tripId })
       const pending = trip?.documents.filter(isUnloadedDocument) ?? []
       if (pending.length > 0) {
-        await channel.sendText(
-          session.whatsappNumber,
-          `Há ${pending.length} notas pendentes — despache pelo painel.`,
-        )
+        await say({ actor, channel, session }, 'operatorPendingDocuments', {
+          count: pending.length,
+        })
         return { next: OPERATOR_FLOW_NODE.tripActionMenu }
       }
       return {
@@ -369,7 +379,7 @@ export function createOperatorWhatsAppFlowActions(
 
     const trip = await findWarehouseTrip({ companyId: actor.scope.companyId, tripId })
     if (trip === undefined) {
-      await channel.sendText(session.whatsappNumber, 'Esta viagem não está mais disponível.')
+      await say({ actor, channel, session }, 'tripUnavailable')
       return { context: { [OPERATOR_FLOW_CONTEXT_KEY.tripId]: undefined }, next: 'menu' }
     }
 
@@ -379,7 +389,7 @@ export function createOperatorWhatsAppFlowActions(
       return true
     })
     if (candidates.length === 0) {
-      await channel.sendText(session.whatsappNumber, 'Não há notas para esta ação nesta viagem.')
+      await say({ actor, channel, session }, 'operatorNoDocumentsForAction')
       return {
         context: { [OPERATOR_FLOW_CONTEXT_KEY.listPage]: undefined },
         next: OPERATOR_FLOW_NODE.tripActionMenu,
@@ -458,7 +468,7 @@ export function createOperatorWhatsAppFlowActions(
      */
     const currentTrip = await findWarehouseTrip({ companyId: actor.scope.companyId, tripId })
     if (currentTrip === undefined) {
-      await channel.sendText(session.whatsappNumber, 'Esta viagem não está mais disponível.')
+      await say({ actor, channel, session }, 'tripUnavailable')
       return { context: { [OPERATOR_FLOW_CONTEXT_KEY.tripId]: undefined }, next: 'menu' }
     }
     const offered =
@@ -502,16 +512,16 @@ export function createOperatorWhatsAppFlowActions(
           tripId,
         })
         const applied = result.items.filter((item) => item.outcome === 'applied').length
-        await channel.sendText(
-          session.whatsappNumber,
-          `${applied} de ${result.items.length} notas atualizadas. ✅`,
-        )
+        await say({ actor, channel, session }, 'operatorBatchApplied', {
+          applied,
+          total: result.items.length,
+        })
         const autoDispatchMessage = describeAutoDispatchOutcome(result.autoDispatch)
         if (autoDispatchMessage !== null) {
-          await channel.sendText(session.whatsappNumber, autoDispatchMessage)
+          await say({ actor, channel, session }, autoDispatchMessage)
         }
       } catch (error) {
-        await channel.sendText(session.whatsappNumber, describeTripError(error))
+        await say({ actor, channel, session }, describeTripError(error))
       }
       return {
         context: { [OPERATOR_FLOW_CONTEXT_KEY.listPage]: undefined },
@@ -537,16 +547,16 @@ export function createOperatorWhatsAppFlowActions(
         documentId: answer,
         tripId,
       })
-      await channel.sendText(
-        session.whatsappNumber,
-        alreadyAtTarget ? 'Já estava registrada.' : describeDocumentSuccess(step),
+      await say(
+        { actor, channel, session },
+        alreadyAtTarget ? 'alreadyRegistered' : describeDocumentSuccess(step),
       )
       const autoDispatchMessage = describeAutoDispatchOutcome(result.autoDispatch)
       if (autoDispatchMessage !== null) {
-        await channel.sendText(session.whatsappNumber, autoDispatchMessage)
+        await say({ actor, channel, session }, autoDispatchMessage)
       }
     } catch (error) {
-      await channel.sendText(session.whatsappNumber, describeTripError(error))
+      await say({ actor, channel, session }, describeTripError(error))
     }
     return {
       context: { [OPERATOR_FLOW_CONTEXT_KEY.listPage]: undefined },
@@ -569,9 +579,9 @@ export function createOperatorWhatsAppFlowActions(
 
     try {
       const result = await deps.dispatchTrip({ context: toContext(actor), tripId })
-      await channel.sendText(session.whatsappNumber, describeDispatchSuccess(result))
+      await say({ actor, channel, session }, describeDispatchSuccess(result))
     } catch (error) {
-      await channel.sendText(session.whatsappNumber, describeTripError(error))
+      await say({ actor, channel, session }, describeTripError(error))
     }
     return {
       context: { [OPERATOR_FLOW_CONTEXT_KEY.tripId]: undefined },
@@ -591,10 +601,7 @@ export function createOperatorWhatsAppFlowActions(
     })
     const options = catalog.filter(isOfferedToOperator)
     if (options.length === 0) {
-      await channel.sendText(
-        session.whatsappNumber,
-        'Ainda não há tipos de ocorrência cadastrados para o armazém. Fale com o escritório.',
-      )
+      await say({ actor, channel, session }, 'operatorNoWarehouseOccurrenceTypes')
       return {
         context: { [OPERATOR_FLOW_CONTEXT_KEY.listPage]: undefined },
         next: OPERATOR_FLOW_NODE.tripActionMenu,
@@ -678,7 +685,12 @@ export function createOperatorWhatsAppFlowActions(
    * Spec 161 T15 (RF18/D1/RF4): a observação não completa mais a ocorrência — pede a foto. Sem
    * foto nada é registrado (a ocorrência só nasce com a primeira, D1); é isso que o aviso diz.
    */
-  const photoPrompt: WhatsAppAuthorizedActionHandler = async ({ channel, context, session }) => {
+  const photoPrompt: WhatsAppAuthorizedActionHandler = async ({
+    actor,
+    channel,
+    context,
+    session,
+  }) => {
     const answer = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.noteAnswer)
     const documentId = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.documentId)
     const occurrenceTypeId = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeId)
@@ -694,10 +706,9 @@ export function createOperatorWhatsAppFlowActions(
 
     const note = answer === OPERATOR_NOTE_SKIP_ANSWER ? '' : answer.trim()
     if (note.length > OPERATOR_OCCURRENCE_NOTE_MAX_LENGTH) {
-      await channel.sendText(
-        session.whatsappNumber,
-        `Observação muito longa (máximo ${OPERATOR_OCCURRENCE_NOTE_MAX_LENGTH} caracteres). Digite de novo ou toque em Pular.`,
-      )
+      await say({ actor, channel, session }, 'operatorNoteTooLong', {
+        max: OPERATOR_OCCURRENCE_NOTE_MAX_LENGTH,
+      })
       return { next: OPERATOR_FLOW_NODE.notePrompt }
     }
 
@@ -761,25 +772,16 @@ export function createOperatorWhatsAppFlowActions(
     const answer = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.photoAnswer)
     if (answer === OPERATOR_OCCURRENCE_PHOTO_ANSWER.done) {
       if (occurrenceId === undefined) {
-        await channel.sendText(
-          session.whatsappNumber,
-          'Ainda não há foto anexada. Envie ao menos uma antes de concluir.',
-        )
+        await say({ actor, channel, session }, 'operatorPhotoMissing')
         return { next: OPERATOR_FLOW_NODE.photoEntry }
       }
-      await channel.sendText(
-        session.whatsappNumber,
-        `Ocorrência registrada com ${photoCount} foto(s). ✅`,
-      )
+      await say({ actor, channel, session }, 'operatorOccurrenceRegistered', { count: photoCount })
       return { context: clearPhotoStepContext(), next: OPERATOR_FLOW_NODE.tripActionMenu }
     }
     if (answer === OPERATOR_OCCURRENCE_PHOTO_ANSWER.cancel) {
-      await channel.sendText(
-        session.whatsappNumber,
-        occurrenceId === undefined
-          ? 'Ocorrência cancelada — nada foi registrado.'
-          : `Encerrado. A ocorrência já registrada com ${photoCount} foto(s) continua salva.`,
-      )
+      await (occurrenceId === undefined
+        ? say({ actor, channel, session }, 'operatorOccurrenceCancelled')
+        : say({ actor, channel, session }, 'operatorOccurrenceClosedKept', { count: photoCount }))
       return { context: clearPhotoStepContext(), next: OPERATOR_FLOW_NODE.tripActionMenu }
     }
 
@@ -790,10 +792,7 @@ export function createOperatorWhatsAppFlowActions(
     if (attempts >= WHATSAPP_INVALID_ATTEMPTS_BEFORE_HANDOFF) {
       throw new WhatsAppCommandHandoffRequestedError()
     }
-    await channel.sendText(
-      session.whatsappNumber,
-      'Envie a foto, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.',
-    )
+    await say({ actor, channel, session }, 'operatorPhotoReminder')
     return {
       context: { [OPERATOR_FLOW_CONTEXT_KEY.photoInvalidAttempts]: attempts },
       next: OPERATOR_FLOW_NODE.photoEntry,
@@ -835,7 +834,7 @@ export function createOperatorWhatsAppFlowActions(
       downloaded = await channel.fetchMediaAsBase64(image.mediaId)
     } catch {
       /** RF20 (falha de download não grava ocorrência): nunca loga `mediaId`. */
-      await channel.sendText(session.whatsappNumber, 'Não consegui baixar a foto. Envie de novo.')
+      await say({ actor, channel, session }, 'operatorPhotoDownloadFailed')
       return { next: OPERATOR_FLOW_NODE.photoEntry }
     }
     const attachment = {
@@ -854,13 +853,10 @@ export function createOperatorWhatsAppFlowActions(
           occurrenceTypeId,
           tripId,
         })
-        await channel.sendText(
-          session.whatsappNumber,
-          'Foto 1 anexada. Envie outra, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.',
-        )
+        await say({ actor, channel, session }, 'operatorPhotoAttached', { position: 1 })
         const autoDispatchMessage = describeAutoDispatchOutcome(registered.autoDispatch)
         if (autoDispatchMessage !== null) {
-          await channel.sendText(session.whatsappNumber, autoDispatchMessage)
+          await say({ actor, channel, session }, autoDispatchMessage)
         }
         return {
           context: {
@@ -878,10 +874,9 @@ export function createOperatorWhatsAppFlowActions(
         companyId: actor.scope.companyId,
         occurrenceId,
       })
-      await channel.sendText(
-        session.whatsappNumber,
-        `Foto ${position.position} anexada. Envie outra, toque em ✅ Concluir ou em ❌ Cancelar ocorrência.`,
-      )
+      await say({ actor, channel, session }, 'operatorPhotoAttached', {
+        position: position.position,
+      })
       return {
         context: {
           [OPERATOR_FLOW_CONTEXT_KEY.photoCount]: position.position,
@@ -891,18 +886,15 @@ export function createOperatorWhatsAppFlowActions(
       }
     } catch (error) {
       if (error instanceof TripOccurrenceAttachmentLimitError) {
-        await channel.sendText(
-          session.whatsappNumber,
-          `Limite de 5 fotos por ocorrência atingido. Ocorrência registrada com ${input.photoCount} foto(s). ✅`,
-        )
+        await say({ actor, channel, session }, 'operatorPhotoLimit', { count: input.photoCount })
         return { context: clearPhotoStepContext(), next: OPERATOR_FLOW_NODE.tripActionMenu }
       }
       /** Spec 270 (R3): o tipo não vale para a contratante da nota — volta à lista, nunca fica na foto. */
       if (error instanceof OccurrenceTypeNotAvailableForContractorError) {
-        await channel.sendText(session.whatsappNumber, OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE)
+        await say({ actor, channel, session }, { text: OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE })
         return { context: clearPhotoStepContext(), next: OPERATOR_FLOW_NODE.listOccurrenceTypes }
       }
-      await channel.sendText(session.whatsappNumber, describeTripError(error))
+      await say({ actor, channel, session }, describeTripError(error))
       return { next: OPERATOR_FLOW_NODE.photoEntry }
     }
   }
@@ -967,15 +959,12 @@ export function createOperatorWhatsAppFlowActions(
   ]
 }
 
-function describeDocumentSuccess(step: 'separate' | 'load'): string {
-  const verb = step === 'separate' ? 'Separação' : 'Carregamento'
-  return `${verb} registrado. ✅`
+function describeDocumentSuccess(step: 'separate' | 'load'): BotSpeechKey {
+  return step === 'separate' ? 'operatorSeparationRegistered' : 'operatorLoadingRegistered'
 }
 
-function describeDispatchSuccess(result: DispatchTripResult): string {
-  return result.tripStatus === 'dispatched'
-    ? 'Viagem despachada. 🚚'
-    : 'A viagem já estava despachada.'
+function describeDispatchSuccess(result: DispatchTripResult): BotSpeechKey {
+  return result.tripStatus === 'dispatched' ? 'operatorDispatched' : 'operatorDispatchAlready'
 }
 
 /**
@@ -983,29 +972,34 @@ function describeDispatchSuccess(result: DispatchTripResult): string {
  * ocorrência que deixa a última nota para trás — `null` quando não houve tentativa (a carga não
  * fechou, ou a instalação não tem o gatilho ligado).
  */
-function describeAutoDispatchOutcome(result: TryAutoDispatchTripResult | undefined): string | null {
+function describeAutoDispatchOutcome(
+  result: TryAutoDispatchTripResult | undefined,
+): BotSpeechLine | null {
   if (result === undefined) return null
-  return result.outcome === 'dispatched'
-    ? OPERATOR_AUTO_DISPATCH_DISPATCHED_MESSAGE
-    : OPERATOR_AUTO_DISPATCH_BLOCKED_MESSAGES[result.code]
+  return {
+    text:
+      result.outcome === 'dispatched'
+        ? OPERATOR_AUTO_DISPATCH_DISPATCHED_MESSAGE
+        : OPERATOR_AUTO_DISPATCH_BLOCKED_MESSAGES[result.code],
+  }
 }
 
 /** Portão recusado (409), pendência e nota inalcançável viram mensagem clara — nunca erro cru (D7). */
-function describeTripError(error: unknown): string {
+function describeTripError(error: unknown): BotSpeechLine {
   if (error instanceof TripStateTransitionNotAllowedError) {
-    return OPERATOR_TRANSITION_BLOCK_MESSAGES[error.reason]
+    return { text: OPERATOR_TRANSITION_BLOCK_MESSAGES[error.reason] }
   }
   if (error instanceof TripHasUnloadedDocumentsError) {
-    return `Há ${error.documentIds.length} notas pendentes — despache pelo painel.`
+    return { key: 'operatorPendingDocuments', params: { count: error.documentIds.length } }
   }
   if (error instanceof TripHasUnscheduledStopsError) {
-    return 'Há paradas sem agendamento — despache pelo painel.'
+    return { key: 'operatorUnscheduledStops' }
   }
   if (error instanceof TripDispatchForceReasonRequiredError) {
-    return 'Esta viagem precisa de despacho forçado — use o painel.'
+    return { key: 'operatorForceDispatchRequired' }
   }
   if (error instanceof TripDocumentNotFoundError || error instanceof TripNotFoundError) {
-    return 'Essa nota não está mais disponível nesta viagem.'
+    return { key: 'operatorDocumentNotFound' }
   }
   /**
    * Spec 161 T15 (RF20): a mesma validação de bytes/tipo/assinatura de T6/T7
@@ -1017,13 +1011,16 @@ function describeTripError(error: unknown): string {
     error instanceof TripDeliveryProofRejectedError &&
     error.code === 'TRIP_DELIVERY_PROOF_TOO_LARGE'
   ) {
-    return `Essa foto é maior que o tamanho aceito (${Math.floor(OFFICE_PROOF_MAX_BYTES / 1024)} KiB). Envie uma foto menor ou toque em ❌ Cancelar ocorrência.`
+    return {
+      key: 'operatorPhotoTooLarge',
+      params: { limitKiB: Math.floor(OFFICE_PROOF_MAX_BYTES / 1024) },
+    }
   }
   if (
     error instanceof TripDeliveryProofRejectedError &&
     error.code === 'TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE'
   ) {
-    return 'O arquivo enviado precisa ser uma imagem (JPEG, PNG ou WEBP). Envie a foto de novo ou toque em ❌ Cancelar ocorrência.'
+    return { key: 'operatorPhotoUnsupportedType' }
   }
   /**
    * Spec 161 T16 (RF20b): a mesma chave (sha256 do arquivo) com nota/tipo/produto diferentes —
@@ -1032,7 +1029,7 @@ function describeTripError(error: unknown): string {
    * na web).
    */
   if (error instanceof TripFieldReportKeyReusedError) {
-    return 'Essa foto já foi processada com outros dados. Envie a foto de novo.'
+    return { key: 'operatorPhotoKeyReused' }
   }
   throw error
 }

@@ -181,6 +181,23 @@ cadastrado pelo SDK e editável em Notificações). O portal só avisa quem não
 `email.opened` (revoga a 183 D7) e depende do rastreio configurado no domínio. Contrato e detalhe em
 `apps/api-transportada/CLAUDE.md` § "O chat da contratante envia por e-mail".
 
+**O motorista segue a ordem da parada** (spec 294, ADR-0113; em produção desde 06/11/2026, PR #557). Saiu, chegou e baixou valem em ordem; a etapa pulada é marcada junto
+(`recordedTogether`) e o bot e o app avisam; fora de ordem pede confirmação (`409 TRIP_STOP_OUT_OF_ORDER` + `confirmOutOfOrder`) e canhoto repetido ou trocado também. A
+baixa devolve a próxima parada (`nextStop`) e a chegada em endereço sem ponto certo corrige a coordenada ou **sugere ao escritório** em `/pendencias` (aplicar/descartar, `trip.manage`).
+O atendente baixa pelo caminho do escritório. **A foto do canhoto dá a baixa** (RF23/T4.8): o worker lê o canhoto com OCR local (PP-OCRv4 em `onnxruntime-web`, sem modelo
+de IA pago — decisão do dono, 2026-11-05) e casa o número com as notas abertas de quem mandou; casou exato, baixa; senão o bot pergunta.
+`CANHOTO_OCR_ENABLED` vem desligado em produção (pico de ~740 MB no worker: medir em staging antes de ligar). Detalhe: `apps/api-transportada/CLAUDE.md` § "A ordem da parada" e `specs/294-*/`.
+
+**A nota bipada vem da SEFAZ** (spec 298; em produção desde 06/11/2026, PR #557). Bipar a chave do DANFE com o leitor de mão (caminho principal;
+câmera é secundária) **importa** a nota. Se a nota já está cadastrada, `POST /v1/nfe-documents/access-key-checks` (em lote)
+responde na hora. Se não está, `POST /v1/nfe-access-key-lookups` cria a busca: um `nfe_imports` com `source = 'access_key'`
+mais um evento. O worker consulta a SEFAZ por chave (`consChNFe`) e importa pelo mesmo escritor da distribuição. Estado em
+`nfe_access_key_lookups`; orçamento de 15/h e bloqueio de 656 em `nfe_access_key_lookup_budgets`, **compartilhado com a
+distribuição**. Recusa (640 etc.) mostra o motivo e "Enviar XML". Na criação e no detalhe da viagem, a nota bipada vai
+para "Notas encontradas" e **só entra na viagem com "Acrescentar"**, inclusive a já cadastrada. Na página de NF-e é
+"Importar por bip", com resumo. Runbook § 5.22; detalhe em `apps/api-transportada/CLAUDE.md`, `apps/worker-transportada/CLAUDE.md`
+e `specs/298-*/`.
+
 **A NFS-e fala a Nota RP v3, mas a produção ainda está na v2** (spec 250, ADR 0098). A versão é gravada **por tentativa**
 (`providerApiVersion` no `provider_config`); `NFSE_PROVIDER_API_VERSION` (padrão `v2`) só diz qual versão a API grava na
 próxima emissão, e o worker obedece à tentativa. Notas emitidas fora do sistema (as de Ribeirão Preto) entram por
@@ -243,13 +260,22 @@ A ordem de migração de cada serviço, e por que apagar o arquivo primeiro derr
 `docs/spec/railway.md` § "Migrar um serviço". Duas coisas que o arquivo **não** pode fazer: registrar
 domínio próprio (cria-se no painel) e carregar segredo (as variáveis viram `preserve()`).
 
+## Sessão do Keycloak é configuração versionada, e 401 em tudo é sessão vencida
+
+⚠️ **Em 10/11/2026 o painel de produção ficou em "Indisponível" porque o realm estava com o padrão do Keycloak** (sessão morre com 30 min parada, teto de 10 h): a renovação devolve `Token is not active` e a API, que só valida a assinatura, responde 401. Ponto de atenção:
+
+- **Prazo de sessão e token mora em `deploy/keycloak/realm.json` e é reconciliado por `.github/scripts/keycloak-reconcile.sh`** (contrato em `apps/api-transportada/test/deploy/keycloak-realm.contract.ts`). Não é `realm/transportada-local-realm.json`, que é só o realm local. Ajuste manual em produção sem mexer nesses arquivos volta ao padrão na próxima instalação.
+- **Painel com "Indisponível" e 401 em `/auth/me`, notificações e preferências ao mesmo tempo** é sessão, não queda: confira os prazos do realm (`tmp/ops/producao-keycloak-sessao.sh`) antes de procurar bug na API. Detalhe no runbook § 5.25.
+- **Os eventos do Keycloak estão desligados** (falta `manage-events` na conta de serviço da API): sem eles um 401 com token válido não deixa rastro. Ligar antes de investigar de novo.
+- **Doc de runbook passa por `prettier --check .` na CI**: rode `bunx prettier --write` no `.md` antes do push.
+
 ## Produção: leia e atualize o runbook
 
 ⚠️ **Toda sessão que for ler logs, consultar o banco, mexer em variáveis, redeployar ou testar o
 bucket em produção lê `docs/runbooks/producao.md` antes e o atualiza depois** (passo novo, comando
 que mudou, erro novo). Scripts que a sessão deixa para o Anderson rodar não fixam caminho do
 repositório (`REPO="${REPO:-$(git rev-parse --show-toplevel)}"`), valem para Arch Linux e vão em
-`/home/miyazaki/Documents/personal/ativada/`. Correção passa por `staging` primeiro; só bug crítico
+`/home/miyazaki/Documents/personal/transportada/tmp/ops/` (saídas em `/home/miyazaki/Documents/personal/transportada/tmp/ops/saidas/`; a pasta `ativada/` é só histórico). Correção passa por `staging` primeiro; só bug crítico
 vai à `main`, por cherry-pick.
 
 ## Deploy trancado por job sem runner

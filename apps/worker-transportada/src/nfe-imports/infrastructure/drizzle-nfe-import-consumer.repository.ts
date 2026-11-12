@@ -18,6 +18,7 @@ import {
   nfeVolumes,
   storedObjects,
 } from '../../database/nfe.schema.js'
+import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveNfeEventOrigin } from '../../nfe-documents/domain/nfe-event-origin.policy.js'
 import { lockAccessKey } from '../../nfe-documents/infrastructure/drizzle-nfe-document-status.persistence.js'
 import {
@@ -76,6 +77,7 @@ type PendingImportItem = {
 type PendingImportAggregate = {
   readonly companyCnpj: string
   readonly companyId: string
+  readonly contractorTaxIds: readonly string[]
   readonly id: string
   readonly items: readonly PendingImportItem[]
 }
@@ -123,7 +125,7 @@ export class DrizzleNfeImportConsumerRepository {
     readonly importId: string
   }): Promise<PendingImportAggregate | null> {
     const [importRow] = await this.#database
-      .select({ id: nfeImports.id })
+      .select({ id: nfeImports.id, restrictedContractorId: nfeImports.restrictedContractorId })
       .from(nfeImports)
       .where(and(eq(nfeImports.companyId, input.companyId), eq(nfeImports.id, input.importId)))
       .limit(1)
@@ -139,6 +141,28 @@ export class DrizzleNfeImportConsumerRepository {
     if (profile === undefined) {
       throw new Error('NFE_IMPORT_MISSING_FISCAL_PROFILE')
     }
+
+    let restrictedContractorTaxId: string | undefined
+    if (importRow.restrictedContractorId !== null) {
+      const [contractor] = await this.#database
+        .select({ taxId: contractors.taxId })
+        .from(contractors)
+        .where(
+          and(
+            eq(contractors.companyId, input.companyId),
+            eq(contractors.id, importRow.restrictedContractorId),
+          ),
+        )
+        .limit(1)
+      // Contratante sumido (não deveria: FK restrict): fecha em vez de abrir — nenhuma nota passa.
+      restrictedContractorTaxId = contractor?.taxId ?? ''
+    }
+
+    // A nota em que a empresa não aparece (a SEFAZ não a entrega) entra quando o emitente é contratante ativo da empresa.
+    const contractorRows = await this.#database
+      .select({ taxId: contractors.taxId })
+      .from(contractors)
+      .where(and(eq(contractors.companyId, input.companyId), eq(contractors.status, 'active')))
 
     const itemRows = await this.#database
       .select({
@@ -171,7 +195,9 @@ export class DrizzleNfeImportConsumerRepository {
     return {
       companyCnpj: profile.cnpj,
       companyId: input.companyId,
+      contractorTaxIds: contractorRows.map((row) => row.taxId),
       id: input.importId,
+      ...(restrictedContractorTaxId === undefined ? {} : { restrictedContractorTaxId }),
       items: itemRows.map((row) => ({
         attempt: Number(row.attempt),
         id: row.id,

@@ -10,6 +10,8 @@ import { join } from 'node:path'
 import type { SQL } from 'bun'
 import { expect } from 'bun:test'
 
+import { rollbackClientEmailFallbackFrom } from './client-email-fallback-from.assertion.js'
+import { rollbackClientWhatsAppAutomatic } from './client-whatsapp-automatic.assertion.js'
 import { rollbackContractorReplyAcknowledgement } from './contractor-reply-acknowledgement.assertion.js'
 import { rollbackClientEmailSendMode } from './client-email-send-mode.assertion.js'
 import { rollbackContractorReplyClientBoletoEmails } from './contractor-reply-client-boleto-emails.assertion.js'
@@ -17,6 +19,7 @@ import { rollbackContractorReplyWhatsAppDelivery } from './contractor-reply-what
 import { rollbackContractorReplyEventDocumentReasons } from './contractor-reply-event-document-reasons.assertion.js'
 import { rollbackContractorReplyResolveOnDelivery } from './contractor-reply-resolve-on-delivery.assertion.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { rollbackOccurrenceDropForwardEmail } from './occurrence-drop-forward-email.assertion.js'
 import { OCCURRENCE_CONTRACTOR_REPLY_TABLES, migrationsDirectory } from './support.js'
 
 const MIGRATION_SUFFIX = '_occurrence_contractor_reply'
@@ -31,8 +34,6 @@ export const OCCURRENCE_CONTRACTOR_REPLY_TYPE_COLUMNS = [
   'driver_reply_channel',
   'driver_reply_template',
   'driver_reply_window_closed_action',
-  'forward_email_body',
-  'forward_email_subject',
   'forward_to_informed_email',
   'forward_to_note_recipient',
 ] as const
@@ -55,12 +56,9 @@ export const OCCURRENCE_CONTRACTOR_REPLY_TYPE_CONSTRAINTS = [
   'company_occurrence_types_contractor_reply_alert_max_count_check',
   'company_occurrence_types_forward_to_note_recipient_check',
   'company_occurrence_types_forward_to_informed_email_check',
-  'company_occurrence_types_forward_email_subject_check',
-  'company_occurrence_types_forward_email_body_check',
   'company_occurrence_types_contractor_reply_requires_mail_check',
   'company_occurrence_types_contractor_reply_alert_wait_check',
   'company_occurrence_types_forward_automatic_needs_reply_check',
-  'company_occurrence_types_forward_needs_text_check',
 ] as const
 
 export const OCCURRENCE_CONTRACTOR_REPLY_OVERRIDE_CONSTRAINTS = [
@@ -135,6 +133,9 @@ export async function assertOccurrenceContractorReplyRollback(
   expect(await readConstraintCount(database)).toBe(expectedConstraints)
   expect(await hasTriggerFunction(database)).toBe(true)
 
+  await rollbackOccurrenceDropForwardEmail(database, probe.directories)
+  await rollbackClientEmailFallbackFrom(database, probe.directories)
+  await rollbackClientWhatsAppAutomatic(database, probe.directories)
   await rollbackContractorReplyWhatsAppDelivery(database, probe.directories)
   await rollbackClientEmailSendMode(database, probe.directories)
   await rollbackContractorReplyClientBoletoEmails(database, probe.directories)

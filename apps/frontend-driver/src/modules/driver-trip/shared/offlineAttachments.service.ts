@@ -71,6 +71,8 @@ export type QueuedAttachment = Readonly<{
    * é o que a tela de pendentes imprime como problema do arquivo. Só o envio manual tenta de novo.
    */
   rejectionCause?: string
+  /** Spec 294 RF26: o motorista confirmou trocar o canhoto que a nota já tem (o 409 já foi perguntado). */
+  replaceCanhoto?: true
   /** ADR-0075 §8: o dono do anexo, como em `QueuedReport.subHash`. */
   subHash?: string
   /** Spec 220 RF17/RF19: a miniatura gerada com a redução; ausente sobe só o original. */
@@ -320,8 +322,15 @@ export type AttachmentSendOutcome =
       details?: readonly DriverTripErrorDetail[]
       kind: 'rejected'
     }>
-  /** Spec 159 RF4: a pontualidade que a API grava junto da foto — `undefined` para assinatura. */
-  | Readonly<{ kind: 'sent'; punctuality?: ProofPunctuality }>
+  /**
+   * Spec 159 RF4: a pontualidade que a API grava junto da foto — `undefined` para assinatura.
+   * Spec 294 RF26: `duplicate` é a mesma imagem que já tinha chegado (a API não gravou de novo).
+   */
+  | Readonly<{
+      duplicate?: Readonly<{ attachedAt: string }>
+      kind: 'sent'
+      punctuality?: ProofPunctuality
+    }>
 
 export type AttachmentDrainResult = Readonly<{
   /** Anexos que o servidor recusou: causa própria, sem contaminar o evento já aceito. */
@@ -333,6 +342,7 @@ export type AttachmentDrainResult = Readonly<{
    */
   attachmentsSent: readonly Readonly<{
     documentId: string
+    duplicate?: Readonly<{ attachedAt: string }>
     punctuality?: ProofPunctuality
     receiverDrift?: ReceiverDriftFields
   }>[]
@@ -355,6 +365,23 @@ export type AttachmentDrainResult = Readonly<{
  *   drenagem inteira — sem contar tentativa e sem pular, porque a ordem importa. `immediate` ignora
  *   o espaçamento. Nada sai da fila por isso (spec 227 D1).
  */
+/**
+ * Pedido do Anderson (10/11/2026): ocorrência que o escritório recusou não fica nas pendências do
+ * motorista — a lista só cresceria. Vale só para ocorrência (nota, parada e a foto da parada): entrega,
+ * chegada e devolução recusadas seguem à vista, porque o motorista precisa saber que não foram registradas
+ * (spec 227). A recusa fica no histórico "Enviados" (`remember(..., 'rejected')`).
+ */
+const CLEARED_ON_REJECTION_KINDS: ReadonlySet<string> = new Set([
+  'documentOccurrence',
+  'occurrence',
+  'stopOccurrenceCharge',
+  'stopOccurrencePhoto',
+])
+
+export function isClearedOnRejection(kind: string): boolean {
+  return CLEARED_ON_REJECTION_KINDS.has(kind)
+}
+
 export async function drainQueueWithAttachments(input: {
   readonly attachmentStore: AttachmentStore
   readonly now?: Date
@@ -425,12 +452,18 @@ export async function drainQueueWithAttachments(input: {
     failedNetworkAt = readClock().toISOString()
   }
 
+  /** Ocorrência recusada pelo escritório sai da fila (e dos anexos) sozinha; o histórico guarda a recusa. */
+  const autoClearedKeys: string[] = []
   /** Reconciliação por chave, na mesma transação: toque enfileirado durante o envio fica. */
   const remainingQueue = await input.store.update((current) =>
     current.flatMap((item) => {
       const key = item.report.idempotencyKey
       if (sentKeys.has(key)) return []
       const cause = rejectionByKey.get(key)
+      if (cause !== undefined && isClearedOnRejection(item.report.kind)) {
+        autoClearedKeys.push(key)
+        return []
+      }
       if (cause !== undefined) {
         const details = rejectionDetailsByKey.get(key)
         return [
@@ -454,9 +487,14 @@ export async function drainQueueWithAttachments(input: {
     }),
   )
 
+  for (const eventKey of autoClearedKeys) {
+    await input.attachmentStore.update({ eventKey, mutate: () => [] })
+  }
+
   let attachmentsRejected = 0
   const attachmentsSent: {
     documentId: string
+    duplicate?: Readonly<{ attachedAt: string }>
     punctuality?: ProofPunctuality
     receiverDrift?: ReceiverDriftFields
   }[] = []
@@ -540,6 +578,7 @@ export async function drainQueueWithAttachments(input: {
         if (outcome.kind === 'sent') {
           attachmentsSent.push({
             documentId: attachment.documentId,
+            ...(outcome.duplicate === undefined ? {} : { duplicate: outcome.duplicate }),
             ...(outcome.punctuality === undefined ? {} : { punctuality: outcome.punctuality }),
             ...(sentDrift === undefined ? {} : { receiverDrift: sentDrift }),
           })

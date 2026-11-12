@@ -18,8 +18,6 @@ const BASE_REPLY: TypeRow = {
   contractor_reply_mode: 'forward_after_approval',
   driver_reply_template: FILLED_TEXT,
   emails_contractor: true,
-  forward_email_body: FILLED_TEXT,
-  forward_email_subject: FILLED_TEXT,
 }
 
 const PREFIX = 'company_occurrence_types_'
@@ -40,8 +38,6 @@ const REJECTED_CASES: readonly (readonly [string, TypeRow])[] = [
   ['contractor_reply_alert_max_count_check', { contractor_reply_alert_max_count: 97 }],
   ['forward_to_note_recipient_check', { forward_to_note_recipient: 'always' }],
   ['forward_to_informed_email_check', { forward_to_informed_email: 'automatic' }],
-  ['forward_email_subject_check', { forward_email_subject: 'a'.repeat(201) }],
-  ['forward_email_body_check', { forward_email_body: 'a'.repeat(4001) }],
   ['contractor_reply_requires_mail_check', { emails_contractor: false }],
   ['contractor_reply_requires_mail_check', { driver_reply_template: '   ' }],
   [
@@ -52,8 +48,6 @@ const REJECTED_CASES: readonly (readonly [string, TypeRow])[] = [
     'forward_automatic_needs_reply_check',
     { contractor_reply_mode: 'off', forward_to_note_recipient: 'automatic' },
   ],
-  ['forward_needs_text_check', { forward_to_note_recipient: 'manual', forward_email_subject: ' ' }],
-  ['forward_needs_text_check', { forward_to_informed_email: 'manual', forward_email_body: '' }],
 ]
 
 const ACCEPTED_CASES: readonly (readonly [string, TypeRow])[] = [
@@ -64,8 +58,6 @@ const ACCEPTED_CASES: readonly (readonly [string, TypeRow])[] = [
   ['alert interval 1440', { contractor_reply_alert_interval_minutes: 1440 }],
   ['alert max count 1', { contractor_reply_alert_max_count: 1 }],
   ['alert max count 96', { contractor_reply_alert_max_count: 96 }],
-  ['subject 200 characters', { forward_email_subject: 'a'.repeat(200) }],
-  ['body 4000 characters', { forward_email_body: 'a'.repeat(4000) }],
   ['pdf or image', { contractor_reply_attachment_kind: 'pdf_or_image' }],
   [
     'both channels, wait for driver',
@@ -85,8 +77,6 @@ const ACCEPTED_CASES: readonly (readonly [string, TypeRow])[] = [
     {
       contractor_reply_mode: 'off',
       driver_reply_template: '',
-      forward_email_body: '',
-      forward_email_subject: '',
     },
   ],
 ]

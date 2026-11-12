@@ -13,6 +13,8 @@ import { sql } from 'drizzle-orm'
 import { AddressCorrectionRequestNotSendableError } from '../../src/address-correction/domain/address-correction.error.js'
 import { DrizzleAddressCorrectionMailRepository } from '../../src/address-correction/infrastructure/drizzle-address-correction-mail.repository.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { runNotificationSchemaMigrations } from '../../src/database/notification-migration.service.js'
+import { seedNotificationTemplate } from '../fixtures/notification-template.fixture.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -37,7 +39,6 @@ describeDatabase(
     let contractorId = ''
     let contactId = ''
     let draftRequestId = ''
-    let templateId = ''
 
     function repository(): DrizzleAddressCorrectionMailRepository {
       if (database === undefined) throw new Error('A disposable database is required')
@@ -52,6 +53,7 @@ describeDatabase(
       disposableUrl.search = ''
       await admin.unsafe(`create database "${databaseName}"`)
       await runDatabaseMigrations({ connectionString: disposableUrl.toString() })
+      await runNotificationSchemaMigrations({ connectionString: disposableUrl.toString() })
       database = createDrizzleProvider({ connection: disposableUrl.toString() })
       const db = database.db
 
@@ -84,15 +86,6 @@ describeDatabase(
         'no-reply@transportada.test', 'Transportada', 'reply.transportada.test', 'active'
       )
     `)
-
-      const [template] = await db.execute<{ id: string }>(sql`
-      insert into contractor_mail_templates
-        (company_id, mail_type, name, subject, intro, item_text, closing, is_default)
-      values (${COMPANY_ID}, 'address_correction', 'Padrão', 'Assunto', 'Abertura',
-        'Motivo: {motivo}.', 'Assinatura', true)
-      returning id
-    `)
-      templateId = template?.id ?? ''
 
       await db.execute(sql`
       insert into company_fiscal_profiles
@@ -168,6 +161,45 @@ describeDatabase(
           sendingVerifiedAt: null,
         })
         expect(await transaction.findMailSettings({ companyId: OTHER_COMPANY_ID })).toBeUndefined()
+      })
+    })
+
+    /** Spec 286 (RF6): o modelo é o do módulo de notificação — a versão ativa mais alta de e-mail `pt-BR` da empresa. */
+    test('lê a versão ativa mais alta do modelo no módulo de notificação, da própria empresa', async () => {
+      if (database === undefined) throw new Error('A disposable database is required')
+      const key = 'correcao-endereco.padrao'
+      const seed = (overrides: Parameters<typeof seedNotificationTemplate>[1]) =>
+        seedNotificationTemplate(database as TestDatabase, overrides)
+      await repository().execute(async (transaction) => {
+        expect(await transaction.findMailTemplate({ companyId: COMPANY_ID })).toBeUndefined()
+      })
+
+      await seed({
+        body: '<p>v1</p>',
+        companyId: COMPANY_ID,
+        key,
+        subject: 'Assunto 1',
+        version: 1,
+      })
+      await seed({
+        body: '<p>v2</p>',
+        companyId: COMPANY_ID,
+        key,
+        subject: 'Assunto 2',
+        version: 2,
+      })
+      await seed({ active: false, body: '<p>v3</p>', companyId: COMPANY_ID, key, version: 3 })
+      await seed({ body: '<p>en</p>', companyId: COMPANY_ID, key, locale: 'en-US', version: 4 })
+      await seed({ body: '<p>sms</p>', channel: 'sms', companyId: COMPANY_ID, key, version: 5 })
+      await seed({ body: '<p>fora</p>', companyId: OTHER_COMPANY_ID, key, version: 6 })
+
+      await repository().execute(async (transaction) => {
+        expect(await transaction.findMailTemplate({ companyId: COMPANY_ID })).toEqual({
+          body: '<p>v2</p>',
+          key,
+          subject: 'Assunto 2',
+          version: 2,
+        })
       })
     })
 
@@ -272,7 +304,8 @@ describeDatabase(
           fromAddress: 'no-reply@transportada.test',
           replyTokenHash: 'a'.repeat(64),
           subject: 'Correção de endereço de entrega — 1 cliente',
-          templateId,
+          templateKey: 'correcao-endereco.padrao',
+          templateVersion: 2,
           threadId,
           ccAddresses: ['ana@empresa.example'],
           toAddresses: ['ativo@contratante.example'],
@@ -303,16 +336,20 @@ describeDatabase(
         body_html: string
         body_text: string
         cc_addresses: readonly string[]
-        template_id: string
+        notification_template_key: string
+        notification_template_version: number
+        template_id: string | null
         to_addresses: readonly string[]
       }>(
-        sql`select body_html, body_text, cc_addresses, template_id, to_addresses from contractor_mail_messages where id = ${messageId}`,
+        sql`select body_html, body_text, cc_addresses, notification_template_key, notification_template_version, template_id, to_addresses from contractor_mail_messages where id = ${messageId}`,
       )
       expect(message).toMatchObject({
         body_html: '<p>html</p>',
         body_text: 'text',
         cc_addresses: ['ana@empresa.example'],
-        template_id: templateId,
+        notification_template_key: 'correcao-endereco.padrao',
+        notification_template_version: 2,
+        template_id: null,
         to_addresses: ['ativo@contratante.example'],
       })
 
@@ -366,7 +403,8 @@ describeDatabase(
             fromAddress: 'no-reply@transportada.test',
             replyTokenHash: 'b'.repeat(64),
             subject: 'Correção de endereço de entrega — 1 cliente',
-            templateId,
+            templateKey: 'correcao-endereco.padrao',
+            templateVersion: 2,
             threadId,
             ccAddresses: [],
             toAddresses: ['ativo@contratante.example'],
@@ -434,7 +472,8 @@ describeDatabase(
             fromAddress: 'no-reply@transportada.test',
             replyTokenHash: label === 'a' ? 'c'.repeat(64) : 'd'.repeat(64),
             subject: 'Correção de endereço de entrega — 1 cliente',
-            templateId,
+            templateKey: 'correcao-endereco.padrao',
+            templateVersion: 2,
             threadId,
             ccAddresses: [],
             toAddresses: ['ativo@contratante.example'],
@@ -534,7 +573,8 @@ describeDatabase(
             fromAddress: 'no-reply@transportada.test',
             replyTokenHash: (label === 'complete' ? 'e' : 'f').repeat(64),
             subject: `Correção de endereço de entrega — ${sendableIds.length} cliente(s)`,
-            templateId,
+            templateKey: 'correcao-endereco.padrao',
+            templateVersion: 2,
             threadId,
             ccAddresses: [],
             toAddresses: ['ativo@contratante.example'],

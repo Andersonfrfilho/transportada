@@ -159,5 +159,9 @@
   "nfseEmissionProfileEmpty": "No active NFS-e profile. Activate one on the NFS-e screen.",
   "nfseOutputHint": "Taker, freight rule, CFOP and ICMS come from the chosen NFS-e profile.",
   "outputDocumentIncoherent": "Choose an NFS-e profile to issue NFS-e.",
-  "nfseProfileNotActive": "The chosen NFS-e profile is not active."
+  "nfseProfileNotActive": "The chosen NFS-e profile is not active.",
+  "destinationCities": "Destination cities (one per line, City/ST)",
+  "destinationCitiesAny": "Empty: the profile applies to any recipient city.",
+  "destinationCitiesCount": "{{count}} city(ies). Only invoices whose recipient is in one of them match this profile.",
+  "destinationCitiesInvalid": "{{count}} line(s) not in City/ST format will be ignored, first: {{first}}"
 }

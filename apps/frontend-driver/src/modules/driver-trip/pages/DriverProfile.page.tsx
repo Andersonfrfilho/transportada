@@ -1,6 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/pages/DriverProfile.page.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -11,11 +11,12 @@ import {
   countCurrentOwnerPendingMessages,
   discardCurrentConversationOutbox,
 } from '@/modules/conversation/shared/driverConversationOutboxCleanup.service'
+import { DriverAvatar } from '@/modules/identity/components/DriverAvatar.component'
+import { useOwnPicture } from '@/modules/identity/hooks/useOwnPicture.hook'
 import { WhatsAppPhonePanel } from '@/modules/identity/components/WhatsAppPhonePanel.component'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { getKeycloakAuthProvider } from '@/modules/shared/KeycloakAuthProvider.provider'
 import { syncThemeColorMeta } from '@/modules/shared/colorTheme.service'
-import { useStopViewMode } from '../hooks/useStopViewMode.hook'
 import { useColorTheme } from '@/modules/shared/useColorTheme.hook'
 
 import { DriverLocationConsentCard } from '../components/DriverLocationConsentCard.component'
@@ -29,6 +30,7 @@ import {
 import { discardProofThumbnails } from '../shared/proofThumbnailArchive.service'
 import { signOutDriver } from '../shared/signOut.service'
 import { discardTripSnapshots } from '../shared/tripSnapshot.service'
+import type { StopViewMode } from '../shared/stopPaging.service'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverProfilePageProps = Readonly<{
@@ -43,9 +45,16 @@ type DriverProfilePageProps = Readonly<{
   ownPendingCount: number
   queuedCount: number
   snapshot: DriverTripSnapshot | undefined
+  /** A mesma instância da tela da viagem: dois `useState` guardariam cópias que não se falam. */
+  stopViewMode: Readonly<{ mode: StopViewMode; setMode: (mode: StopViewMode) => void }>
   /** RF12: a viagem escolhida na tela da viagem — o Perfil mostra a placa dela, não a de `trips[0]`. */
   trip: DriverTrip | undefined
 }>
+
+const PICTURE_ERROR_KEYS: Readonly<Record<string, string>> = {
+  USER_PICTURE_TOO_LARGE: 'profile.picture.tooLarge',
+  USER_PICTURE_UNSUPPORTED_FORMAT: 'profile.picture.unsupported',
+}
 
 /** Os dois papéis do campo têm rótulo; qualquer outro sai como veio — esconder seria mentir. */
 const FIELD_ROLE_LABEL_KEYS: Readonly<Record<string, string>> = {
@@ -66,6 +75,7 @@ export function DriverProfilePage({
   ownPendingCount,
   queuedCount,
   snapshot,
+  stopViewMode,
   trip,
 }: DriverProfilePageProps) {
   const { t } = useTranslation('driverTrip')
@@ -74,12 +84,20 @@ export function DriverProfilePage({
   const pendingProofCount = listProofPendingDocuments(snapshot).length
   const authMeQuery = useAuthMeQuery()
   const colorTheme = useColorTheme()
-  const stopViewMode = useStopViewMode()
 
   useEffect(() => {
     syncThemeColorMeta({ document, theme: colorTheme.theme })
   }, [colorTheme.theme])
   const profile = getKeycloakAuthProvider().getProfile()
+  const ownPicture = useOwnPicture()
+  const pictureInputReference = useRef<HTMLInputElement>(null)
+
+  function handlePictureChange(event: ChangeEvent<HTMLInputElement>): void {
+    const file = event.target.files?.[0]
+    /** Escolher a mesma foto duas vezes precisa disparar de novo. */
+    event.target.value = ''
+    if (file !== undefined) ownPicture.replace(file)
+  }
   /**
    * ADR-0075 §8: "Sair" leva a viagem guardada junto — nada dela fica no aparelho. Sem rede o
    * logout rejeita, e `signOutDriver` recarrega para a tela "sem viagem salva" (M9).
@@ -119,9 +137,12 @@ export function DriverProfilePage({
   return (
     <main className={styles.shell}>
       <section className={styles.profileIdentityCard}>
-        <span aria-hidden="true" className={styles.driverAvatarLarge}>
-          {profile.initials}
-        </span>
+        <DriverAvatar
+          className={styles.driverAvatarLarge ?? ''}
+          imageClassName={styles.driverAvatarImage ?? ''}
+          initials={profile.initials}
+          pictureUrl={ownPicture.pictureUrl}
+        />
         <div className={styles.profileIdentity}>
           <h1 className={styles.profileName}>{profile.displayName}</h1>
           {authMeQuery.isLoading ? (
@@ -131,6 +152,49 @@ export function DriverProfilePage({
               {role !== undefined
                 ? t(FIELD_ROLE_LABEL_KEYS[role] ?? '')
                 : (authMeQuery.data?.data.roles[0] ?? t('profile.roles.unknown'))}
+            </p>
+          )}
+          <div className={styles.profilePictureActions}>
+            <input
+              accept="image/*"
+              data-testid="profile-picture-input"
+              disabled={ownPicture.isBusy}
+              hidden
+              ref={pictureInputReference}
+              type="file"
+              onChange={handlePictureChange}
+            />
+            <Button
+              disabled={ownPicture.isBusy}
+              type="button"
+              variant="secondary"
+              onClick={() => pictureInputReference.current?.click()}
+            >
+              {ownPicture.isBusy ? t('profile.picture.busy') : t('profile.picture.change')}
+            </Button>
+            {ownPicture.pictureUrl === undefined ? null : (
+              <Button
+                disabled={ownPicture.isBusy}
+                type="button"
+                variant="ghost"
+                onClick={ownPicture.remove}
+              >
+                {t('profile.picture.remove')}
+              </Button>
+            )}
+          </div>
+          {ownPicture.origin === 'cnh' && ownPicture.pictureUrl !== undefined ? (
+            <button
+              className={styles.profilePictureNote}
+              type="button"
+              onClick={() => pictureInputReference.current?.click()}
+            >
+              {t('profile.picture.cnhNote')}
+            </button>
+          ) : null}
+          {ownPicture.errorCode === undefined ? null : (
+            <p className={styles.profileMeta} role="alert">
+              {t(PICTURE_ERROR_KEYS[ownPicture.errorCode] ?? 'profile.picture.error')}
             </p>
           )}
         </div>
@@ -198,7 +262,7 @@ export function DriverProfilePage({
 
       <section className={styles.profileCard}>
         <h2 className={styles.profileSectionTitle}>{t('paging.settingTitle')}</h2>
-        <p>{t('paging.settingHelp')}</p>
+        <p className={styles.profileMeta}>{t('paging.settingHelp')}</p>
         <div
           className={styles.stopViewModeChoices}
           role="group"
@@ -207,6 +271,7 @@ export function DriverProfilePage({
           {(['paged', 'list'] as const).map((mode) => (
             <Button
               aria-pressed={stopViewMode.mode === mode}
+              className={styles.eventQueueOpenButton}
               key={mode}
               type="button"
               variant={stopViewMode.mode === mode ? 'default' : 'secondary'}

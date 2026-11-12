@@ -1,4 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { describe, expect, it } from 'bun:test'
 
 import {
@@ -62,5 +65,18 @@ describe('uma parada por página (pedido do motorista, 27/10)', () => {
     expect(isPagedViewActive({ ...base, mode: 'list', showListWhenCurrentWas: undefined })).toBe(
       false,
     )
+  })
+})
+
+describe('a escolha do Perfil vale na hora (defeito achado ao tirar print do modo lista)', () => {
+  const pages = resolve(import.meta.dir, '../../src/modules/driver-trip/pages')
+
+  it('o Perfil recebe o modo da tela da viagem e não abre o próprio estado', () => {
+    // O Perfil é desenhado dentro da `DriverTripWorkspacePage`: dois `useStopViewMode` guardam
+    // cópias separadas e a escolha só valia depois de recarregar o app.
+    const profile = readFileSync(resolve(pages, 'DriverProfile.page.tsx'), 'utf8')
+    const workspace = readFileSync(resolve(pages, 'DriverTripWorkspace.page.tsx'), 'utf8')
+    expect(profile).not.toContain('useStopViewMode')
+    expect(workspace).toContain('stopViewMode={stopViewMode}')
   })
 })

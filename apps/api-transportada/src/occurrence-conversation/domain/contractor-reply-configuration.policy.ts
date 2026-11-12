@@ -42,8 +42,6 @@ export const contractorReplyConfigurationSchema = z.object({
   driverReplyChannel: z.enum(DRIVER_REPLY_CHANNELS),
   driverReplyTemplate: z.string(),
   driverReplyWindowClosedAction: z.enum(DRIVER_REPLY_WINDOW_CLOSED_ACTIONS),
-  forwardEmailBody: z.string(),
-  forwardEmailSubject: z.string(),
   forwardToInformedEmail: z.enum(FORWARD_TO_INFORMED_EMAIL_MODES),
   forwardToNoteRecipient: z.enum(FORWARD_TO_NOTE_RECIPIENT_MODES),
   mode: z.enum(CONTRACTOR_REPLY_MODES),
@@ -89,14 +87,6 @@ function isEffectiveCombinationValid(
 ): boolean {
   if (!emailsContractor || !hasText(configuration.driverReplyTemplate)) return false
   if (configuration.alertMode !== 'off' && configuration.waitHours === null) return false
-  const forwards =
-    configuration.forwardToNoteRecipient !== 'off' || configuration.forwardToInformedEmail !== 'off'
-  if (
-    forwards &&
-    !(hasText(configuration.forwardEmailSubject) && hasText(configuration.forwardEmailBody))
-  ) {
-    return false
-  }
   return true
 }
 

@@ -47,8 +47,13 @@ export const CTE_PROFILE_MUNICIPAL_SERVICE_POLICY = ['allow', 'block'] as const
 export const CTE_PROFILE_OUTPUT_DOCUMENT = ['cte', 'nfse'] as const
 export type CteProfileOutputDocument = (typeof CTE_PROFILE_OUTPUT_DOCUMENT)[number]
 
+/** Cidade de destino do perfil (spec 312). A API chaveia por `CIDADE|UF` sem acento. */
+export type CteProfileDestinationCity = Readonly<{ city: string; state: string }>
+
 export type CteProfileSettings = Readonly<{
   cargoInsuranceDeclared: boolean
+  /** `null` = qualquer cidade; lista = só destinatário numa dessas cidades. */
+  destinationCities: readonly CteProfileDestinationCity[] | null
   municipalServicePolicy: (typeof CTE_PROFILE_MUNICIPAL_SERVICE_POLICY)[number]
   nfseEmissionProfileId: null | string
   outputDocument: CteProfileOutputDocument

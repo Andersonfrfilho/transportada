@@ -111,7 +111,8 @@
     "sourceNe": "Origem diferente de",
     "statusEq": "Status",
     "statusNe": "Status diferente de",
-    "upload": "Upload"
+    "upload": "Upload",
+    "access_key": "Busca por chave"
   },
   "common": {
     "loadMore": "Carregar mais",
@@ -132,6 +133,7 @@
   },
   "mechanism": {
     "section": "Origem da importação",
+    "accessKey": "Importar por bip",
     "manual": "Manual",
     "remote": "Remota"
   },
@@ -143,17 +145,35 @@
     "count": "{{count}} processamento",
     "count_other": "{{count}} processamentos",
     "reprocess": "Reprocessar",
+    "reprocessDialog": {
+      "title": "Reprocessar processamento",
+      "previewError": "Não foi possível calcular o que será refeito.",
+      "busy": "Este processamento ainda está na fila. Aguarde terminar.",
+      "nothing": "Nenhuma nota deste processamento pode ser refeita.",
+      "count": "{{count}} nota será refeita.",
+      "count_other": "{{count}} notas serão refeitas.",
+      "rejected": "{{count}} recusada por não ser da empresa.",
+      "rejected_other": "{{count}} recusadas por não serem da empresa.",
+      "failed": "{{count}} com falha.",
+      "failed_other": "{{count}} com falha.",
+      "cancel": "Cancelar",
+      "confirm": "Confirmar"
+    },
     "reprocessPending": "Reprocessando...",
     "reprocessSuccess": "Reprocessamento enfileirado.",
     "reprocessError": "Não foi possível reprocessar.",
-    "reprocessNotAllowed": "Sem itens com falha para reprocessar.",
-    "reprocessDisabledHint": "Só é possível reprocessar processamentos com falha ou parciais que tenham itens falhados.",
+    "reprocessNotAllowed": "Sem itens com falha ou recusa reprocessável.",
+    "reprocessDisabledHint": "Só dá para reprocessar processamento com item falhado ou recusado por motivo que pode ter mudado, e que não esteja na fila.",
     "imported": "Importadas",
     "duplicated": "Duplicadas",
     "invalid": "Inválidas",
     "rejected": "De terceiros",
     "failed": "Falhas",
-    "copyId": "Copiar identificador do lote"
+    "copyId": "Copiar identificador do lote",
+    "via": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    }
   },
   "documents": {
     "reportExcludedWithoutTrip": "{{count}} nota sem viagem ficou de fora",
@@ -181,6 +201,13 @@
     "blockedCount": "{{count}} bloqueada fora da seleção",
     "blockedCount_other": "{{count}} bloqueadas fora da seleção",
     "downloadSelected": "Baixar XML das selecionadas",
+    "sheetSelect": "Selecionar pela planilha",
+    "sheetLabel": "Planilha da semana",
+    "sheetPlaceholder": "Nenhuma planilha escolhida",
+    "sheetInvalid": "Não foi possível ler a planilha. Envie o arquivo .xlsx com a coluna DOCUMENTO1.",
+    "sheetResult": "{{selected}} de {{total}} notas da planilha selecionadas.",
+    "sheetBlocked": "{{count}} bloqueadas para emissão ficaram de fora.",
+    "sheetMissing": "{{count}} ainda não estão no sistema ({{numbers}}).",
     "emitCte": "Gerar CT-es ({{count}})",
     "createTrip": "Criar viagem",
     "clearSelection": "Limpar seleção",
@@ -278,6 +305,7 @@
       "noProfile": "Sem perfil — {{reason}}",
       "noProfileReason": {
         "ambiguous": "dois perfis empatam",
+        "city_not_covered": "cidade de destino fora das regiões do perfil",
         "not_cnpj": "emitente ou destinatário sem CNPJ",
         "unmatched": "nenhum perfil casa com a nota"
       }
@@ -578,11 +606,10 @@
         "noActiveContactLink": "Cadastrar contato em Clientes → E-mail com contratantes",
         "openMailSettingsLink": "Abrir configuração de e-mail",
         "templateTitle": "Modelo de e-mail",
-        "templateUnavailable": "Não foi possível carregar os modelos de e-mail.",
-        "templateDefaultOption": "{{name}} (padrão)",
+        "templateUnavailable": "Não foi possível carregar o modelo de e-mail.",
+        "openNotificationSettingsLink": "Abrir Notificações",
+        "editInNotificationSettings": "Editar o texto em Notificações",
         "previewExample": "A prévia usa dados de exemplo — o envio real leva os endereços marcados acima.",
-        "previewLoading": "Carregando prévia do modelo…",
-        "previewUnavailable": "Não foi possível carregar a prévia deste modelo.",
         "previewSubjectLabel": "Assunto",
         "previewFrameTitle": "Prévia do e-mail",
         "cancel": "Cancelar",
@@ -598,8 +625,7 @@
           "requestNotSendable": "Algum dos pedidos selecionados já foi enviado ou não pertence a esta contratante.",
           "mailNotConfigured": "O e-mail da contratante ainda não está configurado ou verificado.",
           "sendingNotVerified": "O domínio do remetente de e-mail ainda não foi verificado.",
-          "templateMissing": "Não há modelo padrão de e-mail de correção de endereço. Cadastre um em E-mail com contratantes.",
-          "templateNotUsable": "O modelo escolhido foi arquivado ou não está mais disponível. Escolha outro modelo.",
+          "templateMissing": "O modelo do e-mail de correção de endereço não foi publicado ou não serve ao envio. Veja o modelo em Notificações.",
           "idempotencyReused": "Este envio já foi processado. Atualize a página antes de tentar de novo.",
           "tooManyRequests": "Muitas tentativas de envio. Tente de novo em {{minutes}} min.",
           "generic": "Não foi possível enviar o pedido de correção.",
@@ -855,5 +881,134 @@
   },
   "cameraMeasurementValidationExportExcel": "Exportar Excel do período",
   "cameraMeasurementExportSheetName": "Medidas da câmera",
-  "cameraMeasurementExportTitle": "Medidas feitas com a câmera"
+  "cameraMeasurementExportTitle": "Medidas feitas com a câmera",
+  "importByScan": {
+    "action": "Importar por bip"
+  },
+  "accessKeyImport": {
+    "forbidden": "Você não tem permissão para importar notas.",
+    "title": "Importar por bip",
+    "subtitle": "Bipe a chave de cada nota: a que já está no sistema é só contada, a desconhecida é buscada na SEFAZ e importada sozinha.",
+    "reader": {
+      "field": "Chave da nota",
+      "idle": "Ativar o leitor",
+      "placeholder": "Bipe a chave de 44 dígitos da nota",
+      "ready": "Leitor pronto"
+    },
+    "scan": "Ler com a câmera",
+    "scanClose": "Fechar câmera",
+    "scanDenied": "A câmera não foi liberada.",
+    "scanReading": "Lendo o código…",
+    "scanStarting": "Abrindo a câmera…",
+    "scanTitle": "Ler chave da nota",
+    "scanUnavailable": "A câmera não está disponível neste aparelho.",
+    "alreadyScanned": "Esta chave já foi bipada.",
+    "alreadyInSystem": "Já estava no sistema.",
+    "summary": {
+      "announcement": "{{scanned}} bipadas, {{imported}} importadas, {{refused}} recusadas.",
+      "scanned": "Bipadas",
+      "alreadyInSystem": "Já estavam no sistema",
+      "imported": "Importadas",
+      "searching": "Buscando",
+      "waiting": "Na fila da SEFAZ",
+      "refused": "Recusadas",
+      "notObtained": "Não obtidas",
+      "unreadable": "Ilegíveis"
+    },
+    "nextWindow": "próxima janela {{time}}",
+    "refusedReason": "{{count}} {{reason}}",
+    "reason": {
+      "not_interested": "não liberada",
+      "summary_only": "só resumo",
+      "not_found": "não encontrada",
+      "expired": "prazo vencido",
+      "cancelled": "cancelada",
+      "denied": "denegada",
+      "certificate_mismatch": "certificado",
+      "invalid_key": "chave inválida",
+      "sefaz_unavailable": "SEFAZ fora do ar"
+    },
+    "filter": {
+      "all": "Todas",
+      "imported": "Importadas",
+      "alreadyInSystem": "Já estavam",
+      "refused": "Recusadas"
+    },
+    "clear": "Limpar lista",
+    "xml": {
+      "action": "Enviar XML",
+      "field": "XML da nota",
+      "placeholder": "Nenhum XML escolhido",
+      "failed": "Não foi possível enviar o XML. Tente de novo.",
+      "notImported": "O XML foi enviado, mas a nota ainda não entrou no cadastro."
+    }
+  },
+  "xmlReceipts": {
+    "title": "Notas recebidas por e-mail e WhatsApp",
+    "subtitle": "Arquivos XML ou zip enviados à caixa de notas ou ao bot. O que foi recusado ou falhou mostra o motivo.",
+    "loading": "Carregando envios...",
+    "error": "Não foi possível carregar os envios.",
+    "empty": "Nenhum envio por e-mail ou WhatsApp ainda.",
+    "count": "{{count}} envio",
+    "count_other": "{{count}} envios",
+    "files": "{{count}} arquivo",
+    "files_other": "{{count}} arquivos",
+    "channel": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    },
+    "status": {
+      "pending": "Na fila",
+      "processing": "Baixando",
+      "imported": "Importado",
+      "rejected": "Recusado",
+      "failed": "Falhou"
+    },
+    "reason": {
+      "sender_not_allowed": "Quem enviou não tem cadastro verificado com permissão para importar notas.",
+      "sender_not_authenticated": "Não foi possível confirmar quem enviou o e-mail (assinatura do remetente).",
+      "no_accepted_file": "Nenhum arquivo .xml ou .zip foi encontrado na mensagem.",
+      "file_too_large": "O arquivo passa do tamanho máximo aceito.",
+      "mailbox_not_configured": "A caixa de notas não está configurada.",
+      "download_failed": "Não foi possível baixar o arquivo; novas tentativas foram feitas.",
+      "unknown": "Falha ao processar; a operação foi avisada."
+    },
+    "result": {
+      "received": "Recebido em",
+      "entered": "Entrou no sistema em",
+      "processing": "Ainda entrando…",
+      "notes": "Notas",
+      "counts": "{{imported}} novas de {{received}} · {{duplicated}} já existiam · {{problems}} com problema",
+      "contractors": "Contratantes (notas novas)",
+      "noContractors": "nenhuma nota nova"
+    }
+  },
+  "allowedDomains": {
+    "title": "E-mails liberados a enviar XML",
+    "subtitle": "Quem escreve de um endereço do domínio liberado (com a assinatura do e-mail em ordem) pode mandar XML de nota sem estar cadastrado. Cada domínio pertence a um contratante.",
+    "count": "{{count}} domínio",
+    "count_other": "{{count}} domínios",
+    "domainLabel": "Domínio do e-mail",
+    "domainPlaceholder": "spani.com.br",
+    "contractorLabel": "Contratante dono do domínio",
+    "contractorPlaceholder": "Escolha o contratante",
+    "contractorSearch": "Buscar contratante",
+    "contractorEmpty": "Nenhum contratante encontrado.",
+    "release": "Liberar domínio",
+    "loading": "Carregando domínios...",
+    "loadError": "Não foi possível carregar os domínios.",
+    "empty": "Nenhum domínio liberado ainda.",
+    "noContractor": "Sem contratante (liberado antes do vínculo)",
+    "turnOff": "Desligar",
+    "turnOn": "Ligar",
+    "status": {
+      "active": "Liberado",
+      "inactive": "Desligado"
+    },
+    "error": {
+      "NFE_XML_PUBLIC_EMAIL_DOMAIN": "Provedor público (gmail, hotmail...) não pode ser liberado inteiro. Cadastre o e-mail da pessoa como contato do contratante.",
+      "NFE_XML_ALLOWED_DOMAIN_CONTRACTOR_NOT_FOUND": "Esse contratante não existe nesta empresa.",
+      "unknown": "Não foi possível liberar o domínio. Confira o endereço e tente de novo."
+    }
+  }
 }

@@ -67,10 +67,10 @@ function buildDriverWorld() {
       typeName: 'Recusa',
     }),
     renderManifestDamdfe: NOT_CALLED,
-    reportArrival: record('arrival', { id: 'event-1' }),
+    reportArrival: record('arrival', { id: 'event-1', recordedTogether: [] }),
     reportDeparture: NOT_CALLED,
     reportDelivery: NOT_CALLED,
-    reportOccurrence: record('stopOccurrence', { id: 'occurrence-1' }),
+    reportOccurrence: record('stopOccurrence', { arrivalRecorded: false, id: 'occurrence-1' }),
     reportReturn: NOT_CALLED,
     resolveDriverId: async () => DRIVER_ID,
     startFieldTrip: record('startFieldTrip', {

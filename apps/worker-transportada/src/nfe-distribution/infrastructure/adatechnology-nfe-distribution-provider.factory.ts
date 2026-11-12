@@ -4,8 +4,16 @@
 import {
   NfeDistribuicaoProvider,
   type NfeDistribuicaoConfig,
+  type DfeItem,
   type NfeDistribuicaoResult,
 } from '@adatechnology/fiscal-provider'
+
+import type { AccessKeyLookupGatewayResult } from '../../nfe-access-key-lookup/domain/nfe-access-key-lookup.types.js'
+
+import {
+  mapAccessKeyLookupError,
+  mapAccessKeyLookupItem,
+} from './nfe-access-key-lookup-result.mapper.js'
 
 const DISTRIBUTION_MODEL = 'nfe-distribuicao' as const
 
@@ -23,6 +31,10 @@ type SefazDistributionProvider = {
     readonly config: NfeDistribuicaoConfig
     readonly ultNSU: string
   }): Promise<NfeDistribuicaoResult>
+  consultarPorChave(params: {
+    readonly config: NfeDistribuicaoConfig
+    readonly chaveNfe: string
+  }): Promise<DfeItem | undefined>
 }
 
 type NfeDistributionProviderGateway = {
@@ -30,6 +42,10 @@ type NfeDistributionProviderGateway = {
     readonly config: NfeDistributionRuntimeConfig
     readonly ultNSU: string
   }): Promise<NfeDistribuicaoResult>
+  consultarPorChave(input: {
+    readonly config: NfeDistributionRuntimeConfig
+    readonly chaveNfe: string
+  }): Promise<AccessKeyLookupGatewayResult>
 }
 
 type CreateAdatechnologyNfeDistributionProviderDependencies = {
@@ -63,6 +79,17 @@ export function createAdatechnologyNfeDistributionProvider(
           config: toNfeDistribuicaoProviderConfig(input.config),
           ultNSU: input.ultNSU,
         })
+      },
+      async consultarPorChave(input) {
+        try {
+          const item = await provider.consultarPorChave({
+            config: toNfeDistribuicaoProviderConfig(input.config),
+            chaveNfe: input.chaveNfe,
+          })
+          return mapAccessKeyLookupItem(item)
+        } catch (error) {
+          return mapAccessKeyLookupError(error)
+        }
       },
     }
   }

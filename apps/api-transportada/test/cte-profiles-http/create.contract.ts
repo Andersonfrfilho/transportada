@@ -51,6 +51,56 @@ describe('cte emission profiles http create contract', () => {
     ])
   })
 
+  test('normalises the destination city list to unique CITY|UF keys', async () => {
+    const fixture = await createCteProfilesHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: {
+          ...CREATE_PROFILE_BODY,
+          settings: {
+            ...PROFILE_SETTINGS_BODY,
+            destinationCities: [
+              { city: 'Sertãozinho', state: 'SP' },
+              { city: 'sertaozinho', state: 'sp' },
+              { city: 'Franca', state: 'SP' },
+            ],
+          },
+        },
+        idempotencyKey: IDEMPOTENCY_KEY,
+        method: 'POST',
+        path: CTE_PROFILES_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(201)
+    expect(fixture.createCalls[0]?.settings).toEqual(
+      expect.objectContaining({ destinationCities: ['SERTAOZINHO|SP', 'FRANCA|SP'] }),
+    )
+  })
+
+  test('refuses a destination city without a two-letter state', async () => {
+    const fixture = await createCteProfilesHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: {
+          ...CREATE_PROFILE_BODY,
+          settings: {
+            ...PROFILE_SETTINGS_BODY,
+            destinationCities: [{ city: 'Franca', state: 'SAO' }],
+          },
+        },
+        idempotencyKey: IDEMPOTENCY_KEY,
+        method: 'POST',
+        path: CTE_PROFILES_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.createCalls).toEqual([])
+  })
+
   test('requires an idempotency key before reaching the use case', async () => {
     const fixture = await createCteProfilesHttpFixture()
 

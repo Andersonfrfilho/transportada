@@ -86,6 +86,7 @@ function buildWorld() {
   const saved: Parameters<DeliveryProofPort['saveProof']>[0][] = []
   const stored: string[] = []
   const repository: DeliveryProofPort = {
+    findCanhotoByHash: () => Promise.resolve(null),
     countProofsForEvent: () => Promise.resolve(0),
     findDeliveryContext: () =>
       Promise.resolve({

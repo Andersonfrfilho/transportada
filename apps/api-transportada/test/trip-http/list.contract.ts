@@ -37,7 +37,7 @@ describe('GET /trips', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       data: [...TRIP_PAGE.items],
-      page: { nextCursor: TRIP_PAGE.nextCursor },
+      page: { nextCursor: TRIP_PAGE.nextCursor, offset: null, previousCursor: null, total: null },
     })
     expect(fixture.listTripsCalls).toEqual([
       {
@@ -125,6 +125,29 @@ describe('GET /trips', () => {
     ])
   })
 
+  test('forwards the way back (direction=backward from a cursor) and the page jump (offset)', async () => {
+    const fixture = await createTripHttpFixture()
+    const cursor = '2026-08-04T12:00:00.000Z::00000000-0000-4000-8000-000000000a11'
+
+    for (const path of [
+      `${TRIPS_PATH}?direction=backward&limit=50&cursor=${encodeURIComponent(cursor)}`,
+      `${TRIPS_PATH}?offset=75&limit=25`,
+    ]) {
+      expect((await fixture.handle(jsonRequest({ method: 'GET', path }))).status).toBe(200)
+    }
+
+    expect(fixture.listTripsCalls).toEqual([
+      {
+        context: COMPANY_CONTEXT,
+        cursor,
+        direction: 'backward',
+        includeFinancials: false,
+        limit: 50,
+      },
+      { context: COMPANY_CONTEXT, cursor: null, includeFinancials: false, limit: 25, offset: 75 },
+    ])
+  })
+
   test('refuses a query it does not know how to honour', async () => {
     const fixture = await createTripHttpFixture()
 
@@ -133,6 +156,14 @@ describe('GET /trips', () => {
       '?statusEq=flying',
       '?limit=0',
       '?limit=101',
+      '?direction=sideways',
+      // Voltar parte de uma página: sem cursor não há de onde voltar.
+      '?direction=backward',
+      // Salto e cursor são dois jeitos de dizer onde a página começa — nunca os dois.
+      '?offset=-1',
+      '?offset=abc',
+      '?offset=10&direction=backward&cursor=2026-08-04T12:00:00.000Z::00000000-0000-4000-8000-000000000a11',
+      '?offset=10&cursor=2026-08-04T12:00:00.000Z::00000000-0000-4000-8000-000000000a11',
       '?cursor=yesterday',
       '?vehicleIdEq=not-a-uuid',
       '?driverIdEq=not-a-uuid',
@@ -202,7 +233,12 @@ describe('GET /trips', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       data: [...TRIP_PAGE_WITH_AMOUNTS.items],
-      page: { nextCursor: TRIP_PAGE_WITH_AMOUNTS.nextCursor },
+      page: {
+        nextCursor: TRIP_PAGE_WITH_AMOUNTS.nextCursor,
+        offset: null,
+        previousCursor: null,
+        total: null,
+      },
     })
   })
 })

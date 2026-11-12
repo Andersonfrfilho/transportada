@@ -13,6 +13,7 @@ import styles from '../styles/occurrenceThread.module.css'
 const TONE_CLASS = {
   contractor: styles.toneContractor,
   driver: styles.toneDriver,
+  client: styles.toneClient,
   operator: styles.toneOperator,
 } as const
 

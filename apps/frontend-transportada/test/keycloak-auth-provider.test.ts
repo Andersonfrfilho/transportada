@@ -6,6 +6,7 @@ import {
   type KeycloakClient,
 } from '../src/modules/identity/shared/KeycloakAuthProvider.provider'
 import { readTrustedUrl } from '../src/modules/identity/shared/identityEnvironment.config'
+import { recoverFromRejectedToken } from '../src/modules/identity/shared/rejectedSessionRecovery.service'
 
 const ACCESS_TOKEN = 'test-access-token'
 const CALLBACK_URL = 'http://localhost/auth/callback'
@@ -168,6 +169,23 @@ describe('KeycloakAuthProvider', () => {
     expect(client.clearToken).not.toHaveBeenCalled()
     expect(client.logout).toHaveBeenCalledWith({ redirectUri: 'http://localhost' })
   })
+
+  test('forgets the scanned access-key list on logout', async () => {
+    const removed: string[] = []
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
+    Object.defineProperty(globalThis, 'sessionStorage', {
+      configurable: true,
+      value: { removeItem: (key: string) => removed.push(key) },
+    })
+    try {
+      await createKeycloakAuthProvider(createClient(), CALLBACK_URL).logout()
+    } finally {
+      if (original === undefined) Reflect.deleteProperty(globalThis, 'sessionStorage')
+      else Object.defineProperty(globalThis, 'sessionStorage', original)
+    }
+
+    expect(removed).toContain('nfe-workspace.access-key-import')
+  })
 })
 
 /**
@@ -280,5 +298,63 @@ describe('identity environment', () => {
     'https://user:password@identity.example.com',
   ])('rejects an untrusted identity URL: %s', (url) => {
     expect(() => readTrustedUrl(url, 'URL')).toThrow('IDENTITY_CONFIGURATION_INVALID_URL')
+  })
+})
+
+describe('recoverFromRejectedToken', () => {
+  function createStorage(initial?: string) {
+    let value = initial
+    return {
+      getItem: () => value ?? null,
+      setItem: (_key: string, next: string) => {
+        value = next
+      },
+    }
+  }
+
+  test('reautentica uma vez quando a API recusa o token', async () => {
+    const restart = mock(() => Promise.resolve())
+    const storage = createStorage()
+
+    const first = await recoverFromRejectedToken({
+      now: () => 1_000_000,
+      restartAuthentication: restart,
+      storage,
+    })
+    const second = await recoverFromRejectedToken({
+      now: () => 1_030_000,
+      restartAuthentication: restart,
+      storage,
+    })
+
+    expect(first).toBe(true)
+    expect(second).toBe(false)
+    expect(restart).toHaveBeenCalledTimes(1)
+  })
+
+  test('volta a tentar depois de um minuto', async () => {
+    const restart = mock(() => Promise.resolve())
+    const storage = createStorage('1000000')
+
+    const result = await recoverFromRejectedToken({
+      now: () => 1_061_000,
+      restartAuthentication: restart,
+      storage,
+    })
+
+    expect(result).toBe(true)
+    expect(restart).toHaveBeenCalledTimes(1)
+  })
+
+  test('sem armazenamento ainda reautentica', async () => {
+    const restart = mock(() => Promise.resolve())
+
+    const result = await recoverFromRejectedToken({
+      now: () => 5,
+      restartAuthentication: restart,
+      storage: undefined,
+    })
+
+    expect(result).toBe(true)
   })
 })

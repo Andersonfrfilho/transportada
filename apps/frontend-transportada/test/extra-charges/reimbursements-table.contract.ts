@@ -30,8 +30,12 @@ function row(overrides: Partial<OccurrenceChargeReportRow> = {}): OccurrenceChar
     noteNumber: '1',
     noteSeries: '1',
     occurrenceId: 'occurrence-1',
+    photos: [],
+    receivingCharge: null,
     status: 'approved',
+    stopOccurrenceId: null,
     tripDocumentId: 'document-1',
+    tripId: null,
     ...overrides,
   }
 }
@@ -136,44 +140,15 @@ describe('revisão do painel: a página não passa da largura da tela a 320px', 
   })
 
   /**
-   * O `h1` global é de 3,5rem a 9rem em caixa alta, como na staging; "RESSARCIMENTOS" tem ~370px e só
-   * estoura a tela no celular. A mudança fica abaixo de 40rem; dali em diante o corpo é o do h1
-   * global, nos dois pontos em que ele muda, lido do `index.css` para o espelho não divergir.
+   * O título de página é um só no painel inteiro (token `--page-title-*` do `index.css`): a tela de
+   * ressarcimentos não tem mais cabeçalho próprio, e "Ressarcimentos" cabe no celular sem quebrar.
    */
-  it('só o cabeçalho da página de ressarcimentos usa o título que quebra', () => {
-    expect(PAGE.split('styles.header} ${styles.longTitle}').length - 1).toBe(2)
-    expect(PAGE).not.toContain('<header className={styles.header}>')
-  })
-
-  it('o título quebra no celular e, de 40rem em diante, é o h1 global', () => {
-    const globalBase = readRule(GLOBAL_STYLES, '\nh1 {')
-    const globalWide = readRule(
-      GLOBAL_STYLES.slice(
-        GLOBAL_STYLES.indexOf('@media (min-width: 64rem)', GLOBAL_STYLES.indexOf('\nh1 {')),
-      ),
-      '\n  h1 {',
-    )
-    const base = readRule(STYLES, '.longTitle h1 {')
-    const narrow = readRule(
-      STYLES.slice(STYLES.indexOf('@media (min-width: 40rem)')),
-      '.longTitle h1 {',
-    )
-    const wide = readRule(
-      STYLES.slice(STYLES.indexOf('@media (min-width: 64rem)')),
-      '.longTitle h1 {',
-    )
-
-    expect(base).toContain('max-width: none')
-    expect(base).toContain('overflow-wrap: anywhere')
-    expect(base).toContain('font-size: clamp(2rem, 13vw')
-    for (const property of ['max-width', 'font-size']) {
-      expect(readDeclaration(globalBase, property)).not.toBe('')
-      expect(readDeclaration(narrow, property)).toBe(readDeclaration(globalBase, property))
-    }
-    expect(readDeclaration(globalWide, 'font-size')).not.toBe('')
-    expect(readDeclaration(wide, 'font-size')).toBe(readDeclaration(globalWide, 'font-size'))
-    for (const overridden of ['font-weight', 'text-transform', 'line-height', 'margin']) {
-      expect(base + narrow + wide).not.toContain(overridden)
-    }
+  it('o cabeçalho da página de ressarcimentos usa o título padrão do painel', () => {
+    expect(PAGE).not.toContain('longTitle')
+    expect(PAGE.split('<header className={styles.header}>').length - 1).toBe(2)
+    expect(STYLES).not.toContain('.longTitle')
+    const globalTitle = readRule(GLOBAL_STYLES, '\nh1 {')
+    expect(readDeclaration(globalTitle, 'font-size')).toBe('var(--page-title-size)')
+    expect(readDeclaration(globalTitle, 'max-width')).toBe('none')
   })
 })

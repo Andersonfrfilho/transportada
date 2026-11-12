@@ -30,6 +30,8 @@
     },
     "sendState": {
       "title": "Envio ao cliente",
+      "resend": "Reenviar",
+      "resending": "Enviando…",
       "clientWithoutEmail": "Sem e-mail do cliente para o boleto",
       "state": {
         "sent": "Enviado",

@@ -42,6 +42,7 @@ import { occurrenceContractorReplies } from './occurrence-contractor-reply.schem
 import { inList } from './schema-check.constant.js'
 import { storedObjects } from './storage.schema.js'
 import {
+  tripCanhotoPickups,
   tripDocumentOccurrences,
   tripOccurrenceCaseEvents,
   tripStopOccurrences,
@@ -56,6 +57,25 @@ export type OccurrenceConversationKind = (typeof OCCURRENCE_CONVERSATION_KINDS)[
 export const OCCURRENCE_CONVERSATION_PARTICIPANTS = ['contractor', 'driver'] as const
 export type OccurrenceConversationParticipant =
   (typeof OCCURRENCE_CONVERSATION_PARTICIPANTS)[number]
+
+/**
+ * Spec 283 (D2): o cliente da entrega é o terceiro participante, só do painel. Fica fora da lista de cima de
+ * propósito: ela é a de quem escreve pelas rotas da conversa, pelos anexos e pelas respostas rápidas, e o cliente
+ * nasce só do trilho de entrega (279/281 T5) e responde só pelo webhook (281 T6).
+ */
+export const OCCURRENCE_CONVERSATION_CLIENT_PARTICIPANT = 'client'
+/**
+ * Spec 287: a conversa do cliente é uma por canal. `client` segue sendo a do WhatsApp (as linhas existentes não
+ * mudam); `client_email` é a do e-mail, com o mesmo `client_tax_id` e a mesma ocorrência de nota.
+ */
+export const OCCURRENCE_CONVERSATION_CLIENT_EMAIL_PARTICIPANT = 'client_email'
+export const OCCURRENCE_CONVERSATION_ALL_PARTICIPANTS = [
+  ...OCCURRENCE_CONVERSATION_PARTICIPANTS,
+  OCCURRENCE_CONVERSATION_CLIENT_PARTICIPANT,
+  OCCURRENCE_CONVERSATION_CLIENT_EMAIL_PARTICIPANT,
+] as const
+export type OccurrenceConversationAnyParticipant =
+  (typeof OCCURRENCE_CONVERSATION_ALL_PARTICIPANTS)[number]
 
 export const OCCURRENCE_CONVERSATION_STATUSES = ['open', 'closed'] as const
 export type OccurrenceConversationStatus = (typeof OCCURRENCE_CONVERSATION_STATUSES)[number]
@@ -124,7 +144,12 @@ export const occurrenceConversations = pgTable(
     tripId: uuid('trip_id'),
     /** Spec 263: o vínculo nota-viagem (`trip_documents.id`) da conversa de nota. */
     tripDocumentId: uuid('trip_document_id'),
-    participant: text().$type<OccurrenceConversationParticipant>().notNull(),
+    participant: text().$type<OccurrenceConversationAnyParticipant>().notNull(),
+    /**
+     * Spec 283 (D1): o cliente da entrega (`tax_id` do destinatário da nota) da conversa `client`. Sem FK, como
+     * `occurrence_id`: o cadastro do cliente pode mudar, e a conversa fica.
+     */
+    clientTaxId: text('client_tax_id'),
     /**
      * Spec 263 D8: `AAMMDD-XXXX`, gerado pelo trigger `BEFORE INSERT` e imutável (`BEFORE UPDATE`). O padrão
      * `''` é só a sentinela que deixa o INSERT existente intocado: o CHECK o recusa e o trigger sempre o troca.
@@ -226,7 +251,7 @@ export const occurrenceConversations = pgTable(
     ),
     check(
       'occurrence_conversations_participant_check',
-      sql`${table.participant} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_PARTICIPANTS))})`,
+      sql`${table.participant} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_ALL_PARTICIPANTS))})`,
     ),
     check(
       'occurrence_conversations_status_check',
@@ -236,11 +261,19 @@ export const occurrenceConversations = pgTable(
       'occurrence_conversations_default_channel_check',
       sql`${table.defaultChannel} is null or ${table.defaultChannel} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_CHANNELS))})`,
     ),
-    /** A contratante tem contratante e referência do portal; o motorista, o usuário dele — nunca os dois. */
+    /**
+     * A contratante tem contratante e referência do portal; o motorista, o usuário dele; o cliente (283), o `tax_id`
+     * e só ocorrência de nota — nunca dois.
+     */
     check(
       'occurrence_conversations_participant_shape_check',
-      sql`(${table.participant} = 'contractor' and ${table.contractorId} is not null and ${table.publicRef} is not null and ${table.driverUserId} is null)
-        or (${table.participant} = 'driver' and ${table.driverUserId} is not null and ${table.contractorId} is null and ${table.publicRef} is null)`,
+      sql`(${table.participant} = 'contractor' and ${table.contractorId} is not null and ${table.publicRef} is not null and ${table.driverUserId} is null and ${table.clientTaxId} is null)
+        or (${table.participant} = 'driver' and ${table.driverUserId} is not null and ${table.contractorId} is null and ${table.publicRef} is null and ${table.clientTaxId} is null)
+        or (${table.participant} in ('client', 'client_email') and ${table.clientTaxId} is not null and ${table.occurrenceKind} = 'document' and ${table.contractorId} is null and ${table.driverUserId} is null and ${table.publicRef} is null)`,
+    ),
+    check(
+      'occurrence_conversations_client_tax_id_check',
+      sql`${table.clientTaxId} is null or ${table.clientTaxId} ~ '^[0-9]{11}$|^[A-Z0-9]{12}[0-9]{2}$'`,
     ),
     check(
       'occurrence_conversations_public_ref_check',
@@ -296,6 +329,14 @@ export const occurrenceConversationMessages = pgTable(
      * automática (sem autor humano); guarda quem enviou e a entrega que ela conta, para a tela não depender do texto.
      */
     systemNotice: jsonb('system_notice').$type<OccurrenceConversationSystemNotice>(),
+    /**
+     * Spec 283 (RF1/RF2): a entrega da 248 (`occurrence_contractor_reply_deliveries.id`) que esta mensagem da conversa
+     * do cliente conta — uma mensagem por envio. Sem FK: o schema da entrega já importa este, e a volta fecharia um
+     * ciclo de módulos. Gravada pelo gatilho `occurrence_client_conversation_sync` (migration da 283 T2).
+     */
+    clientDeliveryId: uuid('client_delivery_id'),
+    /** Spec 283: o destino como saiu (E.164 ou e-mail). Só no banco; resposta e log levam a forma mascarada. */
+    recipientAddress: text('recipient_address'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -370,6 +411,15 @@ export const occurrenceConversationMessages = pgTable(
     check(
       'occurrence_conversation_messages_system_notice_check',
       sql`${table.systemNotice} is null or (jsonb_typeof(${table.systemNotice}) = 'object' and jsonb_exists(${table.systemNotice}, 'kind') and ${table.direction} = 'outbound' and ${table.automatic})`,
+    ),
+    uniqueIndex('occurrence_conversation_messages_client_delivery_unique')
+      .on(table.companyId, table.clientDeliveryId)
+      .where(sql`${table.clientDeliveryId} is not null`),
+    /** Spec 283: a mensagem de entrega ao cliente é enviada e tem destino; destino só existe em enviada. */
+    check(
+      'occurrence_conversation_messages_client_delivery_check',
+      sql`(${table.clientDeliveryId} is null or (${table.direction} = 'outbound' and ${table.recipientAddress} is not null and ${table.channel} in ('email', 'whatsapp')))
+        and (${table.recipientAddress} is null or ${table.direction} = 'outbound')`,
     ),
     uniqueIndex('occurrence_conversation_messages_system_notice_delivery_unique')
       .on(table.companyId, sql`(${table.systemNotice} ->> 'deliveryId')`)
@@ -774,6 +824,11 @@ export const tripOccurrenceResolutionEvents = pgTable(
      */
     caseEventId: uuid('case_event_id'),
     contractorReplyId: uuid('contractor_reply_id'),
+    /**
+     * Spec 321 T4 (D5): o evento `system` causado pela coleta de canhoto — `resolved` quando o canhoto da nota é
+     * aprovado, `reopened` quando é reprovado. Sem índice único: a mesma coleta resolve e reabre mais de uma vez.
+     */
+    canhotoPickupId: uuid('canhoto_pickup_id'),
     note: text(),
     conversationMessageId: uuid('conversation_message_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -823,6 +878,13 @@ export const tripOccurrenceResolutionEvents = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.canhotoPickupId],
+      foreignColumns: [tripCanhotoPickups.companyId, tripCanhotoPickups.id],
+      name: 'trip_occurrence_resolution_events_company_canhoto_pickup_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     uniqueIndex('trip_occurrence_resolution_events_case_event_unique')
       .on(table.companyId, table.caseEventId)
       .where(sql`${table.caseEventId} is not null`),
@@ -850,11 +912,11 @@ export const tripOccurrenceResolutionEvents = pgTable(
     ),
     check(
       'trip_occurrence_resolution_events_system_case_event_check',
-      sql`(${table.actorKind} = 'system') = (num_nonnulls(${table.caseEventId}, ${table.contractorReplyId}) = 1)`,
+      sql`(${table.actorKind} = 'system') = (num_nonnulls(${table.caseEventId}, ${table.contractorReplyId}, ${table.canhotoPickupId}) = 1)`,
     ),
     check(
       'trip_occurrence_resolution_events_system_cause_check',
-      sql`num_nonnulls(${table.caseEventId}, ${table.contractorReplyId}) <= 1`,
+      sql`num_nonnulls(${table.caseEventId}, ${table.contractorReplyId}, ${table.canhotoPickupId}) <= 1`,
     ),
     check(
       'trip_occurrence_resolution_events_internal_note_check',
@@ -862,8 +924,16 @@ export const tripOccurrenceResolutionEvents = pgTable(
     ),
     check(
       'trip_occurrence_resolution_events_reopen_check',
-      sql`${table.kind} <> 'reopened' or (${table.actorKind} = 'driver' and ${table.conversationMessageId} is not null)`,
+      sql`${table.kind} <> 'reopened' or (${table.actorKind} = 'driver' and ${table.conversationMessageId} is not null) or (${table.actorKind} = 'system' and ${table.canhotoPickupId} is not null)`,
     ),
+    /** Spec 321 T4: a causa `canhoto_pickup_id` é só da ocorrência de nota (a coleta nasce de uma). */
+    check(
+      'trip_occurrence_resolution_events_canhoto_pickup_owner_check',
+      sql`${table.canhotoPickupId} is null or ${table.documentOccurrenceId} is not null`,
+    ),
+    index('trip_occurrence_resolution_events_canhoto_pickup_idx')
+      .on(table.companyId, table.canhotoPickupId)
+      .where(sql`${table.canhotoPickupId} is not null`),
     index('trip_occurrence_resolution_events_document_latest_idx')
       .on(table.companyId, table.documentOccurrenceId, table.createdAt.desc(), table.id)
       .where(sql`${table.documentOccurrenceId} is not null`),

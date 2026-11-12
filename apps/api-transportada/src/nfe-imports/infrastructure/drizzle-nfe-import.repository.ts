@@ -175,8 +175,8 @@ export class DrizzleNfeImportRepository
       readonly rejectedCountNe?: string
       readonly requestedByUserIdEq?: string
       readonly requestedByUserIdNe?: string
-      readonly sourceEq?: 'distribution' | 'upload'
-      readonly sourceNe?: 'distribution' | 'upload'
+      readonly sourceEq?: 'access_key' | 'distribution' | 'upload'
+      readonly sourceNe?: 'access_key' | 'distribution' | 'upload'
       readonly statusEq?:
         | 'pending'
         | 'queued'
@@ -285,8 +285,8 @@ function createImportListFilters(
         readonly rejectedCountNe?: string
         readonly requestedByUserIdEq?: string
         readonly requestedByUserIdNe?: string
-        readonly sourceEq?: 'distribution' | 'upload'
-        readonly sourceNe?: 'distribution' | 'upload'
+        readonly sourceEq?: 'access_key' | 'distribution' | 'upload'
+        readonly sourceNe?: 'access_key' | 'distribution' | 'upload'
         readonly statusEq?:
           | 'pending'
           | 'queued'
@@ -669,6 +669,8 @@ function mapSummary(record: ImportRecord): NfeImportSummary {
     invalidCount: record.invalidCount,
     processedCount: record.processedCount,
     receivedCount: record.receivedCount,
+    receivedFrom: record.receivedFrom,
+    receivedVia: record.receivedVia,
     rejectedCount: record.rejectedCount,
     requestedByUserId: record.requestedByUserId,
     source: record.source,

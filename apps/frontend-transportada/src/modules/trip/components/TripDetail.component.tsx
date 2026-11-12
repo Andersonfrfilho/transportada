@@ -78,6 +78,7 @@ import {
 import { buildChangeTripCrewInput } from '../shared/tripCrewDialog.service'
 import type { DriverReturnReason } from '../shared/tripReturnReason.types'
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
+import { TripCanhotoPickups } from './TripCanhotoPickups.component'
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
@@ -113,6 +114,7 @@ import { TripSelectAllDocuments } from './TripSelectAllDocuments.component'
 import { TripStateActions } from './TripStateActions.component'
 import type { TripDocumentProofBadges } from '../shared/tripDocumentProofBadges.service'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
+import { TripStopOrderNotice } from './TripStopOrderNotice.component'
 import type { TripStopOccurrenceSubmission } from './TripStopOccurrenceDialog.component'
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
 import { useRouteSuggestion } from '@/modules/routing/hooks/useRouteSuggestion.hook'
@@ -363,6 +365,8 @@ export function TripDetail({
   const proofBadgesQuery = useTripProofBadgesQuery(proofQueryInput)
   /** Revisão da 233 (A2): o raio vem da mesma consulta por viagem dos selos, não da rota por nota. */
   const proofRadiusQuery = useTripProofRadiusQuery(proofQueryInput)
+  /** Quantas notas do último registro do escritório já tinham uma ocorrência do tipo na janela de trava. */
+  const [fieldOccurrenceExistingCount, setFieldOccurrenceExistingCount] = useState(0)
   /**
    * Spec 156 T9: uma nota (ação da linha) ou o maço da seleção (ação em massa) — `null` fecha o
    * diálogo. As duas entradas passam pelo mesmo estado porque é o mesmo formulário.
@@ -653,6 +657,7 @@ export function TripDetail({
     workspace.releaseDocumentMutation.error,
     workspace.closeMutation.error,
     workspace.reorderStopsMutation.error,
+    workspace.autoOrderStopsMutation.error,
     workspace.transitionDocumentMutation.error,
     workspace.batchStatusMutation.error,
     workspace.batchFieldDeliverMutation.error,
@@ -856,6 +861,12 @@ export function TripDetail({
     workspace.reorderStopsMutation.mutate({ stopIds, tripId: trip.id })
   }
 
+  /** Spec 323 RF4: refaz a ordem pela estrada, inclusive a que o despachante tinha arrastado. */
+  function handleAutoOrderStops(): void {
+    if (trip === undefined) return
+    workspace.autoOrderStopsMutation.mutate({ tripId: trip.id })
+  }
+
   function handleIssueMdfe(): void {
     if (trip === undefined) return
     if (!canIssueMdfe(trip.documents)) {
@@ -987,6 +998,12 @@ export function TripDetail({
       {dispatchFeedbackKey === null ? null : (
         <p className={styles.alert} role="alert">
           {t(`feedback.${dispatchFeedbackKey.key}`, dispatchFeedbackKey.params ?? {})}
+        </p>
+      )}
+
+      {fieldOccurrenceExistingCount === 0 ? null : (
+        <p className={styles.alert} role="status">
+          {t('fieldOccurrence.alreadyExisted', { count: fieldOccurrenceExistingCount })}
         </p>
       )}
 
@@ -1285,9 +1302,17 @@ export function TripDetail({
         }}
         onSubmit={(input) => {
           if (fieldOccurrenceDocumentIds === null) return
+          setFieldOccurrenceExistingCount(0)
           workspace.registerFieldOccurrencesMutation.mutate(
             { ...input, documentIds: fieldOccurrenceDocumentIds, tripId: trip.id },
-            { onSuccess: () => setFieldOccurrenceDocumentIds(null) },
+            {
+              onSuccess: (items) => {
+                setFieldOccurrenceDocumentIds(null)
+                setFieldOccurrenceExistingCount(
+                  items.filter((item) => item.existingOccurrenceId !== undefined).length,
+                )
+              },
+            },
           )
         }}
         types={fieldOccurrenceTypesQuery.data ?? []}
@@ -1361,6 +1386,14 @@ export function TripDetail({
             selection={selection}
           />
         </div>
+        <TripStopOrderNotice
+          canOrder={canManage && isEditable}
+          errorCode={trip.stopOrderErrorCode}
+          isOrdering={workspace.autoOrderStopsMutation.isPending}
+          onOrder={handleAutoOrderStops}
+          source={trip.stopOrderSource}
+          stopCount={trip.stops.length}
+        />
         <TripDeliveryDeadlineFilter scope={deadlineScope} />
         <TripStopList
           actions={documentActions}
@@ -1403,6 +1436,13 @@ export function TripDetail({
           <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
         ) : null}
       </section>
+
+      {/* Spec 321 T5 (RF4): o escritório encaixa a coleta do canhoto retido nesta viagem. */}
+      <TripCanhotoPickups
+        canSchedule={workspace.controller.canReportOnBehalf}
+        isTripOpen={!isCompleted && trip.status !== 'cancelled'}
+        tripId={trip.id}
+      />
 
       {/* Spec 263 T3.1/T3.2: a conversa com o motorista — a da viagem e a de cada nota. */}
       <TripConversationsPanel

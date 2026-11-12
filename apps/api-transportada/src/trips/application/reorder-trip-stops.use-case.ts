@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
+import type { StopOrderSource } from '../domain/draft-stop-order.constant.js'
 import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
 import {
   TripNotFoundError,
@@ -27,6 +28,8 @@ export type ReorderTripStopsPort = {
   reorderStops(input: {
     readonly companyId: string
     readonly orderedStopIds: readonly string[]
+    /** Spec 323 D4: quem decidiu esta ordem. Gravado na viagem na mesma transação da escrita. */
+    readonly source: StopOrderSource
     readonly tripId: string
   }): Promise<void>
 }
@@ -39,6 +42,8 @@ export type ReorderTripStopsInput = {
   readonly repository: ReorderTripStopsPort
   /** Spec 153 D6: viagem ainda não despachada recalcula com `cheapest`. Ausente, comportamento igual a antes. */
   readonly routeFreezer?: PlanTripRouteTollFreezer
+  /** Spec 323 D4: o despachante arrastando é `manual` (o padrão); o ordenador e o aceite da 058 passam `suggested`. */
+  readonly source?: StopOrderSource
   readonly tripId: string
 }
 
@@ -59,6 +64,7 @@ export async function reorderTripStops(
   input: ReorderTripStopsInput,
 ): Promise<ReorderTripStopsResult> {
   const { companyId, logger, orderedStopIds, repository, routeFreezer, tripId } = input
+  const source = input.source ?? 'manual'
   const preconditions = await repository.readStopOrderPreconditions({ companyId, tripId })
   if (preconditions === null) throw new TripNotFoundError()
 
@@ -73,7 +79,7 @@ export async function reorderTripStops(
     [...currentStopIds].every((stopId) => requestedStopIds.has(stopId))
   if (!isSameSet) throw new TripStopSetMismatchError()
 
-  await repository.reorderStops({ companyId, orderedStopIds, tripId })
+  await repository.reorderStops({ companyId, orderedStopIds, source, tripId })
 
   /**
    * D6/D5: a ordem antiga descreve uma rota que não existe mais — e `reorderStops` já a apagou na

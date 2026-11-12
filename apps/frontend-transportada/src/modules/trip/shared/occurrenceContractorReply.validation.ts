@@ -2,6 +2,8 @@
 import {
   CLIENT_CHANNELS,
   CLIENT_EMAIL_SEND_MODES,
+  CLIENT_RETURN_CHANNELS,
+  CLIENT_RETURN_SEND_MODES,
   CLIENT_EMAIL_TYPES,
   CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES_RANGE,
   CONTRACTOR_REPLY_ALERT_MAX_COUNT_RANGE,
@@ -30,13 +32,42 @@ function allowingNull(check: FieldCheck): FieldCheck {
   return (value) => value === null || check(value)
 }
 
+function isClientReturnSetting(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.enabled === 'boolean' &&
+    isOneOf(value.sendMode, CLIENT_RETURN_SEND_MODES) &&
+    (value.templateKey === null || isString(value.templateKey))
+  )
+}
+
+/** Spec 286 (RF2): a matriz traz os dois canais, cada um inteiro; qualquer outra forma reprova o tipo. */
+function isClientReturnMatrix(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    CLIENT_RETURN_CHANNELS.every((channel) => isClientReturnSetting(value[channel]))
+  )
+}
+
 const TYPE_FIELD_CHECKS = {
+  /** Spec 286 (RF2): a matriz por canal, ou `null` (API sem a matriz resolvida). Aceita antes da API mandar. */
+  clientChannels: allowingNull(isClientReturnMatrix),
   /** Spec 279 RF9: `off` ou o tipo de e-mail do cliente. Aceito antes da API mandar. */
   clientEmailType: (value: unknown) => isOneOf(value, CLIENT_EMAIL_TYPES),
   /** Spec 279 RF10: `manual` ou `automatic`. Aceito antes da API mandar. */
   clientEmailSendMode: (value: unknown) => isOneOf(value, CLIENT_EMAIL_SEND_MODES),
   /** Spec 281 RF8: `off`, `email`, `whatsapp` ou `both`. Aceito antes da API mandar. */
   clientChannel: (value: unknown) => isOneOf(value, CLIENT_CHANNELS),
+  /** Spec 281 T8b: o pedido de contato na abertura é ligado ou desligado. Aceito antes da API mandar. */
+  asksClientContact: (value: unknown) => typeof value === 'boolean',
+  /** O campo opcional "nova data de vencimento" no app do motorista. Aceito antes da API mandar. */
+  asksNewDueDate: (value: unknown) => typeof value === 'boolean',
+  /** Spec 317 T14a: o aviso de possível cobrança ao motorista. Aceito antes da API mandar. */
+  showClientChargeSealToDriver: (value: unknown) => typeof value === 'boolean',
+  /** Spec 321 T5: o tipo nunca avisa a contratante, cria a coleta do canhoto e não soma a carga na viagem da coleta. Aceitos antes da API mandar. */
+  blocksContractorNotice: (value: unknown) => typeof value === 'boolean',
+  countsCargoOnPickupTrip: (value: unknown) => typeof value === 'boolean',
+  createsCanhotoPickup: (value: unknown) => typeof value === 'boolean',
   /** Spec 276 T5: o id da resposta rápida da resposta automática, ou `null`. Aceito antes da API mandar. */
   contractorReplyAcknowledgementQuickReplyId: allowingNull(isString),
   contractorReplyAlertMaxCount: (value: unknown) =>
@@ -55,6 +86,10 @@ const TYPE_FIELD_CHECKS = {
   driverReplyChannel: (value: unknown) => isOneOf(value, DRIVER_REPLY_CHANNELS),
   /** Spec 276 T4: a trava de pedido repetido. Aceita antes da API mandar. */
   duplicateRequestPolicy: (value: unknown) => isOneOf(value, DUPLICATE_REQUEST_POLICIES),
+  /** A trava de motorista do tipo, em minutos (1 a 10080) ou `null`. Aceita antes da API mandar. */
+  driverLockMinutes: allowingNull((value: unknown) =>
+    isIntegerInRange(value, { max: 10_080, min: 1 }),
+  ),
   driverReplyTemplate: isString,
   driverReplyWindowClosedAction: (value: unknown) =>
     isOneOf(value, DRIVER_REPLY_WINDOW_CLOSED_ACTIONS),

@@ -15,6 +15,9 @@
   "number": "680481",
   "occurrenceTypes": [
     {
+      "arrivalTimeMode": "off",
+      "locationMode": "off",
+      "minWaitAfterArrivalMinutes": null,
       "itemsMinimumCount": null,
       "itemsMode": "required",
       "noteMode": "optional",
@@ -31,7 +34,10 @@
       "name": "Tipo configurado",
       "referenceNumberLabel": "Número da NFD",
       "referenceNumberMode": "required",
-      "stopKind": null
+      "stopKind": null,
+      "asksClientContact": false,
+      "asksNewDueDate": false,
+      "clientChannel": "email"
     }
   ],
   "proofPending": false,

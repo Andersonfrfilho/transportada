@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type {
   DriverOccurrenceItem,
+  ReceivingChargeBody,
   DriverOccurrencePhoto,
   DriverOccurrenceSignature,
   DriverOccurrenceType,
@@ -11,6 +12,13 @@ import {
   resolveOccurrenceAttachmentMode,
   resolveOccurrenceFlow,
 } from './occurrenceRegistration.service'
+import {
+  buildReceivingChargeBody,
+  isReceivingChargeType,
+  listOrderedSlots,
+  listSlotPhotos,
+  type ReceivingChargeDraft,
+} from './receivingCharge.service'
 import {
   resolveOccurrenceFieldVisibility,
   type OccurrenceValuesFacts,
@@ -28,6 +36,11 @@ export type OccurrenceRegistrationDraft = Readonly<{
   /** Spec 246 (RF1b): a nota inteira apontada — o app não tem a lista de itens para apontar um. */
   hasProducts?: boolean
   photo: DriverOccurrencePhoto | undefined
+  /**
+   * Spec 317: a cobrança no recebimento (vagas de foto, valor, notas, quem pagou). Só o tipo com vagas a usa; os ids das
+   * notas da parada dizem se há escolha de nota.
+   */
+  receivingCharge?: Readonly<{ documentIds: readonly string[]; draft: ReceivingChargeDraft }>
   signature?: DriverOccurrenceSignature | undefined
   /** Spec 247 (T5.3): o que foi marcado e digitado, já avaliado pelo tipo (`evaluateOccurrenceValues`). */
   values?: Readonly<{ facts: OccurrenceValuesFacts; payload: OccurrenceValuesPayload }>
@@ -47,6 +60,7 @@ export type OccurrenceRegistrationHandlers = Readonly<{
     readonly extraPhotos?: readonly DriverOccurrencePhoto[]
     /** Spec 247: os produtos devolvidos, com quantidade em texto; ausente é a nota inteira. */
     readonly items?: readonly DriverOccurrenceItem[]
+    readonly newDueDate?: string
     readonly note: string
     readonly occurrenceTypeId: string
     readonly occurrenceTypeName: string
@@ -54,6 +68,17 @@ export type OccurrenceRegistrationHandlers = Readonly<{
     /** Spec 247: o número do documento do cliente. */
     readonly referenceNumber?: string
     readonly signature?: DriverOccurrenceSignature
+  }) => void
+  /**
+   * Spec 317 (RF4): a cobrança no recebimento — **um** item na fila com as fotos por vaga, o valor, as notas, quem
+   * pagou e o PIX. Foto obrigatória nunca é derrubada pela fila cheia: entra tudo ou nada.
+   */
+  reportReceivingCharge: (input: {
+    readonly description: string
+    readonly occurrenceTypeId: string
+    readonly photos: readonly Readonly<{ photo: DriverOccurrencePhoto; slotKey: string }>[]
+    readonly receivingCharge: ReceivingChargeBody
+    readonly stopId: string
   }) => void
   /** Spec 209 + D2: a fila da parada, com o tipo do catálogo. */
   reportStopOccurrence: (input: {
@@ -126,6 +151,8 @@ export function dispatchOccurrenceRegistration(input: {
 }): OccurrenceRegistrationRoute {
   const { handlers, type } = input
   const effective = toEffectiveDraft({ draft: input.draft, type })
+  /** Spec 317: a foto única do gate de sempre não vale aqui — as vagas do servidor são o gate (`listMissingReceivingCharge`). */
+  if (isReceivingChargeType(type)) return dispatchReceivingCharge({ ...input, effective })
   if (!isDraftComplete({ effective, type, values: input.draft.values })) return 'blocked'
 
   if (resolveOccurrenceFlow(type) === 'stop') {
@@ -145,6 +172,7 @@ export function dispatchOccurrenceRegistration(input: {
     documentId: input.documentId,
     ...(effective.extraPhotos.length === 0 ? {} : { extraPhotos: effective.extraPhotos }),
     ...(payload?.items === undefined ? {} : { items: payload.items }),
+    ...(payload?.newDueDate === undefined ? {} : { newDueDate: payload.newDueDate }),
     note: effective.note,
     occurrenceTypeId: type.id,
     occurrenceTypeName: type.name,
@@ -153,4 +181,35 @@ export function dispatchOccurrenceRegistration(input: {
     ...(effective.signature === undefined ? {} : { signature: effective.signature }),
   })
   return 'document-queued'
+}
+
+/**
+ * Spec 317: o rascunho da cobrança vira o item único da fila. Faltando vaga obrigatória, valor, nota, quem pagou ou
+ * PIX, nada entra (a segunda trava, depois do botão). A foto única do formulário de sempre não se aplica aqui.
+ */
+function dispatchReceivingCharge(input: {
+  readonly draft: OccurrenceRegistrationDraft
+  readonly effective: EffectiveOccurrenceDraft
+  readonly handlers: OccurrenceRegistrationHandlers
+  readonly stopId: string
+  readonly type: DriverOccurrenceType
+}): OccurrenceRegistrationRoute {
+  const charge = input.draft.receivingCharge
+  if (charge === undefined) return 'blocked'
+  const context = { documentIds: charge.documentIds, slots: listOrderedSlots(input.type) }
+  const receivingCharge = buildReceivingChargeBody({ context, draft: charge.draft })
+  const photos = listSlotPhotos({ context, draft: charge.draft })
+  const hasEveryRequiredPhoto = context.slots.every(
+    (slot) => !slot.required || photos.some((entry) => entry.slotKey === slot.slotKey),
+  )
+  if (receivingCharge === undefined || !hasEveryRequiredPhoto) return 'blocked'
+
+  input.handlers.reportReceivingCharge({
+    description: input.effective.note,
+    occurrenceTypeId: input.type.id,
+    photos,
+    receivingCharge,
+    stopId: input.stopId,
+  })
+  return 'stop'
 }

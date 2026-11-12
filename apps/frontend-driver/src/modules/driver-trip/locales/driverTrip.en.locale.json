@@ -1,4 +1,18 @@
 {
+  "canhotoDuplicate": {
+    "dismiss": "Got it",
+    "notice": "This receipt had already arrived at {{time}}. We did not save it again."
+  },
+  "canhotoReplace": {
+    "body": "This invoice already has a receipt. If you replace it, the new one goes to the office for review.",
+    "confirm": "Replace the receipt",
+    "keep": "Keep the current one",
+    "title": "Replace the receipt?"
+  },
+  "addressCorrection": {
+    "applied": "Address updated with your location. Thank you!",
+    "suggested": "We sent your location to the office to check the address."
+  },
   "arrivalRequired": "Tap Arrived to unlock delivery",
   "arrive": "I arrived",
   "arrived": "Arrived at {{time}}",
@@ -24,6 +38,24 @@
   "helperNotice": {
     "detail": "Here you can see the stops, the invoices and the manifest. Arrival, delivery, return and occurrences are the driver's.",
     "title": "You are following this trip as a helper"
+  },
+  "chargeSeal": {
+    "label": "Charge notice",
+    "text": "The office flagged this client as a possible charge on delivery. If an amount is asked for, record it with the charge occurrence."
+  },
+  "canhotoPickup": {
+    "explanation": "This invoice was already delivered. You are only picking up the signed receipt from the customer — do not take the goods.",
+    "failed": "Could not send the receipt. Check that this pickup is still yours and try again.",
+    "note": "Invoice {{number}} · series {{series}}",
+    "offline": "No signal. Your receipt was not sent — try again when you have a connection.",
+    "pending_one": "{{count}} receipt to pick up",
+    "pending_other": "{{count}} receipts to pick up",
+    "photoAttached": "Receipt photo attached",
+    "photoTitle": "Receipt photo",
+    "send": "Send receipt",
+    "sending": "Sending…",
+    "title": "Pick up receipt",
+    "waitingReview": "Photo sent. The office is checking the receipt."
   },
   "holidayWarning": {
     "future": "{{date}} is a holiday in {{city}} ({{reasons}}). Confirm with the customer before going.",
@@ -55,7 +87,10 @@
   "dispatch": {
     "queued": "Trip start waiting to send — it goes up when the signal is back. You can already log the stops.",
     "failed": "The route could not be started. Tap again.",
+    "failedUnloaded": "The trip did not start: the office has to check the loading or release the departure. Then tap Dispatch trip again.",
     "start": "Dispatch trip",
+    "unloaded_one": "{{notes}} has not been marked as loaded yet. The trip only starts after the office checks the loading or releases the departure.",
+    "unloaded_other": "Invoices {{notes}} have not been marked as loaded yet. The trip only starts after the office checks the loading or releases the departure.",
     "waiting": "Waiting for dispatch — field actions unlock after the trip is dispatched."
   },
   "eventLimitCount": "The limit of events waiting to be sent was reached. Send the pending ones before recording another — nothing was discarded.",
@@ -67,6 +102,7 @@
     "attachments_other": "{{count}} attachments",
     "back": "Back",
     "cause": {
+      "canhotoAlreadyAttached": "this invoice already has a delivery receipt; on the trip screen, choose to replace it or keep the one already there",
       "declaredAmountRequired": "the amount paid is required by this occurrence type",
       "itemDeclaredAmountRequired": "the amount paid for each product is required by this occurrence type",
       "itemQuantityAboveNote": "the quantity returned is above the quantity on the invoice",
@@ -76,7 +112,17 @@
       "referenceNumberRequired": "the customer document number is required by this occurrence type",
       "stopNotReachable": "this stop was removed from the trip; ask the office to record it",
       "tooLarge": "the photo is larger than the server accepts",
+      "unloadedDocuments": "some invoices have not been marked as loaded yet; ask the office to check the loading or release the departure",
+      "unloadedDocumentsNamed_one": "{{notes}} has not been marked as loaded yet; ask the office to check the loading or release the departure",
+      "unloadedDocumentsNamed_other": "invoices {{notes}} have not been marked as loaded yet; ask the office to check the loading or release the departure",
+      "unscheduledStops": "some stops of the trip have no time; ask the office to complete the route",
       "typeNotAvailableForContractor": "this occurrence type does not apply to the contractor of this note; choose another type"
+    },
+    "cancel": {
+      "confirm": "Cancel anyway",
+      "keep": "Keep",
+      "open": "Cancel sending",
+      "warning": "This occurrence has not been sent yet. Cancelling deletes it (and its photos) from the phone and it will not be recorded."
     },
     "discard": {
       "confirm": "Discard anyway",
@@ -108,6 +154,7 @@
       "occurrence": "Occurrence",
       "proof": "Proof",
       "proofReceiver": "Who received",
+      "stopOccurrenceCharge": "Charge paid on receiving (photos and amount)",
       "stopOccurrencePhoto": "Stop occurrence photo",
       "return": "Return"
     },
@@ -116,7 +163,7 @@
     "sendNow": "Send now",
     "sending": "Sending…",
     "status": {
-      "attachmentRejected": "Attachment rejected by the server: {{cause}}. The event was already accepted.",
+      "attachmentRejected": "The attachment was not accepted: {{cause}}. The delivery is still recorded.",
       "failed_one": "Failed {{count}} time — no network on the last attempt",
       "failed_other": "Failed {{count}} times — no network on the last attempt",
       "queued": "Queued",
@@ -189,6 +236,15 @@
   "occurrenceSend": "Record",
   "profile": {
     "noTrip": "No trip in progress.",
+    "picture": {
+      "change": "Change photo",
+      "remove": "Remove photo",
+      "busy": "Uploading photo…",
+      "cnhNote": "Photo taken from your driver license — tap to change",
+      "error": "Could not save the photo. Try another image.",
+      "tooLarge": "The photo is too large even after shrinking it. Choose another one.",
+      "unsupported": "That image format is not accepted. Use JPG, PNG or WebP."
+    },
     "queueEmpty": "Nothing waiting to be sent.",
     "queueTitle": "Send queue",
     "roles": {
@@ -196,13 +252,11 @@
       "driver": "Driver",
       "unknown": "No field role"
     },
-    "signOut": "Sign out",
-    "vehicleTitle": "Trip vehicle",
-    "whatsappTitle": "WhatsApp",
     "score": "{{score}} of 100",
+    "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location or without its location, or never arrives. Each loss expires after 90 days.",
     "scoreNone": "No score yet — no delivery with a required photo in the last 90 days.",
     "scoreTitle": "Your score",
-    "scoreHint": "Starts at 100. Drops when a required photo arrives late, away from the delivery location or without its location, or never arrives. Each loss expires after 90 days.",
+    "signOut": "Sign out",
     "signOutPending": {
       "chatNotice_one": "{{count}} chat message has not been sent. Signing out now discards it.",
       "chatNotice_other": "{{count}} chat messages have not been sent. Signing out now discards them.",
@@ -211,7 +265,9 @@
       "notice_one": "{{count}} of your records has not been sent. Signing out now leaves it on the phone — send it first or discard it.",
       "notice_other": "{{count}} of your records have not been sent. Signing out now leaves them on the phone — send them first or discard them.",
       "send": "Send now"
-    }
+    },
+    "vehicleTitle": "Trip vehicle",
+    "whatsappTitle": "WhatsApp"
   },
   "progress": {
     "label": "{{resolved}} of {{total}} stops resolved",
@@ -423,6 +479,20 @@
   "tripCompleted": "Trip completed. Good work.",
   "vehicle": "Vehicle {{plate}}",
   "proofPendingWarning": "Retaking it never helps: the worst photo counts. A photo sent much later counts as late, even if the device clock shows another time.",
+  "outOfOrder": {
+    "confirm": "Go to stop {{requested}}",
+    "discard": "Mistake, discard",
+    "generic": "This tap ({{kind}}) doesn't follow the suggested route order. You can go ahead if you think it's better.",
+    "kind": {
+      "arrive": "Arrived",
+      "deliver": "Delivered",
+      "depart": "Start route",
+      "return": "Not delivered"
+    },
+    "title": "Off the suggested route",
+    "withCurrent": "You're on your way to stop {{current}}, and this tap ({{kind}}) is for stop {{requested}}. You can go ahead if you think it's better — stop {{current}} stays open.",
+    "withNext": "The suggested route goes to stop {{next}} next. You can record {{kind}} at stop {{requested}} if you think it's better."
+  },
   "pendingProofs": {
     "attach": "Attach proof",
     "back": "Back",
@@ -471,10 +541,30 @@
     "dismiss": "Got it",
     "notice": "This trip is no longer yours — it was passed to another driver or helper, or sent back to the office's planning. What you delivered and recorded remains with the trip. Contact the office if you need more detail."
   },
+  "recordedTogether": {
+    "confirm": {
+      "arrived": "We will mark Arrived together with this delivery.",
+      "departed": "We will mark Start route together with this tap.",
+      "departedAndArrived": "We will mark Start route and Arrived together with this delivery."
+    },
+    "dismiss": "Got it",
+    "notice": {
+      "arrived": "We marked Arrived together with this delivery.",
+      "departed": "We marked Start route together with this tap.",
+      "departedAndArrived": "We marked Start route and Arrived together with this delivery."
+    }
+  },
   "serviceWorkerUpdate": {
     "apply": "Update",
     "available": "New version available.",
     "waitingCapture": "Updates when the open capture is finished — photo, signature, crop, occurrence or a proof being filled in."
+  },
+  "plate": {
+    "label": "Plate",
+    "copied": "Plate copied",
+    "copy": "Copy the plate",
+    "legacy": "Plate {{plate}}, old model",
+    "mercosul": "Plate {{plate}}, Mercosul model"
   },
   "tripSelector": {
     "label": "Your trips",
@@ -525,6 +615,13 @@
     "sendNow": "Send now",
     "confirming": "Delivery recorded. It goes to the server as soon as there is signal, and the photo follows. No need to tap again.",
     "missingLead": "To confirm, add: {{fields}}."
+  },
+  "nextStop": {
+    "documents": "Invoices: {{numbers}}",
+    "notNow": "Not now",
+    "start": "Start route",
+    "title": "Next stop: {{sequence}} of {{totalStops}}",
+    "unreliableAddress": "This address has no precise location on the map. When you arrive, tap Arrived and share your location: the address is updated."
   },
   "notDelivered": {
     "returnToWarehouse": "Not delivered — back to the warehouse",
@@ -606,7 +703,9 @@
     "attachment": {
       "off": "No photo",
       "optional": "Photo optional",
-      "required": "Photo required"
+      "required": "Photo required",
+      "slots_one": "1 photo required",
+      "slots_other": "{{count}} photos required"
     },
     "cancel": "Cancel",
     "changeType": "Change type",
@@ -656,6 +755,7 @@
     "missing": {
       "declaredAmount": "“{{label}}”",
       "itemDeclaredAmount": "“{{label}}” for each marked product",
+      "newDueDateInvalid": "the new due date (complete and from today on)",
       "note": "the note",
       "photo": "the photo",
       "photoMinimum": "more photos (at least {{count}})",
@@ -678,6 +778,12 @@
       "title": "Invoice products (required)"
     },
     "readyToRegister": "Everything the type asks for is filled in.",
+    "newDueDate": {
+      "hint": "If the client gave a date, type just the numbers. If not, leave it blank.",
+      "invalid": "Enter a complete date that has not passed yet, like 25/11/2026. Nothing was cut: fix or clear the text.",
+      "label": "New due date · optional",
+      "placeholder": "dd/mm/yyyy"
+    },
     "referenceNumber": {
       "defaultLabel": "Customer document number",
       "optional": "{{label}} · optional",
@@ -694,7 +800,44 @@
       "title": "Signature (optional)",
       "titleRequired": "Signature (required)"
     },
-    "title": "Report an occurrence"
+    "title": "Report an occurrence",
+    "receivingCharge": {
+      "amount": "Amount paid",
+      "groupedAmount": "Amount paid (one for the selected invoices)",
+      "documents": "Invoices of the charge",
+      "documentsHint": "Select the invoices this charge refers to.",
+      "documentNumber": "Invoice {{number}}",
+      "documentAmount": "Amount paid for invoice {{number}}",
+      "mode": "How to record it",
+      "modeOption": {
+        "one_per_document": "One line per invoice",
+        "grouped": "One line for the invoices"
+      },
+      "paidBy": "Who paid?",
+      "paidByOption": {
+        "driver": "I paid",
+        "company": "The company paid"
+      },
+      "pixKeyType": "PIX key type",
+      "pixKeyTypePlaceholder": "Choose the type",
+      "pixKeyTypeOption": {
+        "cpf": "CPF",
+        "cnpj": "CNPJ",
+        "email": "E-mail",
+        "phone": "Mobile phone",
+        "random": "Random key"
+      },
+      "pixKey": "Your PIX key",
+      "pixKeyHint": "The office uses this key to pay back what you paid.",
+      "missing": {
+        "amount": "the amount paid",
+        "documentAmount": "the amount of invoice {{number}}",
+        "documents": "the invoices of the charge",
+        "paidBy": "who paid",
+        "pix": "the PIX key type and key",
+        "photo": "{{label}}"
+      }
+    }
   },
   "routeOccurrence": {
     "alert": {
@@ -822,6 +965,7 @@
     "more_other": "See {{count}} more occurrences for {{label}}",
     "noteLabel": "Invoice {{number}}",
     "phrase": {
+      "canhoto_collected": "The canhoto was collected and approved by the office.",
       "case_cancelled": "Case cancelled by the office",
       "case_closed": "Closed by the office",
       "case_returned_to_warehouse": "Goods returned to the warehouse",

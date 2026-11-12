@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { ClientEmailSendButton } from '@/modules/client-email/components/ClientEmailSendButton.component'
+import { ClientWhatsAppSendButton } from '@/modules/client-whatsapp/components/ClientWhatsAppSendButton.component'
 import { getDriverConversationsApi } from '@/modules/conversation/shared/driverConversationsApiInstance.service'
 import {
   navigateToDriverConversation,
@@ -285,11 +286,18 @@ function ReadyDetail(props: DetailSectionProps) {
       <RefusalPanel entry={entry} />
       <ChatButton entry={entry} />
       {entry.source === 'server' ? (
-        <ClientEmailSendButton
-          contextLabel={entry.typeName ?? ''}
-          phraseKey={entry.resolutionPhraseKey}
-          occurrenceId={entry.id}
-        />
+        <>
+          <ClientEmailSendButton
+            contextLabel={entry.typeName ?? ''}
+            phraseKey={entry.resolutionPhraseKey}
+            occurrenceId={entry.id}
+          />
+          <ClientWhatsAppSendButton
+            contextLabel={entry.typeName ?? ''}
+            phraseKey={entry.resolutionPhraseKey}
+            occurrenceId={entry.id}
+          />
+        </>
       ) : null}
       {documents.length > 0 || hasDocumentsToExplain ? (
         <DriverOccurrenceDocumentsPanel

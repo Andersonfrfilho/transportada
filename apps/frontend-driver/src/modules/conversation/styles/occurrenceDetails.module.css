@@ -146,6 +146,13 @@
   list-style: none;
 }
 
+.ticks {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  vertical-align: middle;
+}
+
 .list li {
   display: flex;
   flex-wrap: wrap;

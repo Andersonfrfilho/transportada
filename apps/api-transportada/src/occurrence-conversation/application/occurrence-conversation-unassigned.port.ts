@@ -8,12 +8,15 @@
 import type { OccurrenceConversationUnassignedChannel } from '../../database/occurrence-conversation.schema.js'
 
 export type UnassignedCandidateView = {
+  /** Na conversa do cliente (spec 283), o nome do cliente: o painel de hoje segue lendo este campo. */
   readonly contractorName: string
   readonly conversationId: string
   readonly occurrenceId: string
   readonly occurrenceKind: 'document' | 'stop'
   /** A última mensagem que a operação mandou nesta conversa: ajuda a escolher, sem abrir. */
   readonly lastOutbound: null | { readonly at: string; readonly preview: string }
+  /** Spec 283: a conversa da contratante ou a do cliente ("vincular a esta conversa"). */
+  readonly participant: 'client' | 'contractor'
 }
 
 export type UnassignedMessageView = {

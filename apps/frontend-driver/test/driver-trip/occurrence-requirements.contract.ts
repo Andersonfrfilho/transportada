@@ -51,6 +51,7 @@ function spyHandlers() {
   const calls: { readonly name: string; readonly input: Record<string, unknown> }[] = []
   const handlers: OccurrenceRegistrationHandlers = {
     enqueueDocumentOccurrence: (input) => calls.push({ input, name: 'enqueueDocumentOccurrence' }),
+    reportReceivingCharge: () => undefined,
     reportStopOccurrence: (input) => calls.push({ input, name: 'reportStopOccurrence' }),
   }
   return { calls, handlers }

@@ -10,6 +10,8 @@ export const CONTRACTOR_CONTACT_TYPES = [
   'scheduling',
   'invoices',
   'cte_xml',
+  /** Spec 302: o contato pode enviar XML de NF-e por e-mail (`notas@`) e pelo bot do WhatsApp. */
+  'nfe_xml',
 ] as const
 export type ContractorContactType = (typeof CONTRACTOR_CONTACT_TYPES)[number]
 

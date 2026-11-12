@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, desc, eq, inArray, ne, notInArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, ne, notInArray, isNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
@@ -111,6 +111,7 @@ import {
 } from './trip-delivery-deadline.support.js'
 import { readTripStopHolidayWarnings } from './trip-holiday-warning.support.js'
 import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
+import { loadCanhotoRetainedDocumentIds } from './canhoto-pickup.query.js'
 import { loadProofPendingDocumentIds } from './proof-pending.query.js'
 import { loadTripDocumentVolumeCounts } from './trip-document-volume.query.js'
 import { readDispatchReadinessDocuments } from './dispatch-readiness.query.js'
@@ -146,6 +147,8 @@ import type {
   TransferTripCrewParams,
   TransferTripCrewResult,
 } from '../application/trip-crew-transfer.types.js'
+import { closePendingStopReminders } from '../../driver-stop-reminders/infrastructure/close-pending-stop-reminders.persistence.js'
+import { detachCanhotoPickupsAtStop } from './canhoto-pickup-schedule.persistence.js'
 import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
@@ -180,6 +183,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   private readonly cargoLayoutLeaseMs: number
   private readonly packageBoxLookup: PendingMeasurementBoxLookupPort
   private readonly deliveryDeadlineContext: DeliveryDeadlineReadContext | undefined
+  private readonly logger: ApiLogger | undefined
 
   public constructor(
     private readonly database: TripDatabase,
@@ -194,6 +198,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
     this.cargoLayoutLeaseMs = options.cargoLayoutLeaseMs
     this.packageBoxLookup = dependencies.packageBoxLookup ?? noPendingMeasurementBoxLookup
+    this.logger = dependencies.logger
     this.deliveryDeadlineContext =
       dependencies.clock === undefined
         ? undefined
@@ -312,6 +317,11 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         fromStatus: tripRow.status,
         onBehalfOfDriverId: input.onBehalfOfDriverId,
         toStatus: 'completed',
+        tripId: input.tripId,
+      })
+      await closePendingStopReminders(transaction, {
+        companyId: input.companyId,
+        reason: 'trip_closed',
         tripId: input.tripId,
       })
 
@@ -487,10 +497,60 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     input: LinkTripDocumentsAfterDispatchParams,
   ): Promise<LinkTripDocumentsAfterDispatchResult | null> {
     return runGuarded(() =>
-      this.database.transaction((transaction) =>
-        applyTripDocumentLinkAfterDispatch(transaction, input),
-      ),
+      this.database.transaction(async (transaction) => {
+        const movedFrom = await this.moveLiveLinksFromOtherTrips(transaction, input)
+        return applyTripDocumentLinkAfterDispatch(transaction, input, movedFrom)
+      }),
     )
+  }
+
+  /**
+   * A nota que está em **outra** viagem (qualquer status) e ainda não foi entregue sai de lá e vem para
+   * esta: o vínculo antigo é liberado com evento na viagem de origem, e a chegada registra de onde veio.
+   * Nota já entregue não se move (entrega feita não se desfaz) — ela segue como `already_linked`.
+   * Viagem que já saiu mantém a rota e o ETA como estavam, como o acréscimo (spec 257 D5).
+   */
+  private async moveLiveLinksFromOtherTrips(
+    transaction: TripTransaction,
+    input: LinkTripDocumentsAfterDispatchParams,
+  ): Promise<ReadonlyMap<string, string>> {
+    const live = await transaction
+      .select({
+        id: tripDocuments.id,
+        nfeDocumentId: tripDocuments.nfeDocumentId,
+        status: trips.status,
+        tripId: tripDocuments.tripId,
+      })
+      .from(tripDocuments)
+      .innerJoin(
+        trips,
+        and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+      )
+      .where(
+        and(
+          eq(tripDocuments.companyId, input.companyId),
+          inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+          ne(tripDocuments.tripId, input.tripId),
+          isNull(tripDocuments.releasedAt),
+          isNull(tripDocuments.deliveredAt),
+        ),
+      )
+      .orderBy(asc(tripDocuments.tripId), asc(tripDocuments.id))
+    const movedFrom = new Map<string, string>()
+    for (const document of live) {
+      if (document.nfeDocumentId === null) continue
+      const released = await this.releaseDocumentWithin(transaction, {
+        actor: { channel: input.channel, userId: input.actorUserId },
+        companyId: input.companyId,
+        documentId: document.id,
+        keepRoute: (TRIP_DISPATCHED_STATUSES as readonly string[]).includes(document.status),
+        note: `Movida para a viagem ${input.tripId.slice(0, 8)}: ${input.reason}`,
+        scope: 'document',
+        tripId: document.tripId,
+      })
+      if (released !== null) movedFrom.set(document.nfeDocumentId, document.tripId)
+    }
+    return movedFrom
   }
 
   public async create(input: CreateTripRecord): Promise<TripDetail> {
@@ -929,13 +989,17 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   public async list(input: {
     readonly companyId: string
     readonly cursor: string | null
+    readonly direction?: 'backward' | 'forward'
     readonly filters?: TripFilters
     readonly limit: number
+    readonly offset?: number
   }): Promise<TripPage> {
     const cursor = decodeKeysetCursor(input.cursor)
+    const isBackward = input.direction === 'backward'
     const conditions = buildTripListFilters({
       companyId: input.companyId,
       cursor,
+      direction: isBackward ? 'backward' : 'forward',
       ...(input.filters === undefined ? {} : { filters: input.filters }),
     })
 
@@ -943,15 +1007,70 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       .select()
       .from(trips)
       .where(and(...conditions))
-      .orderBy(desc(trips.createdAt), desc(trips.id))
+      .orderBy(
+        ...(isBackward
+          ? [asc(trips.createdAt), asc(trips.id)]
+          : [desc(trips.createdAt), desc(trips.id)]),
+      )
       .limit(input.limit + 1)
+      .offset(input.offset ?? 0)
 
-    const page = records.slice(0, input.limit)
+    /**
+     * Voltar lê as mais novas em ordem crescente e inverte no fim: a tela sempre recebe a página na
+     * ordem de sempre (mais nova primeiro). Sem cursor, `backward` é a última página.
+     */
+    const hasMore = records.length > input.limit
+    const slice = records.slice(0, input.limit)
+    const page = isBackward ? slice.reverse() : slice
+    const first = page.at(0)
     const last = page.at(-1)
-    const nextCursor =
-      records.length > input.limit && last !== undefined
-        ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })
+    const keyOf = (record: { readonly createdAt: Date; readonly id: string }): string =>
+      encodeKeysetCursor({ createdAt: record.createdAt, id: record.id })
+    const nextCursor = isBackward
+      ? cursor !== null && last !== undefined
+        ? keyOf(last)
         : null
+      : hasMore && last !== undefined
+        ? keyOf(last)
+        : null
+    const previousCursor = isBackward
+      ? hasMore && first !== undefined
+        ? keyOf(first)
+        : null
+      : (cursor !== null || (input.offset ?? 0) > 0) && first !== undefined
+        ? keyOf(first)
+        : null
+
+    /**
+     * Para numerar a página: quantas viagens (mesmos filtros) são **mais novas** que a primeira
+     * desta página, e quantas o filtro alcança no total. Duas contagens por listagem — o volume de
+     * viagens de uma transportadora não pede mais que isso.
+     */
+    const filterScope = {
+      companyId: input.companyId,
+      ...(input.filters === undefined ? {} : { filters: input.filters }),
+    }
+    const [totalRow] = await this.database
+      .select({ total: count() })
+      .from(trips)
+      .where(and(...buildTripListFilters({ ...filterScope, cursor: null })))
+    const offset =
+      first === undefined
+        ? 0
+        : ((
+            await this.database
+              .select({ newer: count() })
+              .from(trips)
+              .where(
+                and(
+                  ...buildTripListFilters({
+                    ...filterScope,
+                    cursor: { createdAt: first.createdAt, id: first.id },
+                    direction: 'backward',
+                  }),
+                ),
+              )
+          )[0]?.newer ?? 0)
 
     /**
      * Uma consulta para a página inteira, nunca uma por linha: quem lê a listagem quer saber **quem
@@ -976,6 +1095,9 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         estimatedFinishAt: finishByTrip.get(record.id) ?? null,
       })),
       nextCursor,
+      offset,
+      previousCursor,
+      total: totalRow?.total ?? 0,
     }
   }
 
@@ -1084,6 +1206,16 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         return { hasDeliveredDocument: true, released: [] }
       }
 
+      /**
+       * Spec 321 T3: a coleta de canhoto encaixada na parada sai com ela (volta a `pending`), senão a parada nunca
+       * esvazia. Antes das notas: o último desvínculo é quem apaga a parada.
+       */
+      const detachedPickups = await detachCanhotoPickupsAtStop(transaction, {
+        companyId: input.companyId,
+        stopId: input.stopId,
+        tripId: input.tripId,
+      })
+
       const released: TripDocument[] = []
       for (const document of documents) {
         const result = await this.releaseDocumentWithin(transaction, {
@@ -1096,6 +1228,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         })
         if (result !== null) released.push(result)
       }
+      /** Parada só de coleta: nenhuma nota para soltar, então a parada sai aqui, pelo mesmo reconciliador. */
+      if (documents.length === 0 && detachedPickups > 0) {
+        await reconcileStopOnUnlink({
+          companyId: input.companyId,
+          repository: createTripStopReconciliationPort(transaction, this.logger),
+          stopId: input.stopId,
+        })
+        await clearPlannedRoute(transaction, { companyId: input.companyId, tripId: input.tripId })
+      }
       return { hasDeliveredDocument: false, released }
     })
   }
@@ -1106,6 +1247,8 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       readonly actor: TripDocumentReleaseActor
       readonly companyId: string
       readonly documentId: string
+      /** Nota movida de viagem que já saiu: a rota congelada e o ETA ficam como estavam. */
+      readonly keepRoute?: boolean
       readonly note?: string
       readonly scope: TripDocumentReleaseScope
       readonly tripId: string
@@ -1131,7 +1274,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           ...buildTripDocumentFilters(input),
           isNull(tripDocuments.deliveredAt),
           isNull(tripDocuments.releasedAt),
-          tripStillOpen(input),
+          input.keepRoute === true ? undefined : tripStillOpen(input),
         ),
       )
       .returning()
@@ -1153,7 +1296,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     if (previousStopId !== null) {
       await reconcileStopOnUnlink({
         companyId: input.companyId,
-        repository: createTripStopReconciliationPort(transaction),
+        repository: createTripStopReconciliationPort(transaction, this.logger),
         stopId: previousStopId,
       })
     }
@@ -1163,14 +1306,16 @@ export class DrizzleTripRepository implements TripRepositoryPort {
      * existe mais. Ela morre **aqui**, na mesma transação — o recongelamento é best-effort e,
      * quando falha, o que sobra é rota nula (D5), nunca a rota velha passando por boa.
      */
-    await clearPlannedRoute(transaction, {
-      companyId: input.companyId,
-      tripId: input.tripId,
-    })
-    await this.requestCargoLayoutForTrip(transaction, {
-      companyId: input.companyId,
-      tripId: input.tripId,
-    })
+    if (input.keepRoute !== true) {
+      await clearPlannedRoute(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
+      await this.requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
+    }
     return mapTripDocument(released)
   }
 }
@@ -1589,6 +1734,11 @@ async function readTripDetail(
     companyId: input.companyId,
     tripDocumentIds: documentRecords.map((row) => row.document.id),
   })
+  /** Spec 321 T7 (D4d): uma leitura fixa para a viagem inteira; a nota de origem com coleta de canhoto aberta. */
+  const canhotoRetainedDocumentIds = await loadCanhotoRetainedDocumentIds(queryable, {
+    companyId: input.companyId,
+    tripDocumentIds: documentRecords.map((row) => row.document.id),
+  })
   /**
    * Spec 185 T6.1: uma consulta a mais, fixa para a viagem inteira (nunca por nota) — o mesmo
    * `readDispatchReadinessDocuments` que o despacho usa, alimentando a mesma conta pura
@@ -1686,6 +1836,7 @@ async function readTripDetail(
               },
         rules: activeFreightRules,
       }),
+      canhotoRetained: canhotoRetainedDocumentIds.has(row.document.id),
       leavesBehindOnDispatch: leavesBehindOnDispatchIds.has(row.document.id),
       openOccurrenceCase: openOccurrenceCaseDocumentIds.has(row.document.id),
       proofPending: proofPendingDocumentIds.has(row.document.id),
@@ -1873,6 +2024,8 @@ async function readTripDetail(
     ),
     occupancy: cargo.occupancy,
     trailer,
+    stopOrderErrorCode: record.stopOrderErrorCode,
+    stopOrderSource: record.stopOrderSource,
     stops: stopRecords.map((row) => ({
       ...mapTripStop(row.stop),
       documents: documentsByStopId.get(row.stop.id) ?? [],

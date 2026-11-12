@@ -1,8 +1,6 @@
 {
   "id": "1e970a44-d458-413f-89b0-4e7c0c7ddf8d",
-  "prevIds": [
-    "00000000-0000-0000-0000-000000000000"
-  ],
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "version": "8",
   "dialect": "postgres",
   "ddl": [
@@ -17,9 +15,7 @@
       "entityType": "tables"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "deliveries_pkey",
       "schema": "notification",
@@ -307,14 +303,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "notification_id"
-      ],
+      "columns": ["notification_id"],
       "schemaTo": "notification",
       "tableTo": "notifications",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "deliveries_notification_id_notifications_id_fk",
@@ -329,9 +321,7 @@
       "entityType": "tables"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "devices_pkey",
       "schema": "notification",
@@ -590,9 +580,7 @@
       "entityType": "tables"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "notifications_pkey",
       "schema": "notification",
@@ -892,9 +880,7 @@
       "entityType": "tables"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "preferences_pkey",
       "schema": "notification",
@@ -1093,9 +1079,7 @@
       "entityType": "tables"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "suppressions_pkey",
       "schema": "notification",
@@ -1235,9 +1219,7 @@
       "entityType": "tables"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "templates_pkey",
       "schema": "notification",

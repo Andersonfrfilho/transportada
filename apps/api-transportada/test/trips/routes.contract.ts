@@ -316,6 +316,24 @@ describe('trip state routes (spec 056 T012)', () => {
     expect(fixture.reorderStopsCalls[0]).toMatchObject({ stopIds, tripId: TRIP_ID })
   })
 
+  test('orders the draft stops by the road on demand (spec 323)', async () => {
+    const fixture = await createTripHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        method: 'POST',
+        path: `${tripStopsOrderPath().replace(/order$/u, 'auto-order')}`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await responseData(response)).toEqual({
+      errorCode: null,
+      excludedStopCount: 0,
+      status: 'ordered',
+    })
+  })
+
   test('refuses an empty stop order', async () => {
     const fixture = await createTripHttpFixture()
 

@@ -17,12 +17,19 @@ import {
 } from '../application/whatsapp-command-driver.service.js'
 import type { WhatsAppFlowGraphProviderPort } from '../application/whatsapp-command-driver.port.js'
 import type { WhatsAppSharedLocationStore } from '../application/whatsapp-shared-location.service.js'
+import type { WhatsAppDriverPrompts } from '../application/whatsapp-driver-prompts.service.js'
+import type { WhatsAppDeliveryProofIntake } from '../application/whatsapp-command-driver.service.js'
 import {
   createWithAuthorizedActor,
   registerWhatsAppFlowActions,
   type WhatsAppFlowActionDefinition,
 } from '../application/with-authorized-actor.service.js'
+import {
+  bufferWhatsAppChannel,
+  createWhatsAppTurnReplies,
+} from '../application/whatsapp-turn-replies.service.js'
 import { createMetaWhatsAppMessageSender } from './meta-whatsapp-message-sender.gateway.js'
+import type { WhatsAppBotAudio } from '../../whatsapp/application/whatsapp-bot-audio.service.js'
 
 export type WhatsAppCommandHookInstance = {
   readonly accessToken: string
@@ -44,6 +51,12 @@ export type CreateWhatsAppCommandHookFactoryParams = {
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
   readonly sharedLocations?: WhatsAppSharedLocationStore
   readonly verifyPhone?: VerifyWhatsAppPhone
+  /** Spec 293 T15: as provas da entrega em preparo que chegam na conversa individual. */
+  readonly deliveryProofs?: WhatsAppDeliveryProofIntake
+  /** Spec 292 T9: o áudio da conversa individual (transcrição e confirmação). */
+  readonly botAudio?: WhatsAppBotAudio<null>
+  /** Spec 294: a oferta da próxima rota e as conferências do bot na conversa individual. */
+  readonly driverPrompts?: WhatsAppDriverPrompts
 }
 
 /**
@@ -54,6 +67,7 @@ export function createWhatsAppCommandHookFactory(
   params: CreateWhatsAppCommandHookFactoryParams,
 ): WhatsAppCommandHookFactory {
   const withAuthorizedActor = createWithAuthorizedActor(params)
+  const turnReplies = createWhatsAppTurnReplies({ logger: params.logger })
 
   return ({ module }) => {
     const { flows } = module
@@ -65,18 +79,25 @@ export function createWhatsAppCommandHookFactory(
       registerFlowAction: flows.registerFlowAction,
       withAuthorizedActor,
     })
-    return createWhatsAppCommandDriver({
-      channel: module.channel,
+    // Uma resposta por turno é uma mensagem: o texto do turno sai junto no fim; lista e botões, na hora (por natureza).
+    const channel = bufferWhatsAppChannel(module.channel, turnReplies)
+    const handle = createWhatsAppCommandDriver({
+      ...(params.botAudio === undefined ? {} : { botAudio: params.botAudio }),
+      channel,
       clock: params.clock,
       graphs: params.graphs,
       interpreter: flows.interpreter,
       logger: params.logger,
       rateLimiter: params.rateLimiter,
       resolveActor: params.resolveActor,
-      sender: createMetaWhatsAppMessageSender({ channel: module.channel }),
+      sender: createMetaWhatsAppMessageSender({ channel }),
       sessions: module.conversations.repository,
       ...(params.sharedLocations === undefined ? {} : { sharedLocations: params.sharedLocations }),
       ...(params.verifyPhone === undefined ? {} : { verifyPhone: params.verifyPhone }),
+      ...(params.deliveryProofs === undefined ? {} : { deliveryProofs: params.deliveryProofs }),
+      ...(params.driverPrompts === undefined ? {} : { driverPrompts: params.driverPrompts }),
     })
+    return (message, session) =>
+      turnReplies.withinTurn(() => handle(message, session), { companyId: session.companyId })
   }
 }

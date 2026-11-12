@@ -53,5 +53,49 @@
     "enable": "Ligar",
     "disable": "Desligar",
     "pausedAt": "Desligada em {{pausedAt}}"
+  },
+  "sentMessages": {
+    "title": "Mensagens enviadas",
+    "period": {
+      "label": "Período",
+      "day": "24 horas",
+      "week": "7 dias",
+      "month": "30 dias"
+    },
+    "totalDetail": "mensagens no período, {{failed}} com falha ({{rate}}%)",
+    "empty": "Nenhuma mensagem enviada neste período.",
+    "error": "Não foi possível carregar as mensagens enviadas.",
+    "unavailable": "Sem leitura de: {{sources}}. Os números abaixo não incluem essas fontes.",
+    "byChannel": "Por canal",
+    "byCategory": "Por categoria",
+    "bySubcategory": "Mais enviadas",
+    "failedShort": "({{failed}} falhas)",
+    "footnote": "Convites e redefinição de senha contam quando entregues ao envio; código de WhatsApp de verificação não é contado.",
+    "channel": {
+      "whatsapp": "WhatsApp",
+      "email": "E-mail",
+      "portal": "Portal",
+      "app": "App",
+      "push": "Push",
+      "in_app": "No app",
+      "sms": "SMS"
+    },
+    "category": {
+      "occurrence": "Ocorrências",
+      "notification": "Avisos do sistema",
+      "access": "Acesso (convite e senha)"
+    },
+    "audience": {
+      "client": "cliente",
+      "contractor": "contratante",
+      "driver": "motorista"
+    },
+    "subcategory": {
+      "sem_tipo": "Sem tipo de ocorrência",
+      "invitation": "Convite",
+      "password_reset": "Redefinição de senha",
+      "note": "Conversa da nota",
+      "trip": "Conversa da viagem"
+    }
   }
 }

@@ -190,6 +190,19 @@ describe('cheguei', () => {
     expect(world.state.calls).not.toContain(`markStopArrived:${STOP_ID}`)
   })
 
+  /** Chave diferente = outro canal (app depois do WhatsApp): a chegada já lançada não vira segundo evento. */
+  it('o mesmo cheguei por outro canal devolve o evento existente e não grava outro', async () => {
+    const world = buildArrivalWorld()
+
+    const first = await reportStopArrival(arrivalInput(world, 'whatsapp-group-request:1'))
+    const second = await reportStopArrival(arrivalInput(world, 'app-chave-2'))
+
+    expect(second.id).toBe(first.id)
+    expect(world.state.calls.filter((call) => call.startsWith('recordEvent:arrived'))).toHaveLength(
+      1,
+    )
+  })
+
   it('viagem que já está em trânsito não é promovida de novo', async () => {
     const world = buildArrivalWorld({ tripStatus: 'in_transit' })
 
@@ -222,7 +235,11 @@ describe('a fila offline reenvia, e o servidor não duplica', () => {
     const second = await reportStopArrival(arrivalInput(world, 'chave-do-aparelho'))
 
     expect(second.id).toBe(first.id)
-    expect(world.state.calls.filter((call) => call.startsWith('recordEvent'))).toHaveLength(1)
+    const recordedEvents = (calls: readonly string[]) =>
+      calls.filter((call) => call.startsWith('recordEvent'))
+    // Spec 294: a chegada sem saída grava duas (a saída marcada junto); o reenvio não grava mais.
+    expect(recordedEvents(callsAfterFirst)).toHaveLength(2)
+    expect(recordedEvents(world.state.calls)).toHaveLength(2)
     expect(callsAfterFirst).toContain(`markStopArrived:${STOP_ID}`)
   })
 

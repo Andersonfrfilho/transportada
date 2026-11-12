@@ -14,8 +14,10 @@ import { deliveredMomentSql } from '../../database/delivered-moment.support.js'
 import { timestamptzParameter } from '../../database/sql-timestamptz-parameter.support.js'
 import {
   companyDeliveryProofSettings,
+  deliveryProofSettingContractorOverrides,
   deliveryProofSettingOverrides,
 } from '../../database/company-delivery-proof-settings.schema.js'
+import { contractors } from '../../database/delivery-client.schema.js'
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
@@ -34,6 +36,7 @@ import type { DriverScorePort } from '../application/driver-score.port.js'
 import { MILLISECONDS_PER_DAY } from '../../shared/time.constant.js'
 import {
   DELIVERED_EVENT_KIND,
+  EMITTER_PARTICIPANT_ROLE,
   PHOTO_PROOF_KIND,
   RECIPIENT_PARTICIPANT_ROLE,
 } from '../../trips/domain/delivery-event.constant.js'
@@ -47,11 +50,15 @@ import {
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
+/** Spec 218 RF-C3: o contratante da nota é o emitente cadastrado — o mesmo join da tela do motorista. */
+const emitterParticipants = alias(nfeParticipants, 'score_emitter')
+
 const RETURNED_DOCUMENT_STATUS = 'returned'
 
 type ReadScoresInput = Parameters<DriverScorePort['readScores']>[0]
 
 type DeliveryRow = {
+  readonly contractorId: string | null
   /** Spec 234 D3: `deliveredMomentSql` — a hora corrigida, senão o GPS, senão o recebimento. */
   readonly deliveredAt: Date
   readonly documentNumber: string | null
@@ -129,6 +136,7 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
 
     return this.database
       .select({
+        contractorId: contractors.id,
         deliveredAt: lastDelivery.deliveredAt,
         documentNumber: nfeDocuments.number,
         driverId,
@@ -143,6 +151,8 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
       .leftJoin(fleetDrivers, on.driver)
       .leftJoin(nfeDocuments, on.nfeDocument)
       .leftJoin(nfeParticipants, on.recipient)
+      .leftJoin(emitterParticipants, on.emitter)
+      .leftJoin(contractors, on.contractor)
       .leftJoin(tripDeliveryProofs, on.photo)
       .where(
         and(
@@ -159,11 +169,11 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
   }
 
   /**
-   * A exceção por CNPJ decide o modo `photo` **atual** de cada nota (RF8, casos extremos); os
+   * A exceção por CNPJ (e a da contratante, spec 218 RF-C3) decide o modo `photo` **atual** de cada nota (RF8, casos extremos); os
    * parâmetros de pontos e prazo são só da configuração geral. Sem linha, a fábrica.
    */
   private async readSettings(companyId: string): Promise<ScoreSettings> {
-    const [generalRows, overrideRows] = await Promise.all([
+    const [generalRows, overrideRows, contractorOverrideRows] = await Promise.all([
       this.database
         .select()
         .from(companyDeliveryProofSettings)
@@ -173,6 +183,10 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
         .select()
         .from(deliveryProofSettingOverrides)
         .where(eq(deliveryProofSettingOverrides.companyId, companyId)),
+      this.database
+        .select()
+        .from(deliveryProofSettingContractorOverrides)
+        .where(eq(deliveryProofSettingContractorOverrides.companyId, companyId)),
     ])
     const general = generalRows[0]
 
@@ -180,6 +194,9 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
       effectiveSince: general?.scoreEffectiveSince,
       lookup: {
         general: general ?? null,
+        overridesByContractorId: new Map(
+          contractorOverrideRows.map((row) => [row.contractorId, row]),
+        ),
         overridesByTaxId: new Map(overrideRows.map((row) => [row.taxId, row])),
       },
       score: general ?? DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
@@ -282,6 +299,10 @@ function buildTenantJoinConditions(input: {
   const { companyId, lastDelivery } = input
 
   return {
+    contractor: and(
+      eq(contractors.companyId, companyId),
+      eq(contractors.taxId, emitterParticipants.taxId),
+    ),
     driver: and(
       eq(fleetDrivers.companyId, companyId),
       eq(fleetDrivers.membershipId, userCompanyMemberships.id),
@@ -298,6 +319,11 @@ function buildTenantJoinConditions(input: {
       eq(tripDeliveryProofs.companyId, companyId),
       eq(tripDeliveryProofs.stopEventId, lastDelivery.eventId),
       eq(tripDeliveryProofs.kind, PHOTO_PROOF_KIND),
+    ),
+    emitter: and(
+      eq(emitterParticipants.companyId, companyId),
+      eq(emitterParticipants.documentId, tripDocuments.nfeDocumentId),
+      eq(emitterParticipants.role, EMITTER_PARTICIPANT_ROLE),
     ),
     recipient: and(
       eq(nfeParticipants.companyId, companyId),
@@ -319,6 +345,7 @@ function groupDeliveriesByDriver(input: {
 
   for (const row of input.rows) {
     const settings = resolveProofSettingsForRecipient({
+      contractorId: row.contractorId,
       lookup: input.lookup,
       recipientTaxId: row.recipientTaxId ?? '',
     })

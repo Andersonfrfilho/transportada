@@ -73,6 +73,16 @@ export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLES: readonly OccurrenceContractor
       'Quadrado da assinatura: o logo da transportadora na assinatura da equipe, senão as iniciais (HTML do sistema).',
     name: 'logoAssinatura',
   },
+  {
+    description:
+      'Nova data de vencimento pedida pelo motorista (DD/MM/AAAA); vazia quando não informada.',
+    name: 'novaDataVencimento',
+  },
+  {
+    description:
+      'Parágrafo "Nova data de vencimento solicitada: DD/MM/AAAA", só quando o motorista informou a data (HTML do sistema).',
+    name: 'avisoNovaData',
+  },
 ]
 
 export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES: ReadonlySet<string> = new Set(
@@ -89,6 +99,7 @@ export const OCCURRENCE_MAIL_SYSTEM_HTML_VARIABLES = [
   'marcasRodape',
   'faixaResposta',
   'logoAssinatura',
+  'avisoNovaData',
 ] as const
 
 export type OccurrenceMailSystemHtmlVariable =

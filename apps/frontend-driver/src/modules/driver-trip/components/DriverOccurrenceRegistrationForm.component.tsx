@@ -5,9 +5,12 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { ClientContactsSection } from '@/modules/client-contacts/components/ClientContactsSection.component'
+import { resolveAskedContactChannels } from '@/modules/client-contacts/shared/clientContactsRule.service'
 
 import { useOccurrenceRegistrationForm } from '../hooks/useOccurrenceRegistrationForm.hook'
 import { OccurrencePhotoField } from './OccurrencePhotoField.component'
+import { OccurrenceReceivingChargeSection } from './OccurrenceReceivingChargeSection.component'
 import { OccurrenceRegisterAction } from './OccurrenceRegisterAction.component'
 import { OccurrenceSignatureField } from './OccurrenceSignatureField.component'
 import { OccurrenceTypePicker } from './OccurrenceTypePicker.component'
@@ -58,6 +61,24 @@ export function DriverOccurrenceRegistrationForm({
   const requirements =
     selectedType === undefined ? undefined : resolveOccurrenceRequirements(selectedType)
   const photoLimit = visibility?.photoLimit ?? 1
+  /** Spec 281 T8b: o tipo pede o contato do cliente na abertura — o servidor resolveu, o app só mostra. */
+  const askedContactChannels =
+    selectedType === undefined ? [] : resolveAskedContactChannels(selectedType)
+  const receivingCharge = form.receivingCharge
+  const documentNumbers = new Map(stop.documents.map((entry) => [entry.id, entry.number]))
+  /** Spec 317: o que falta da cobrança, em texto — com o rótulo da foto, que é o que o motorista precisa ler. */
+  const receivingChargeMissingLabels = receivingCharge?.missing.map((entry) => {
+    switch (entry.kind) {
+      case 'photo':
+        return entry.label
+      case 'documentAmount':
+        return t('occurrenceRegistration.receivingCharge.missing.documentAmount', {
+          number: documentNumbers.get(entry.documentId) ?? '',
+        })
+      default:
+        return t(`occurrenceRegistration.receivingCharge.missing.${entry.kind}`)
+    }
+  })
   const valueLabels = {
     declaredAmount:
       selectedType?.declaredAmountLabel ?? t('occurrenceRegistration.declaredAmount.defaultLabel'),
@@ -118,7 +139,14 @@ export function DriverOccurrenceRegistrationForm({
 
       {selectedType === undefined || requirements === undefined ? null : (
         <>
-          <OccurrenceValuesSection form={form} labels={valueLabels} requirements={requirements} />
+          {receivingCharge === undefined ? (
+            <OccurrenceValuesSection form={form} labels={valueLabels} requirements={requirements} />
+          ) : (
+            <OccurrenceReceivingChargeSection
+              documentNumbers={documentNumbers}
+              form={receivingCharge}
+            />
+          )}
           {visibility?.rendersNote === false ? null : (
             <label className={valueStyles.field}>
               <span className={valueStyles.fieldLabel}>
@@ -145,7 +173,7 @@ export function DriverOccurrenceRegistrationForm({
               </p>
             </div>
           )}
-          {visibility?.rendersPhoto === true ? (
+          {visibility?.rendersPhoto === true && receivingCharge === undefined ? (
             <OccurrencePhotoField
               isMissing={missingFields.includes('photo')}
               limit={photoLimit}
@@ -156,7 +184,7 @@ export function DriverOccurrenceRegistrationForm({
               previewUrl={form.photoPreviewUrl}
             />
           ) : null}
-          {visibility?.rendersSignature === true ? (
+          {visibility?.rendersSignature === true && receivingCharge === undefined ? (
             <OccurrenceSignatureField
               hasSignature={form.signature.signature !== undefined}
               isOpen={form.signature.isOpen}
@@ -167,6 +195,9 @@ export function DriverOccurrenceRegistrationForm({
               previewUrl={form.signature.previewUrl}
             />
           ) : null}
+          {askedContactChannels.length === 0 ? null : (
+            <ClientContactsSection channels={askedContactChannels} documentId={document.id} />
+          )}
         </>
       )}
 
@@ -182,6 +213,9 @@ export function DriverOccurrenceRegistrationForm({
           referenceNumberLabel: valueLabels.referenceNumber,
         }}
         missingFields={missingFields}
+        {...(receivingChargeMissingLabels === undefined
+          ? {}
+          : { missingLabels: receivingChargeMissingLabels })}
         onCancel={onClose}
         onRegister={handleRegister}
         photoMinimumCount={requirements?.photoMinimumCount ?? 1}

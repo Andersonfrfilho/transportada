@@ -25,7 +25,7 @@ import {
   NFSE_RETRY_DEFAULT_MAX_ATTEMPTS,
 } from '../nfse-issuance/domain/nfse-retry.policy.js'
 
-export type NfeImportSource = 'distribution' | 'upload'
+export type NfeImportSource = 'access_key' | 'distribution' | 'upload'
 export type NfeImportStatus =
   | 'cancelled'
   | 'completed'
@@ -44,6 +44,23 @@ export type NfeItemStatus =
   | 'validating'
 export type NfeItemVariant = 'complete' | 'event' | 'summary'
 export type NfeFiscalEnvironment = 'homologation' | 'production'
+export type NfeAccessKeyLookupStatus =
+  | 'imported'
+  | 'querying'
+  | 'queued'
+  | 'failed'
+  | 'refused'
+  | 'waiting'
+export type NfeAccessKeyLookupReason =
+  | 'cancelled'
+  | 'certificate_mismatch'
+  | 'denied'
+  | 'expired'
+  | 'invalid_key'
+  | 'not_found'
+  | 'not_interested'
+  | 'sefaz_unavailable'
+  | 'summary_only'
 export type NfeDocumentStatus = 'authorized' | 'cancelled' | 'denied' | 'unsigned'
 export type NfeEventOrigin = 'automatic' | 'manual'
 export type NfeDocumentStatusChangeCause = 'document_insert' | 'event' | 'summary'
@@ -113,6 +130,13 @@ export const nfeImports = pgTable('nfe_imports', {
   companyId: uuid('company_id').notNull(),
   source: text().$type<NfeImportSource>().notNull(),
   requestedByUserId: uuid('requested_by_user_id').notNull(),
+  /** Spec 301: por onde o arquivo chegou; `screen` é o "Enviar XML" da tela. */
+  receivedVia: text('received_via')
+    .$type<'email' | 'screen' | 'whatsapp'>()
+    .notNull()
+    .default('screen'),
+  receivedFrom: text('received_from'),
+  restrictedContractorId: uuid('restricted_contractor_id'),
   triggeredBy: text('triggered_by').$type<NfeOriginTrigger>().notNull().default('user'),
   automationJob: text('automation_job'),
   correlationId: text('correlation_id').notNull(),
@@ -307,6 +331,43 @@ export const storedObjects = pgTable('stored_objects', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+export const nfeAccessKeyLookups = pgTable('nfe_access_key_lookups', {
+  id: uuid().defaultRandom().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  environment: text().$type<NfeFiscalEnvironment>().notNull(),
+  accessKey: text('access_key').notNull(),
+  status: text().$type<NfeAccessKeyLookupStatus>().notNull(),
+  reason: text().$type<NfeAccessKeyLookupReason>(),
+  cStat: text('c_stat'),
+  notBefore: timestamp('not_before', { withTimezone: true }),
+  documentId: uuid('document_id'),
+  importId: uuid('import_id'),
+  requestedByUserId: uuid('requested_by_user_id').notNull(),
+  correlationId: text('correlation_id').notNull(),
+  attempts: bigint({ mode: 'bigint' }).notNull().default(0n),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const nfeAccessKeyLookupBudgets = pgTable(
+  'nfe_access_key_lookup_budgets',
+  {
+    companyId: uuid('company_id').notNull(),
+    environment: text().$type<NfeFiscalEnvironment>().notNull(),
+    windowStartedAt: timestamp('window_started_at', { withTimezone: true }).notNull(),
+    usedInWindow: integer('used_in_window').notNull().default(0),
+    blockedUntil: timestamp('blocked_until', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.companyId, table.environment],
+      name: 'nfe_access_key_lookup_budgets_company_environment_pk',
+    }),
+  ],
+)
+
 export const nfeDistributionCursors = pgTable(
   'nfe_distribution_cursors',
   {
@@ -372,4 +433,31 @@ export const nfePackageBoxes = pgTable(
 export const companyCargoSettings = pgTable('company_cargo_settings', {
   companyId: uuid('company_id').primaryKey(),
   defaultVolumeWeight: numeric('default_volume_weight', { precision: 14, scale: 4 }),
+})
+
+/** Spec 301: a caixa de entrada de XML por e-mail e WhatsApp (cópia por valor do schema da API). */
+export type NfeXmlReceiptChannel = 'email' | 'whatsapp'
+export type NfeXmlReceiptStatus = 'failed' | 'imported' | 'pending' | 'processing' | 'rejected'
+
+export const nfeXmlReceipts = pgTable('nfe_xml_receipts', {
+  id: uuid().defaultRandom().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  channel: text().$type<NfeXmlReceiptChannel>().notNull(),
+  providerMessageId: text('provider_message_id').notNull(),
+  sender: text().notNull(),
+  requestedByUserId: uuid('requested_by_user_id'),
+  replyTo: text('reply_to'),
+  media: jsonb(),
+  status: text().$type<NfeXmlReceiptStatus>().notNull().default('pending'),
+  rejectReason: text('reject_reason'),
+  attempts: integer().notNull().default(0),
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+  filesCount: integer('files_count').notNull().default(0),
+  importId: uuid('import_id'),
+  lastErrorCode: text('last_error_code'),
+  acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+  summarySentAt: timestamp('summary_sent_at', { withTimezone: true }),
+  summaryAttempts: integer('summary_attempts').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

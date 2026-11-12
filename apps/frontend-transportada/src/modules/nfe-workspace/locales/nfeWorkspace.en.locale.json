@@ -90,6 +90,7 @@
   },
   "mechanism": {
     "section": "Import source",
+    "accessKey": "Import by scan",
     "manual": "Manual",
     "remote": "Remote"
   },
@@ -99,9 +100,27 @@
     "empty": "No processing record yet.",
     "executedAt": "Executed at",
     "reprocess": "Reprocess",
+    "reprocessDialog": {
+      "title": "Reprocess import",
+      "previewError": "Could not work out what would be redone.",
+      "busy": "This import is still queued. Wait for it to finish.",
+      "nothing": "No invoice in this import can be redone.",
+      "count": "{{count}} invoice will be redone.",
+      "count_other": "{{count}} invoices will be redone.",
+      "rejected": "{{count}} rejected as unrelated to the company.",
+      "rejected_other": "{{count}} rejected as unrelated to the company.",
+      "failed": "{{count}} failed.",
+      "failed_other": "{{count}} failed.",
+      "cancel": "Cancel",
+      "confirm": "Confirm"
+    },
     "imported": "Imported",
     "invalid": "Invalid",
-    "failed": "Failed"
+    "failed": "Failed",
+    "via": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    }
   },
   "documents": {
     "reportExcludedWithoutTrip": "{{count}} invoice without a trip was left out",
@@ -111,6 +130,13 @@
     "subtitle": "Fast review of already persisted NF-e records.",
     "empty": "No documents available.",
     "downloadXml": "Download XML",
+    "sheetSelect": "Select from spreadsheet",
+    "sheetLabel": "Weekly spreadsheet",
+    "sheetPlaceholder": "No spreadsheet chosen",
+    "sheetInvalid": "Could not read the spreadsheet. Upload the .xlsx file with a DOCUMENTO1 column.",
+    "sheetResult": "{{selected}} of {{total}} spreadsheet invoices selected.",
+    "sheetBlocked": "{{count}} blocked for issuing were left out.",
+    "sheetMissing": "{{count}} are not in the system yet ({{numbers}}).",
     "emitCte": "Issue CT-es ({{count}})",
     "blockedRow": "Invoice blocked for CT-e",
     "nfseLink": "Linked to service invoice {{number}} — open the detail",
@@ -251,7 +277,10 @@
     "cteIssuedIssued": "With issued CT-e",
     "fiscalLink": "Fiscal link",
     "unlinkedOnly": "Only notes without a linked CT-e or NFS-e",
-    "includeLinked": "Including notes with CT-e or NFS-e"
+    "includeLinked": "Including notes with CT-e or NFS-e",
+    "distribution": "Distribution",
+    "upload": "Upload",
+    "access_key": "Key lookup"
   },
   "scheduledDistributionTitle": "Automatic note retrieval",
   "scheduledDistributionHint": "When it is on, the platform queries SEFAZ on a schedule and pulls in the notes issued against the company tax id on its own. Manual retrieval on the notes screen keeps working.",
@@ -401,11 +430,10 @@
         "noActiveContactLink": "Register a contact in Clients → E-mail with contractors",
         "openMailSettingsLink": "Open e-mail configuration",
         "templateTitle": "E-mail template",
-        "templateUnavailable": "Could not load the e-mail templates.",
-        "templateDefaultOption": "{{name}} (default)",
+        "templateUnavailable": "Could not load the e-mail template.",
+        "openNotificationSettingsLink": "Open Notifications",
+        "editInNotificationSettings": "Edit the text in Notifications",
         "previewExample": "The preview uses sample data — the actual send carries the addresses marked above.",
-        "previewLoading": "Loading template preview…",
-        "previewUnavailable": "Could not load this template's preview.",
         "previewSubjectLabel": "Subject",
         "previewFrameTitle": "E-mail preview",
         "cancel": "Cancel",
@@ -421,8 +449,7 @@
           "requestNotSendable": "One of the selected requests was already sent or does not belong to this contractor.",
           "mailNotConfigured": "This contractor's e-mail is not configured or verified yet.",
           "sendingNotVerified": "The sender's e-mail domain has not been verified yet.",
-          "templateMissing": "There is no default address correction e-mail template. Create one in Contractor e-mail.",
-          "templateNotUsable": "The chosen template was archived or is no longer available. Pick another template.",
+          "templateMissing": "The address correction e-mail template was not published or cannot be used to send. See the template in Notifications.",
           "idempotencyReused": "This send was already processed. Refresh the page before trying again.",
           "tooManyRequests": "Too many send attempts. Try again in {{minutes}} min.",
           "generic": "Could not send the correction request.",
@@ -678,5 +705,134 @@
   },
   "cameraMeasurementValidationExportExcel": "Export period Excel",
   "cameraMeasurementExportSheetName": "Camera measurements",
-  "cameraMeasurementExportTitle": "Camera measurements"
+  "cameraMeasurementExportTitle": "Camera measurements",
+  "importByScan": {
+    "action": "Import by scan"
+  },
+  "accessKeyImport": {
+    "forbidden": "You do not have permission to import notes.",
+    "title": "Import by scan",
+    "subtitle": "Scan each note's key: a note already in the system is only counted, an unknown one is searched at SEFAZ and imported automatically.",
+    "reader": {
+      "field": "Note key",
+      "idle": "Enable the reader",
+      "placeholder": "Scan the invoice 44-digit key",
+      "ready": "Reader ready"
+    },
+    "scan": "Read with camera",
+    "scanClose": "Close camera",
+    "scanDenied": "Camera access was not granted.",
+    "scanReading": "Reading the code…",
+    "scanStarting": "Opening the camera…",
+    "scanTitle": "Read note key",
+    "scanUnavailable": "The camera is not available on this device.",
+    "alreadyScanned": "This key was already scanned.",
+    "alreadyInSystem": "Already in the system.",
+    "summary": {
+      "announcement": "{{scanned}} scanned, {{imported}} imported, {{refused}} refused.",
+      "scanned": "Scanned",
+      "alreadyInSystem": "Already in the system",
+      "imported": "Imported",
+      "searching": "Searching",
+      "waiting": "In the SEFAZ queue",
+      "refused": "Refused",
+      "notObtained": "Not obtained",
+      "unreadable": "Unreadable"
+    },
+    "nextWindow": "next window {{time}}",
+    "refusedReason": "{{count}} {{reason}}",
+    "reason": {
+      "not_interested": "not released",
+      "summary_only": "summary only",
+      "not_found": "not found",
+      "expired": "expired",
+      "cancelled": "cancelled",
+      "denied": "denied",
+      "certificate_mismatch": "certificate",
+      "invalid_key": "invalid key",
+      "sefaz_unavailable": "SEFAZ unavailable"
+    },
+    "filter": {
+      "all": "All",
+      "imported": "Imported",
+      "alreadyInSystem": "Already there",
+      "refused": "Refused"
+    },
+    "clear": "Clear list",
+    "xml": {
+      "action": "Send XML",
+      "field": "Note XML",
+      "placeholder": "No XML chosen",
+      "failed": "Could not send the XML. Try again.",
+      "notImported": "The XML was sent, but the note is not in the registry yet."
+    }
+  },
+  "xmlReceipts": {
+    "title": "Invoices received by e-mail and WhatsApp",
+    "subtitle": "XML or zip files sent to the invoice mailbox or the bot. Refused or failed ones show the reason.",
+    "loading": "Loading submissions...",
+    "error": "Could not load submissions.",
+    "empty": "No e-mail or WhatsApp submissions yet.",
+    "count": "{{count}} submission",
+    "count_other": "{{count}} submissions",
+    "files": "{{count}} file",
+    "files_other": "{{count}} files",
+    "channel": {
+      "email": "E-mail",
+      "whatsapp": "WhatsApp"
+    },
+    "status": {
+      "pending": "Queued",
+      "processing": "Downloading",
+      "imported": "Imported",
+      "rejected": "Refused",
+      "failed": "Failed"
+    },
+    "reason": {
+      "sender_not_allowed": "The sender has no verified registration with permission to import invoices.",
+      "sender_not_authenticated": "The e-mail sender could not be verified (sender signature).",
+      "no_accepted_file": "No .xml or .zip file was found in the message.",
+      "file_too_large": "The file exceeds the maximum accepted size.",
+      "mailbox_not_configured": "The invoice mailbox is not configured.",
+      "download_failed": "The file could not be downloaded; retries were made.",
+      "unknown": "Processing failed; operations were notified."
+    },
+    "result": {
+      "received": "Received at",
+      "entered": "Entered the system at",
+      "processing": "Still importing…",
+      "notes": "Notes",
+      "counts": "{{imported}} new of {{received}} · {{duplicated}} already existed · {{problems}} with problems",
+      "contractors": "Contractors (new notes)",
+      "noContractors": "no new notes"
+    }
+  },
+  "allowedDomains": {
+    "title": "Mail domains allowed to send XML",
+    "subtitle": "Anyone writing from an address of a released domain (with a valid mail signature) can send invoice XML without being registered. Each domain belongs to a contractor.",
+    "count": "{{count}} domain",
+    "count_other": "{{count}} domains",
+    "domainLabel": "Mail domain",
+    "domainPlaceholder": "spani.com.br",
+    "contractorLabel": "Contractor that owns the domain",
+    "contractorPlaceholder": "Choose the contractor",
+    "contractorSearch": "Search contractor",
+    "contractorEmpty": "No contractor found.",
+    "release": "Release domain",
+    "loading": "Loading domains...",
+    "loadError": "Could not load the domains.",
+    "empty": "No domain released yet.",
+    "noContractor": "No contractor (released before the link)",
+    "turnOff": "Turn off",
+    "turnOn": "Turn on",
+    "status": {
+      "active": "Released",
+      "inactive": "Turned off"
+    },
+    "error": {
+      "NFE_XML_PUBLIC_EMAIL_DOMAIN": "A public mail provider (gmail, hotmail...) cannot be released as a whole. Register the person's address as a contractor contact instead.",
+      "NFE_XML_ALLOWED_DOMAIN_CONTRACTOR_NOT_FOUND": "That contractor does not exist in this company.",
+      "unknown": "Could not release the domain. Check the address and try again."
+    }
+  }
 }

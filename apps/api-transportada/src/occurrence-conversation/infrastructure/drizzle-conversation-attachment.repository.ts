@@ -10,7 +10,9 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
 import {
+  occurrenceContractorReplyDeliveries,
   occurrenceConversationAttachments,
+  occurrenceConversationMessages,
   occurrenceConversationUploads,
   storedObjects,
 } from '../../database/database.schema.js'
@@ -132,40 +134,90 @@ export async function findOccurrenceConversationKind(
   return item?.source ?? null
 }
 
-/** Os anexos das mensagens pedidas, na ordem em que entraram; a URL é assinada por quem lê. */
+/**
+ * Os anexos das mensagens pedidas, na ordem em que entraram; a URL é assinada por quem lê. Na conversa do cliente
+ * (spec 283) a mensagem não tem anexo próprio: o arquivo é o que a entrega levou, e sai ligado à mensagem do envio.
+ */
 export async function readConversationAttachments(
   queryable: Queryable,
   input: { readonly companyId: string; readonly messageIds: readonly string[] },
 ): Promise<readonly ConversationAttachmentRecord[]> {
   if (input.messageIds.length === 0) return []
-  return queryable
-    .select({
-      bucket: storedObjects.bucket,
-      contentType: occurrenceConversationAttachments.contentType,
-      durationMs: occurrenceConversationAttachments.durationMs,
-      fileName: occurrenceConversationAttachments.fileName,
-      id: occurrenceConversationAttachments.id,
-      messageId: occurrenceConversationAttachments.messageId,
-      objectKey: storedObjects.objectKey,
-      sizeBytes: occurrenceConversationAttachments.sizeBytes,
-    })
-    .from(occurrenceConversationAttachments)
-    .innerJoin(
-      storedObjects,
-      and(
-        eq(storedObjects.companyId, occurrenceConversationAttachments.companyId),
-        eq(storedObjects.id, occurrenceConversationAttachments.storedObjectId),
-        sql`${storedObjects.status} <> 'deleted'`,
+  const columns = {
+    bucket: storedObjects.bucket,
+    contentType: occurrenceConversationAttachments.contentType,
+    durationMs: occurrenceConversationAttachments.durationMs,
+    fileName: occurrenceConversationAttachments.fileName,
+    id: occurrenceConversationAttachments.id,
+    objectKey: storedObjects.objectKey,
+    sizeBytes: occurrenceConversationAttachments.sizeBytes,
+  }
+  const [own, delivered] = await Promise.all([
+    queryable
+      .select({ ...columns, messageId: occurrenceConversationAttachments.messageId })
+      .from(occurrenceConversationAttachments)
+      .innerJoin(
+        storedObjects,
+        and(
+          eq(storedObjects.companyId, occurrenceConversationAttachments.companyId),
+          eq(storedObjects.id, occurrenceConversationAttachments.storedObjectId),
+          sql`${storedObjects.status} <> 'deleted'`,
+        ),
+      )
+      .where(
+        and(
+          eq(occurrenceConversationAttachments.companyId, input.companyId),
+          inArray(occurrenceConversationAttachments.messageId, [...input.messageIds]),
+        ),
+      )
+      .orderBy(
+        asc(occurrenceConversationAttachments.createdAt),
+        asc(occurrenceConversationAttachments.id),
       ),
-    )
-    .where(
-      and(
-        eq(occurrenceConversationAttachments.companyId, input.companyId),
-        inArray(occurrenceConversationAttachments.messageId, [...input.messageIds]),
+    queryable
+      .select({ ...columns, messageId: occurrenceConversationMessages.id })
+      .from(occurrenceConversationMessages)
+      .innerJoin(
+        occurrenceContractorReplyDeliveries,
+        and(
+          eq(
+            occurrenceContractorReplyDeliveries.companyId,
+            occurrenceConversationMessages.companyId,
+          ),
+          eq(
+            occurrenceContractorReplyDeliveries.id,
+            occurrenceConversationMessages.clientDeliveryId,
+          ),
+        ),
+      )
+      .innerJoin(
+        occurrenceConversationAttachments,
+        and(
+          eq(
+            occurrenceConversationAttachments.companyId,
+            occurrenceContractorReplyDeliveries.companyId,
+          ),
+          eq(
+            occurrenceConversationAttachments.id,
+            occurrenceContractorReplyDeliveries.attachmentId,
+          ),
+        ),
+      )
+      .innerJoin(
+        storedObjects,
+        and(
+          eq(storedObjects.companyId, occurrenceConversationAttachments.companyId),
+          eq(storedObjects.id, occurrenceConversationAttachments.storedObjectId),
+          sql`${storedObjects.status} <> 'deleted'`,
+        ),
+      )
+      .where(
+        and(
+          eq(occurrenceConversationMessages.companyId, input.companyId),
+          inArray(occurrenceConversationMessages.id, [...input.messageIds]),
+        ),
       ),
-    )
-    .orderBy(
-      asc(occurrenceConversationAttachments.createdAt),
-      asc(occurrenceConversationAttachments.id),
-    )
+  ])
+  const ownMessageIds = new Set(own.map((record) => record.messageId))
+  return [...own, ...delivered.filter((record) => !ownMessageIds.has(record.messageId))]
 }

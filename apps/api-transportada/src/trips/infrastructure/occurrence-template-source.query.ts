@@ -18,6 +18,8 @@ export type StoredOccurrenceTemplateSource = {
   readonly declaredAmount: null | string
   readonly lines: readonly StoredOccurrenceLine[]
   readonly referenceNumber: null | string
+  /** A nova data de vencimento (`AAAA-MM-DD`) que o motorista informou; nula é não informada. */
+  readonly requestedDueDate: null | string
 }
 
 export async function readStoredOccurrenceTemplateSource(
@@ -29,6 +31,7 @@ export async function readStoredOccurrenceTemplateSource(
       .select({
         declaredAmount: tripDocumentOccurrences.declaredAmount,
         referenceNumber: tripDocumentOccurrences.referenceNumber,
+        requestedDueDate: tripDocumentOccurrences.requestedDueDate,
       })
       .from(tripDocumentOccurrences)
       .where(

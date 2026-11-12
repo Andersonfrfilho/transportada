@@ -3,20 +3,43 @@
  */
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import type { EventClockFields } from '../domain/occurred-at.policy.js'
+import {
+  FIELD_INFORMED_TIME,
+  assertInformedTimeWithinWindow,
+} from '../domain/field-delivery-timing.policy.js'
 import { resolveStopOccurrenceKind } from '../domain/stop-occurrence-kind.policy.js'
+import {
+  assertStopOccurrenceRequirements,
+  type StopOccurrenceTypeRequirements,
+} from '../domain/stop-occurrence-requirements.policy.js'
 import {
   OccurrenceTypeNotStopError,
   TripDocumentNotReachableError,
   TripOccurrenceUploadNotReachableError,
   TripStopNotReachableError,
 } from '../domain/trip.error.js'
-import type { SuggestDeliveryChargesPort } from '../../delivery-clients/application/suggest-delivery-charges.use-case.js'
+import { formatFiscalDay } from '../../shared/fiscal-day.service.js'
+import {
+  RECEIVING_CHARGE_STOP_KIND,
+  resolveReceivingCharge,
+  type ReceivingChargeInput,
+  type ResolvedReceivingCharge,
+} from '../domain/receiving-charge.policy.js'
+import { StopOccurrenceReceivingChargeNotAcceptedError } from '../domain/receiving-charge.error.js'
+import {
+  resolveLegacyAttachmentObjectId,
+  resolveStopOccurrencePhotos,
+  type StopOccurrencePhotoSlot,
+  type StopOccurrenceSlotPhoto,
+  type StopOccurrenceSlotPhotoInput,
+} from '../domain/stop-occurrence-photo-slots.policy.js'
 import type {
   DriverFieldReportTransactionPort,
   DriverFieldReportUnitOfWork,
   ReportedLocation,
 } from './driver-field-report.port.js'
 import { resolveFieldTapLocationStamp } from './field-tap-location-stamp.service.js'
+import { performSequencedStopArrival } from './recorded-together-steps.service.js'
 import {
   deriveFieldAuthorship,
   toFieldTripTarget,
@@ -30,13 +53,8 @@ import { buildOfficeAuditEntry, type OfficeAuditRequest } from './trip-field-off
 import { resolveFieldReportOperation, withFieldReport } from './trip-field-report.port.js'
 
 const OCCURRENCE_OPERATION = 'stop.occurrence'
-/** O único tipo de ocorrência que fala de dinheiro. Os demais viram pendência operacional. */
-const CHARGE_OCCURRENCE_KIND = 'unexpected_charge'
-/**
- * O motorista não escolhe o tipo da taxa — ele não sabe se o CD chama aquilo de descarga ou de
- * plataforma. A sugestão nasce como `other`, e o escritório corrige junto com o valor.
- */
-const OCCURRENCE_CHARGE_TYPE = 'other' as const
+/** Spec 317 (E5): a vaga cuja foto vira o comprovante principal da linha (`proof_object_id`). */
+const PAYMENT_RECEIPT_SLOT_KEY = 'payment_receipt'
 
 /**
  * Spec 082 D8: o aviso da ocorrência de parada, pelo trilho `notification.v1` existente — a API
@@ -81,7 +99,17 @@ export type ReportStopOccurrenceInput = FieldTripLocator &
   EventClockFields &
   StopOccurrenceReference & {
     readonly actorUserId: string
+    /**
+     * Spec 315 (D4, D5, D10): o horário de chegada informado. O motorista o informa quando o tipo pede e a parada não tem
+     * "Cheguei"; o escritório, quando a parada não tem chegada e o tipo tem espera mínima. Com chegada já gravada, é
+     * descartado.
+     */
+    readonly arrivedAt?: Date
     readonly attachmentObjectId: string | null
+    /** Spec 315 (D5): a chegada gravada junto passa pela ordem da parada; o escritório nunca manda. */
+    readonly confirmOutOfOrder?: boolean
+    /** O relógio do servidor; só os testes o injetam. */
+    readonly now?: Date
     /** Spec 209: só o canal do motorista a recebe — sem ela, anexo é recusado, nunca ignorado. */
     readonly attachmentUploads?: StopOccurrenceAttachmentPort
     readonly companyId: string
@@ -94,18 +122,27 @@ export type ReportStopOccurrenceInput = FieldTripLocator &
     readonly location?: ReportedLocation | null | undefined
     /** Spec 156 T15 M11: só o escritório manda — a trilha nasce na transação da ocorrência. */
     readonly officeAudit?: OfficeAuditRequest
-    readonly stopId: string
     /**
-     * Spec 060 D4c: a ocorrência de **cobrança** vira sugestão na fila do escritório. Ausente, a
-     * ocorrência segue sendo só relato — que é o comportamento da 057 sozinha.
+     * Spec 317 (E1, E2): uma foto por vaga do tipo — o upload confirmado da 179, nunca o arquivo. Ausente é a
+     * ocorrência sem vagas (a foto única segue em `attachmentObjectId`, spec 209).
      */
-    readonly suggestCharges?: SuggestDeliveryChargesPort
+    readonly photos?: readonly StopOccurrenceSlotPhotoInput[] | undefined
+    /**
+     * Spec 317 (E3, E4, E11): valor, notas e quem pagou da cobrança no recebimento. Só o tipo de `stop_kind`
+     * `unexpected_charge` aceita; nos outros é 400.
+     */
+    readonly receivingCharge?: ReceivingChargeInput | undefined
+    readonly stopId: string
     /** Ausente quando a instalação não tem trilho de notificação — o registro segue igual. */
     readonly notifier?: StopOccurrenceNotifierPort
     readonly unitOfWork: DriverFieldReportUnitOfWork
   }
 
-export type ReportStopOccurrenceResult = { readonly id: string }
+export type ReportStopOccurrenceResult = {
+  /** Spec 315 (RF4): o horário informado gravou a chegada da parada nesta ocorrência. */
+  readonly arrivalRecorded: boolean
+  readonly id: string
+}
 
 /**
  * Spec 209 RF2: o anexo só vale se o upload é desta empresa, desta viagem e deste motorista. Roda
@@ -140,8 +177,15 @@ async function assertStopAttachmentReachable(
 async function resolveStopOccurrenceReference(
   input: ReportStopOccurrenceInput,
   transaction: DriverFieldReportTransactionPort,
-): Promise<{ readonly kind: TripStopOccurrenceKind; readonly occurrenceTypeId: string | null }> {
-  if (input.occurrenceTypeId === undefined) return { kind: input.kind, occurrenceTypeId: null }
+): Promise<{
+  readonly kind: TripStopOccurrenceKind
+  readonly occurrenceTypeId: string | null
+  readonly photoSlots: readonly StopOccurrencePhotoSlot[]
+  readonly requirements: StopOccurrenceTypeRequirements | null
+}> {
+  if (input.occurrenceTypeId === undefined) {
+    return { kind: input.kind, occurrenceTypeId: null, photoSlots: [], requirements: null }
+  }
 
   const type = await transaction.findStopOccurrenceType({
     companyId: input.companyId,
@@ -151,7 +195,164 @@ async function resolveStopOccurrenceReference(
   return {
     kind: resolveStopOccurrenceKind(type.stopKind),
     occurrenceTypeId: input.occurrenceTypeId,
+    photoSlots: type.photoSlots ?? [],
+    requirements: type.requirements ?? null,
   }
+}
+
+/**
+ * Spec 317 (RF3): as vagas de foto do tipo e a cobrança no recebimento, decididas **antes** de qualquer escrita.
+ * Cada foto passa pela mesma barreira do anexo da 209 (empresa, viagem e motorista do upload).
+ */
+async function resolveSlotPhotos(params: {
+  readonly input: ReportStopOccurrenceInput
+  readonly slots: readonly StopOccurrencePhotoSlot[]
+  readonly tripId: string
+}): Promise<readonly StopOccurrenceSlotPhoto[]> {
+  const { input, slots, tripId } = params
+  const requested = input.photos ?? []
+  if (slots.length === 0 && requested.length === 0) return []
+  const photos = resolveStopOccurrencePhotos({
+    isOffice: input.target !== undefined,
+    photos: requested,
+    slots,
+  })
+  for (const photo of photos) {
+    await assertStopAttachmentReachable({ ...input, attachmentObjectId: photo.objectId }, tripId)
+  }
+  return photos
+}
+
+/**
+ * Spec 317 (E4, E8): só o tipo do catálogo de `stop_kind = unexpected_charge` vira cobrança. O corpo antigo (só o
+ * `kind`, fila de antes da troca) segue sendo só relato: sem valor nem fotos não há linha a criar.
+ */
+async function resolveStopReceivingCharge(params: {
+  readonly input: ReportStopOccurrenceInput
+  readonly reference: {
+    readonly kind: TripStopOccurrenceKind
+    readonly occurrenceTypeId: string | null
+  }
+  readonly transaction: DriverFieldReportTransactionPort
+}): Promise<null | ResolvedReceivingCharge> {
+  const { input, reference, transaction } = params
+  const receivesCharge =
+    reference.occurrenceTypeId !== null && reference.kind === RECEIVING_CHARGE_STOP_KIND
+  if (!receivesCharge) {
+    if (input.receivingCharge !== undefined)
+      throw new StopOccurrenceReceivingChargeNotAcceptedError()
+    return null
+  }
+  return resolveReceivingCharge({
+    fallbackDocumentId: input.documentId,
+    input: input.receivingCharge,
+    stopDocuments: await transaction.listStopChargeDocuments({
+      companyId: input.companyId,
+      stopId: input.stopId,
+    }),
+  })
+}
+
+/** A nota da ocorrência: a do corpo, senão a única nota que a cobrança cobre. */
+function resolveOccurrenceDocumentId(
+  input: ReportStopOccurrenceInput,
+  charge: null | ResolvedReceivingCharge,
+): null | string {
+  if (input.documentId !== null || charge === null) return input.documentId
+  const documentIds = new Set(charge.lines.flatMap((line) => line.documentIds))
+  const [only, ...others] = [...documentIds]
+  return only !== undefined && others.length === 0 ? only : null
+}
+
+/** E5, E6, E7: fotos, linhas de Ressarcimentos e a marca do cliente, na transação do registro. */
+async function recordReceivingChargeEffects(params: {
+  readonly charge: null | ResolvedReceivingCharge
+  readonly input: ReportStopOccurrenceInput
+  readonly now: Date
+  readonly occurrenceId: string
+  readonly photos: readonly StopOccurrenceSlotPhoto[]
+  readonly transaction: DriverFieldReportTransactionPort
+}): Promise<void> {
+  const { charge, input, now, occurrenceId, photos, transaction } = params
+  await transaction.recordStopOccurrencePhotos({
+    companyId: input.companyId,
+    photos,
+    stopOccurrenceId: occurrenceId,
+  })
+  if (charge === null) return
+  await transaction.recordReceivingCharges({
+    actorUserId: input.actorUserId,
+    chargedOn: formatFiscalDay(now),
+    companyId: input.companyId,
+    lines: charge.lines,
+    proofObjectId:
+      photos.find((photo) => photo.slotKey === PAYMENT_RECEIPT_SLOT_KEY)?.objectId ?? null,
+    stopOccurrenceId: occurrenceId,
+  })
+  await transaction.flagReceivingChargeClients({
+    companyId: input.companyId,
+    deliveryClientIds: charge.lines.map((line) => line.deliveryClientId),
+    stopOccurrenceId: occurrenceId,
+  })
+}
+
+type RecordInformedArrivalParams = {
+  readonly authorship: ReturnType<typeof deriveFieldAuthorship>
+  readonly input: ReportStopOccurrenceInput
+  readonly informedAt: Date
+  readonly now: Date
+  readonly transaction: DriverFieldReportTransactionPort
+}
+
+/**
+ * Spec 315 (D5): grava a chegada da parada na hora informada, pelo caminho que já existe. O escritório já informa a hora
+ * em `now` (spec 156 A1, janela conferida lá); o motorista passa pela ordem da parada (spec 294) e pela mesma janela
+ * (não no futuro, não antes do despacho). A coordenada da ocorrência **não** vai: é de outro momento e criaria sugestão
+ * de endereço errada.
+ */
+async function recordInformedArrival(params: RecordInformedArrivalParams): Promise<void> {
+  const { authorship, informedAt, input, now, transaction } = params
+  const isOffice = input.target !== undefined
+  if (!isOffice) {
+    const stop = await transaction.findStopForDriver({
+      companyId: input.companyId,
+      stopId: input.stopId,
+      target: toFieldTripTarget(input),
+    })
+    if (stop === null) throw new TripStopNotReachableError()
+    assertInformedTimeWithinWindow({
+      informedAt,
+      kind: FIELD_INFORMED_TIME.arrived,
+      now,
+      windowStart: await transaction.findInformedTimeWindowStart({
+        companyId: input.companyId,
+        tripId: stop.tripId,
+      }),
+    })
+  }
+  const locator: FieldTripLocator =
+    input.target === undefined
+      ? {
+          driverId: input.driverId,
+          ...(input.channel === undefined ? {} : { channel: input.channel }),
+        }
+      : { target: input.target }
+  await performSequencedStopArrival({
+    authorship,
+    input: {
+      ...locator,
+      actorUserId: input.actorUserId,
+      companyId: input.companyId,
+      ...(input.confirmOutOfOrder === undefined
+        ? {}
+        : { confirmOutOfOrder: input.confirmOutOfOrder }),
+      ...(isOffice ? { recordedAt: now } : { informedAt }),
+      location: null,
+      now: isOffice ? informedAt : now,
+      stopId: input.stopId,
+    },
+    transaction,
+  })
 }
 
 export async function reportStopOccurrence(
@@ -159,7 +360,10 @@ export async function reportStopOccurrence(
 ): Promise<ReportStopOccurrenceResult> {
   const authorship = deriveFieldAuthorship(input)
 
+  const now = input.now ?? new Date()
   const recorded = await input.unitOfWork.execute(async (transaction) => {
+    let arrivalRecorded = false
+    let documentId = input.documentId
     const reference = await resolveStopOccurrenceReference(input, transaction)
     const occurrence = await withFieldReport({
       guard: {
@@ -188,34 +392,101 @@ export async function reportStopOccurrence(
           if (document === null) throw new TripDocumentNotReachableError()
         }
 
+        /** Spec 317 (RF3): vagas de foto e cobrança no recebimento, decididas antes de qualquer escrita. */
+        const photos = await resolveSlotPhotos({
+          input,
+          slots: reference.photoSlots,
+          tripId: stop.tripId,
+        })
+        const charge = await resolveStopReceivingCharge({ input, reference, transaction })
+        documentId = resolveOccurrenceDocumentId(input, charge)
+        const attachmentObjectId = resolveLegacyAttachmentObjectId({
+          attachmentObjectId: input.attachmentObjectId,
+          photos,
+        })
+
+        /**
+         * Spec 315: o tipo cobra o que declarou (espera mínima, localização, foto, observação, horário) **antes** de
+         * qualquer escrita. Só vale quando o corpo manda o tipo do catálogo; o corpo antigo (só o kind) não tem o que cobrar.
+         */
+        if (reference.requirements !== null) {
+          const decision = assertStopOccurrenceRequirements({
+            arrivedAt: stop.arrivedAt,
+            attachmentCount:
+              photos.length > 0 ? photos.length : attachmentObjectId === null ? 0 : 1,
+            hasLocation: input.location !== null && input.location !== undefined,
+            informedArrivalAt: input.arrivedAt ?? null,
+            isOffice: input.target !== undefined,
+            note: input.description,
+            now,
+            requirements: reference.requirements,
+          })
+          if (decision.kind === 'record') {
+            await recordInformedArrival({
+              authorship,
+              informedAt: decision.arrivalAt,
+              input,
+              now,
+              transaction,
+            })
+            arrivalRecorded = true
+          }
+        }
+
         const audit = buildOfficeAuditEntry({
           actorUserId: input.actorUserId,
           audit: input.officeAudit,
           companyId: input.companyId,
           details: {
-            ...(input.documentId === null ? {} : { documentId: input.documentId }),
+            ...(documentId === null ? {} : { documentId }),
             stopId: input.stopId,
           },
           locator: input,
         })
         if (audit !== undefined) await transaction.recordOfficeAudit(audit)
 
-        return transaction.recordOccurrence({
+        const recordedOccurrence = await transaction.recordOccurrence({
           actorUserId: input.actorUserId,
-          attachmentObjectId: input.attachmentObjectId,
+          attachmentObjectId,
           authorship,
           companyId: input.companyId,
           description: input.description,
           distanceMeters: input.distanceMeters,
-          documentId: input.documentId,
+          documentId,
           kind: reference.kind,
           locationStamp: resolveFieldTapLocationStamp({
             location: input.location,
             locator: input,
           }),
           occurrenceTypeId: reference.occurrenceTypeId,
+          ...(charge === null
+            ? {}
+            : {
+                receivingCharge: {
+                  declaredAmount: charge.declaredAmount,
+                  driverPixKey: charge.driverPixKey,
+                  driverPixKeyType: charge.driverPixKeyType,
+                  paidBy: charge.paidBy,
+                },
+              }),
           stopId: input.stopId,
         })
+        await recordReceivingChargeEffects({
+          charge,
+          input,
+          now,
+          occurrenceId: recordedOccurrence.id,
+          photos,
+          transaction,
+        })
+        await transaction.onStopEvent({
+          channel: authorship.channel,
+          companyId: input.companyId,
+          kind: 'occurrence',
+          occurredAt: new Date(),
+          target: { stopId: input.stopId },
+        })
+        return recordedOccurrence
       },
       recall: async (occurrenceId) => {
         if (input.attachmentObjectId !== null) {
@@ -230,7 +501,7 @@ export async function reportStopOccurrence(
         return transaction.findOccurrenceById({ companyId: input.companyId, occurrenceId })
       },
     })
-    return { id: occurrence.id, kind: reference.kind }
+    return { arrivalRecorded, documentId, id: occurrence.id, kind: reference.kind }
   })
 
   /**
@@ -248,22 +519,10 @@ export async function reportStopOccurrence(
   }
 
   /**
-   * Spec 060 D4c: **a ocorrência não é uma cobrança; ela é o aviso de que talvez exista uma.** A
-   * sugestão nasce fora da transação do relato de campo, e falhar aqui não desfaz a ocorrência —
-   * perder o aviso do motorista para salvar a fila do escritório seria trocar o certo pelo errado.
-   *
-   * Sem nota não há sugestão: a taxa é cobrada por nota, e "alguém cobrou algo nesta parada" não diz
-   * de qual carga — isso o escritório resolve lendo a ocorrência.
+   * Spec 317 (E10): a sugestão automática de `0` da spec 060 D4c **não** é mais chamada — a cobrança no recebimento
+   * já nasce `recorded`, com o valor real, na transação acima. E nada sai à contratante (D1): este caminho não tem
+   * porta de e-mail, portal nem bot; só o aviso interno abaixo, que é equipe nossa.
    */
-  if (recorded.kind === CHARGE_OCCURRENCE_KIND && input.documentId !== null) {
-    await input.suggestCharges?.onDelivered({
-      chargeType: OCCURRENCE_CHARGE_TYPE,
-      companyId: input.companyId,
-      deliveredOn: new Date().toISOString().slice(0, 10),
-      origin: 'occurrence',
-      tripDocumentId: input.documentId,
-    })
-  }
 
   /**
    * Spec 082 D8: o aviso sai **depois** da transação, como a sugestão de cobrança — falhar aqui
@@ -272,12 +531,12 @@ export async function reportStopOccurrence(
    */
   await input.notifier?.notify({
     companyId: input.companyId,
-    documentId: input.documentId,
+    documentId: recorded.documentId,
     kind: recorded.kind,
     occurredAt: new Date(),
     occurrenceId: recorded.id,
     stopId: input.stopId,
   })
 
-  return { id: recorded.id }
+  return { arrivalRecorded: recorded.arrivalRecorded, id: recorded.id }
 }

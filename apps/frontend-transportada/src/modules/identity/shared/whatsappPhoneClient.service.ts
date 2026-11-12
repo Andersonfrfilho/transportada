@@ -12,7 +12,7 @@ import {
   toWhatsAppPhoneVerification,
 } from './whatsappPhone.validation'
 
-type RequestMethod = 'DELETE' | 'GET' | 'POST'
+type RequestMethod = 'DELETE' | 'GET' | 'POST' | 'PUT'
 
 type ClientDependencies = Readonly<{
   apiUrl: string
@@ -108,6 +108,45 @@ export function createWhatsAppPhoneClient(dependencies: ClientDependencies): Wha
     },
     async unbind() {
       await authorizedRequest({ dependencies, method: 'DELETE', path: WHATSAPP_PHONE_PATH })
+    },
+  }
+}
+
+export type CompanyUserWhatsAppPhoneClient = Readonly<{
+  bind: (input: Readonly<{ phone: string; userId: string }>) => Promise<void>
+  readState: (userId: string) => Promise<WhatsAppPhoneState>
+  unbind: (userId: string) => Promise<void>
+}>
+
+const companyUserPath = (userId: string): string =>
+  `/company-users/${encodeURIComponent(userId)}/whatsapp-phone`
+
+/**
+ * O administrador (`users.manage`) lê, grava já verificado e desfaz o WhatsApp de outra pessoa. Decisão do dono em
+ * 10/11/2026: sem pedido de código; a API grava quem fez na trilha.
+ */
+export function createCompanyUserWhatsAppPhoneClient(
+  dependencies: ClientDependencies,
+): CompanyUserWhatsAppPhoneClient {
+  return {
+    async bind({ phone, userId }) {
+      await authorizedRequest({
+        body: JSON.stringify({ phone }),
+        dependencies,
+        method: 'PUT',
+        path: companyUserPath(userId),
+      })
+    },
+    async readState(userId) {
+      const { payload } = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: companyUserPath(userId),
+      })
+      return toWhatsAppPhoneState(readEnvelopeData(payload))
+    },
+    async unbind(userId) {
+      await authorizedRequest({ dependencies, method: 'DELETE', path: companyUserPath(userId) })
     },
   }
 }

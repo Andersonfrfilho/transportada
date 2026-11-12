@@ -240,6 +240,8 @@ export type UseNfeDocumentTableResult = Readonly<{
   searchTerm: string
   selectedCount: number
   selectedIds: ReadonlySet<string>
+  /** Substitui a seleção pelas notas dadas (a planilha manda, não soma). */
+  selectDocuments: (ids: readonly string[]) => void
   /** Spec 103: quantas marcações o filtro está escondendo. Zero na esmagadora maioria das vezes. */
   selectionHiddenByFilter: number
   setAmountOperator: (operator: AmountOperator) => void
@@ -1158,6 +1160,10 @@ export function useNfeDocumentTable({
     setSelectedIds(new Set())
   }
 
+  function selectDocuments(ids: readonly string[]): void {
+    setSelectedIds(new Set(ids))
+  }
+
   function toggleColumn(column: ColumnKey): void {
     setColumnVisibility((current) => ({ ...current, [column]: !current[column] }))
   }
@@ -1213,6 +1219,7 @@ export function useNfeDocumentTable({
     savedConditionCount,
     searchTerm,
     selectedCount: scopedSelectedIds.size,
+    selectDocuments,
     selectedIds: scopedSelectedIds,
     /** Quantas marcações o filtro está escondendo — a tela avisa em vez de deixar descobrir depois. */
     selectionHiddenByFilter,

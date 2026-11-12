@@ -5,88 +5,42 @@
  * mas **não colhe foto, assinatura nem produtos** — só a observação (nem número e valor pago, 247). Quando o tipo efetivo da nota exige
  * um desses campos, o servidor recusa com o erro estável do campo, e a conversa traduz a recusa na frase
  * que diz o que falta (a lista de tipos do canal não é filtrada por exigência: o erro é o aviso).
+ *
+ * Spec 293 T11: a classificação do erro e as frases moram na camada comum dos eventos
+ * (`whatsapp-driver-events.service.ts` e `whatsapp-driver-event-speech.service.ts`); aqui fica só para
+ * onde a conversa individual volta depois da recusa.
  */
-import {
-  OccurrenceItemQuantityAboveDocumentError,
-  TripOccurrenceAttachmentRequiredError,
-  TripOccurrenceDeclaredAmountRequiredError,
-  TripOccurrenceItemsMinimumNotMetError,
-  TripOccurrenceItemsRequiredError,
-  TripOccurrenceNoteRequiredError,
-  TripOccurrencePhotoMinimumNotMetError,
-  TripOccurrenceReferenceNumberRequiredError,
-  TripOccurrenceSignatureRequiredError,
-} from '../../trips/domain/trip.error.js'
-import { OccurrenceTypeNotAvailableForContractorError } from '../../trips/domain/occurrence-type-contractor-scope.error.js'
 import { DRIVER_FLOW_NODE } from '../domain/whatsapp-driver-flow.constant.js'
+import { OCCURRENCE_REQUIREMENT_MESSAGES } from './whatsapp-driver-event-speech.service.js'
+import {
+  classifyWhatsAppDriverEventError,
+  type OccurrenceRequirementField,
+} from './whatsapp-driver-events.service.js'
+
+export { OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE } from './whatsapp-driver-event-speech.service.js'
 
 export type DriverOccurrenceRefusal = {
   readonly message: string
   readonly next: string
 }
 
-const USE_THE_APP = 'Registre pelo aplicativo.'
+type DriverFlowNode = (typeof DRIVER_FLOW_NODE)[keyof typeof DRIVER_FLOW_NODE]
 
-/** Spec 270 (R3): a frase dos dois canais do WhatsApp quando o servidor recusa o tipo pela contratante. */
-export const OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE =
-  'Este tipo não vale para a contratante desta nota. Escolha outro tipo.'
+/** Observação volta a pedir a observação; contratante volta à lista; o resto, ao menu da viagem. */
+export function occurrenceRequirementNextNode(field: OccurrenceRequirementField): DriverFlowNode {
+  if (field === 'note') return DRIVER_FLOW_NODE.notePrompt
+  if (field === 'contractor_scope') return DRIVER_FLOW_NODE.listOccurrenceTypes
+  return DRIVER_FLOW_NODE.tripMenu
+}
 
 /** `undefined` quando o erro não é uma exigência de campo — quem chama segue o tratamento de sempre. */
 export function describeOccurrenceRequirementRefusal(
   error: unknown,
 ): DriverOccurrenceRefusal | undefined {
-  if (error instanceof TripOccurrenceNoteRequiredError) {
-    return {
-      message: 'Essa ocorrência exige a observação. Digite o que aconteceu.',
-      next: DRIVER_FLOW_NODE.notePrompt,
-    }
+  const refusal = classifyWhatsAppDriverEventError(error)
+  if (refusal?.code !== 'occurrence_requirement') return undefined
+  return {
+    message: OCCURRENCE_REQUIREMENT_MESSAGES[refusal.field],
+    next: occurrenceRequirementNextNode(refusal.field),
   }
-  if (error instanceof TripOccurrenceSignatureRequiredError) {
-    return {
-      message: `Essa ocorrência exige a assinatura de quem recebeu, e o WhatsApp não envia assinatura. ${USE_THE_APP}`,
-      next: DRIVER_FLOW_NODE.tripMenu,
-    }
-  }
-  if (
-    error instanceof TripOccurrenceAttachmentRequiredError ||
-    error instanceof TripOccurrencePhotoMinimumNotMetError
-  ) {
-    return {
-      message: `Essa ocorrência exige foto, e o WhatsApp não envia foto. ${USE_THE_APP}`,
-      next: DRIVER_FLOW_NODE.tripMenu,
-    }
-  }
-  if (
-    error instanceof TripOccurrenceItemsRequiredError ||
-    error instanceof TripOccurrenceItemsMinimumNotMetError
-  ) {
-    return {
-      message: `Essa ocorrência exige apontar os produtos da nota, e o WhatsApp não aponta produtos. ${USE_THE_APP}`,
-      next: DRIVER_FLOW_NODE.tripMenu,
-    }
-  }
-  /** Spec 247 (T4.4): o WhatsApp não colhe número do documento, valor pago nem quantidade. */
-  if (error instanceof TripOccurrenceReferenceNumberRequiredError) {
-    return {
-      message: `Essa ocorrência exige o número do documento do cliente, e o WhatsApp não o envia. ${USE_THE_APP}`,
-      next: DRIVER_FLOW_NODE.tripMenu,
-    }
-  }
-  if (
-    error instanceof TripOccurrenceDeclaredAmountRequiredError ||
-    error instanceof OccurrenceItemQuantityAboveDocumentError
-  ) {
-    return {
-      message: `Essa ocorrência exige o valor pago e as quantidades, e o WhatsApp não os envia. ${USE_THE_APP}`,
-      next: DRIVER_FLOW_NODE.tripMenu,
-    }
-  }
-  /** Spec 270 (R3): volta à lista de tipos, nunca relança e nunca fica no passo da observação. */
-  if (error instanceof OccurrenceTypeNotAvailableForContractorError) {
-    return {
-      message: OCCURRENCE_TYPE_NOT_AVAILABLE_MESSAGE,
-      next: DRIVER_FLOW_NODE.listOccurrenceTypes,
-    }
-  }
-  return undefined
 }

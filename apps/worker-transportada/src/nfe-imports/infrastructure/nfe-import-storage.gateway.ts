@@ -141,7 +141,7 @@ async function storeImmutable(input: {
   }
 }
 
-function buildDocumentKey(input: {
+export function buildDocumentKey(input: {
   readonly accessKey: string
   readonly companyId: string
 }): string {

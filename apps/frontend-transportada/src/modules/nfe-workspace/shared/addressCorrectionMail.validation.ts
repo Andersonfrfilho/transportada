@@ -40,23 +40,22 @@ export type AddressCorrectionMailSendResult = Readonly<{
 }>
 
 /**
- * Modelo de e-mail do tipo `address_correction` (spec 150, T405). Cópia por valor do que a API
- * devolve (T402, `contractor-mail-templates.routes.ts`) — só os campos que a confirmação usa.
+ * Spec 286 (RF6): o estado do modelo do e-mail de correção, que mora no módulo de notificação
+ * (`GET /address-correction-requests/mail-template`). `preview` vem com dados de exemplo, nunca do envio real.
  */
-export type AddressCorrectionMailTemplateStatus = 'active' | 'archived'
-
-export type AddressCorrectionMailTemplate = Readonly<{
-  id: string
-  isDefault: boolean
-  name: string
-  status: AddressCorrectionMailTemplateStatus
-}>
-
-/** `POST /contractor-mail-templates/preview` — sempre dados de exemplo (T402), nunca o envio real. */
 export type AddressCorrectionMailTemplatePreview = Readonly<{
   html: string
   subject: string
   text: string
+}>
+
+export type AddressCorrectionMailTemplateState = Readonly<{
+  preview: AddressCorrectionMailTemplatePreview | null
+  /** Códigos dos problemas apontados pela régua do servidor (`not_found`, `unsafe_html`…). */
+  problemCodes: readonly string[]
+  /** Pode sair e-mail com ele. */
+  usable: boolean
+  version: number | null
 }>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -73,10 +72,6 @@ function isNumber(value: unknown): value is number {
 
 function isContactStatus(value: unknown): value is AddressCorrectionMailContactStatus {
   return value === 'active' || value === 'inactive'
-}
-
-function isTemplateStatus(value: unknown): value is AddressCorrectionMailTemplateStatus {
-  return value === 'active' || value === 'archived'
 }
 
 /** `GET /contractors/by-tax-id/:taxId` — só o `id` importa aqui, o resto é o cadastro do cliente. */
@@ -167,39 +162,37 @@ export function mapAddressCorrectionMailSendResult(
   }
 }
 
-/** Modelo que esta versão não reconhece some da lista, não a lista inteira. */
-export function mapAddressCorrectionMailTemplate(
-  value: unknown,
-): AddressCorrectionMailTemplate | null {
-  if (
-    !isRecord(value) ||
-    !isString(value.id) ||
-    !isString(value.name) ||
-    typeof value.isDefault !== 'boolean' ||
-    !isTemplateStatus(value.status)
-  ) {
-    return null
-  }
-  return { id: value.id, isDefault: value.isDefault, name: value.name, status: value.status }
-}
-
-/** `GET /contractor-mail-templates?mailType=address_correction`. */
-export function mapAddressCorrectionMailTemplateList(
-  value: unknown,
-): readonly AddressCorrectionMailTemplate[] {
-  const data = isRecord(value) ? value.data : undefined
-  if (!Array.isArray(data)) return []
-  return data
-    .map(mapAddressCorrectionMailTemplate)
-    .filter((template): template is AddressCorrectionMailTemplate => template !== null)
-}
-
 export function mapAddressCorrectionMailTemplatePreview(
   value: unknown,
 ): AddressCorrectionMailTemplatePreview | null {
-  const data = isRecord(value) ? value.data : undefined
-  if (!isRecord(data) || !isString(data.html) || !isString(data.subject) || !isString(data.text)) {
+  if (
+    !isRecord(value) ||
+    !isString(value.html) ||
+    !isString(value.subject) ||
+    !isString(value.text)
+  ) {
     return null
   }
-  return { html: data.html, subject: data.subject, text: data.text }
+  return { html: value.html, subject: value.subject, text: value.text }
+}
+
+/** `GET /address-correction-requests/mail-template`. Resposta que esta versão não reconhece é `null`. */
+export function mapAddressCorrectionMailTemplateState(
+  value: unknown,
+): AddressCorrectionMailTemplateState | null {
+  const data = isRecord(value) ? value.data : undefined
+  if (!isRecord(data) || typeof data.usable !== 'boolean' || !Array.isArray(data.problems)) {
+    return null
+  }
+  const preview =
+    data.preview === null ? null : mapAddressCorrectionMailTemplatePreview(data.preview)
+  if (data.preview !== null && preview === null) return null
+  return {
+    preview,
+    problemCodes: data.problems.flatMap((problem) =>
+      isRecord(problem) && isString(problem.code) ? [problem.code] : [],
+    ),
+    usable: data.usable,
+    version: isNumber(data.version) ? data.version : null,
+  }
 }

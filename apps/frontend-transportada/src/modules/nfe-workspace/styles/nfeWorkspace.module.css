@@ -24,13 +24,6 @@
 
 .workspaceHeader h1 {
   margin: 0;
-  max-width: none;
-  font-family: var(--font-body);
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
 .headerCopy,
@@ -42,6 +35,14 @@
   color: var(--color-slate);
   line-height: 1.6;
   overflow-wrap: anywhere;
+}
+
+.headerBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
 }
 
 .statusRail {
@@ -529,6 +530,11 @@ div.cardError {
   color: var(--color-copper);
 }
 
+.importByScanShortcut {
+  display: flex;
+  margin-left: auto;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1001,10 +1007,6 @@ div.cardError {
 
 .tableEmptyAction {
   margin-top: var(--space-3);
-  font-family: var(--font-utility);
-  font-size: 0.875rem;
-  color: var(--color-slate);
-  text-decoration: underline;
 }
 
 .columnSort,
@@ -1470,4 +1472,119 @@ div.cardError {
   margin: 0;
   color: var(--color-slate);
   font-size: 0.8rem;
+}
+
+.sheetSelection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Liberar domínio de e-mail de XML (spec 313): rótulo em cima, campo com a métrica de campo (`docs/frontend/fields.md`). */
+.domainForm {
+  display: grid;
+  gap: var(--space-3);
+  align-items: end;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 40rem) {
+  .domainForm {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+}
+
+.domainField {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  min-width: 0;
+}
+
+.domainField > span {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.domainField input {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.domainActions {
+  display: flex;
+}
+
+.domainFormError {
+  grid-column: 1 / -1;
+}
+
+/* O seletor de contratante é compacto de fábrica (barra de filtro); no formulário ele fecha na altura do campo ao lado. */
+.domainField button {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  font-size: var(--field-font-size);
+}
+
+/* Spec 314 — confirmação do reprocesso: o molde do diálogo de emissão (tela cheia no celular, caixa do tablet para cima). */
+.reprocessOverlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.reprocessDialog {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: none;
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.reprocessBody {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.reprocessBody p {
+  margin: 0;
+}
+
+.reprocessDetail {
+  color: var(--color-slate);
+  font-size: 0.875rem;
+}
+
+@media (min-width: 40rem) {
+  .reprocessOverlay {
+    padding: var(--space-4);
+  }
+
+  .reprocessDialog {
+    width: min(30rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  }
 }

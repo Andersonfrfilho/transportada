@@ -32,9 +32,6 @@
 
 .header h1 {
   margin: 0;
-  font-size: 1.75rem;
-  font-weight: 800;
-  line-height: 1.15;
 }
 
 .intro {
@@ -868,11 +865,15 @@ button.occurrenceCaseBadge {
 /* O campo divide a fileira com botões `size="sm"`, que medem `--control-height-compact`. No token
    normal ele ficava 10px mais alto que os vizinhos e a linha saía desencontrada — a altura do campo
    é a do controle ao lado dele, e as duas saem do mesmo par de tokens. */
-.scanField input {
+.scanField input,
+.mdfeGateDialog .scanField input:not([type='file'], [type='checkbox'], [type='radio']) {
   min-height: var(--field-height-compact);
   padding: var(--field-padding-compact);
   font-size: var(--field-font-size-compact);
 }
+
+/* Dentro do diálogo, `.mdfeGateDialog input:not(...)` vence a regra acima por especificidade e o campo
+   voltava aos 3rem, mais alto que os botões `size="sm"` da mesma fileira (e cortava o placeholder). */
 
 /* A tabela do resultado rola dentro da própria caixa: sem o teto, o modal crescia com o filtro e
    empurrava motorista, veículo e o botão de criar para fora da tela — e a lista de seleção deixava
@@ -1090,6 +1091,15 @@ button.occurrenceCaseBadge {
 }
 
 .stopSectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* Spec 323: a origem da ordem das paradas e o botão "Ordenar paradas" — texto à esquerda, ação à direita, quebra no celular. */
+.stopOrderRow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -6518,4 +6528,74 @@ button.occurrenceCaseBadge {
 .occurrenceClientEmail {
   display: inline-flex;
   margin-right: var(--space-2);
+}
+
+/* Menu de colunas da listagem de viagens — em portal, como o da NFS-e. */
+.columnsMenuWrap {
+  display: inline-flex;
+}
+
+.iconActionActive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 65%, transparent);
+  color: var(--color-copper);
+  cursor: pointer;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+@media (pointer: coarse) {
+  .iconActionActive {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
+}
+
+.tripColumnsPopover {
+  position: fixed;
+  z-index: 40;
+  top: var(--floating-layer-top, 0);
+  left: var(--floating-layer-left, 0);
+  display: grid;
+  gap: var(--space-2);
+  min-width: max(16rem, var(--floating-layer-min-width, 0));
+  max-height: min(20rem, var(--floating-layer-max-height, 20rem));
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  background: var(--color-graphite);
+}
+
+.tripColumnRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.tripColumnReorder {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+.tripPagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-2);
+}
+
+.tripPaginationActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
 }

@@ -35,3 +35,21 @@ export type OccurrenceTypeRecipientCandidate = Readonly<{
   receivesOccurrences: boolean
   status: string
 }>
+
+/** Spec 286 (RF2): por que o modelo não serve a um canal do retorno ao cliente (mesma lista da gravação). */
+export type ClientChannelTemplateProblemCode =
+  | 'empty_body'
+  | 'empty_subject'
+  | 'not_found'
+  | 'system_key'
+
+/** Um modelo do módulo num canal da matriz "Retorno ao cliente"; WhatsApp é texto puro, sem assunto (`subject: null`). */
+export type ClientChannelTemplateChoice = Readonly<{
+  body: string
+  channel: 'email' | 'whatsapp'
+  key: string
+  problems: readonly Readonly<{ code: ClientChannelTemplateProblemCode }>[]
+  subject: null | string
+  usable: boolean
+  version: number
+}>

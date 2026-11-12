@@ -7,13 +7,17 @@ import type { CompanyPermission } from '../../identity/domain/authorization.poli
  * Spec 147 D2/RF9: hoje só o cadastro antigo de carroceria. A página nasce genérica, com um tipo
  * só, para receber outros depois.
  */
-export type PendingItemKind = 'vehicleBodyTypeMissing'
+export type PendingItemKind = 'addressSuggestedByDriver' | 'vehicleBodyTypeMissing'
 
 export type PendingItem = {
+  /** Só ordena a mescla de duas fontes; a resposta HTTP não o leva. */
+  readonly createdAt?: Date
+  /** Spec 294 T3.2: o que a tela precisa para decidir sem outra leitura (ponto sugerido e distância). */
+  readonly details?: Readonly<Record<string, null | number | string>>
   readonly entityId: string
-  readonly entityType: 'vehicle'
+  readonly entityType: 'addressSuggestion' | 'vehicle'
   readonly kind: PendingItemKind
-  /** Placa: não é PII, e não carrega dado de motorista. */
+  /** Placa (veículo) ou o endereço da parada (sugestão): não carrega dado de motorista. */
   readonly label: string
 }
 

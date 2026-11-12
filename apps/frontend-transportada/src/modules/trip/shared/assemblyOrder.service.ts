@@ -59,6 +59,35 @@ export function reconcileCityOrder(input: {
   return [...kept, ...appended]
 }
 
+/**
+ * Spec 323 RF7: o operador mexeu na ordem das cidades do mapa? A ordem que nasce sozinha é a de chegada (`reconcileCityOrder`
+ * sem nada antes); qualquer diferença dela é ajuste dele e vira a ordem manual da viagem. Comparar com a ordem de chegada
+ * (e não guardar um sinal) vale também para o rascunho restaurado do armazenamento.
+ */
+export function isCityOrderTouched(input: {
+  readonly cityOrder: AssemblyCityOrder
+  readonly documents: readonly Readonly<{
+    recipientAddressNumber: null | string
+    recipientCityCode: null | string
+    recipientPostalCode: null | string
+  }>[]
+}): boolean {
+  const arrival = reconcileCityOrder({
+    cityCodes: input.documents.map((document) =>
+      resolveStopKey({
+        cityCode: document.recipientCityCode,
+        number: document.recipientAddressNumber,
+        postalCode: document.recipientPostalCode,
+      }),
+    ),
+    order: [],
+  })
+  return (
+    arrival.length !== input.cityOrder.length ||
+    arrival.some((code, index) => code !== input.cityOrder[index])
+  )
+}
+
 export function moveCity(input: {
   readonly code: string
   readonly direction: -1 | 1

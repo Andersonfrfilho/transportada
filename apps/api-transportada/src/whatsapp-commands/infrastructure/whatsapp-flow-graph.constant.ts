@@ -1,16 +1,25 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { DRIVER_LIST_HEADING } from '../domain/whatsapp-driver-list-heading.constant.js'
 import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 
+import { buildBotSpeechNodes } from '../domain/whatsapp-bot-speech.policy.js'
 import { DRIVER_RETURN_REASONS } from '../../trips/domain/driver-return-reason.policy.js'
 import {
+  DRIVER_DIRECT_CONFIRM_ANSWER,
   DRIVER_FLOW_ACTION_KIND,
   DRIVER_FLOW_CONTEXT_KEY,
   DRIVER_FLOW_NODE,
   DRIVER_LOCATION_REQUEST_TEXT,
   DRIVER_RETURN_REASON_LABELS,
 } from '../domain/whatsapp-driver-flow.constant.js'
+import {
+  ATTENDANT_CLOSE_ANSWER,
+  ATTENDANT_FLOW_ACTION_KIND,
+  ATTENDANT_FLOW_CONTEXT_KEY,
+  ATTENDANT_FLOW_NODE,
+} from '../domain/whatsapp-attendant-flow.constant.js'
 import {
   ISSUANCE_FLOW_ACTION_KIND,
   ISSUANCE_FLOW_CONTEXT_KEY,
@@ -69,6 +78,9 @@ export const WHATSAPP_ROOT_FLOW_GRAPH: FlowGraphData = {
     ...buildIssuanceFlowNodes(),
     ...buildDriverTripFlowNodes(),
     ...buildOperatorTripFlowNodes(),
+    ...buildAttendantFieldFlowNodes(),
+    /** Spec 286 T8 (RF7): as falas do bot, uma `directMessage` editável por nó. */
+    ...buildBotSpeechNodes(),
   },
   startNodeId: 'menu',
   version: 1,
@@ -138,7 +150,7 @@ function buildIssuanceFlowNodes(): FlowGraphData['nodes'] {
  * ocorrência. Toda lista dinâmica (notas, tipos de ocorrência) é mandada pela própria `FlowAction`
  * (`register-driver-flow-actions.ts`) — o nó `action` busca e envia, o `entrada_choice` que vem
  * depois só captura a resposta, e um segundo `action` (o "roteador") decide o próximo passo. Só o
- * menu da viagem (3 opções fixas) e a lista de motivos de devolução (5 motivos fixos) são opções
+ * menu da viagem (5 opções fixas) e a lista de motivos de devolução (5 motivos fixos) são opções
  * estáticas de verdade.
  */
 function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
@@ -152,14 +164,73 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
       contextKey: DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice,
       fallbackMessage: 'Toque numa das opções.',
       id: DRIVER_FLOW_NODE.tripMenu,
-      next: DRIVER_FLOW_NODE.listDocuments,
+      /** Spec 293 T14: saí e cheguei não escolhem nota; os outros três seguem para a lista de notas. */
+      next: {
+        byAnswer: {
+          arrive: DRIVER_FLOW_NODE.arrive,
+          depart: DRIVER_FLOW_NODE.depart,
+        },
+        default: DRIVER_FLOW_NODE.listDocuments,
+      },
       options: [
-        ['deliver', '📦 Entregar'],
-        ['return', '↩️ Devolver'],
+        ['depart', '🚚 Saí para a entrega'],
+        ['arrive', '📍 Cheguei'],
+        ['deliver', '✅ Entreguei'],
+        ['return', '↩️ Não entreguei'],
         ['occurrence', '⚠️ Ocorrência'],
       ],
-      question: `O que você quer fazer com esta viagem?\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
+      question: `*O que você quer lançar?*\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'menu',
+    },
+    [DRIVER_FLOW_NODE.depart]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.depart,
+      id: DRIVER_FLOW_NODE.depart,
+      type: 'action',
+    },
+    [DRIVER_FLOW_NODE.arrive]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.arrive,
+      id: DRIVER_FLOW_NODE.arrive,
+      type: 'action',
+    },
+    [DRIVER_FLOW_NODE.listStops]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.listStops,
+      id: DRIVER_FLOW_NODE.listStops,
+      type: 'action',
+    },
+    [DRIVER_FLOW_NODE.stopEntry]: {
+      contextKey: DRIVER_FLOW_CONTEXT_KEY.stopAnswer,
+      id: DRIVER_FLOW_NODE.stopEntry,
+      next: DRIVER_FLOW_NODE.stopRouter,
+      question: 'Toque numa parada da lista acima.',
+      type: 'entrada_choice',
+    },
+    [DRIVER_FLOW_NODE.stopRouter]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.stopRouter,
+      id: DRIVER_FLOW_NODE.stopRouter,
+      type: 'action',
+    },
+    /** Spec 293 T14: "entreguei 17234", "cheguei" digitados — o mesmo interpretador do grupo. */
+    [DRIVER_FLOW_NODE.directCommand]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.directCommand,
+      id: DRIVER_FLOW_NODE.directCommand,
+      type: 'action',
+    },
+    [DRIVER_FLOW_NODE.directConfirm]: {
+      contextKey: DRIVER_FLOW_CONTEXT_KEY.directConfirmAnswer,
+      fallbackMessage: 'Toque em Sim ou Não.',
+      id: DRIVER_FLOW_NODE.directConfirm,
+      next: DRIVER_FLOW_NODE.directConfirmRouter,
+      options: [
+        [DRIVER_DIRECT_CONFIRM_ANSWER.yes, '✅ Sim'],
+        [DRIVER_DIRECT_CONFIRM_ANSWER.no, '❌ Não'],
+      ],
+      question: `✅ *Confirma?*\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
+      type: 'menu',
+    },
+    [DRIVER_FLOW_NODE.directConfirmRouter]: {
+      actionKind: DRIVER_FLOW_ACTION_KIND.directConfirmRouter,
+      id: DRIVER_FLOW_NODE.directConfirmRouter,
+      type: 'action',
     },
     [DRIVER_FLOW_NODE.listDocuments]: {
       actionKind: DRIVER_FLOW_ACTION_KIND.listDocuments,
@@ -186,7 +257,7 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
       options: DRIVER_RETURN_REASONS.map(
         (reason) => [reason, DRIVER_RETURN_REASON_LABELS[reason] ?? reason] as [string, string],
       ),
-      question: `Qual foi o motivo da devolução?\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
+      question: `↩️ *Por que a nota não foi entregue?*\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'menu',
     },
     [DRIVER_FLOW_NODE.returnReasonRouter]: {
@@ -220,7 +291,7 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
       contextKey: DRIVER_FLOW_CONTEXT_KEY.noteAnswer,
       id: DRIVER_FLOW_NODE.noteEntry,
       next: DRIVER_FLOW_NODE.noteRouter,
-      question: `Digite o texto, ou toque em Pular.\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
+      question: `${DRIVER_LIST_HEADING.occurrenceNote}\nEscreva agora, ou toque em Pular.\n\n${DRIVER_LOCATION_REQUEST_TEXT}`,
       type: 'entrada_choice',
     },
     [DRIVER_FLOW_NODE.noteRouter]: {
@@ -357,6 +428,50 @@ function buildOperatorTripFlowNodes(): FlowGraphData['nodes'] {
     [OPERATOR_FLOW_NODE.photoRouter]: {
       actionKind: OPERATOR_FLOW_ACTION_KIND.photoRouter,
       id: OPERATOR_FLOW_NODE.photoRouter,
+      type: 'action',
+    },
+  }
+}
+
+/**
+ * Spec 294 RF21 — o atendente direto com o bot: o comando ("entreguei 17234 17235", "encerrar a rota")
+ * entra pelo nó `fieldCommand` (o despachante o grava no contexto, como o comando direto do motorista);
+ * a viagem a encerrar sai da lista das viagens na rua e a confirmação é "1 - Sim / 2 - Não".
+ */
+function buildAttendantFieldFlowNodes(): FlowGraphData['nodes'] {
+  return {
+    [ATTENDANT_FLOW_NODE.fieldCommand]: {
+      actionKind: ATTENDANT_FLOW_ACTION_KIND.fieldCommand,
+      id: ATTENDANT_FLOW_NODE.fieldCommand,
+      type: 'action',
+    },
+    [ATTENDANT_FLOW_NODE.tripEntry]: {
+      contextKey: ATTENDANT_FLOW_CONTEXT_KEY.tripAnswer,
+      id: ATTENDANT_FLOW_NODE.tripEntry,
+      next: ATTENDANT_FLOW_NODE.tripRouter,
+      question: 'Toque numa viagem da lista acima.',
+      type: 'entrada_choice',
+    },
+    [ATTENDANT_FLOW_NODE.tripRouter]: {
+      actionKind: ATTENDANT_FLOW_ACTION_KIND.tripRouter,
+      id: ATTENDANT_FLOW_NODE.tripRouter,
+      type: 'action',
+    },
+    [ATTENDANT_FLOW_NODE.closeMenu]: {
+      contextKey: ATTENDANT_FLOW_CONTEXT_KEY.closeAnswer,
+      fallbackMessage: 'Toque numa das opções.',
+      id: ATTENDANT_FLOW_NODE.closeMenu,
+      next: ATTENDANT_FLOW_NODE.closeRouter,
+      options: [
+        [ATTENDANT_CLOSE_ANSWER.confirm, '✅ 1 - Sim'],
+        [ATTENDANT_CLOSE_ANSWER.cancel, '❌ 2 - Não'],
+      ],
+      question: 'Encerrar a rota?',
+      type: 'menu',
+    },
+    [ATTENDANT_FLOW_NODE.closeRouter]: {
+      actionKind: ATTENDANT_FLOW_ACTION_KIND.closeRouter,
+      id: ATTENDANT_FLOW_NODE.closeRouter,
       type: 'action',
     },
   }

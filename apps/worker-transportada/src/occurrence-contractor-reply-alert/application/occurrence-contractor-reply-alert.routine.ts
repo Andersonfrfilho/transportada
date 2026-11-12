@@ -22,6 +22,8 @@ import type {
 } from './occurrence-contractor-reply-alert.port.js'
 
 export type OccurrenceContractorReplyAlertDependencies = {
+  /** Spec 292 T7: depois do ciclo, o aviso ao grupo do pedido (o vencido acabou de ser marcado). Nunca lança. */
+  readonly afterCycle?: () => Promise<void>
   readonly errorTracker: Pick<ErrorTracker, 'captureException'>
   readonly logger: WorkerLogger
   readonly notifier: ContractorReplyAlertNotifierPort
@@ -100,6 +102,14 @@ async function runCycle(input: {
     }
 
     if (batch.length < limit) break
+  }
+
+  if (dependencies.afterCycle !== undefined && !context.isStopRequested()) {
+    try {
+      await dependencies.afterCycle()
+    } catch (error) {
+      dependencies.errorTracker.captureException(error)
+    }
   }
 
   safeLogInfo({

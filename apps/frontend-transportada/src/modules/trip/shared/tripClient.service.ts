@@ -71,6 +71,8 @@ import type {
   OverrideDeliveryAddressInput,
   PlanTripRouteResult,
   ReadTripAllowedActionsInput,
+  AutoOrderTripStopsInput,
+  AutoOrderTripStopsResult,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
   ReportFieldDeliveryInput,
@@ -401,6 +403,8 @@ export type TripClient = Readonly<{
     input: Readonly<{ routeChoice?: RouteChoice; tripId: string }>,
   ) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  /** Spec 323 RF4: "Ordenar paradas" — a API ordena pela estrada, inclusive refazendo a ordem manual. */
+  autoOrderTripStops: (input: AutoOrderTripStopsInput) => Promise<AutoOrderTripStopsResult>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
   /** Spec 156 T7.2: rota própria, fora do detalhe (t7-design §2.4, ressalva M1). */
   readTripAllowedActions: (input: ReadTripAllowedActionsInput) => Promise<TripAllowedActions>
@@ -427,7 +431,9 @@ export type TripClient = Readonly<{
    */
   registerFieldOccurrences: (
     input: RegisterFieldOccurrencesInput,
-  ) => Promise<readonly Readonly<{ documentId: string; id: string }>[]>
+  ) => Promise<
+    readonly Readonly<{ documentId: string; existingOccurrenceId?: string; id: string }>[]
+  >
   /**
    * Spec 156 T12: `POST /trips/:id/documents/:documentId/field-delivery` — uma chamada por nota,
    * multipart, com a própria `Idempotency-Key` (T6 evidence: `deliveredAt`, `receiverName`,
@@ -611,11 +617,18 @@ function officeDriverSelectionBody(driverId: string | undefined): Readonly<{ bod
 }
 
 function buildSearch(
-  input: Readonly<{ cursor: null | string; limit: number }>,
+  input: Readonly<{
+    cursor: null | string
+    direction?: 'backward' | 'forward'
+    limit: number
+    offset?: number
+  }>,
   filters: Readonly<Record<string, string | undefined>>,
 ): string {
   const search = new URLSearchParams()
   if (input.cursor !== null) search.set('cursor', input.cursor)
+  if (input.direction === 'backward') search.set('direction', 'backward')
+  if (input.offset !== undefined) search.set('offset', String(input.offset))
   search.set('limit', String(input.limit))
   for (const key of Object.keys(filters).sort()) {
     const value = filters[key]
@@ -1034,9 +1047,36 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
             ? {}
             : { clientEmailSendMode: input.clientEmailSendMode }),
           ...(input.clientChannel === undefined ? {} : { clientChannel: input.clientChannel }),
+          ...(input.clientChannels === undefined ? {} : { clientChannels: input.clientChannels }),
+          ...(input.asksClientContact === undefined
+            ? {}
+            : { asksClientContact: input.asksClientContact }),
+          ...(input.asksNewDueDate === undefined ? {} : { asksNewDueDate: input.asksNewDueDate }),
+          ...(input.showClientChargeSealToDriver === undefined
+            ? {}
+            : { showClientChargeSealToDriver: input.showClientChargeSealToDriver }),
+          ...(input.blocksContractorNotice === undefined
+            ? {}
+            : { blocksContractorNotice: input.blocksContractorNotice }),
+          ...(input.countsCargoOnPickupTrip === undefined
+            ? {}
+            : { countsCargoOnPickupTrip: input.countsCargoOnPickupTrip }),
+          ...(input.createsCanhotoPickup === undefined
+            ? {}
+            : { createsCanhotoPickup: input.createsCanhotoPickup }),
           ...(input.duplicateRequestPolicy === undefined
             ? {}
             : { duplicateRequestPolicy: input.duplicateRequestPolicy }),
+          ...(input.arrivalTimeMode === undefined
+            ? {}
+            : { arrivalTimeMode: input.arrivalTimeMode }),
+          ...(input.locationMode === undefined ? {} : { locationMode: input.locationMode }),
+          ...(input.minWaitAfterArrivalMinutes === undefined
+            ? {}
+            : { minWaitAfterArrivalMinutes: input.minWaitAfterArrivalMinutes }),
+          ...(input.driverLockMinutes === undefined
+            ? {}
+            : { driverLockMinutes: input.driverLockMinutes }),
           ...(input.forwardToNoteRecipient === undefined
             ? {}
             : { forwardToNoteRecipient: input.forwardToNoteRecipient }),
@@ -1711,6 +1751,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: documentPath(input),
       })
       return adapters.tripDocumentFromApi(readEnvelopeData(response))
+    },
+    async autoOrderTripStops(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/stops/auto-order`,
+      })
+      return adapters.autoOrderTripStopsResultFromApi(readEnvelopeData(response))
     },
     async reorderTripStops(input) {
       const response = await authorizedRequest({

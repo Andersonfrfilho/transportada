@@ -76,12 +76,15 @@ function buildForm(input: {
   readonly type: DriverOccurrenceType
 }): OccurrenceValuesForm {
   return {
+    asksNewDueDate: false,
     declaredAmountText: '',
     handleDeclaredAmountChange: () => undefined,
     handleItemAmountChange: () => undefined,
     handleItemQuantityChange: () => undefined,
     handleItemToggle: () => undefined,
+    handleNewDueDateChange: () => undefined,
     handleReferenceNumberChange: () => undefined,
+    newDueDateText: '',
     referenceNumberText: '',
     values: evaluateOccurrenceValues({
       drafts: input.drafts,

@@ -64,6 +64,7 @@ type FixtureParams = {
   readonly schedules?: readonly ScheduleDouble[]
   readonly stopAfter?: number
   readonly sweep?: () => Promise<SweepDueInvoicesResult>
+  readonly sweepCertificates?: () => Promise<SweepDueInvoicesResult>
 }
 
 type RoutineFixture = {
@@ -75,7 +76,12 @@ type RoutineFixture = {
   }>
 }
 
-function createFixture({ schedules, stopAfter, sweep }: FixtureParams = {}): RoutineFixture {
+function createFixture({
+  schedules,
+  stopAfter,
+  sweep,
+  sweepCertificates,
+}: FixtureParams = {}): RoutineFixture {
   const logged: LoggedMessage[] = []
   const ran: string[] = []
   const declared = schedules ?? [schedule('notification:dispatch-due')]
@@ -91,6 +97,8 @@ function createFixture({ schedules, stopAfter, sweep }: FixtureParams = {}): Rou
       },
     })),
     sweep: sweep ?? (async () => ({ failures: [], notifiedCount: 0, sweptCount: 0 })),
+    sweepCertificates:
+      sweepCertificates ?? (async () => ({ failures: [], notifiedCount: 0, sweptCount: 0 })),
   })
 
   const context: JobRoutineContext = {
@@ -148,6 +156,7 @@ describe('notification schedules routine', () => {
     expect(result.outcome).toBe('succeeded')
     expect(result.counters).toEqual({
       dueInvoices: 3,
+      expiringCertificates: 0,
       notified: 2,
       schedulesFailed: 0,
       schedulesRun: 2,
@@ -185,6 +194,22 @@ describe('notification schedules routine', () => {
 
     expect(result.outcome).toBe('template_missing')
     expect(result.counters.template_missing).toBe(1)
+  })
+
+  test('a falha do aviso de certificado também fecha a linha e entra nos contadores', async () => {
+    const fixture = createFixture({
+      sweepCertificates: async () => ({
+        failures: ['queue_unreachable'],
+        notifiedCount: 1,
+        sweptCount: 2,
+      }),
+    })
+
+    const result = await fixture.run()
+
+    expect(result.outcome).toBe('queue_unreachable')
+    expect(result.counters.expiringCertificates).toBe(2)
+    expect(result.counters.notified).toBe(1)
   })
 
   test('causa fora do vocabulário fecha em `unexpected_error`, e a linha não fica aberta', async () => {
@@ -259,6 +284,7 @@ describe('notification schedules registration', () => {
             now: () => NOW,
             schedules: [{ name: 'notification:dispatch-due', run: async () => undefined }],
             sweep: async () => ({ failures: [], notifiedCount: 1, sweptCount: 1 }),
+            sweepCertificates: async () => ({ failures: [], notifiedCount: 0, sweptCount: 0 }),
           }),
         },
         scheduleInterval: createManualScheduler().scheduler,
@@ -269,7 +295,13 @@ describe('notification schedules registration', () => {
     expect(result).toEqual({ claimed: true, outcome: 'succeeded' })
     expect(finishes).toEqual([
       {
-        counters: { dueInvoices: 1, notified: 1, schedulesFailed: 0, schedulesRun: 1 },
+        counters: {
+          dueInvoices: 1,
+          expiringCertificates: 0,
+          notified: 1,
+          schedulesFailed: 0,
+          schedulesRun: 1,
+        },
         executionId: EXECUTION_ID,
         finishedAt: NOW,
         outcome: 'succeeded',

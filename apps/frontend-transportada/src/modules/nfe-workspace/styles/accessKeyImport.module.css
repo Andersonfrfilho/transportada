@@ -1,0 +1,67 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.readerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.filters,
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.counter {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.counter dt {
+  color: var(--color-slate);
+  font-size: 0.8125rem;
+}
+
+.counter dd {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.detail {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.8125rem;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

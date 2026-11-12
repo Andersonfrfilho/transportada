@@ -11,6 +11,7 @@ import { describe, expect } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 
 import {
+  companyOccurrenceTypeClientChannels,
   companyOccurrenceTypes,
   contractorMailMessages,
   contractorMailOutbox,
@@ -141,6 +142,19 @@ async function receive(database: TestDatabase, scenario: Scenario = {}) {
   await setClientEmailSettings(database, seeded, {
     clientEmailSendMode: scenario.sendMode ?? 'automatic',
     clientEmailType: scenario.clientEmailType ?? 'boleto',
+  })
+  /** O envio lê o canal do tipo (spec 281): o modo do cenário vai para a linha do e-mail, antes da abertura. */
+  const [typeRow] = await database.db
+    .select({ typeId: tripDocumentOccurrences.occurrenceTypeId })
+    .from(tripDocumentOccurrences)
+    .where(eq(tripDocumentOccurrences.id, seeded.occurrenceId))
+  await database.db.insert(companyOccurrenceTypeClientChannels).values({
+    channel: 'email',
+    companyId,
+    enabled: scenario.clientEmailType !== 'off',
+    occurrenceTypeId: typeRow?.typeId ?? '',
+    sendMode: scenario.sendMode ?? 'automatic',
+    templateKey: `occurrence.client-reply.${typeRow?.typeId ?? ''}`,
   })
   const conversationId = await openReplyWithForward(database, seeded, {
     informed: 'off',
@@ -335,12 +349,11 @@ describe('o boleto aceito sai sozinho aos e-mails do cliente (spec 279 RF10, T3c
   )
 
   testWithPostgres(
-    'manual, tipo "off" e o modo com aprovação do operador nunca enviam sozinhos',
+    'manual e tipo "off" nunca enviam sozinhos; o modo de aprovação do retorno não bloqueia o e-mail do próprio canal',
     async () => {
       for (const scenario of [
         { sendMode: 'manual' as const },
         { clientEmailType: 'off' as const },
-        { replyMode: 'forward_after_approval' as const },
       ]) {
         await withConversationDatabase(async (database) => {
           const { companyId } = await receive(database, scenario)

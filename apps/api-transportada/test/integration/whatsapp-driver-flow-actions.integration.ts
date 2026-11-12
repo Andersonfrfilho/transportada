@@ -51,6 +51,8 @@ import {
 } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
 import { DrizzleDriverScoreRepository } from '../../src/fleet/infrastructure/drizzle-driver-score.repository.js'
 import { DrizzleCurrentDriverTripRepository } from '../../src/trips/infrastructure/drizzle-current-driver-trip.repository.js'
+import { reportStopArrival } from '../../src/trips/application/report-stop-arrival.use-case.js'
+import { reportStopDeparture } from '../../src/trips/application/report-stop-departure.use-case.js'
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { createResolveWhatsAppActorUseCase } from '../../src/whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
 import { createDriverWhatsAppFlowActions } from '../../src/whatsapp-commands/application/register-driver-flow-actions.js'
@@ -179,21 +181,27 @@ describe('o motorista entrega pelo WhatsApp (spec 144 T015 AC7)', () => {
       expect(tripMenu?.body).toMatchObject({
         interactive: {
           action: {
-            buttons: [
-              { reply: { id: 'deliver' }, type: 'reply' },
-              { reply: { id: 'return' }, type: 'reply' },
-              { reply: { id: 'occurrence' }, type: 'reply' },
+            sections: [
+              {
+                rows: [
+                  { id: 'depart' },
+                  { id: 'arrive' },
+                  { id: 'deliver' },
+                  { id: 'return' },
+                  { id: 'occurrence' },
+                ],
+              },
             ],
           },
-          type: 'button',
+          type: 'list',
         },
       })
 
       await scenario.receive({
         from: world.phone,
         interactive: {
-          button_reply: { id: 'deliver', title: '📦 Entregar' },
-          type: 'button_reply',
+          list_reply: { id: 'deliver', title: '✅ Entreguei' },
+          type: 'list_reply',
         },
         type: 'interactive',
       })
@@ -219,7 +227,7 @@ describe('o motorista entrega pelo WhatsApp (spec 144 T015 AC7)', () => {
       })
       /** A confirmação sai antes de o fluxo voltar a esperar no menu da viagem (2ª mensagem). */
       expect(scenario.sentMessages().at(-2)?.body).toMatchObject({
-        text: { body: 'Entrega registrada. ✅' },
+        text: { body: '*Entrega registrada* ✅' },
         type: 'text',
       })
 
@@ -620,6 +628,20 @@ async function buildScenario(db: Database, companyId: string) {
           findReachableDocument: (query) => findDriverReachableDocument(db, query),
           listDocumentProducts: (query) => listDocumentProducts(db, query),
         },
+        unitOfWork: driverFieldReports,
+      }),
+    reportArrival: (input) =>
+      reportStopArrival({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: driverFieldReports,
+      }),
+    reportDeparture: (input) =>
+      reportStopDeparture({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
         unitOfWork: driverFieldReports,
       }),
     reportDelivery: (input) =>

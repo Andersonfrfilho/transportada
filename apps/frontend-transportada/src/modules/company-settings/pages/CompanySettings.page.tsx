@@ -22,9 +22,16 @@ import {
 } from '../components/DriverAllowancePanel.component'
 import { useDriverAllowancePanel } from '../hooks/useDriverAllowancePanel.hook'
 import {
+  DriverStopReminderPanel,
+  type DriverStopReminderPanelProps,
+} from '../components/DriverStopReminderPanel.component'
+import { useDriverStopReminderPanel } from '../hooks/useDriverStopReminderPanel.hook'
+import {
   WhatsAppEvolutionPanel,
   type WhatsAppEvolutionPanelProps,
 } from '../components/WhatsAppEvolutionPanel.component'
+import { ContractorAutomationsPanel } from '../components/ContractorAutomationsPanel.component'
+import { SalespeoplePanel } from '../components/SalespeoplePanel.component'
 import { useWhatsAppEvolutionPanel } from '../hooks/useWhatsAppEvolutionPanel.hook'
 import {
   CompanyEntryKindCatalogPanel,
@@ -67,6 +74,7 @@ import {
   type CompanySettingsViewModel,
 } from '../shared/companySettingsViewModel.service'
 import { AudioTranscriptionSettingsPanel } from '@/modules/occurrence-conversation/components/AudioTranscriptionSettingsPanel.component'
+import { DriverOccurrenceEmailSettings } from '@/modules/occurrence-conversation/components/DriverOccurrenceEmailSettings.component'
 import { OccurrenceWatchersPanel } from '@/modules/occurrence-conversation/components/OccurrenceWatchersPanel.component'
 import { QuickRepliesSettingsPanel } from '@/modules/occurrence-conversation/components/QuickRepliesSettingsPanel.component'
 
@@ -132,6 +140,7 @@ type SettingsBodyProps = Readonly<{
   certificatePending: boolean
   contacts: ContactsSection
   driverAllowance: DriverAllowancePanelProps
+  driverStopReminders: DriverStopReminderPanelProps
   whatsappEvolution: WhatsAppEvolutionPanelProps
   entryKindCatalog: CompanyEntryKindCatalogPanelProps
   federalTaxes: FederalTaxPanelProps
@@ -255,7 +264,13 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'company') return <CompanyTabPanel {...props} />
   if (tab === 'taxes') return <FederalTaxPanel {...props.federalTaxes} />
   if (tab === 'driverAllowance') return <DriverAllowancePanel {...props.driverAllowance} />
+  if (tab === 'driverReminders') return <DriverStopReminderPanel {...props.driverStopReminders} />
   if (tab === 'whatsapp') return <WhatsAppEvolutionPanel {...props.whatsappEvolution} />
+  /** Spec 285: painel autocontido — busca a própria configuração, só com `settings.manage`. */
+  if (tab === 'automations')
+    return <ContractorAutomationsPanel canManage={props.canManageSettings} />
+  /** Spec 316 T1.4: painel autocontido — busca os próprios dados, só com `settings.manage`. */
+  if (tab === 'salespeople') return <SalespeoplePanel canManage={props.canManageSettings} />
   if (tab === 'entryKinds') return <CompanyEntryKindCatalogPanel {...props.entryKindCatalog} />
   /** Spec 218 RF-E1/RF-E2: painel autocontido — busca os próprios dados, como o de ocorrência acima. */
   if (tab === 'settingsResolution')
@@ -265,7 +280,11 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   /** Spec 267 RF1: os responsáveis que vão em cópia — painel autocontido do módulo da conversa, só com `settings.manage`. */
   if (tab === 'occurrenceWatchers') {
     return (
-      <OccurrenceWatchersPanel canManage={props.canManageSettings} scope={{ kind: 'company' }} />
+      <>
+        <OccurrenceWatchersPanel canManage={props.canManageSettings} scope={{ kind: 'company' }} />
+        {/* Spec 322: o e-mail do aviso da ocorrência do motorista vai a esses mesmos responsáveis — vive ao lado. */}
+        <DriverOccurrenceEmailSettings canManage={props.canManageSettings} />
+      </>
     )
   }
   /** Spec 264 RF17: painel autocontido — busca a própria configuração, só com `settings.manage`. */
@@ -402,6 +421,13 @@ export function CompanySettingsPage() {
   })
   const driverAllowanceError =
     driverAllowancePanel.saveMutation.error ?? driverAllowancePanel.clearMutation.error
+  const driverStopReminderPanel = useDriverStopReminderPanel({
+    ...(companyId === undefined ? {} : { companyId }),
+    /* Spec 299 RF19: o endereço declarado do painel é a aba Cobrança do motorista. */
+    enabled: canManageSettings && activeTab === 'driverReminders',
+  })
+  const driverStopReminderError =
+    driverStopReminderPanel.query.error ?? driverStopReminderPanel.saveMutation.error
   const [whatsappQrOpen, setWhatsappQrOpen] = useState(false)
   const whatsappActive = canManageSettings && activeTab === 'whatsapp'
   const whatsappPanel = useWhatsAppEvolutionPanel({
@@ -410,7 +436,11 @@ export function CompanySettingsPage() {
     enabled: whatsappActive,
     qrEnabled: whatsappQrOpen,
   })
-  const whatsappError = whatsappPanel.query.error ?? whatsappPanel.saveMutation.error
+  const whatsappError =
+    whatsappPanel.query.error ??
+    whatsappPanel.saveMutation.error ??
+    whatsappPanel.disconnectMutation.error ??
+    whatsappPanel.provisionMutation.error
   const entryKindCatalogPanel = useCompanyEntryKindCatalogPanel({
     enabled: canManageSettings && activeTab === 'entryKinds',
   })
@@ -496,14 +526,53 @@ export function CompanySettingsPage() {
           saved: driverAllowancePanel.saveMutation.isSuccess,
           stored: driverAllowancePanel.query.data,
         }}
+        driverStopReminders={{
+          disabled: !canManageSettings || driverStopReminderPanel.saveMutation.isPending,
+          errorCode:
+            driverStopReminderError instanceof Error ? driverStopReminderError.message : undefined,
+          loading: driverStopReminderPanel.query.isLoading,
+          onEdit: () => {
+            if (!driverStopReminderPanel.saveMutation.isIdle) {
+              driverStopReminderPanel.saveMutation.reset()
+            }
+          },
+          onSave: (body) => driverStopReminderPanel.saveMutation.mutate(body),
+          saved: driverStopReminderPanel.saveMutation.isSuccess,
+          stored: driverStopReminderPanel.query.data,
+        }}
         whatsappEvolution={{
-          disabled: !canManageSettings || whatsappPanel.saveMutation.isPending,
+          disabled:
+            !canManageSettings ||
+            whatsappPanel.saveMutation.isPending ||
+            whatsappPanel.provisionMutation.isPending ||
+            whatsappPanel.disconnectMutation.isPending,
           errorCode: whatsappError instanceof Error ? whatsappError.message : undefined,
           loading: whatsappPanel.query.isLoading,
           onEdit: () => {
-            if (whatsappPanel.saveMutation.isIdle) return
-            whatsappPanel.saveMutation.reset()
+            if (!whatsappPanel.saveMutation.isIdle) whatsappPanel.saveMutation.reset()
+            if (!whatsappPanel.provisionMutation.isIdle) whatsappPanel.provisionMutation.reset()
           },
+          onProvision: (acknowledgeRisk) => {
+            /* O QR só é pedido depois que a instância existe: pedir junto dava 404 (não configurado) no primeiro toque. */
+            whatsappPanel.provisionMutation.mutate(acknowledgeRisk, {
+              onSuccess: () => setWhatsappQrOpen(true),
+            })
+          },
+          provisioningAvailable: whatsappPanel.provisioningAvailable,
+          connection: whatsappPanel.connectionQuery.data,
+          connectionErrorCode:
+            whatsappPanel.connectionQuery.error instanceof Error
+              ? whatsappPanel.connectionQuery.error.message
+              : undefined,
+          disconnecting: whatsappPanel.disconnectMutation.isPending,
+          onDisconnect: () => {
+            setWhatsappQrOpen(false)
+            whatsappPanel.revealMutation.reset()
+            whatsappPanel.disconnectMutation.mutate()
+          },
+          onReveal: () => whatsappPanel.revealMutation.mutate(),
+          revealedNumber: whatsappPanel.revealMutation.data?.ownerNumber ?? undefined,
+          revealing: whatsappPanel.revealMutation.isPending,
           onQrOpenChange: setWhatsappQrOpen,
           onSave: (input) => whatsappPanel.saveMutation.mutate(input),
           qr: whatsappPanel.qrQuery.data,
@@ -511,10 +580,12 @@ export function CompanySettingsPage() {
             whatsappPanel.qrQuery.error instanceof Error
               ? whatsappPanel.qrQuery.error.message
               : undefined,
+          onQrRefresh: () => void whatsappPanel.qrQuery.refetch(),
           qrLoading: whatsappPanel.qrQuery.isLoading,
+          qrReceivedAt: whatsappPanel.qrQuery.dataUpdatedAt,
           qrOpen: whatsappQrOpen,
           saved: whatsappPanel.saveMutation.isSuccess,
-          stored: whatsappPanel.query.data,
+          stored: whatsappPanel.stored,
         }}
         entryKindCatalog={{
           canManage: canManageSettings,

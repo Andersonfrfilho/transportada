@@ -8,6 +8,7 @@ import { gunzipSync } from 'node:zlib'
 import type { DfeItem, ImportedNfeXml } from '@adatechnology/fiscal-provider'
 
 import type { NfeItemVariant } from '../../database/nfe.schema.js'
+import { NFE_DISTRIBUTION_MAX_DECOMPRESSED_XML_BYTES } from '../../shared/nfe-distribution.constant.js'
 import { CHAVE_PATTERN } from '../../shared/tax-id.service.js'
 import type { NfeXmlImporter } from '../../nfe-imports/infrastructure/nfe-xml-importer.gateway.js'
 import type { DistributionSummary } from './drizzle-nfe-distribution.repository.js'
@@ -61,7 +62,9 @@ export async function prepareDistributionItem(params: {
   readonly xmlImporter: NfeXmlImporter
 }): Promise<PreparedItem> {
   const { dfe, xmlImporter } = params
-  const sourceBytes = gunzipSync(Buffer.from(dfe.xmlComprimido, 'base64'))
+  const sourceBytes = gunzipSync(Buffer.from(dfe.xmlComprimido, 'base64'), {
+    maxOutputLength: NFE_DISTRIBUTION_MAX_DECOMPRESSED_XML_BYTES,
+  })
   const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex')
   const variant = classifyVariant(dfe.schema)
 

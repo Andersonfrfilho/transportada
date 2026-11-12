@@ -28,8 +28,12 @@ type PendingImportItem = {
 type PendingImportAggregate = {
   readonly companyCnpj: string
   readonly companyId: string
+  /** CNPJ dos contratantes ativos: o emitente que é contratante torna a nota da empresa mesmo sem o CNPJ dela no XML. */
+  readonly contractorTaxIds?: readonly string[]
   readonly id: string
   readonly items: readonly PendingImportItem[]
+  /** Spec 313: CNPJ do contratante a quem o domínio do e-mail pertence; só ele pode ser o emitente. */
+  readonly restrictedContractorTaxId?: string
 }
 
 type ExpandedXmlEntry = {
@@ -147,6 +151,8 @@ export function createNfeImportConsumer(input: {
           archiveExpander: input.archiveExpander,
           companyCnpj: pendingImport.companyCnpj,
           companyId: pendingImport.companyId,
+          contractorTaxIds: pendingImport.contractorTaxIds ?? [],
+          restrictedContractorTaxId: pendingImport.restrictedContractorTaxId,
           finalStorage: input.finalStorage,
           repository: input.repository,
           sourceStorage: input.sourceStorage,
@@ -172,8 +178,10 @@ async function processItem(input: {
   readonly archiveExpander: NfeImportArchiveExpanderPort
   readonly companyCnpj: string
   readonly companyId: string
+  readonly contractorTaxIds: readonly string[]
   readonly finalStorage: NfeImportFinalStoragePort
   readonly repository: NfeImportConsumerRepositoryPort
+  readonly restrictedContractorTaxId: string | undefined
   readonly sourceStorage: NfeImportSourceStoragePort
   readonly xmlImporter: NfeXmlImporterPort
   readonly item: PendingImportItem
@@ -204,6 +212,7 @@ async function processItem(input: {
       !isRelatedToCompany({
         accessKey,
         companyCnpj: input.companyCnpj,
+        contractorTaxIds: input.contractorTaxIds,
         existingDocument,
         normalizedXml,
       })
@@ -213,6 +222,24 @@ async function processItem(input: {
         error: {
           code: 'NFE_IMPORT_UNRELATED_CNPJ',
           message: 'NF-e is not related to the authenticated company',
+        },
+        itemId: input.item.id,
+        normalizedXml,
+        status: 'rejected',
+        variant: resolveVariant(normalizedXml),
+      })
+      return 'rejected'
+    }
+
+    if (
+      input.restrictedContractorTaxId !== undefined &&
+      normalizeTaxId(accessKey).slice(6, 20) !== normalizeTaxId(input.restrictedContractorTaxId)
+    ) {
+      await input.repository.completeItem({
+        accessKey,
+        error: {
+          code: 'NFE_IMPORT_ISSUER_NOT_CONTRACTOR',
+          message: 'NF-e issuer is not the contractor linked to the sender e-mail domain',
         },
         itemId: input.item.id,
         normalizedXml,
@@ -319,10 +346,13 @@ function buildSummary(input: {
 function isRelatedToCompany(input: {
   readonly accessKey: string
   readonly companyCnpj: string
+  readonly contractorTaxIds: readonly string[]
   readonly existingDocument: { readonly documentId: string } | null
   readonly normalizedXml: ImportedNfeXml
 }): boolean {
   const companyCnpj = normalizeTaxId(input.companyCnpj)
+  const issuerTaxId = normalizeTaxId(input.accessKey).slice(6, 20)
+  if (input.contractorTaxIds.some((taxId) => normalizeTaxId(taxId) === issuerTaxId)) return true
 
   if (input.normalizedXml.kind === 'nfe-event') {
     return (

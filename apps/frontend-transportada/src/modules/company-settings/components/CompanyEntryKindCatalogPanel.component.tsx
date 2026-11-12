@@ -17,7 +17,7 @@ import {
   type CompanyEntryKind,
   type CompanyEntryKindSide,
 } from '@/modules/trip-financials/shared/tripFinancials.types'
-import styles from '../styles/companySettings.module.css'
+import styles from '../styles/businessCalendar.module.css'
 
 export type CompanyEntryKindCatalogPanelProps = Readonly<{
   canManage: boolean
@@ -47,22 +47,24 @@ export function CompanyEntryKindCatalogPanel({
   }
 
   return (
-    <section>
-      <h2 className={styles.sectionHeading}>{t('entryKinds.title')}</h2>
-      <p>{t('entryKinds.subtitle')}</p>
+    <section aria-labelledby="entry-kinds-title" className={styles.panel}>
+      <div className={styles.panelHeading}>
+        <h2 id="entry-kinds-title">{t('entryKinds.title')}</h2>
+        <p className={styles.hint}>{t('entryKinds.subtitle')}</p>
+      </div>
 
       {/* CA03: gasto e receita não compartilham a lista — cada lado com a própria coluna. */}
       {COMPANY_ENTRY_KIND_SIDES.map((entrySide) => (
-        <div key={entrySide}>
+        <section className={styles.block} key={entrySide}>
           <h3>{t(`entryKinds.side.${entrySide}`)}</h3>
           {kinds.filter((kind) => kind.side === entrySide).length === 0 ? (
-            <p>{t('entryKinds.empty')}</p>
+            <p className={styles.hint}>{t('entryKinds.empty')}</p>
           ) : (
-            <ul>
+            <ul className={styles.kindList}>
               {kinds
                 .filter((kind) => kind.side === entrySide)
                 .map((kind) => (
-                  <li key={kind.id}>
+                  <li className={styles.kindRow} key={kind.id}>
                     <span>{kind.name}</span>
                     {kind.active ? (
                       canManage ? (
@@ -78,42 +80,53 @@ export function CompanyEntryKindCatalogPanel({
                         </Button>
                       ) : null
                     ) : (
-                      <span>{t('entryKinds.inactive')}</span>
+                      <span className={styles.hint}>{t('entryKinds.inactive')}</span>
                     )}
                   </li>
                 ))}
             </ul>
           )}
-        </div>
+        </section>
       ))}
 
       {canManage ? (
-        <div>
-          <label>
-            {t('entryKinds.name')}
-            <input onChange={(event) => setName(event.target.value)} value={name} />
-          </label>
-          <label>
-            {t('entryKinds.side.label')}
-            <Select
-              onChange={(value) => setSide(value as CompanyEntryKindSide)}
-              options={COMPANY_ENTRY_KIND_SIDES.map((entrySide) => ({
-                label: t(`entryKinds.side.${entrySide}`),
-                value: entrySide,
-              }))}
-              value={side}
-            />
-          </label>
-          <Button
-            disabled={isSaving || name.trim() === ''}
-            onClick={handleCreate}
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="save" />
-            {isSaving ? t('entryKinds.saving') : t('entryKinds.save')}
-          </Button>
-        </div>
+        <section className={styles.block}>
+          <div className={styles.form}>
+            <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor="entry-kind-name">
+                {t('entryKinds.name')}
+              </label>
+              <input
+                className={styles.input}
+                id="entry-kind-name"
+                onChange={(event) => setName(event.target.value)}
+                value={name}
+              />
+            </div>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>{t('entryKinds.side.label')}</span>
+              <Select
+                ariaLabel={t('entryKinds.side.label')}
+                onChange={(value) => setSide(value as CompanyEntryKindSide)}
+                options={COMPANY_ENTRY_KIND_SIDES.map((entrySide) => ({
+                  label: t(`entryKinds.side.${entrySide}`),
+                  value: entrySide,
+                }))}
+                value={side}
+              />
+            </div>
+            <div className={styles.actions}>
+              <Button
+                disabled={isSaving || name.trim() === ''}
+                onClick={handleCreate}
+                type="button"
+              >
+                <Icon name="save" />
+                {isSaving ? t('entryKinds.saving') : t('entryKinds.save')}
+              </Button>
+            </div>
+          </div>
+        </section>
       ) : null}
     </section>
   )

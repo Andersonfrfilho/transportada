@@ -57,7 +57,8 @@ export function createOccurrenceAutomaticMailRoutes(
             occurrenceId: input.occurrenceId,
           })
           if (result.outcome === 'sent') return jsonResponse(result)
-          if (result.reason === 'not_document') throw new OccurrenceConversationNotFoundError()
+          if (result.outcome === 'skipped' && result.reason === 'not_document')
+            throw new OccurrenceConversationNotFoundError()
           return jsonResponse(result)
         } catch (error) {
           if (error instanceof OccurrenceConversationIdempotencyKeyReusedError) {

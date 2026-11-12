@@ -1,4 +1,12 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  readTableColumnPreferences,
+  reorderTableColumns,
+  writeTableColumnPreferences,
+  type TableColumnPreferences,
+  type TableColumnStorage,
+} from '@/modules/shared/tableColumnPreferences.service'
+
 import type { Trip, TripFilters } from './trip.types'
 
 /**
@@ -23,12 +31,18 @@ export type TripColumnKey = (typeof TRIP_COLUMN_KEYS)[number]
 
 export type TripSortState = null | Readonly<{ column: TripColumnKey; direction: 'asc' | 'desc' }>
 
+/**
+ * A página é descrita de um de três jeitos: o cursor (`forward` lê as mais antigas que ele,
+ * `backward` as mais novas) ou o `offset` do salto direto para a página N. O servidor devolve, junto
+ * de cada página, os cursores dos vizinhos, a posição e o total.
+ */
 export type TripPageState = Readonly<{
   cursor: null | string
-  history: readonly (null | string)[]
+  direction: 'backward' | 'forward'
+  offset: null | number
 }>
 
-export const TRIP_FIRST_PAGE: TripPageState = { cursor: null, history: [] }
+export const TRIP_FIRST_PAGE: TripPageState = { cursor: null, direction: 'forward', offset: null }
 
 /** Seleção vazia não é filtro: `statusIn: []` contaria como ativo e a tela diria "1 filtro". */
 export function countActiveTripFilters(filters: TripFilters): number {
@@ -128,15 +142,126 @@ export function sortTrips(items: readonly Trip[], sort: TripSortState): readonly
 
 export function nextTripPage(state: TripPageState, nextCursor: null | string): TripPageState {
   if (nextCursor === null) return state
-  return { cursor: nextCursor, history: [...state.history, state.cursor] }
+  return { cursor: nextCursor, direction: 'forward', offset: null }
 }
 
-export function previousTripPage(state: TripPageState): TripPageState {
-  const previousCursor = state.history.at(-1)
-  if (previousCursor === undefined) return TRIP_FIRST_PAGE
-  return { cursor: previousCursor, history: state.history.slice(0, -1) }
+export function previousTripPage(
+  state: TripPageState,
+  previousCursor: null | string,
+): TripPageState {
+  if (previousCursor === null) return state
+  return { cursor: previousCursor, direction: 'backward', offset: null }
 }
 
-export function canGoToPreviousTripPage(state: TripPageState): boolean {
-  return state.history.length > 0
+/** Há página para trás quando o servidor mandou o cursor dela — a primeira não manda. */
+export function canGoToPreviousTripPage(previousCursor: null | string): boolean {
+  return previousCursor !== null
+}
+
+/** Salto para a página `pageNumber` (1 é a primeira): o servidor pula `(N-1) × tamanho` viagens. */
+export function tripPageAt(input: {
+  readonly pageNumber: number
+  readonly pageSize: number
+}): TripPageState {
+  if (input.pageNumber <= 1) return TRIP_FIRST_PAGE
+  return {
+    cursor: null,
+    direction: 'forward',
+    offset: (input.pageNumber - 1) * input.pageSize,
+  }
+}
+
+/** Quantas páginas o total tem; sem total (API antiga) não há como contar. */
+export function tripPageCount(input: {
+  readonly pageSize: number
+  readonly total: null | number
+}): null | number {
+  if (input.total === null) return null
+  return Math.max(1, Math.ceil(input.total / input.pageSize))
+}
+
+/** Número (a partir de 1) da página que começa depois de `offset` viagens. */
+export function tripPageNumber(input: {
+  readonly offset: null | number
+  readonly pageSize: number
+}): number {
+  if (input.offset === null) return 1
+  return Math.floor(input.offset / input.pageSize) + 1
+}
+
+export type TripPageNumberItem = number | 'gap'
+
+/**
+ * Os números que cabem na tela: a primeira, a última e a vizinhança da atual, com reticências onde
+ * há salto. Até sete páginas aparecem todas — esconder uma delas para mostrar "…" não economizaria nada.
+ */
+export function visibleTripPageNumbers(input: {
+  readonly count: number
+  readonly current: number
+}): readonly TripPageNumberItem[] {
+  const { count, current } = input
+  if (count <= 7) return Array.from({ length: count }, (_unused, index) => index + 1)
+  const wanted = new Set([1, count, current - 1, current, current + 1])
+  const pages = [...wanted].filter((page) => page >= 1 && page <= count).sort((a, b) => a - b)
+  const items: TripPageNumberItem[] = []
+  for (const [index, page] of pages.entries()) {
+    const before = pages[index - 1]
+    if (before !== undefined && page - before === 2) items.push(before + 1)
+    else if (before !== undefined && page - before > 2) items.push('gap')
+    items.push(page)
+  }
+  return items
+}
+
+export type TripColumnPreferences = TableColumnPreferences<TripColumnKey>
+
+/**
+ * Preferência de colunas **por usuário**: o armazenamento é do navegador, e dois operadores no
+ * mesmo computador não podem herdar a tela um do outro. Sem usuário resolvido ainda, a chave não
+ * existe e a tela usa o padrão — nada é lido nem gravado na chave errada.
+ */
+export function tripColumnsStorageKey(userId: string): string {
+  return `trip.trips.columns.v1.${userId}`
+}
+
+export function readTripColumnPreferences(input: {
+  readonly storage: TableColumnStorage | null
+  readonly userId: string | undefined
+}): TripColumnPreferences {
+  return readTableColumnPreferences({
+    columns: TRIP_COLUMN_KEYS,
+    storage: input.userId === undefined ? null : input.storage,
+    storageKey: tripColumnsStorageKey(input.userId ?? ''),
+  })
+}
+
+export function writeTripColumnPreferences(input: {
+  readonly preferences: TripColumnPreferences
+  readonly storage: TableColumnStorage | null
+  readonly userId: string | undefined
+}): void {
+  if (input.userId === undefined) return
+  writeTableColumnPreferences({
+    preferences: input.preferences,
+    storage: input.storage,
+    storageKey: tripColumnsStorageKey(input.userId),
+  })
+}
+
+export function reorderTripColumns(
+  order: readonly TripColumnKey[],
+  column: TripColumnKey,
+  direction: 'down' | 'up',
+): readonly TripColumnKey[] {
+  return reorderTableColumns(order, column, direction)
+}
+
+/** A ordem e a visibilidade escolhidas, menos o que a permissão já tirou (dinheiro sem `trip.financials`). */
+export function arrangeTripColumns(input: {
+  readonly allowed: readonly TripColumnKey[]
+  readonly preferences: TripColumnPreferences
+}): readonly TripColumnKey[] {
+  return input.preferences.order.filter(
+    (column) => input.allowed.includes(column) && input.preferences.visibility[column],
+  )
 }

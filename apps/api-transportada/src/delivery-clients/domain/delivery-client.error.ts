@@ -78,3 +78,36 @@ export class DeliveryClientEmailAlreadyExistsError extends ApiError {
     })
   }
 }
+
+/** Spec 281 T8b: o cadastro de WhatsApp do cliente, irmão do de e-mail (mesmos códigos de recusa, frase própria). */
+export class DeliveryClientWhatsAppLimitReachedError extends ApiError {
+  public constructor(limit: number) {
+    super({
+      code: 'DELIVERY_CLIENT_WHATSAPP_LIMIT_REACHED',
+      details: [{ field: 'number', message: String(limit) }],
+      message: 'The delivery client already has the maximum of WhatsApp numbers',
+      status: 422,
+    })
+  }
+}
+
+export class DeliveryClientWhatsAppNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DELIVERY_CLIENT_WHATSAPP_NOT_FOUND',
+      message: 'Delivery client WhatsApp number was not found',
+      status: 404,
+    })
+  }
+}
+
+export class DeliveryClientWhatsAppAlreadyExistsError extends ApiError {
+  public constructor(existingId: string) {
+    super({
+      code: 'DELIVERY_CLIENT_WHATSAPP_ALREADY_EXISTS',
+      details: [{ field: 'number', message: existingId }],
+      message: 'This WhatsApp number is already registered for the delivery client',
+      status: 409,
+    })
+  }
+}

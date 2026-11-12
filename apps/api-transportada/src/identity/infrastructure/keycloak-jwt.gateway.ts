@@ -47,12 +47,17 @@ export function createKeycloakAccessTokenVerifier(
 ): AccessTokenVerifierPort & IdentityReadinessPort {
   const fetchResource: FetchResource =
     dependencies.fetch ?? (async (input, init) => await globalThis.fetch(input, init))
+  /**
+   * Sem `company_id` obrigatório aqui (ADR-0047, emenda 2026-11-05): o token de service account não
+   * carrega empresa, e exigi-la neste ponto recusava toda chamada do worker antes de o caminho do
+   * serviço existir. Assinatura, emissor, audiência e expiração seguem exigidos para todo token; a
+   * claim continua obrigatória para gente em `AuthenticationService`, o único lugar dessa regra.
+   */
   const verifier = dependencies.createVerifier({
     algorithms: ['RS256'],
     audience: config.audience,
     issuer: config.issuer,
     jwksUri: config.jwksUri,
-    requiredClaims: ['company_id'],
   })
 
   return {

@@ -11,7 +11,12 @@ import type {
   OccurrenceAttachmentMode,
   OccurrenceItemsMode,
 } from './occurrence.constant'
-import type { OccurrenceQuantityUnit, TripCrewRole } from './trip.constant'
+import type {
+  OccurrenceQuantityUnit,
+  STOP_ORDER_ERROR_CODE,
+  STOP_ORDER_SOURCE,
+  TripCrewRole,
+} from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
  * `closed → completed`). ADR-0058 acrescentou `on_delivery_route`, a viagem na estrada.
@@ -445,7 +450,8 @@ export type TripTimelineAddressChangeOrigin = (typeof TRIP_TIMELINE_ADDRESS_CHAN
 /** `displacementMeters` é `null` sem ponto anterior e no refino. */
 export type TripTimelineAddressChange = Readonly<{
   displacementMeters: null | number
-  origin: TripTimelineAddressChangeOrigin
+  /** Spec 294: texto livre na leitura — origem que este painel não conhece cai num rótulo neutro. */
+  origin: string
 }>
 
 export const TRIP_TIMELINE_CREW_ROLES = ['driver', 'helper'] as const
@@ -506,6 +512,8 @@ export type TripTimelineItem = Readonly<{
   kind: TripTimelineKind
   /** Spec 205 RF8: baixa registrada depois ("registrar entrega depois"). Ausente na API anterior. */
   lateRegistration?: boolean
+  /** Spec 294 RF2: etapa que o motorista pulou, registrada junto do evento seguinte. Ausente na API anterior. */
+  recordedTogether?: boolean
   /** Spec 196 RF9/RF10: sempre presente — `null` quando o toque não carimbou (T6.4). */
   location: null | TripTimelineLocation
   locationState: null | TripTimelineLocationState
@@ -557,6 +565,8 @@ export type TripDocumentDetail = TripDocument &
     openOccurrenceCase?: boolean
     /** Spec 223 RF4: baixada sem canhoto que a configuração exige. Ausente é API anterior. */
     proofPending?: boolean
+    /** Spec 321 D4d: o cliente reteve o canhoto desta nota (coleta aberta). Ausente é API anterior. */
+    canhotoRetained?: boolean
     /**
      * Spec 185 T6.1 (D1, ADR-0074 §4): esta nota sairia da viagem se despachasse agora — ocorrência
      * de separação, de tipo "segue sem a nota", sobre a nota inteira, e ainda não carregada. Ausente
@@ -969,6 +979,10 @@ export type TripDetail = Trip &
     occupancy: TripOccupancy | null
     /** Spec 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */
     trailer: TripTrailer | null
+    /** Spec 323 D4: por que o ordenador não ordenou. Opcional como todo campo novo (spec 078 D2). */
+    stopOrderErrorCode?: null | StopOrderErrorCode
+    /** Spec 323 D4: quem decidiu a ordem das paradas. Ausente é tratado como `unordered`. */
+    stopOrderSource?: StopOrderSource
     stops: readonly TripStopDetail[]
   }>
 
@@ -1094,12 +1108,22 @@ export type TripFilters = Readonly<{
 export type TripPage = Readonly<{
   items: readonly Trip[]
   nextCursor: null | string
+  /** Cursor para voltar uma página; `null` na primeira (ou quando a API ainda não o manda). */
+  previousCursor: null | string
+  /** Quantas viagens vêm antes desta página (para numerá-la); `null` com API antiga. */
+  offset: null | number
+  /** Quantas viagens o filtro alcança; `null` com API antiga — aí não há contagem de páginas. */
+  total: null | number
 }>
 
 export type TripListInput = Readonly<{
   cursor: null | string
+  /** `backward` sem cursor é a última página; com cursor, a página anterior a ele. */
+  direction?: 'backward' | 'forward'
   filters?: TripFilters
   limit: number
+  /** Salto para a página N: pula tantas viagens. Não anda junto com `cursor`. */
+  offset?: number
 }>
 
 export type CreateTripBody = Readonly<{
@@ -1245,6 +1269,19 @@ export type ReadTripAllowedActionsInput = Readonly<{
 }>
 
 export type ReorderTripStopsResult = Readonly<{ tripStatus: TripStatus }>
+
+/** Spec 323 D4: de onde veio a ordem das paradas. */
+export type StopOrderSource = (typeof STOP_ORDER_SOURCE)[keyof typeof STOP_ORDER_SOURCE]
+/** Spec 323: códigos estáveis da falha do ordenador; a tela os traduz. */
+export type StopOrderErrorCode = (typeof STOP_ORDER_ERROR_CODE)[keyof typeof STOP_ORDER_ERROR_CODE]
+
+export type AutoOrderTripStopsInput = Readonly<{ tripId: string }>
+/** Spec 323 RF4: o resultado do botão "Ordenar paradas". */
+export type AutoOrderTripStopsResult = Readonly<{
+  errorCode: null | StopOrderErrorCode
+  excludedStopCount: number
+  status: 'ordered' | 'skipped' | 'unchanged' | 'unordered'
+}>
 
 export type ReorderTripStopsInput = Readonly<{ stopIds: readonly string[]; tripId: string }>
 

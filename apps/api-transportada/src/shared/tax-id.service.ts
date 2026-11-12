@@ -5,6 +5,7 @@ import {
   CHAVE_PATTERN,
   CNPJ_PATTERN,
   formatCnpjForDisplay,
+  isChaveDvValid,
   normalizeTaxId,
 } from '@adatechnology/fiscal-provider'
 
@@ -13,7 +14,7 @@ import {
  * O padrão e a normalização são os do pacote fiscal — este arquivo é o único ponto da api que os
  * importa, para o `~` do Postgres, o `regex` do Zod e o XML nunca divergirem entre si.
  */
-export { CHAVE_PATTERN, CNPJ_PATTERN, formatCnpjForDisplay, normalizeTaxId }
+export { CHAVE_PATTERN, CNPJ_PATTERN, formatCnpjForDisplay, isChaveDvValid, normalizeTaxId }
 
 /** CPF não muda com a IN: onze dígitos, sempre. */
 export const CPF_PATTERN = /^[0-9]{11}$/u

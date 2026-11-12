@@ -1,9 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   isWhatsAppEvolutionConnectionResponse,
+  isWhatsAppEvolutionOwnerRevealResponse,
   isWhatsAppEvolutionQrResponse,
   isWhatsAppEvolutionResponse,
   type WhatsAppEvolutionConnection,
+  type WhatsAppEvolutionOwnerReveal,
   type WhatsAppEvolutionQr,
   type WhatsAppEvolutionSaveInput,
   type WhatsAppEvolutionSettings,
@@ -14,6 +16,12 @@ export const WHATSAPP_EVOLUTION_PATH = '/company-settings/whatsapp-evolution'
 const REQUEST_FAILED = 'WHATSAPP_EVOLUTION_REQUEST_FAILED'
 const NETWORK_ERROR = 'WHATSAPP_EVOLUTION_NETWORK_ERROR'
 const RESPONSE_INVALID = 'WHATSAPP_EVOLUTION_RESPONSE_INVALID'
+
+/** `provisioningAvailable`: o ambiente tem o Evolution e a API cria a instância ("Criar e conectar"). */
+export type WhatsAppEvolutionState = Readonly<{
+  provisioningAvailable: boolean
+  settings: WhatsAppEvolutionSettings | null
+}>
 
 type ClientDependencies = Readonly<{
   apiBaseUrl: string
@@ -31,14 +39,18 @@ export class WhatsAppEvolutionRequestError extends Error {
 
 export type WhatsAppEvolutionClient = Readonly<{
   connection: () => Promise<WhatsAppEvolutionConnection>
-  get: () => Promise<WhatsAppEvolutionSettings | null>
+  disconnect: () => Promise<WhatsAppEvolutionConnection>
+  get: () => Promise<WhatsAppEvolutionState>
+  provision: (acknowledgeRisk: boolean) => Promise<WhatsAppEvolutionSettings>
+  /** O número do chip conectado por inteiro; a tela só pede quando o operador clica em "Revelar". */
+  reveal: () => Promise<WhatsAppEvolutionOwnerReveal>
   qr: () => Promise<WhatsAppEvolutionQr>
   save: (input: WhatsAppEvolutionSaveInput) => Promise<WhatsAppEvolutionSettings>
 }>
 
 async function send(
   input: Readonly<{
-    body?: WhatsAppEvolutionSaveInput
+    body?: WhatsAppEvolutionSaveInput | Readonly<{ acknowledgeRisk: boolean }>
     dependencies: ClientDependencies
     method: string
     path: string
@@ -92,11 +104,39 @@ export function createWhatsAppEvolutionClient(
 
       return body.data
     },
+    async disconnect() {
+      const body = await readBody(
+        await send({ dependencies, method: 'POST', path: `${WHATSAPP_EVOLUTION_PATH}/disconnect` }),
+      )
+      if (!isWhatsAppEvolutionConnectionResponse(body)) {
+        throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
+      }
+
+      return body.data
+    },
     async get() {
       const body = await readBody(
         await send({ dependencies, method: 'GET', path: WHATSAPP_EVOLUTION_PATH }),
       )
       if (!isWhatsAppEvolutionResponse(body)) {
+        throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
+      }
+
+      return {
+        provisioningAvailable: body.provisioningAvailable === true,
+        settings: body.data,
+      }
+    },
+    async provision(acknowledgeRisk) {
+      const body = await readBody(
+        await send({
+          body: { acknowledgeRisk },
+          dependencies,
+          method: 'POST',
+          path: `${WHATSAPP_EVOLUTION_PATH}/provision`,
+        }),
+      )
+      if (!isWhatsAppEvolutionResponse(body) || body.data === null) {
         throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
       }
 
@@ -107,6 +147,20 @@ export function createWhatsAppEvolutionClient(
         await send({ dependencies, method: 'POST', path: `${WHATSAPP_EVOLUTION_PATH}/qr` }),
       )
       if (!isWhatsAppEvolutionQrResponse(body)) {
+        throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
+      }
+
+      return body.data
+    },
+    async reveal() {
+      const body = await readBody(
+        await send({
+          dependencies,
+          method: 'POST',
+          path: `${WHATSAPP_EVOLUTION_PATH}/connection/reveal`,
+        }),
+      )
+      if (!isWhatsAppEvolutionOwnerRevealResponse(body)) {
         throw new WhatsAppEvolutionRequestError(RESPONSE_INVALID)
       }
 

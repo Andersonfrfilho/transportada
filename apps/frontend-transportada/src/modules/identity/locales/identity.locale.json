@@ -162,6 +162,26 @@
         "whatsappTag": "WhatsApp",
         "whatsappHint": "A marca de WhatsApp fica registrada para quando as notificações escolherem por onde sair — hoje ela ainda não muda o envio.",
         "fromProfile": "vem do cadastro acima"
+      },
+      "whatsapp": {
+        "title": "WhatsApp",
+        "intro": "O número vale na hora, sem pedido de código, e a trilha de auditoria registra que foi você. Use só o número da própria pessoa: é ele que a identifica como atendente no grupo do bot.",
+        "status": {
+          "none": "Sem WhatsApp vinculado.",
+          "pending": "Há um código pendente, aguardando a mensagem da própria pessoa.",
+          "verified": "Vinculado: {{phone}}. Válido até {{date}}.",
+          "expired": "O vínculo de {{phone}} venceu. Grave o número de novo."
+        },
+        "label": "Número de WhatsApp",
+        "placeholder": "(11) 98765-4321",
+        "save": "Gravar como verificado",
+        "unlink": "Desvincular",
+        "saved": "WhatsApp gravado e verificado.",
+        "removed": "WhatsApp desvinculado.",
+        "errors": {
+          "WHATSAPP_PHONE_INVALID": "Confira o número digitado.",
+          "WHATSAPP_PHONE_TAKEN": "Esse número já está verificado para outra pessoa."
+        }
       }
     },
     "removeDialog": {
@@ -368,6 +388,10 @@
         "label": "Administrar frota",
         "where": "Cadastrar e editar veículo, motorista, agregado e documentos."
       },
+      "fleet.reveal": {
+        "label": "Abrir documento do motorista",
+        "where": "Ficha do motorista: abrir ou baixar a CNH, o RG e o comprovante anexados. Cada abertura grava auditoria."
+      },
       "trip.read": {
         "label": "Ver viagens",
         "where": "Tela Viagens: roteiro, paradas e notas vinculadas."
@@ -428,9 +452,17 @@
         "label": "Leitura automática de canhoto",
         "where": "Só do serviço: o robô que lê o canhoto, sem tela. Nenhuma pessoa recebe."
       },
+      "trip.stop-reminder-dispatch": {
+        "label": "Entrega do lembrete ao motorista",
+        "where": "Só do serviço: o robô que cobra o motorista na hora certa, sem tela. Nenhuma pessoa recebe."
+      },
       "occurrence.automatic-mail": {
         "label": "Aviso automático de ocorrência",
         "where": "Só do serviço: o robô que envia o aviso à contratante, sem tela. Nenhuma pessoa recebe."
+      },
+      "driver.cnh-picture": {
+        "label": "Foto do motorista pela CNH",
+        "where": "Só do serviço: o robô que tira a foto da CNH do motorista, sem tela. Nenhuma pessoa recebe."
       },
       "nfse.read": {
         "label": "Ver NFS-e",

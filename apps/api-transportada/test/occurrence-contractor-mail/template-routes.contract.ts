@@ -138,6 +138,7 @@ function context(): AuthenticatedContext<CompanyContext> {
 
 function routesWith(overrides: Partial<Parameters<typeof createOccurrenceTypeMailRoutes>[0]> = {}) {
   return createOccurrenceTypeMailRoutes({
+    listClientChannelTemplates: { execute: async () => [] },
     listContractorMailRecipientCandidates: { execute: async () => [] },
     listContractorMailTemplates: { execute: async () => [] },
     ...overrides,

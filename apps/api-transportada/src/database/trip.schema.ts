@@ -10,6 +10,7 @@ import {
   OCCURRENCE_REFERENCE_NUMBER_PATTERN,
   OCCURRENCE_REQUIREMENT_LABEL_MAX_LENGTH,
   OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS,
+  OCCURRENCE_TYPE_LOCATION_ARRIVAL_DEFAULTS,
   OCCURRENCE_TYPE_DECLARED_AMOUNT_ITEMS_CHECK,
   OCCURRENCE_TYPE_FLOWS,
   OCCURRENCE_TYPE_ICON_NAMES,
@@ -39,11 +40,18 @@ import {
   type ClientEmailSendMode,
   type ClientEmailType,
 } from '../shared/delivery-client-email.constant.js'
+import {
+  STOP_ORDER_ERROR_CODES,
+  STOP_ORDER_SOURCES,
+  type StopOrderErrorCode,
+  type StopOrderSource,
+} from '../shared/trip-stop-order.constant.js'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
   boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -73,6 +81,11 @@ import { cargoArrivalDocuments } from './cargo-arrival-document.schema.js'
 import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
 import {
+  PIX_KEY_MAX_LENGTH,
+  PIX_KEY_TYPES,
+  type PixKeyType,
+} from '../shared/pix-key-type.constant.js'
+import {
   CONTRACTOR_REPLY_ALERT_INTERVAL_MINUTES,
   CONTRACTOR_REPLY_ALERT_MAX_COUNT,
   CONTRACTOR_REPLY_ALERT_MODES,
@@ -85,8 +98,6 @@ import {
   DRIVER_REPLY_CHANNELS,
   DRIVER_REPLY_TEMPLATE_MAX_LENGTH,
   DRIVER_REPLY_WINDOW_CLOSED_ACTIONS,
-  FORWARD_EMAIL_BODY_MAX_LENGTH,
-  FORWARD_EMAIL_SUBJECT_MAX_LENGTH,
   FORWARD_TO_INFORMED_EMAIL_MODES,
   FORWARD_TO_NOTE_RECIPIENT_MODES,
   type ContractorReplyAlertMode,
@@ -98,6 +109,11 @@ import {
   type ForwardToInformedEmailMode,
   type ForwardToNoteRecipientMode,
 } from '../shared/occurrence-contractor-reply.constant.js'
+import {
+  CANHOTO_PICKUP_OPEN_STATUSES,
+  CANHOTO_PICKUP_STATUSES,
+  type CanhotoPickupStatus,
+} from '../shared/canhoto-pickup.constant.js'
 import {
   buildEventLocationChecks,
   buildEventLocationColumns,
@@ -337,6 +353,16 @@ export const trips = pgTable(
     plannedDurationSeconds: bigint('planned_duration_seconds', { mode: 'number' }),
     plannedRouteFrozenAt: timestamp('planned_route_frozen_at', { withTimezone: true }),
     /**
+     * Spec 323 D4: de onde veio a ordem das paradas. `unordered` é a viagem antiga e a que o ordenador não conseguiu
+     * ordenar; `suggested` é a ordem do ordenador (ou do aceite da 058); `manual` é a que o despachante arrastou.
+     * `stop_order_error_code` é o porquê da última falha do ordenador e fica nulo quando ele ordenou.
+     */
+    stopOrderSource: text('stop_order_source')
+      .$type<StopOrderSource>()
+      .notNull()
+      .default('unordered'),
+    stopOrderErrorCode: text('stop_order_error_code').$type<StopOrderErrorCode>(),
+    /**
      * Spec 107 D3: quando o ETA das paradas foi calculado. ⚠️ **A hora envelhece, e esta coluna
      * existe para dizer isso** — o ETA congela no planejamento, e às 14h ainda diz o que achava às
      * 7h. Sem o carimbo, a tela mostraria uma hora que parece previsão de agora.
@@ -422,6 +448,14 @@ export const trips = pgTable(
     unique('trips_company_id_id_unique').on(table.companyId, table.id),
     index('trips_company_status_created_at_idx').on(table.companyId, table.status, table.createdAt),
     index('trips_company_vehicle_idx').on(table.companyId, table.vehicleId),
+    check(
+      'trips_stop_order_source_check',
+      sql`${table.stopOrderSource} in (${raw(inList(STOP_ORDER_SOURCES))})`,
+    ),
+    check(
+      'trips_stop_order_error_code_check',
+      sql`${table.stopOrderErrorCode} is null or ${table.stopOrderErrorCode} in (${raw(inList(STOP_ORDER_ERROR_CODES))})`,
+    ),
     check('trips_status_check', sql`${table.status} in (${raw(inList(TRIP_STATUSES))})`),
     /** A carreta não pode ser o próprio veículo tracionado. */
     check(
@@ -1478,6 +1512,11 @@ export const tripStopEvents = pgTable(
      * real do registro.
      */
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * ADR-0113 §1: a etapa que o motorista pulou, gravada junto do evento pedido. Fica fora do tempo de
+     * serviço, da permanência e do deslocamento. Sem backfill: o default descreve o histórico.
+     */
+    recordedTogether: boolean('recorded_together').notNull().default(false),
   },
   (table) => [
     foreignKey({
@@ -1631,6 +1670,10 @@ export const tripStopEvents = pgTable(
  * produção tinha **zero viagens**. Sem dado para migrar, o CHECK encolheu junto — conviver com
  * valor que a tela não oferece seria deixar a porta fechada por fora e aberta por dentro.
  */
+/** Spec 317 (E11): quem pagou a cobrança no recebimento. */
+export const STOP_OCCURRENCE_PAID_BY = ['driver', 'company'] as const
+export type StopOccurrencePaidBy = (typeof STOP_OCCURRENCE_PAID_BY)[number]
+
 export const TRIP_STOP_OCCURRENCE_KINDS = [
   'unexpected_charge',
   'long_wait',
@@ -1678,6 +1721,26 @@ export const tripStopOccurrences = pgTable(
      * coluna existe só para não pedir segunda migration — sem escritor nem leitor nesta spec.
      */
     signatureObjectId: uuid('signature_object_id'),
+    /**
+     * Spec 317 (E3): o valor pago na cobrança no recebimento, o **total** (soma das linhas de cobrança, calculada
+     * no servidor). Dinheiro em `numeric`, nunca float; `0` é valor. Nulo nos tipos que não pedem valor.
+     */
+    declaredAmount: numeric('declared_amount', { precision: 14, scale: 4 }),
+    /** Spec 317 (E11): quem pagou — `driver` ou `company`. Nulo nos tipos que não perguntam. */
+    paidBy: varchar('paid_by', { length: 16 }).$type<StopOccurrencePaidBy>(),
+    /**
+     * Spec 317 (E11): o PIX do motorista, obrigatório com `paid_by = 'driver'`. ⚠️ Dado financeiro: só a quem
+     * tem `trip.financials`, nunca em e-mail, log ou resposta ao app de outro motorista.
+     */
+    driverPixKey: text('driver_pix_key'),
+    driverPixKeyType: text('driver_pix_key_type').$type<PixKeyType>(),
+    /**
+     * Spec 317 (E13): o comprovante do PIX que o atendente envia ao motorista ao concluir — opcional, concluir
+     * nunca é bloqueado. O sistema não executa o PIX.
+     */
+    driverPayoutReceiptObjectId: uuid('driver_payout_receipt_object_id'),
+    driverPayoutSentAt: timestamp('driver_payout_sent_at', { withTimezone: true }),
+    driverPayoutSentByUserId: uuid('driver_payout_sent_by_user_id'),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /**
@@ -1732,6 +1795,20 @@ export const tripStopOccurrences = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.driverPayoutReceiptObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_stop_occurrences_company_payout_receipt_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.driverPayoutSentByUserId, table.companyId],
+      foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],
+      name: 'trip_stop_occurrences_payout_sender_membership_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     /** Spec 218 RF-B5: nulável — dado gravado antes da migration converge pelo backfill. */
     foreignKey({
       columns: [table.companyId, table.occurrenceTypeId],
@@ -1773,6 +1850,24 @@ export const tripStopOccurrences = pgTable(
       sql`${table.reportedDistanceMeters} is null or ${table.reportedDistanceMeters} >= 0`,
     ),
     check(
+      'trip_stop_occurrences_declared_amount_check',
+      sql`${table.declaredAmount} is null or ${table.declaredAmount} >= 0`,
+    ),
+    check(
+      'trip_stop_occurrences_paid_by_check',
+      sql`${table.paidBy} is null or ${table.paidBy} in (${raw(inList(STOP_OCCURRENCE_PAID_BY))})`,
+    ),
+    /** Spec 317 (E11): quem pagou foi o motorista, o PIX dele é obrigatório (chave e tipo). */
+    check(
+      'trip_stop_occurrences_driver_pix_check',
+      sql`(${table.paidBy} is distinct from 'driver' or (${table.driverPixKey} is not null and length(btrim(${table.driverPixKey})) > 0 and ${table.driverPixKeyType} is not null)) and (${table.driverPixKeyType} is null or ${table.driverPixKeyType} in (${raw(inList(PIX_KEY_TYPES))})) and (${table.driverPixKey} is null or length(${table.driverPixKey}) <= ${raw(String(PIX_KEY_MAX_LENGTH))})`,
+    ),
+    /** Spec 317 (E13): o comprovante enviado carrega quando e por quem. */
+    check(
+      'trip_stop_occurrences_driver_payout_check',
+      sql`${table.driverPayoutReceiptObjectId} is null or (${table.driverPayoutSentAt} is not null and ${table.driverPayoutSentByUserId} is not null)`,
+    ),
+    check(
       'trip_stop_occurrences_kind_check',
       sql`${table.kind} in (${raw(inList(TRIP_STOP_OCCURRENCE_KINDS))})`,
     ),
@@ -1801,6 +1896,108 @@ export const tripStopOccurrences = pgTable(
       tableName: 'trip_stop_occurrences',
       timeColumn: table.createdAt,
     }),
+  ],
+)
+
+/**
+ * Spec 317 (E1): as "vagas de foto" do tipo de ocorrência — cada uma com rótulo próprio. O motorista tira uma foto
+ * por vaga, e as `required` travam o envio. Mecanismo genérico; só a cobrança no recebimento as usa, e o editor
+ * de tipos não as edita nesta spec (nascem pela migration).
+ */
+export const companyOccurrenceTypePhotoSlots = pgTable(
+  'company_occurrence_type_photo_slots',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceTypeId: uuid('occurrence_type_id').notNull(),
+    /** Chave estável (`charge_sign`, `payment_receipt`); o rótulo é o texto que o motorista lê. */
+    slotKey: varchar('slot_key', { length: 48 }).notNull(),
+    label: text().notNull(),
+    required: boolean().notNull().default(true),
+    position: smallint().notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_occurrence_type_photo_slots_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceTypeId],
+      foreignColumns: [companyOccurrenceTypes.companyId, companyOccurrenceTypes.id],
+      name: 'company_occurrence_type_photo_slots_company_type_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    unique('company_occurrence_type_photo_slots_key_unique').on(
+      table.companyId,
+      table.occurrenceTypeId,
+      table.slotKey,
+    ),
+    check(
+      'company_occurrence_type_photo_slots_key_check',
+      sql`${table.slotKey} ~ '^[a-z][a-z0-9_]{0,47}$'`,
+    ),
+    check(
+      'company_occurrence_type_photo_slots_label_check',
+      sql`length(btrim(${table.label})) > 0`,
+    ),
+    check('company_occurrence_type_photo_slots_position_check', sql`${table.position} >= 0`),
+  ],
+)
+
+/**
+ * Spec 317 (E2): a foto de cada vaga do registro da parada — uma linha por vaga. `attachment_object_id` da
+ * ocorrência continua guardando a foto da placa (compatibilidade); o resto da leitura passa por aqui.
+ */
+export const tripStopOccurrencePhotos = pgTable(
+  'trip_stop_occurrence_photos',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    stopOccurrenceId: uuid('stop_occurrence_id').notNull(),
+    slotKey: varchar('slot_key', { length: 48 }).notNull(),
+    objectId: uuid('object_id').notNull(),
+    position: smallint().notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_stop_occurrence_photos_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.stopOccurrenceId],
+      foreignColumns: [tripStopOccurrences.companyId, tripStopOccurrences.id],
+      name: 'trip_stop_occurrence_photos_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.objectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'trip_stop_occurrence_photos_company_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** Uma foto por vaga por ocorrência: o reenvio da fila não duplica. */
+    unique('trip_stop_occurrence_photos_slot_unique').on(
+      table.companyId,
+      table.stopOccurrenceId,
+      table.slotKey,
+    ),
+    index('trip_stop_occurrence_photos_object_idx').on(table.companyId, table.objectId),
+    check(
+      'trip_stop_occurrence_photos_key_check',
+      sql`${table.slotKey} ~ '^[a-z][a-z0-9_]{0,47}$'`,
+    ),
+    check('trip_stop_occurrence_photos_position_check', sql`${table.position} >= 0`),
   ],
 )
 
@@ -2474,6 +2671,11 @@ export const tripDocumentOccurrences = pgTable(
      */
     referenceNumber: varchar('reference_number', { length: 30 }),
     /**
+     * A nova data de vencimento que o motorista informou (opcional; só o tipo com `asks_new_due_date` a aceita). Dia civil,
+     * sem hora; nulo é não informada.
+     */
+    requestedDueDate: date('requested_due_date', { mode: 'string' }),
+    /**
      * Spec 247 (RF9): o valor pago digitado pela ocorrência inteira (`declared_amount_scope =
      * 'occurrence'`). Dinheiro em `numeric`, nunca float; nulo cai na soma das linhas.
      */
@@ -3090,6 +3292,45 @@ export const companyOccurrenceTypes = pgTable(
     })
       .notNull()
       .default(OCCURRENCE_TYPE_DECLARED_AMOUNT_DEFAULTS.referenceNumberLabel),
+    /**
+     * Spec 315 (D1, D10): se o registro de parada pede a localização, o horário de chegada (quando a parada
+     * não tem "Cheguei") e a espera mínima depois do "Cheguei". Padrão `'off'`/nulo: nenhum tipo existente muda.
+     */
+    locationMode: varchar('location_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_LOCATION_ARRIVAL_DEFAULTS.locationMode),
+    arrivalTimeMode: varchar('arrival_time_mode', { length: 16 })
+      .$type<DeliveryProofFieldMode>()
+      .notNull()
+      .default(OCCURRENCE_TYPE_LOCATION_ARRIVAL_DEFAULTS.arrivalTimeMode),
+    minWaitAfterArrivalMinutes: smallint('min_wait_after_arrival_minutes'),
+    /**
+     * Spec 317 (E7/RF13): se o app do motorista mostra, no cartão da parada, o aviso "possível cobrança na
+     * entrega" do cliente. O escritório vê o selo sempre; esta coluna só governa o motorista. Padrão `true`.
+     */
+    showClientChargeSealToDriver: boolean('show_client_charge_seal_to_driver')
+      .notNull()
+      .default(true),
+    /**
+     * Spec 321 (D2): o tipo **nunca** avisa a contratante, em canal nenhum (e-mail automático, varredor do worker,
+     * envio/chat/portal manual do escritório e grupo da 318). Quem decide é `occurrenceTypeNeverNotifiesContractor`,
+     * lida pelos quatro pontos; `notifies` (aviso interno) não muda. Padrão `false`: nenhum tipo existente muda.
+     */
+    blocksContractorNotice: boolean('blocks_contractor_notice').notNull().default(false),
+    /**
+     * Spec 321 (D4c): se a coleta de canhoto soma peso e dimensão da nota na viagem que a busca. Padrão `true` (o
+     * comportamento natural de qualquer vínculo); o tipo da coleta é cadastrado com `false`. Na fase 1 só `false` é
+     * implementado: o cadastro recusa voltar a `true` um tipo gravado com `false`.
+     */
+    countsCargoOnPickupTrip: boolean('counts_cargo_on_pickup_trip').notNull().default(true),
+    /**
+     * Spec 321 T2 (D4): o tipo **com coleta** — registrar o tipo numa nota cria a coleta de canhoto
+     * (`trip_canhoto_pickups`, `pending`) na mesma transação da ocorrência. É a marca que o cadastro lê para recusar
+     * `counts_cargo_on_pickup_trip = true` (D4c) e que a trava de repetido lê para valer `until_resolved` (D6).
+     * Padrão `false`: nenhum tipo existente passa a criar coleta.
+     */
+    createsCanhotoPickup: boolean('creates_canhoto_pickup').notNull().default(false),
     /** Spec 247 (RF1): se o registro pede o valor pago digitado — por item ou pela ocorrência. */
     declaredAmountMode: varchar('declared_amount_mode', { length: 16 })
       .$type<DeliveryProofFieldMode>()
@@ -3158,6 +3399,8 @@ export const companyOccurrenceTypes = pgTable(
       .$type<DuplicateRequestPolicy>()
       .notNull()
       .default(DUPLICATE_REQUEST_POLICY_DEFAULT),
+    /** Minutos em que o motorista fica travado depois de existir (dele ou do escritório) a mesma ocorrência do tipo na mesma nota da viagem; nulo é sem trava. O escritório nunca é travado. */
+    driverLockMinutes: integer('driver_lock_minutes'),
     /** Spec 279 RF9: `off` ou o tipo de e-mail do cliente que o botão "Enviar ao cliente" usa. Desligado de fábrica. */
     clientEmailType: varchar('client_email_type', { length: 16 })
       .$type<ClientEmailType>()
@@ -3176,6 +3419,16 @@ export const companyOccurrenceTypes = pgTable(
       .$type<ClientChannel>()
       .notNull()
       .default(CLIENT_CHANNEL_DEFAULT),
+    /**
+     * Spec 281 T8b (D13): o app do motorista pede, na abertura da ocorrência, o contato do cliente que falta (WhatsApp e/ou
+     * e-mail, conforme o `client_channel`). Padrão desligado: nenhum tipo existente muda.
+     */
+    asksClientContact: boolean('asks_client_contact').notNull().default(false),
+    /**
+     * O app do motorista oferece o campo opcional "nova data de vencimento" ao abrir a ocorrência (pedido de prorrogação do
+     * boleto). Padrão desligado: nenhum tipo existente muda.
+     */
+    asksNewDueDate: boolean('asks_new_due_date').notNull().default(false),
     /** Sending the invoice to the e-mail of the note's customer is always an explicit choice. */
     forwardToNoteRecipient: varchar('forward_to_note_recipient', { length: 16 })
       .$type<ForwardToNoteRecipientMode>()
@@ -3185,8 +3438,6 @@ export const companyOccurrenceTypes = pgTable(
       .$type<ForwardToInformedEmailMode>()
       .notNull()
       .default(CONTRACTOR_REPLY_TYPE_DEFAULTS.forwardToInformedEmail),
-    forwardEmailSubject: text('forward_email_subject').notNull().default(''),
-    forwardEmailBody: text('forward_email_body').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -3256,6 +3507,18 @@ export const companyOccurrenceTypes = pgTable(
       sql`${table.itemsMode} <> 'off' or ${table.redeliveryPolicy} = 'unset'`,
     ),
     check(
+      'company_occurrence_types_location_mode_check',
+      sql`${table.locationMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_arrival_time_mode_check',
+      sql`${table.arrivalTimeMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
+    ),
+    check(
+      'company_occurrence_types_min_wait_check',
+      sql`${table.minWaitAfterArrivalMinutes} is null or (${table.minWaitAfterArrivalMinutes} between 1 and 1440 and ${table.arrivalTimeMode} = 'off')`,
+    ),
+    check(
       'company_occurrence_types_reference_number_mode_check',
       sql`${table.referenceNumberMode} in (${raw(inList(DELIVERY_PROOF_FIELD_MODES))})`,
     ),
@@ -3309,6 +3572,10 @@ export const companyOccurrenceTypes = pgTable(
       sql`${table.clientChannel} in (${raw(inList(CLIENT_CHANNELS))})`,
     ),
     check(
+      'company_occurrence_types_driver_lock_minutes_check',
+      sql`${table.driverLockMinutes} is null or ${table.driverLockMinutes} between 1 and 10080`,
+    ),
+    check(
       'company_occurrence_types_duplicate_request_policy_check',
       sql`${table.duplicateRequestPolicy} in (${raw(inList(DUPLICATE_REQUEST_POLICIES))})`,
     ),
@@ -3352,14 +3619,6 @@ export const companyOccurrenceTypes = pgTable(
       'company_occurrence_types_forward_to_informed_email_check',
       sql`${table.forwardToInformedEmail} in (${raw(inList(FORWARD_TO_INFORMED_EMAIL_MODES))})`,
     ),
-    check(
-      'company_occurrence_types_forward_email_subject_check',
-      sql`char_length(${table.forwardEmailSubject}) <= ${raw(String(FORWARD_EMAIL_SUBJECT_MAX_LENGTH))}`,
-    ),
-    check(
-      'company_occurrence_types_forward_email_body_check',
-      sql`char_length(${table.forwardEmailBody}) <= ${raw(String(FORWARD_EMAIL_BODY_MAX_LENGTH))}`,
-    ),
     /**
      * Spec 248: the four cross-field rules. They read only the type row; the contractor exception can
      * still change the effective mode, so the use cases validate the effective configuration too.
@@ -3375,10 +3634,6 @@ export const companyOccurrenceTypes = pgTable(
     check(
       'company_occurrence_types_forward_automatic_needs_reply_check',
       sql`${table.forwardToNoteRecipient} <> 'automatic' or ${table.contractorReplyMode} <> 'off'`,
-    ),
-    check(
-      'company_occurrence_types_forward_needs_text_check',
-      sql`(${table.forwardToNoteRecipient} = 'off' and ${table.forwardToInformedEmail} = 'off') or (btrim(${table.forwardEmailSubject}) <> '' and btrim(${table.forwardEmailBody}) <> '')`,
     ),
     unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
     check(
@@ -3792,6 +4047,125 @@ export const tripOccurrenceCases = pgTable(
      * derrubou o índice original com `updated_at desc`).
      */
     index('trip_occurrence_cases_company_status_idx').on(table.companyId, table.status),
+  ],
+)
+
+/**
+ * Spec 321 T2 (D4): a coleta de canhoto retido pelo cliente. **Não** é linha de `trip_documents`: a entrega de origem
+ * segue entregue e intocada (a trava `trip_documents_delivered_locks_release_check` e o vínculo vivo não mudam, D3), e
+ * nenhum leitor de carga, contagem, score ou portal a soma por construção (T0 §8–9).
+ *
+ * Nasce `pending` na mesma transação da ocorrência do tipo com coleta (`saveTripOccurrence`); `pickup_trip_id` e
+ * `pickup_stop_id` ficam nulos até o escritório encaixá-la (T3). Uma coleta por ocorrência, e uma aberta por vínculo
+ * de origem (índice parcial): duas ocorrências com coleta na mesma entrega nunca correm juntas.
+ *
+ * FKs para viagem e parada da coleta são `restrict` (mesmo motivo de `trip_documents.stop_id`: `set null` numa FK
+ * composta zeraria `company_id`). Quem soltar a parada ou a viagem (T3) devolve a coleta a `pending` antes.
+ */
+export const tripCanhotoPickups = pgTable(
+  'trip_canhoto_pickups',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    /** A NF-e da entrega de origem; nula só quando o vínculo é de cálculo de frete (sem NF-e). */
+    nfeDocumentId: uuid('nfe_document_id'),
+    /** O vínculo da entrega em que o cliente segurou o canhoto — nunca alterado pela coleta. */
+    originTripDocumentId: uuid('origin_trip_document_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    pickupTripId: uuid('pickup_trip_id'),
+    pickupStopId: uuid('pickup_stop_id'),
+    status: varchar({ length: 16 }).notNull().default('pending').$type<CanhotoPickupStatus>(),
+    collectedAt: timestamp('collected_at', { withTimezone: true }),
+    /**
+     * Spec 321 T4 (D4b): quando o motorista da viagem da coleta mandou a foto do canhoto. A foto vira o canhoto da nota de
+     * origem e espera a conferência (220/222); até ela decidir, a coleta segue `scheduled`, e o fim da viagem da coleta não
+     * a devolve a `pending` (o canhoto já veio). Reprovar a foto zera a marca e reabre a coleta.
+     */
+    photoSentAt: timestamp('photo_sent_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('trip_canhoto_pickups_company_id_id_unique').on(table.companyId, table.id),
+    unique('trip_canhoto_pickups_occurrence_unique').on(table.companyId, table.occurrenceId),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_canhoto_pickups_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.nfeDocumentId],
+      foreignColumns: [nfeDocuments.companyId, nfeDocuments.id],
+      name: 'trip_canhoto_pickups_company_nfe_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.originTripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'trip_canhoto_pickups_company_origin_document_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'trip_canhoto_pickups_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.pickupTripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'trip_canhoto_pickups_company_pickup_trip_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.pickupStopId],
+      foreignColumns: [tripStops.companyId, tripStops.id],
+      name: 'trip_canhoto_pickups_company_pickup_stop_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'trip_canhoto_pickups_status_check',
+      sql`${table.status} in (${raw(inList(CANHOTO_PICKUP_STATUSES))})`,
+    ),
+    /** `pending` não tem viagem nem parada; `scheduled` exige a viagem da coleta. */
+    check(
+      'trip_canhoto_pickups_pending_unscheduled_check',
+      sql`${table.status} <> 'pending' or (${table.pickupTripId} is null and ${table.pickupStopId} is null)`,
+    ),
+    check(
+      'trip_canhoto_pickups_scheduled_trip_check',
+      sql`${table.status} <> 'scheduled' or ${table.pickupTripId} is not null`,
+    ),
+    check(
+      'trip_canhoto_pickups_stop_needs_trip_check',
+      sql`${table.pickupStopId} is null or ${table.pickupTripId} is not null`,
+    ),
+    check(
+      'trip_canhoto_pickups_photo_sent_check',
+      sql`${table.photoSentAt} is null or ${table.status} in ('scheduled', 'collected')`,
+    ),
+    check(
+      'trip_canhoto_pickups_collected_at_check',
+      sql`(${table.status} = 'collected') = (${table.collectedAt} is not null)`,
+    ),
+    uniqueIndex('trip_canhoto_pickups_open_origin_unique')
+      .on(table.companyId, table.originTripDocumentId)
+      .where(sql`${table.status} in (${raw(inList(CANHOTO_PICKUP_OPEN_STATUSES))})`),
+    index('trip_canhoto_pickups_company_status_idx').on(table.companyId, table.status),
+    index('trip_canhoto_pickups_company_nfe_document_idx').on(table.companyId, table.nfeDocumentId),
+    index('trip_canhoto_pickups_company_pickup_trip_idx').on(table.companyId, table.pickupTripId),
+    index('trip_canhoto_pickups_company_pickup_stop_idx').on(table.companyId, table.pickupStopId),
+    index('trip_canhoto_pickups_company_origin_document_idx').on(
+      table.companyId,
+      table.originTripDocumentId,
+    ),
   ],
 )
 

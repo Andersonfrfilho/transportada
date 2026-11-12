@@ -108,3 +108,83 @@ describe('spec 281 T5: envio do documento pelo Evolution', () => {
     expect(await closed.sender.isConnected({ companyId: COMPANY_ID })).toBe(false)
   })
 })
+
+describe('o texto com @menção no grupo', () => {
+  const GROUP_JID = '120363025246125486@g.us'
+
+  test('manda `mentioned` com os dígitos de quem pediu, e o texto já traz o @número', async () => {
+    const { calls, sender } = build(async () => Response.json({ key: { id: 'wamid-2' } }))
+    const sent = await sender.sendText({
+      body: '@5516999998888 ↩️ *Continuando a entrega da NF 899840.*',
+      companyId: COMPANY_ID,
+      mentionNumber: '5516999998888',
+      number: GROUP_JID,
+    })
+
+    expect(sent).toEqual({ providerMessageId: 'wamid-2' })
+    expect(calls[0]?.url).toBe('https://evolution.exemplo.com/message/sendText/empresa-1')
+    expect(calls[0]?.headers.apikey).toBe('chave-da-instancia')
+    expect(calls[0]?.body).toEqual({
+      mentioned: ['5516999998888'],
+      number: GROUP_JID,
+      text: '@5516999998888 ↩️ *Continuando a entrega da NF 899840.*',
+    })
+  })
+
+  test('sem quem marcar, o corpo não leva `mentioned`', async () => {
+    const { calls, sender } = build(async () => Response.json({ key: { id: 'wamid-3' } }))
+    await sender.sendText({ body: 'aviso', companyId: COMPANY_ID, number: GROUP_JID })
+    expect(calls[0]?.body).toEqual({ number: GROUP_JID, text: 'aviso' })
+  })
+
+  test('erro do Evolution na mensagem com menção vira o motivo fechado', async () => {
+    const { sender } = build(async () => new Response('{}', { status: 500 }))
+    expect(
+      await failureOf(
+        sender.sendText({
+          body: '@5516999998888 oi',
+          companyId: COMPANY_ID,
+          mentionNumber: '5516999998888',
+          number: GROUP_JID,
+        }),
+      ),
+    ).toBe('failed')
+  })
+})
+
+describe('Spec 289 — o envio espera a vaga do intervalo', () => {
+  test('o documento só vai ao Evolution depois de o pacer liberar, e vaga recusada vira `failed` sem chamar o provedor', async () => {
+    const order: string[] = []
+    const busy = createEvolutionDocumentSender({
+      fetch: (async () => {
+        order.push('fetch')
+        return new Response('{}', { status: 200 })
+      }) as unknown as typeof fetch,
+      pacer: {
+        wait: async () => {
+          order.push('wait')
+          throw new Error('busy')
+        },
+      },
+      repository: {
+        findCredential: async () => ({
+          baseUrl: 'https://evolution.exemplo.com',
+          companyId: COMPANY_ID,
+          envelope: ENVELOPE,
+          instanceName: 'empresa-1',
+          settingsId: 'settings-1',
+          status: 'active',
+        }),
+      },
+      secrets: { decrypt: async () => ({ apiKey: 'chave-da-instancia' }) },
+    })
+    let failure = ''
+    try {
+      await busy.sendDocument(SEND)
+    } catch (error) {
+      if (error instanceof ContractorReplyWhatsAppSendError) failure = error.failure
+    }
+    expect(failure).toBe('failed')
+    expect(order).toEqual(['wait'])
+  })
+})

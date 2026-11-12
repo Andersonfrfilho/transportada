@@ -59,9 +59,14 @@ export const API_COMPANY_SETTINGS_LOCATION_RETENTION_IMPACT_PATH =
   '/company-settings/location-retention/impact'
 /** Spec 264 RF17: a empresa liga ou desliga a transcrição dos áudios das conversas por assunto. */
 export const API_COMPANY_SETTINGS_AUDIO_TRANSCRIPTION_PATH = '/company-settings/audio-transcription'
+/** Spec 322: a empresa liga ou desliga o e-mail do aviso da ocorrência que o motorista registra. */
+export const API_COMPANY_SETTINGS_DRIVER_OCCURRENCE_EMAIL_PATH =
+  '/company-settings/driver-occurrence-email'
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
 /** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */
+/** Spec 285: a automação do fluxo semanal de um contratante (interruptor, destinatários, prazo da fatura). */
+export const API_CONTRACTOR_AUTOMATIONS_PATH = '/contractor-automations'
 export const API_COMPANY_CREW_SETTINGS_PATH = '/company-crew-settings'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
@@ -70,6 +75,8 @@ export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
 /** Spec 060: o cliente que tem hora e tem preço, e o embarcador que paga o repasse. */
 export const API_DELIVERY_CLIENTS_PATH = '/delivery-clients'
 export const API_CONTRACTORS_PATH = '/contractors'
+/** Spec 316: vendedor da contratante, ligação às contratantes e carteira de clientes. */
+export const API_SALESPEOPLE_PATH = '/salespeople'
 /** Spec 150 T301 (spec 143 T013): a lista de contatos de e-mail da contratante. */
 export const API_CONTRACTOR_CONTACTS_PATH = '/contractors/:id/contacts'
 export const API_CONTRACTOR_CONTACT_PATH = '/contractors/:id/contacts/:contactId'
@@ -83,6 +90,12 @@ export const API_CONTRACTOR_OCCURRENCE_WATCHER_PATH = '/contractors/:id/occurren
 /** Spec 237 (ADR-0094): as regras de recebimento do contratante, como dado. */
 export const API_CONTRACTOR_RECEIVING_PROFILE_PATH = '/contractors/:id/receiving-profile'
 export const API_CONTRACTOR_RECEIVING_PROFILES_PATH = '/contractor-receiving-profiles'
+/** Spec 318: o canal do aviso de ocorrência da contratante (e-mail ou grupo de WhatsApp). */
+export const API_CONTRACTOR_OCCURRENCE_CHANNEL_PATH = '/contractors/:id/occurrence-channel'
+export const API_CONTRACTOR_OCCURRENCE_CHANNEL_TEST_PATH =
+  '/contractors/:id/occurrence-channel/test'
+export const API_CONTRACTOR_OCCURRENCE_CHANNEL_GROUPS_PATH =
+  '/contractor-occurrence-channels/whatsapp-groups'
 /** Spec 237 T4.6b (ADR-0094 §10): a entrada da prévia por e-mail encaminhado, no perfil do contratante. */
 export const API_CONTRACTOR_PREVIEW_EMAIL_PATH = '/contractors/:id/receiving-profile/preview-email'
 export const API_CONTRACTOR_INBOUND_TOKEN_PATH = '/contractors/:id/receiving-profile/inbound-token'
@@ -122,9 +135,6 @@ export const API_CARGO_PREVIEW_PROPOSE_ARRIVAL_PATH = '/cargo-previews/:id/propo
 export const API_CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
 export const API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'
 export const API_CONTRACTOR_MAIL_TEST_EMAIL_PATH = '/contractor-mail-settings/test-email'
-export const API_CONTRACTOR_MAIL_TEMPLATES_PATH = '/contractor-mail-templates'
-export const API_CONTRACTOR_MAIL_TEMPLATES_CATALOG_PATH = '/contractor-mail-templates/catalog'
-export const API_CONTRACTOR_MAIL_TEMPLATES_PREVIEW_PATH = '/contractor-mail-templates/preview'
 /**
  * Spec 143 T010 (RF11): a terceira superfície anônima, e a primeira assinada — o `webhookId` opaco
  * acha a configuração da empresa, e a assinatura Svix é conferida contra o segredo dela.
@@ -180,6 +190,17 @@ export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const API_FLEET_DRIVER_ACCESS_REPORT_PATH = `${API_FLEET_DRIVERS_PATH}/access-report`
 export const API_FLEET_DRIVER_ACCESS_PATH = `${API_FLEET_DRIVERS_PATH}/:id/access`
 export const API_FLEET_DRIVER_SCORE_PATH = `${API_FLEET_DRIVERS_PATH}/:id/score`
+/** Spec 292 T1: o grupo de WhatsApp da ficha (GET `fleet.read`; PUT/DELETE `fleet.manage`) e a lista de grupos do Evolution. */
+export const API_FLEET_DRIVER_WHATSAPP_GROUP_PATH = `${API_FLEET_DRIVERS_PATH}/:id/whatsapp-group`
+export const API_FLEET_WHATSAPP_GROUPS_PATH = '/fleet/whatsapp-groups'
+/** Spec 091 R2: o documento do motorista. Anexar e remover é `fleet.manage`; o conteúdo, `fleet.reveal`. */
+export const API_FLEET_DRIVER_ATTACHMENTS_PATH = `${API_FLEET_DRIVERS_PATH}/:id/attachments`
+export const API_FLEET_DRIVER_ATTACHMENT_PATH = `${API_FLEET_DRIVER_ATTACHMENTS_PATH}/:attachmentId`
+export const API_FLEET_DRIVER_ATTACHMENT_CONTENT_PATH = `${API_FLEET_DRIVER_ATTACHMENT_PATH}/content`
+export const API_FLEET_DRIVER_ATTACHMENT_SUGGESTION_PATH = `${API_FLEET_DRIVER_ATTACHMENT_PATH}/suggestion`
+/** Spec 295 Fase 4: só o robô do worker (`driver.cnh-picture`) entrega o rosto extraído da CNH. */
+export const API_FLEET_DRIVER_ATTACHMENT_CNH_PICTURE_PATH =
+  '/fleet/driver-attachments/:attachmentId/cnh-picture'
 export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
@@ -191,9 +212,18 @@ export const API_FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/mod
 export const API_FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
 /** Spec 147 D2/RF9: o que o cadastro ainda deve. Genérica — hoje só a carroceria de `fleet.read`. */
 export const API_PENDING_ITEMS_PATH = '/pending-items'
+export const API_DRIVER_STOP_REMINDERS_PATH = '/driver-stop-reminders'
+export const API_DRIVER_STOP_REMINDERS_RECONCILIATION_PATH = `${API_DRIVER_STOP_REMINDERS_PATH}/reconciliation`
+/** Spec 299 T4.2 (RF19): a configuração da cobrança do motorista, por empresa. */
+export const API_DRIVER_STOP_REMINDER_SETTINGS_PATH = '/settings/driver-stop-reminders'
 /** Não é rota de frota: os três formulários com campo de CEP — motorista, empresa e MDF-e — a usam. */
 export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_ADDRESS_REPORT_PATH = '/address-report'
+/** Spec 294 T3.2: o escritório decide o ponto da chegada que o motorista sugeriu. */
+export const API_ADDRESS_CORRECTION_SUGGESTION_APPLY_PATH =
+  '/address-correction-suggestions/:suggestionId/apply'
+export const API_ADDRESS_CORRECTION_SUGGESTION_DISMISS_PATH =
+  '/address-correction-suggestions/:suggestionId/dismiss'
 /** Spec 150: o pedido de correção de endereço à contratante. */
 export const API_ADDRESS_CORRECTION_REQUESTS_PATH = '/address-correction-requests'
 /** Spec 150 T304: o envio do e-mail de correção, completo ou unitário. */
@@ -209,6 +239,9 @@ export const CONTRACTOR_MAIL_RATE_LIMIT_SCOPE = 'contractor-mail'
  */
 export const API_ADDRESS_CORRECTION_REQUESTS_RECIPIENTS_PATH =
   '/address-correction-requests/recipients'
+/** Spec 286 (RF6): o estado e a prévia do modelo do e-mail de correção, que mora no módulo de notificação. */
+export const API_ADDRESS_CORRECTION_REQUESTS_MAIL_TEMPLATE_PATH =
+  '/address-correction-requests/mail-template'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'
@@ -222,6 +255,7 @@ export const API_ME_CURRENT_TRIP_PATH = '/me/trips/current'
 export const API_ME_CLIENT_DIAGNOSTICS_PATH = '/me/client-diagnostics'
 export const API_ME_LOCATION_CONSENT_PATH = '/me/location-consent'
 export const API_ME_WHATSAPP_PHONE_PATH = '/me/whatsapp-phone'
+export const API_ME_PICTURE_PATH = '/me/picture'
 
 /**
  * ADR-0050 §4: o portal do contratante fala por `/client/me/*`, e nenhuma dessas rotas recebe id de
@@ -233,11 +267,25 @@ export const API_WHATSAPP_CHANNEL_PATH = '/company-settings/whatsapp-channel'
 export const API_WHATSAPP_EVOLUTION_PATH = '/company-settings/whatsapp-evolution'
 export const API_WHATSAPP_EVOLUTION_CONNECTION_PATH =
   '/company-settings/whatsapp-evolution/connection'
+export const API_WHATSAPP_EVOLUTION_DISCONNECT_PATH =
+  '/company-settings/whatsapp-evolution/disconnect'
+export const API_WHATSAPP_EVOLUTION_REVEAL_PATH =
+  '/company-settings/whatsapp-evolution/connection/reveal'
 export const API_WHATSAPP_EVOLUTION_QR_PATH = '/company-settings/whatsapp-evolution/qr'
+export const API_WHATSAPP_EVOLUTION_PROVISION_PATH =
+  '/company-settings/whatsapp-evolution/provision'
 /** Spec 281 T6: aponta (de novo) o webhook da instância para a API; o segredo nunca volta na resposta. */
 export const API_WHATSAPP_EVOLUTION_WEBHOOK_PATH = '/company-settings/whatsapp-evolution/webhook'
 /** Spec 281 T6 (RF4): a entrega do Evolution, uma URL por empresa pelo `webhookId` opaco. */
 export const API_PUBLIC_WHATSAPP_EVOLUTION_WEBHOOK_PATH = '/public/whatsapp-evolution/:webhookId'
+/** Spec 319 T5: a caixa de conversas do WhatsApp (módulo próprio, separado de ocorrências). */
+export const API_WHATSAPP_INBOX_CHATS_PATH = '/whatsapp-inbox/chats'
+export const API_WHATSAPP_INBOX_CHAT_MESSAGES_PATH = '/whatsapp-inbox/chats/:id/messages'
+export const API_WHATSAPP_INBOX_CHAT_MESSAGE_RETRY_PATH =
+  '/whatsapp-inbox/chats/:id/messages/:messageId/retry'
+export const API_WHATSAPP_INBOX_CHAT_TAKE_OVER_PATH = '/whatsapp-inbox/chats/:id/take-over'
+export const API_WHATSAPP_INBOX_CHAT_RELEASE_PATH = '/whatsapp-inbox/chats/:id/release'
+export const API_WHATSAPP_INBOX_CHAT_READ_PATH = '/whatsapp-inbox/chats/:id/read'
 export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
 export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
 /** Spec 164 T9: a tratativa que chegou ao contratante — no molde das duas rotas acima. */
@@ -257,6 +305,8 @@ export const API_BILLING_INVOICE_PREVIEW_PATH = '/billing/invoices/preview'
 export const API_OPERATIONS_SUMMARY_PATH = '/operations/summary'
 export const API_OPERATIONS_TIMELINE_PATH = '/operations/timeline'
 export const API_OPERATIONS_JOBS_PATH = '/operations/jobs'
+/** Spec 290: o quadro de mensagens enviadas (contagens por canal e categoria). */
+export const API_OPERATIONS_SENT_MESSAGES_PATH = '/operations/sent-messages'
 /** Spec 072: o botão que o schema já previa — `origin: 'manual'` e o `409` do índice único. */
 export const API_OPERATIONS_JOB_RUN_PATH = '/operations/jobs/:job/run'
 /** Spec 161 T21: o relógio de cada rotina — habilitada ou não, e quem desligou. */
@@ -267,7 +317,13 @@ export const API_AUDIT_EVENTS_PATH = '/audit/events'
 export const API_NFE_IMPORTS_PATH = '/nfe-imports'
 export const API_NFE_IMPORTS_XML_PATH = '/nfe-imports/xml'
 export const API_NFE_IMPORTS_DISTRIBUTION_PATH = '/nfe-imports/distribution'
+/** Spec 301: os envios de XML por e-mail e WhatsApp, com o desfecho de cada um. */
+export const API_NFE_XML_RECEIPTS_PATH = '/nfe-xml-receipts'
+/** Spec 313: domínios de e-mail liberados a enviar XML, de um contratante. */
+export const API_NFE_XML_ALLOWED_DOMAINS_PATH = '/nfe-xml-allowed-domains'
+export const API_NFE_ACCESS_KEY_LOOKUPS_PATH = '/nfe-access-key-lookups'
 export const API_NFE_DOCUMENTS_PATH = '/nfe-documents'
+export const API_NFE_DOCUMENT_ACCESS_KEY_CHECKS_PATH = '/nfe-documents/access-key-checks'
 export const API_VIEW_PREFERENCES_PATH = '/view-preferences'
 export const API_COMPANY_USERS_PATH = '/company-users'
 /** Primeira etapa do login: resolve o identificador digitado no login que o provedor conhece. */
@@ -290,7 +346,9 @@ export const HTTP_OPTIONS_METHOD = 'OPTIONS'
 export const CORS_ALLOW_HEADERS = 'Authorization'
 export const CORS_MAX_AGE_SECONDS = 300
 /** `Date` (relógio do motorista), `Retry-After` (o 429 do painel) e `Content-Disposition` (nome do download) não são legíveis entre origens. */
-export const CORS_EXPOSE_HEADERS = 'Date, Retry-After, Content-Disposition'
+/** Quem pôs a foto de perfil (`cnh|self|admin`); o app do motorista lê para a nota da CNH (spec 295). */
+export const PICTURE_ORIGIN_HEADER = 'x-picture-origin'
+export const CORS_EXPOSE_HEADERS = 'Date, Retry-After, Content-Disposition, X-Picture-Origin'
 export const APPLICATION_MAX_REQUEST_BODY_SIZE_BYTES = 1_048_576
 /**
  * Teto do corpo das demais rotas no servidor (`Bun.serve`) — o que vale para toda rota que não tem teto

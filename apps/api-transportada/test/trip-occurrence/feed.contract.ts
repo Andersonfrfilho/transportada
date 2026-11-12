@@ -72,6 +72,14 @@ describe('fronteira da listagem de ocorrências', () => {
     })
   })
 
+  test('typeIdIn (spec 321 T7) filtra por id do tipo e recusa o que não é UUID', () => {
+    const id = '00000000-0000-4000-8000-0000000000aa'
+    expect(parse(`?typeIdIn=${id}`).filters).toEqual({ typeIdIn: [id] })
+    expect(() => parse('?typeIdIn=recusa_total')).toThrow()
+    expect(() => parse(`?typeIdIn=${id},xyz`)).toThrow()
+    expect(() => parse('?typeIdIn=')).toThrow()
+  })
+
   test('o período é canonicalizado em ISO', () => {
     const parsed = parse(
       '?createdFrom=2026-09-01T00:00:00.000Z&createdUntil=2026-09-02T00:00:00.000Z',

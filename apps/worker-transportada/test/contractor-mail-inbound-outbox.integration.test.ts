@@ -6,7 +6,7 @@
  * Molde de `test/contractor-mail-outbound-outbox.integration.test.ts` (T009), sobre
  * `contractor_inbound_email_outbox` — a tabela que a API grava (webhook aceito) e este trilho lê.
  */
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq } from 'drizzle-orm'
 
@@ -19,8 +19,17 @@ const describeDatabase = databaseUrl ? describe : describe.skip
 
 describeDatabase('contractor mail inbound outbox repository (integration)', () => {
   const provider = createDrizzleProvider({ connection: databaseUrl! })
+  afterAll(async () => {
+    await provider.close()
+  })
   const database = provider.db
   const repository = new DrizzleContractorMailInboundOutboxRepository(database)
+
+  /**
+   * Um segundo à frente: `next_attempt_at` nasce do `now()` do Postgres, com microssegundos, e o `Date` do JS só tem
+   * milissegundos. Semear e reivindicar no mesmo milissegundo deixava a linha "no futuro" e a reivindicação vazia.
+   */
+  const claimNow = () => new Date(Date.now() + 1_000)
 
   async function seedOutboxRow(): Promise<{
     readonly companyId: string
@@ -52,7 +61,7 @@ describeDatabase('contractor mail inbound outbox repository (integration)', () =
       claimOwner,
       leaseMs: 30_000,
       limit: 10,
-      now: new Date(),
+      now: claimNow(),
     })
     const entry = claimed.find((row) => row.eventId === seeded.eventId)
 
@@ -82,7 +91,7 @@ describeDatabase('contractor mail inbound outbox repository (integration)', () =
       claimOwner: `${claimOwner}-again`,
       leaseMs: 30_000,
       limit: 10,
-      now: new Date(),
+      now: claimNow(),
     })
     expect(claimedAgain.some((claimedRow) => claimedRow.eventId === seeded.eventId)).toBe(false)
   })
@@ -94,7 +103,7 @@ describeDatabase('contractor mail inbound outbox repository (integration)', () =
       claimOwner: `integration-a-${crypto.randomUUID()}`,
       leaseMs: 30_000,
       limit: 10,
-      now: new Date(),
+      now: claimNow(),
     })
     expect(firstClaim.some((row) => row.eventId === seeded.eventId)).toBe(true)
 
@@ -102,7 +111,7 @@ describeDatabase('contractor mail inbound outbox repository (integration)', () =
       claimOwner: `integration-b-${crypto.randomUUID()}`,
       leaseMs: 30_000,
       limit: 10,
-      now: new Date(),
+      now: claimNow(),
     })
     expect(secondClaim.some((row) => row.eventId === seeded.eventId)).toBe(false)
   })

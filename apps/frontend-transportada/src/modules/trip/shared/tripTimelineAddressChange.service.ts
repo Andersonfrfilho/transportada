@@ -2,7 +2,7 @@
 import type { Translate } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import { formatTripTimelineDistance } from './tripTimelineDetail.service'
-import type { TripTimelineItem } from './trip.types'
+import { TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS, type TripTimelineItem } from './trip.types'
 
 export type TripTimelineAddressChangeText = Readonly<{
   displacement: null | string
@@ -29,7 +29,8 @@ export function resolveTripTimelineAddressChange(
       : t(`eventTimeline.addressChange.displacement.${distance.unit}`, {
           distance: distance.value,
         })
-  const originText = t(`eventTimeline.addressChange.origin.${origin}`)
+  const isKnownOrigin = (TRIP_TIMELINE_ADDRESS_CHANGE_ORIGINS as readonly string[]).includes(origin)
+  const originText = t(`eventTimeline.addressChange.origin.${isKnownOrigin ? origin : 'unknown'}`)
   return {
     displacement,
     origin: originText,

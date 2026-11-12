@@ -13,6 +13,7 @@ import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavig
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import { ClientBoletoEmailAction } from '@/modules/occurrence-conversation/components/ClientBoletoEmailAction.component'
+import { ClientBoletoWhatsAppAction } from '@/modules/occurrence-conversation/components/ClientBoletoWhatsAppAction.component'
 import { isContractorReplyBoletoAccepted } from '@/modules/occurrence-conversation/shared/contractorReplyEmail.service'
 import { ContractorReplyBadge } from '@/modules/occurrence-conversation/components/ContractorReplyBadge.component'
 
@@ -625,6 +626,13 @@ export function TripOccurrenceTable({
                             role="presentation"
                           >
                             <ClientBoletoEmailAction
+                              isEnabled={isContractorReplyBoletoAccepted(
+                                item.contractorReply.status,
+                              )}
+                              occurrenceId={item.id}
+                              placement="row"
+                            />
+                            <ClientBoletoWhatsAppAction
                               isEnabled={isContractorReplyBoletoAccepted(
                                 item.contractorReply.status,
                               )}

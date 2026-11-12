@@ -105,6 +105,8 @@ export function mapTripDocumentDetail(input: {
   readonly openOccurrenceCase?: boolean
   /** Spec 185 T6.1: derivado fora daqui (`resolveDispatchReadiness`) — padrão `false`. */
   readonly leavesBehindOnDispatch?: boolean
+  /** Spec 321 T7: derivado fora daqui (`canhoto-pickup.query.ts`) — padrão `false`. */
+  readonly canhotoRetained?: boolean
   /** Spec 223 RF4: derivado fora daqui (`proof-pending.query.ts`) — padrão `false`. */
   readonly proofPending?: boolean
   /** Spec 233 T2.3: derivado fora daqui (`trip-document-volume.query.ts`) — padrão `null`. */
@@ -119,6 +121,7 @@ export function mapTripDocumentDetail(input: {
     ...mapTripDocument(input.document),
     cargoGrossWeight: input.cargoGrossWeight ?? null,
     cargoWeightSource: input.cargoWeightSource ?? null,
+    canhotoRetained: input.canhotoRetained ?? false,
     contact: input.contact ?? null,
     cteAuthorized: input.cteAuthorized,
     deliveryDeadline: input.deliveryDeadline ?? null,

@@ -52,6 +52,8 @@ export type OccurrenceValuesPayload = Readonly<{
     productCode: string
     quantity: string
   }>[]
+  /** `AAAA-MM-DD`, só com a data completa e válida. */
+  newDueDate?: string
   referenceNumber?: string
 }>
 

@@ -50,3 +50,23 @@ export function createMdfeAutoIssueTrigger(
     },
   }
 }
+
+export type SelectMdfeAutoIssueTriggerParams = {
+  /** `undefined` sem o crachá do worker: o schema de ambiente já recusa ligado sem ele. */
+  readonly create: (() => MdfeAutoIssueTrigger) | undefined
+  readonly enabled: boolean
+  readonly logger: WorkerLogger
+}
+
+/**
+ * Emenda 2026-11-05 da ADR-0047: o dono emite MDF-e por outro caminho hoje, e ligar a emissão
+ * automática é decisão fiscal. Desligado, o gatilho nem existe, e o boot diz isso uma vez.
+ */
+export function selectMdfeAutoIssueTrigger(
+  input: SelectMdfeAutoIssueTriggerParams,
+): MdfeAutoIssueTrigger | undefined {
+  if (input.enabled && input.create !== undefined) return input.create()
+
+  safeLogInfo({ logger: input.logger, message: 'mdfe_auto_issue_disabled', metadata: {} })
+  return undefined
+}

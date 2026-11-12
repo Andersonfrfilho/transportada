@@ -10,6 +10,10 @@ import { initReactI18next } from 'react-i18next'
 
 import clientEmailLocale from '@/modules/client-email/locales/clientEmail.locale.json'
 import clientEmailEnglishLocale from '@/modules/client-email/locales/clientEmail.en.locale.json'
+import clientContactsLocale from '@/modules/client-contacts/locales/clientContacts.locale.json'
+import clientContactsEnglishLocale from '@/modules/client-contacts/locales/clientContacts.en.locale.json'
+import clientWhatsAppLocale from '@/modules/client-whatsapp/locales/clientWhatsApp.locale.json'
+import clientWhatsAppEnglishLocale from '@/modules/client-whatsapp/locales/clientWhatsApp.en.locale.json'
 import conversationLocale from '@/modules/conversation/locales/conversation.locale.json'
 import conversationEnglishLocale from '@/modules/conversation/locales/conversation.en.locale.json'
 import driverTripLocale from '@/modules/driver-trip/locales/driverTrip.locale.json'
@@ -24,12 +28,16 @@ void i18n.use(initReactI18next).init({
   resources: {
     en: {
       clientEmail: clientEmailEnglishLocale,
+      clientContacts: clientContactsEnglishLocale,
+      clientWhatsApp: clientWhatsAppEnglishLocale,
       conversation: conversationEnglishLocale,
       driverTrip: driverTripEnglishLocale,
       identity: identityEnglishLocale,
     },
     'pt-BR': {
       clientEmail: clientEmailLocale,
+      clientContacts: clientContactsLocale,
+      clientWhatsApp: clientWhatsAppLocale,
       conversation: conversationLocale,
       driverTrip: driverTripLocale,
       identity: identityLocale,

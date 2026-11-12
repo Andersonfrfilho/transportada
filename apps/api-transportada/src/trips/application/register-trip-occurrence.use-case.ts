@@ -3,6 +3,7 @@
  *
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
+import type { StopOccurrencePhotoSlot } from '../domain/stop-occurrence-photo-slots.policy.js'
 import type {
   ClientChannel,
   ClientEmailSendMode,
@@ -195,6 +196,8 @@ export type OccurrenceTypeRecord = {
    */
   readonly noteMode?: DeliveryProofFieldMode
   readonly notifies: boolean
+  /** Spec 317 (E1, RF8): as vagas de foto do tipo; só o tipo que as tem as traz. Opcional por isso. */
+  readonly photoSlots?: readonly StopOccurrencePhotoSlot[]
   /**
    * Spec 246 (RF1c): a quantidade mínima de fotos (1..5), lida só com a foto `required`. Opcional só
    * para os dublês de teste; a leitura real sempre grava.
@@ -202,6 +205,15 @@ export type OccurrenceTypeRecord = {
   readonly photoMinimumCount?: number
   /** Spec 183 T802: o registro avisa a contratante sozinho (o envio é do gancho, depois do commit). */
   readonly emailsContractor?: boolean
+  /**
+   * Spec 321 (D2): o tipo nunca avisa a contratante, em canal nenhum — quem decide é
+   * `occurrenceTypeNeverNotifiesContractor`. Opcional só para os dublês de teste; a leitura real sempre traz.
+   */
+  readonly blocksContractorNotice?: boolean
+  /** Spec 321 (D4c): se a coleta de canhoto soma carga na viagem que a busca. Opcional só para os dublês. */
+  readonly countsCargoOnPickupTrip?: boolean
+  /** Spec 321 T2 (D4): registrar o tipo cria a coleta de canhoto. Opcional só para os dublês. */
+  readonly createsCanhotoPickup?: boolean
   /** Spec 271: a chave do modelo do módulo de notificação do tipo; nula é sem modelo. Opcional só para os dublês de teste. */
   readonly contractorNotificationTemplateKey?: null | string
   /** Spec 248 (RF1): o retorno da contratante — opcionais só para os dublês de teste; a leitura real sempre traz. */
@@ -211,9 +223,16 @@ export type OccurrenceTypeRecord = {
   readonly contractorReplyAttachmentKind?: ContractorReplyAttachmentKind
   readonly contractorReplyResolveOnDelivery?: boolean
   readonly duplicateRequestPolicy?: DuplicateRequestPolicy
+  /** Minutos de trava do motorista; ausente ou nulo é sem trava. Opcional só para os dublês de teste. */
+  readonly driverLockMinutes?: null | number
   readonly clientEmailType?: ClientEmailType
   readonly clientEmailSendMode?: ClientEmailSendMode
   readonly clientChannel?: ClientChannel
+  /** Spec 281 T8b: o app pede o contato do cliente na abertura; ausente é desligado. */
+  readonly asksClientContact?: boolean
+  readonly asksNewDueDate?: boolean
+  /** Spec 317 (E7, RF13): o motorista vê o selo "possível cobrança" do cliente. Opcional só para os dublês; a leitura real sempre traz. */
+  readonly showClientChargeSealToDriver?: boolean
   readonly contractorReplyAcknowledgementQuickReplyId?: null | string
   readonly contractorReplyMode?: ContractorReplyMode
   readonly contractorReplyWaitHours?: null | number
@@ -228,6 +247,13 @@ export type OccurrenceTypeRecord = {
    * que ainda não conhecem a tratativa (`findOccurrenceType`, a implementação real, sempre grava).
    */
   readonly redeliveryPolicy?: RedeliveryPolicy
+  /**
+   * Spec 315 (D1, D10): o que o registro de parada pede de localização e de horário de chegada, e a espera mínima
+   * depois do "Cheguei" (nulo/ausente: sem espera). Opcionais só para os dublês de teste; a leitura real sempre grava.
+   */
+  readonly arrivalTimeMode?: DeliveryProofFieldMode
+  readonly locationMode?: DeliveryProofFieldMode
+  readonly minWaitAfterArrivalMinutes?: null | number
   /** Spec 247 (RF1): o número do documento do cliente — modo (`'off'` ausente) e rótulo. */
   readonly referenceNumberLabel?: string
   readonly referenceNumberMode?: DeliveryProofFieldMode

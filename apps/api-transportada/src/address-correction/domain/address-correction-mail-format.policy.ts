@@ -1,8 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Formatação dos valores de cada item do e-mail de correção (RF10/RF11) — os mesmos textos entram
- * nos blocos fixos do layout e nas variáveis de item do modelo (T402), para os dois nunca divergirem.
+ * Formatação dos valores de cada item do e-mail de correção (RF10/RF11), usados nos blocos de endereço.
  */
 import type { AddressFields } from '../application/address-correction.port.js'
 import type {
@@ -63,20 +62,4 @@ export function formatReason(reason: AddressCorrectionMailReason): string {
 /** `null` → o bloco abre pelo endereço correto, sem nome nem "null" (T303). */
 export function itemHeading(item: AddressCorrectionMailItem): string {
   return item.recipientName ?? formatAddress(item.proposed)
-}
-
-/** Valores das variáveis de item do catálogo (`MAIL_TEMPLATE_CATALOG.address_correction`). */
-export function buildItemVariableValues(
-  item: AddressCorrectionMailItem,
-): Readonly<Record<string, string>> {
-  return {
-    cep_como_veio: formatPostalCode(item.reported.postalCode),
-    cep_correto: formatPostalCode(item.proposed.postalCode),
-    cliente: itemHeading(item),
-    endereco_como_veio: formatAddress(item.reported),
-    endereco_correto: formatAddress(item.proposed),
-    motivo: formatReason(item.reason),
-    municipio: item.proposed.city,
-    uf: item.proposed.state,
-  }
 }

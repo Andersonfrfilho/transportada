@@ -32,6 +32,8 @@ import { OccurrenceTypeHiddenFieldsHint } from './OccurrenceTypeHiddenFieldsHint
 import { OccurrenceTypeIconPicker } from './OccurrenceTypeIconPicker.component'
 
 const NAME_MAX_LENGTH = 60
+const DRIVER_LOCK_MINUTES_OFF = 'off'
+const DRIVER_LOCK_MINUTES_CHOICES = [30, 60, 120, 360, 720, 1440, 2880, 4320] as const
 
 type OccurrenceTypeIdentityProps = Readonly<{
   disabled: boolean
@@ -52,6 +54,7 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
   } = useOccurrenceTypeOptions()
   const isDelivery = type.stage === TRIP_OCCURRENCE_STAGE.delivery
   const hasItems = type.itemsMode !== OCCURRENCE_ITEMS_MODE.off
+  const hasClientReturnMatrix = type.clientChannels !== undefined && type.clientChannels !== null
 
   function handleNameCommit(input: HTMLInputElement) {
     const name = input.value.trim()
@@ -120,8 +123,48 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
             />
           </div>
         )}
-        {/* Spec 281 RF8: só com a API que já manda o campo (a anterior recusaria o PUT). */}
-        {type.clientChannel === undefined ? null : (
+        {/* Só com a API que já manda o campo (a anterior recusaria o PUT). O escritório nunca é travado. */}
+        {type.driverLockMinutes === undefined ? null : (
+          <div className={identityStyles.identityField}>
+            <span aria-hidden="true" className={identityStyles.fieldLabel}>
+              {t('occurrenceTypeCatalog.driverLockMinutes')}
+            </span>
+            <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.driverLockMinutesHint')}>
+              <Select
+                ariaLabel={t('occurrenceTypeCatalog.driverLockMinutes')}
+                disabled={disabled}
+                onChange={(value) =>
+                  onEdit({
+                    driverLockMinutes: value === DRIVER_LOCK_MINUTES_OFF ? null : Number(value),
+                  })
+                }
+                options={[
+                  {
+                    label: t('occurrenceTypeCatalog.driverLockMinutesOff'),
+                    value: DRIVER_LOCK_MINUTES_OFF,
+                  },
+                  ...[...new Set([...DRIVER_LOCK_MINUTES_CHOICES, type.driverLockMinutes ?? 0])]
+                    .filter((minutes) => minutes > 0)
+                    .toSorted((left, right) => left - right)
+                    .map((minutes) => ({
+                      label: t('occurrenceTypeCatalog.driverLockMinutesOption', {
+                        count: minutes,
+                        hours: Math.round((minutes / 60) * 10) / 10,
+                      }),
+                      value: String(minutes),
+                    })),
+                ]}
+                value={
+                  type.driverLockMinutes === null
+                    ? DRIVER_LOCK_MINUTES_OFF
+                    : String(type.driverLockMinutes)
+                }
+              />
+            </Tooltip>
+          </div>
+        )}
+        {/* Spec 281 RF8: só com a API que já manda o campo (a anterior recusaria o PUT). Com a matriz (286) o canal vem das caixas do bloco "Retorno ao cliente". */}
+        {type.clientChannel === undefined || hasClientReturnMatrix ? null : (
           <div className={identityStyles.identityField}>
             <span aria-hidden="true" className={identityStyles.fieldLabel}>
               {t('occurrenceTypeCatalog.clientChannel')}
@@ -157,7 +200,8 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
         {/* Spec 279 RF10: só com o envio ao cliente ligado e a API que já manda o campo. */}
         {type.clientEmailSendMode === undefined ||
         type.clientEmailType === undefined ||
-        type.clientEmailType === 'off' ? null : (
+        type.clientEmailType === 'off' ||
+        hasClientReturnMatrix ? null : (
           <div className={identityStyles.identityField}>
             <span aria-hidden="true" className={identityStyles.fieldLabel}>
               {t('occurrenceTypeCatalog.clientEmailSendMode')}
@@ -222,6 +266,79 @@ export function OccurrenceTypeIdentity({ disabled, onEdit, type }: OccurrenceTyp
             />
           </Tooltip>
         ) : null}
+        {/* Spec 281 T8b: só com a API que já manda o campo; pede o contato do cliente ao motorista ao abrir. */}
+        {type.asksClientContact === undefined || type.clientChannel === 'off' ? null : (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.asksClientContactHint')}>
+            <Checkbox
+              checked={type.asksClientContact}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.asksClientContact')}
+              onChange={(value) => onEdit({ asksClientContact: value })}
+            />
+          </Tooltip>
+        )}
+        {/* O app do motorista oferece o campo opcional "nova data de vencimento" (pedido de prorrogação do boleto). */}
+        {type.asksNewDueDate === undefined ? null : (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.asksNewDueDateHint')}>
+            <Checkbox
+              checked={type.asksNewDueDate}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.asksNewDueDate')}
+              onChange={(value) => onEdit({ asksNewDueDate: value })}
+            />
+          </Tooltip>
+        )}
+        {/* Spec 317 T14a: só o tipo de cobrança no recebimento; o escritório sempre vê o selo, o interruptor é do motorista. */}
+        {type.showClientChargeSealToDriver === undefined ||
+        type.stopKind !== 'unexpected_charge' ? null : (
+          <Tooltip
+            dismissOnActivate
+            label={t('occurrenceTypeCatalog.showClientChargeSealToDriverHint')}
+          >
+            <Checkbox
+              checked={type.showClientChargeSealToDriver}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.showClientChargeSealToDriver')}
+              onChange={(value) => onEdit({ showClientChargeSealToDriver: value })}
+            />
+          </Tooltip>
+        )}
+        {/* Spec 321 T5 (RF1, D2, D4c): só com a API que já manda os campos; as três chaves vão juntas no PUT. */}
+        {type.blocksContractorNotice === undefined ? null : (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.blocksContractorNoticeHint')}>
+            <Checkbox
+              checked={type.blocksContractorNotice}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.blocksContractorNotice')}
+              onChange={(value) => onEdit({ blocksContractorNotice: value })}
+            />
+          </Tooltip>
+        )}
+        {type.createsCanhotoPickup === undefined ? null : (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.createsCanhotoPickupHint')}>
+            <Checkbox
+              checked={type.createsCanhotoPickup}
+              disabled={disabled}
+              label={t('occurrenceTypeCatalog.createsCanhotoPickup')}
+              onChange={(value) =>
+                onEdit({
+                  createsCanhotoPickup: value,
+                  ...(value ? { countsCargoOnPickupTrip: false } : {}),
+                })
+              }
+            />
+          </Tooltip>
+        )}
+        {type.countsCargoOnPickupTrip === undefined || type.createsCanhotoPickup !== true ? null : (
+          <Tooltip dismissOnActivate label={t('occurrenceTypeCatalog.countsCargoOnPickupTripHint')}>
+            <Checkbox
+              checked={type.countsCargoOnPickupTrip}
+              disabled
+              label={t('occurrenceTypeCatalog.countsCargoOnPickupTrip')}
+              onChange={() => undefined}
+            />
+          </Tooltip>
+        )}
       </div>
       <OccurrenceTypeHiddenFieldsHint isItemsOff={!hasItems} isSeparationOnlyHidden={isDelivery} />
     </section>

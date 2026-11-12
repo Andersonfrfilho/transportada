@@ -9,7 +9,7 @@
  */
 import { createHash } from 'node:crypto'
 
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
@@ -53,6 +53,9 @@ function attachmentOf(contentType: string): Attachment {
 
 describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 T4.5)', () => {
   const provider = createDrizzleProvider({ connection: databaseUrl! })
+  afterAll(async () => {
+    await provider.close()
+  })
   const database = provider.db
   const inbound = createDrizzleContractorMailInboundWorkerRepository(database)
 
@@ -171,16 +174,20 @@ describeDatabase('a resposta por e-mail move o retorno da contratante (spec 248 
       await database.execute(sql`
         insert into contractor_mail_settings (company_id, reply_domain, secret_envelope, sender_address, sender_name, sending_verified_at)
         values (${companyId}, 'resposta.example.test', '{}'::jsonb, 'ocorrencias@transportadora.example.test', 'Transportadora Sintética', now())`)
+      /** Spec 286 T9: sem texto antigo, o boleto sai do modelo escolhido no canal do tipo. */
+      const templateKey = 'occurrence.client-reply.teste'
+      await database.execute(sql`
+        insert into notification.templates (company_id, key, channel, locale, version, subject, body, active)
+        values (${companyId}, ${templateKey}, 'email', 'pt-BR', 1, 'Boleto com novo vencimento', 'Segue o boleto prorrogado.', true)`)
+      await database.execute(sql`
+        insert into company_occurrence_type_client_channels (company_id, occurrence_type_id, channel, enabled, send_mode, template_key)
+        select ${companyId}, occurrence.occurrence_type_id, 'email', true, 'automatic', ${templateKey}
+        from trip_document_occurrences occurrence
+        where occurrence.id = ${occurrenceId}`)
     }
     const config = JSON.stringify({
       attachmentKind: options.attachmentKind ?? 'pdf',
-      ...(forwardsToNote
-        ? {
-            forwardEmailBody: 'Segue o boleto prorrogado.',
-            forwardEmailSubject: 'Boleto com novo vencimento',
-            forwardToNoteRecipient: 'automatic',
-          }
-        : {}),
+      ...(forwardsToNote ? { forwardToNoteRecipient: 'automatic' } : {}),
       mode,
       version: 1,
     })

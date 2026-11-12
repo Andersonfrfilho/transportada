@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
@@ -12,7 +13,7 @@ import type {
   FederalTaxRegimeCode,
   FederalTaxSubmission,
 } from '../shared/federalTaxSuggestion.service'
-import styles from '../styles/companySettings.module.css'
+import styles from '../styles/businessCalendar.module.css'
 
 export type FederalTaxPanelProps = Readonly<{
   disabled: boolean
@@ -49,9 +50,12 @@ function RateField(props: RateFieldProps) {
   const { t } = useTranslation('companySettings')
   const fieldId = `federal-tax-${props.field}`
   return (
-    <label htmlFor={fieldId}>
-      {t(`federalTaxes.${props.field}Label`)}
+    <div className={styles.field}>
+      <label className={styles.fieldLabel} htmlFor={fieldId}>
+        {t(`federalTaxes.${props.field}Label`)}
+      </label>
       <input
+        className={styles.input}
         disabled={props.disabled}
         id={fieldId}
         inputMode="decimal"
@@ -60,11 +64,9 @@ function RateField(props: RateFieldProps) {
         onChange={(event) => props.onChange(props.field, event.target.value)}
       />
       {props.origin === null ? null : (
-        <span className={styles.settingsFormOrigin}>
-          {t(`federalTaxes.origin.${props.origin}`)}
-        </span>
+        <p className={styles.hint}>{t(`federalTaxes.origin.${props.origin}`)}</p>
       )}
-    </label>
+    </div>
   )
 }
 
@@ -73,57 +75,66 @@ function FederalTaxForm(props: FederalTaxPanelProps) {
   const form = useFederalTaxForm({ stored: props.stored, taxRegime: props.taxRegime })
   const submission = form.submission
   return (
-    <div className={styles.settingsFormFields}>
-      {/* O `Select` do DS recebe o nome acessível por `ariaLabel`; aqui é só o texto visível. */}
-      <p className={styles.sectionKicker}>{t('federalTaxes.regimeLabel')}</p>
-      <Select
-        ariaLabel={t('federalTaxes.regimeLabel')}
-        disabled={props.disabled}
-        options={form.regimes.map((regime) => ({
-          label: t(`federalTaxes.regime.${regime}`),
-          value: regime,
-        }))}
-        placeholder={t('federalTaxes.regimePlaceholder')}
-        value={form.draft.regime}
-        onChange={form.handleRegimeChange}
-      />
-      {form.draft.regime === 'simple' ? (
-        <p className={styles.settingsFormNote}>{t('federalTaxes.simpleNote')}</p>
-      ) : null}
-      {form.draft.regime === 'real' ? (
-        <p className={styles.settingsFormNote}>{t('federalTaxes.realNote')}</p>
-      ) : null}
-      <RateField
-        disabled={props.disabled}
-        field="pis"
-        origin={form.draft.pisOrigin}
-        value={form.draft.pis}
-        onChange={form.handleRateChange}
-      />
-      <RateField
-        disabled={props.disabled}
-        field="cofins"
-        origin={form.draft.cofinsOrigin}
-        value={form.draft.cofins}
-        onChange={form.handleRateChange}
-      />
-      <div className={styles.settingsFormActions}>
-        <button
-          disabled={props.disabled || submission === null}
-          type="button"
-          onClick={() => (submission === null ? undefined : props.onSave(submission))}
-        >
-          <Icon name="save" />
-          {t('federalTaxes.save')}
-        </button>
-        {props.stored === null ? null : (
-          <button disabled={props.disabled} type="button" onClick={props.onClear}>
-            <Icon name="refresh" />
-            {t('federalTaxes.clear')}
-          </button>
-        )}
+    <section className={styles.block}>
+      <div className={styles.form}>
+        {/* O `Select` do DS recebe o nome acessível por `ariaLabel`; aqui é só o texto visível. */}
+        <div className={styles.field}>
+          <span className={styles.fieldLabel}>{t('federalTaxes.regimeLabel')}</span>
+          <Select
+            ariaLabel={t('federalTaxes.regimeLabel')}
+            disabled={props.disabled}
+            options={form.regimes.map((regime) => ({
+              label: t(`federalTaxes.regime.${regime}`),
+              value: regime,
+            }))}
+            placeholder={t('federalTaxes.regimePlaceholder')}
+            value={form.draft.regime}
+            onChange={form.handleRegimeChange}
+          />
+        </div>
+        {form.draft.regime === 'simple' ? (
+          <p className={styles.routingNotice}>{t('federalTaxes.simpleNote')}</p>
+        ) : null}
+        {form.draft.regime === 'real' ? (
+          <p className={styles.routingNotice}>{t('federalTaxes.realNote')}</p>
+        ) : null}
+        <RateField
+          disabled={props.disabled}
+          field="pis"
+          origin={form.draft.pisOrigin}
+          value={form.draft.pis}
+          onChange={form.handleRateChange}
+        />
+        <RateField
+          disabled={props.disabled}
+          field="cofins"
+          origin={form.draft.cofinsOrigin}
+          value={form.draft.cofins}
+          onChange={form.handleRateChange}
+        />
+        <div className={styles.actions}>
+          <Button
+            disabled={props.disabled || submission === null}
+            type="button"
+            onClick={() => (submission === null ? undefined : props.onSave(submission))}
+          >
+            <Icon name="save" />
+            {t('federalTaxes.save')}
+          </Button>
+          {props.stored === null ? null : (
+            <Button
+              disabled={props.disabled}
+              type="button"
+              variant="secondary"
+              onClick={props.onClear}
+            >
+              <Icon name="refresh" />
+              {t('federalTaxes.clear')}
+            </Button>
+          )}
+        </div>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -134,20 +145,26 @@ function FederalTaxForm(props: FederalTaxPanelProps) {
 export function FederalTaxPanel(props: FederalTaxPanelProps) {
   const { t } = useTranslation('companySettings')
   return (
-    <section className={styles.settingsPanel} aria-labelledby="federal-taxes-title">
-      <div className={styles.sectionHeading}>
-        <p className={styles.sectionKicker}>{t('federalTaxes.kicker')}</p>
+    <section aria-labelledby="federal-taxes-title" className={styles.panel}>
+      <div className={styles.panelHeading}>
+        <p className={styles.kicker}>{t('federalTaxes.kicker')}</p>
         <h2 id="federal-taxes-title">{t('federalTaxes.title')}</h2>
+        <p className={styles.hint}>{t('federalTaxes.hint')}</p>
       </div>
-      <p className={styles.settingsFormNote}>{t('federalTaxes.hint')}</p>
       {props.loading ? (
         <FederalTaxSkeleton />
       ) : (
         <FederalTaxForm key={props.stored?.updatedAt ?? 'undeclared'} {...props} />
       )}
-      {props.saved ? <p role="status">{t('federalTaxes.saved')}</p> : null}
+      {props.saved ? (
+        <p className={styles.status} role="status">
+          {t('federalTaxes.saved')}
+        </p>
+      ) : null}
       {props.errorCode === undefined ? null : (
-        <p role="alert">{t('federalTaxes.error', { code: props.errorCode })}</p>
+        <p className={styles.refusal} role="alert">
+          {t('federalTaxes.error', { code: props.errorCode })}
+        </p>
       )}
     </section>
   )

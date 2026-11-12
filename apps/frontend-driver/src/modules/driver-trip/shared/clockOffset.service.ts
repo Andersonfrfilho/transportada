@@ -22,13 +22,15 @@ export const MAX_CLOCK_SAMPLE_ROUND_TRIP_MS = 5_000
 /**
  * ⚠️ Os esquemas da API são `.strict()`: só estes aceitam `tappedAt`/`clockOffsetMs`, e mandá-los em
  * outro `kind` dá `400` e derruba o item. `depart`/`cancelDeparture` já levam `tappedAt` próprio
- * (spec 206), `dispatch` e `proofReceiver` não têm hora de evento, e a ocorrência de nota usa outra rota.
+ * (spec 206), `dispatch` e `proofReceiver` não têm hora de evento, e a ocorrência de nota (`documentOccurrence`) entrou com a spec 320: a API a segura se o toque for de outro dia.
  */
 export const CLOCK_FIELD_REPORT_KINDS = [
   'arrive',
   'deliver',
+  'documentOccurrence',
   'occurrence',
   'return',
+  'stopOccurrenceCharge',
   'stopOccurrencePhoto',
 ] as const satisfies readonly DriverFieldReport['kind'][]
 
