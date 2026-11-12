@@ -98,12 +98,16 @@ describe('o aviso do sino da ocorrência continua o de sempre (spec 263 T2.5)', 
 
     expect(entry).toEqual({
       category: 'trip',
-      channels: ['inbox'],
+      channels: ['inbox', 'push'],
       placeholders: ['occurrenceLabel'],
       templateKey: 'trip.conversation-message',
       templates: {
         inbox: {
           body: 'A operação mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. Abra a ocorrência no app para ler e responder.',
+        },
+        push: {
+          body: 'Ocorrência {{occurrenceLabel}}. Abra o app para ler e responder.',
+          subject: 'Nova mensagem do escritório',
         },
       },
     })
@@ -234,12 +238,16 @@ describe('o aviso do sino por assunto, para nota e viagem (spec 263 T2.5)', () =
 
     expect(entry).toEqual({
       category: 'trip',
-      channels: ['inbox'],
+      channels: ['inbox', 'push'],
       placeholders: ['subjectLabel'],
       templateKey: 'trip.subject-conversation-message',
       templates: {
         inbox: {
           body: 'A operação mandou uma mensagem · {{subjectLabel}}. Abra Conversas no app para ler e responder.',
+        },
+        push: {
+          body: '{{subjectLabel}}. Abra Conversas no app para ler e responder.',
+          subject: 'Nova mensagem do escritório',
         },
       },
     })
@@ -249,10 +257,12 @@ describe('o aviso do sino por assunto, para nota e viagem (spec 263 T2.5)', () =
     const seeds = buildNotificationTemplateSeeds({ companyId: COMPANY_ID })
     const created = seeds.filter((seed) => seed.key === 'trip.subject-conversation-message')
 
-    expect(created.map((seed) => seed.channel)).toEqual(['inbox'])
-    expect(created[0]?.body).toContain('{{subjectLabel}}')
+    expect(created.map((seed) => seed.channel).sort()).toEqual(['inbox', 'push'])
+    expect(created.every((seed) => seed.body.includes('{{subjectLabel}}'))).toBe(true)
     expect(NOTIFICATION_TEMPLATE_PREVIEW_PAYLOAD.subjectLabel).toBe('NF 4512/1')
-    const legacy = seeds.filter((seed) => seed.key === 'trip.conversation-message')
+    const legacy = seeds.filter(
+      (seed) => seed.key === 'trip.conversation-message' && seed.channel === 'inbox',
+    )
     expect(legacy).toHaveLength(1)
     expect(legacy[0]?.body).toBe(
       'A operação mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. Abra a ocorrência no app para ler e responder.',
