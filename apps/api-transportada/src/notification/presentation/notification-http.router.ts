@@ -20,19 +20,31 @@ type CreateNotificationHttpRouterParams = {
   readonly vapidPublicKey?: string
 }
 
-/** Spec 271: o módulo marca a escrita de modelos só como `admin`, sem escopo exigido, e qualquer membro entra. */
-const TEMPLATE_WRITE_PATH = `${NOTIFICATION_ROUTES_BASE_PATH}/notification-templates`
-const TEMPLATE_WRITE_METHODS: ReadonlySet<string> = new Set(['DELETE', 'PATCH', 'POST', 'PUT'])
+/**
+ * O módulo marca estas rotas só como `admin`/`service`, sem escopo exigido, e qualquer membro autenticado entra.
+ * Spec 271: a escrita de modelos. Aqui também: o disparo (`POST /notifications`, que manda aviso a qualquer usuário
+ * da empresa com o modelo e o payload que o chamador escolher) e a política de canais por categoria.
+ * Nenhuma tela usa essas duas — o produto dispara por caso de uso, nunca por HTTP —, então a exigência é a mesma.
+ */
+const NOTIFICATION_ROOT = NOTIFICATION_ROUTES_BASE_PATH
+const WRITE_METHODS: ReadonlySet<string> = new Set(['DELETE', 'PATCH', 'POST', 'PUT'])
+const PROTECTED_WRITE_PATHS: readonly { readonly path: string; readonly prefix: boolean }[] = [
+  { path: `${NOTIFICATION_ROOT}/notification-templates`, prefix: true },
+  { path: `${NOTIFICATION_ROOT}/notification-category-policies`, prefix: true },
+  { path: `${NOTIFICATION_ROOT}/notifications`, prefix: false },
+]
 const TEMPLATE_WRITE_PERMISSION = 'settings.manage'
 
 function isTemplateWrite(request: Request): boolean {
-  if (!TEMPLATE_WRITE_METHODS.has(request.method)) return false
+  if (!WRITE_METHODS.has(request.method)) return false
   const { pathname } = new URL(request.url)
-  return pathname === TEMPLATE_WRITE_PATH || pathname.startsWith(`${TEMPLATE_WRITE_PATH}/`)
+  return PROTECTED_WRITE_PATHS.some(({ path, prefix }) =>
+    prefix ? pathname === path || pathname.startsWith(`${path}/`) : pathname === path,
+  )
 }
 
 /**
- * Criar, trocar ou apagar modelo de notificação exige `settings.manage`, antes do roteador do módulo — o texto do
+ * Criar, trocar ou apagar modelo, mudar a política de canais ou disparar notificação por HTTP exige `settings.manage`, antes do roteador do módulo — o texto do
  * e-mail à contratante nasce aqui (ADR-0108). Sem identidade resolvida (`undefined`), o módulo responde 401 pelo caminho
  * dele. **Falha de resolução, de qualquer tipo, fecha:** o módulo resolve de novo, e uma oscilação entre as duas leituras não
  * pode deixar passar quem não tem a permissão.
