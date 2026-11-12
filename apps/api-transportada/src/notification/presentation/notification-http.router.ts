@@ -16,6 +16,8 @@ type CreateNotificationHttpRouterParams = {
   readonly module: NotificationModule
   /** Ausente: a rota de webhook não é publicada, e o caminho responde 404 em vez de 401. */
   readonly webhookSecret?: string
+  /** Chave pública VAPID para clientes Web Push (PWA do motorista) */
+  readonly vapidPublicKey?: string
 }
 
 /** Spec 271: o módulo marca a escrita de modelos só como `admin`, sem escopo exigido, e qualquer membro entra. */
@@ -51,6 +53,7 @@ export function createNotificationHttpRouter({
   authResolver,
   module,
   webhookSecret,
+  vapidPublicKey,
 }: CreateNotificationHttpRouterParams): ModuleFetchRouter {
   const router = createModuleFetchRouter({
     authResolver,
@@ -59,6 +62,7 @@ export function createNotificationHttpRouter({
       heartbeatSeconds: DEFAULT_SSE_HEARTBEAT_SECONDS,
       module,
       ...(webhookSecret === undefined ? {} : { webhookSecret }),
+      ...(vapidPublicKey === undefined ? {} : { vapidPublicKey }),
     }),
   })
   return Object.freeze({
