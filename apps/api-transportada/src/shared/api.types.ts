@@ -158,11 +158,13 @@ export type ApiEnvironment = {
     readonly url: string
   } | null
   /** Chaves VAPID para Web Push direto (PWA do motorista) sem Firebase */
-  readonly vapid?: {
-    readonly publicKey: string
-    readonly privateKey: string
-    readonly subject: string
-  } | undefined
+  readonly vapid?:
+    | {
+        readonly publicKey: string
+        readonly privateKey: string
+        readonly subject: string
+      }
+    | undefined
 }
 
 export type DatabaseHealthPort = {

@@ -29,7 +29,13 @@ self.addEventListener('message', (event: ExtendableMessageEvent) => {
 self.addEventListener('push', (event: PushEvent) => {
   if (!event.data) return
 
-  let payload: { title?: string; body?: string; icon?: string; badge?: string; data?: { url?: string } } = {}
+  let payload: {
+    title?: string
+    body?: string
+    icon?: string
+    badge?: string
+    data?: { url?: string }
+  } = {}
   try {
     payload = event.data.json() as typeof payload
   } catch {
@@ -50,7 +56,8 @@ self.addEventListener('push', (event: PushEvent) => {
 /** Foca a aba aberta ou abre a rota de destino ao clicar na notificação. */
 self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close()
-  const targetUrl = (event.notification.data as { url?: string } | undefined)?.url ?? '/notificacoes'
+  const targetUrl =
+    (event.notification.data as { url?: string } | undefined)?.url ?? '/notificacoes'
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

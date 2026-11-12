@@ -35,7 +35,12 @@ export function useDriverPushRegistration(canSync: boolean): void {
 
   useEffect(() => {
     if (!canSync || isRegisteredRef.current) return
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) return
+    if (
+      typeof window === 'undefined' ||
+      !('serviceWorker' in navigator) ||
+      !('PushManager' in window)
+    )
+      return
 
     let isMounted = true
 
