@@ -996,6 +996,7 @@ export async function startWorkerRuntime(
       // rotina agendada, que fecha a linha por `queue_unreachable` em vez de `unexpected_error`.
       queue: createGuardedNotificationQueue(notificationQueue),
       suppressionHmacKey: cryptography.notificationSuppressionHmacKey,
+      ...(config.vapid === undefined ? {} : { vapid: config.vapid }),
     })
     const loadCteBatchFailure = createCteBatchFailureQuery(
       database.db as ReturnType<typeof createDrizzleProvider>['db'],

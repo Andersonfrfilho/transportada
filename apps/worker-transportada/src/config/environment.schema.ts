@@ -86,6 +86,11 @@ const workerEnvironmentSchema = z
     // Remetente e transporte juntos ou nenhum: com um só, o convite sai sem canal e o código morre
     // selado na linha do convite.
     EMAIL_FROM: optionalText(),
+    // Web Push (VAPID) do PWA do motorista. Quem entrega a fila de notificações é este worker, então o driver
+    // de push precisa das mesmas chaves da API; as duas juntas ou nenhuma (sem elas o canal fica desligado).
+    VAPID_PUBLIC_KEY: optionalText(),
+    VAPID_PRIVATE_KEY: optionalText(),
+    VAPID_SUBJECT: optionalText(),
     // Spec 268: opt-in, nunca em produção. Linhas `sandbox_smtp` do e-mail da contratante saem pelo SMTP_URL.
     CONTRACTOR_MAIL_SANDBOX_SMTP: z
       .enum(['true', 'false'])
@@ -396,6 +401,15 @@ export function parseWorkerEnvironment(
     fuelPricePull: toFuelPricePull(result.data),
     ...(identityDocumentBackfill === undefined ? {} : { identityDocumentBackfill }),
     ...toEmailDelivery(result.data),
+    ...(result.data.VAPID_PUBLIC_KEY !== undefined && result.data.VAPID_PRIVATE_KEY !== undefined
+      ? {
+          vapid: {
+            privateKey: result.data.VAPID_PRIVATE_KEY,
+            publicKey: result.data.VAPID_PUBLIC_KEY,
+            subject: result.data.VAPID_SUBJECT ?? 'mailto:admin@transportada.com.br',
+          },
+        }
+      : {}),
     ...toEmailRecipientGuard(result.data),
     ...((result.data.CONTRACTOR_MAIL_SANDBOX_SMTP || !result.data.EMAIL_RESEND_ENABLED) &&
     result.data.SMTP_URL !== undefined &&
