@@ -30,7 +30,11 @@ type CreateWorkerNotificationModuleParams = {
   readonly queue: QueuePort
   readonly suppressionHmacKey: string
   /** Ausente, o push fica sem driver: a entrega falha alto (`channel_not_configured`) em vez de sumir. */
-  readonly vapid?: { readonly privateKey: string; readonly publicKey: string; readonly subject: string }
+  readonly vapid?: {
+    readonly privateKey: string
+    readonly publicKey: string
+    readonly subject: string
+  }
 }
 
 /**
