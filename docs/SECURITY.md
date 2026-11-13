@@ -2968,3 +2968,21 @@ mostra a imagem atual e não quebra. Quem conhece os dois ids vê o logo e o ros
 mensagem. Mitigações: UUIDv4 (não enumerável), foto só abre com vínculo ativo da pessoa na empresa (recorte do
 banco), id torto é 404 antes de consultar, foto removida responde 404 e o e-mail cai nas iniciais, `cache-control`
 de 5 minutos e `nosniff`. Só sai com `API_PUBLIC_URL` configurada; sem ela o logo continua por `cid:` e não há foto.
+
+### 2026-11-13 — permissões `expenses.read` e `expenses.manage` (spec 325)
+
+**Onde:** `api-transportada`, `identity/domain/authorization.policy.ts`; painel em
+`frontend-transportada/src/modules/identity` (catálogo do `/auth/me` e matriz de grupos).
+
+**O que é:** o módulo Contas (spec 325, ADR-0115) guarda aluguel, salário e o pagamento de motorista/agregado, que é
+dinheiro da empresa inteira e dado pessoal de quem recebe. As duas permissões são novas e **não herdam** de nenhuma
+outra: `trip.financials` (margem da viagem) e `billing.*` (o que a empresa cobra) não levam a folha de carona, então o
+`finance` não vê as contas. Só o `company-admin` as recebe por papel (spec 325, dúvida 4); são concedíveis por grupo
+(o admin controla os grupos) e nenhuma é de serviço. `companyId` vem só do contexto autenticado.
+
+**Contratos:** `test/authorization.contract.test.ts` (catálogo e matriz exatos, nenhum outro papel),
+`test/expenses/permissions.contract.ts`, `test/separator-role.contract.test.ts` (nem separador nem ajudante) e
+`test/user-administration-application/role-permissions.contract.ts` (a tela de grupos as oferece). Revisitar quando o
+catálogo de papéis mudar ou quando um papel financeiro precisar só da leitura.
+
+**Origem:** spec 325, T1.3. Registrado em 2026-11-13.

@@ -22,7 +22,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [x] **T1.2** Schema (inclui `payee_driver_id`) + migration aditiva + rollback; categorias semeadas (`make migration-test`).
       Feita: `company_expense_categories`, `company_expenses` (com `payee_driver_id` e `vehicle_id` opcionais, recorrência `fortnightly`) e `company_expense_occurrences`, migration `20261113175316_company_expenses` + rollback (recusa com conta/ocorrência gravada). **Chave da ocorrência: `unique(expense_id, competence, slot)`**, `slot` 1/2 (quinzenal: dia 15 = 1, último dia = 2; as demais usam 1). Semente das 8 categorias para as empresas existentes; **empresa nova precisa da semente na T1.4** (garantir categorias ao primeiro uso). O `insertIfAbsent` da T1.4 passa a receber `slot`.
   > 🤖 Modelo: `sonnet`
-- [ ] **T1.3** Permissões `expenses.read`/`expenses.manage` em `authorization.policy.ts` + papéis.
+- [x] **T1.3** Permissões `expenses.read`/`expenses.manage` em `authorization.policy.ts` + papéis.
+      Feita: as duas no catálogo, só no `company-admin`, concedíveis por grupo, sem herança de `trip.financials`/`billing.*`. Painel aceita as duas no `/auth/me` e a matriz de grupos as mostra no grupo "Contas". `permissions.contract.ts` saiu do entrypoint vermelho e roda por **`test/expenses.contract.test.ts`, já registrado no `package.json`**: a T1.4 só acrescenta os imports ali. Notas para a T1.4 em `evidence.md` § T1.3.
   > 🤖 Modelo: `opus` (decide quem acessa)
 - [ ] **T1.4** Casos de uso e rotas: contas, categorias, ocorrências, baixa, cancelamento, listagem com totais; auditoria.
   > 🤖 Modelo: `sonnet`

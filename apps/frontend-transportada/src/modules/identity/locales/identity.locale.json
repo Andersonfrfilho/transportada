@@ -488,6 +488,14 @@
         "label": "Configurar a chave e o orçamento da importação de feriados",
         "where": "A chave de acesso ao fornecedor de feriados e o teto mensal de consultas, para toda a instalação."
       },
+      "expenses.read": {
+        "label": "Ver as contas da empresa",
+        "where": "Lista de contas fixas e variáveis, vencimentos e totais pagos e em aberto."
+      },
+      "expenses.manage": {
+        "label": "Lançar e baixar contas",
+        "where": "Cadastrar conta fixa ou variável, categorias, dar baixa e cancelar."
+      },
       "addresses.read": {
         "label": "Consultar CEP",
         "where": "O preenchimento de endereço nos formulários de motorista, empresa e manifesto."
@@ -552,7 +560,8 @@
         "operations": "Operação e auditoria",
         "portal": "Portal do contratante",
         "other": "Outras",
-        "occurrences": "Ocorrências"
+        "occurrences": "Ocorrências",
+        "expenses": "Contas"
       }
     },
     "fleet": {

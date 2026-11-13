@@ -104,6 +104,9 @@ export const COMPANY_PERMISSIONS = [
   'occurrences.decide',
   /** Spec 262 D6: a chave e o orçamento da importação de feriados são da instalação, não de `settings.manage`. */
   'holiday-import.configure',
+  /** Spec 325 RF7: as contas da empresa são dinheiro da empresa inteira — só o `company-admin` recebe. */
+  'expenses.read',
+  'expenses.manage',
 ] as const
 
 const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const
