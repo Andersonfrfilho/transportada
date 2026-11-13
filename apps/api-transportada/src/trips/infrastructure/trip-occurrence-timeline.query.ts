@@ -27,6 +27,7 @@ import {
   occurrenceContractorReplyEvents,
 } from '../../database/occurrence-contractor-reply.schema.js'
 import {
+  occurrenceContractorManualNotices,
   occurrenceConversationMessages,
   occurrenceConversations,
   tripOccurrenceResolutionEvents,
@@ -673,22 +674,74 @@ async function listContractorGroupSources(
   ]
 }
 
+/**
+ * Spec 324 T2 (D4): cada clique do botão "Avisar a contratante" que passou da reserva, com o nome de quem clicou, o canal
+ * e o desfecho. Só ocorrência de nota tem o botão; a de parada não lê nada.
+ */
+async function listManualNoticeSources(
+  queryable: TripQueryable,
+  scope: Scope,
+  item: TripOccurrenceFeedItem,
+): Promise<readonly OccurrenceTimelineSource[]> {
+  if (item.source !== 'document') return []
+  const rows = await queryable
+    .select({
+      actorName: identityUserProfiles.name,
+      channel: occurrenceContractorManualNotices.channel,
+      createdAt: occurrenceContractorManualNotices.createdAt,
+      id: occurrenceContractorManualNotices.id,
+      reason: occurrenceContractorManualNotices.reason,
+      status: occurrenceContractorManualNotices.status,
+    })
+    .from(occurrenceContractorManualNotices)
+    .leftJoin(
+      identityUserProfiles,
+      eq(identityUserProfiles.userId, occurrenceContractorManualNotices.actorUserId),
+    )
+    .where(
+      and(
+        eq(occurrenceContractorManualNotices.companyId, scope.companyId),
+        eq(occurrenceContractorManualNotices.occurrenceId, scope.occurrenceId),
+      ),
+    )
+  return rows.map(
+    (row): OccurrenceTimelineSource => ({
+      actor: { kind: 'operation', name: row.actorName ?? null },
+      channel: row.channel ?? null,
+      id: row.id,
+      kind: 'contractor.notice.manual',
+      occurredAt: row.createdAt.toISOString(),
+      reason: row.reason ?? null,
+      status: row.status,
+    }),
+  )
+}
+
 export async function findTripOccurrenceTimelineSources(
   queryable: TripQueryable,
   scope: Scope,
 ): Promise<readonly OccurrenceTimelineSource[] | null> {
   const item = await findTripOccurrenceFeedItem(queryable, scope)
   if (item === null) return null
-  const [photos, caseEvents, mails, resolutions, replies, groupReturns, contractorGroup] =
-    await Promise.all([
-      listPhotoSources(queryable, scope, item),
-      listCaseSources(queryable, scope),
-      listMailSources(queryable, scope, item),
-      listResolutionSources(queryable, scope, item),
-      listContractorReplySources(queryable, scope, item),
-      listGroupBoletoReturnSources(queryable, scope),
-      listContractorGroupSources(queryable, scope),
-    ])
+  const [
+    photos,
+    caseEvents,
+    mails,
+    resolutions,
+    replies,
+    groupReturns,
+    contractorGroup,
+    manualNotices,
+  ] = await Promise.all([
+    listPhotoSources(queryable, scope, item),
+    listCaseSources(queryable, scope),
+    listMailSources(queryable, scope, item),
+    listResolutionSources(queryable, scope, item),
+    listContractorReplySources(queryable, scope, item),
+    listGroupBoletoReturnSources(queryable, scope),
+    listContractorGroupSources(queryable, scope),
+    listManualNoticeSources(queryable, scope, item),
+  ])
   const recorded: OccurrenceTimelineSource = {
     actor: recordingActor(item),
     id: item.id,
@@ -713,6 +766,7 @@ export async function findTripOccurrenceTimelineSources(
     ...caseEvents,
     ...mails,
     ...contractorGroup,
+    ...manualNotices,
     ...replies,
     ...groupReturns,
     ...cancelled,

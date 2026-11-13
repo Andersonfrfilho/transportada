@@ -2771,6 +2771,19 @@
       "clientEmailFailed": "Falhou o envio do boleto por e-mail",
       "clientEmailSkipped": "Boleto não enviado por e-mail",
       "clientEmailPending": "Envio do boleto por e-mail aguardando",
+      "contractorGroupSent": "Aviso automático enviado no grupo do WhatsApp da contratante",
+      "contractorGroupEmailFallback": "O grupo do WhatsApp falhou; o aviso automático saiu por e-mail",
+      "contractorGroupFailed": "Falhou o aviso automático no grupo do WhatsApp",
+      "manualNoticeEmail": "{{name}} avisou a contratante por e-mail",
+      "manualNoticeEmailUnnamed": "Contratante avisada por e-mail pelo botão",
+      "manualNoticeGroup": "{{name}} avisou a contratante no grupo do WhatsApp",
+      "manualNoticeGroupUnnamed": "Contratante avisada no grupo do WhatsApp pelo botão",
+      "manualNoticeEmailFallback": "{{name}} avisou a contratante: o grupo falhou e saiu por e-mail",
+      "manualNoticeEmailFallbackUnnamed": "Contratante avisada pelo botão: o grupo falhou e saiu por e-mail",
+      "manualNoticeSent": "{{name}} avisou a contratante",
+      "manualNoticeSentUnnamed": "Contratante avisada pelo botão",
+      "manualNoticeFailed": "{{name}} tentou avisar a contratante, sem sucesso",
+      "manualNoticeFailedUnnamed": "O aviso à contratante pelo botão não saiu",
       "groupReturn": {
         "posted_to_group": "Boleto postado no grupo do WhatsApp",
         "sent_to_client": "Grupo avisado: boleto enviado ao cliente",
@@ -2792,6 +2805,15 @@
       "deliveryFailed": "{{reason}} · tentativa {{attempt}}",
       "deliveryAttempt": "Tentativa {{attempt}}",
       "awaitingAttachment": "Sem anexo. Segue aguardando o boleto."
+    },
+    "contractorNoticeReason": {
+      "no_recipient": "A contratante não tem contato para esta etapa",
+      "no_template_selected": "O tipo não tem modelo de mensagem",
+      "mail_not_ready": "O e-mail da empresa não está configurado",
+      "template_missing": "Falta o modelo da mensagem do grupo",
+      "group_not_found": "O grupo do WhatsApp não foi encontrado",
+      "disconnected": "O WhatsApp estava desconectado",
+      "failed": "O envio falhou"
     },
     "deliveryReason": {
       "driver_without_account": "O motorista não tem acesso ao app",
