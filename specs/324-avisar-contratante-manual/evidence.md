@@ -81,7 +81,7 @@ Hoje não há leitura única de "avisada". Fontes: `contractor_mail_messages` (e
 - Sem tela nem componente novo (só frases numa linha do tempo existente): sem prints nesta etapa; os da T4 cobrem o botão.
 - Produção não foi tocada; nada a registrar no runbook.
 
-## T3 — Leitura do estado do botão (13/11/2026, empilhada sobre a T2, PR #733)
+## T3 — Leitura do estado do botão (13/11/2026, sobre `staging` com a T2 já mergeada, PR #733)
 
 ### O que entrou
 
