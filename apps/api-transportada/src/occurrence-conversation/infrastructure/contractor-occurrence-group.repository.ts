@@ -81,14 +81,24 @@ export async function findContractorOccurrenceGroupChannel(
 
 /**
  * O modelo do aviso no grupo: a versão WhatsApp da chave do tipo vence o modelo geral; de cada chave, a versão ativa
- * mais alta com corpo. `null` sem nenhum dos dois.
+ * mais alta com corpo. `null` sem nenhum dos dois. Spec 324 (D10): o botão manual passa `fallbackKey`
+ * (`ocorrencia.contratante-aviso-manual`), a última opção da fila; o automático nunca passa.
  */
 export async function findContractorOccurrenceGroupTemplate(
   queryable: TripQueryable,
-  params: { readonly companyId: string; readonly typeKey: null | string },
+  params: {
+    readonly companyId: string
+    readonly fallbackKey?: string
+    readonly typeKey: null | string
+  },
 ): Promise<null | string> {
   const typeKey = (params.typeKey ?? '').trim()
-  const keys = [...(typeKey === '' ? [] : [typeKey]), CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY]
+  const fallbackKey = (params.fallbackKey ?? '').trim()
+  const keys = [
+    ...(typeKey === '' ? [] : [typeKey]),
+    CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY,
+    ...(fallbackKey === '' || fallbackKey === typeKey ? [] : [fallbackKey]),
+  ]
   const [template] = await rowsOf(
     queryable,
     sql`select body from notification.templates
@@ -101,7 +111,10 @@ export async function findContractorOccurrenceGroupTemplate(
           and locale = ${TEMPLATE_LOCALE}
           and active
           and btrim(coalesce(body, '')) <> ''
-        order by (key = ${CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY}), version desc
+        order by array_position(array[${sql.join(
+          keys.map((key) => sql`${key}`),
+          sql`, `,
+        )}]::text[], key::text), version desc
         limit 1`,
   )
   return template === undefined ? null : text(template, 'body')
@@ -131,7 +144,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       return rows.length > 0
     },
 
-    async readMessage({ companyId, occurrenceId }) {
+    async readMessage({ companyId, fallbackTemplateKey, occurrenceId }) {
       const [occurrence] = await rowsOf(
         database,
         sql`select occurrence.note, occurrence.stage, occurrence.created_at,
@@ -155,6 +168,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       if (occurrence === undefined) return null
       const template = await findContractorOccurrenceGroupTemplate(database, {
         companyId,
+        ...(fallbackTemplateKey === undefined ? {} : { fallbackKey: fallbackTemplateKey }),
         typeKey: text(occurrence, 'type_key'),
       })
       if (template === null) return null

@@ -228,6 +228,7 @@ describe('o botão "Avisar a contratante" (spec 324 T1)', () => {
         idempotencyKey: `${MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX}${OCCURRENCE_ID}`,
         occurrenceId: OCCURRENCE_ID,
         subject: 'Ocorrência — NF 4512',
+        templateFallbackKey: 'ocorrencia.contratante-aviso-manual',
       },
     ])
   })
