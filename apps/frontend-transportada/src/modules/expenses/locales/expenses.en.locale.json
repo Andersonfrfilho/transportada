@@ -1,0 +1,55 @@
+{
+  "title": "Bills",
+  "subtitle": "What the company pays: fixed bills, variable bills and payments to drivers, contractors and helpers.",
+  "forbidden": "You do not have permission to see the company bills.",
+  "kind": {
+    "fixed": "Fixed",
+    "variable": "Variable"
+  },
+  "recurrence": {
+    "monthly": "Monthly",
+    "bimonthly": "Every two months",
+    "quarterly": "Quarterly",
+    "yearly": "Yearly",
+    "fortnightly": "Twice a month"
+  },
+  "status": {
+    "open": "Open",
+    "paid": "Paid",
+    "canceled": "Canceled"
+  },
+  "payee": {
+    "driver": "Driver",
+    "aggregate": "Contractor",
+    "helper": "Helper"
+  },
+  "parcelKind": {
+    "driver": "Driver",
+    "helper": "Helper"
+  },
+  "totals": {
+    "expected": "Expected",
+    "paid": "Paid",
+    "count": "Bills",
+    "paidByDriver": "Paid per driver, contractor or helper"
+  },
+  "gap": {
+    "NO_PLANNED_DURATION": "Trip has no planned duration",
+    "NO_DRIVER": "Trip has no driver",
+    "OTHER": "Parcel without a calculated value"
+  },
+  "errors": {
+    "REQUEST_FAILED": "Could not reach the server. Try again.",
+    "RESPONSE_INVALID": "The server answered something that could not be read.",
+    "EXPENSE_RESPONSE_INVALID": "The server answered something that could not be read.",
+    "EXPENSE_OCCURRENCE_NOT_DRIVER_PAYMENT": "This bill is not a payment to a driver, contractor or helper.",
+    "EXPENSE_TRIP_NOT_FOUND": "Trip not found.",
+    "EXPENSE_TRIP_NOT_COMPLETED": "The trip is not completed yet.",
+    "EXPENSE_TRIP_NOT_PAYEE": "This person was not part of the trip crew.",
+    "EXPENSE_TRIP_PARCEL_MISSING": "The trip has no calculated daily rate.",
+    "EXPENSE_TRIP_ALREADY_INCLUDED": "This trip is already in another payment.",
+    "EXPENSE_OCCURRENCE_TRIP_NOT_FOUND": "This trip is not in this payment.",
+    "EXPENSE_OCCURRENCE_ALREADY_PAID": "This bill is already paid.",
+    "EXPENSE_OCCURRENCE_CANCELED": "This bill was canceled."
+  }
+}

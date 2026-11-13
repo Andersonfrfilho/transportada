@@ -184,3 +184,18 @@ posição (196 RF12): a leitura de `trip_status_events` foi para `infrastructure
 - Integração contra Postgres 16 descartável com as migrations aplicadas: `company-expense-occurrence.integration.test.ts` 2 pass (gera só as fixas ativas, 2º ciclo `created = 0`); `job_schedules` ficou com a linha pausada.
 - Migration e rollback: `bun run db:test` (API) 266 pass / 0 fail, com o rollback encadeado (`company-expense-occurrence-job-rollback.assertion.ts` sai antes do de 319 T7).
 - API `job-catalog` (13), cron (102) e frontend (`job-catalog.contract.ts`, 6) verdes; `tsc`, `eslint` e `prettier --check` limpos.
+
+## T2.1 — Módulo `expenses` no painel (2026-11-13)
+
+**O que entrou** (`apps/frontend-transportada/src/modules/expenses/`): `shared/expenses.types.ts` (tipos e vocabulário fechado: tipo, recorrência, estado, modelo de pagamento, parcela), `shared/expensesClient.service.ts` (contas, categorias, ocorrências, baixa, cancelamento, viagens do pagamento e viagens disponíveis; o código de erro da API sobe como veio), `shared/expensesResponse.validation.ts` (guard manual: vocabulário **conferido**, dinheiro só como texto decimal, `slot` 1 ou 2), `hooks/useExpenses.hook.ts` (leituras e mutações com a chave raiz `expenses`; toda escrita invalida a raiz, sem prender o botão) e `locales/expenses(.en).locale.json` (rótulos de tipo, recorrência, estado, motorista/agregado/ajudante, totais e mensagens dos erros `EXPENSE_*`).
+
+**Decisões**
+
+- O painel não importa código da API: o vocabulário é cópia por valor e o contrato lê `company-expense.schema.ts` para falhar se a API ganhar um valor que o painel não conhece.
+- Para a T2.2, a lista de ocorrências já chega com nome da conta, categoria e favorecido; o rótulo "Agregado" sai de `payeeDriverPaymentModel === 'route_table'` e "Motorista" de `'fixed'`. O rótulo "Ajudante" fica para a T1.4c (a lista ainda não diz o papel).
+- Sem tela, menu nem item em Configurações: T2.2 a T2.3.
+
+**Provas** (de dentro de `apps/frontend-transportada`)
+
+- `bun test ./test/expenses.contract.test.ts` → 11 pass / 0 fail (guard, cliente, paridade de vocabulário com a API, paridade pt/en).
+- `bun run test` → 1496 pass / 0 fail. `tsc --noEmit`, `eslint` (módulo e testes) e `prettier --check` limpos.

@@ -1,0 +1,55 @@
+{
+  "title": "Contas",
+  "subtitle": "O que a empresa paga: contas fixas, contas variáveis e o pagamento de motoristas, agregados e ajudantes.",
+  "forbidden": "Você não tem permissão para ver as contas da empresa.",
+  "kind": {
+    "fixed": "Fixa",
+    "variable": "Variável"
+  },
+  "recurrence": {
+    "monthly": "Mensal",
+    "bimonthly": "Bimestral",
+    "quarterly": "Trimestral",
+    "yearly": "Anual",
+    "fortnightly": "Quinzenal"
+  },
+  "status": {
+    "open": "Em aberto",
+    "paid": "Paga",
+    "canceled": "Cancelada"
+  },
+  "payee": {
+    "driver": "Motorista",
+    "aggregate": "Agregado",
+    "helper": "Ajudante"
+  },
+  "parcelKind": {
+    "driver": "Motorista",
+    "helper": "Ajudante"
+  },
+  "totals": {
+    "expected": "Previsto",
+    "paid": "Pago",
+    "count": "Contas",
+    "paidByDriver": "Pago por motorista, agregado ou ajudante"
+  },
+  "gap": {
+    "NO_PLANNED_DURATION": "Sem duração prevista na viagem",
+    "NO_DRIVER": "Sem condutor na viagem",
+    "OTHER": "Parcela sem valor calculado"
+  },
+  "errors": {
+    "REQUEST_FAILED": "Não foi possível falar com o servidor. Tente de novo.",
+    "RESPONSE_INVALID": "O servidor respondeu algo que não foi possível ler.",
+    "EXPENSE_RESPONSE_INVALID": "O servidor respondeu algo que não foi possível ler.",
+    "EXPENSE_OCCURRENCE_NOT_DRIVER_PAYMENT": "Esta conta não é um pagamento de motorista, agregado ou ajudante.",
+    "EXPENSE_TRIP_NOT_FOUND": "Viagem não encontrada.",
+    "EXPENSE_TRIP_NOT_COMPLETED": "A viagem ainda não foi concluída.",
+    "EXPENSE_TRIP_NOT_PAYEE": "Essa pessoa não fez parte da tripulação da viagem.",
+    "EXPENSE_TRIP_PARCEL_MISSING": "A viagem não tem o valor da diária calculado.",
+    "EXPENSE_TRIP_ALREADY_INCLUDED": "Esta viagem já entrou em outro pagamento.",
+    "EXPENSE_OCCURRENCE_TRIP_NOT_FOUND": "Esta viagem não está neste pagamento.",
+    "EXPENSE_OCCURRENCE_ALREADY_PAID": "Esta conta já foi paga.",
+    "EXPENSE_OCCURRENCE_CANCELED": "Esta conta foi cancelada."
+  }
+}
