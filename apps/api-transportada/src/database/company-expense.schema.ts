@@ -21,6 +21,7 @@ import {
 
 import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { companies, identityUsers } from './identity.schema.js'
+import { trips } from './trip.schema.js'
 
 export const COMPANY_EXPENSE_KINDS = ['fixed', 'variable'] as const
 export type CompanyExpenseKind = (typeof COMPANY_EXPENSE_KINDS)[number]
@@ -227,5 +228,91 @@ export const companyExpenseOccurrences = pgTable(
       'company_expense_occurrences_canceled_check',
       sql`(${table.status} = 'canceled') = (${table.canceledAt} is not null)`,
     ),
+  ],
+)
+
+/**
+ * Spec 325 RF1d/RF1e: qual parcela de pessoal da viagem o pagamento cobre. `driver` é a diária do condutor (143),
+ * `helper` a do ajudante (149, T1.4c). São as duas parcelas de pessoa de `trip_financial_parcels`.
+ */
+export const COMPANY_EXPENSE_TRIP_PARCEL_KINDS = ['driver', 'helper'] as const
+export type CompanyExpenseTripParcelKind = (typeof COMPANY_EXPENSE_TRIP_PARCEL_KINDS)[number]
+
+/**
+ * Spec 325 RF1d (T1.4b): as viagens que um pagamento de motorista/agregado/ajudante cobre. O valor é **copiado** da
+ * linha da pessoa na parcela já calculada da viagem (diária × dias, 143/149) no momento da inclusão: a viagem continua
+ * dona do custo, e este módulo nunca o soma de novo (ADR-0115).
+ *
+ * Chave `unique(trip_id, parcel_kind, driver_id)`: a parte de uma pessoa numa parcela da viagem é paga uma vez só.
+ * `parcel_kind` já nasce aqui para a T1.4c (ajudante) entrar sem migration; `driver_id` entra na chave porque a
+ * parcela soma a tripulação inteira daquele papel (dois condutores, ou dois ajudantes, são duas pessoas a pagar).
+ */
+export const companyExpenseOccurrenceTrips = pgTable(
+  'company_expense_occurrence_trips',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    tripId: uuid('trip_id').notNull(),
+    parcelKind: varchar('parcel_kind', { length: 16 })
+      .$type<CompanyExpenseTripParcelKind>()
+      .notNull(),
+    /** A pessoa paga: o favorecido da conta, na tripulação da viagem com o papel da parcela. */
+    driverId: uuid('driver_id').notNull(),
+    /** A linha da pessoa na parcela, arredondada ao centavo (meio para cima) na cópia. */
+    amount: numeric({ precision: 14, scale: 2 }).notNull(),
+    dailyAmount: numeric('daily_amount', { precision: 19, scale: 4 }).notNull(),
+    days: integer().notNull(),
+    /** Data civil de America/Sao_Paulo em que a viagem foi concluída, copiada na inclusão. */
+    completedOn: date('completed_on', { mode: 'string' }).notNull(),
+    createdByUserId: uuid('created_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [companyExpenseOccurrences.companyId, companyExpenseOccurrences.id],
+      name: 'company_expense_occurrence_trips_occurrence_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripId],
+      foreignColumns: [trips.companyId, trips.id],
+      name: 'company_expense_occurrence_trips_trip_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.driverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'company_expense_occurrence_trips_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.createdByUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'company_expense_occurrence_trips_created_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** CA05c: a parte de uma pessoa numa parcela da viagem entra em no máximo um pagamento. */
+    unique('company_expense_occurrence_trips_trip_parcel_driver_unique').on(
+      table.tripId,
+      table.parcelKind,
+      table.driverId,
+    ),
+    index('company_expense_occurrence_trips_occurrence_idx').on(
+      table.companyId,
+      table.occurrenceId,
+    ),
+    check(
+      'company_expense_occurrence_trips_parcel_kind_check',
+      sql`${table.parcelKind} in (${sql.raw(inList(COMPANY_EXPENSE_TRIP_PARCEL_KINDS))})`,
+    ),
+    check('company_expense_occurrence_trips_amount_check', sql`${table.amount} >= 0`),
+    check('company_expense_occurrence_trips_daily_amount_check', sql`${table.dailyAmount} >= 0`),
+    check('company_expense_occurrence_trips_days_check', sql`${table.days} >= 1`),
   ],
 )

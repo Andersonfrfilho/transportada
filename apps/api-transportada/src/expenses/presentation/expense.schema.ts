@@ -11,6 +11,7 @@ import {
 import { parseBody, invalidRequest, parseUuidFilter } from '../../http/request-parsing.service.js'
 import type { CreateExpenseInput } from '../application/expense.use-case.js'
 import type { ExpenseOccurrenceFilters } from '../application/expense.port.js'
+import { validateExpenseTripPeriod, type ExpenseTripPeriod } from '../domain/expense-trip.policy.js'
 
 const money = z.string().regex(/^\d+(\.\d{1,2})?$/)
 const civilDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -46,6 +47,8 @@ const settleSchema = z
     settlementNote: z.string().trim().max(500).nullable().optional(),
   })
   .strict()
+
+const includeTripSchema = z.object({ tripId: z.uuid() }).strict()
 
 const cancelSchema = z.object({ reason: z.string().trim().min(1).max(500) }).strict()
 const createCategorySchema = z.object({ name: z.string().trim().min(1).max(80) }).strict()
@@ -127,4 +130,27 @@ export function parseOccurrenceFilters(url: URL): ExpenseOccurrenceFilters {
 /** `exactOptionalPropertyTypes`: o zod devolve `undefined` explícito; o caso de uso não o aceita. */
 function stripUndefined<TResult>(value: object): TResult {
   return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as TResult
+}
+
+export function parseIncludeTripRequest(request: Request): Promise<{ readonly tripId: string }> {
+  return parseBody(includeTripSchema, request)
+}
+
+const AVAILABLE_TRIPS_QUERY_KEYS = new Set(['from', 'to'])
+
+/**
+ * `?from=yyyy-mm-dd&to=yyyy-mm-dd` (os dois ou nenhum; até 93 dias). Sem eles vale o período da ocorrência. Chave
+ * desconhecida, data inválida ou intervalo invertido é 400.
+ */
+export function parseAvailableTripsQuery(url: URL): { readonly period?: ExpenseTripPeriod } {
+  for (const key of url.searchParams.keys()) {
+    if (!AVAILABLE_TRIPS_QUERY_KEYS.has(key)) throw invalidRequest()
+  }
+  const from = url.searchParams.get('from')
+  const to = url.searchParams.get('to')
+  if (from === null && to === null) return {}
+  if (from === null || to === null) throw invalidRequest()
+  const period = validateExpenseTripPeriod({ from, to })
+  if (period === null) throw invalidRequest()
+  return { period }
 }

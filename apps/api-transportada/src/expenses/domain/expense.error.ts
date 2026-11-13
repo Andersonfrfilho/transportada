@@ -138,3 +138,81 @@ export class ExpenseInvalidAmountError extends ApiError {
     })
   }
 }
+
+/** RF1d: só a ocorrência de uma conta com favorecido (motorista, agregado ou ajudante) recebe viagens. */
+export class ExpenseOccurrenceNotDriverPaymentError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_OCCURRENCE_NOT_DRIVER_PAYMENT',
+      message: 'Only a driver payment occurrence takes trips.',
+      status: 409,
+    })
+  }
+}
+
+/** Viagem inexistente ou de outra empresa (404, sem revelar existência). */
+export class ExpenseTripNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_TRIP_NOT_FOUND',
+      message: 'The trip is not registered in this company.',
+      status: 404,
+    })
+  }
+}
+
+/** CA05c: só viagem concluída entra no pagamento. */
+export class ExpenseTripNotCompletedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_TRIP_NOT_COMPLETED',
+      message: 'Only a completed trip can be paid.',
+      status: 409,
+    })
+  }
+}
+
+/** CA05c: a pessoa da conta não estava na tripulação da viagem no papel que este pagamento cobre. */
+export class ExpenseTripNotPayeeError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_TRIP_NOT_PAYEE',
+      message: 'The payee is not on this trip crew with a payable role.',
+      status: 409,
+    })
+  }
+}
+
+/** CA05c: viagem sem a parcela calculada (lacuna) não entra; aparece como pendência. */
+export class ExpenseTripParcelMissingError extends ApiError {
+  public constructor(gap: string) {
+    super({
+      code: 'EXPENSE_TRIP_PARCEL_MISSING',
+      details: [{ field: 'tripId', message: gap }],
+      message: 'The trip has no calculated parcel for this payee.',
+      status: 409,
+    })
+  }
+}
+
+/** CA05c: a parte da pessoa nesta viagem já está noutro pagamento. */
+export class ExpenseTripAlreadyIncludedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_TRIP_ALREADY_INCLUDED',
+      message: 'The trip is already included in another payment.',
+      status: 409,
+    })
+  }
+}
+
+/** Remover viagem que não está nesta ocorrência. */
+export class ExpenseOccurrenceTripNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_OCCURRENCE_TRIP_NOT_FOUND',
+      message: 'The trip is not included in this occurrence.',
+      status: 404,
+    })
+  }
+}

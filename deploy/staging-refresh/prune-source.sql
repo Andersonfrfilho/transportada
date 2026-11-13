@@ -72,6 +72,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('company_energy_settings', 'keep', null),
   ('company_entry_kinds', 'keep', null),
   ('company_expense_categories', 'keep', null),
+  ('company_expense_occurrence_trips', 'keep', null),
   ('company_expense_occurrences', 'keep', null),
   ('company_expenses', 'keep', null),
   ('company_field_report_hold_settings', 'keep', null),

@@ -26,8 +26,17 @@ import type {
   SettleExpenseOccurrenceInput,
 } from '../application/expense-occurrence.use-case.js'
 import type { CreateExpenseInput, UpdateExpenseInput } from '../application/expense.use-case.js'
+import type {
+  AvailableExpenseTripsResult,
+  ExpenseOccurrenceTripsResult,
+  IncludeExpenseOccurrenceTripInput,
+  RemoveExpenseOccurrenceTripInput,
+} from '../application/expense-occurrence-trip.use-case.js'
+import type { ExpenseTripPeriod } from '../domain/expense-trip.policy.js'
 import {
+  parseAvailableTripsQuery,
   parseCancelRequest,
+  parseIncludeTripRequest,
   type CreateExpenseBody,
   parseCreateCategoryRequest,
   parseCreateExpenseRequest,
@@ -43,6 +52,9 @@ const EXPENSE_PATH = `${API_EXPENSES_PATH}/:id`
 const CATEGORY_PATH = `${API_EXPENSE_CATEGORIES_PATH}/:id`
 const SETTLEMENT_PATH = `${API_EXPENSE_OCCURRENCES_PATH}/:id/settlement`
 const CANCELLATION_PATH = `${API_EXPENSE_OCCURRENCES_PATH}/:id/cancellation`
+const OCCURRENCE_TRIPS_PATH = `${API_EXPENSE_OCCURRENCES_PATH}/:id/trips`
+const OCCURRENCE_TRIP_PATH = `${API_EXPENSE_OCCURRENCES_PATH}/:id/trips/:tripId`
+const AVAILABLE_TRIPS_PATH = `${API_EXPENSE_OCCURRENCES_PATH}/:id/available-trips`
 const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE }
 
 type Dependencies = {
@@ -58,6 +70,26 @@ type Dependencies = {
     }): Promise<CompanyExpenseCategory>
   }
   readonly createExpense: { execute(input: CreateExpenseInput): Promise<CompanyExpense> }
+  /** T1.4b: viagens do pagamento de motorista/agregado. */
+  readonly includeOccurrenceTrip: {
+    execute(input: IncludeExpenseOccurrenceTripInput): Promise<ExpenseOccurrenceTripsResult>
+  }
+  readonly listAvailableTrips: {
+    execute(input: {
+      readonly companyId: string
+      readonly occurrenceId: string
+      readonly period?: ExpenseTripPeriod
+    }): Promise<AvailableExpenseTripsResult>
+  }
+  readonly listOccurrenceTrips: {
+    execute(input: {
+      readonly companyId: string
+      readonly occurrenceId: string
+    }): Promise<ExpenseOccurrenceTripsResult>
+  }
+  readonly removeOccurrenceTrip: {
+    execute(input: RemoveExpenseOccurrenceTripInput): Promise<ExpenseOccurrenceTripsResult>
+  }
   readonly listCategories: {
     execute(input: { readonly companyId: string }): Promise<readonly CompanyExpenseCategory[]>
   }
@@ -211,6 +243,76 @@ export function createExpenseRoutes(
       pathname: CANCELLATION_PATH,
       policy: MANAGE_POLICY,
     }),
+    defineRoute<{ readonly id: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.listOccurrenceTrips.execute({
+          companyId: context.scope.companyId,
+          occurrenceId: input.id,
+        })
+        return jsonResponse({ data: serializeOccurrenceTrips(result) })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({ id: parseUuidPathIdentifier(pathParameters.id ?? '') }),
+      pathname: OCCURRENCE_TRIPS_PATH,
+      policy: READ_POLICY,
+    }),
+    defineRoute<{ readonly id: string; readonly period?: ExpenseTripPeriod }>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.listAvailableTrips.execute({
+          companyId: context.scope.companyId,
+          occurrenceId: input.id,
+          ...(input.period === undefined ? {} : { period: input.period }),
+        })
+        return jsonResponse({ data: result })
+      },
+      method: 'GET',
+      parse: ({ pathParameters, request }) => ({
+        ...parseAvailableTripsQuery(new URL(request.url)),
+        id: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: AVAILABLE_TRIPS_PATH,
+      policy: READ_POLICY,
+    }),
+    defineRoute<WithId<WithCorrelation<{ readonly tripId: string }>>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.includeOccurrenceTrip.execute({
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          includedBy: context.scope.userId,
+          occurrenceId: input.id,
+          tripId: input.tripId,
+        })
+        return jsonResponse({ data: serializeOccurrenceTrips(result) }, 201)
+      },
+      method: 'POST',
+      parse: async ({ correlationId, pathParameters, request }) => ({
+        ...(await parseIncludeTripRequest(request)),
+        correlationId,
+        id: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: OCCURRENCE_TRIPS_PATH,
+      policy: MANAGE_POLICY,
+    }),
+    defineRoute<WithId<WithCorrelation<{ readonly tripId: string }>>>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.removeOccurrenceTrip.execute({
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          occurrenceId: input.id,
+          removedBy: context.scope.userId,
+          tripId: input.tripId,
+        })
+        return jsonResponse({ data: serializeOccurrenceTrips(result) })
+      },
+      method: 'DELETE',
+      parse: ({ correlationId, pathParameters }) => ({
+        correlationId,
+        id: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        tripId: parseUuidPathIdentifier(pathParameters.tripId ?? ''),
+      }),
+      pathname: OCCURRENCE_TRIP_PATH,
+      policy: MANAGE_POLICY,
+    }),
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {
         const categories = await dependencies.listCategories.execute({
@@ -314,6 +416,22 @@ function serializeOccurrence(item: ExpenseOccurrenceListItem): Record<string, un
     payeeDriverId: item.payeeDriverId,
     payeeDriverName: item.payeeDriverName,
     payeeDriverPaymentModel: item.payeeDriverPaymentModel,
+  }
+}
+
+/** A ocorrência (o previsto já recalculado), as viagens incluídas e a soma delas: a diferença para a baixa é da tela. */
+function serializeOccurrenceTrips(result: ExpenseOccurrenceTripsResult): Record<string, unknown> {
+  return {
+    items: result.items.map((item) => ({
+      amount: item.amount,
+      completedOn: item.completedOn,
+      dailyAmount: item.dailyAmount,
+      days: item.days,
+      parcelKind: item.parcelKind,
+      tripId: item.tripId,
+    })),
+    occurrence: serializeBareOccurrence(result.occurrence),
+    tripsTotal: result.tripsTotal,
   }
 }
 
