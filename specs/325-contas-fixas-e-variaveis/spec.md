@@ -130,7 +130,7 @@ A categoria "Pagamento de motorista/agregado" não é rateada: o custo dele **j�
 - **RF10** Cada categoria de conta (`company_expense_categories`) ganha `cost_group` (`vehicle_fixed` | `per_km` | `administrative` | `in_trip`). A semente classifica: Aluguel, Impostos, Folha, Outros → `administrative`; Seguro → `vehicle_fixed`; Manutenção, Combustível → `per_km`; Pagamento de motorista/agregado → `in_trip`.
 - **RF11** Critério de rateio **configurável por empresa e por grupo** (`company_expense_allocation_settings`): `per_km`, `per_trip_day`, `per_revenue` ou `equal`. Padrão (recomendado): fixo do veículo por km; variável pelo custo por km do veículo; administrativo pelo faturamento. Conta com `vehicle_id` vai só para as viagens daquele veículo; sem veículo segue o critério do grupo.
 - **RF12** Cálculo **na leitura** (sem gravar o rateio na viagem) sobre o período: valor considerado da conta = pago, se baixada; senão previsto. Viagem entra pela data de conclusão. Sem viagens no período, o rateio do grupo não se distribui e aparece como "não rateado".
-- **RF13** O pagamento de motorista/agregado **nunca é somado de novo**: as parcelas `driver` e `helper` das viagens incluídas (RF1d, RF1e) contam só no custo da viagem. Se o valor pago passar da soma das viagens incluídas, a diferença entra como conta da empresa (decisão a confirmar, dúvida 5).
+- **RF13** O pagamento de motorista/agregado **nunca é somado de novo**: as parcelas `driver` e `helper` das viagens incluídas (RF1d, RF1e) contam só no custo da viagem. Se o valor pago passar da soma das viagens incluídas, a diferença entra como conta da empresa no grupo `administrative` (dúvida 5, aprovada; regra em ADR-0116 §5).
 - **RF14** Painel `/contas/resultado` ("Resultado do mês"): faturamento de fretes, custo das viagens, contas da empresa, lucro, margem, custo por km, receita por km e margem por km, com a variação sobre o mês comparado e a lista dos últimos meses.
 - **RF15** Margem por **viagem**, por **veículo** e por **cliente**, com rateio do veículo e rateio geral em colunas separadas; todas fecham com o total do painel (contrato de soma).
 - **RF16** Painel "Rateio das contas" em Configurações: grupo de cada categoria e critério de cada grupo (permissão `expenses.manage`; leitura do painel em `expenses.read`).
@@ -163,13 +163,16 @@ A categoria "Pagamento de motorista/agregado" não é rateada: o custo dele **j�
 - CA15 "paguei" do responsável baixa com valor previsto e data do dia; de outra pessoa, de ocorrência paga/cancelada ou repetido não baixa; link do e-mail só vale uma vez.
 - CA10 Isolamento por empresa e permissões, com contrato negativo.
 
-### Dúvidas em aberto (decididas com padrão recomendado; Anderson pode trocar)
+### Dúvidas da extensão (fechadas em 2026-11-13, T4.0)
 
-5. **Pagamento de motorista maior que as viagens incluídas** → a diferença (bônus, adiantamento) entra como conta da empresa. _Padrão proposto._
-6. **Fechar o mês** → o rateio é recalculado ao abrir; se Anderson quiser congelar mês fechado (como o resultado congelado da viagem, 0049), entra como task própria. _Padrão: sem congelar._
-7. **Conta "da frota" sem veículo** (ex.: seguro único) → rateia pelo critério do grupo entre todos os veículos. _Padrão proposto._
+Anderson aprovou os previews e os padrões abaixo ("aprovado pode seguir"). Regras consolidadas na [ADR-0116](../../docs/adr/0116-o-rateio-das-contas-e-calculado-na-leitura.md).
 
-8. **Desfazer baixa por resposta** → até 24 horas, só o administrador, com motivo. _Padrão proposto; Anderson pode trocar ou proibir._
+5. **Pagamento de motorista maior que as viagens incluídas** → a diferença (bônus, adiantamento) entra como conta da empresa, no grupo `administrative`. Pagamento sem viagem incluída aparece como pendência. Resolvida.
+6. **Fechar o mês** → o rateio é recalculado ao abrir, sem congelar; tela e exportação mostram o critério e a hora do cálculo. Congelar, se um dia for preciso, vira task própria. Resolvida.
+7. **Conta "da frota" sem veículo** (ex.: seguro único) → dividida pelo critério do grupo entre as viagens de todos os veículos no período. Resolvida.
+8. **Desfazer baixa por resposta** → até 24 horas, só o administrador, com motivo. Resolvida.
+
+Limite do alerta de fora do padrão (RF23): 10%, configurável por empresa. Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 ### Trabalho futuro (não implementar agora)
 
