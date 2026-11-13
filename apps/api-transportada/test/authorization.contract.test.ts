@@ -94,6 +94,9 @@ describe('authorization contract', () => {
       'occurrences.decide',
       // Spec 262 / ADR-0102 D6: a chave e o orçamento da FeriadosAPI são da instalação — só o company-admin
       'holiday-import.configure',
+      // Spec 325 RF7: as contas da empresa são dinheiro da empresa inteira — só o company-admin
+      'expenses.read',
+      'expenses.manage',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -130,6 +133,8 @@ describe('authorization contract', () => {
         'cargo.measure',
         'occurrences.resolve',
         'holiday-import.configure',
+        'expenses.read',
+        'expenses.manage',
       ],
       finance: [
         'cte.read',
@@ -266,6 +271,33 @@ describe('authorization contract', () => {
     expect(isCompanyPermission('holiday-import.configure')).toBe(true)
     expect(isGrantablePermission('holiday-import.configure')).toBe(true)
     expect(SERVICE_ONLY_PERMISSIONS).not.toContain('holiday-import.configure')
+  })
+
+  /**
+   * Spec 325 RF7 (dúvida 4): as contas da empresa (aluguel, salário, pagamento de motorista/agregado) ficam só com o
+   * `company-admin`. O `finance` tem `trip.financials` e `billing.*`, e nem por isso vê a folha. Concedível por grupo.
+   */
+  test('grants expenses.read and expenses.manage only to the company-admin, and keeps them grantable by group', () => {
+    for (const permission of ['expenses.read', 'expenses.manage'] as const) {
+      expect(resolveCompanyPermissions(['company-admin']).has(permission)).toBe(true)
+      for (const role of [
+        'finance',
+        'fiscal',
+        'operator',
+        'viewer',
+        'driver',
+        'aggregate',
+        'separator',
+        'helper',
+        'contractor',
+        'automation',
+      ] as const) {
+        expect(resolveCompanyPermissions([role]).has(permission)).toBe(false)
+      }
+      expect(isCompanyPermission(permission)).toBe(true)
+      expect(isGrantablePermission(permission)).toBe(true)
+      expect(SERVICE_ONLY_PERMISSIONS).not.toContain(permission)
+    }
   })
 
   // Os dois papéis de campo são o menor conjunto do sistema — nota, CT-e, faturamento e frota

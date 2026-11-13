@@ -630,3 +630,15 @@ describe('holiday-import.configure — a chave da FeriadosAPI não chega ao galp
     expect(resolveCompanyPermissions(['separator'])).not.toContain('settings.manage')
   })
 })
+
+/**
+ * Spec 325 RF7: o separador monta a viagem e o ajudante acompanha; nenhum dos dois vê nem lança as contas da empresa.
+ */
+describe('expenses.* — as contas da empresa não chegam ao galpão', () => {
+  test('não chegam ao separador nem ao ajudante', () => {
+    for (const role of ['separator', 'helper'] as const) {
+      expect(resolveCompanyPermissions([role])).not.toContain('expenses.read')
+      expect(resolveCompanyPermissions([role])).not.toContain('expenses.manage')
+    }
+  })
+})
