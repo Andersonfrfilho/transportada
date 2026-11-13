@@ -16,8 +16,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 ## Fase 1 — API
 
 - [x] **T1.1** Contratos vermelhos: motorista obrigatório na categoria de motorista, motorista de outra empresa, isolamento por empresa, baixa idempotente, geração única de ocorrência, dia 31, permissões.
-      Feita: 22 contratos em `apps/api-transportada/test/expenses/` (entrypoint `test/expenses.contract.test.ts`), todos vermelhos; `tsc` e `eslint` limpos.
-      ⚠️ **Fora da lista `test` do `package.json` de propósito**, para o CI de staging não ficar vermelho: **a T1.4 (e a T1.3, para `permissions.contract.ts`) registra o entrypoint na lista** quando o contrato ficar verde. Esqueleto em `src/expenses/` (portas, erros, casos de uso que lançam "not implemented").
+      Feita: 22 contratos em `apps/api-transportada/test/expenses/` (entrypoint `test/expenses/red-entrypoint.ts`), todos vermelhos; `tsc` e `eslint` limpos.
+      ⚠️ **Fora da lista `test` do `package.json` de propósito**, para o CI de staging não ficar vermelho: **a T1.4 (e a T1.3, para `permissions.contract.ts`) move o entrypoint para `test/expenses.contract.test.ts` e o registra na lista (o guard `test-registry` só vê `test/*.contract.test.ts`, por isso o parking em `test/expenses/`)** quando o contrato ficar verde. Esqueleto em `src/expenses/` (portas, erros, casos de uso que lançam "not implemented").
   > 🤖 Modelo: `sonnet`
 - [ ] **T1.2** Schema (inclui `payee_driver_id`) + migration aditiva + rollback; categorias semeadas (`make migration-test`).
   > 🤖 Modelo: `sonnet`

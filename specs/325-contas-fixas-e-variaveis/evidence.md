@@ -5,7 +5,7 @@
 Comando (de dentro de `apps/api-transportada`):
 
 ```bash
-bun --env-file=../../.env.test test ./test/expenses.contract.test.ts
+bun --env-file=../../.env.test test ./test/expenses/red-entrypoint.ts
 ```
 
 Resultado: **0 pass, 22 fail** — vermelho pelo motivo certo (casos de uso e política de vencimento lançam
