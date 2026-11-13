@@ -12,6 +12,8 @@ export type ExpenseOccurrenceStatus = 'open' | 'paid' | 'canceled'
 
 export type CompanyExpenseCategory = {
   readonly active: boolean
+  /** ADR-0116 §1: o grupo de custo do rateio (`administrative` na categoria nova). */
+  readonly costGroup?: 'administrative' | 'in_trip' | 'per_km' | 'vehicle_fixed'
   readonly id: string
   readonly name: string
   /** Semeada "Pagamento de motorista/agregado" exige `payee_driver_id`; as demais o recusam. */

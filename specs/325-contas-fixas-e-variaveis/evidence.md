@@ -381,3 +381,22 @@ contrato que a cobra.
 - **Contratos:** `test/database-migration/company-expense-allocation.static.contract.ts` (aditivo, listas fechadas iguais às do schema, semente, padrão igual ao `DEFAULT_ALLOCATION_SETTINGS`, rollback) registrado em `database-migration.contract.test.ts`; lista de migrations em `static-migration.contract.ts`; asserção do grupo semeado em `expenses-repository.integration.ts`.
 - **Provas (Postgres 16 local descartável):** `bun test ./test/database-migration.contract.test.ts` com `DRIZZLE_TEST_DATABASE_URL` → 235 pass / 0 fail (inclui migração completa, snapshot e rollback); integração `expenses-repository` 5 pass; `tsc --noEmit`, `eslint` e `prettier --check` limpos; `./test/expenses.contract.test.ts` 65 pass.
 - **CI (staging-refresh):** a tabela nova precisa de política no recorte de staging (contrato da spec 291); `company_expense_allocation_settings` entrou como `keep` em `deploy/staging-refresh/prune-source.sql` (configuração da empresa, como as demais `company_expense_*`).
+
+## T4.5 — Resultado do mês e configuração do rateio (2026-11-13)
+
+**O que entrou** (`apps/api-transportada`):
+
+- `src/expenses/application/expense-result.use-case.ts`: `computeExpenseResult` (um só cálculo para resultado e custo por km, ADR-0116 §7), `createGetExpenseResultUseCase`, `createGetExpenseUnitCostsUseCase`, `createGetExpenseAllocationSettingsUseCase` e `createUpdateExpenseAllocationSettingsUseCase`. Conta paga vale o pago, cancelada não entra; lucro = faturamento − custo das viagens − contas, com o excedente do pagamento do motorista como única entrada do `in_trip`. A resposta leva o critério usado, os excedentes, os pagamentos sem viagem incluída e o não rateado com nome.
+- `src/expenses/infrastructure/allocation-trip.query.ts`: viagens concluídas do período pela **mesma** data do pagamento (`completedOnSql`, agora exportado de `payable-trip.query.ts`); faturamento e custo da `buildValuationFromContext` em lote, arredondados ao centavo; cliente = contratante do emitente da nota de maior frete (empate: menor CNPJ); sem veículo ou sem contratante vira `sem-veiculo`/`sem-cliente`, nunca some do total. Dias = `dailyAllowanceDays`, senão a duração estimada em dias cheios, no mínimo 1.
+- `src/expenses/infrastructure/drizzle-expense-result.repository.ts`: contas do período por competência (soma das viagens incluídas no pagamento), critério por `ON CONFLICT` e auditoria `expense_allocation_settings.update` na mesma transação.
+- `src/expenses/presentation/expense-result.routes.ts`: `GET /expense-result`, `GET /expense-unit-costs` (período `from`/`to` obrigatório, até 366 dias, `companyId` da query ignorado), `GET|PUT /expense-allocation-settings`; ligadas em `main.ts`. `costGroup` passou a sair em `/expense-categories` (campo opcional, aditivo).
+- Custo por km: `(custo das viagens + contas rateadas) / km`, quatro casas, `null` sem quilômetro; o geral usa todas as contas do período, inclusive o não rateado.
+
+**Prova**
+
+- `bun --env-file=../../.env.test test ./test/expenses.contract.test.ts`: 111 pass / 0 fail (`result.contract.ts` e `result-routes.contract.ts` saíram do vermelho; entrypoint `allocation-red-entrypoint.ts` apagado).
+- Integração contra Postgres 16 descartável (`test/integration/expense-result.integration.ts`, 6 casos): viagem concluída só por `trip_status_events` (sem `closed_at`) entra em novembro pelo dia de São Paulo; outubro fica fora; empresa B não aparece; lucro fecha com as margens por viagem e por veículo; critério padrão, troca e auditoria. Regressão: `expenses-repository` e `expense-occurrence-trips` 13 pass.
+- Suíte de contrato da API: 15268 pass; os 9 `fail` são `toll booth catalog repository`, que pedem banco (`Failed to connect`) e não tocam este código.
+- `tsc --noEmit`, `eslint --max-warnings=0` e `prettier --check` limpos.
+
+**Fora daqui:** filtros e exportação PDF/CSV (T4.6), telas (Fase 5), trocar o grupo de uma categoria (T5.3). Nenhuma rota nova mexe em produção, então o runbook de produção não muda.
