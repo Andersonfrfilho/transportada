@@ -16,6 +16,12 @@ export type CompanyExpenseCategory = {
   readonly requiresDriver: boolean
 }
 
+/**
+ * Spec 325 RF1e: o rótulo do favorecido na lista — "Motorista", "Agregado" ou "Ajudante" —, lido do cadastro na hora
+ * (`fleet_drivers`), nunca copiado. A API devolve a chave; o texto é da tela.
+ */
+export type ExpensePayeeProfile = 'aggregate' | 'driver' | 'helper'
+
 export type ExpenseDriverRef = {
   readonly id: string
   readonly paymentModel: 'fixed' | 'route_table'
@@ -66,6 +72,8 @@ export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
   /** Derivado do cadastro na leitura, nunca copiado (RF1b). */
   readonly payeeDriverName: string | null
   readonly payeeDriverPaymentModel: ExpenseDriverRef['paymentModel'] | null
+  /** RF1e: `helper` (ajudante-puro), `aggregate` (`route_table`) ou `driver` (da casa). `null` sem favorecido. */
+  readonly payeeProfile: ExpensePayeeProfile | null
 }
 
 export type ExpenseOccurrenceFilters = {

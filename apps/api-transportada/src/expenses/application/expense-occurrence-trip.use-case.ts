@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 325 RF1d (T1.4b): as viagens do pagamento de motorista/agregado. A ocorrência de uma conta com favorecido
+ * Spec 325 RF1d (T1.4b) e RF1e (T1.4c): as viagens do pagamento de motorista, agregado ou ajudante. A ocorrência de uma conta com favorecido
  * recebe as viagens concluídas dele; cada uma entra com a linha da pessoa na parcela já calculada na viagem (diária ×
  * dias, 143), copiada, e o previsto da ocorrência vira a soma delas. Nada aqui recalcula ou soma o custo da viagem de
  * novo: a conta é a da valoração, e a viagem continua dona do custo (ADR-0115).
@@ -33,10 +33,11 @@ import type {
 } from './expense.port.js'
 
 /**
- * As parcelas que o pagamento já sabe cobrar. A T1.4c (ajudante, RF1e) acrescenta `helper` aqui e a leitura da linha
- * do ajudante na porta; a tabela e a chave já o aceitam.
+ * As parcelas que o pagamento cobra: a do condutor (143) e, desde a T1.4c (RF1e), a do ajudante (149 D7). Cada
+ * viagem entra pelo papel que a pessoa teve nela; a chave `unique(trip_id, parcel_kind, driver_id)` segura a parte
+ * dela numa parcela em um pagamento só.
  */
-export const PAYABLE_TRIP_PARCEL_KINDS: readonly ExpenseTripParcelKind[] = ['driver']
+export const PAYABLE_TRIP_PARCEL_KINDS: readonly ExpenseTripParcelKind[] = ['driver', 'helper']
 
 export type ExpenseOccurrenceTripsResult = {
   readonly items: readonly ExpenseOccurrenceTrip[]

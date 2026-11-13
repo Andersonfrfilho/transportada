@@ -395,4 +395,141 @@ describeDatabase('viagens do pagamento no banco (spec 325 T1.4b)', () => {
     )
     expect(new Set(rows.map((row) => row.permission))).toEqual(new Set(['expenses.manage']))
   })
+
+  test('T1.4c: o ajudante recebe a linha dele na parcela helper da valoração real, sem somar a do motorista', async () => {
+    if (database === undefined) throw new Error('A disposable database is required')
+    const helperId = crypto.randomUUID()
+    const helperWithoutRateId = crypto.randomUUID()
+    const tripCrewed = crypto.randomUUID()
+    await database.db.execute(sql`
+      insert into fleet_drivers (id, company_id, name, tax_id, payment_model, can_drive, can_act_as_helper, helper_daily_rate)
+      values (${helperId}, ${companyA}, 'Ajudante Um', '12345678904', 'route_table', false, true, '130.0000'),
+             (${helperWithoutRateId}, ${companyA}, 'Ajudante Dois', '12345678905', 'route_table', false, true, null)
+    `)
+    // Jornada de 30 h com volta: 2 dias para o ajudante (149 D7); a diária do motorista usa os 2 dias informados.
+    await database.db.execute(sql`
+      insert into trips (id, company_id, status, daily_allowance_days, planned_journey_seconds, planned_journey_includes_return)
+      values (${tripCrewed}, ${companyA}, 'completed', 2, ${30 * 3600}, true)
+    `)
+    await database.db.insert(tripDrivers).values([
+      {
+        companyId: companyA,
+        driverId: otherDriverId,
+        driverName: 'Outro',
+        driverTaxId: '12345678902',
+        position: 1n,
+        tripId: tripCrewed,
+      },
+      {
+        companyId: companyA,
+        driverId: helperId,
+        driverName: 'Ajudante Um',
+        driverTaxId: '12345678904',
+        position: 2n,
+        role: 'helper',
+        tripId: tripCrewed,
+      },
+      {
+        companyId: companyA,
+        driverId: helperWithoutRateId,
+        driverName: 'Ajudante Dois',
+        driverTaxId: '12345678905',
+        position: 3n,
+        role: 'helper',
+        tripId: tripCrewed,
+      },
+    ])
+    await database.db.execute(sql`
+      insert into trip_status_events (id, company_id, trip_id, from_status, to_status, actor_user_id, occurred_at)
+      values (${crypto.randomUUID()}, ${companyA}, ${tripCrewed}, 'on_delivery_route', 'completed',
+        ${userId}, '2026-11-25T15:00:00Z')
+    `)
+
+    const expensePorts = createDrizzleExpensesPorts(database.db)
+    const categories = await createListExpenseCategoriesUseCase(expensePorts).execute({
+      companyId: companyA,
+    })
+    const driverCategory = categories.find((category) => category.requiresDriver)
+    if (driverCategory === undefined) throw new Error('driver category is required')
+    const payment = async (name: string, payeeDriverId: string): Promise<string> => {
+      await createCreateExpenseUseCase(expensePorts).execute({
+        categoryId: driverCategory.id,
+        companyId: companyA,
+        createdBy: userId,
+        dueDay: 5,
+        expectedAmount: '900.00',
+        kind: 'fixed',
+        name,
+        payeeDriverId,
+        recurrence: 'monthly',
+        today: '2026-11-13',
+      })
+      const rows = await expensePorts.occurrences.list({
+        companyId: companyA,
+        filters: { competence: '2026-11', driverId: payeeDriverId },
+      })
+      const occurrence = rows.find((row) => row.expenseName === name)
+      if (occurrence === undefined) throw new Error('monthly occurrence missing')
+      expect(occurrence.payeeProfile).toBe(payeeDriverId === otherDriverId ? 'aggregate' : 'helper')
+      return occurrence.id
+    }
+    const helperPayment = await payment('Ajudante Um', helperId)
+    const helperWithoutRatePayment = await payment('Ajudante Dois', helperWithoutRateId)
+    const driverPayment = await payment('Outro', otherDriverId)
+
+    const available = await createListAvailableExpenseTripsUseCase(ports()).execute({
+      companyId: companyA,
+      occurrenceId: helperPayment,
+    })
+    expect(available.available).toEqual([
+      {
+        amount: '260.00',
+        completedOn: '2026-11-25',
+        dailyAmount: '130.0000',
+        days: 2,
+        parcelKind: 'helper',
+        tripId: tripCrewed,
+      },
+    ])
+    const withoutRate = await createListAvailableExpenseTripsUseCase(ports()).execute({
+      companyId: companyA,
+      occurrenceId: helperWithoutRatePayment,
+    })
+    expect(withoutRate.available).toEqual([])
+    expect(withoutRate.pending).toEqual([
+      {
+        completedOn: '2026-11-25',
+        gap: 'HELPER_DAILY_RATE_MISSING',
+        parcelKind: 'helper',
+        tripId: tripCrewed,
+      },
+    ])
+
+    const include = createIncludeExpenseOccurrenceTripUseCase(ports())
+    const helper = await include.execute({
+      companyId: companyA,
+      includedBy: userId,
+      occurrenceId: helperPayment,
+      tripId: tripCrewed,
+    })
+    const driver = await include.execute({
+      companyId: companyA,
+      includedBy: userId,
+      occurrenceId: driverPayment,
+      tripId: tripCrewed,
+    })
+    expect(helper.occurrence.expectedAmount).toBe('260.00')
+    expect(driver.items.map((item) => [item.parcelKind, item.amount])).toEqual([
+      ['driver', '400.00'],
+    ])
+
+    const rows = (await database.db.execute(sql`
+      select parcel_kind, driver_id, amount::text as amount from company_expense_occurrence_trips
+      where trip_id = ${tripCrewed} order by parcel_kind
+    `)) as unknown as { amount: string; driver_id: string; parcel_kind: string }[]
+    expect(rows.map((row) => [row.parcel_kind, row.driver_id, row.amount])).toEqual([
+      ['driver', otherDriverId, '400.00'],
+      ['helper', helperId, '260.00'],
+    ])
+  })
 })

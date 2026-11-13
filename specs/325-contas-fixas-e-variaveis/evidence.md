@@ -166,6 +166,48 @@ posição (196 RF12): a leitura de `trip_status_events` foi para `infrastructure
 **Para a T2.2b:** a resposta de `GET|POST|DELETE …/trips` é `{ data: { occurrence, items[], tripsTotal } }`; a de
 `available-trips` é `{ data: { period, available[], pending[] } }`.
 
+## T1.4c — O ajudante no pagamento (2026-11-13)
+
+**Sem migration.** A tabela e a chave `unique(trip_id, parcel_kind, driver_id)` da T1.4b já aceitavam `helper`.
+
+**Decisões**
+
+- **A linha do ajudante vem da valoração, como a do motorista.** A parcela `helper` (`buildTripHelperCost`, 149 D7) passou a
+  devolver `basis: { of: 'helper', days, crew: [{ driverId, dailyAmount, rateOrigin: 'own' | 'company', subtotal }] }`, uma linha
+  por ajudante **com diária**, e o `amount` passou a ser a soma dessas linhas (antes era `Σ diárias × dias`; o número é o mesmo,
+  contrato de tabela com dízimas cobra `Σ subtotal === amount`). Nada fora dessa função multiplica diária × dias: o gateway do
+  pagamento só procura a linha da pessoa. Sem linha não há valor inventado: ajudante sem diária (própria nem geral) sai em
+  `pending` com `HELPER_DAILY_RATE_MISSING`, também quando outro ajudante da mesma viagem tem diária (parcela `measured` com
+  `detail: '1/2'`); jornada nunca congelada sai com `HELPER_JOURNEY_UNKNOWN`. Sem a volta (`estimated`) a linha tem valor e entra.
+- **Cada viagem entra pelo papel da pessoa nela.** `listCompleted`/`findFacts` já devolviam o papel de `trip_drivers.role`; o
+  gateway olha só `crew` (condutores) para `driver` e só `helperCrew` para `helper`, então a mesma pessoa nunca é lida nas duas
+  parcelas da mesma viagem. Quem dirige numa viagem e ajuda noutra aparece com as duas, cada uma com o seu `parcelKind`.
+- **Não soma de novo.** Motorista e ajudante da mesma viagem viram duas linhas em `company_expense_occurrence_trips`
+  (`driver`/motorista e `helper`/ajudante), cada uma no pagamento da sua pessoa; nenhuma ocorrência soma a parcela da outra.
+- **Rótulo.** `GET /expense-occurrences` ganhou `payeeProfile` (`resolveExpensePayeeProfile`, lido do cadastro na hora):
+  `can_drive = false` → `helper`; senão `route_table` → `aggregate` e `fixed` → `driver`. A API devolve a chave, o texto é da tela
+  (T2.1). Nenhum painel publicado lê essa rota ainda (Fase 2 por fazer), então a chave nova não quebra guarda de chaves exatas.
+- **Valoração na tela.** O `basis` novo aparece em `costParcels` do detalhe, da lista e da proposta de viagem. O painel lê `basis`
+  por forma (`readBasis` em `tripValuationResponse.validation.ts` devolve `null` para `of` desconhecido), então a tela segue
+  mostrando só o total do ajudante; o congelamento (`freeze-trip-financial-result`) só compõe nota para `of: 'driver'`.
+
+**Provas** (de dentro de `apps/api-transportada`)
+
+- Contratos: `bun --env-file=../../.env.test test ./test/expenses.contract.test.ts` → 65 pass / 0 fail (9 novos em
+  `test/expenses/occurrence-trips-helper.contract.ts`: lista do ajudante com lacuna em pendências, pessoa nos dois papéis,
+  inclusão com auditoria `parcelKind: helper`, motorista e ajudante da mesma viagem sem somar, um pagamento só, 409 de lacuna e de
+  viagem em que não estava, rótulo). `test/trip-financial.contract.test.ts` + `test/suggestion-valuation.contract.test.ts` → 134 pass
+  (o `basis` nos casos com valor e a soma exata das linhas).
+- Integração contra Postgres 16 descartável: `expense-occurrence-trips.integration.ts` + `expenses-repository.integration.ts` →
+  11 pass, com o caso novo pela valoração real (`DrizzleTripValuationQuery`): viagem com motorista, ajudante com diária própria
+  130,00 e ajudante sem diária, jornada de 30 h → `130,00 × 2 = 260,00` para o primeiro, `pending` para o segundo, o motorista com
+  `200,00 × 2 = 400,00` no pagamento dele e duas linhas no banco (`driver`/`helper`), `payeeProfile` `helper`/`aggregate`.
+  `suggestion-helper-cost.integration.ts` e `trip-list-occupancy-financials.integration.ts` verdes.
+- Lista completa de contrato `bun --env-file=../../.env.test run test`: 15217 pass / 26 skip / 9 fail; os 9 são
+  `toll booth catalog repository` (`test/toll-booths/…`), que falham igual sem esta mudança nesta sessão (precisam do Postgres
+  da `.env.test`, que não está de pé aqui). `trip-financial-end-to-end.integration.ts` também falha igual sem a mudança
+  (`version` 11 em vez de 2, mesmo resultado com `git stash`). `tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
+
 ## T1.5 — Rotina que gera as ocorrências das contas fixas (2026-11-13)
 
 **Desenho.** O `cron-transportada` é só o relógio (uma batida a cada 5 min publica as rotinas vencidas); quem executa é o worker. A rotina entra como as outras (319 T7): nome no catálogo das quatro apps (`api`, `cron`, `worker`, `frontend`), CHECKs de `job` ampliadas e uma linha em `job_schedules`. Como nenhuma app importa código de outra, o worker **não chama** `createGenerateExpenseOccurrencesUseCase`: ele espelha a política de calendário (`expense-schedule.policy.ts`) e o SQL de `listActiveFixed`/`insertIfAbsent`, e `test/company-expense-occurrence/parity.contract.ts` cobra a igualdade linha a linha contra os arquivos da API.
