@@ -32,6 +32,7 @@ export const SETTINGS_PANELS = [
   'contractorAutomations',
   'driverStopReminders',
   'salespeople',
+  'expenseCategories',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -62,6 +63,7 @@ export type SettingsDataSource =
   | 'driverAllowanceSettings'
   | 'driverStopReminderSettings'
   | 'entryKindCatalog'
+  | 'expenseCategories'
   | 'federalTaxes'
   | 'freightRegions'
   | 'fuelPrices'
@@ -250,6 +252,12 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   },
   /** Spec 316 T1.4: o cadastro dos vendedores da contratante — painel autocontido, aba própria, `settings.manage`. */
   salespeople: { module: 'company-settings', source: 'salespeople', tab: 'salespeople' },
+  /** Spec 325 T2.3: as categorias das contas da empresa — painel autocontido, aba própria (`expenses.read`/`expenses.manage`). */
+  expenseCategories: {
+    module: 'company-settings',
+    source: 'expenseCategories',
+    tab: 'expenseCategories',
+  },
 }
 
 export function settingsPanelsOf(
@@ -300,6 +308,7 @@ export function resolveSettingsDataScope(
     driverAllowanceSettings: sources.has('driverAllowanceSettings'),
     driverStopReminderSettings: sources.has('driverStopReminderSettings'),
     entryKindCatalog: sources.has('entryKindCatalog'),
+    expenseCategories: sources.has('expenseCategories'),
     federalTaxes: sources.has('federalTaxes'),
     freightRegions: sources.has('freightRegions'),
     fuelPrices: sources.has('fuelPrices'),
@@ -333,6 +342,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'automations',
   'driverReminders',
   'salespeople',
+  'expenseCategories',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]

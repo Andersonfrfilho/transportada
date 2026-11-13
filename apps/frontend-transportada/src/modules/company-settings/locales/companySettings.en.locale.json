@@ -17,7 +17,8 @@
     "whatsapp": "WhatsApp",
     "automations": "Automations",
     "driverReminders": "Driver reminders",
-    "salespeople": "Salespeople"
+    "salespeople": "Salespeople",
+    "expenseCategories": "Expense categories"
   },
   "entryKinds": {
     "title": "Entry kinds",
@@ -1084,6 +1085,24 @@
       "notFound": "The salesperson or the link no longer exists.",
       "conflict": "A salesperson with that email or WhatsApp already exists.",
       "unknownClient": "Some tax ID in the portfolio is not a registered client."
+    }
+  },
+  "expenseCategories": {
+    "title": "Expense categories",
+    "subtitle": "The categories of the company's fixed and variable expenses (rent, insurance, fuel…). Deactivate one you no longer use: older expenses keep showing its name.",
+    "loading": "Loading the categories…",
+    "retry": "Try again",
+    "empty": "No categories yet.",
+    "requiresDriver": "requires a driver",
+    "inactive": "inactive",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "name": "Category name",
+    "save": "Add",
+    "saving": "Adding…",
+    "error": {
+      "EXPENSE_CATEGORY_NAME_TAKEN": "A category with this name already exists.",
+      "REQUEST_FAILED": "Could not finish. Try again."
     }
   }
 }
