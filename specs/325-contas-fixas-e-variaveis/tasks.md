@@ -67,7 +67,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [x] **T4.1** ADR-0116: o rateio é calculado na leitura, por grupo de custo, e o motorista não é somado de novo.
       Feita em 2026-11-13: [ADR-0116](../../docs/adr/0116-o-rateio-das-contas-e-calculado-na-leitura.md) aceita, com os pesos de cada critério, quem participa, o excedente do pagamento do motorista, o mês recalculado, a conta sem veículo e a soma que fecha. **Para a T4.5:** a data de conclusão da viagem é a mesma do pagamento (`payable-trip.query.ts`, T1.4b), nunca só `trips.closed_at`, que a conclusão pelo relatório do motorista não grava (ADR-0116 §3). Detalhe em `evidence.md` § T4.1.
   > 🤖 Modelo: `opus`
-- [ ] **T4.2** Contratos vermelhos: CA06 a CA10 (soma fecha, motorista não duplica, critério muda divisão e não total, veículo, isolamento).
+- [x] **T4.2** Contratos vermelhos: CA06 a CA10 (soma fecha, motorista não duplica, critério muda divisão e não total, veículo, isolamento).
+      Feita: 34 contratos vermelhos em `apps/api-transportada/test/expenses/` (`allocation.contract.ts`, `result.contract.ts`, `result-routes.contract.ts`, entrypoint `allocation-red-entrypoint.ts`), com esqueleto que lança "not implemented" (`expense-allocation.policy.ts`, `expense-result.port.ts`/`.use-case.ts`, `expense-result.routes.ts`) e fixture `expense-result-in-memory.fixture.ts`. ⚠️ **Fora da lista `test` do `package.json` de propósito** (CI de staging não fica vermelho): a T4.4 move `allocation.contract.ts` e a T4.5 move `result*.contract.ts` para `test/expenses.contract.test.ts` quando ficarem verdes. Detalhe em `evidence.md` § T4.2.
   > 🤖 Modelo: `sonnet`
 - [ ] **T4.3** Schema: `cost_group` na categoria + `company_expense_allocation_settings` + semente; migration aditiva e rollback (`make migration-test`).
   > 🤖 Modelo: `sonnet`

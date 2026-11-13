@@ -274,3 +274,21 @@ usar essa mesma expressão, para a viagem não cair num mês no pagamento e nout
 - Só componentes do design system, no mesmo molde do painel Vendedores (rótulo em cima, `Button`, `Skeleton`). Textos pt/en em `companySettings.*.locale.json`, sem mexer no locale de `expenses` nem em rota/menu (T2.2).
 - Contrato novo `test/expenses/categories-panel.contract.ts` (registrado em `test/expenses.contract.test.ts`): endereço da aba e consulta ligada só nela, mapa de erros, paridade pt/en. `bun run test` do painel: verde; `tsc` e `eslint` limpos.
 - Prints (claro/escuro × desktop 1440/celular 375) em `prints/categorias-*.png`, gerados por `test/spec-325-categorias-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-325-categorias-prints.smoke.spec.ts`), comparados com a aba Vendedores.
+
+## T4.2 — Contratos vermelhos do rateio (2026-11-13)
+
+**O que entrou** (`apps/api-transportada`, tudo vermelho de propósito; rodar com `bun --env-file=../../.env.test test ./test/expenses/allocation-red-entrypoint.ts`):
+
+| Arquivo                                   | Prende                                                                                                                                                                                                                               | Fecha na |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `test/expenses/allocation.contract.ts`    | Peso dos quatro critérios; soma fecha em centavos (resto à viagem de maior peso, ordem estável); peso zero; veículo só nas viagens dele (CA09); conta sem veículo entre todos; excedente do pagamento de motorista (CA07)            | T4.4     |
+| `test/expenses/result.contract.ts`        | Lucro = faturamento − custo − contas e soma por viagem/veículo/cliente (CA06); pago vence previsto; cancelada fora; período; CA07 no resultado; isolamento (CA10); critério muda divisão e não total (CA08); padrão sem configuração | T4.5     |
+| `test/expenses/result-routes.contract.ts` | Permissões (`expenses.read` nas três leituras, `expenses.manage` no PUT do critério), `companyId` só do contexto; a consulta de viagens do rateio reaproveita `completedOnSql` do pagamento (ADR-0116 §3)                            | T4.5     |
+
+**Resultado medido:** 34 testes, 0 pass / 34 fail (todos por "not implemented" ou arquivo ausente). `tsc --noEmit` e `eslint` limpos; `bun test ./test/expenses.contract.test.ts` segue 65 pass / 0 fail (a lista oficial não mudou).
+
+**Decisões para a T4.4/T4.5**
+
+- Formato do rateio fixado pelos tipos em `expense-allocation.policy.ts`: cada parte tem `scope` `vehicle` (conta com `vehicle_id`) ou `general` (sem veículo e excedente), que vira as colunas "rateio do veículo" e "rateio geral". Não rateado leva `reason` (`vehicle_without_trips` | `no_trip_weight`) e o veículo.
+- **Data de conclusão (ADR-0116 §3):** o contrato exige que `payable-trip.query.ts` exporte `completedOnSql` e que `infrastructure/allocation-trip.query.ts` (T4.5) o importe, sem usar só `trips.closedAt`; a viagem concluída pelo relatório do motorista não grava `closed_at`. Hoje a constante não é exportada, então o contrato está vermelho por isso também.
+- Empate de peso: ordem estável por data de conclusão e depois `id`; o resto do centavo vai à primeira.
