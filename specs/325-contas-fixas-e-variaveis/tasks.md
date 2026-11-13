@@ -40,10 +40,11 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 ## Fase 2 — Painel
 
-- [ ] **T2.1** Módulo `expenses` no frontend: cliente, validação de resposta, hooks, locales pt/en.
-      Da T1.4c: a ocorrência traz `payeeProfile` (`driver` → "Motorista", `aggregate` → "Agregado", `helper` → "Ajudante", `null` sem favorecido) e cada viagem do pagamento traz `parcelKind` (`driver` | `helper`). Seletor e filtro: "Motorista, agregado ou ajudante".
+- [x] **T2.1** Módulo `expenses` no frontend: cliente, validação de resposta, hooks, locales pt/en.
+      Feita: `apps/frontend-transportada/src/modules/expenses/` com tipos (vocabulário copiado da API e conferido por contrato), `expensesClient.service.ts` (as 13 rotas), `expensesResponse.validation.ts` (guard manual, dinheiro sempre texto), hooks TanStack com a chave raiz `expenses` e locales pt/en registrados em `i18n.service.ts`. Contrato `test/expenses.contract.test.ts` na lista do `package.json`. Sem tela: a página é a T2.2. Notas em `evidence.md` § T2.1.
   > 🤖 Modelo: `sonnet`
 - [ ] **T2.2** Página `/contas` (lista, filtros, totais), formulário nova conta fixa/variável (com seletor de motorista/agregado) e diálogo de baixa; item no menu (`workspaceNavigation.constant.ts`) com guarda de permissão.
+      Da T1.4c (depois da T2.1): a ocorrência passou a trazer `payeeProfile` (`driver` → "Motorista", `aggregate` → "Agregado", `helper` → "Ajudante", `null` sem favorecido); o leitor da T2.1 ignora a chave até ela entrar no tipo e no guard. Cada viagem do pagamento já traz `parcelKind` (`driver` | `helper`). Seletor e filtro: "Motorista, agregado ou ajudante".
   > 🤖 Modelo: `sonnet`
 - [ ] **T2.2b** Diálogo "Viagens do pagamento" (lista de viagens com diária × dias, incluir/remover, total).
   > 🤖 Modelo: `sonnet`
@@ -59,7 +60,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 ## Fase 4 — Rateio (extensão, aguarda aprovação dos previews)
 
-- [ ] **T4.0** Anderson aprova os previews (`325-contas/prints/resultado-*`, `veiculo-*`, `rateio-*`) e as dúvidas 5 a 7 (ou aceita os padrões).
+- [x] **T4.0** Anderson aprova os previews (`325-contas/prints/resultado-*`, `veiculo-*`, `rateio-*`) e as dúvidas 5 a 7 (ou aceita os padrões).
+      Feita em 2026-11-13: Anderson aprovou os previews (resultado, veículo/cliente, rateio, lembretes e resposta "paguei") e os padrões das dúvidas 5 a 8 ("aprovado pode seguir").
   > 🤖 Modelo: `opus`
 - [ ] **T4.1** ADR-0116: o rateio é calculado na leitura, por grupo de custo, e o motorista não é somado de novo.
   > 🤖 Modelo: `opus`
@@ -96,6 +98,21 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [ ] **T6.3** Caso de uso e rota de leitura da previsão e dos alertas; limite em `company_expense_allocation_settings`.
   > 🤖 Modelo: `sonnet`
 - [ ] **T6.4** Cartão "Previsão" e lista "Fora do padrão" na página de resultado, com o aviso de poucos dados; prints claro/escuro × desktop/celular; evidência.
+  > 🤖 Modelo: `sonnet`
+
+## Fase 7 — Lembretes de vencimento
+
+- [ ] **T7.1** Contratos vermelhos: CA14 e CA15 (idempotência, paga/cancelada, sem responsável, canal desligado, "paguei" de quem não é o responsável).
+  > 🤖 Modelo: `sonnet`
+- [ ] **T7.2** Schema: `responsible_user_id` na conta, configuração de dias e resumo, registro de avisos enviados (única por ocorrência, responsável, dia e tipo), canal e autor da baixa por resposta; migration aditiva e rollback.
+  > 🤖 Modelo: `sonnet`
+- [ ] **T7.3** Modelo de e-mail "Aviso de conta a vencer" (HTML versionado, publicado pelo script de modelos) e regra de quem avisar, por qual canal e quando.
+  > 🤖 Modelo: `opus` (decide quem recebe aviso de dinheiro)
+- [ ] **T7.4** Rotina no `cron-transportada`: avisos e resumo diário, idempotente.
+  > 🤖 Modelo: `sonnet`
+- [ ] **T7.4b** Resposta "paguei": ler a resposta do WhatsApp (spec 281) e o link assinado do e-mail, validar o responsável e dar a baixa por resposta, com desfazer em 24 h (RF29 a RF31, CA15).
+  > 🤖 Modelo: `opus` (baixa de dinheiro por mensagem; identidade do remetente)
+- [ ] **T7.5** Painel: campo Responsável e avisos na conta, botão de desfazer baixa e painel "Lembretes de vencimento" em Configurações; prints claro/escuro × desktop/celular; evidência.
   > 🤖 Modelo: `sonnet`
 
 ## Trabalho futuro (sem task)
