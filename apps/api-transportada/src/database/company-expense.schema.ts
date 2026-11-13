@@ -42,6 +42,37 @@ export type CompanyExpenseOccurrenceStatus = (typeof COMPANY_EXPENSE_OCCURRENCE_
 /** Nomes semeados por empresa (RF2). "Pagamento de motorista/agregado" é a única com `requires_driver`. */
 export const COMPANY_EXPENSE_DRIVER_CATEGORY_NAME = 'Pagamento de motorista/agregado'
 
+/**
+ * ADR-0116 §1: o grupo de custo da categoria. `in_trip` (pagamento de motorista/agregado) não é rateado: o custo já está
+ * na viagem. Categoria nova nasce `administrative`.
+ */
+export const COMPANY_EXPENSE_COST_GROUPS = [
+  'vehicle_fixed',
+  'per_km',
+  'administrative',
+  'in_trip',
+] as const
+export type CompanyExpenseCostGroup = (typeof COMPANY_EXPENSE_COST_GROUPS)[number]
+
+/** Os grupos que o rateio divide (todos menos `in_trip`) e os critérios possíveis (ADR-0116 §2). */
+export const COMPANY_EXPENSE_ALLOCATABLE_GROUPS = [
+  'vehicle_fixed',
+  'per_km',
+  'administrative',
+] as const
+export const COMPANY_EXPENSE_ALLOCATION_CRITERIA = [
+  'per_km',
+  'per_trip_day',
+  'per_revenue',
+  'equal',
+] as const
+export type CompanyExpenseAllocationCriterion = (typeof COMPANY_EXPENSE_ALLOCATION_CRITERIA)[number]
+
+/** Padrão sem configuração (RF11), espelhado em `DEFAULT_ALLOCATION_SETTINGS` e na semente da migration. */
+export const COMPANY_EXPENSE_DEFAULT_CRITERION: Readonly<
+  Record<(typeof COMPANY_EXPENSE_ALLOCATABLE_GROUPS)[number], CompanyExpenseAllocationCriterion>
+> = { administrative: 'per_revenue', per_km: 'per_km', vehicle_fixed: 'per_km' }
+
 const inList = (values: readonly string[]): string => values.map((v) => `'${v}'`).join(', ')
 
 /** Spec 325 RF2: categorias de conta, cadastro da empresa (nome único; desativa em vez de apagar). */
@@ -53,6 +84,8 @@ export const companyExpenseCategories = pgTable(
     name: text().notNull(),
     /** RF1b: a categoria exige `payee_driver_id` na conta; as demais o recusam. */
     requiresDriver: boolean('requires_driver').notNull().default(false),
+    /** ADR-0116 §1: grupo de custo do rateio; categoria nova nasce `administrative`. */
+    costGroup: varchar('cost_group', { length: 16 }).notNull().default('administrative'),
     active: boolean().notNull().default(true),
     displayOrder: integer('display_order').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -68,6 +101,55 @@ export const companyExpenseCategories = pgTable(
       .onUpdate('cascade'),
     unique('company_expense_categories_company_id_id_unique').on(table.companyId, table.id),
     unique('company_expense_categories_company_name_unique').on(table.companyId, table.name),
+    check(
+      'company_expense_categories_cost_group_check',
+      sql.raw(`"cost_group" in (${inList(COMPANY_EXPENSE_COST_GROUPS)})`),
+    ),
+  ],
+)
+
+/**
+ * Spec 325 ADR-0116 §2: o critério de rateio da empresa, uma linha por grupo rateável. Sem linha vale o padrão
+ * (`COMPANY_EXPENSE_DEFAULT_CRITERION`), então empresa nova não precisa de semente.
+ */
+export const companyExpenseAllocationSettings = pgTable(
+  'company_expense_allocation_settings',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    costGroup: varchar('cost_group', { length: 16 }).notNull(),
+    criterion: varchar({ length: 16 }).notNull(),
+    updatedByUserId: uuid('updated_by_user_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_expense_allocation_settings_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.updatedByUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'company_expense_allocation_settings_updated_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_expense_allocation_settings_company_group_unique').on(
+      table.companyId,
+      table.costGroup,
+    ),
+    check(
+      'company_expense_allocation_settings_cost_group_check',
+      sql.raw(`"cost_group" in (${inList(COMPANY_EXPENSE_ALLOCATABLE_GROUPS)})`),
+    ),
+    check(
+      'company_expense_allocation_settings_criterion_check',
+      sql.raw(`"criterion" in (${inList(COMPANY_EXPENSE_ALLOCATION_CRITERIA)})`),
+    ),
   ],
 )
 
