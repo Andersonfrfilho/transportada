@@ -16,6 +16,8 @@ import {
   tripDocumentOccurrences,
 } from '../../src/database/database.schema.js'
 import { createSendAutomaticOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
+import { buildOccurrenceTimeline } from '../../src/trips/domain/occurrence-timeline.policy.js'
+import { findTripOccurrenceTimelineSources } from '../../src/trips/infrastructure/trip-occurrence-timeline.query.js'
 import { CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY } from '../../src/occurrence-conversation/domain/contractor-occurrence-group.policy.js'
 import { createContractorManualNoticeRepository } from '../../src/occurrence-conversation/infrastructure/contractor-manual-notice.repository.js'
 import { createContractorOccurrenceGroupRepository } from '../../src/occurrence-conversation/infrastructure/contractor-occurrence-group.repository.js'
@@ -114,6 +116,28 @@ async function records(database: TestDatabase, seeded: Seeded) {
   )) as unknown as readonly { idempotency_key: string; operation: string; status: string }[]
 }
 
+/** Spec 324 T2: o registro de cada clique, na ordem. */
+async function notices(database: TestDatabase, seeded: Seeded) {
+  return (await database.db.execute(
+    sql`select actor_user_id, status, channel, outcome, reason
+        from occurrence_contractor_manual_notices
+        where company_id = ${seeded.company.companyId}::uuid
+          and occurrence_id = ${seeded.occurrenceId}::uuid
+        order by created_at`,
+  )) as unknown as readonly Record<string, null | string>[]
+}
+
+/** Spec 324 T2: a trilha do clique em `audit_logs`. */
+async function audits(database: TestDatabase, seeded: Seeded) {
+  return (await database.db.execute(
+    sql`select actor_user_id, correlation_id, entity_id, permission, metadata
+        from audit_logs
+        where company_id = ${seeded.company.companyId}::uuid
+          and action = 'occurrence.contractor-notice.manual'
+        order by created_at`,
+  )) as unknown as readonly Record<string, unknown>[]
+}
+
 describe('o botão "Avisar a contratante" contra Postgres (spec 324 T1)', () => {
   testWithPostgres(
     'CA01/CA03/CA04: tipo desligado, contratante por e-mail — um e-mail do operador; o segundo clique e o automático não mandam',
@@ -178,6 +202,15 @@ describe('o botão "Avisar a contratante" contra Postgres (spec 324 T1)', () => 
           },
         )
 
+        expect(await notices(database, seeded)).toEqual([
+          {
+            actor_user_id: userId,
+            channel: 'whatsapp_group',
+            outcome: 'sent_to_group',
+            reason: null,
+            status: 'sent',
+          },
+        ])
         expect(posts).toHaveLength(1)
         expect(posts[0]?.groupJid).toBe(GROUP_JID)
         expect(posts[0]?.body).toContain('Tipo: Caixa violada')
@@ -241,6 +274,81 @@ describe('o botão "Avisar a contratante" contra Postgres (spec 324 T1)', () => 
         ).toEqual({ outcome: 'blocked' })
         expect(await mails(database, companyId)).toEqual([])
         expect(await records(database, seeded)).toEqual([])
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'T2: cada clique vira registro, auditoria e frase na linha do tempo — a falha e o envio depois dela',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setType(database, seeded, { emailsContractor: false })
+        const { companyId, userId } = seeded.company
+        const input = {
+          actorUserId: userId,
+          companyId,
+          correlationId: 'c-324t2',
+          occurrenceId: seeded.occurrenceId,
+        }
+        const failing = createSendAutomaticOccurrenceMailUseCase({
+          manualNotice: createContractorManualNoticeRepository({ database: database.db }),
+          reader: createAutomaticOccurrenceMailReader(database.db),
+          sendMail: {
+            send: async () => {
+              throw new Error('provider down')
+            },
+          },
+        })
+
+        await expect(failing.sendManual(input)).rejects.toThrow('provider down')
+        expect((await notice(database, []).sendManual(input)).outcome).toBe('sent')
+
+        expect(await notices(database, seeded)).toEqual([
+          { actor_user_id: userId, channel: null, outcome: null, reason: null, status: 'failed' },
+          {
+            actor_user_id: userId,
+            channel: 'email',
+            outcome: 'sent',
+            reason: null,
+            status: 'sent',
+          },
+        ])
+        const trail = await audits(database, seeded)
+        expect(
+          trail.map((row) => [
+            row.actor_user_id,
+            row.correlation_id,
+            row.entity_id,
+            row.permission,
+            (row.metadata as Record<string, unknown>).status,
+            (row.metadata as Record<string, unknown>).channel,
+          ]),
+        ).toEqual([
+          [userId, 'c-324t2', seeded.occurrenceId, 'occurrences.resolve', 'failed', null],
+          [userId, 'c-324t2', seeded.occurrenceId, 'occurrences.resolve', 'sent', 'email'],
+        ])
+        /** Nada de texto, endereço, grupo ou número na trilha: só ids e códigos. */
+        expect(JSON.stringify(trail)).not.toContain('@')
+
+        const sources = await findTripOccurrenceTimelineSources(database.db, {
+          companyId,
+          occurrenceId: seeded.occurrenceId,
+        })
+        const manual = buildOccurrenceTimeline({ sources: sources ?? [] }).events.filter(
+          (event) => event.kind === 'contractor.notice.manual',
+        )
+        expect(
+          manual.map((event) =>
+            event.kind === 'contractor.notice.manual'
+              ? [event.actor.kind, event.status, event.channel, event.isKey]
+              : [],
+          ),
+        ).toEqual([
+          ['operation', 'failed', null, false],
+          ['operation', 'sent', 'email', true],
+        ])
       })
     },
     60_000,

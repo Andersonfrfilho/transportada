@@ -942,3 +942,87 @@ export const tripOccurrenceResolutionEvents = pgTable(
       .where(sql`${table.stopOccurrenceId} is not null`),
   ],
 )
+
+/** Spec 324 T2: o desfecho de cada clique do botão "Avisar a contratante". */
+export const CONTRACTOR_MANUAL_NOTICE_STATUSES = ['sent', 'failed'] as const
+export type ContractorManualNoticeStatus = (typeof CONTRACTOR_MANUAL_NOTICE_STATUSES)[number]
+
+/**
+ * Spec 324 T2: por onde o aviso manual foi (ou tentou ir). `email_fallback`: o grupo falhou e saiu o e-mail de reserva.
+ * Nulo quando nada chegou a ser tentado (sem destinatário, sem modelo, e-mail não configurado, erro antes do envio).
+ */
+export const CONTRACTOR_MANUAL_NOTICE_CHANNELS = [
+  'email',
+  'whatsapp_group',
+  'email_fallback',
+] as const
+export type ContractorManualNoticeChannel = (typeof CONTRACTOR_MANUAL_NOTICE_CHANNELS)[number]
+
+/**
+ * Spec 324 T2 (D4): o registro do aviso manual à contratante — uma linha por clique que passou da reserva, só
+ * inserção. Diz quem clicou, quando, por qual canal e o desfecho (`sent` só quando chegou à contratante; o resto
+ * libera tentar de novo). É a fonte da frase `contractor.notice.manual` da linha do tempo; a reserva (D3) segue em
+ * `idempotency_records`, que só guarda o último estado.
+ *
+ * Nunca o texto, o endereço, o grupo nem o número: só ids, canal e os códigos do desfecho.
+ */
+export const occurrenceContractorManualNotices = pgTable(
+  'occurrence_contractor_manual_notices',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    /** O aviso manual é só de ocorrência de nota (a de parada não tem contratante casada). */
+    occurrenceId: uuid('occurrence_id').notNull(),
+    actorUserId: uuid('actor_user_id').notNull(),
+    status: varchar({ length: 16 }).notNull().$type<ContractorManualNoticeStatus>(),
+    channel: varchar({ length: 24 }).$type<ContractorManualNoticeChannel>(),
+    /** O `outcome` do envio (`sent`, `sent_to_group`, `group_failed`, `skipped`); nulo quando o envio lançou. */
+    outcome: varchar({ length: 32 }),
+    /** O motivo de não ter saído (`no_recipient`, `template_missing`…) ou a falha do grupo; nulo no envio limpo. */
+    reason: varchar({ length: 64 }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'occurrence_contractor_manual_notices_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
+      name: 'occurrence_contractor_manual_notices_company_occurrence_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.actorUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'occurrence_contractor_manual_notices_actor_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'occurrence_contractor_manual_notices_status_check',
+      sql`${table.status} in (${sql.raw(inList(CONTRACTOR_MANUAL_NOTICE_STATUSES))})`,
+    ),
+    check(
+      'occurrence_contractor_manual_notices_channel_check',
+      sql`${table.channel} is null or ${table.channel} in (${sql.raw(inList(CONTRACTOR_MANUAL_NOTICE_CHANNELS))})`,
+    ),
+    /** Enviado sempre diz por onde. */
+    check(
+      'occurrence_contractor_manual_notices_sent_channel_check',
+      sql`${table.status} <> 'sent' or ${table.channel} is not null`,
+    ),
+    index('occurrence_contractor_manual_notices_occurrence_idx').on(
+      table.companyId,
+      table.occurrenceId,
+      table.createdAt,
+    ),
+  ],
+)

@@ -57,3 +57,26 @@ Hoje não há leitura única de "avisada". Fontes: `contractor_mail_messages` (e
 - Worker: `occurrence-automatic-mail-sweep.integration.test.ts` com os cenários `manualNoticeSent` (fora da fila) e `manualNoticeFailed` (na fila) — **11 pass**; `occurrence-automatic-mail-sweep.contract.test.ts` 35 pass.
 - `tsc --noEmit` da API e do worker sem erro; `eslint` e `prettier --check` nos arquivos tocados limpos.
 - Produção não foi tocada; nada a registrar no runbook.
+
+## T2 — Registro, auditoria e linha do tempo (13/11/2026, sobre `origin/staging` 09c6659)
+
+### O que entrou
+
+- **`sendManual` já existia (T1).** A T2 não mexe no fluxo do envio: só o que acontece ao fechar a reserva.
+- **Tabela `occurrence_contractor_manual_notices`** (migration `20261113142806_contractor_manual_notices`, aditiva): uma linha por clique que passou da reserva, só inserção — quem clicou (`actor_user_id`), quando (`created_at`, `clock_timestamp()`), canal (`email`, `whatsapp_group`, `email_fallback`, ou nulo quando nada foi tentado), `status` (`sent`/`failed`), `outcome` e `reason` do envio. CHECK: `sent` sempre tem canal. FK composta para `trip_document_occurrences` (cascade, como a coleta da 321) e para `identity_users`. Nunca texto, endereço, grupo ou número. O rollback recusa rodar com linha gravada.
+- **Registro e auditoria numa instrução só** (`contractor-manual-notice.repository.ts` → `record`): um `WITH` fecha a reserva em `idempotency_records`, insere o clique e grava `audit_logs` (`occurrence.contractor-notice.manual`, permissão `occurrences.resolve`, `correlation_id` da requisição, metadados só com id do registro, status, canal, outcome e motivo). Os três ou nenhum. O canal e o motivo vêm de `describeManualNoticeAttempt` (puro, no caso de uso).
+- **Frase de andamento (D4):** kind novo `contractor.notice.manual` na linha do tempo da ocorrência (`occurrence-timeline.policy.ts`, fonte `listManualNoticeSources` em `trip-occurrence-timeline.query.ts`), ator `operation` com o nome de quem clicou, canal, status e motivo. Só o enviado é marco; não muda a etapa (o e-mail que o botão manda já entra como `contractor.mail.sent`). Mesma prioridade do grupo (4): no mesmo instante vem depois do e-mail.
+- **Painel:** `KNOWN_EVENT_KINDS` ganhou `contractor.notice.manual` **e** `contractor.group.whatsapp` (defeito da 318 achado na T0: o aviso no grupo sumia da linha do tempo). Frases em pt-BR e en ("Fulano avisou a contratante por e-mail / no grupo do WhatsApp / o grupo falhou e saiu por e-mail", "tentou avisar, sem sucesso" com o motivo); os dois entram no filtro Contratante.
+- **Contrato de paridade API ↔ painel** (`test/trip-occurrence/timeline-kind-parity.contract.ts`): `OCCURRENCE_TIMELINE_EVENT_KINDS` (exportada da política, com trava de typecheck que reprova `kind` novo fora da lista) contra o `KNOWN_EVENT_KINDS` do painel, nos dois sentidos e sem duplicidade. O `frontend-client` e o `frontend-driver` não leem esses kinds.
+- **Staging-refresh:** a tabela entra no recorte como `empty`, igual a `idempotency_records` (onde mora a reserva), para o refresh não deixar registro sem reserva.
+
+### Testes
+
+- API, contrato: `bun run test` **15125 pass, 4 fail** na primeira rodada — 1 era o recorte do staging-refresh (a tabela nova sem política, corrigido) e 3 foram timeouts de 5 s do `toll-booths` sob carga (sozinho: 137 pass, 0 fail). Depois da correção, `deploy.contract.test.ts` 214 pass.
+- Novos: `manual-contractor-notice.contract.ts` (+2: canal/motivo por desfecho e o `correlationId` no registro), `timeline-automatic.contract.ts` (+2: frase do aviso manual e a ordem no mesmo instante), `timeline-kind-parity.contract.ts` (3), `contractor-manual-notices.static.contract.ts` (2); `static-migration.contract.ts` e o snapshot do schema conferem a migration.
+- Integração contra Postgres 16 local: `contractor-manual-notice.integration.ts` **5 pass** (novo caso T2: falha e depois envio viram dois registros, duas linhas de auditoria sem `@`, e as duas frases na linha do tempo; CA02 confere o registro `whatsapp_group`); `trip-occurrence-timeline`, `trip-timeline`, `trip-crew-transfer-timeline` e `contractor-occurrence-group` **59 pass**; `db:test` (migrations em banco descartável) **263 pass**.
+- Rollback contra Postgres: com uma linha gravada o `rollback.sql` recusa (`refusing to drop the spec 324 T2 table`); vazio, derruba a tabela e a entrada do journal.
+- Painel: `bun run test` **8829 + 1496 pass, 0 fail**; novo `occurrence-timeline-contractor-notice.contract.ts` (7 casos).
+- `tsc --noEmit` da API e do painel sem erro; `eslint` e `prettier --check` nos arquivos tocados limpos.
+- Sem tela nem componente novo (só frases numa linha do tempo existente): sem prints nesta etapa; os da T4 cobrem o botão.
+- Produção não foi tocada; nada a registrar no runbook.

@@ -137,9 +137,14 @@ export type ManualContractorNoticePort = {
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<boolean>
+  /**
+   * Fecha a reserva e, na mesma instrução, grava o registro do clique (T2: quem, quando, canal e desfecho) e a trilha
+   * de auditoria. `result` nulo: o envio lançou (`failed`) ou a chave do e-mail já tinha saído com outro texto (`sent`).
+   */
   record(input: {
     readonly actorUserId: string
     readonly companyId: string
+    readonly correlationId: string
     readonly occurrenceId: string
     readonly result: AutomaticOccurrenceMailResult | null
     readonly status: 'failed' | 'sent'
@@ -207,6 +212,34 @@ export function isManualNoticeDelivered(result: AutomaticOccurrenceMailResult): 
   if (result.outcome === 'sent' || result.outcome === 'sent_to_group') return true
   if (result.outcome === 'group_failed') return result.fallback?.outcome === 'sent'
   return false
+}
+
+/** Spec 324 T2: por onde o aviso manual foi (ou tentou ir); `null` quando nada chegou a ser tentado. */
+export type ManualNoticeChannel = 'email' | 'email_fallback' | 'whatsapp_group'
+
+/**
+ * Spec 324 T2: o canal e o motivo que o registro do aviso manual guarda. Sem resultado, o envio lançou antes de dizer
+ * por onde (`failed`) ou a chave do e-mail já tinha saído (`sent`, só o e-mail recusa chave reusada).
+ */
+export function describeManualNoticeAttempt(input: {
+  readonly result: AutomaticOccurrenceMailResult | null
+  readonly status: 'failed' | 'sent'
+}): { readonly channel: ManualNoticeChannel | null; readonly reason: null | string } {
+  const { result } = input
+  if (result === null) return { channel: input.status === 'sent' ? 'email' : null, reason: null }
+  switch (result.outcome) {
+    case 'sent':
+      return { channel: 'email', reason: null }
+    case 'sent_to_group':
+      return { channel: 'whatsapp_group', reason: null }
+    case 'group_failed':
+      return {
+        channel: result.fallback?.outcome === 'sent' ? 'email_fallback' : 'whatsapp_group',
+        reason: result.failure,
+      }
+    case 'skipped':
+      return { channel: null, reason: result.reason }
+  }
 }
 
 function errorCode(error: unknown): string | undefined {

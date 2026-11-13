@@ -225,6 +225,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('nfse_service_invoice_charges', 'empty', null),
   ('nfse_service_invoice_documents', 'empty', null),
   ('nfse_service_invoices', 'empty', null),
+  ('occurrence_contractor_manual_notices', 'empty', null),
   ('occurrence_contractor_replies', 'empty', null),
   ('occurrence_contractor_reply_deliveries', 'empty', null),
   ('occurrence_contractor_reply_events', 'empty', null),

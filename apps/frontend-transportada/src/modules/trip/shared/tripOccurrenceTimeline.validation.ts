@@ -9,6 +9,8 @@
  * nome desconhecido sai, e a resposta sem elas (API anterior) segue valendo.
  * Spec 278: a conferência do boleto, a entrega ao motorista e a leitura dele entram, estritas como as demais; o
  * `attachmentCount`/`awaitingAttachment` do e-mail recebido é opcional (API anterior).
+ * Spec 324 T2: o aviso no grupo da contratante (318, que a API já mandava e o painel descartava) e o aviso manual
+ * entram. A lista é cobrada contra a da API por `apps/api-transportada/test/trip-occurrence/timeline-kind-parity.contract.ts`.
  */
 import { isRecord, isString } from './tripGuards.validation'
 import {
@@ -47,6 +49,8 @@ const KNOWN_EVENT_KINDS: readonly OccurrenceTimelineEvent['kind'][] = [
   'contractor.client.whatsapp',
   'contractor.client.email',
   'group.boleto_return',
+  'contractor.group.whatsapp',
+  'contractor.notice.manual',
 ]
 
 function isKnownEventKind(value: unknown): boolean {
@@ -102,6 +106,12 @@ function isEvent(value: unknown): value is OccurrenceTimelineEvent {
       return isNullableString(value.reason) && isString(value.status)
     case 'group.boleto_return':
       return isString(value.status)
+    case 'contractor.group.whatsapp':
+      return isNullableString(value.reason) && isString(value.status)
+    case 'contractor.notice.manual':
+      return (
+        isNullableString(value.channel) && isNullableString(value.reason) && isString(value.status)
+      )
     default:
       return false
   }

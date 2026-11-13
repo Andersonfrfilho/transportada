@@ -2771,6 +2771,19 @@
       "clientEmailFailed": "Boleto sending by e-mail failed",
       "clientEmailSkipped": "Boleto not sent by e-mail",
       "clientEmailPending": "Boleto sending by e-mail pending",
+      "contractorGroupSent": "Automatic notice sent to the contractor's WhatsApp group",
+      "contractorGroupEmailFallback": "The WhatsApp group failed; the automatic notice went by e-mail",
+      "contractorGroupFailed": "The automatic notice to the WhatsApp group failed",
+      "manualNoticeEmail": "{{name}} notified the contractor by e-mail",
+      "manualNoticeEmailUnnamed": "Contractor notified by e-mail with the button",
+      "manualNoticeGroup": "{{name}} notified the contractor in the WhatsApp group",
+      "manualNoticeGroupUnnamed": "Contractor notified in the WhatsApp group with the button",
+      "manualNoticeEmailFallback": "{{name}} notified the contractor: the group failed and it went by e-mail",
+      "manualNoticeEmailFallbackUnnamed": "Contractor notified with the button: the group failed and it went by e-mail",
+      "manualNoticeSent": "{{name}} notified the contractor",
+      "manualNoticeSentUnnamed": "Contractor notified with the button",
+      "manualNoticeFailed": "{{name}} tried to notify the contractor, without success",
+      "manualNoticeFailedUnnamed": "The notice to the contractor with the button did not go out",
       "groupReturn": {
         "posted_to_group": "Boleto posted to the WhatsApp group",
         "sent_to_client": "Group told: boleto sent to the client",
@@ -2792,6 +2805,15 @@
       "deliveryFailed": "{{reason}} · attempt {{attempt}}",
       "deliveryAttempt": "Attempt {{attempt}}",
       "awaitingAttachment": "No attachment. Still waiting for the boleto."
+    },
+    "contractorNoticeReason": {
+      "no_recipient": "The contractor has no contact for this stage",
+      "no_template_selected": "The type has no message template",
+      "mail_not_ready": "The company e-mail is not configured",
+      "template_missing": "The group message template is missing",
+      "group_not_found": "The WhatsApp group was not found",
+      "disconnected": "WhatsApp was disconnected",
+      "failed": "Sending failed"
     },
     "deliveryReason": {
       "driver_without_account": "The driver has no app access",

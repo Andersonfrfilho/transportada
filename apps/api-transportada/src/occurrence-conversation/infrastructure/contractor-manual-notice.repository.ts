@@ -2,8 +2,9 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 324 (T1): a reserva do botão "Avisar a contratante" e as duas perguntas que o botão e o automático fazem um ao
- * outro, tudo em `idempotency_records` (sem tabela nova nesta etapa; o registro próprio, a auditoria e a linha do tempo
- * são da T2).
+ * outro, em `idempotency_records`. Spec 324 (T2): ao fechar a reserva, o clique vira linha de
+ * `occurrence_contractor_manual_notices` (quem, quando, canal, desfecho — a fonte da linha do tempo) e de `audit_logs`,
+ * na mesma instrução.
  *
  * - Reserva (D3): operação `occurrence-contractor-manual-notice.send`, chave `occurrence-manual-notice:<id>`, numa
  *   instrução só, no molde da reserva do grupo da 318: a linha nova nasce `processing`; a `failed`, ou a `processing`
@@ -17,6 +18,7 @@ import { sql } from 'drizzle-orm'
 
 import {
   AUTOMATIC_OCCURRENCE_MAIL_KEY_PREFIX,
+  describeManualNoticeAttempt,
   MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX,
   type ManualContractorNoticePort,
 } from '../application/send-automatic-occurrence-mail.use-case.js'
@@ -28,6 +30,11 @@ import {
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 
 const STALE_PROCESSING_MINUTES = 10
+
+/** Spec 324 T2: a trilha do clique em `audit_logs` (sem texto, endereço, grupo nem número). */
+export const CONTRACTOR_MANUAL_NOTICE_AUDIT_ACTION = 'occurrence.contractor-notice.manual'
+const CONTRACTOR_MANUAL_NOTICE_AUDIT_ENTITY = 'trip_document_occurrence'
+const CONTRACTOR_MANUAL_NOTICE_AUDIT_PERMISSION = 'occurrences.resolve'
 /** A reserva não tem corpo de pedido para comparar: a impressão é fixa. */
 const CLAIM_FINGERPRINT = 'manual'
 
@@ -82,20 +89,43 @@ export function createContractorManualNoticeRepository(dependencies: {
       return rows.length > 0
     },
 
-    async record({ actorUserId, companyId, occurrenceId, result, status }) {
+    async record({ actorUserId, companyId, correlationId, occurrenceId, result, status }) {
+      const { channel, reason } = describeManualNoticeAttempt({ result, status })
+      const outcome = result?.outcome ?? null
+      /**
+       * Spec 324 T2: uma instrução só fecha a reserva, grava o clique e a auditoria — os três ou nenhum. A reserva é
+       * da linha que o `claim` deixou `processing`; sem ela (nunca deveria) nada é gravado.
+       */
       await database.execute(
-        sql`update idempotency_records
-            set status = ${status === 'sent' ? 'completed' : 'failed'},
-                response = ${JSON.stringify({
-                  actorUserId,
-                  outcome: result?.outcome ?? null,
-                  reason: result !== null && 'reason' in result ? result.reason : null,
-                  status,
-                })}::jsonb,
-                updated_at = now()
-            where company_id = ${companyId}::uuid
-              and operation = ${CONTRACTOR_MANUAL_NOTICE_OPERATION}
-              and idempotency_key = ${MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX + occurrenceId}`,
+        sql`with closed as (
+              update idempotency_records
+              set status = ${status === 'sent' ? 'completed' : 'failed'},
+                  response = ${JSON.stringify({ actorUserId, outcome, reason, status })}::jsonb,
+                  updated_at = now()
+              where company_id = ${companyId}::uuid
+                and operation = ${CONTRACTOR_MANUAL_NOTICE_OPERATION}
+                and idempotency_key = ${MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX + occurrenceId}
+              returning company_id
+            ),
+            notice as (
+              insert into occurrence_contractor_manual_notices
+                (company_id, occurrence_id, actor_user_id, status, channel, outcome, reason)
+              select company_id, ${occurrenceId}::uuid, ${actorUserId}::uuid, ${status},
+                     ${channel}, ${outcome}, ${reason}
+              from closed
+              returning id
+            )
+            insert into audit_logs
+              (company_id, actor_user_id, action, entity_type, entity_id, permission, target_type,
+               target_id, correlation_id, metadata)
+            select ${companyId}::uuid, ${actorUserId}::uuid, ${CONTRACTOR_MANUAL_NOTICE_AUDIT_ACTION},
+                   ${CONTRACTOR_MANUAL_NOTICE_AUDIT_ENTITY}, ${occurrenceId}::uuid,
+                   ${CONTRACTOR_MANUAL_NOTICE_AUDIT_PERMISSION}, ${CONTRACTOR_MANUAL_NOTICE_AUDIT_ENTITY},
+                   ${occurrenceId}::uuid, ${correlationId},
+                   jsonb_build_object('noticeId', notice.id, 'status', ${status}::text,
+                                      'channel', ${channel}::text, 'outcome', ${outcome}::text,
+                                      'reason', ${reason}::text)
+            from notice`,
       )
     },
   }

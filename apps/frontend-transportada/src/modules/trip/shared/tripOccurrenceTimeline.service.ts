@@ -85,6 +85,23 @@ export type OccurrenceTimelineEvent =
   /** Spec 288: o boleto ao cliente por e-mail, inclusive o que ficou de fora (`skipped`) e o motivo. */
   | (EventBase &
       Readonly<{ kind: 'contractor.client.email'; reason: null | string; status: string }>)
+  /**
+   * Spec 318: o aviso automático no grupo de WhatsApp da contratante — `sent`, `email_fallback` (o grupo falhou e saiu
+   * o e-mail de reserva) ou `failed`; `reason` é a falha do grupo.
+   */
+  | (EventBase &
+      Readonly<{ kind: 'contractor.group.whatsapp'; reason: null | string; status: string }>)
+  /**
+   * Spec 324 T2: o botão "Avisar a contratante" — quem clicou (ator), por onde (`email`, `whatsapp_group`,
+   * `email_fallback`, ou nulo quando nada foi tentado) e o desfecho (`sent`/`failed`, com o motivo).
+   */
+  | (EventBase &
+      Readonly<{
+        channel: null | string
+        kind: 'contractor.notice.manual'
+        reason: null | string
+        status: string
+      }>)
 
 export type OccurrenceTimelineTimings = Readonly<{
   contractorAskedAt: null | string
@@ -134,6 +151,24 @@ export const OCCURRENCE_TIMELINE_DELIVERY_REASONS = [
   'template_missing',
   'attachment_too_large_for_email',
 ] as const
+
+/** Spec 324 T2: os motivos de o aviso à contratante não ter saído que têm frase própria (os da API). */
+export const OCCURRENCE_TIMELINE_CONTRACTOR_NOTICE_REASONS = [
+  'no_recipient',
+  'no_template_selected',
+  'mail_not_ready',
+  'template_missing',
+  'group_not_found',
+  'disconnected',
+  'failed',
+] as const
+
+/** Spec 324 T2: os canais do aviso manual que têm frase própria. */
+const CONTRACTOR_NOTICE_CHANNEL_TITLES: Readonly<Record<string, string>> = {
+  email: 'manualNoticeEmail',
+  email_fallback: 'manualNoticeEmailFallback',
+  whatsapp_group: 'manualNoticeGroup',
+}
 
 export type OccurrenceTimelineStage = Readonly<{
   actor: EventBase['actor']
@@ -190,7 +225,9 @@ function isContractorMail(event: OccurrenceTimelineEvent): boolean {
     event.kind === 'contractor.mail.received' ||
     event.kind === 'contractor.mail.sent' ||
     event.kind === 'contractor.reply' ||
-    event.kind === 'contractor.reply.document'
+    event.kind === 'contractor.reply.document' ||
+    event.kind === 'contractor.group.whatsapp' ||
+    event.kind === 'contractor.notice.manual'
   )
 }
 
@@ -296,7 +333,48 @@ export function describeOccurrenceTimelineEvent(
       return { key: `occurrenceTimeline.event.${clientEmailTitleKey(event)}`, values: {} }
     case 'group.boleto_return':
       return { key: `occurrenceTimeline.event.groupReturn.${event.status}`, values: {} }
+    case 'contractor.group.whatsapp':
+      return { key: `occurrenceTimeline.event.${contractorGroupTitleKey(event)}`, values: {} }
+    case 'contractor.notice.manual':
+      return {
+        key: `occurrenceTimeline.event.${manualNoticeTitleKey(event)}`,
+        values: { name: formatPersonName(event.actor.name ?? '') },
+      }
   }
+}
+
+function contractorGroupTitleKey(
+  event: Extract<OccurrenceTimelineEvent, { kind: 'contractor.group.whatsapp' }>,
+): string {
+  if (event.status === 'sent') return 'contractorGroupSent'
+  return event.status === 'email_fallback'
+    ? 'contractorGroupEmailFallback'
+    : 'contractorGroupFailed'
+}
+
+function manualNoticeTitleKey(
+  event: Extract<OccurrenceTimelineEvent, { kind: 'contractor.notice.manual' }>,
+): string {
+  const named = event.actor.name === null || event.actor.name.trim() === '' ? 'Unnamed' : ''
+  if (event.status !== 'sent') return `manualNoticeFailed${named}`
+  const channel = CONTRACTOR_NOTICE_CHANNEL_TITLES[event.channel ?? ''] ?? 'manualNoticeSent'
+  return `${channel}${named}`
+}
+
+/** Spec 324 T2: o motivo do aviso à contratante que não saiu (botão ou grupo do automático); outro motivo não diz nada. */
+function describeContractorNoticeDetail(
+  event: Extract<
+    OccurrenceTimelineEvent,
+    { kind: 'contractor.group.whatsapp' | 'contractor.notice.manual' }
+  >,
+): null | OccurrenceTimelineSentence {
+  if (event.status === 'sent') return null
+  const reason = OCCURRENCE_TIMELINE_CONTRACTOR_NOTICE_REASONS.find(
+    (known) => known === event.reason,
+  )
+  return reason === undefined
+    ? null
+    : { key: `occurrenceTimeline.contractorNoticeReason.${reason}`, values: {} }
 }
 
 const FAILED_DELIVERY_STATUSES: ReadonlySet<string> = new Set(['failed', 'skipped'])
@@ -386,6 +464,9 @@ export function describeOccurrenceTimelineEventDetail(
     case 'contractor.client.whatsapp':
     case 'contractor.client.email':
       return describeClientWhatsappDetail(event)
+    case 'contractor.group.whatsapp':
+    case 'contractor.notice.manual':
+      return describeContractorNoticeDetail(event)
     case 'contractor.mail.received':
       return event.awaitingAttachment === true
         ? { key: 'occurrenceTimeline.detail.awaitingAttachment', values: {} }

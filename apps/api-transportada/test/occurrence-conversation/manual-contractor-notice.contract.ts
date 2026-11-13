@@ -12,6 +12,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX,
   createSendAutomaticOccurrenceMailUseCase,
+  describeManualNoticeAttempt,
   isManualNoticeDelivered,
   type AutomaticOccurrenceMailPlan,
   type ContractorOccurrenceGroupPort,
@@ -389,5 +390,60 @@ describe('o botão "Avisar a contratante" (spec 324 T1)', () => {
     expect(source).toContain(
       `OCCURRENCE_CONTRACTOR_MANUAL_NOTICE_KEY_PREFIX = '${MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX}'`,
     )
+  })
+
+  test('T2: o registro leva o correlation id da requisição', async () => {
+    const fixture = setup({ plan: plan() })
+
+    await fixture.manual()
+    expect(fixture.records).toEqual([
+      expect.objectContaining({ correlationId: expect.any(String) as unknown, status: 'sent' }),
+    ])
+  })
+
+  test('T2: o canal e o motivo que o registro guarda, para cada desfecho', () => {
+    const sent = {
+      outcome: 'sent',
+      recipientCount: 1,
+      whatsappFallbackCount: 0,
+      whatsappUnreachableCount: 0,
+    } as const
+    expect(describeManualNoticeAttempt({ result: sent, status: 'sent' })).toEqual({
+      channel: 'email',
+      reason: null,
+    })
+    expect(
+      describeManualNoticeAttempt({
+        result: { attempts: 2, outcome: 'sent_to_group' },
+        status: 'sent',
+      }),
+    ).toEqual({ channel: 'whatsapp_group', reason: null })
+    expect(
+      describeManualNoticeAttempt({
+        result: { failure: 'disconnected', fallback: sent, outcome: 'group_failed' },
+        status: 'sent',
+      }),
+    ).toEqual({ channel: 'email_fallback', reason: 'disconnected' })
+    expect(
+      describeManualNoticeAttempt({
+        result: { failure: 'template_missing', fallback: null, outcome: 'group_failed' },
+        status: 'failed',
+      }),
+    ).toEqual({ channel: 'whatsapp_group', reason: 'template_missing' })
+    expect(
+      describeManualNoticeAttempt({
+        result: { outcome: 'skipped', reason: 'no_recipient' },
+        status: 'failed',
+      }),
+    ).toEqual({ channel: null, reason: 'no_recipient' })
+    /** O envio lançou: nada se afirma. A chave do e-mail já usada: o e-mail saiu antes. */
+    expect(describeManualNoticeAttempt({ result: null, status: 'failed' })).toEqual({
+      channel: null,
+      reason: null,
+    })
+    expect(describeManualNoticeAttempt({ result: null, status: 'sent' })).toEqual({
+      channel: 'email',
+      reason: null,
+    })
   })
 })

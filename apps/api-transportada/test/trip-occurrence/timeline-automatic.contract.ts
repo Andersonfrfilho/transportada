@@ -305,4 +305,80 @@ describe('a linha do tempo mostra o automático (spec 278 CA3)', () => {
     ])
     expect(timeline.stages.map((stage) => stage.stage)).toEqual(['received', 'awaiting_contractor'])
   })
+
+  test('spec 324 T2: o aviso manual entra com quem clicou, canal e motivo; só o enviado é marco e não muda a etapa', () => {
+    const operator = { kind: 'operation', name: 'Operadora Lima' } as const
+    const manual = (
+      id: string,
+      minutes: number,
+      status: string,
+      channel: null | string,
+      reason: null | string = null,
+    ): OccurrenceTimelineSource => ({
+      actor: operator,
+      channel,
+      id,
+      kind: 'contractor.notice.manual',
+      occurredAt: AT(minutes),
+      reason,
+      status,
+    })
+    const timeline = buildOccurrenceTimeline({
+      sources: [
+        RECORDED,
+        manual('notice-1', 5, 'failed', null, 'no_recipient'),
+        manual('notice-2', 9, 'sent', 'whatsapp_group'),
+      ],
+    })
+
+    expect(
+      timeline.events.flatMap((event) =>
+        event.kind === 'contractor.notice.manual'
+          ? [[event.id, event.actor.name, event.channel, event.status, event.reason, event.isKey]]
+          : [],
+      ),
+    ).toEqual([
+      [
+        'contractor.notice.manual:notice-1',
+        'Operadora Lima',
+        null,
+        'failed',
+        'no_recipient',
+        false,
+      ],
+      ['contractor.notice.manual:notice-2', 'Operadora Lima', 'whatsapp_group', 'sent', null, true],
+    ])
+    expect(timeline.stages.map((stage) => stage.stage)).toEqual(['received'])
+  })
+
+  test('spec 324 T2: no mesmo instante, o aviso manual vem depois do e-mail que ele mandou', () => {
+    const timeline = buildOccurrenceTimeline({
+      sources: [
+        RECORDED,
+        {
+          actor: { kind: 'operation', name: 'Operadora Lima' },
+          channel: 'email',
+          id: 'notice-1',
+          kind: 'contractor.notice.manual',
+          occurredAt: AT(5),
+          reason: null,
+          status: 'sent',
+        },
+        {
+          actor: { kind: 'operation', name: 'Operadora Lima' },
+          deliveryStatus: null,
+          id: 'mail-1',
+          interpretation: null,
+          kind: 'contractor.mail.sent',
+          occurredAt: AT(5),
+        },
+      ],
+    })
+
+    expect(timeline.events.map((event) => event.kind)).toEqual([
+      'occurrence.recorded',
+      'contractor.mail.sent',
+      'contractor.notice.manual',
+    ])
+  })
 })
