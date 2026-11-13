@@ -8,7 +8,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 - [ ] **T0.1** Anderson responde as 4 dúvidas (ou aceita os padrões); spec atualizada.
   > 🤖 Modelo: `opus`
-- [ ] **T0.2** ADR curta: despesa da empresa como módulo próprio, separado do lançamento de viagem (061/169). Aceite: ADR aceita.
+- [x] **T0.2** ADR curta: despesa da empresa como módulo próprio, separado do lançamento de viagem (061/169). Aceite: ADR aceita.
+      Feita: [ADR-0115](../../docs/adr/0115-a-conta-da-empresa-e-modulo-proprio.md), aceita (inclui o pagamento de motorista/agregado lido das viagens, sem somar de novo).
   > 🤖 Modelo: `opus`
 
 ## Fase 1 — API
