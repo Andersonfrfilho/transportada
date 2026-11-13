@@ -30,14 +30,14 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 /** RF2: as 8 categorias da semente, na ordem da migration. */
 const SEED_CATEGORIES = [
-  ['Aluguel', false],
-  ['Folha', false],
-  ['Impostos', false],
-  ['Seguro', false],
-  ['Manutenção', false],
-  ['Combustível', false],
-  [COMPANY_EXPENSE_DRIVER_CATEGORY_NAME, true],
-  ['Outros', false],
+  ['Aluguel', false, 'administrative'],
+  ['Folha', false, 'administrative'],
+  ['Impostos', false, 'administrative'],
+  ['Seguro', false, 'vehicle_fixed'],
+  ['Manutenção', false, 'per_km'],
+  ['Combustível', false, 'per_km'],
+  [COMPANY_EXPENSE_DRIVER_CATEGORY_NAME, true, 'in_trip'],
+  ['Outros', false, 'administrative'],
 ] as const
 
 const AUDIT_PERMISSION = 'expenses.manage'
@@ -128,8 +128,9 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
       },
       // Só semeia a empresa que não tem categoria nenhuma; a conta de desativar não apaga, então "nenhuma" é inédita.
       ensureSeeded: async ({ companyId }) => {
-        const rows = SEED_CATEGORIES.map(([name, requiresDriver], index) => ({
+        const rows = SEED_CATEGORIES.map(([name, requiresDriver, costGroup], index) => ({
           companyId,
+          costGroup,
           displayOrder: index + 1,
           name,
           requiresDriver,
