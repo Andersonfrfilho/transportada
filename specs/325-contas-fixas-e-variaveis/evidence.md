@@ -271,6 +271,32 @@ posição (196 RF12): a leitura de `trip_status_events` foi para `infrastructure
 
 **Provas:** `prints/contas-viagens-*` (4 combinações); guardas e cliente já cobertos pela T2.1. Mesma bateria da T2.2.
 
+## T4.1 — ADR-0116, o rateio calculado na leitura (2026-11-13)
+
+**Entrega:** [ADR-0116](../../docs/adr/0116-o-rateio-das-contas-e-calculado-na-leitura.md) passou de "proposto" a **aceito**, com as regras que
+Anderson aprovou na T4.0, e a seção de dúvidas da extensão na `spec.md` foi fechada (5 a 8, mais o limite de 10%). Tarefa só de
+documentação: nenhum código, migration ou teste mudou.
+
+**O que a ADR fixa para as próximas tasks**
+
+| Regra                                                                                     | Seção | Quem cobra                |
+| ----------------------------------------------------------------------------------------- | ----- | ------------------------- |
+| Peso de cada critério: distância planejada, diárias (143), receita do resultado vivo, 1   | §2    | T4.4 (contrato de tabela) |
+| Viagem entra pela conclusão no período; conta pelo pago, senão previsto; cancelada fora   | §3    | T4.2, T4.5                |
+| Conta com veículo só nas viagens dele; sem veículo, entre as viagens de todos os veículos | §3    | CA09 (T4.2)               |
+| Nada gravado na viagem; mês fechado recalculado; filtro não muda o rateio                 | §4    | T4.5, CA11                |
+| Excedente do pagamento de motorista = max(0, considerado − viagens), grupo administrativo | §5    | CA07 (T4.2), T4.4         |
+| `distribute` da 232 (piso + resto à viagem de maior peso, ordem estável); soma fecha      | §6    | CA06, CA08 (T4.2), T4.4   |
+| Um caso de uso para tela, PDF, CSV, custo por km e previsão; limite de 10% configurável   | §7    | T4.5, T4.6, T6.x          |
+
+**Achado ao conferir o código** (para a T4.5): `trips.closed_at` é gravado pelo encerramento do painel
+(`drizzle-trip.repository.ts`), mas a conclusão pelo relatório do motorista (`drizzle-driver-field-report.repository.ts`,
+`.set({ status: 'completed', … })`) não grava a data. A T1.4b já contornou isso no pagamento (`payable-trip.query.ts`:
+última transição para `completed` em `trip_status_events`, depois `closed_at`, depois `updated_at`); a ADR manda o rateio
+usar essa mesma expressão, para a viagem não cair num mês no pagamento e noutro no resultado.
+
+**Prova:** `bunx prettier --check` nos quatro arquivos alterados (ADR, `spec.md`, `tasks.md`, `evidence.md`): limpos.
+
 ## T2.3 — Painel "Categorias de contas" (2026-11-13)
 
 - Aba `expenseCategories` em Configurações da empresa (`SETTINGS_PANELS`, `SETTINGS_PANEL_PLACEMENT`, `COMPANY_SETTINGS_TAB_IDS`, fonte de dados `expenseCategories`). Painel autocontido `ExpenseCategoriesPanel`: lista as categorias (marca "exige motorista" e "inativa"), cadastra por nome e desativa/reativa (nunca apaga). Usa os hooks do módulo `expenses` (T2.1); a aba segue visível com `settings.manage`, e o painel lê com `expenses.read` e escreve com `expenses.manage` (sem a leitura não faz chamada). Nome repetido (`EXPENSE_CATEGORY_NAME_TAKEN`) tem frase própria; qualquer outro código cai na genérica.
