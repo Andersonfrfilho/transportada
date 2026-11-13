@@ -11,12 +11,13 @@ import {
   publishOccurrenceMailTemplates,
   readAddressCorrectionMailTemplateFile,
   readOccurrenceMailTemplateFiles,
+  readOccurrenceWhatsappTemplateFiles,
   type PublicationPlan,
 } from '../src/occurrence-conversation/application/occurrence-mail-templates-publish.service.js'
 
 /**
- * Spec 272 T4.3 (ADR-0110 §13, D14): grava os modelos HTML do e-mail de ocorrência e o da correção de endereço (spec 286) no módulo de
- * notificação, uma versão nova por chave, nunca `UPDATE`. Sem `--confirm` só imprime o plano; `--confirm`
+ * Spec 272 T4.3 (ADR-0110 §13, D14): grava os modelos HTML do e-mail de ocorrência, o da correção de endereço (spec 286) e
+ * o texto WhatsApp do aviso manual à contratante (spec 324 T1b) no módulo de notificação, uma versão nova por chave, nunca `UPDATE`. Sem `--confirm` só imprime o plano; `--confirm`
  * aplica só `create`; `differs` exige `--overwrite <chave>`. Em staging/produção é mudança de dados: pede
  * aprovação humana. Imprime só chaves, versões e o veredito.
  *
@@ -56,7 +57,11 @@ async function main(): Promise<void> {
       confirm: options.confirm,
       overwrite: options.overwrite,
       repository: new TemplateRepository(provider.db as never),
-      templates: [...readOccurrenceMailTemplateFiles(), readAddressCorrectionMailTemplateFile()],
+      templates: [
+        ...readOccurrenceMailTemplateFiles(),
+        readAddressCorrectionMailTemplateFile(),
+        ...readOccurrenceWhatsappTemplateFiles(),
+      ],
     })
 
     process.stdout.write(formatPlan(plan, options.confirm))
@@ -78,7 +83,7 @@ function formatPlan(plan: PublicationPlan, confirm: boolean): string {
   const lines = plan.entries.map((entry) => {
     const active = entry.activeVersion === null ? 'sem ativa' : `ativa v${entry.activeVersion}`
     const written = entry.writtenVersion === undefined ? '' : ` -> gravou v${entry.writtenVersion}`
-    return `${entry.key.padEnd(34)} ${entry.verdict.padEnd(8)} ${active}${written}`
+    return `${entry.key.padEnd(38)} ${entry.channel.padEnd(8)} ${entry.verdict.padEnd(8)} ${active}${written}`
   })
   const footer = confirm
     ? 'aplicado. "differs" só foi gravado com --overwrite <chave>.'

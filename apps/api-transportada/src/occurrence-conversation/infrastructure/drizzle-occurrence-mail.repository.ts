@@ -50,6 +50,7 @@ import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occu
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 import { readOccurrenceTypeRecipientContactIds } from '../../trips/infrastructure/occurrence-type-mail-recipients.support.js'
 import { loadEffectiveWatcherCandidates } from '../../contractor-mail/infrastructure/occurrence-watcher-candidates.query.js'
+import { CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY } from '../domain/contractor-manual-notice-template.policy.js'
 import { HTML_BODY_REGEX } from '../domain/occurrence-contractor-mail.constant.js'
 import { renderContractorMail } from '../domain/occurrence-contractor-mail-render.policy.js'
 import { OccurrenceMailTemplateMissingError } from '../domain/occurrence-conversation.error.js'
@@ -295,7 +296,15 @@ async function findOperatorSigner(
  */
 async function findOccurrenceNotificationTemplateSource(
   queryable: TripQueryable,
-  params: { readonly companyId: string; readonly occurrenceId: string },
+  params: {
+    readonly companyId: string
+    /**
+     * Spec 324 (D10): só o aviso manual passa `ocorrencia.contratante-aviso-manual`. Sem chave no tipo, ou com o
+     * modelo do tipo inutilizável, vale esta chave (versão ativa, utilizável). O automático nunca passa.
+     */
+    readonly fallbackKey?: string
+    readonly occurrenceId: string
+  },
 ): Promise<{
   readonly isRegisteredBeforeSelection: boolean
   readonly key: string
@@ -322,23 +331,52 @@ async function findOccurrenceNotificationTemplateSource(
       ),
     )
     .limit(1)
-  if (row?.key === null || row === undefined) return null
+  if (row === undefined) return null
+  if (row.key !== null) {
+    const template = await findActiveContractorTemplate(queryable, {
+      companyId: params.companyId,
+      key: row.key,
+    })
+    if (!blocksContractorMailSend(assessContractorTemplate({ key: row.key, template }))) {
+      return {
+        isRegisteredBeforeSelection:
+          row.selectedAt !== null && row.occurrenceCreatedAt.getTime() < row.selectedAt.getTime(),
+        key: row.key,
+        version: template?.version ?? 0,
+      }
+    }
+  }
+  return findFallbackNotificationTemplateSource(queryable, params)
+}
+
+/** Spec 324 (D10): o modelo geral do aviso manual, quando o tipo não tem um utilizável. Sem a chave, `null`. */
+async function findFallbackNotificationTemplateSource(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly fallbackKey?: string },
+): Promise<{
+  readonly isRegisteredBeforeSelection: boolean
+  readonly key: string
+  readonly version: number
+} | null> {
+  const key = params.fallbackKey
+  if (key === undefined) return null
   const template = await findActiveContractorTemplate(queryable, {
     companyId: params.companyId,
-    key: row.key,
+    key,
   })
-  if (blocksContractorMailSend(assessContractorTemplate({ key: row.key, template }))) return null
-  return {
-    isRegisteredBeforeSelection:
-      row.selectedAt !== null && row.occurrenceCreatedAt.getTime() < row.selectedAt.getTime(),
-    key: row.key,
-    version: template?.version ?? 0,
+  if (template === null || blocksContractorMailSend(assessContractorTemplate({ key, template }))) {
+    return null
   }
+  return { isRegisteredBeforeSelection: false, key, version: template.version }
 }
 
 async function findOccurrenceNotificationTemplate(
   queryable: TripQueryable,
-  params: { readonly companyId: string; readonly occurrenceId: string },
+  params: {
+    readonly companyId: string
+    readonly fallbackKey?: string
+    readonly occurrenceId: string
+  },
 ): Promise<null | OccurrenceNotificationTemplate> {
   const source = await findOccurrenceNotificationTemplateSource(queryable, params)
   return source === null ? null : { key: source.key, version: source.version }
@@ -598,13 +636,21 @@ export function createAutomaticOccurrenceMailReader(
     readonly companyId: string
     readonly contractorId: string
     readonly emailsContractor: boolean
+    /** Spec 324: o plano do botão manual; só ele cai no modelo geral do aviso manual (D10). */
+    readonly ignoreTypeOff?: boolean
     readonly occurrenceId: string
   }): Promise<{
     readonly isRegisteredBeforeTemplate: boolean
     readonly suggested: Awaited<ReturnType<OccurrenceSuggestedMailPort['readSuggestedMail']>>
   }> {
     if (!params.emailsContractor) return { isRegisteredBeforeTemplate: false, suggested: null }
-    const source = await findOccurrenceNotificationTemplateSource(database, params)
+    const source = await findOccurrenceNotificationTemplateSource(database, {
+      companyId: params.companyId,
+      ...(params.ignoreTypeOff === true
+        ? { fallbackKey: CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY }
+        : {}),
+      occurrenceId: params.occurrenceId,
+    })
     if (source === null) return { isRegisteredBeforeTemplate: false, suggested: null }
     return {
       isRegisteredBeforeTemplate: source.isRegisteredBeforeSelection,
@@ -780,6 +826,7 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
 
   public findOccurrenceNotificationTemplate(params: {
     readonly companyId: string
+    readonly fallbackKey?: string
     readonly occurrenceId: string
   }): Promise<null | OccurrenceNotificationTemplate> {
     return findOccurrenceNotificationTemplate(this.transaction, params)

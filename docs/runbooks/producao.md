@@ -929,6 +929,33 @@ estão em staging (#720 e #721). **Produção não mudou nada nesta fase:** a pr
 - **Validação em staging (T11 da spec 323, pendente):** reproduzir pela tela o lote com Matão, Monte Alto e Jaboticabal
   intercalados, conferir a ordem e o selo de origem. Anotar o resultado em `specs/323-paradas-ordenadas-no-rascunho/evidence.md`.
 
+## 5.32 Modelo geral do aviso manual à contratante (spec 324 T1b, 13/11/2026) — só staging
+
+O botão "Avisar a contratante" (spec 324) nunca fica sem texto: sem modelo no tipo, ele usa o modelo geral
+`ocorrencia.contratante-aviso-manual` de Notificações (e-mail com assunto + HTML e WhatsApp em texto, `pt-BR`). O aviso
+automático **não** o lê. No grupo, a ordem é a versão WhatsApp da chave do tipo, depois `ocorrencia.contratante-grupo`,
+depois o geral. Os arquivos versionados são `apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates/contratante-aviso-manual.html`
+e `.../occurrence-whatsapp-templates/contratante-aviso-manual.txt`.
+
+- **Publicar em staging:** script em `/home/miyazaki/Documents/personal/transportada/tmp/ops/staging-324-publica-modelo-aviso-manual.sh`
+  (cópia em `324-avisar-contratante-manual/` dos arquivos do projeto). Sem argumento é **simulação** (create/same/differs por
+  canal, nada gravado); `--confirm` grava a versão 1 de cada canal; `differs` (texto editado na tela) só vira versão nova com
+  `--overwrite`. Nunca muda o texto de uma versão: desativa a anterior e insere a próxima, na mesma transação. Saída em
+  `tmp/ops/saidas/staging-324-publica-modelo-aviso-manual-<modo>-<data>.txt`.
+- **Alternativa pelo publicador do repositório** (dentro do container da `api`):
+  `bun run scripts/occurrence-mail-templates-publish.ts --company <uuid>` lista também o modelo geral nos dois canais
+  (coluna de canal no plano). Cuidado: com `--confirm` ele também cria os outros modelos de ocorrência que faltarem.
+- **Conferir (somente leitura):**
+
+  ```sql
+  SELECT key, channel, version, active
+  FROM notification.templates
+  WHERE key = 'ocorrencia.contratante-aviso-manual'
+  ORDER BY channel, version;
+  ```
+
+- **Produção:** nada publicado. Vai junto com a promoção da spec 324, com aprovação.
+
 ## 6. Erros que não devem se repetir
 
 | Erro                                                                                                             | Como evitar                                                                                                                               |
