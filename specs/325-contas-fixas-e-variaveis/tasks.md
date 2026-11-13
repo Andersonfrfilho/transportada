@@ -78,6 +78,17 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [ ] **T5.4** Prints claro/escuro × desktop/celular comparados a outra tela; evidência; staging (produção na próxima promoção).
   > 🤖 Modelo: `sonnet`
 
+## Fase 6 — Previsões (etapa final)
+
+- [ ] **T6.1** Contratos vermelhos: CA12 e CA13 (histórico curto, faixa, limite de fora do padrão).
+  > 🤖 Modelo: `sonnet`
+- [ ] **T6.2** Serviço puro de previsão (média por dia útil, faixa, limite configurável) e alerta de fora do padrão; contrato de tabela com casos de borda (mês sem viagem, veículo novo).
+  > 🤖 Modelo: `opus` (regra de estimativa que o dono vai usar para decidir)
+- [ ] **T6.3** Caso de uso e rota de leitura da previsão e dos alertas; limite em `company_expense_allocation_settings`.
+  > 🤖 Modelo: `sonnet`
+- [ ] **T6.4** Cartão "Previsão" e lista "Fora do padrão" na página de resultado, com o aviso de poucos dados; prints claro/escuro × desktop/celular; evidência.
+  > 🤖 Modelo: `sonnet`
+
 ## Trabalho futuro (sem task)
 
 - Tela de cotação de frete usando o custo por km (RF17). Spec própria.

@@ -136,6 +136,9 @@ A categoria "Pagamento de motorista/agregado" não é rateada: o custo dele **j�
 - **RF18** Filtros do painel de resultado: **período** (intervalo de datas, não só mês), **veículo**, **cliente**, **categoria da conta** e **motorista/agregado**, além de "comparar com" e critério de rateio. Valem para indicadores, tabelas e exportação; filtro de veículo/cliente restringe viagens e as contas ligadas ao veículo; categoria e motorista restringem as contas.
 - **RF19** **Exportar PDF** (para imprimir ou enviar ao contador): cabeçalho com empresa, período e filtros aplicados, indicadores e as tabelas visíveis. Gerado no servidor, com os mesmos números da tela (um só cálculo).
 - **RF20** **Exportar planilha (CSV)**: uma linha por viagem com frete, custo, rateio do veículo, rateio geral e margem, mais um bloco de totais; separador `;`, decimal com vírgula e UTF-8 com BOM para abrir no Excel. Permissão `expenses.read`; exportação auditada (010).
+- **RF21** **Previsão do próximo mês** (pedido do Anderson, 2026-11-13): faturamento, custo total e lucro previstos, com **faixa** (mínimo e máximo). Cálculo: contas recorrentes já cadastradas para o mês + média diária de faturamento e de custo por km dos últimos 3 a 6 meses fechados × dias úteis. Sem IA e sem modelo pago: média simples, explicada na tela ("Como é calculado").
+- **RF22** **Aviso de pouco dado**: com menos de 6 meses de histórico a previsão mostra o aviso "Poucos meses de dados" e usa a faixa mais larga; com menos de 3 meses não mostra previsão, só o aviso.
+- **RF23** **Alerta de fora do padrão**: conta, custo por km de veículo ou categoria acima (ou abaixo) de 10% da média dos últimos 3 meses aparece na lista "Fora do padrão", com os dois valores e a diferença. O limite de 10% é configurável.
 - **RF17** O **custo por km por veículo** e o geral saem por um caso de uso próprio e uma rota de leitura, para reaproveitamento (ver "Trabalho futuro").
 
 ### Critérios de aceite
@@ -145,6 +148,8 @@ A categoria "Pagamento de motorista/agregado" não é rateada: o custo dele **j�
 - CA08 Trocar o critério de um grupo muda a divisão entre viagens, mas não o total rateado.
 - CA09 Conta com `vehicle_id` não aparece no rateio de viagem de outro veículo.
 - CA11 PDF e CSV batem, centavo a centavo, com o painel para os mesmos filtros.
+- CA12 Previsão com menos de 3 meses de dado não é exibida; entre 3 e 5 meses exibe com o aviso; a faixa contém o valor previsto.
+- CA13 A lista "Fora do padrão" só traz itens além do limite configurado.
 - CA10 Isolamento por empresa e permissões, com contrato negativo.
 
 ### Dúvidas em aberto (decididas com padrão recomendado; Anderson pode trocar)
