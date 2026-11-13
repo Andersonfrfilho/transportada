@@ -106,8 +106,8 @@ describe('o aviso do sino da ocorrência continua o de sempre (spec 263 T2.5)', 
           body: 'A operação mandou uma mensagem sobre a ocorrência {{occurrenceLabel}}. Abra a ocorrência no app para ler e responder.',
         },
         push: {
-          body: 'Ocorrência {{occurrenceLabel}}. Abra o app para ler e responder.',
-          subject: 'Nova mensagem do escritório',
+          body: '📦 Ocorrência {{occurrenceLabel}}\nToque para ler e responder.',
+          subject: '💬 Nova mensagem do escritório',
         },
       },
     })
@@ -246,8 +246,8 @@ describe('o aviso do sino por assunto, para nota e viagem (spec 263 T2.5)', () =
           body: 'A operação mandou uma mensagem · {{subjectLabel}}. Abra Conversas no app para ler e responder.',
         },
         push: {
-          body: '{{subjectLabel}}. Abra Conversas no app para ler e responder.',
-          subject: 'Nova mensagem do escritório',
+          body: '📦 {{subjectLabel}}\nToque para ler e responder.',
+          subject: '💬 Nova mensagem do escritório',
         },
       },
     })

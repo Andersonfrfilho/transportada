@@ -96,6 +96,14 @@ export const NOTIFICATION_TEMPLATE_KEY = {
   TRIP_OCCURRENCE_RESOLVED: 'trip.occurrence-resolved',
   /** Spec 266 / ADR-0105: o motorista reabriu a ocorrência respondendo; quem a resolveu é avisado. */
   TRIP_OCCURRENCE_REOPENED: 'trip.occurrence-reopened',
+  /**
+   * Avisos de push ao motorista sobre a viagem dele (só os modelos: o disparo de cada um depende de
+   * decisão do dono). Sem nome de cliente, endereço ou valor: a tela bloqueada é pública.
+   */
+  TRIP_DRIVER_DISPATCHED: 'trip.driver-dispatched',
+  TRIP_DRIVER_CANCELLED: 'trip.driver-cancelled',
+  TRIP_DRIVER_STOPS_CHANGED: 'trip.driver-stops-changed',
+  TRIP_CANHOTO_REJECTED: 'trip.canhoto-rejected',
 } as const
 export type NotificationTemplateKey =
   (typeof NOTIFICATION_TEMPLATE_KEY)[keyof typeof NOTIFICATION_TEMPLATE_KEY]
@@ -134,8 +142,8 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
       },
       /** Push: título e uma linha, sem o corpo da mensagem (ele fica na conversa, atrás do login). */
       push: {
-        body: 'Ocorrência {{occurrenceLabel}}. Abra o app para ler e responder.',
-        subject: 'Nova mensagem do escritório',
+        body: '📦 Ocorrência {{occurrenceLabel}}\nToque para ler e responder.',
+        subject: '💬 Nova mensagem do escritório',
       },
     },
   },
@@ -150,8 +158,8 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
         body: 'A operação mandou uma mensagem · {{subjectLabel}}. Abra Conversas no app para ler e responder.',
       },
       push: {
-        body: '{{subjectLabel}}. Abra Conversas no app para ler e responder.',
-        subject: 'Nova mensagem do escritório',
+        body: '📦 {{subjectLabel}}\nToque para ler e responder.',
+        subject: '💬 Nova mensagem do escritório',
       },
     },
   },
@@ -297,8 +305,8 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
         body: 'A ocorrência "{{typeName}}" foi resolvida pelo escritório. Abra a ocorrência no app para ver.',
       },
       push: {
-        body: '"{{typeName}}" foi resolvida pelo escritório. Toque para ver.',
-        subject: 'Ocorrência resolvida',
+        body: '📋 "{{typeName}}"\nO escritório resolveu. Toque para ver.',
+        subject: '✅ Ocorrência resolvida',
       },
     },
   },
@@ -311,6 +319,66 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
     templates: {
       inbox: {
         body: 'O motorista reabriu a ocorrência "{{typeName}}". Abra a ocorrência no TransportAdA para responder.',
+      },
+    },
+  },
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: [NOTIFICATION_CHANNEL.INBOX, NOTIFICATION_CHANNEL.PUSH],
+    placeholders: [],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_DRIVER_DISPATCHED,
+    templates: {
+      inbox: {
+        body: 'Você tem uma nova viagem. Abra o app para ver o roteiro e as paradas.',
+      },
+      push: {
+        body: '📍 Veja o roteiro e as paradas.\nToque para abrir.',
+        subject: '🚚 Nova viagem para você',
+      },
+    },
+  },
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: [NOTIFICATION_CHANNEL.INBOX, NOTIFICATION_CHANNEL.PUSH],
+    placeholders: [],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_DRIVER_CANCELLED,
+    templates: {
+      inbox: {
+        body: 'Sua viagem foi cancelada pelo escritório. Não saia com a carga e abra o app para ver.',
+      },
+      push: {
+        body: '⚠️ O escritório cancelou. Não saia com a carga.\nToque para ver.',
+        subject: '🚫 Viagem cancelada',
+      },
+    },
+  },
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: [NOTIFICATION_CHANNEL.INBOX, NOTIFICATION_CHANNEL.PUSH],
+    placeholders: [],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_DRIVER_STOPS_CHANGED,
+    templates: {
+      inbox: {
+        body: 'As paradas da sua viagem mudaram. Abra o app para ver a nova ordem.',
+      },
+      push: {
+        body: '🗺️ A ordem das paradas mudou.\nToque para ver a nova rota.',
+        subject: '🔄 Rota atualizada',
+      },
+    },
+  },
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: [NOTIFICATION_CHANNEL.INBOX, NOTIFICATION_CHANNEL.PUSH],
+    placeholders: ['occurrenceLabel'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_CANHOTO_REJECTED,
+    templates: {
+      inbox: {
+        body: 'O canhoto da {{occurrenceLabel}} foi recusado na conferência. Abra o app e envie uma nova foto.',
+      },
+      push: {
+        body: '📄 {{occurrenceLabel}}\nEnvie uma nova foto, bem nítida.',
+        subject: '📸 Canhoto recusado',
       },
     },
   },

@@ -113,14 +113,18 @@ describe('contrato do catálogo de notificações', () => {
    * O push só fala com o motorista (o app dele é o único com aparelho cadastrado) e é curto: título e uma
    * linha, sem texto digitado por pessoa nem o corpo da conversa. O painel não oferece o canal.
    */
-  test('o push existe só nos três avisos ao motorista e traz título e texto curto', () => {
+  test('o push existe só nos sete avisos ao motorista e traz título e texto curto', () => {
     const withPush = NOTIFICATION_CATALOG.filter((entry) =>
       entry.channels.includes(NOTIFICATION_CHANNEL.PUSH),
     ).map((entry) => entry.templateKey)
 
     expect(withPush.toSorted()).toEqual(
       [
+        NOTIFICATION_TEMPLATE_KEY.TRIP_CANHOTO_REJECTED,
         NOTIFICATION_TEMPLATE_KEY.TRIP_CONVERSATION_MESSAGE,
+        NOTIFICATION_TEMPLATE_KEY.TRIP_DRIVER_CANCELLED,
+        NOTIFICATION_TEMPLATE_KEY.TRIP_DRIVER_DISPATCHED,
+        NOTIFICATION_TEMPLATE_KEY.TRIP_DRIVER_STOPS_CHANGED,
         NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_RESOLVED,
         NOTIFICATION_TEMPLATE_KEY.TRIP_SUBJECT_CONVERSATION_MESSAGE,
       ].toSorted(),
