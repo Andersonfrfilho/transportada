@@ -9,6 +9,7 @@ import type {
   ExpenseOccurrenceTrip,
   ExpenseOccurrenceTripPorts,
   ExpenseTripParcelKind,
+  ExpenseTripRoute,
   PayableTripParcel,
 } from '../../src/expenses/application/expense.port.js'
 import { formatCents, parseMoneyToCents } from '../../src/expenses/domain/expense-money.policy.js'
@@ -31,6 +32,8 @@ export type InMemoryExpenseTrips = ExpenseOccurrenceTripPorts & {
   readonly parcels: Map<string, PayableTripParcel>
   /** Quantas vezes a valoração foi pedida (cada chamada = uma leitura em lote). */
   readonly parcelReads: string[][]
+  /** `tripId` → trajeto lido das paradas; viagem fora do mapa não tem parada. */
+  readonly routes: Map<string, ExpenseTripRoute>
   readonly tripLinks: (ExpenseOccurrenceTrip & { readonly companyId: string })[]
   readonly trips: InMemoryTrip[]
 }
@@ -38,6 +41,7 @@ export type InMemoryExpenseTrips = ExpenseOccurrenceTripPorts & {
 export function buildInMemoryExpenseTrips(base = buildInMemoryExpenses()): InMemoryExpenseTrips {
   const trips: InMemoryTrip[] = []
   const parcels = new Map<string, PayableTripParcel>()
+  const routes = new Map<string, ExpenseTripRoute>()
   const parcelReads: string[][] = []
   const tripLinks: (ExpenseOccurrenceTrip & { readonly companyId: string })[] = []
 
@@ -121,6 +125,7 @@ export function buildInMemoryExpenseTrips(base = buildInMemoryExpenses()): InMem
     },
     parcelReads,
     parcels,
+    routes,
     payableTrips: {
       findFacts: async ({ companyId, tripId }) => {
         const trip = trips.find((row) => row.tripId === tripId && row.companyId === companyId)
@@ -141,6 +146,13 @@ export function buildInMemoryExpenseTrips(base = buildInMemoryExpenses()): InMem
           if (completedOn < from || completedOn > to) return []
           return [{ completedOn, crewRole: member.role, tripId: trip.tripId }]
         }),
+      readRoutes: async ({ tripIds }) =>
+        new Map(
+          tripIds.flatMap((tripId) => {
+            const route = routes.get(tripId)
+            return route === undefined ? [] : [[tripId, route] as const]
+          }),
+        ),
       readPersonParcels: async ({ companyId, driverId, parcelKind, tripIds }) => {
         parcelReads.push([...tripIds])
         const found = new Map<string, PayableTripParcel>()

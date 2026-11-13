@@ -140,6 +140,7 @@
     "summary": "{{name}}{{payee}}. Only completed trips not paid yet.",
     "trip": "Trip",
     "tripNumber": "Trip {{id}}",
+    "tripNumberRoute": "Trip {{id}} · {{route}}",
     "completedOn": "Completed",
     "dailyTimesDays": "Daily rate × days",
     "dailyTimesDaysValue_one": "{{daily}} × {{count}} day",
@@ -154,6 +155,7 @@
     "availableEmpty": "No completed trip available in the period.",
     "include": "Include",
     "remove": "Remove",
-    "pendingTrip": "Trip {{id}} is left out: {{gap}}."
+    "pendingTrip": "Trip {{id}} is left out: {{gap}}.",
+    "pendingTripRoute": "Trip {{id}} ({{route}}) is left out: {{gap}}."
   }
 }

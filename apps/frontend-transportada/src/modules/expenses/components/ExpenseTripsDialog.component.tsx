@@ -12,8 +12,16 @@ import {
   useExpenseMutations,
   useExpenseOccurrenceTrips,
 } from '../hooks/useExpenses.hook'
-import type { ExpenseOccurrenceListItem, ExpenseOccurrenceTrip } from '../shared/expenses.types'
-import { formatCivilDate, resolveOccurrencePayeeKey } from '../shared/expensesView.service'
+import type {
+  ExpenseOccurrenceListItem,
+  ExpenseOccurrenceTrip,
+  ExpenseTripRoute,
+} from '../shared/expenses.types'
+import {
+  formatCivilDate,
+  formatTripRoute,
+  resolveOccurrencePayeeKey,
+} from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
 
@@ -22,6 +30,11 @@ type ExpenseTripsDialogProps = Readonly<{
   occurrence: ExpenseOccurrenceListItem
   onClose: () => void
 }>
+
+/** O número que o produto mostra é o início do id; o trajeto vem das paradas e some se a API não o trouxe. */
+function routeText(trip: Readonly<{ route?: ExpenseTripRoute | null }>): null | string {
+  return formatTripRoute(trip.route)
+}
 
 function tripLabel(trip: Readonly<{ tripId: string }>): string {
   return trip.tripId.slice(0, 8)
@@ -53,7 +66,9 @@ export function ExpenseTripsDialog({ canManage, occurrence, onClose }: ExpenseTr
     return (
       <tr key={`${trip.tripId}:${trip.parcelKind}`}>
         <td data-column={t('trips.trip')}>
-          {t('trips.tripNumber', { id: tripLabel(trip) })}
+          {routeText(trip) === null
+            ? t('trips.tripNumber', { id: tripLabel(trip) })
+            : t('trips.tripNumberRoute', { id: tripLabel(trip), route: routeText(trip) })}
           <span className={styles.rowDetail}>{t(`parcelKind.${trip.parcelKind}`)}</span>
         </td>
         <td data-column={t('trips.completedOn')}>{formatCivilDate(trip.completedOn)}</td>
@@ -173,9 +188,10 @@ export function ExpenseTripsDialog({ canManage, occurrence, onClose }: ExpenseTr
           )}
           {(available.data?.pending ?? []).map((trip) => (
             <p className={styles.warning} key={`${trip.tripId}:${trip.parcelKind}`} role="status">
-              {t('trips.pendingTrip', {
+              {t(routeText(trip) === null ? 'trips.pendingTrip' : 'trips.pendingTripRoute', {
                 gap: t(`gap.${trip.gap}`, { defaultValue: t('gap.OTHER') }),
                 id: tripLabel(trip),
+                route: routeText(trip) ?? '',
               })}
             </p>
           ))}

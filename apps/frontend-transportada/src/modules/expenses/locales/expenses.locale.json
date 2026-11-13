@@ -140,6 +140,7 @@
     "summary": "{{name}}{{payee}}. Só viagens concluídas ainda não pagas.",
     "trip": "Viagem",
     "tripNumber": "Viagem {{id}}",
+    "tripNumberRoute": "Viagem {{id}} · {{route}}",
     "completedOn": "Concluída",
     "dailyTimesDays": "Diária × dias",
     "dailyTimesDaysValue_one": "{{daily}} × {{count}} dia",
@@ -154,6 +155,7 @@
     "availableEmpty": "Nenhuma viagem concluída disponível no período.",
     "include": "Incluir",
     "remove": "Remover",
-    "pendingTrip": "Viagem {{id}} fica de fora: {{gap}}."
+    "pendingTrip": "Viagem {{id}} fica de fora: {{gap}}.",
+    "pendingTripRoute": "Viagem {{id}} ({{route}}) fica de fora: {{gap}}."
   }
 }

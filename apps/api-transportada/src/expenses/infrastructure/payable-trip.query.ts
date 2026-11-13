@@ -6,12 +6,14 @@
  * com posição do evento (196 RF12): aqui só sai `occurred_at`, nunca a linha inteira.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
-import { tripDrivers, trips, tripStatusEvents } from '../../database/trip.schema.js'
+import { tripDrivers, tripStops, trips, tripStatusEvents } from '../../database/trip.schema.js'
+import { deriveExpenseTripRoute } from '../domain/expense-trip-route.policy.js'
 import type {
   ExpenseOccurrenceTripPorts,
   ExpenseTripParcelKind,
+  ExpenseTripRoute,
 } from '../application/expense.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -37,7 +39,7 @@ function toRole(role: string): ExpenseTripParcelKind {
 
 export function createPayableTripQueries(
   database: Database,
-): Pick<ExpenseOccurrenceTripPorts['payableTrips'], 'findFacts' | 'listCompleted'> {
+): Pick<ExpenseOccurrenceTripPorts['payableTrips'], 'findFacts' | 'listCompleted' | 'readRoutes'> {
   return {
     findFacts: async ({ companyId, tripId }) => {
       const [trip] = await database
@@ -56,6 +58,26 @@ export function createPayableTripQueries(
         status: trip.status,
         tripId: trip.tripId,
       }
+    },
+    readRoutes: async ({ companyId, tripIds }) => {
+      const routes = new Map<string, ExpenseTripRoute>()
+      if (tripIds.length === 0) return routes
+      const stops = await database
+        .select({ label: tripStops.label, tripId: tripStops.tripId })
+        .from(tripStops)
+        .where(and(eq(tripStops.companyId, companyId), inArray(tripStops.tripId, [...tripIds])))
+        .orderBy(asc(tripStops.tripId), asc(tripStops.sequence))
+      const labelsByTrip = new Map<string, string[]>()
+      for (const stop of stops) {
+        const labels = labelsByTrip.get(stop.tripId) ?? []
+        labels.push(stop.label)
+        labelsByTrip.set(stop.tripId, labels)
+      }
+      for (const [tripId, labels] of labelsByTrip) {
+        const route = deriveExpenseTripRoute(labels)
+        if (route !== null) routes.set(tripId, route)
+      }
+      return routes
     },
     listCompleted: async ({ companyId, driverId, from, to }) => {
       const rows = await database

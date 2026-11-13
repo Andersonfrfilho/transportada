@@ -17,6 +17,7 @@ import {
   type ExpenseOccurrencePage,
   type ExpenseOccurrenceStatus,
   type ExpenseOccurrenceTrip,
+  type ExpenseTripRoute,
   type ExpenseOccurrenceTrips,
   type ExpenseOccurrenceTotals,
   type ExpenseRecurrence,
@@ -193,6 +194,19 @@ function toTotals(value: unknown): ExpenseOccurrenceTotals {
   }
 }
 
+function toRoute(value: unknown): ExpenseTripRoute | null {
+  if (value === null) return null
+  const row = readRecord(value)
+  return {
+    destination: readString(row.destination),
+    origin: readNullableString(row.origin),
+  }
+}
+
+function readOptionalRoute(row: Record<string, unknown>): { route?: ExpenseTripRoute | null } {
+  return row.route === undefined ? {} : { route: toRoute(row.route) }
+}
+
 function toTrip(value: unknown): ExpenseOccurrenceTrip {
   const row = readRecord(value)
   return {
@@ -201,6 +215,7 @@ function toTrip(value: unknown): ExpenseOccurrenceTrip {
     dailyAmount: readMoney(row.dailyAmount),
     days: readInteger(row.days),
     parcelKind: readOneOf<ExpenseTripParcelKind>(row.parcelKind, EXPENSE_TRIP_PARCEL_KINDS),
+    ...readOptionalRoute(row),
     tripId: readString(row.tripId),
   }
 }
@@ -211,6 +226,7 @@ function toPendingTrip(value: unknown): PendingExpenseTrip {
     completedOn: readString(row.completedOn),
     gap: readString(row.gap),
     parcelKind: readOneOf<ExpenseTripParcelKind>(row.parcelKind, EXPENSE_TRIP_PARCEL_KINDS),
+    ...readOptionalRoute(row),
     tripId: readString(row.tripId),
   }
 }

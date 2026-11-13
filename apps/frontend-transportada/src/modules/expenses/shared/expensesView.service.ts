@@ -13,6 +13,7 @@ import type {
   ExpenseKind,
   ExpenseOccurrenceListItem,
   ExpenseRecurrence,
+  ExpenseTripRoute,
 } from './expenses.types'
 
 const MONTHS_BACK = 6
@@ -101,6 +102,12 @@ export function resolveOccurrencePayeeKey(
   occurrence: Pick<ExpenseOccurrenceListItem, 'payeeDriverPaymentModel' | 'payeeProfile'>,
 ): PayeeLabelKey | null {
   return occurrence.payeeProfile ?? resolvePayeeLabelKey(occurrence.payeeDriverPaymentModel)
+}
+
+/** "RIBEIRAO PRETO → CAMPINAS"; só o destino quando a viagem tem uma parada; `null` sem trajeto. */
+export function formatTripRoute(route: ExpenseTripRoute | null | undefined): null | string {
+  if (route === null || route === undefined) return null
+  return route.origin === null ? route.destination : `${route.origin} → ${route.destination}`
 }
 
 export function maskMoney(value: string): string {

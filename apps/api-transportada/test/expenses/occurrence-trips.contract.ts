@@ -95,6 +95,7 @@ async function setup(): Promise<{
   if (first === undefined || second === undefined)
     throw new Error('fortnightly occurrences missing')
 
+  ports.routes.set(TRIP_1, { destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' })
   const driverCrew = [{ driverId: DRIVER_A_ID, role: 'driver' as const }]
   ports.trips.push(
     {
@@ -226,6 +227,19 @@ describe('viagens disponíveis (spec 325 P3c)', () => {
     context = await setup()
   })
 
+  it('o trajeto da viagem acompanha a incluída e fica nulo sem parada', async () => {
+    await include(context.ports, context.firstFortnight, TRIP_1)
+    await include(context.ports, context.firstFortnight, TRIP_2)
+    const result = await createListExpenseOccurrenceTripsUseCase(context.ports).execute({
+      companyId: COMPANY_A,
+      occurrenceId: context.firstFortnight,
+    })
+    expect(result.items.map((item) => [item.tripId, item.route])).toEqual([
+      [TRIP_1, { destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' }],
+      [TRIP_2, null],
+    ])
+  })
+
   it('lista as concluídas do favorecido na quinzena, com diária × dias; a lacuna vai para pendências', async () => {
     const result = await createListAvailableExpenseTripsUseCase(context.ports).execute({
       companyId: COMPANY_A,
@@ -240,6 +254,7 @@ describe('viagens disponíveis (spec 325 P3c)', () => {
         dailyAmount: '200.0000',
         days: 3,
         parcelKind: 'driver',
+        route: { destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' },
         tripId: TRIP_1,
       },
       {
@@ -248,6 +263,7 @@ describe('viagens disponíveis (spec 325 P3c)', () => {
         dailyAmount: '200.0000',
         days: 2,
         parcelKind: 'driver',
+        route: null,
         tripId: TRIP_2,
       },
     ])
@@ -256,6 +272,7 @@ describe('viagens disponíveis (spec 325 P3c)', () => {
         completedOn: '2026-11-06',
         gap: 'NO_PLANNED_DURATION',
         parcelKind: 'driver',
+        route: null,
         tripId: TRIP_GAP,
       },
     ])
@@ -547,6 +564,7 @@ describe('rotas das viagens do pagamento (spec 325 CA03/CA04)', () => {
         dailyAmount: '200.0000',
         days: 3,
         parcelKind: 'driver',
+        route: { destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' },
         tripId: TRIP_1,
       },
     ] as never)

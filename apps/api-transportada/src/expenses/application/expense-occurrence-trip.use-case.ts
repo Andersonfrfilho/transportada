@@ -30,6 +30,7 @@ import type {
   ExpenseOccurrenceTrip,
   ExpenseOccurrenceTripPorts,
   ExpenseTripParcelKind,
+  ExpenseTripRoute,
 } from './expense.port.js'
 
 /**
@@ -39,14 +40,19 @@ import type {
  */
 export const PAYABLE_TRIP_PARCEL_KINDS: readonly ExpenseTripParcelKind[] = ['driver', 'helper']
 
+/** O trajeto lido das paradas; `null` quando a viagem não tem parada (nunca inventado). */
+type WithRoute = { readonly route: ExpenseTripRoute | null }
+
+export type ExpenseOccurrenceTripItem = ExpenseOccurrenceTrip & WithRoute
+
 export type ExpenseOccurrenceTripsResult = {
-  readonly items: readonly ExpenseOccurrenceTrip[]
+  readonly items: readonly ExpenseOccurrenceTripItem[]
   readonly occurrence: CompanyExpenseOccurrence
   /** Soma das viagens incluídas; o previsto da ocorrência é igual a ela enquanto houver viagem. */
   readonly tripsTotal: string
 }
 
-export type AvailableExpenseTrip = {
+export type AvailableExpenseTrip = WithRoute & {
   readonly amount: string
   readonly completedOn: string
   readonly dailyAmount: string
@@ -55,7 +61,7 @@ export type AvailableExpenseTrip = {
   readonly tripId: string
 }
 
-export type PendingExpenseTrip = {
+export type PendingExpenseTrip = WithRoute & {
   readonly completedOn: string
   /** Código da lacuna da valoração (ex.: `NO_PLANNED_DURATION`). */
   readonly gap: string
@@ -108,7 +114,15 @@ async function readResult(
     companyId: input.companyId,
     occurrenceId: input.occurrence.id,
   })
-  return { items, occurrence: input.occurrence, tripsTotal: sumTrips(items) }
+  const routes = await ports.payableTrips.readRoutes({
+    companyId: input.companyId,
+    tripIds: items.map((item) => item.tripId),
+  })
+  return {
+    items: items.map((item) => ({ ...item, route: routes.get(item.tripId) ?? null })),
+    occurrence: input.occurrence,
+    tripsTotal: sumTrips(items),
+  }
 }
 
 export function createListExpenseOccurrenceTripsUseCase(ports: ExpenseOccurrenceTripPorts): {
@@ -156,6 +170,10 @@ export function createListAvailableExpenseTripsUseCase(ports: ExpenseOccurrenceT
         })
       ).filter((candidate) => PAYABLE_TRIP_PARCEL_KINDS.includes(candidate.crewRole))
 
+      const routes = await ports.payableTrips.readRoutes({
+        companyId: input.companyId,
+        tripIds: candidates.map((candidate) => candidate.tripId),
+      })
       const available: AvailableExpenseTrip[] = []
       const pending: PendingExpenseTrip[] = []
       for (const parcelKind of PAYABLE_TRIP_PARCEL_KINDS) {
@@ -177,7 +195,12 @@ export function createListAvailableExpenseTripsUseCase(ports: ExpenseOccurrenceT
         for (const candidate of free) {
           const parcel = parcels.get(candidate.tripId)
           if (parcel === undefined) continue
-          const base = { completedOn: candidate.completedOn, parcelKind, tripId: candidate.tripId }
+          const base = {
+            completedOn: candidate.completedOn,
+            parcelKind,
+            route: routes.get(candidate.tripId) ?? null,
+            tripId: candidate.tripId,
+          }
           if (parcel.status === 'missing') {
             pending.push({ ...base, gap: parcel.gap })
             continue

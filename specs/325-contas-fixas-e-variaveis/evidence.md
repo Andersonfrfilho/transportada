@@ -267,7 +267,7 @@ posição (196 RF12): a leitura de `trip_status_events` foi para `infrastructure
 **Decisões**
 
 - Sem "Usar como valor previsto": a T1.4b já faz o total virar o previsto a cada inclusão/remoção.
-- A API devolve só o `tripId` da viagem (sem número nem trajeto), então a linha mostra os 8 primeiros caracteres do id e o papel (Motorista/Ajudante). Mostrar "Viagem 1042 · Ribeirão → Campinas" como no preview pede que a API passe número e trajeto: **pendência para o Anderson decidir**.
+- ~~A API devolve só o `tripId`~~ Resolvido na seção "T2.2b — trajeto da viagem" abaixo.
 
 **Provas:** `prints/contas-viagens-*` (4 combinações); guardas e cliente já cobertos pela T2.1. Mesma bateria da T2.2.
 
@@ -356,6 +356,21 @@ contrato que a cobra.
   por nota da 232 segue verde com o `distribute` extraído).
 - Suíte de contrato da API (`bun test --timeout 120000`): 15242 pass / 0 fail.
 - `tsc --noEmit` limpo; `eslint` e `prettier --check` limpos nos arquivos alterados.
+
+## T2.2b — trajeto da viagem (2026-11-13)
+
+**Decisão (coordenação, 13/11):** o preview aprovado mostra "Viagem … · Ribeirão → Campinas"; a API passa a devolver o trajeto e o painel o mostra. Recorrência pelo cadastro e cancelar conta ficam fora.
+
+**Não existe número de viagem no banco** (`trips` não tem coluna de número). O identificador do produto é o início do id (8 caracteres, como a tabela e o detalhe de Viagens). O painel mantém "Viagem 1f2a3b4c" e acrescenta o trajeto; numerar viagens pediria migration e fica como decisão do dono, fora desta entrega.
+
+**API** (`apps/api-transportada/src/expenses`): `deriveExpenseTripRoute` (`domain/expense-trip-route.policy.ts`, pura) lê o rótulo da primeira e da última parada por `sequence` (`RUA X, 12, CIDADE, UF` → só a cidade; mesma cidade nas duas pontas ou parada única vira só o destino). Porta nova `payableTrips.readRoutes` (uma consulta em lote em `trip_stops`, sempre com `company_id`, sem migration). `route: { destination, origin: string | null } | null` sai em `GET /expense-occurrences/:id/trips` (e nas respostas de incluir/remover) e em `available[]`/`pending[]` de `.../available-trips`; `null` quando a viagem não tem parada.
+
+**Painel:** `route` é **opcional** no guard (ausente = API anterior, `null` = sem parada), então o painel pode ir antes da API (ADR-0081 §9). `formatTripRoute` e as chaves `trips.tripNumberRoute` / `trips.pendingTripRoute` (pt e en).
+
+**Provas**
+
+- API: `bun --env-file=../../.env.test test ./test/expenses.contract.test.ts` → 70 pass / 0 fail (inclui `test/expenses/trip-route.contract.ts`, 4 casos, e o trajeto nas listas); integração contra Postgres 16 descartável (`expense-occurrence-trips.integration.ts`) → 8 pass, com o caso "o trajeto sai das paradas da própria empresa" (parada de outra empresa não vaza). `tsc --noEmit` e `eslint` limpos.
+- Painel: `bun run test` → 1496 pass / 0 fail; `tsc`, `eslint` e `prettier` limpos. Prints regerados em `prints/contas-viagens-*` (claro/escuro × desktop/celular).
 
 ## T4.3 — Schema do rateio (2026-11-13)
 
