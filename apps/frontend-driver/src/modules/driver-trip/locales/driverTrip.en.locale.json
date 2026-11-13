@@ -985,5 +985,26 @@
       "resolved": "Resolved"
     },
     "stopLevel": "Stop"
+  },
+  "pushDevice": {
+    "title": "Phone alerts",
+    "enable": "Turn on for this device",
+    "enabling": "Turning on…",
+    "disable": "Turn off",
+    "disabling": "Turning off…",
+    "state": {
+      "on": "Notifications are on for this device.",
+      "off": "Notifications are off for this device. Tap to get office alerts on your phone.",
+      "denied": "The browser blocked notifications. Allow them in the site settings and come back.",
+      "unsupported": "This device or browser can't receive notifications. On iPhone, add the app to the Home Screen first."
+    },
+    "failure": {
+      "denied": "Could not turn on: permission was denied.",
+      "no_key": "Could not turn on: the server isn't set up for notifications yet.",
+      "subscribe_failed": "Could not turn on: the browser didn't create the subscription.",
+      "register_failed": "Could not turn on: registering the device failed. Try again.",
+      "timeout": "Could not turn on: it took too long. Try again.",
+      "unregister_failed": "Turned off on this device, but the server didn't confirm. Try again."
+    }
   }
 }
