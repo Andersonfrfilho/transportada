@@ -36,6 +36,7 @@
   --adn-color-danger: var(--color-alert);
   --adn-color-faint: color-mix(in srgb, var(--color-slate) 55%, transparent);
   --adn-color-muted: var(--color-slate);
+  --adn-color-success: var(--color-ready);
   --adn-color-surface: var(--color-graphite);
   --adn-color-text: var(--color-fog);
   --adn-color-warning: var(--color-copper);
