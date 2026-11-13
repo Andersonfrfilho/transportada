@@ -6,7 +6,12 @@ import {
   MONEY_SCALE,
   parseScaledDecimal,
 } from '../../shared/decimal.service.js'
-import { VALUATION_GAPS, type TripCostParcel, type ValuationGap } from './trip-valuation.policy.js'
+import {
+  VALUATION_GAPS,
+  type TripCostParcel,
+  type TripHelperCostCrewLine,
+  type ValuationGap,
+} from './trip-valuation.policy.js'
 
 const ERROR_CODE_PREFIX = 'TRIP_HELPER_COST'
 const ZERO = '0.0000'
@@ -82,20 +87,37 @@ export function buildTripHelperCost(input: BuildTripHelperCostParams): TripCostP
     }
   }
 
-  const perDay = known.reduce(
-    (accumulated, entry) =>
+  /**
+   * Spec 325 RF1e (T1.4c): uma linha por ajudante com diária, na ordem da tripulação. A parcela é a soma delas — o
+   * pagamento do ajudante (Contas) copia a linha dele daqui, e nada fora desta função multiplica diária × dias.
+   */
+  const crew = known.map((entry): TripHelperCostCrewLine => {
+    const rate = parseScaledDecimal({
+      errorCodePrefix: ERROR_CODE_PREFIX,
+      scale: MONEY_SCALE,
+      value: entry.rate ?? ZERO,
+    })
+    return {
+      dailyAmount: formatScaledDecimal(rate, MONEY_SCALE),
+      driverId: entry.helper.driverId,
+      rateOrigin: entry.helper.ownDailyRate === null ? 'company' : 'own',
+      subtotal: formatScaledDecimal(rate * BigInt(dayCount), MONEY_SCALE),
+    }
+  })
+  const total = crew.reduce(
+    (accumulated, line) =>
       accumulated +
       parseScaledDecimal({
         errorCodePrefix: ERROR_CODE_PREFIX,
         scale: MONEY_SCALE,
-        value: entry.rate ?? ZERO,
+        value: line.subtotal,
       }),
     0n,
   )
-  const total = perDay * BigInt(dayCount)
 
   return {
     amount: formatScaledDecimal(total, MONEY_SCALE),
+    basis: { crew, days: dayCount, of: 'helper' },
     detail: missingCount === 0 ? null : `${missingCount}/${resolved.length}`,
     gap: resolveGap({ includesReturn: input.journeyIncludesReturn, missingCount }),
     kind: 'helper',

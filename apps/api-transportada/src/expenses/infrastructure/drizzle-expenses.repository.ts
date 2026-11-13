@@ -24,6 +24,7 @@ import type {
   ExpenseOccurrenceListItem,
   ExpensesPorts,
 } from '../application/expense.port.js'
+import { resolveExpensePayeeProfile } from '../domain/expense-payee.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -306,6 +307,7 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
           .select({
             categoryId: companyExpenses.categoryId,
             categoryName: companyExpenseCategories.name,
+            driverCanDrive: fleetDrivers.canDrive,
             driverName: fleetDrivers.name,
             driverPaymentModel: fleetDrivers.paymentModel,
             expenseKind: companyExpenses.kind,
@@ -369,6 +371,13 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
                 : row.driverPaymentModel === 'route_table'
                   ? 'route_table'
                   : 'fixed',
+            payeeProfile:
+              row.driverCanDrive === null || row.driverPaymentModel === null
+                ? null
+                : resolveExpensePayeeProfile({
+                    canDrive: row.driverCanDrive,
+                    paymentModel: row.driverPaymentModel,
+                  }),
           }),
         )
       },
