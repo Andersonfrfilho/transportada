@@ -1,0 +1,322 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 325 T1.4: leitura exige `expenses.read`, escrita exige `expenses.manage` (uma não implica a outra — T1.3).
+ * `companyId` e o autor vêm só do contexto autenticado; conta ou ocorrência de outra empresa é 404.
+ */
+import { defineRoute } from '../../http/router.service.js'
+import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+import {
+  API_EXPENSE_CATEGORIES_PATH,
+  API_EXPENSE_OCCURRENCES_PATH,
+  API_EXPENSES_PATH,
+  JSON_CONTENT_TYPE,
+} from '../../shared/api.constant.js'
+import { formatFiscalDay } from '../../shared/fiscal-day.service.js'
+import type {
+  CompanyExpense,
+  CompanyExpenseCategory,
+  CompanyExpenseOccurrence,
+  ExpenseOccurrenceFilters,
+  ExpenseOccurrenceListItem,
+} from '../application/expense.port.js'
+import type {
+  CancelExpenseOccurrenceInput,
+  ListExpenseOccurrencesResult,
+  SettleExpenseOccurrenceInput,
+} from '../application/expense-occurrence.use-case.js'
+import type { CreateExpenseInput, UpdateExpenseInput } from '../application/expense.use-case.js'
+import {
+  parseCancelRequest,
+  type CreateExpenseBody,
+  parseCreateCategoryRequest,
+  parseCreateExpenseRequest,
+  parseOccurrenceFilters,
+  parseSetCategoryActiveRequest,
+  parseSettleRequest,
+  parseUpdateExpenseRequest,
+} from './expense.schema.js'
+
+const READ_POLICY = { permission: 'expenses.read', scope: 'company' } as const
+const MANAGE_POLICY = { permission: 'expenses.manage', scope: 'company' } as const
+const EXPENSE_PATH = `${API_EXPENSES_PATH}/:id`
+const CATEGORY_PATH = `${API_EXPENSE_CATEGORIES_PATH}/:id`
+const SETTLEMENT_PATH = `${API_EXPENSE_OCCURRENCES_PATH}/:id/settlement`
+const CANCELLATION_PATH = `${API_EXPENSE_OCCURRENCES_PATH}/:id/cancellation`
+const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE }
+
+type Dependencies = {
+  readonly cancelOccurrence: {
+    execute(input: CancelExpenseOccurrenceInput): Promise<CompanyExpenseOccurrence>
+  }
+  readonly createCategory: {
+    execute(input: {
+      readonly companyId: string
+      readonly correlationId: string
+      readonly createdBy: string
+      readonly name: string
+    }): Promise<CompanyExpenseCategory>
+  }
+  readonly createExpense: { execute(input: CreateExpenseInput): Promise<CompanyExpense> }
+  readonly listCategories: {
+    execute(input: { readonly companyId: string }): Promise<readonly CompanyExpenseCategory[]>
+  }
+  readonly listExpenses: {
+    execute(input: { readonly companyId: string }): Promise<readonly CompanyExpense[]>
+  }
+  readonly listOccurrences: {
+    execute(input: {
+      readonly companyId: string
+      readonly filters: ExpenseOccurrenceFilters
+    }): Promise<ListExpenseOccurrencesResult>
+  }
+  readonly now: () => Date
+  readonly setCategoryActive: {
+    execute(input: {
+      readonly active: boolean
+      readonly categoryId: string
+      readonly companyId: string
+      readonly correlationId: string
+      readonly updatedBy: string
+    }): Promise<CompanyExpenseCategory>
+  }
+  readonly settleOccurrence: {
+    execute(input: SettleExpenseOccurrenceInput): Promise<CompanyExpenseOccurrence>
+  }
+  readonly updateExpense: { execute(input: UpdateExpenseInput): Promise<CompanyExpense> }
+}
+
+type WithCorrelation<T> = T & { readonly correlationId: string }
+type WithId<T> = T & { readonly id: string }
+
+export function createExpenseRoutes(
+  dependencies: Dependencies,
+): readonly ReturnType<typeof defineRoute>[] {
+  return [
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const expenses = await dependencies.listExpenses.execute({
+          companyId: context.scope.companyId,
+        })
+        return jsonResponse({ data: expenses.map(serializeExpense) })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: API_EXPENSES_PATH,
+      policy: READ_POLICY,
+    }),
+    defineRoute<WithCorrelation<CreateExpenseBody>>({
+      async handle({ context, input }): Promise<Response> {
+        const { correlationId, ...body } = input
+        const created = await dependencies.createExpense.execute({
+          ...body,
+          companyId: context.scope.companyId,
+          correlationId,
+          createdBy: context.scope.userId,
+          today: formatFiscalDay(dependencies.now()),
+        })
+        return jsonResponse({ data: serializeExpense(created) }, 201)
+      },
+      method: 'POST',
+      parse: async ({ correlationId, request }) => ({
+        ...(await parseCreateExpenseRequest(request)),
+        correlationId,
+      }),
+      pathname: API_EXPENSES_PATH,
+      policy: MANAGE_POLICY,
+    }),
+    defineRoute<
+      WithId<WithCorrelation<Omit<UpdateExpenseInput, 'companyId' | 'expenseId' | 'updatedBy'>>>
+    >({
+      async handle({ context, input }): Promise<Response> {
+        const { id, ...changes } = input
+        const updated = await dependencies.updateExpense.execute({
+          ...changes,
+          companyId: context.scope.companyId,
+          expenseId: id,
+          updatedBy: context.scope.userId,
+        })
+        return jsonResponse({ data: serializeExpense(updated) })
+      },
+      method: 'PATCH',
+      parse: async ({ correlationId, pathParameters, request }) => ({
+        ...(await parseUpdateExpenseRequest(request)),
+        correlationId,
+        id: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: EXPENSE_PATH,
+      policy: MANAGE_POLICY,
+    }),
+    defineRoute<ExpenseOccurrenceFilters>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.listOccurrences.execute({
+          companyId: context.scope.companyId,
+          filters: input,
+        })
+        return jsonResponse({
+          data: result.items.map(serializeOccurrence),
+          totals: result.totals,
+        })
+      },
+      method: 'GET',
+      parse: ({ request }) => parseOccurrenceFilters(new URL(request.url)),
+      pathname: API_EXPENSE_OCCURRENCES_PATH,
+      policy: READ_POLICY,
+    }),
+    defineRoute<
+      WithId<
+        WithCorrelation<{
+          readonly paidAmount: string
+          readonly paidAt: string
+          readonly settlementNote: string | null
+        }>
+      >
+    >({
+      async handle({ context, input }): Promise<Response> {
+        const { id, ...body } = input
+        const paid = await dependencies.settleOccurrence.execute({
+          ...body,
+          companyId: context.scope.companyId,
+          occurrenceId: id,
+          settledBy: context.scope.userId,
+        })
+        return jsonResponse({ data: serializeBareOccurrence(paid) })
+      },
+      method: 'POST',
+      parse: async ({ correlationId, pathParameters, request }) => ({
+        ...(await parseSettleRequest(request)),
+        correlationId,
+        id: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: SETTLEMENT_PATH,
+      policy: MANAGE_POLICY,
+    }),
+    defineRoute<WithId<WithCorrelation<{ readonly reason: string }>>>({
+      async handle({ context, input }): Promise<Response> {
+        const canceled = await dependencies.cancelOccurrence.execute({
+          canceledBy: context.scope.userId,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          occurrenceId: input.id,
+          reason: input.reason,
+        })
+        return jsonResponse({ data: serializeBareOccurrence(canceled) })
+      },
+      method: 'POST',
+      parse: async ({ correlationId, pathParameters, request }) => ({
+        ...(await parseCancelRequest(request)),
+        correlationId,
+        id: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: CANCELLATION_PATH,
+      policy: MANAGE_POLICY,
+    }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const categories = await dependencies.listCategories.execute({
+          companyId: context.scope.companyId,
+        })
+        return jsonResponse({ data: categories.map(serializeCategory) })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: API_EXPENSE_CATEGORIES_PATH,
+      policy: READ_POLICY,
+    }),
+    defineRoute<WithCorrelation<{ readonly name: string }>>({
+      async handle({ context, input }): Promise<Response> {
+        const created = await dependencies.createCategory.execute({
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          createdBy: context.scope.userId,
+          name: input.name,
+        })
+        return jsonResponse({ data: serializeCategory(created) }, 201)
+      },
+      method: 'POST',
+      parse: async ({ correlationId, request }) => ({
+        ...(await parseCreateCategoryRequest(request)),
+        correlationId,
+      }),
+      pathname: API_EXPENSE_CATEGORIES_PATH,
+      policy: MANAGE_POLICY,
+    }),
+    defineRoute<WithId<WithCorrelation<{ readonly active: boolean }>>>({
+      async handle({ context, input }): Promise<Response> {
+        const updated = await dependencies.setCategoryActive.execute({
+          active: input.active,
+          categoryId: input.id,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          updatedBy: context.scope.userId,
+        })
+        return jsonResponse({ data: serializeCategory(updated) })
+      },
+      method: 'PATCH',
+      parse: async ({ correlationId, pathParameters, request }) => ({
+        ...(await parseSetCategoryActiveRequest(request)),
+        correlationId,
+        id: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: CATEGORY_PATH,
+      policy: MANAGE_POLICY,
+    }),
+  ]
+}
+
+function serializeExpense(expense: CompanyExpense): Record<string, unknown> {
+  return {
+    active: expense.active,
+    categoryId: expense.categoryId,
+    dueDay: expense.dueDay,
+    expectedAmount: expense.expectedAmount,
+    id: expense.id,
+    kind: expense.kind,
+    name: expense.name,
+    payeeDriverId: expense.payeeDriverId,
+    recurrence: expense.recurrence,
+    vehicleId: expense.vehicleId ?? null,
+  }
+}
+
+function serializeCategory(category: CompanyExpenseCategory): Record<string, unknown> {
+  return {
+    active: category.active,
+    id: category.id,
+    name: category.name,
+    requiresDriver: category.requiresDriver,
+  }
+}
+
+function serializeBareOccurrence(occurrence: CompanyExpenseOccurrence): Record<string, unknown> {
+  return {
+    competence: occurrence.competence,
+    dueDate: occurrence.dueDate,
+    expectedAmount: occurrence.expectedAmount,
+    expenseId: occurrence.expenseId,
+    id: occurrence.id,
+    paidAmount: occurrence.paidAmount,
+    paidAt: occurrence.paidAt,
+    paidBy: occurrence.paidBy,
+    settlementNote: occurrence.settlementNote,
+    slot: occurrence.slot ?? 1,
+    status: occurrence.status,
+  }
+}
+
+function serializeOccurrence(item: ExpenseOccurrenceListItem): Record<string, unknown> {
+  return {
+    ...serializeBareOccurrence(item),
+    categoryId: item.categoryId,
+    categoryName: item.categoryName,
+    expenseKind: item.expenseKind,
+    expenseName: item.expenseName,
+    payeeDriverId: item.payeeDriverId,
+    payeeDriverName: item.payeeDriverName,
+    payeeDriverPaymentModel: item.payeeDriverPaymentModel,
+  }
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { headers: NO_STORE_HEADERS, status })
+}

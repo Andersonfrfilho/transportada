@@ -25,7 +25,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [x] **T1.3** Permissões `expenses.read`/`expenses.manage` em `authorization.policy.ts` + papéis.
       Feita: as duas no catálogo, só no `company-admin`, concedíveis por grupo, sem herança de `trip.financials`/`billing.*`. Painel aceita as duas no `/auth/me` e a matriz de grupos as mostra no grupo "Contas". `permissions.contract.ts` saiu do entrypoint vermelho e roda por **`test/expenses.contract.test.ts`, já registrado no `package.json`**: a T1.4 só acrescenta os imports ali. Notas para a T1.4 em `evidence.md` § T1.3.
   > 🤖 Modelo: `opus` (decide quem acessa)
-- [ ] **T1.4** Casos de uso e rotas: contas, categorias, ocorrências, baixa, cancelamento, listagem com totais; auditoria.
+- [x] **T1.4** Casos de uso e rotas: contas, categorias, ocorrências, baixa, cancelamento, listagem com totais; auditoria.
+      Feita: casos de uso em `src/expenses/application/`, rotas em `presentation/expense.routes.ts` (`GET|POST /expenses`, `PATCH /expenses/:id`, `GET /expense-occurrences` com totais, `POST …/:id/settlement` e `…/cancellation`, `GET|POST|PATCH /expense-categories`), portas Drizzle em `infrastructure/`. Leitura `expenses.read`, escrita `expenses.manage`. Categorias semeadas no primeiro uso; `insertIfAbsent` recebe `slot`. Os 4 contratos vermelhos da T1.1 passaram para `test/expenses.contract.test.ts` e `red-entrypoint.ts` foi apagado. Notas e provas em `evidence.md` § T1.4. **Não inclui** a T1.4c (ajudante e chave `unique(trip_id, parcel_kind)`, PR #741): a porta de ocorrência não assume nada da viagem, então ela entra sem mexer aqui.
   > 🤖 Modelo: `sonnet`
 - [ ] **T1.4b** Viagens do pagamento: tabela `company_expense_occurrence_trips` (migration aditiva), listar viagens disponíveis do motorista no período, incluir/remover, total vira o previsto; contratos do CA05c.
   > 🤖 Modelo: `opus` (leitura cruzada com a parcela da viagem, sem somar de novo)

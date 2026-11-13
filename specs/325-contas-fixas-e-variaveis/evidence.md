@@ -79,3 +79,32 @@ bun test ./test/identity.contract.test.ts ./test/frontend-contract.test.ts ...  
   `expenses.read`; o `satisfies` reprova o typecheck se faltar.
 - **Publicação:** o painel recusa `/auth/me` com permissão que não conhece, por isso esta task levou API e painel no mesmo
   PR. Na promoção para a `main`, API e painel vão juntos (o painel antes, se forem separados).
+
+## T1.4 — Casos de uso, rotas e portas Drizzle (2026-11-13)
+
+**Contratos** (de dentro de `apps/api-transportada`): `bun --env-file=../../.env.test test ./test/expenses.contract.test.ts` → 38 pass / 0 fail
+(os 22 da T1.1 + os de `expense-management.contract.ts` e `expense-routes.contract.ts`). Lista completa `bun --env-file=../../.env.test run test`:
+15186 pass / 35 skip / 0 fail. `tsc --noEmit`, `eslint` e `prettier --check` limpos.
+**Integração** nova (`test/integration/expenses-repository.integration.ts`, na lista `test:integration`) contra Postgres 16 descartável: 4 pass
+(semente de empresa nova uma vez só, quinzenal com os dois `slot` sem duplicar, baixa única com 409 e 404 de outra empresa, trilha com `expenses.manage`).
+
+**Decisões**
+
+- **Categorias no primeiro uso:** `categories.ensureSeeded` roda em `GET /expense-categories` e em `POST /expense-categories`; só semeia a empresa que não tem
+  categoria nenhuma (`ON CONFLICT DO NOTHING` no unique de nome). Empresa existente já foi semeada pela migration.
+- **`slot`:** `insertIfAbsent` exige `slot` (1 em toda recorrência; quinzenal 1 = dia 15, 2 = último dia). A variável grava a competência do vencimento, `slot` 1.
+- **Recorrência:** a janela é o mês de `today` + 3. Bimestral/trimestral/anual contam a partir de `anchorCompetence` (mês de criação da conta, lido de `created_at`
+  em São Paulo); sem âncora vale o primeiro mês da janela. A geração (`generateOccurrencesForExpense`) é a mesma no cadastro e na rotina; **a rotina do
+  `cron-transportada` continua sendo a T1.5**, que só precisa chamar `createGenerateExpenseOccurrencesUseCase`.
+- **RF5/CA02:** `PATCH /expenses/:id` muda nome, valor, dia, veículo e `active`; nenhuma ocorrência é reescrita (contrato cobra).
+- **Baixa e cancelamento** são `UPDATE … WHERE status = 'open'`: a corrida perdida vira 409 e nunca sobrescreve. Baixa grava `paid_at` como meio-dia de São Paulo
+  (a data civil não escorrega de dia). `POST …/cancellation` exige motivo (RF6).
+- **Totais** (`totals` da lista): previsto soma as não canceladas, pago soma as baixadas, mais `paidByDriver` (RF1c); soma em centavos (`bigint`), nunca float.
+  O destaque de "vencida" fica para o painel (compara `dueDate` com hoje).
+- **Auditoria (RF9):** `audit_logs` com `permission = 'expenses.manage'` (`expense.created`, `expense.updated`, `expense.occurrence.settled|canceled`,
+  `expense.category.created|activated|deactivated`), metadados sem dado pessoal.
+- **Isolamento (CA04):** todo repositório filtra por `company_id`; conta, ocorrência ou categoria de outra empresa responde 404; `companyId` e autor vêm só do contexto
+  e o corpo é `.strict()` (um `companyId` no payload é 400).
+
+**Para a T1.4b/T1.4c:** o `ExpenseOccurrenceListItem` já devolve `payeeDriverId`/nome/modelo; a tabela de viagens do pagamento entra ao lado sem mexer na chave
+`(expense, competence, slot)`. Dúvida deixada em aberto: a leitura aceita só `expenses.read` (sem "qualquer uma de"), conforme CA03.

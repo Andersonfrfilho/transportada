@@ -1,7 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 325 (Contas). Entra aqui só o que já está verde; o resto segue em `test/expenses/red-entrypoint.ts` até a T1.4
- * implementar os casos de uso (aí os imports vêm para cá e o entrypoint vermelho some).
+ * Spec 325 (Contas): entrypoint dos contratos do módulo.
  */
 import './expenses/permissions.contract.js'
+import './expenses/due-date.contract.js'
+import './expenses/create-expense.contract.js'
+import './expenses/settle-occurrence.contract.js'
+import './expenses/generate-occurrences.contract.js'
+import './expenses/expense-management.contract.js'
+import './expenses/expense-routes.contract.js'
