@@ -12,6 +12,7 @@ import type {
 import type { ExpenseOccurrenceStatus } from './expense.port.js'
 
 export type ResultOccurrence = {
+  readonly categoryId: string
   readonly costGroup: ExpenseCostGroup
   readonly expectedAmount: string
   readonly expenseId: string
@@ -58,5 +59,38 @@ export type ExpenseAllocationSettingsPorts = {
       settings: Partial<Record<AllocatableCostGroup, AllocationCriterion>>
       updatedBy: string
     }): Promise<Partial<Record<AllocatableCostGroup, AllocationCriterion>>>
+  }
+}
+
+/** Nomes que a exportação mostra no lugar dos ids (T4.6). Só leitura, sempre por empresa. */
+export type ExpenseExportLabels = {
+  readonly categoryName: string | null
+  readonly companyName: string
+  readonly customers: ReadonlyMap<string, string>
+  readonly payeeName: string | null
+  readonly vehicles: ReadonlyMap<string, string>
+}
+
+export type ExpenseExportPorts = {
+  readonly exportAudit: {
+    /** Exportar é ler dado financeiro da empresa e sair com ele: fica no diário (010). */
+    record(input: {
+      readonly companyId: string
+      readonly correlationId: string
+      readonly filters: Readonly<Record<string, string>>
+      readonly format: 'csv' | 'pdf'
+      readonly from: string
+      readonly to: string
+      readonly userId: string
+    }): Promise<void>
+  }
+  readonly exportLabels: {
+    read(input: {
+      readonly categoryId?: string
+      readonly companyId: string
+      readonly customerIds: readonly string[]
+      readonly payeeDriverId?: string
+      readonly vehicleIds: readonly string[]
+    }): Promise<ExpenseExportLabels>
   }
 }

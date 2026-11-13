@@ -88,6 +88,7 @@ export function anOccurrence(
   overrides: Partial<ResultOccurrenceRow> & { readonly occurrenceId: string },
 ): ResultOccurrenceRow {
   return {
+    categoryId: 'category-default',
     companyId: RESULT_COMPANY_A,
     costGroup: 'administrative',
     expectedAmount: '100.00',

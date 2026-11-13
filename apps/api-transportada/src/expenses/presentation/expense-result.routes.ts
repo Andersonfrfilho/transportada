@@ -14,11 +14,22 @@ import { defineRoute } from '../../http/router.service.js'
 import { invalidRequest, parseBody } from '../../http/request-parsing.service.js'
 import {
   API_EXPENSE_ALLOCATION_SETTINGS_PATH,
+  API_EXPENSE_RESULT_EXPORT_PATH,
   API_EXPENSE_RESULT_PATH,
   API_EXPENSE_UNIT_COSTS_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
+import type {
+  ExportedExpenseResult,
+  ExportExpenseResultInput,
+} from '../application/expense-result-export.use-case.js'
 import type { ExpenseResult, ExpenseResultInput } from '../application/expense-result.use-case.js'
+import {
+  EXPENSE_RESULT_FILTER_KEYS,
+  NO_CUSTOMER_ID,
+  NO_VEHICLE_ID,
+  type ExpenseResultFilters,
+} from '../domain/expense-result-filters.policy.js'
 import type {
   AllocatableCostGroup,
   AllocationCriterion,
@@ -36,6 +47,7 @@ type SettingsMap = Readonly<Record<AllocatableCostGroup, AllocationCriterion>>
 type WithCorrelation<T> = T & { readonly correlationId: string }
 
 export type ExpenseResultRoutesDependencies = {
+  readonly exportResult: UseCase<ExportExpenseResultInput, ExportedExpenseResult>
   readonly getResult: UseCase<ExpenseResultInput, ExpenseResult>
   readonly getSettings: UseCase<{ companyId: string }, SettingsMap>
   readonly getUnitCosts: UseCase<ExpenseResultInput, unknown>
@@ -71,9 +83,14 @@ const settingsSchema = z
  * `?from=yyyy-mm-dd&to=yyyy-mm-dd`, os dois obrigatórios, até 366 dias; chave desconhecida é 400. Um `companyId` na query
  * é aceito e ignorado (CA10): a empresa é a do contexto autenticado, nunca a do cliente.
  */
-function parsePeriod(url: URL): { readonly from: string; readonly to: string } {
+function parsePeriod(
+  url: URL,
+  extraKeys: readonly string[] = [],
+): { readonly from: string; readonly to: string } {
   for (const key of url.searchParams.keys()) {
-    if (key !== 'from' && key !== 'to' && key !== 'companyId') throw invalidRequest()
+    if (key !== 'from' && key !== 'to' && key !== 'companyId' && !extraKeys.includes(key)) {
+      throw invalidRequest()
+    }
   }
   const from = url.searchParams.get('from')
   const to = url.searchParams.get('to')
@@ -85,22 +102,92 @@ function parsePeriod(url: URL): { readonly from: string; readonly to: string } {
   return { from, to }
 }
 
+const UUID = z.string().uuid()
+const FILTER_SCHEMAS: Record<(typeof EXPENSE_RESULT_FILTER_KEYS)[number], z.ZodType<string>> = {
+  categoryId: UUID,
+  customerId: z.union([UUID, z.literal(NO_CUSTOMER_ID)]),
+  payeeDriverId: UUID,
+  vehicleId: z.union([UUID, z.literal(NO_VEHICLE_ID)]),
+}
+
+/** Filtros do painel (RF18): chave desconhecida ou valor que não é id é 400; vazio é "sem filtro". */
+function parseFilters(url: URL): ExpenseResultFilters {
+  const filters: Record<string, string> = {}
+  for (const key of EXPENSE_RESULT_FILTER_KEYS) {
+    const value = url.searchParams.get(key)
+    if (value === null || value === '') continue
+    if (!FILTER_SCHEMAS[key].safeParse(value).success) throw invalidRequest()
+    filters[key] = value
+  }
+  return filters
+}
+
+const FILTER_QUERY_KEYS: readonly string[] = [...EXPENSE_RESULT_FILTER_KEYS]
+
 export function createExpenseResultRoutes(
   dependencies: ExpenseResultRoutesDependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
   const now = dependencies.now ?? ((): Date => new Date())
   return [
-    defineRoute<{ readonly from: string; readonly to: string }>({
+    defineRoute<{
+      readonly filters: ExpenseResultFilters
+      readonly from: string
+      readonly to: string
+    }>({
       async handle({ context, input }): Promise<Response> {
+        const { filters, ...period } = input
         const data = await dependencies.getResult.execute({
           companyId: context.scope.companyId,
-          ...input,
+          ...(Object.keys(filters).length === 0 ? {} : { filters }),
+          ...period,
         })
         return jsonResponse({ calculatedAt: now().toISOString(), data })
       },
       method: 'GET',
-      parse: ({ request }) => parsePeriod(new URL(request.url)),
+      parse: ({ request }) => {
+        const url = new URL(request.url)
+        return { ...parsePeriod(url, FILTER_QUERY_KEYS), filters: parseFilters(url) }
+      },
       pathname: API_EXPENSE_RESULT_PATH,
+      policy: READ_POLICY,
+    }),
+    defineRoute<{
+      readonly correlationId: string
+      readonly filters: ExpenseResultFilters
+      readonly format: 'csv' | 'pdf'
+      readonly from: string
+      readonly to: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const { filters, ...rest } = input
+        const exported = await dependencies.exportResult.execute({
+          companyId: context.scope.companyId,
+          ...(Object.keys(filters).length === 0 ? {} : { filters }),
+          userId: context.scope.userId,
+          ...rest,
+        })
+        return new Response(exported.body, {
+          headers: {
+            'cache-control': 'no-store',
+            'content-disposition': `attachment; filename="${exported.fileName}"`,
+            'content-type': exported.contentType,
+          },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ correlationId, request }) => {
+        const url = new URL(request.url)
+        const format = url.searchParams.get('format')
+        if (format !== 'csv' && format !== 'pdf') throw invalidRequest()
+        return {
+          correlationId,
+          ...parsePeriod(url, [...FILTER_QUERY_KEYS, 'format']),
+          filters: parseFilters(url),
+          format,
+        }
+      },
+      pathname: API_EXPENSE_RESULT_EXPORT_PATH,
       policy: READ_POLICY,
     }),
     defineRoute<{ readonly from: string; readonly to: string }>({

@@ -22,7 +22,12 @@ import {
   createListExpenseCategoriesUseCase,
 } from '../../src/expenses/application/expense.use-case.js'
 import { createDrizzleExpensesPorts } from '../../src/expenses/infrastructure/drizzle-expenses.repository.js'
-import { createDrizzleExpenseResultPorts } from '../../src/expenses/infrastructure/drizzle-expense-result.repository.js'
+import { createExportExpenseResultUseCase } from '../../src/expenses/application/expense-result-export.use-case.js'
+import { renderExpenseResultPdf } from '../../src/expenses/infrastructure/expense-result-pdf.gateway.js'
+import {
+  createDrizzleExpenseExportPorts,
+  createDrizzleExpenseResultPorts,
+} from '../../src/expenses/infrastructure/drizzle-expense-result.repository.js'
 import { NO_VEHICLE_ID } from '../../src/expenses/infrastructure/allocation-trip.query.js'
 import { DrizzleApplicableFreightRuleQuery } from '../../src/freight/infrastructure/drizzle-freight.repository.js'
 import { DrizzleTripValuationQuery } from '../../src/trips/infrastructure/trip-valuation.query.js'
@@ -328,5 +333,58 @@ describeDatabase('resultado do mês e rateio no banco (spec 325 T4.5)', () => {
       where company_id = ${companyA} and action = 'expense_allocation_settings.update'
     `)
     expect(Number((audits as unknown as { total: number }[])[0]?.total)).toBe(2)
+  })
+  test('T4.6: a exportação sai do mesmo cálculo, com os nomes da empresa, e fica no diário', async () => {
+    if (database === undefined) throw new Error('database')
+    const resultPorts = ports()
+    const exporter = createExportExpenseResultUseCase({
+      ports: { ...resultPorts, ...createDrizzleExpenseExportPorts(database.db) },
+      renderPdf: renderExpenseResultPdf,
+    })
+    const period = { from: '2026-11-01', to: '2026-11-30' }
+    const screen = await createGetExpenseResultUseCase(resultPorts).execute({
+      companyId: companyA,
+      ...period,
+    })
+
+    const csv = (
+      await exporter.execute({
+        companyId: companyA,
+        correlationId: crypto.randomUUID(),
+        format: 'csv',
+        userId,
+        ...period,
+      })
+    ).body as string
+    const pdf = await exporter.execute({
+      companyId: companyA,
+      correlationId: crypto.randomUUID(),
+      filters: { vehicleId },
+      format: 'pdf',
+      userId,
+      ...period,
+    })
+
+    expect(csv).toContain('ABC1D23')
+    expect(csv).toContain(`\r\nResultado;${screen.totals.profit.replace('.', ',')}\r\n`)
+    expect(new TextDecoder().decode((pdf.body as Uint8Array).slice(0, 5))).toBe('%PDF-')
+    const audits = await database.db.execute(sql`
+      select metadata from audit_logs
+      where company_id = ${companyA} and action = 'expense_result.export' order by created_at
+    `)
+    const rows = audits as unknown as {
+      metadata: { filters: Record<string, string>; format: string }
+    }[]
+    expect(rows.map((row) => row.metadata.format)).toEqual(['csv', 'pdf'])
+    expect(rows[1]?.metadata.filters).toEqual({ vehicleId })
+    // O nome do veículo de outra empresa nunca vaza: a empresa B não tem veículo nem registro de exportação.
+    const other = await exporter.execute({
+      companyId: companyB,
+      correlationId: crypto.randomUUID(),
+      format: 'csv',
+      userId,
+      ...period,
+    })
+    expect(other.body as string).not.toContain('ABC1D23')
   })
 })
