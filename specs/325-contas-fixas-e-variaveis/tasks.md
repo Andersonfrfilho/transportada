@@ -19,7 +19,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
       Feita: 22 contratos em `apps/api-transportada/test/expenses/` (entrypoint `test/expenses/red-entrypoint.ts`), todos vermelhos; `tsc` e `eslint` limpos.
       ⚠️ **Fora da lista `test` do `package.json` de propósito**, para o CI de staging não ficar vermelho: **a T1.4 (e a T1.3, para `permissions.contract.ts`) move o entrypoint para `test/expenses.contract.test.ts` e o registra na lista (o guard `test-registry` só vê `test/*.contract.test.ts`, por isso o parking em `test/expenses/`)** quando o contrato ficar verde. Esqueleto em `src/expenses/` (portas, erros, casos de uso que lançam "not implemented").
   > 🤖 Modelo: `sonnet`
-- [ ] **T1.2** Schema (inclui `payee_driver_id`) + migration aditiva + rollback; categorias semeadas (`make migration-test`).
+- [x] **T1.2** Schema (inclui `payee_driver_id`) + migration aditiva + rollback; categorias semeadas (`make migration-test`).
+      Feita: `company_expense_categories`, `company_expenses` (com `payee_driver_id` e `vehicle_id` opcionais, recorrência `fortnightly`) e `company_expense_occurrences`, migration `20261113175316_company_expenses` + rollback (recusa com conta/ocorrência gravada). **Chave da ocorrência: `unique(expense_id, competence, slot)`**, `slot` 1/2 (quinzenal: dia 15 = 1, último dia = 2; as demais usam 1). Semente das 8 categorias para as empresas existentes; **empresa nova precisa da semente na T1.4** (garantir categorias ao primeiro uso). O `insertIfAbsent` da T1.4 passa a receber `slot`.
   > 🤖 Modelo: `sonnet`
 - [ ] **T1.3** Permissões `expenses.read`/`expenses.manage` em `authorization.policy.ts` + papéis.
   > 🤖 Modelo: `opus` (decide quem acessa)

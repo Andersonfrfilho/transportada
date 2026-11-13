@@ -5,7 +5,7 @@
  * A T1.2 (schema) e a T1.4 (Drizzle) implementam; dinheiro é `numeric` em string, nunca float.
  */
 export type ExpenseKind = 'fixed' | 'variable'
-export type ExpenseRecurrence = 'monthly' | 'bimonthly' | 'quarterly' | 'yearly'
+export type ExpenseRecurrence = 'monthly' | 'bimonthly' | 'quarterly' | 'yearly' | 'fortnightly'
 export type ExpenseOccurrenceStatus = 'open' | 'paid' | 'canceled'
 
 export type CompanyExpenseCategory = {
@@ -32,6 +32,8 @@ export type CompanyExpense = {
   readonly name: string
   readonly payeeDriverId: string | null
   readonly recurrence: ExpenseRecurrence | null
+  /** Dúvida 2: veículo opcional (`fleet_vehicles`), sem rateio. */
+  readonly vehicleId?: string | null
 }
 
 export type CompanyExpenseOccurrence = {
