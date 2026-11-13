@@ -244,3 +244,15 @@
   overflow-wrap: anywhere;
   -webkit-line-clamp: 4;
 }
+
+/*
+ * O pacote pinta o tema escuro dele sob `.dark .adn-settings` (especificidade 0,2,0), que mistura o
+ * acento com azul-noite fixo. O painel mantém `dark` em `<html>` nos dois temas, então no claro as pílulas
+ * (canal, "Tabela" ativa) saíam em marrom-escuro. A classe dobrada sobe a especificidade para 0,2,0 e,
+ * vindo depois na folha, o tema do painel vence nos dois temas.
+ */
+.notificationTheme.notificationTheme {
+  --adn-color-accent-line: color-mix(in srgb, var(--color-copper) 45%, transparent);
+  --adn-color-accent-soft: color-mix(in srgb, var(--color-copper) 14%, transparent);
+  --adn-color-faint: color-mix(in srgb, var(--color-slate) 55%, transparent);
+}
