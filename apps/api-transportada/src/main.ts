@@ -111,6 +111,14 @@ import {
 import { createDrizzleExpenseOccurrenceTripPorts } from './expenses/infrastructure/drizzle-expense-occurrence-trips.repository.js'
 import { createTripPersonParcelReader } from './expenses/infrastructure/trip-person-parcel.gateway.js'
 import { createExpenseRoutes } from './expenses/presentation/expense.routes.js'
+import { createExpenseResultRoutes } from './expenses/presentation/expense-result.routes.js'
+import {
+  createGetExpenseAllocationSettingsUseCase,
+  createGetExpenseResultUseCase,
+  createGetExpenseUnitCostsUseCase,
+  createUpdateExpenseAllocationSettingsUseCase,
+} from './expenses/application/expense-result.use-case.js'
+import { createDrizzleExpenseResultPorts } from './expenses/infrastructure/drizzle-expense-result.repository.js'
 import {
   createCreateCompanyEntryKindUseCase,
   createDeactivateCompanyEntryKindUseCase,
@@ -3658,6 +3666,11 @@ function createApplicationRoutes({
       readValuationContexts: (query) => tripValuationQuery.readValuationContexts(query),
     }),
   })
+  /** Spec 325 T4.5: o resultado e o rateio leem a mesma valoração em lote da lista de viagens (259). */
+  const expenseResultPorts = createDrizzleExpenseResultPorts(database, {
+    findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+    readValuationContexts: (query) => tripValuationQuery.readValuationContexts(query),
+  })
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database,
     resolveStorageBucket(environment),
@@ -4641,6 +4654,12 @@ function createApplicationRoutes({
       setCategoryActive: createSetExpenseCategoryActiveUseCase(expensesPorts),
       settleOccurrence: createSettleExpenseOccurrenceUseCase(expensesPorts),
       updateExpense: createUpdateExpenseUseCase(expensesPorts),
+    }),
+    ...createExpenseResultRoutes({
+      getResult: createGetExpenseResultUseCase(expenseResultPorts),
+      getSettings: createGetExpenseAllocationSettingsUseCase(expenseResultPorts),
+      getUnitCosts: createGetExpenseUnitCostsUseCase(expenseResultPorts),
+      updateSettings: createUpdateExpenseAllocationSettingsUseCase(expenseResultPorts),
     }),
     ...createCompanyEntryKindRoutes({
       create: createCreateCompanyEntryKindUseCase({ entryKinds: companyEntryKindRepository }),

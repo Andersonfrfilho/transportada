@@ -51,6 +51,7 @@ type OccurrenceRow = typeof companyExpenseOccurrences.$inferSelect
 function toCategory(row: CategoryRow): CompanyExpenseCategory {
   return {
     active: row.active,
+    costGroup: toCostGroup(row.costGroup),
     id: row.id,
     name: row.name,
     requiresDriver: row.requiresDriver,
@@ -405,4 +406,11 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
       },
     },
   }
+}
+
+/** O CHECK do banco só deixa os quatro grupos; qualquer outro valor é defeito e vira o padrão da categoria nova. */
+export function toCostGroup(value: string): NonNullable<CompanyExpenseCategory['costGroup']> {
+  return value === 'vehicle_fixed' || value === 'per_km' || value === 'in_trip'
+    ? value
+    : 'administrative'
 }

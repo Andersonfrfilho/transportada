@@ -31,7 +31,7 @@ const completedAtSql = sql<Date>`coalesce(
       and ${tripStatusEvents.toStatus} = 'completed'),
   ${trips.closedAt},
   ${trips.updatedAt})`
-const completedOnSql = sql<string>`to_char((${completedAtSql} at time zone ${SAO_PAULO})::date, 'YYYY-MM-DD')`
+export const completedOnSql = sql<string>`to_char((${completedAtSql} at time zone ${SAO_PAULO})::date, 'YYYY-MM-DD')`
 
 function toRole(role: string): ExpenseTripParcelKind {
   return role === 'helper' ? 'helper' : 'driver'

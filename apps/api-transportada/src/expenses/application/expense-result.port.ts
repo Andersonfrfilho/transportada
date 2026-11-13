@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 325 T4.2 (esqueleto; a T4.5 implementa com Drizzle): o que o resultado do mês lê (ADR-0116 §4). Nada é gravado.
+ * Spec 325 T4.2 (portas; a T4.5 as implementa com Drizzle): o que o resultado do mês lê (ADR-0116 §4). Nada é gravado.
  */
 import type {
   AllocatableCostGroup,
@@ -46,5 +46,17 @@ export type ExpenseResultPorts = {
       from: string
       to: string
     }): Promise<readonly AllocationTrip[]>
+  }
+}
+
+/** Configuração do critério de rateio da empresa (RF11, RF16). Só a leitura entra no cálculo; a troca é auditada. */
+export type ExpenseAllocationSettingsPorts = {
+  readonly allocationSettings: ExpenseResultPorts['allocationSettings'] & {
+    save(input: {
+      companyId: string
+      correlationId: string
+      settings: Partial<Record<AllocatableCostGroup, AllocationCriterion>>
+      updatedBy: string
+    }): Promise<Partial<Record<AllocatableCostGroup, AllocationCriterion>>>
   }
 }

@@ -384,6 +384,7 @@ function serializeExpense(expense: CompanyExpense): Record<string, unknown> {
 function serializeCategory(category: CompanyExpenseCategory): Record<string, unknown> {
   return {
     active: category.active,
+    ...(category.costGroup === undefined ? {} : { costGroup: category.costGroup }),
     id: category.id,
     name: category.name,
     requiresDriver: category.requiresDriver,
