@@ -16,6 +16,7 @@ import {
  * 2026-10-01). O painel não importa código da API; mudou o papel lá, esta tabela muda aqui.
  */
 const COMPANY_ADMIN_PERMISSIONS = [
+  'expenses.read',
   'users.manage',
   'users.reveal',
   'groups.manage',
@@ -188,7 +189,7 @@ describe('o menu filtra por permissão — separator (CA01, CA04)', () => {
 describe('o menu filtra por permissão — company-admin (CA02)', () => {
   test('nenhum dos 19 itens de antes desaparece, e o Recebimento (spec 237) entra', () => {
     expect([...flatKeysOf(COMPANY_ADMIN_PERMISSIONS)].sort()).toEqual(
-      [...MENU_BEFORE_SPEC_221, 'cargo-receiving'].sort(),
+      [...MENU_BEFORE_SPEC_221, 'cargo-receiving', 'expenses'].sort(),
     )
   })
 

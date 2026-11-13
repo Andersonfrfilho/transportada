@@ -16,7 +16,8 @@
   "status": {
     "open": "Em aberto",
     "paid": "Paga",
-    "canceled": "Cancelada"
+    "canceled": "Cancelada",
+    "overdue": "Vencida"
   },
   "payee": {
     "driver": "Motorista",
@@ -31,7 +32,9 @@
     "expected": "Previsto",
     "paid": "Pago",
     "count": "Contas",
-    "paidByDriver": "Pago por motorista, agregado ou ajudante"
+    "paidByDriver": "Pago por motorista, agregado ou ajudante",
+    "open": "Em aberto",
+    "overdue": "Vencidas"
   },
   "gap": {
     "NO_PLANNED_DURATION": "Sem duração prevista na viagem",
@@ -51,5 +54,106 @@
     "EXPENSE_OCCURRENCE_TRIP_NOT_FOUND": "Esta viagem não está neste pagamento.",
     "EXPENSE_OCCURRENCE_ALREADY_PAID": "Esta conta já foi paga.",
     "EXPENSE_OCCURRENCE_CANCELED": "Esta conta foi cancelada."
+  },
+  "loading": "Carregando as contas…",
+  "filters": {
+    "title": "Filtros",
+    "month": "Mês",
+    "kind": "Tipo",
+    "category": "Categoria",
+    "status": "Estado",
+    "payee": "Motorista, agregado ou ajudante",
+    "all": "Todos",
+    "allFeminine": "Todas"
+  },
+  "list": {
+    "title": "Contas do mês",
+    "new": "Nova conta",
+    "empty": "Nenhuma conta neste mês com esses filtros.",
+    "account": "Conta",
+    "kind": "Tipo",
+    "category": "Categoria",
+    "due": "Vencimento",
+    "expected": "Previsto",
+    "paid": "Pago",
+    "status": "Estado",
+    "actions": "Ações",
+    "trips": "Viagens",
+    "settle": "Dar baixa"
+  },
+  "calendar": {
+    "chooseYear": "Escolher o ano",
+    "clear": "Limpar",
+    "nextMonth": "Próximo mês",
+    "open": "Abrir o calendário",
+    "placeholder": "dd/mm/aaaa",
+    "previousMonth": "Mês anterior"
+  },
+  "dialog": {
+    "close": "Fechar",
+    "cancel": "Cancelar"
+  },
+  "create": {
+    "title": "Nova conta",
+    "name": "Nome",
+    "kind": "Tipo",
+    "kindOption": {
+      "fixed": "Fixa (recorrente)",
+      "variable": "Variável (avulsa)"
+    },
+    "category": "Categoria",
+    "categoryPlaceholder": "Escolha a categoria",
+    "amount": "Valor previsto",
+    "amountPlaceholder": "0,00",
+    "payee": "Motorista, agregado ou ajudante",
+    "payeePlaceholder": "Escolha a pessoa",
+    "recurrence": "Recorrência",
+    "dueDay": "Dia do vencimento",
+    "fortnightlyHint": "Quinzenal vence no dia 15 e no último dia do mês.",
+    "dueDate": "Vencimento",
+    "vehicle": "Veículo (opcional)",
+    "vehiclePlaceholder": "Nenhum",
+    "save": "Salvar conta",
+    "saving": "Salvando…",
+    "issues": "Confira: {{fields}}.",
+    "issue": {
+      "name": "nome",
+      "category": "categoria",
+      "amount": "valor previsto",
+      "payee": "motorista, agregado ou ajudante",
+      "dueDate": "vencimento",
+      "dueDay": "dia do vencimento (1 a 31)"
+    }
+  },
+  "settle": {
+    "title": "Dar baixa",
+    "summary": "{{name}} · vencimento {{due}} · previsto {{amount}}",
+    "amount": "Valor pago",
+    "paidAt": "Data do pagamento",
+    "note": "Observação",
+    "notePlaceholder": "Opcional",
+    "confirm": "Confirmar baixa",
+    "sending": "Registrando…"
+  },
+  "trips": {
+    "title": "Viagens do pagamento",
+    "summary": "{{name}}{{payee}}. Só viagens concluídas ainda não pagas.",
+    "trip": "Viagem",
+    "tripNumber": "Viagem {{id}}",
+    "completedOn": "Concluída",
+    "dailyTimesDays": "Diária × dias",
+    "dailyTimesDaysValue_one": "{{daily}} × {{count}} dia",
+    "dailyTimesDaysValue_other": "{{daily}} × {{count}} dias",
+    "amount": "Valor",
+    "actions": "Ações",
+    "total": "Total do pagamento",
+    "empty": "Nenhuma viagem incluída neste pagamento. O valor previsto é o da conta.",
+    "add": "Adicionar viagens",
+    "hideAvailable": "Ocultar viagens disponíveis",
+    "availableTitle": "Viagens disponíveis",
+    "availableEmpty": "Nenhuma viagem concluída disponível no período.",
+    "include": "Incluir",
+    "remove": "Remover",
+    "pendingTrip": "Viagem {{id}} fica de fora: {{gap}}."
   }
 }

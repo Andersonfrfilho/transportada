@@ -113,6 +113,7 @@ function resolveOpenGroups(
       'trip',
       'mdfe-manifest',
       'billing',
+      'expenses',
       'nfse-invoice',
     ].includes(workspace),
     operations: ['operations', 'trip-occurrences', 'cargo-receiving', 'driver-trip'].includes(
@@ -149,6 +150,7 @@ function resolveWorkspaceFromPath(): WorkspaceNavigationItem['key'] | undefined 
   if (window.location.pathname === '/repasses') return 'extra-charges'
   if (window.location.pathname === '/ressarcimentos') return 'reimbursements'
   if (window.location.pathname === '/resultados') return 'trip-financials'
+  if (window.location.pathname === '/contas') return 'expenses'
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/pendencias') return 'pendencias'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
@@ -186,6 +188,7 @@ function resolveCurrentWorkspaceWithSource(): Readonly<{
     storedWorkspace === 'extra-charges' ||
     storedWorkspace === 'reimbursements' ||
     storedWorkspace === 'trip-financials' ||
+    storedWorkspace === 'expenses' ||
     storedWorkspace === 'fleet' ||
     storedWorkspace === 'mdfe-manifest' ||
     storedWorkspace === 'nfse-invoice' ||
@@ -297,6 +300,9 @@ const OperationsDashboardPage = lazy(async () => ({
   default: (await import('@/modules/operations/pages/OperationsDashboard.page'))
     .OperationsDashboardPage,
 }))
+const ExpensesWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/expenses/pages/ExpensesWorkspace.page')).ExpensesWorkspacePage,
+}))
 const PendingItemsWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/pending-items/pages/PendingItemsWorkspace.page'))
     .PendingItemsWorkspacePage,
@@ -350,6 +356,8 @@ function resolvePage(
       return <OccurrenceReimbursementsWorkspacePage />
     case 'trip-financials':
       return <FinancialResultsWorkspacePage />
+    case 'expenses':
+      return <ExpensesWorkspacePage />
     case 'fleet':
       return <FleetWorkspacePage />
     case 'mdfe-manifest':

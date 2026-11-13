@@ -16,7 +16,8 @@
   "status": {
     "open": "Open",
     "paid": "Paid",
-    "canceled": "Canceled"
+    "canceled": "Canceled",
+    "overdue": "Overdue"
   },
   "payee": {
     "driver": "Driver",
@@ -31,7 +32,9 @@
     "expected": "Expected",
     "paid": "Paid",
     "count": "Bills",
-    "paidByDriver": "Paid per driver, contractor or helper"
+    "paidByDriver": "Paid per driver, contractor or helper",
+    "open": "Open",
+    "overdue": "Overdue"
   },
   "gap": {
     "NO_PLANNED_DURATION": "Trip has no planned duration",
@@ -51,5 +54,106 @@
     "EXPENSE_OCCURRENCE_TRIP_NOT_FOUND": "This trip is not in this payment.",
     "EXPENSE_OCCURRENCE_ALREADY_PAID": "This bill is already paid.",
     "EXPENSE_OCCURRENCE_CANCELED": "This bill was canceled."
+  },
+  "loading": "Loading bills…",
+  "filters": {
+    "title": "Filters",
+    "month": "Month",
+    "kind": "Type",
+    "category": "Category",
+    "status": "Status",
+    "payee": "Driver, contractor or helper",
+    "all": "All",
+    "allFeminine": "All"
+  },
+  "list": {
+    "title": "Bills of the month",
+    "new": "New bill",
+    "empty": "No bills this month with these filters.",
+    "account": "Bill",
+    "kind": "Type",
+    "category": "Category",
+    "due": "Due date",
+    "expected": "Expected",
+    "paid": "Paid",
+    "status": "Status",
+    "actions": "Actions",
+    "trips": "Trips",
+    "settle": "Settle"
+  },
+  "calendar": {
+    "chooseYear": "Choose the year",
+    "clear": "Clear",
+    "nextMonth": "Next month",
+    "open": "Open the calendar",
+    "placeholder": "dd/mm/yyyy",
+    "previousMonth": "Previous month"
+  },
+  "dialog": {
+    "close": "Close",
+    "cancel": "Cancel"
+  },
+  "create": {
+    "title": "New bill",
+    "name": "Name",
+    "kind": "Type",
+    "kindOption": {
+      "fixed": "Fixed (recurring)",
+      "variable": "Variable (one-off)"
+    },
+    "category": "Category",
+    "categoryPlaceholder": "Choose the category",
+    "amount": "Expected amount",
+    "amountPlaceholder": "0.00",
+    "payee": "Driver, contractor or helper",
+    "payeePlaceholder": "Choose the person",
+    "recurrence": "Recurrence",
+    "dueDay": "Due day",
+    "fortnightlyHint": "Fortnightly is due on the 15th and on the last day of the month.",
+    "dueDate": "Due date",
+    "vehicle": "Vehicle (optional)",
+    "vehiclePlaceholder": "None",
+    "save": "Save bill",
+    "saving": "Saving…",
+    "issues": "Check: {{fields}}.",
+    "issue": {
+      "name": "name",
+      "category": "category",
+      "amount": "expected amount",
+      "payee": "driver, contractor or helper",
+      "dueDate": "due date",
+      "dueDay": "due day (1 to 31)"
+    }
+  },
+  "settle": {
+    "title": "Settle",
+    "summary": "{{name}} · due {{due}} · expected {{amount}}",
+    "amount": "Amount paid",
+    "paidAt": "Payment date",
+    "note": "Note",
+    "notePlaceholder": "Optional",
+    "confirm": "Confirm payment",
+    "sending": "Saving…"
+  },
+  "trips": {
+    "title": "Trips of the payment",
+    "summary": "{{name}}{{payee}}. Only completed trips not paid yet.",
+    "trip": "Trip",
+    "tripNumber": "Trip {{id}}",
+    "completedOn": "Completed",
+    "dailyTimesDays": "Daily rate × days",
+    "dailyTimesDaysValue_one": "{{daily}} × {{count}} day",
+    "dailyTimesDaysValue_other": "{{daily}} × {{count}} days",
+    "amount": "Amount",
+    "actions": "Actions",
+    "total": "Payment total",
+    "empty": "No trip included in this payment. The expected amount is the bill's.",
+    "add": "Add trips",
+    "hideAvailable": "Hide available trips",
+    "availableTitle": "Available trips",
+    "availableEmpty": "No completed trip available in the period.",
+    "include": "Include",
+    "remove": "Remove",
+    "pendingTrip": "Trip {{id}} is left out: {{gap}}."
   }
 }

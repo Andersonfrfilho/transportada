@@ -1,0 +1,356 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+.shell {
+  display: grid;
+  gap: var(--space-6);
+  padding-block: var(--space-6);
+  width: var(--layout-width);
+  margin: 0 auto;
+}
+
+.header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.hint {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.error {
+  color: var(--color-alert);
+  margin: 0;
+}
+
+.warning {
+  color: var(--color-copper);
+  margin: 0;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.filters {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Rótulo em cima, campo na altura padrão — o mesmo molde de `tripFinancials` e `extraCharges`. */
+.field {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  min-width: 0;
+}
+
+.field input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.field input::placeholder {
+  color: var(--color-slate);
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.field input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.totals {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+}
+
+@media (min-width: 40rem) {
+  .totals {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.totals dt {
+  color: var(--color-slate);
+}
+
+.totals dd {
+  font-weight: 700;
+  margin: 0;
+}
+
+.amountIn {
+  color: var(--color-ready);
+}
+
+.amountOut {
+  color: var(--color-alert);
+}
+
+.panel {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.panelHead {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.panelHead h2,
+.available h3,
+.paidByDriver h3 {
+  margin: 0;
+}
+
+/*
+ * Abaixo de 40 rem a tabela vira cartão (um por conta, rótulo por célula via `data-column`): em 375 px
+ * sete colunas empurravam "Viagens" e "Dar baixa" para fora da tela. Do tablet para cima volta a tabela.
+ */
+.tableScroll {
+  min-width: 0;
+}
+
+.table,
+.table tbody,
+.table tfoot,
+.table tr,
+.table td,
+.table th {
+  display: block;
+}
+
+.table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.table tr {
+  border-bottom: 1px solid var(--color-graphite);
+  display: grid;
+  gap: var(--space-1);
+  padding-block: var(--space-3);
+}
+
+.table td,
+.table th {
+  padding: 0;
+  text-align: left;
+}
+
+.table td[data-column] {
+  align-items: baseline;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 7rem minmax(0, 1fr);
+}
+
+.table td[data-column]::before {
+  color: var(--color-slate);
+  content: attr(data-column);
+}
+
+@media (min-width: 40rem) {
+  .tableScroll {
+    overflow-x: auto;
+  }
+
+  .table {
+    display: table;
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  .table thead {
+    display: table-header-group;
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .table tbody {
+    display: table-row-group;
+  }
+
+  .table tfoot {
+    display: table-footer-group;
+  }
+
+  .table tr {
+    display: table-row;
+    padding: 0;
+  }
+
+  .table td,
+  .table th {
+    display: table-cell;
+    border-bottom: 1px solid var(--color-graphite);
+    padding: var(--space-2);
+    vertical-align: middle;
+  }
+
+  .table td[data-column] {
+    display: table-cell;
+  }
+
+  .table td[data-column]::before {
+    content: none;
+  }
+
+  .table td:not(:first-child) {
+    white-space: nowrap;
+  }
+}
+
+.rowDetail {
+  color: var(--color-slate);
+  display: block;
+}
+
+.rowActions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.paidByDriver ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+
+.available {
+  border-top: 1px solid var(--color-graphite);
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+/* Diálogos: tela cheia no celular, caixa a partir do tablet (modal-dialog-fullscreen.contract). */
+.overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.dialog {
+  display: grid;
+  gap: var(--space-5);
+  align-content: start;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: none;
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+@media (min-width: 40rem) {
+  .overlay {
+    padding: var(--space-4);
+  }
+
+  .dialog {
+    width: min(48rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  }
+}
+
+.dialogHeader {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.dialogHeader h2 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.5rem;
+}
+
+.iconAction {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: var(--color-fog);
+  cursor: pointer;
+  background: transparent;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dialogFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}

@@ -199,3 +199,32 @@ posição (196 RF12): a leitura de `trip_status_events` foi para `infrastructure
 
 - `bun test ./test/expenses.contract.test.ts` → 11 pass / 0 fail (guard, cliente, paridade de vocabulário com a API, paridade pt/en).
 - `bun run test` → 1496 pass / 0 fail. `tsc --noEmit`, `eslint` (módulo e testes) e `prettier --check` limpos.
+
+## T2.2 — Página `/contas` (2026-11-13)
+
+**O que entrou** (`apps/frontend-transportada/src/modules/expenses/`): `pages/ExpensesWorkspace.page.tsx`, `hooks/useExpensesWorkspace.hook.ts` (permissão, filtros, consultas), `components/ExpenseCreateDialog`, `ExpenseSettleDialog` e `ExpenseDialogShell` (foco preso e Esc pelo `useModalDialog`; tela cheia no celular), `shared/expensesView.service.ts` (vencida, resumo, máscara e validação do formulário, tudo com dinheiro em texto) e `styles/expenses.module.css`. Menu: chave `expenses`, `/contas`, grupo Fiscal, `WORKSPACE_PERMISSIONS.expenses = ['expenses.read']`; ícone `workspace-expenses`; `main.tsx` resolve a rota. Botões "Nova conta", "Dar baixa" e "Viagens" (edição) só com `expenses.manage`; baixa só em conta em aberto.
+
+**Decisões**
+
+- Só componentes do design system (`Select`, `DatePicker`, `Button`, `Badge`, `Skeleton`); campo de texto e dinheiro seguem o molde de `tripFinancials` (`--field-height`/`--field-padding`, rótulo em cima).
+- "Vencida" é calculada na tela (aberta com vencimento anterior a hoje, data civil local); "Em aberto" e "Vencidas" saem das linhas do mês filtrado, previsto e pago vêm dos totais da API.
+- A lista de pessoas do seletor e do filtro é a de motoristas ativos da frota (`useDriverOptions`, exige `fleet.read`); o rótulo Motorista/Agregado vem do cadastro na hora da leitura. **O rótulo "Ajudante" entra com a T1.4c** (PR 749).
+- Sugestão de recorrência/valor pelo cadastro do motorista (RF1b) **não** entrou: a lista de frota usada não traz o período de pagamento. Fica como melhoria.
+- Cancelar ocorrência não tem botão ainda (o hook existe); não estava na task.
+- Tabela vira cartão abaixo de 40 rem (`data-column`, não `data-label`: o contrato de campos lê "label" no seletor).
+
+**Provas** (de dentro de `apps/frontend-transportada`)
+
+- `bun run test` → 1496 pass / 0 fail (inclui `test/expenses/view.contract.ts`, 9 casos novos, e os contratos de menu, permissão por workspace e de diálogo em tela cheia, ajustados para a chave nova). `tsc --noEmit`, `eslint` e `prettier --check` limpos.
+- Prints (claro e escuro, desktop 1440 e celular 390), por `test/spec-325-prints.smoke.spec.ts` (fora da CI): `prints/contas-lista-*`, `contas-nova-*`, `contas-baixa-*`. Comparados com Ressarcimentos e Resultados (mesmos rótulos, campos, botões e cartão de totais) e com os previews aprovados em `325-contas/prints`.
+
+## T2.2b — Viagens do pagamento (2026-11-13)
+
+**O que entrou:** `components/ExpenseTripsDialog.component.tsx`: viagens incluídas (concluída em, diária × dias, valor, "Remover"), total do pagamento (`tripsTotal` da API), "Adicionar viagens" (lista as disponíveis do período com "Incluir") e, abaixo, as viagens que ficam de fora com o motivo (`gap.*`). Incluir/remover só com `expenses.manage` e conta em aberto; paga ou cancelada só mostra.
+
+**Decisões**
+
+- Sem "Usar como valor previsto": a T1.4b já faz o total virar o previsto a cada inclusão/remoção.
+- A API devolve só o `tripId` da viagem (sem número nem trajeto), então a linha mostra os 8 primeiros caracteres do id e o papel (Motorista/Ajudante). Mostrar "Viagem 1042 · Ribeirão → Campinas" como no preview pede que a API passe número e trajeto: **pendência para o Anderson decidir**.
+
+**Provas:** `prints/contas-viagens-*` (4 combinações); guardas e cliente já cobertos pela T2.1. Mesma bateria da T2.2.

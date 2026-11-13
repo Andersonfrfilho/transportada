@@ -43,9 +43,11 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [x] **T2.1** Módulo `expenses` no frontend: cliente, validação de resposta, hooks, locales pt/en.
       Feita: `apps/frontend-transportada/src/modules/expenses/` com tipos (vocabulário copiado da API e conferido por contrato), `expensesClient.service.ts` (as 13 rotas), `expensesResponse.validation.ts` (guard manual, dinheiro sempre texto), hooks TanStack com a chave raiz `expenses` e locales pt/en registrados em `i18n.service.ts`. Contrato `test/expenses.contract.test.ts` na lista do `package.json`. Sem tela: a página é a T2.2. Notas em `evidence.md` § T2.1.
   > 🤖 Modelo: `sonnet`
-- [ ] **T2.2** Página `/contas` (lista, filtros, totais), formulário nova conta fixa/variável (com seletor de motorista/agregado) e diálogo de baixa; item no menu (`workspaceNavigation.constant.ts`) com guarda de permissão.
+- [x] **T2.2** Página `/contas` (lista, filtros, totais), formulário nova conta fixa/variável (com seletor de motorista/agregado) e diálogo de baixa; item no menu (`workspaceNavigation.constant.ts`) com guarda de permissão.
+      Feita: página `/contas` (grupo Fiscal do menu, `expenses.read`), filtros (mês, tipo, categoria, estado, pessoa), totais (previsto, pago, em aberto, vencidas), diálogos "Nova conta" e "Dar baixa", tabela que vira cartão no celular. Prints em `prints/contas-*`. Notas em `evidence.md` § T2.2.
   > 🤖 Modelo: `sonnet`
-- [ ] **T2.2b** Diálogo "Viagens do pagamento" (lista de viagens com diária × dias, incluir/remover, total).
+- [x] **T2.2b** Diálogo "Viagens do pagamento" (lista de viagens com diária × dias, incluir/remover, total).
+      Feita: `ExpenseTripsDialog` (incluídas com diária × dias e total, "Adicionar viagens" com as disponíveis e as que ficam de fora com o motivo). Sem botão "usar como valor previsto": a API já recalcula o previsto a cada inclusão/remoção. Notas em `evidence.md` § T2.2b.
   > 🤖 Modelo: `sonnet`
 - [ ] **T2.3** Painel "Categorias de contas" em Configurações (`SETTINGS_PANELS`).
   > 🤖 Modelo: `sonnet`
