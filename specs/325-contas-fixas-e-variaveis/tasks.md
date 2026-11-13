@@ -56,7 +56,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 ## Fase 4 — Rateio (extensão, aguarda aprovação dos previews)
 
-- [ ] **T4.0** Anderson aprova os previews (`325-contas/prints/resultado-*`, `veiculo-*`, `rateio-*`) e as dúvidas 5 a 7 (ou aceita os padrões).
+- [x] **T4.0** Anderson aprova os previews (`325-contas/prints/resultado-*`, `veiculo-*`, `rateio-*`) e as dúvidas 5 a 7 (ou aceita os padrões).
+      Feita em 2026-11-13: Anderson aprovou os previews (resultado, veículo/cliente, rateio, lembretes e resposta "paguei") e os padrões das dúvidas 5 a 8 ("aprovado pode seguir").
   > 🤖 Modelo: `opus`
 - [ ] **T4.1** ADR-0116: o rateio é calculado na leitura, por grupo de custo, e o motorista não é somado de novo.
   > 🤖 Modelo: `opus`

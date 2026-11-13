@@ -111,7 +111,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 ## Extensão: rateio e resultado do mês (pedido do Anderson, 2026-11-13)
 
-> Pedido: ratear as contas entre as viagens para ver o custo real de cada uma, e um painel do mês com quanto faturamos, quanto gastamos e o lucro. Previews em `/mnt/project-files/325-contas/prints/` (`resultado-*`, `veiculo-*`, `rateio-*`, claro e escuro, desktop e celular). **Aguardando aprovação dos previews antes de implementar.**
+> Pedido: ratear as contas entre as viagens para ver o custo real de cada uma, e um painel do mês com quanto faturamos, quanto gastamos e o lucro. Previews em `/mnt/project-files/325-contas/prints/` (`resultado-*`, `veiculo-*`, `rateio-*`, claro e escuro, desktop e celular). **Previews aprovados em 2026-11-13 (T4.0).**
 
 ### Modelo de custo (como as grandes transportadoras fazem; base da ANTT)
 
