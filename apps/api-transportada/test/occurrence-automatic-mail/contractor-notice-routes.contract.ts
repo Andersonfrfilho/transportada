@@ -70,7 +70,7 @@ function createFixture(params: {
         readNoticeState: async (input) => {
           calls.push(input)
           return params.state === undefined
-            ? { channel: 'whatsapp_group', status: 'available' }
+            ? { channel: 'whatsapp_group', preview: null, status: 'available' }
             : params.state
         },
         sendManual: async (input) => {

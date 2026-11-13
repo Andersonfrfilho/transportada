@@ -194,8 +194,9 @@ describe('o botão "Avisar a contratante" contra Postgres (spec 324 T1)', () => 
         const useCase = notice(database, [])
         const ref = { companyId, occurrenceId: seeded.occurrenceId }
 
-        expect(await useCase.readNoticeState(ref)).toEqual({
+        expect(await useCase.readNoticeState(ref)).toMatchObject({
           channel: 'email',
+          preview: { bodyText: expect.any(String), subject: expect.any(String) },
           recipientCount: 2,
           status: 'available',
         })

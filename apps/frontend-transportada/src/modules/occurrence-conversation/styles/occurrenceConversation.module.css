@@ -122,6 +122,11 @@
   background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
 }
 
+.overlayAbove {
+  /* Spec 324 T4: o diálogo abre de dentro do painel de detalhes (z-index 41) e tem de ficar por cima dele. */
+  z-index: 60;
+}
+
 .dialog {
   display: grid;
   gap: var(--space-4);
