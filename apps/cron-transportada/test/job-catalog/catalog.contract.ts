@@ -184,6 +184,12 @@ const CATALOG = [
     job: 'whatsapp-inbox.chat.expire',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 325 T1.5: gera as ocorrências das contas fixas; toca só o próprio banco. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'company-expense.occurrence.generate',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 describe('cron job catalog', () => {

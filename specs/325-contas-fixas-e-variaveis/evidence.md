@@ -165,3 +165,22 @@ posição (196 RF12): a leitura de `trip_status_events` foi para `infrastructure
 `trip-person-parcel.gateway.ts`; a parcela `helper` da valoração ainda não tem `basis` por pessoa.
 **Para a T2.2b:** a resposta de `GET|POST|DELETE …/trips` é `{ data: { occurrence, items[], tripsTotal } }`; a de
 `available-trips` é `{ data: { period, available[], pending[] } }`.
+
+## T1.5 — Rotina que gera as ocorrências das contas fixas (2026-11-13)
+
+**Desenho.** O `cron-transportada` é só o relógio (uma batida a cada 5 min publica as rotinas vencidas); quem executa é o worker. A rotina entra como as outras (319 T7): nome no catálogo das quatro apps (`api`, `cron`, `worker`, `frontend`), CHECKs de `job` ampliadas e uma linha em `job_schedules`. Como nenhuma app importa código de outra, o worker **não chama** `createGenerateExpenseOccurrencesUseCase`: ele espelha a política de calendário (`expense-schedule.policy.ts`) e o SQL de `listActiveFixed`/`insertIfAbsent`, e `test/company-expense-occurrence/parity.contract.ts` cobra a igualdade linha a linha contra os arquivos da API.
+
+**Decisões**
+
+- **Nome e cadência:** `company-expense.occurrence.generate`, uma vez por dia (a janela é de 4 meses; mais fino não gera nada novo).
+- **Nasce pausada** (`enabled = false`, `paused_origin = 'system'`), como as rotinas recentes: ligar é decisão do dono (runbook § 5.33). Para a T3.1, em staging, basta retomar no painel de rotinas.
+- **Data civil:** `today` = data de America/Sao_Paulo no instante do ciclo (02:30 UTC de 1º/dez ainda é 30/nov).
+- **Âncora:** a API não tem coluna de âncora; a rotina usa o mês de `created_at` em São Paulo (igual ao que a T1.4 documentou), estável entre execuções — sem ela a bimestral andaria de mês a cada dia (contrato cobre).
+- **Falha parcial:** a empresa que erra é registrada e as outras terminam; ao fim o ciclo lança erro (`unexpected_error`) para a execução aparecer como falha.
+
+**Provas**
+
+- Worker: `bun run test` → 3158 pass; os 5 que falham são `threaded canhoto barcode decoder` (`decode thread exited with 13`, `worker_thread` do Bun 1.4.4 desta sessão, o projeto fixa 1.3.14; arquivo não tocado). Contratos novos (`company-expense-occurrence.contract.test.ts`: janela em SP, idempotência, dia 31, quinzenal, âncora, falha parcial, parada, calendário e paridade) e catálogo verdes.
+- Integração contra Postgres 16 descartável com as migrations aplicadas: `company-expense-occurrence.integration.test.ts` 2 pass (gera só as fixas ativas, 2º ciclo `created = 0`); `job_schedules` ficou com a linha pausada.
+- Migration e rollback: `bun run db:test` (API) 266 pass / 0 fail, com o rollback encadeado (`company-expense-occurrence-job-rollback.assertion.ts` sai antes do de 319 T7).
+- API `job-catalog` (13), cron (102) e frontend (`job-catalog.contract.ts`, 6) verdes; `tsc`, `eslint` e `prettier --check` limpos.

@@ -345,6 +345,17 @@ export const JOB_CATALOG = [
     job: 'whatsapp-inbox.chat.expire',
     minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
   },
+  {
+    /**
+     * Spec 325 T1.5 (RF4): gera as ocorrências das contas fixas ativas (mês corrente + 3), por empresa, e só toca o
+     * próprio banco — idempotente pela chave `(conta, competência, slot)`. Nasce **pausada** (a migration a semeia
+     * desligada).
+     */
+    failureOutcomes: [],
+    job: 'company-expense.occurrence.generate',
+    /** Um dia: a janela é de quatro meses, e correr mais fino não gera nada que o ciclo anterior não gerou. */
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]
