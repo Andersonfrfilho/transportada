@@ -29,6 +29,7 @@ import {
   type ContractorOccurrenceGroupValues,
 } from '../domain/contractor-occurrence-group.policy.js'
 import { occurrenceTypeNeverNotifiesContractor } from '../../trips/domain/occurrence-contractor-notice.policy.js'
+import { CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY } from '../domain/contractor-manual-notice-template.policy.js'
 import { resolveOccurrenceRecipients } from '../domain/occurrence-contractor-recipients.policy.js'
 import { ContractorReplyWhatsAppSendError } from './forward-contractor-reply-by-whatsapp.port.js'
 import type { SendOccurrenceMailUseCase } from './send-occurrence-mail.use-case.js'
@@ -84,6 +85,11 @@ export type ContractorOccurrenceGroupPort = {
   /** O modelo do grupo e os valores; `null` sem modelo cadastrado. */
   readMessage(input: {
     readonly companyId: string
+    /**
+     * Spec 324 (D10): só o botão manual passa `ocorrencia.contratante-aviso-manual`, a última opção depois da versão
+     * WhatsApp da chave do tipo e do `ocorrencia.contratante-grupo`.
+     */
+    readonly fallbackTemplateKey?: string
     readonly occurrenceId: string
   }): Promise<null | {
     readonly template: string
@@ -335,7 +341,7 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
   async function postToGroup(
     group: ContractorOccurrenceGroupPort,
     channel: ContractorOccurrenceGroupChannel,
-    input: SendInput,
+    input: SendInput & { readonly fallbackTemplateKey?: string },
   ): Promise<{
     readonly attempts: number
     readonly failure: ContractorOccurrenceGroupFailure | null
@@ -383,7 +389,14 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
     if (!(await group.claim(input))) return { outcome: 'skipped', reason: 'group_already_sent' }
     let posted: Awaited<ReturnType<typeof postToGroup>>
     try {
-      posted = await postToGroup(group, channel, input)
+      /** Spec 324 (D10): só o botão cai no texto geral do aviso manual, depois dos modelos do grupo. */
+      posted = await postToGroup(
+        group,
+        channel,
+        sender.kind === 'manual'
+          ? { ...input, fallbackTemplateKey: CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY }
+          : input,
+      )
     } catch (error) {
       // Falha inesperada antes do envio (leitura do modelo): solta a reserva para a varredura tentar de novo.
       await group.record({ ...input, attempts: 0, failure: 'failed', status: 'failed' })
@@ -459,6 +472,9 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
         idempotencyKey: `${keyPrefixOf(sender)}${input.occurrenceId}`,
         occurrenceId: input.occurrenceId,
         subject: plan.suggested.subject,
+        ...(sender.kind === 'manual'
+          ? { templateFallbackKey: CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY }
+          : {}),
       })
     } catch (error) {
       if (MAIL_NOT_READY_CODES.has(errorCode(error) ?? '')) {

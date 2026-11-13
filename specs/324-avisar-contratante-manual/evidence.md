@@ -81,6 +81,43 @@ Hoje não há leitura única de "avisada". Fontes: `contractor_mail_messages` (e
 - Sem tela nem componente novo (só frases numa linha do tempo existente): sem prints nesta etapa; os da T4 cobrem o botão.
 - Produção não foi tocada; nada a registrar no runbook.
 
+## T1b — Modelo geral do aviso manual (13/11/2026, empilhado sobre a T1)
+
+### O que entrou
+
+- **Modelo geral `ocorrencia.contratante-aviso-manual` (D10)** em dois arquivos versionados: e-mail
+  `occurrence-mail-templates/contratante-aviso-manual.html` (assunto na linha 1, mesma família visual dos modelos de
+  ocorrência, área `<!-- mensagem -->`) e WhatsApp `occurrence-whatsapp-templates/contratante-aviso-manual.txt`.
+- **Régua de variáveis** (`domain/contractor-manual-notice-template.policy.ts`): o e-mail usa só tipo, contratante,
+  nota, cliente (`razaoSocial`), valor, data, observação e a moldura do sistema (logo, nome de exibição, cidade,
+  razão social da transportadora, assinatura, rodapé, faixa de resposta, aviso de nova data); o WhatsApp, só a lista
+  fechada do grupo da 318. Nenhum CPF, CNPJ (nem o da transportadora), telefone, motorista ou número do documento do
+  cliente. O publicador soma a régua à validação de sempre e recusa a publicação inteira se algum arquivo falhar.
+- **Publicador** (`occurrence-mail-templates-publish.service.ts` + script): cada modelo diz o canal; o texto WhatsApp
+  é publicado pela mesma rotina (versão nova, nunca `UPDATE` de texto; `differs` só com `--overwrite`). O plano mostra o
+  canal ao lado da chave.
+- **Fallback só no botão:** `findOccurrenceNotificationTemplateSource` recebe `fallbackKey` (o modelo do tipo
+  utilizável vence; sem ele, o geral); o plano manual (`ignoreTypeOff`) e o envio manual (`templateFallbackKey` em
+  `SendOccurrenceMailInput`) passam a chave. No grupo, `readMessage` recebe `fallbackTemplateKey` e
+  `findContractorOccurrenceGroupTemplate` ordena por posição: chave do tipo → `ocorrencia.contratante-grupo` → geral.
+  O automático nunca passa a chave: continua `no_template_selected` / `template_missing` sem modelo.
+- **Staging:** script com simulação primeiro, `staging-324-publica-modelo-aviso-manual.sh` (runbook § 5.32).
+
+### Testes
+
+- Contrato: `test/occurrence-conversation/manual-notice-template.contract.ts` (arquivos passam na validação e na
+  régua; régua recusa variável proibida, HTML no WhatsApp, vazio e marcador malformado; render do WhatsApp; publicador
+  nos dois canais com create/same/differs; só o botão passa a chave ao e-mail e ao grupo). `manual-contractor-notice`
+  (CA03 com `templateFallbackKey`) e `mail-templates-publish` (chave nova na lista). `occurrence-conversation`,
+  `occurrence-contractor-mail`, `occurrence-automatic-mail` e `test-registry`: 1367 pass, 0 fail.
+- Integração contra Postgres 16: `contractor-manual-notice.integration.ts` (9 pass depois do rebase sobre a T2, 4 da T1b: tipo sem modelo manda pelo geral e
+  grava a chave na mensagem; o automático segue `no_template_selected`; o do tipo vence o geral; no grupo, sem o modelo
+  da 318 sai o texto geral e o automático fica `template_missing`; com os dois, o da 318 vence),
+  `occurrence-mail-templates-publish.integration.ts` e `contractor-occurrence-group.integration.ts` verdes.
+- Script de staging rodado contra um banco local migrado: simulação `create/create`, `--confirm` grava v1 nos dois
+  canais, segunda rodada `same/same`; o publicador do repositório vê os dois como `same` (mesmo texto byte a byte).
+- `tsc --noEmit` e `eslint` dos arquivos tocados limpos.
+
 ## T3 — Leitura do estado do botão (13/11/2026, sobre `staging` com a T2 já mergeada, PR #733)
 
 ### O que entrou
@@ -88,7 +125,7 @@ Hoje não há leitura única de "avisada". Fontes: `contractor_mail_messages` (e
 - **`GET /trip-occurrences/:id/contractor-notice`** (`occurrences.resolve`, a mesma do envio; sem `rateLimit`, não envia nada; `no-store`). Escolha: rota irmã do `POST` em vez de campo no `GET /trip-occurrences/:id`, porque o detalhe é `fleet.read` e o estado do botão só interessa a quem pode apertá-lo; o painel (T4) a relê ao abrir o diálogo (canal pode ter mudado). 404 para parada, nota sem contratante ou outra empresa.
 - **`readNoticeState`** no caso de uso, com as mesmas perguntas do `sendManual` na mesma ordem (`findPlan` com `ignoreTypeOff` → marca da 321 → já avisada → canal), sem reservar nem enviar. Resposta: `available` (canal `email` com `recipientCount`, ou `whatsapp_group`), `notified` (`by` `manual` com `actorName`, `at`, `channel`; ou `automatic` com `at` e `channel`) e `unavailable` com `reason` `blocked` | `no_recipient` | `no_template` (D6).
 - **União das fontes de "já avisada"** (achado da T0) em `readNoticeRecord` (`contractor-manual-notice.repository.ts`): a tabela da T2 (último clique `sent`, com o nome do perfil) e `idempotency_records` do automático (e-mail, ou grupo `completed`). O aviso automático só conta quando o tipo está ligado (D8), como no `sendManual`; `failed` do grupo sem e-mail enviado continua podendo avisar.
-- O modelo geral do D10 (T1b, PR #732) ainda não está nesta base: `no_template` some do caminho do e-mail quando ele entrar.
+- O modelo geral do D10 (T1b) já está em `staging`: com ele, `no_template` só aparece se nem o modelo do tipo nem o geral estiverem utilizáveis.
 
 ### Testes
 

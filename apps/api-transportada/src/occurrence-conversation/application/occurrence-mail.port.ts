@@ -193,9 +193,11 @@ export type OccurrenceMailTransactionPort = {
   /**
    * Spec 271 (ADR-0108, D1/D9): o modelo do tipo desta ocorrência — a chave escolhida no tipo e a versão ativa mais
    * alta (e-mail, pt-BR) no módulo de notificação; `null` é sem modelo utilizável (nenhum e-mail sai, nem à mão).
+   * Spec 324 (D10): `fallbackKey` (só o aviso manual) vale quando o tipo não tem modelo utilizável.
    */
   findOccurrenceNotificationTemplate(params: {
     readonly companyId: string
+    readonly fallbackKey?: string
     readonly occurrenceId: string
   }): Promise<null | OccurrenceNotificationTemplate>
   /**

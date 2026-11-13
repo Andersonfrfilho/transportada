@@ -15,9 +15,14 @@ import {
   contractors,
   tripDocumentOccurrences,
 } from '../../src/database/database.schema.js'
+import {
+  readOccurrenceMailTemplateFiles,
+  readOccurrenceWhatsappTemplateFiles,
+} from '../../src/occurrence-conversation/application/occurrence-mail-templates-publish.service.js'
 import { createSendAutomaticOccurrenceMailUseCase } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import { buildOccurrenceTimeline } from '../../src/trips/domain/occurrence-timeline.policy.js'
 import { findTripOccurrenceTimelineSources } from '../../src/trips/infrastructure/trip-occurrence-timeline.query.js'
+import { CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY } from '../../src/occurrence-conversation/domain/contractor-manual-notice-template.policy.js'
 import { CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY } from '../../src/occurrence-conversation/domain/contractor-occurrence-group.policy.js'
 import { createContractorManualNoticeRepository } from '../../src/occurrence-conversation/infrastructure/contractor-manual-notice.repository.js'
 import { createContractorOccurrenceGroupRepository } from '../../src/occurrence-conversation/infrastructure/contractor-occurrence-group.repository.js'
@@ -385,6 +390,194 @@ describe('o botão "Avisar a contratante" contra Postgres (spec 324 T1)', () => 
           ['operation', 'failed', null, false],
           ['operation', 'sent', 'email', true],
         ])
+      })
+    },
+    60_000,
+  )
+})
+
+describe('o modelo geral do aviso manual contra Postgres (spec 324 T1b, D10)', () => {
+  async function clearTypeTemplate(database: TestDatabase, seeded: Seeded): Promise<void> {
+    const [occurrence] = await database.db
+      .select({ typeId: tripDocumentOccurrences.occurrenceTypeId })
+      .from(tripDocumentOccurrences)
+      .where(eq(tripDocumentOccurrences.id, seeded.occurrenceId))
+    await database.db
+      .update(companyOccurrenceTypes)
+      .set({ contractorNotificationTemplateKey: null })
+      .where(
+        and(
+          eq(companyOccurrenceTypes.companyId, seeded.company.companyId),
+          eq(companyOccurrenceTypes.id, occurrence?.typeId ?? ''),
+        ),
+      )
+  }
+
+  async function publishGeneral(
+    database: TestDatabase,
+    companyId: string,
+    channels: readonly ('email' | 'whatsapp')[],
+  ): Promise<void> {
+    for (const channel of channels) {
+      const files =
+        channel === 'email'
+          ? readOccurrenceMailTemplateFiles()
+          : readOccurrenceWhatsappTemplateFiles()
+      const file = files.find(
+        (candidate) => candidate.key === CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY,
+      )
+      if (file === undefined) throw new Error(`sem o modelo geral (${channel})`)
+      await seedNotificationTemplate(database, {
+        body: file.body,
+        channel,
+        companyId,
+        key: file.key,
+        subject: channel === 'email' ? file.subject : null,
+      })
+    }
+  }
+
+  async function mailTemplateKeys(database: TestDatabase, companyId: string) {
+    return database.db
+      .select({
+        actorUserId: contractorMailMessages.actorUserId,
+        key: contractorMailMessages.notificationTemplateKey,
+      })
+      .from(contractorMailMessages)
+      .where(eq(contractorMailMessages.companyId, companyId))
+  }
+
+  testWithPostgres(
+    'tipo sem modelo: o botão manda o e-mail pelo modelo geral; o automático segue sem modelo',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setType(database, seeded, { emailsContractor: true })
+        await clearTypeTemplate(database, seeded)
+        const { companyId, userId } = seeded.company
+        const useCase = notice(database, [])
+        const input = { companyId, correlationId: 'c-324e', occurrenceId: seeded.occurrenceId }
+
+        // Sem o modelo geral publicado: nem o botão tem texto.
+        expect(await useCase.sendManual({ ...input, actorUserId: userId })).toEqual({
+          outcome: 'skipped',
+          reason: 'no_template_selected',
+        })
+
+        await publishGeneral(database, companyId, ['email'])
+        expect(await useCase.send(input)).toEqual({
+          outcome: 'skipped',
+          reason: 'no_template_selected',
+        })
+        expect(await useCase.sendManual({ ...input, actorUserId: userId })).toMatchObject({
+          outcome: 'sent',
+        })
+        expect(await mailTemplateKeys(database, companyId)).toEqual([
+          { actorUserId: userId, key: CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY },
+        ])
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'tipo com modelo: o modelo do tipo vence o geral no botão',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setType(database, seeded, { emailsContractor: false })
+        const { companyId, userId } = seeded.company
+        await publishGeneral(database, companyId, ['email'])
+
+        expect(
+          await notice(database, []).sendManual({
+            actorUserId: userId,
+            companyId,
+            correlationId: 'c-324f',
+            occurrenceId: seeded.occurrenceId,
+          }),
+        ).toMatchObject({ outcome: 'sent' })
+        const [mail] = await mailTemplateKeys(database, companyId)
+        expect(mail?.key).not.toBe(CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY)
+        expect(mail?.key).not.toBeNull()
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'grupo: sem modelo do grupo, o botão posta o texto geral; com ele, o do grupo vence (CA02)',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setType(database, seeded, { emailsContractor: false })
+        await clearTypeTemplate(database, seeded)
+        const { companyId, userId } = seeded.company
+        const [contractor] = await database.db
+          .select({ id: contractors.id })
+          .from(contractors)
+          .where(eq(contractors.companyId, companyId))
+        await new DrizzleContractorOccurrenceChannelRepository(database.db).save({
+          actorUserId: userId,
+          channel: 'whatsapp_group',
+          companyId,
+          contractorId: contractor?.id ?? '',
+          correlationId: 'corr-324g',
+          emailFallback: false,
+          groupJid: GROUP_JID,
+          groupName: 'Alfa — ocorrências',
+          mentionPhone: MENTION_PHONE,
+        })
+        await publishGeneral(database, companyId, ['whatsapp'])
+        const posts: Post[] = []
+        const input = { companyId, correlationId: 'c-324g', occurrenceId: seeded.occurrenceId }
+
+        // O automático (tipo ligado) não lê o texto geral: sem o modelo do grupo, template_missing.
+        await setType(database, seeded, { emailsContractor: true })
+        expect(await notice(database, posts).send(input)).toEqual({
+          failure: 'template_missing',
+          fallback: null,
+          outcome: 'group_failed',
+        })
+        expect(posts).toEqual([])
+
+        await setType(database, seeded, { emailsContractor: false })
+        expect(await notice(database, posts).sendManual({ ...input, actorUserId: userId })).toEqual(
+          {
+            attempts: 1,
+            outcome: 'sent_to_group',
+          },
+        )
+        expect(posts).toHaveLength(1)
+        expect(posts[0]?.body).toContain('Aviso de ocorrência')
+        expect(posts[0]?.body).toContain('*Tipo:* Caixa violada')
+        expect(posts[0]?.body).not.toContain('{{')
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'grupo: com o modelo do grupo e o geral publicados, o botão usa o do grupo',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setType(database, seeded, { emailsContractor: false })
+        await clearTypeTemplate(database, seeded)
+        await useGroup(database, seeded)
+        const { companyId, userId } = seeded.company
+        await publishGeneral(database, companyId, ['whatsapp'])
+        const posts: Post[] = []
+
+        await notice(database, posts).sendManual({
+          actorUserId: userId,
+          companyId,
+          correlationId: 'c-324h',
+          occurrenceId: seeded.occurrenceId,
+        })
+        expect(posts).toHaveLength(1)
+        expect(posts[0]?.body).toContain('Tipo: Caixa violada')
+        expect(posts[0]?.body).not.toContain('Aviso de ocorrência')
       })
     },
     60_000,

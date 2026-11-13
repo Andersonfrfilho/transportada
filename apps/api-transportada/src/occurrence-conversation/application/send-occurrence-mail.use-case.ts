@@ -89,6 +89,11 @@ export type SendOccurrenceMailInput = {
   readonly idempotencyKey: string
   readonly occurrenceId: string
   readonly subject: string
+  /**
+   * Spec 324 (D10): o modelo que vale quando o tipo não tem um utilizável. Só o botão "Avisar a contratante" passa
+   * (`ocorrencia.contratante-aviso-manual`); sem ele, sem modelo do tipo é 409, como sempre.
+   */
+  readonly templateFallbackKey?: string
 }
 
 export type SendOccurrenceMailUseCase = Readonly<{
@@ -179,6 +184,7 @@ async function resolveNotificationTemplate(params: {
   }
   const template = await transaction.findOccurrenceNotificationTemplate({
     companyId: input.companyId,
+    ...(input.templateFallbackKey === undefined ? {} : { fallbackKey: input.templateFallbackKey }),
     occurrenceId: input.occurrenceId,
   })
   if (template === null) throw new OccurrenceMailTemplateMissingError()
