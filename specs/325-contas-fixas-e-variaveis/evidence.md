@@ -242,6 +242,35 @@ posição (196 RF12): a leitura de `trip_status_events` foi para `infrastructure
 - `bun test ./test/expenses.contract.test.ts` → 11 pass / 0 fail (guard, cliente, paridade de vocabulário com a API, paridade pt/en).
 - `bun run test` → 1496 pass / 0 fail. `tsc --noEmit`, `eslint` (módulo e testes) e `prettier --check` limpos.
 
+## T2.2 — Página `/contas` (2026-11-13)
+
+**O que entrou** (`apps/frontend-transportada/src/modules/expenses/`): `pages/ExpensesWorkspace.page.tsx`, `hooks/useExpensesWorkspace.hook.ts` (permissão, filtros, consultas), `components/ExpenseCreateDialog`, `ExpenseSettleDialog` e `ExpenseDialogShell` (foco preso e Esc pelo `useModalDialog`; tela cheia no celular), `shared/expensesView.service.ts` (vencida, resumo, máscara e validação do formulário, tudo com dinheiro em texto) e `styles/expenses.module.css`. Menu: chave `expenses`, `/contas`, grupo Fiscal, `WORKSPACE_PERMISSIONS.expenses = ['expenses.read']`; ícone `workspace-expenses`; `main.tsx` resolve a rota. Botões "Nova conta", "Dar baixa" e "Viagens" (edição) só com `expenses.manage`; baixa só em conta em aberto.
+
+**Decisões**
+
+- Só componentes do design system (`Select`, `DatePicker`, `Button`, `Badge`, `Skeleton`); campo de texto e dinheiro seguem o molde de `tripFinancials` (`--field-height`/`--field-padding`, rótulo em cima).
+- "Vencida" é calculada na tela (aberta com vencimento anterior a hoje, data civil local); "Em aberto" e "Vencidas" saem das linhas do mês filtrado, previsto e pago vêm dos totais da API.
+- A lista de pessoas do seletor e do filtro é a de motoristas ativos da frota (`useDriverOptions`, exige `fleet.read`); o rótulo Motorista/Agregado vem do cadastro na hora da leitura. **O rótulo "Ajudante" entra com a T1.4c** (PR 749).
+- Sugestão de recorrência/valor pelo cadastro do motorista (RF1b) **não** entrou: a lista de frota usada não traz o período de pagamento. Fica como melhoria.
+- Cancelar ocorrência não tem botão ainda (o hook existe); não estava na task.
+- Tabela vira cartão abaixo de 40 rem (`data-column`, não `data-label`: o contrato de campos lê "label" no seletor).
+
+**Provas** (de dentro de `apps/frontend-transportada`)
+
+- `bun run test` → 1496 pass / 0 fail (inclui `test/expenses/view.contract.ts`, 9 casos novos, e os contratos de menu, permissão por workspace e de diálogo em tela cheia, ajustados para a chave nova). `tsc --noEmit`, `eslint` e `prettier --check` limpos.
+- Prints (claro e escuro, desktop 1440 e celular 390), por `test/spec-325-prints.smoke.spec.ts` (fora da CI): `prints/contas-lista-*`, `contas-nova-*`, `contas-baixa-*`. Comparados com Ressarcimentos e Resultados (mesmos rótulos, campos, botões e cartão de totais) e com os previews aprovados em `325-contas/prints`.
+
+## T2.2b — Viagens do pagamento (2026-11-13)
+
+**O que entrou:** `components/ExpenseTripsDialog.component.tsx`: viagens incluídas (concluída em, diária × dias, valor, "Remover"), total do pagamento (`tripsTotal` da API), "Adicionar viagens" (lista as disponíveis do período com "Incluir") e, abaixo, as viagens que ficam de fora com o motivo (`gap.*`). Incluir/remover só com `expenses.manage` e conta em aberto; paga ou cancelada só mostra.
+
+**Decisões**
+
+- Sem "Usar como valor previsto": a T1.4b já faz o total virar o previsto a cada inclusão/remoção.
+- A API devolve só o `tripId` da viagem (sem número nem trajeto), então a linha mostra os 8 primeiros caracteres do id e o papel (Motorista/Ajudante). Mostrar "Viagem 1042 · Ribeirão → Campinas" como no preview pede que a API passe número e trajeto: **pendência para o Anderson decidir**.
+
+**Provas:** `prints/contas-viagens-*` (4 combinações); guardas e cliente já cobertos pela T2.1. Mesma bateria da T2.2.
+
 ## T4.1 — ADR-0116, o rateio calculado na leitura (2026-11-13)
 
 **Entrega:** [ADR-0116](../../docs/adr/0116-o-rateio-das-contas-e-calculado-na-leitura.md) passou de "proposto" a **aceito**, com as regras que
@@ -292,6 +321,41 @@ usar essa mesma expressão, para a viagem não cair num mês no pagamento e nout
 - Formato do rateio fixado pelos tipos em `expense-allocation.policy.ts`: cada parte tem `scope` `vehicle` (conta com `vehicle_id`) ou `general` (sem veículo e excedente), que vira as colunas "rateio do veículo" e "rateio geral". Não rateado leva `reason` (`vehicle_without_trips` | `no_trip_weight`) e o veículo.
 - **Data de conclusão (ADR-0116 §3):** o contrato exige que `payable-trip.query.ts` exporte `completedOnSql` e que `infrastructure/allocation-trip.query.ts` (T4.5) o importe, sem usar só `trips.closedAt`; a viagem concluída pelo relatório do motorista não grava `closed_at`. Hoje a constante não é exportada, então o contrato está vermelho por isso também.
 - Empate de peso: ordem estável por data de conclusão e depois `id`; o resto do centavo vai à primeira.
+
+## T4.4 — Serviço de rateio (2026-11-13)
+
+**O que entrou** (`apps/api-transportada`):
+
+- `src/expenses/domain/expense-allocation.policy.ts`: `allocateExpenses` implementado, puro e sem banco (ADR-0116).
+  - Peso por critério (§2): `per_km` = metros (fração arredondada ao metro), `per_trip_day` = diárias, `per_revenue` = receita em
+    décimos de milésimo (aceita as 4 casas do banco; negativa ou ilegível pesa zero), `equal` = 1.
+  - Quem participa (§3): conta com `vehicleId` só nas viagens daquele veículo (`scope: 'vehicle'`); sem veículo, entre todas as
+    viagens do período (`scope: 'general'`). Veículo sem viagem → não rateado `vehicle_without_trips` com o veículo; todas as
+    elegíveis com peso zero (ou nenhuma viagem) → `no_trip_weight`.
+  - Motorista não duplica (§5): `in_trip` entra só por `max(0, considerado − includedTripsAmount)` (ausente = `0`), listado em
+    `excesses` e rateado no grupo `administrative`, sempre geral (mesmo com veículo). Abaixo das viagens: nada, sem crédito.
+  - A soma fecha (§6): cada conta é dividida sozinha em centavos por `distributeByWeight`, com as viagens ordenadas por
+    `completedOn` e `tripId` antes da divisão (a ordem de entrada não muda quem leva o centavo). Parte de zero centavo não sai.
+  - Valor de conta ilegível, negativo ou com fração de centavo **lança** (nunca vira zero, que quebraria a soma). As 4 casas do
+    banco só passam com o centavo exato (`'10.5000'`).
+- `src/shared/proportional-split.policy.ts`: `distributeByWeight`, o `distribute` da 232 movido sem mudança de lógica;
+  `trips/domain/document-cost-apportionment.policy.ts` passou a importá-lo (ADR-0116 §6 pede o mesmo, não uma cópia).
+- `test/expenses/allocation.contract.ts` saiu de `allocation-red-entrypoint.ts` e foi importado em `test/expenses.contract.test.ts`
+  (já na lista do `package.json`). Ganhou 7 casos de borda: 4 casas do banco, valor ilegível recusado, excedente sem viagem,
+  excedente com veículo vai ao geral, pagamento sem a soma das viagens, ordem de entrada estável, distância fracionária.
+
+**Fora daqui (T4.5):** `result.contract.ts` e `result-routes.contract.ts` seguem vermelhos no entrypoint de fora da lista. A data de
+conclusão não passa por esta política: `AllocationTrip.completedOn` é montado pela consulta da T4.5 com `completedOnSql` de
+`payable-trip.query.ts` (a conclusão pelo relatório do motorista não grava `closed_at`); exportar a constante é da T4.5, que tem o
+contrato que a cobra.
+
+**Prova:**
+
+- `bun test ./test/expenses/allocation.contract.ts`: 25 pass / 0 fail.
+- `bun test ./test/expenses.contract.test.ts ./test/trip-domain.contract.test.ts ./test/trip-valuation`: 663 pass / 0 fail (o rateio
+  por nota da 232 segue verde com o `distribute` extraído).
+- Suíte de contrato da API (`bun test --timeout 120000`): 15242 pass / 0 fail.
+- `tsc --noEmit` limpo; `eslint` e `prettier --check` limpos nos arquivos alterados.
 
 ## T4.3 — Schema do rateio (2026-11-13)
 

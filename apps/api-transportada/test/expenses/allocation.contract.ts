@@ -302,3 +302,106 @@ describe('o pagamento de motorista não é somado de novo (CA07, ADR-0116 §5)',
     expect(totalCents(result, 'o1')).toBe(150_000n)
   })
 })
+
+describe('bordas do serviço puro (T4.4)', () => {
+  it('o valor do banco com quatro casas é aceito quando o centavo é exato', () => {
+    const result = allocateExpenses({
+      expenses: [expense('o1', '10.5000')],
+      settings: settings({ administrative: 'per_revenue' }),
+      trips: [trip('t1', { revenue: '1000.0000' }), trip('t2', { revenue: '3000.00' })],
+    })
+
+    expect(shareOf(result, 'o1', 't1')).toBe('2.62')
+    expect(shareOf(result, 'o1', 't2')).toBe('7.88')
+  })
+
+  it('valor de conta ilegível ou com fração de centavo é recusado, nunca vira zero', () => {
+    for (const amount of ['abc', '-1.00', '10.555', '10.5050']) {
+      expect(() =>
+        allocateExpenses({
+          expenses: [expense('o1', amount)],
+          settings: settings(),
+          trips: [trip('t1')],
+        }),
+      ).toThrow()
+    }
+  })
+
+  it('excedente sem viagem no período fica em não rateado, e segue listado como excedente', () => {
+    const result = allocateExpenses({
+      expenses: [
+        expense('o1', '900.00', {
+          costGroup: 'in_trip',
+          includedTripsAmount: '0.00',
+          payeeDriverId: 'd1',
+        }),
+      ],
+      settings: settings(),
+      trips: [],
+    })
+
+    expect(result.excesses).toEqual([{ amount: '900.00', occurrenceId: 'o1' }])
+    expect(result.unallocated).toEqual([
+      { amount: '900.00', occurrenceId: 'o1', reason: 'no_trip_weight', vehicleId: null },
+    ])
+  })
+
+  it('o excedente de pagamento com veículo vai ao rateio geral, de todos os veículos', () => {
+    const result = allocateExpenses({
+      expenses: [
+        expense('o1', '300.00', {
+          costGroup: 'in_trip',
+          includedTripsAmount: '100.00',
+          payeeDriverId: 'd1',
+          vehicleId: 'v1',
+        }),
+      ],
+      settings: settings({ administrative: 'equal' }),
+      trips: [trip('t1', { vehicleId: 'v1' }), trip('t2', { vehicleId: 'v2' })],
+    })
+
+    expect(result.shares.map((s) => [s.tripId, s.amount, s.scope])).toEqual([
+      ['t1', '100.00', 'general'],
+      ['t2', '100.00', 'general'],
+    ])
+  })
+
+  it('pagamento sem a soma das viagens informada conta como sem viagem incluída', () => {
+    const result = allocateExpenses({
+      expenses: [expense('o1', '50.00', { costGroup: 'in_trip', payeeDriverId: 'd1' })],
+      settings: settings({ administrative: 'equal' }),
+      trips: [trip('t1')],
+    })
+
+    expect(result.excesses).toEqual([{ amount: '50.00', occurrenceId: 'o1' }])
+    expect(shareOf(result, 'o1', 't1')).toBe('50.00')
+  })
+
+  it('a ordem de entrada das viagens não muda quem leva o centavo', () => {
+    const trips = [trip('t2'), trip('t3'), trip('t1')]
+    const forward = allocateExpenses({
+      expenses: [expense('o1', '0.02')],
+      settings: settings({ administrative: 'equal' }),
+      trips,
+    })
+    const backward = allocateExpenses({
+      expenses: [expense('o1', '0.02')],
+      settings: settings({ administrative: 'equal' }),
+      trips: [...trips].reverse(),
+    })
+
+    expect(forward.shares).toEqual(backward.shares)
+    expect(forward.shares.map((s) => [s.tripId, s.amount])).toEqual([['t1', '0.02']])
+  })
+
+  it('peso fracionário de distância é arredondado ao metro, nunca descarta a viagem', () => {
+    const result = allocateExpenses({
+      expenses: [expense('o1', '100.00')],
+      settings: settings({ administrative: 'per_km' }),
+      trips: [trip('t1', { distanceMeters: 1000.4 }), trip('t2', { distanceMeters: 1000 })],
+    })
+
+    expect(shareOf(result, 'o1', 't1')).toBe('50.00')
+    expect(shareOf(result, 'o1', 't2')).toBe('50.00')
+  })
+})

@@ -22,6 +22,7 @@ const NAVIGATION_ENTRIES = [
   { href: '/repasses', key: 'extra-charges', label: 'Repasses' },
   { href: '/ressarcimentos', key: 'reimbursements', label: 'Ressarcimentos' },
   { href: '/resultados', key: 'trip-financials', label: 'Resultados' },
+  { href: '/contas', key: 'expenses', label: 'Contas' },
   // Só aparece no menu para quem tem trip.report (workspaceAccess.service.ts): o separador puro não a vê.
   { href: DRIVER_TRIP_PATH, key: 'driver-trip', label: 'Minha viagem' },
   // Fora dos grupos do menu de propósito: a porta de entrada é o sino do cabeçalho, e a entrada
@@ -60,6 +61,7 @@ export const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
         'extra-charges',
         'reimbursements',
         'trip-financials',
+        'expenses',
         'nfse-invoice',
       ].includes(key),
     ),

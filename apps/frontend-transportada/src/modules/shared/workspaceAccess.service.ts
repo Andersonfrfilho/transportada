@@ -53,6 +53,8 @@ export const WORKSPACE_PERMISSIONS = {
   reimbursements: ['trip.financials'],
   // FinancialResultsWorkspace.page.tsx:27
   'trip-financials': ['trip.financials'],
+  // useExpensesWorkspace.hook.ts (spec 325): a API lê com expenses.read; só o administrador a tem
+  expenses: ['expenses.read'],
   // me-trip.routes.ts:109 (API) — a página do motorista não tem parede
   'driver-trip': ['trip.report'],
   // cargo-arrival-http.support.ts (API): ler a chegada é fleet.read; escrever (trip.manage) fica na tela
