@@ -407,3 +407,19 @@ contrato que a cobra.
 - `tsc --noEmit`, `eslint --max-warnings=0` e `prettier --check` limpos.
 
 **Fora daqui:** filtros e exportação PDF/CSV (T4.6), telas (Fase 5), trocar o grupo de uma categoria (T5.3). Nenhuma rota nova mexe em produção, então o runbook de produção não muda.
+
+## T4.6 — Filtros e exportação PDF/CSV (2026-11-13)
+
+**O que entrou** (`apps/api-transportada/src/expenses`):
+
+- **Filtros (RF18):** `computeExpenseResult` recebe `filters` (`vehicleId`, `customerId`, `categoryId`, `payeeDriverId`). O rateio é feito sempre sobre todas as viagens e contas do período; o filtro só escolhe quais viagens e quais parcelas aparecem e somam (ADR-0116 §4), então a margem de uma viagem é a mesma com ou sem filtro. Veículo e cliente restringem as viagens (com o veículo, também as contas ligadas a ele); categoria e motorista restringem as contas. Conta sem viagem elegível some com filtro de cliente e, com filtro de veículo, só fica a ligada a ele. O total de contas passou a ser "parcelas à vista + não rateado" (mesmo número de antes sem filtro: os 111 contratos da T4.5 seguem verdes). `filters` volta na resposta só quando há filtro. Valores: uuid, ou `sem-veiculo`/`sem-cliente`; chave desconhecida ou valor inválido é 400; valor vazio é "sem filtro".
+- **Exportação (RF19, RF20):** `GET /expense-result/export?from&to&format=pdf|csv&<filtros>` (`expenses.read`, `no-store`, `content-disposition`). `createExportExpenseResultUseCase` chama o `computeExpenseResult` da tela e monta um `ExpenseExportDocument`; PDF (`expense-result-pdf.gateway.ts`, `pdfkit`) e CSV (`buildExpenseResultCsv`) leem esse objeto e não refazem soma. CSV: UTF-8 com BOM, `;`, vírgula decimal, uma linha por viagem (frete, custo, rateio do veículo, rateio geral, margem) e bloco de totais; texto digitado que começa com `= + - @` ganha apóstrofo (sem fórmula na planilha). Cabeçalho com empresa, período, filtros pelo nome, critério de rateio e hora do cálculo.
+- **Auditoria:** cada exportação grava `expense_result.export` em `audit_logs` (formato, período, filtros, autor, correlação) antes de entregar o arquivo; falha ao gravar derruba a exportação.
+- **Regra do cliente isolada:** `pickTripCustomerTaxId` (`domain/expense-trip-customer.policy.ts`) é o único lugar da regra "a viagem inteira vai ao cliente da nota de maior frete (empate: menor CNPJ)", marcada no código como pendente de confirmação; trocar a regra é trocar essa função (contrato em `test/expenses/trip-customer.contract.ts`).
+
+**Prova**
+
+- `bun test ./test/expenses.contract.test.ts`: 133 pass / 0 fail (22 novos: `result-filters`, `result-export`, `trip-customer` e as rotas). CA11: os totais do CSV batem com os de `GET /expense-result` para os mesmos filtros (sem filtro, veículo, categoria).
+- Integração contra Postgres 16 descartável (`expense-result.integration.ts`): 7 pass, com a exportação ponta a ponta (CSV com a placa, PDF `%PDF-`, duas linhas no diário com os filtros, empresa B sem vazar o nome do veículo da A).
+- Suíte de contrato da API: 15290 pass / 0 fail; `tsc --noEmit`, `eslint --max-warnings=0` e `prettier --check` limpos.
+- Não há tela nesta task (T5.2b) nem mudança em produção, então o runbook não muda.

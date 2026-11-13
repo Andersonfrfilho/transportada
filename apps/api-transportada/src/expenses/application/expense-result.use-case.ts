@@ -16,6 +16,12 @@ import {
   type AllocationTrip,
   type AllocationUnallocated,
 } from '../domain/expense-allocation.policy.js'
+import {
+  expenseMatchesFilters,
+  hasResultFilters,
+  tripMatchesFilters,
+  type ExpenseResultFilters,
+} from '../domain/expense-result-filters.policy.js'
 import type {
   ExpenseAllocationSettingsPorts,
   ExpenseResultPorts,
@@ -25,6 +31,8 @@ import type {
 export type ExpenseResultInput = {
   readonly companyId: string
   /** `yyyy-mm-dd`. */
+  /** Filtros do painel (RF18): escolhem o que aparece e soma, nunca o rateio (ADR-0116 §4). */
+  readonly filters?: ExpenseResultFilters
   readonly from: string
   readonly to: string
 }
@@ -45,6 +53,8 @@ export type ExpenseResult = {
   readonly byTrip: readonly ExpenseResultLine[]
   readonly byVehicle: readonly ExpenseResultLine[]
   /** Pagamento que passou das viagens incluídas, rateado como conta da empresa (ADR-0116 §5). */
+  /** Os filtros aplicados, só quando houve algum. */
+  readonly filters?: ExpenseResultFilters
   readonly excesses?: readonly {
     readonly amount: string
     readonly occurrenceId: string
@@ -114,7 +124,7 @@ export async function computeExpenseResult(
   input: ExpenseResultInput,
 ): Promise<ComputedExpenseResult> {
   const query = { companyId: input.companyId, from: input.from, to: input.to }
-  const [trips, occurrences, configured] = await Promise.all([
+  const [allTrips, occurrences, configured] = await Promise.all([
     ports.trips.listCompleted(query),
     ports.occurrences.listForPeriod(query),
     ports.allocationSettings.get({ companyId: input.companyId }),
@@ -132,7 +142,33 @@ export async function computeExpenseResult(
     payeeDriverId: occurrence.payeeDriverId,
     vehicleId: occurrence.vehicleId,
   }))
-  const allocation = allocateExpenses({ expenses, settings, trips })
+  // O rateio é sempre sobre o período inteiro; o filtro (RF18, ADR-0116 §4) só escolhe o que aparece e soma.
+  const allocation = allocateExpenses({ expenses, settings, trips: allTrips })
+
+  const filters: ExpenseResultFilters = input.filters ?? {}
+  const filtered = hasResultFilters(input.filters)
+  const tripLevelFilter = filters.vehicleId !== undefined || filters.customerId !== undefined
+  const trips = allTrips.filter((trip) => tripMatchesFilters(trip, filters))
+  const keptTripIds = new Set(trips.map((trip) => trip.tripId))
+  const keptOccurrenceIds = new Set(
+    active
+      .filter((occurrence) => expenseMatchesFilters(occurrence, filters))
+      .map((occurrence) => occurrence.occurrenceId),
+  )
+  const keptShares = allocation.shares.filter(
+    (share) => keptTripIds.has(share.tripId) && keptOccurrenceIds.has(share.occurrenceId),
+  )
+  // Conta sem viagem elegível não pertence a nenhuma viagem: com filtro de cliente some, com o de veículo só fica a ligada a ele.
+  const keptUnallocated = allocation.unallocated.filter((item) => {
+    if (!keptOccurrenceIds.has(item.occurrenceId)) return false
+    if (filters.customerId !== undefined) return false
+    if (filters.vehicleId !== undefined) return item.vehicleId === filters.vehicleId
+    return true
+  })
+  // Pagamento acima das viagens e sem viagem: contas da empresa, sem veículo nem cliente.
+  const keptExcesses = tripLevelFilter
+    ? []
+    : allocation.excesses.filter((excess) => keptOccurrenceIds.has(excess.occurrenceId))
 
   const byTrip = new Map<string, Totals>()
   for (const trip of trips) {
@@ -142,7 +178,7 @@ export async function computeExpenseResult(
       revenue: cents(trip.revenue),
     })
   }
-  for (const share of allocation.shares) {
+  for (const share of keptShares) {
     const totals = byTrip.get(share.tripId)
     if (totals === undefined) continue
     if (share.scope === 'vehicle') totals.vehicle += cents(share.amount)
@@ -166,12 +202,12 @@ export async function computeExpenseResult(
   const byVehicle = group((trip) => trip.vehicleId)
   const byCustomer = group((trip) => trip.customerId)
 
-  // Contas (§3): tudo que não é pagamento de motorista, mais o excedente dele; a parte coberta pelas viagens já está no custo.
+  // Contas (§3): o que foi rateado às viagens à vista mais o não rateado; a parte do pagamento coberta pelas viagens já está no custo.
   let expensesTotal = ZERO
-  for (const expense of expenses) {
-    if (expense.costGroup !== 'in_trip') expensesTotal += cents(expense.amount)
-  }
-  for (const excess of allocation.excesses) expensesTotal += cents(excess.amount)
+  for (const share of keptShares) expensesTotal += cents(share.amount)
+  let unallocated = ZERO
+  for (const item of keptUnallocated) unallocated += cents(item.amount)
+  expensesTotal += unallocated
 
   let revenue = ZERO
   let tripCost = ZERO
@@ -179,8 +215,6 @@ export async function computeExpenseResult(
     revenue += totals.revenue
     tripCost += totals.cost
   }
-  let unallocated = ZERO
-  for (const item of allocation.unallocated) unallocated += cents(item.amount)
 
   const lines = (grouped: ReadonlyMap<string, Totals>): ExpenseResultLine[] =>
     [...grouped.entries()]
@@ -193,18 +227,26 @@ export async function computeExpenseResult(
     byCustomer: lines(byCustomer),
     byTrip: lines(byTrip),
     byVehicle: lines(byVehicle),
-    excesses: allocation.excesses.map((excess) => ({
+    excesses: keptExcesses.map((excess) => ({
       amount: excess.amount,
       occurrenceId: excess.occurrenceId,
       payeeDriverId: payeeByOccurrence.get(excess.occurrenceId) ?? null,
     })),
-    paymentsWithoutTrips: active
-      .filter((o) => o.costGroup === 'in_trip' && cents(o.includedTripsAmount) === ZERO)
-      .map((o) => ({
-        amount: considered(o),
-        occurrenceId: o.occurrenceId,
-        payeeDriverId: o.payeeDriverId,
-      })),
+    ...(filtered ? { filters } : {}),
+    paymentsWithoutTrips: tripLevelFilter
+      ? []
+      : active
+          .filter(
+            (o) =>
+              keptOccurrenceIds.has(o.occurrenceId) &&
+              o.costGroup === 'in_trip' &&
+              cents(o.includedTripsAmount) === ZERO,
+          )
+          .map((o) => ({
+            amount: considered(o),
+            occurrenceId: o.occurrenceId,
+            payeeDriverId: o.payeeDriverId,
+          })),
     settings,
     totals: {
       expensesTotal: formatCents(expensesTotal),
@@ -212,7 +254,7 @@ export async function computeExpenseResult(
       revenue: formatCents(revenue),
       tripCost: formatCents(tripCost),
     },
-    unallocatedItems: allocation.unallocated.map((item) => ({
+    unallocatedItems: keptUnallocated.map((item) => ({
       ...item,
       name: nameByOccurrence.get(item.occurrenceId) ?? '',
     })),

@@ -16,13 +16,14 @@ import { buildValuationFromContext } from '../../trips/application/read-trip-val
 import type { TripListFinancialsPort } from '../../trips/application/read-trip-list-financials.use-case.js'
 import type { TripValuationContext } from '../../trips/application/read-trip-valuation.use-case.js'
 import type { ExpenseResultPorts } from '../application/expense-result.port.js'
+import { NO_CUSTOMER_ID, NO_VEHICLE_ID } from '../domain/expense-result-filters.policy.js'
+import { pickTripCustomerTaxId } from '../domain/expense-trip-customer.policy.js'
 import { completedOnSql } from './payable-trip.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 /** Viagem sem veículo (ou cliente sem cadastro) não some do resultado: vira uma linha com este identificador. */
-export const NO_VEHICLE_ID = 'sem-veiculo'
-export const NO_CUSTOMER_ID = 'sem-cliente'
+export { NO_CUSTOMER_ID, NO_VEHICLE_ID }
 
 const SECONDS_PER_DAY = 86_400
 
@@ -86,7 +87,7 @@ export function createAllocationTripQuery(
         valued.set(tripId, {
           context,
           cost: roundMoneyToCents(valuation.totalCost),
-          customerTaxId: pickCustomerTaxId(context, valuation.revenueLines),
+          customerTaxId: pickTripCustomerTaxId(context.documents, valuation.revenueLines),
           revenue: roundMoneyToCents(valuation.totalRevenue),
         })
       }
@@ -121,27 +122,4 @@ export function createAllocationTripQuery(
       })
     },
   }
-}
-
-/**
- * O cliente da viagem é o emitente da nota de maior frete (empate: o menor CNPJ, para o resultado nunca depender da
- * ordem de leitura). Uma viagem com notas de vários clientes entra inteira no de maior frete.
- */
-function pickCustomerTaxId(
-  context: TripValuationContext,
-  lines: readonly { readonly amount: string; readonly tripDocumentId: string }[],
-): null | string {
-  const senderByDocument = new Map(
-    context.documents.map((document) => [document.tripDocumentId, document.senderTaxId]),
-  )
-  let best: { amount: bigint; taxId: string } | null = null
-  for (const line of lines) {
-    const taxId = senderByDocument.get(line.tripDocumentId)
-    if (taxId === null || taxId === undefined) continue
-    const amount = BigInt(line.amount.replace('.', '').replace(/^-?\s*$/, '0'))
-    if (best === null || amount > best.amount || (amount === best.amount && taxId < best.taxId)) {
-      best = { amount, taxId }
-    }
-  }
-  return best?.taxId ?? null
 }

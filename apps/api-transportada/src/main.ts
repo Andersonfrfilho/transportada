@@ -118,7 +118,12 @@ import {
   createGetExpenseUnitCostsUseCase,
   createUpdateExpenseAllocationSettingsUseCase,
 } from './expenses/application/expense-result.use-case.js'
-import { createDrizzleExpenseResultPorts } from './expenses/infrastructure/drizzle-expense-result.repository.js'
+import { createExportExpenseResultUseCase } from './expenses/application/expense-result-export.use-case.js'
+import { renderExpenseResultPdf } from './expenses/infrastructure/expense-result-pdf.gateway.js'
+import {
+  createDrizzleExpenseExportPorts,
+  createDrizzleExpenseResultPorts,
+} from './expenses/infrastructure/drizzle-expense-result.repository.js'
 import {
   createCreateCompanyEntryKindUseCase,
   createDeactivateCompanyEntryKindUseCase,
@@ -4656,6 +4661,10 @@ function createApplicationRoutes({
       updateExpense: createUpdateExpenseUseCase(expensesPorts),
     }),
     ...createExpenseResultRoutes({
+      exportResult: createExportExpenseResultUseCase({
+        ports: { ...expenseResultPorts, ...createDrizzleExpenseExportPorts(database) },
+        renderPdf: renderExpenseResultPdf,
+      }),
       getResult: createGetExpenseResultUseCase(expenseResultPorts),
       getSettings: createGetExpenseAllocationSettingsUseCase(expenseResultPorts),
       getUnitCosts: createGetExpenseUnitCostsUseCase(expenseResultPorts),

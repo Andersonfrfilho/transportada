@@ -5,7 +5,7 @@
  * do critério (`company_expense_allocation_settings`). Toda consulta carrega `company_id`.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 
 import {
   COMPANY_EXPENSE_ALLOCATABLE_GROUPS,
@@ -16,9 +16,13 @@ import {
   companyExpenseOccurrenceTrips,
   companyExpenses,
 } from '../../database/company-expense.schema.js'
+import { companyFiscalProfiles } from '../../database/company-fiscal-profile.schema.js'
+import { contractors } from '../../database/delivery-client.schema.js'
+import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import type { TripListFinancialsPort } from '../../trips/application/read-trip-list-financials.use-case.js'
 import type {
+  ExpenseExportPorts,
   ExpenseAllocationSettingsPorts,
   ExpenseResultPorts,
 } from '../application/expense-result.port.js'
@@ -105,6 +109,7 @@ export function createDrizzleExpenseResultPorts(
             and ${companyExpenseOccurrenceTrips.occurrenceId} = ${companyExpenseOccurrences.id}), 0)::numeric(14,2)::text`
         const rows = await database
           .select({
+            categoryId: companyExpenses.categoryId,
             costGroup: companyExpenseCategories.costGroup,
             expectedAmount: companyExpenseOccurrences.expectedAmount,
             expenseId: companyExpenses.id,
@@ -140,6 +145,7 @@ export function createDrizzleExpenseResultPorts(
           )
           .orderBy(companyExpenseOccurrences.dueDate, companyExpenseOccurrences.id)
         return rows.map((row) => ({
+          categoryId: row.categoryId,
           costGroup: toCostGroup(row.costGroup),
           expectedAmount: row.expectedAmount,
           expenseId: row.expenseId,
@@ -154,5 +160,102 @@ export function createDrizzleExpenseResultPorts(
       },
     },
     trips: createAllocationTripQuery(database, financials),
+  }
+}
+
+const EXPORT_AUDIT_PERMISSION = 'expenses.read'
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Nomes da exportação (T4.6) e o diário dela. Toda consulta carrega `company_id`; id fora de uuid (`sem-veiculo`) nem vai ao banco. */
+export function createDrizzleExpenseExportPorts(database: Database): ExpenseExportPorts {
+  const uuids = (values: readonly string[]): string[] => values.filter((v) => UUID_PATTERN.test(v))
+  return {
+    exportAudit: {
+      record: async ({ companyId, correlationId, filters, format, from, to, userId }) => {
+        await database.insert(auditLogs).values({
+          action: 'expense_result.export',
+          actorUserId: userId,
+          companyId,
+          correlationId,
+          entityId: companyId,
+          entityType: 'expense_result',
+          metadata: { filters, format, from, to },
+          permission: EXPORT_AUDIT_PERMISSION,
+          targetId: companyId,
+          targetType: 'expense_result',
+        })
+      },
+    },
+    exportLabels: {
+      read: async ({ categoryId, companyId, customerIds, payeeDriverId, vehicleIds }) => {
+        const vehicleKeys = uuids(vehicleIds)
+        const customerKeys = uuids(customerIds)
+        const [profile] = await database
+          .select({
+            legalName: companyFiscalProfiles.legalName,
+            tradeName: companyFiscalProfiles.tradeName,
+          })
+          .from(companyFiscalProfiles)
+          .where(eq(companyFiscalProfiles.companyId, companyId))
+          .limit(1)
+        const vehicles =
+          vehicleKeys.length === 0
+            ? []
+            : await database
+                .select({ id: fleetVehicles.id, plate: fleetVehicles.plate })
+                .from(fleetVehicles)
+                .where(
+                  and(
+                    eq(fleetVehicles.companyId, companyId),
+                    inArray(fleetVehicles.id, vehicleKeys),
+                  ),
+                )
+        const customers =
+          customerKeys.length === 0
+            ? []
+            : await database
+                .select({
+                  displayName: contractors.displayName,
+                  id: contractors.id,
+                  taxId: contractors.taxId,
+                })
+                .from(contractors)
+                .where(
+                  and(eq(contractors.companyId, companyId), inArray(contractors.id, customerKeys)),
+                )
+        const [category] =
+          categoryId === undefined || !UUID_PATTERN.test(categoryId)
+            ? []
+            : await database
+                .select({ name: companyExpenseCategories.name })
+                .from(companyExpenseCategories)
+                .where(
+                  and(
+                    eq(companyExpenseCategories.companyId, companyId),
+                    eq(companyExpenseCategories.id, categoryId),
+                  ),
+                )
+                .limit(1)
+        const [payee] =
+          payeeDriverId === undefined || !UUID_PATTERN.test(payeeDriverId)
+            ? []
+            : await database
+                .select({ name: fleetDrivers.name })
+                .from(fleetDrivers)
+                .where(
+                  and(eq(fleetDrivers.companyId, companyId), eq(fleetDrivers.id, payeeDriverId)),
+                )
+                .limit(1)
+        return {
+          categoryName: category?.name ?? null,
+          companyName: profile === undefined ? '' : profile.tradeName || profile.legalName,
+          customers: new Map(
+            customers.map((c) => [c.id, c.displayName === '' ? c.taxId : c.displayName]),
+          ),
+          payeeName: payee?.name ?? null,
+          vehicles: new Map(vehicles.map((v) => [v.id, v.plate])),
+        }
+      },
+    },
   }
 }
