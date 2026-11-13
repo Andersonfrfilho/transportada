@@ -1,0 +1,14 @@
+{{marcacao}}
+📣 *Aviso de ocorrência na {{momento}}*
+
+*Tipo:* {{tipoOcorrencia}}
+*Contratante:* {{contratante}}
+*Nota fiscal:* {{numeroNota}}
+*Cliente:* {{cliente}}
+*Endereço:* {{enderecoEntrega}}
+*Valor da nota:* R$ {{valorNota}}
+📅 *Vencimento pedido:* {{novaData}}
+*Registrada em:* {{data}}
+📝 {{observacao}}
+
+Estamos avisando para vocês acompanharem. Se quiserem orientar como seguir, é só responder aqui.

@@ -5,17 +5,27 @@
  * notificação. A spec 286 (T6) soma o modelo `correcao-endereco.padrao`, com a régua dele (lista fechada própria). O arquivo é a fonte e o banco recebe versões — nunca `UPDATE`. O plano é `create` (sem ativa),
  * `same` (ativa igual, assunto e corpo) ou `differs` (ativa diferente: só com `--overwrite <chave>`, para não
  * apagar personalização feita na tela sem aviso). Um arquivo inválido recusa todos.
+ *
+ * Spec 324 (T1b, D10): o modelo geral do aviso manual à contratante tem também a versão WhatsApp da mesma chave
+ * (`occurrence-whatsapp-templates/*.txt`, sem assunto). Cada modelo diz o canal; o plano o mostra ao lado da chave.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 
 import { ADDRESS_CORRECTION_MAIL_TEMPLATE_KEY } from '../../address-correction/domain/address-correction-mail-template.constant.js'
 import { assessAddressCorrectionTemplate } from '../../address-correction/domain/address-correction-mail-template.policy.js'
+import {
+  assessManualNoticeEmailTemplate,
+  assessManualNoticeWhatsappTemplate,
+  CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY,
+} from '../domain/contractor-manual-notice-template.policy.js'
 import { assessContractorTemplate } from '../domain/occurrence-contractor-template.policy.js'
 
 export const OCCURRENCE_MAIL_TEMPLATE_CHANNEL = 'email'
+export const OCCURRENCE_WHATSAPP_TEMPLATE_CHANNEL = 'whatsapp'
 export const OCCURRENCE_MAIL_TEMPLATE_LOCALE = 'pt-BR'
 
 const TEMPLATES_DIR = new URL('../occurrence-mail-templates/', import.meta.url)
+const WHATSAPP_TEMPLATES_DIR = new URL('../occurrence-whatsapp-templates/', import.meta.url)
 const ADDRESS_CORRECTION_TEMPLATE_FILE = new URL(
   '../../address-correction/address-correction-mail-templates/correcao-endereco.html',
   import.meta.url,
@@ -29,7 +39,15 @@ export type OccurrenceMailTemplateContent = {
   readonly subject: string
 }
 
-export type OccurrenceMailTemplateFile = OccurrenceMailTemplateContent & { readonly key: string }
+export type OccurrenceTemplateChannel =
+  | typeof OCCURRENCE_MAIL_TEMPLATE_CHANNEL
+  | typeof OCCURRENCE_WHATSAPP_TEMPLATE_CHANNEL
+
+export type OccurrenceMailTemplateFile = OccurrenceMailTemplateContent & {
+  /** Ausente é `email`, o canal de todos os modelos até a spec 324. */
+  readonly channel?: OccurrenceTemplateChannel
+  readonly key: string
+}
 
 type ActiveTemplate = {
   readonly body: string
@@ -60,6 +78,7 @@ export type PublicationVerdict = 'create' | 'differs' | 'same'
 
 export type PublicationEntry = {
   readonly activeVersion: null | number
+  readonly channel: OccurrenceTemplateChannel
   readonly key: string
   readonly verdict: PublicationVerdict
   /** Só preenchida quando a rodada gravou esta chave. */
@@ -101,11 +120,41 @@ export function readAddressCorrectionMailTemplateFile(): OccurrenceMailTemplateF
   }
 }
 
+/** Spec 324 (T1b): os textos WhatsApp versionados (hoje só o do aviso manual), chave `ocorrencia.<arquivo>`. */
+export function readOccurrenceWhatsappTemplateFiles(): readonly OccurrenceMailTemplateFile[] {
+  return readdirSync(WHATSAPP_TEMPLATES_DIR)
+    .filter((name) => name.endsWith('.txt'))
+    .sort()
+    .map((name) => ({
+      body: readFileSync(new URL(name, WHATSAPP_TEMPLATES_DIR), 'utf8').trimEnd(),
+      channel: OCCURRENCE_WHATSAPP_TEMPLATE_CHANNEL,
+      key: `${KEY_PREFIX}${name.slice(0, -'.txt'.length)}`,
+      subject: '',
+    }))
+}
+
+function channelOf(template: OccurrenceMailTemplateFile): OccurrenceTemplateChannel {
+  return template.channel ?? OCCURRENCE_MAIL_TEMPLATE_CHANNEL
+}
+
+/** A posição do modelo no mapa da versão ativa: a chave, e o canal quando não é e-mail (a mesma chave em dois canais). */
+export function templateSlot(template: OccurrenceMailTemplateFile): string {
+  const channel = channelOf(template)
+  return channel === OCCURRENCE_MAIL_TEMPLATE_CHANNEL ? template.key : `${channel}:${template.key}`
+}
+
 /** Cada família de modelo tem a sua régua de variáveis. */
 function assessTemplateFile(template: OccurrenceMailTemplateFile): readonly PublicationProblem[] {
-  return template.key === ADDRESS_CORRECTION_MAIL_TEMPLATE_KEY
-    ? assessAddressCorrectionTemplate(template)
-    : assessContractorTemplate({ key: template.key, template })
+  if (channelOf(template) === OCCURRENCE_WHATSAPP_TEMPLATE_CHANNEL) {
+    return assessManualNoticeWhatsappTemplate(template)
+  }
+  if (template.key === ADDRESS_CORRECTION_MAIL_TEMPLATE_KEY) {
+    return assessAddressCorrectionTemplate(template)
+  }
+  const problems = assessContractorTemplate({ key: template.key, template })
+  return template.key === CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY
+    ? [...problems, ...assessManualNoticeEmailTemplate(template)]
+    : problems
 }
 
 export function planOccurrenceMailTemplatePublication(params: {
@@ -120,7 +169,7 @@ export function planOccurrenceMailTemplatePublication(params: {
 
   const invalid = templates
     .map((template) => ({
-      key: template.key,
+      key: templateSlot(template),
       problems: assessTemplateFile(template),
     }))
     .filter((item) => item.problems.length > 0)
@@ -128,14 +177,19 @@ export function planOccurrenceMailTemplatePublication(params: {
 
   return {
     entries: templates.map((template) => {
-      const current = active.get(template.key)
+      const current = active.get(templateSlot(template))
       const verdict: PublicationVerdict =
         current === undefined
           ? 'create'
           : current.body === template.body && (current.subject ?? '') === template.subject
             ? 'same'
             : 'differs'
-      return { activeVersion: current?.version ?? null, key: template.key, verdict }
+      return {
+        activeVersion: current?.version ?? null,
+        channel: channelOf(template),
+        key: template.key,
+        verdict,
+      }
     }),
     invalid: [],
   }
@@ -153,9 +207,9 @@ export async function publishOccurrenceMailTemplates(params: {
   const active = new Map<string, ActiveTemplate | undefined>()
   for (const template of templates) {
     active.set(
-      template.key,
+      templateSlot(template),
       await repository.findActive({
-        channel: OCCURRENCE_MAIL_TEMPLATE_CHANNEL,
+        channel: channelOf(template),
         companyId,
         key: template.key,
         locale: OCCURRENCE_MAIL_TEMPLATE_LOCALE,
@@ -169,7 +223,9 @@ export async function publishOccurrenceMailTemplates(params: {
   for (const entry of plan.entries) {
     const shouldWrite =
       entry.verdict === 'create' || (entry.verdict === 'differs' && overwrite.includes(entry.key))
-    const template = templates.find((candidate) => candidate.key === entry.key)
+    const template = templates.find(
+      (candidate) => candidate.key === entry.key && channelOf(candidate) === entry.channel,
+    )
     if (!shouldWrite || template === undefined) {
       entries.push(entry)
       continue
@@ -177,11 +233,11 @@ export async function publishOccurrenceMailTemplates(params: {
     const row = await repository.upsert({
       active: true,
       body: template.body,
-      channel: OCCURRENCE_MAIL_TEMPLATE_CHANNEL,
+      channel: entry.channel,
       companyId,
       key: template.key,
       locale: OCCURRENCE_MAIL_TEMPLATE_LOCALE,
-      subject: template.subject,
+      ...(entry.channel === OCCURRENCE_MAIL_TEMPLATE_CHANNEL ? { subject: template.subject } : {}),
     })
     entries.push({ ...entry, writtenVersion: row.version })
   }
