@@ -158,8 +158,18 @@ export type ManualNoticeState =
       readonly channel: ManualNoticeChannel | null
       readonly status: 'notified'
     }
-  | { readonly channel: 'email'; readonly recipientCount: number; readonly status: 'available' }
-  | { readonly channel: 'whatsapp_group'; readonly status: 'available' }
+  | {
+      readonly channel: 'email'
+      /** Spec 324 T4 (RF2): o texto do modelo já preenchido, para a confirmação; `null` se não deu para montar. */
+      readonly preview: null | { readonly bodyText: string; readonly subject: string }
+      readonly recipientCount: number
+      readonly status: 'available'
+    }
+  | {
+      readonly channel: 'whatsapp_group'
+      readonly preview: null | { readonly bodyText: string; readonly subject: null }
+      readonly status: 'available'
+    }
   | {
       readonly reason: 'blocked' | 'no_recipient' | 'no_template'
       readonly status: 'unavailable'
@@ -518,7 +528,22 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
         return { ...record.automatic, by: 'automatic', status: 'notified' }
       }
       if (plan.groupChannel !== null && plan.groupChannel !== undefined) {
-        return { channel: 'whatsapp_group', status: 'available' }
+        const message = await dependencies.group?.readMessage(input)
+        return {
+          channel: 'whatsapp_group',
+          preview:
+            message === null || message === undefined
+              ? null
+              : {
+                  bodyText: buildContractorOccurrenceGroupMessage({
+                    mentionPhone: plan.groupChannel.mentionPhone,
+                    template: message.template,
+                    values: message.values,
+                  }),
+                  subject: null,
+                },
+          status: 'available',
+        }
       }
       const resolved = resolveOccurrenceRecipients({
         chosenContactIds: plan.chosenContactIds,
@@ -535,7 +560,12 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
       ).length
       if (recipientCount === 0) return { reason: 'no_recipient', status: 'unavailable' }
       if (plan.suggested === null) return { reason: 'no_template', status: 'unavailable' }
-      return { channel: 'email', recipientCount, status: 'available' }
+      return {
+        channel: 'email',
+        preview: { bodyText: plan.suggested.bodyText, subject: plan.suggested.subject },
+        recipientCount,
+        status: 'available',
+      }
     },
 
     async send(input: SendInput): Promise<AutomaticOccurrenceMailResult> {

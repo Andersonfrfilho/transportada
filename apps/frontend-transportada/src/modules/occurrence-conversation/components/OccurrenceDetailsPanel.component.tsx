@@ -23,6 +23,7 @@ import type { OccurrenceTimelineEvent } from '@/modules/trip/shared/tripOccurren
 import { useOccurrenceConversationsQuery } from '../queries/occurrenceConversation.query'
 import type { OccurrenceConversationAttachment } from '../shared/occurrenceConversation.types'
 import styles from '../styles/occurrenceDetails.module.css'
+import { ContractorNoticeSection } from './ContractorNoticeSection.component'
 
 type OccurrenceDetailsPanelProps = Readonly<{
   companyId?: string
@@ -248,6 +249,7 @@ export function OccurrenceDetailsPanel({
         {...(companyId === undefined ? {} : { companyId })}
         occurrenceId={occurrenceId}
       />
+      <ContractorNoticeSection occurrenceId={occurrenceId} />
       <ClientContactsSection
         canManage={permissions.includes('fleet.manage')}
         taxId={describeOccurrenceClientCells(occurrence.document).taxId}

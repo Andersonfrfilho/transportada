@@ -461,6 +461,7 @@ describe('o estado do botão "Avisar a contratante" (spec 324 T3)', () => {
 
     expect(await fixture.state()).toEqual({
       channel: 'email',
+      preview: { bodyText: 'Local fechado na NF 4512.', subject: 'Ocorrência — NF 4512' },
       recipientCount: 1,
       status: 'available',
     })
@@ -478,7 +479,11 @@ describe('o estado do botão "Avisar a contratante" (spec 324 T3)', () => {
       }),
     })
 
-    expect(await fixture.state()).toEqual({ channel: 'whatsapp_group', status: 'available' })
+    expect(await fixture.state()).toEqual({
+      channel: 'whatsapp_group',
+      preview: { bodyText: expect.stringContaining('NF 4512/1 (Local fechado)'), subject: null },
+      status: 'available',
+    })
   })
 
   test('tipo da 321 (CA05): indisponível por "blocked", mesmo já avisada', async () => {

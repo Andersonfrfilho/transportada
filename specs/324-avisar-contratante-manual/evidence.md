@@ -133,3 +133,18 @@ Hoje não há leitura única de "avisada". Fontes: `contractor_mail_messages` (e
 - Integração contra Postgres 16 local: `contractor-manual-notice.integration.ts` (+1: disponível → avisada pelo botão → bloqueada pela 321) — **6 pass**.
 - `bun test` da API: 15130 pass, 0 fail, 35 skip. `tsc --noEmit` limpo; eslint e prettier limpos nos arquivos tocados.
 - Produção não foi tocada; nada a registrar no runbook.
+
+## T4 — Painel (13/11/2026, empilhada na T3, PR #734)
+
+### O que entrou
+
+- **`ContractorNoticeSection`** no detalhe da ocorrência (`OccurrenceDetailsPanel`, seção "Aviso à contratante"), só com `occurrences.resolve` (D9). Estados: `available` mostra o botão "Avisar a contratante"; `notified` mostra "Avisada em <data> por <nome> (<canal>)" sem botão (RF4); `unavailable` mostra o motivo (D6), e `blocked` (321) esconde a seção inteira (RF6).
+- **Diálogo de confirmação** (RF2): canal (grupo de WhatsApp ou e-mail para N contatos) e o texto já preenchido; cancelar não envia. Falha ou "não enviado" mostra o motivo e troca o botão por "Tentar de novo". 409 (já avisada/bloqueado) tem texto próprio.
+- **API (ajuste da T3 para a RF2):** o estado `available` agora traz `preview` (e-mail: assunto + texto do modelo; grupo: mensagem montada pelo mesmo `buildContractorOccurrenceGroupMessage` do envio). Sem isso o painel não teria o texto para mostrar.
+- Componentes do design system (`Button`, `Icon`, `Skeleton`) e o `overlay/dialog` do módulo, o mesmo do diálogo "Enviar à contratante"; sem input, select ou botão com estilo próprio. O diálogo ganhou `z-index` acima do painel de detalhes.
+- Locale pt-BR e en (`contractorNotice.*`).
+
+### Testes e prints
+
+- Contrato `test/occurrence-conversation/contractor-notice.contract.ts` (leitura do estado e do desfecho, POST sem corpo, permissão); API: contratos de estado atualizados (985 + 21 pass). `tsc`, eslint e prettier limpos.
+- Prints (CA06) em `prints/`: `botao-*` e `confirmacao-*`, claro/escuro, desktop (1440) e celular (375), gerados por `test/spec-324-prints.smoke.spec.ts` (fora da CI).

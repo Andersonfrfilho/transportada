@@ -791,5 +791,55 @@
       "back": "Voltar às abas",
       "tabs": "Canais da conversa com o cliente"
     }
+  },
+  "contractorNotice": {
+    "title": "Aviso à contratante",
+    "button": "Avisar a contratante",
+    "error": "Não foi possível carregar o estado do aviso à contratante.",
+    "channel": {
+      "whatsapp_group": "Canal: grupo de WhatsApp da contratante",
+      "email": "Canal: e-mail para {{count}} contato(s) da etapa"
+    },
+    "channelName": {
+      "whatsapp_group": "grupo de WhatsApp",
+      "email": "e-mail"
+    },
+    "notified": {
+      "manual": "Avisada em {{at}} por {{name}} ({{channel}}).",
+      "automatic": "Avisada em {{at}} pelo aviso automático ({{channel}})."
+    },
+    "unavailable": {
+      "no_recipient": "Não dá para avisar: a contratante não tem contato para esta etapa (ou o e-mail não está verificado).",
+      "no_template": "Não dá para avisar: não há modelo de aviso disponível.",
+      "blocked": ""
+    },
+    "dialog": {
+      "title": "Avisar a contratante",
+      "close": "Fechar",
+      "previewTitle": "Texto que será enviado",
+      "noPreview": "A prévia do texto não está disponível. O envio usa o modelo do tipo.",
+      "cancel": "Cancelar",
+      "confirm": "Enviar aviso",
+      "retry": "Tentar de novo",
+      "sending": "Enviando…"
+    },
+    "outcome": {
+      "sent": {
+        "email": "Aviso enviado por e-mail.",
+        "whatsapp_group": "Aviso enviado no grupo de WhatsApp."
+      },
+      "failed": "O aviso não saiu. Tente de novo.",
+      "skipped": {
+        "mail_not_ready": "O e-mail da empresa não está pronto para enviar.",
+        "no_recipient": "Não há destinatário para esta etapa.",
+        "no_template_selected": "Não há modelo de aviso disponível.",
+        "other": "O aviso não foi enviado."
+      }
+    },
+    "failure": {
+      "OCCURRENCE_CONTRACTOR_NOTICE_ALREADY_SENT": "A contratante já foi avisada sobre esta ocorrência.",
+      "OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED": "Este tipo de ocorrência não avisa a contratante.",
+      "generic": "Não foi possível enviar o aviso. Tente de novo."
+    }
   }
 }
