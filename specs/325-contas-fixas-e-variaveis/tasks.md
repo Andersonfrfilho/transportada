@@ -40,7 +40,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 ## Fase 2 — Painel
 
-- [ ] **T2.1** Módulo `expenses` no frontend: cliente, validação de resposta, hooks, locales pt/en.
+- [x] **T2.1** Módulo `expenses` no frontend: cliente, validação de resposta, hooks, locales pt/en.
+      Feita: `apps/frontend-transportada/src/modules/expenses/` com tipos (vocabulário copiado da API e conferido por contrato), `expensesClient.service.ts` (as 13 rotas), `expensesResponse.validation.ts` (guard manual, dinheiro sempre texto), hooks TanStack com a chave raiz `expenses` e locales pt/en registrados em `i18n.service.ts`. Contrato `test/expenses.contract.test.ts` na lista do `package.json`. Sem tela: a página é a T2.2. Notas em `evidence.md` § T2.1.
   > 🤖 Modelo: `sonnet`
 - [ ] **T2.2** Página `/contas` (lista, filtros, totais), formulário nova conta fixa/variável (com seletor de motorista/agregado) e diálogo de baixa; item no menu (`workspaceNavigation.constant.ts`) com guarda de permissão.
   > 🤖 Modelo: `sonnet`
