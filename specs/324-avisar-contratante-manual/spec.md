@@ -65,4 +65,3 @@ O escritório não tem como acionar o aviso padrão de uma ocorrência que o tip
 ## Dúvidas
 
 Todas respondidas pelo Anderson em 13/11/2026 (ver D8–D10). Sem `[NEEDS CLARIFICATION]` aberto.
-
