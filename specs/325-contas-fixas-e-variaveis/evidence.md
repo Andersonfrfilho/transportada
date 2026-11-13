@@ -199,3 +199,10 @@ posição (196 RF12): a leitura de `trip_status_events` foi para `infrastructure
 
 - `bun test ./test/expenses.contract.test.ts` → 11 pass / 0 fail (guard, cliente, paridade de vocabulário com a API, paridade pt/en).
 - `bun run test` → 1496 pass / 0 fail. `tsc --noEmit`, `eslint` (módulo e testes) e `prettier --check` limpos.
+
+## T2.3 — Painel "Categorias de contas" (2026-11-13)
+
+- Aba `expenseCategories` em Configurações da empresa (`SETTINGS_PANELS`, `SETTINGS_PANEL_PLACEMENT`, `COMPANY_SETTINGS_TAB_IDS`, fonte de dados `expenseCategories`). Painel autocontido `ExpenseCategoriesPanel`: lista as categorias (marca "exige motorista" e "inativa"), cadastra por nome e desativa/reativa (nunca apaga). Usa os hooks do módulo `expenses` (T2.1); a aba segue visível com `settings.manage`, e o painel lê com `expenses.read` e escreve com `expenses.manage` (sem a leitura não faz chamada). Nome repetido (`EXPENSE_CATEGORY_NAME_TAKEN`) tem frase própria; qualquer outro código cai na genérica.
+- Só componentes do design system, no mesmo molde do painel Vendedores (rótulo em cima, `Button`, `Skeleton`). Textos pt/en em `companySettings.*.locale.json`, sem mexer no locale de `expenses` nem em rota/menu (T2.2).
+- Contrato novo `test/expenses/categories-panel.contract.ts` (registrado em `test/expenses.contract.test.ts`): endereço da aba e consulta ligada só nela, mapa de erros, paridade pt/en. `bun run test` do painel: verde; `tsc` e `eslint` limpos.
+- Prints (claro/escuro × desktop 1440/celular 375) em `prints/categorias-*.png`, gerados por `test/spec-325-categorias-prints.smoke.spec.ts` (fora da CI, `PLAYWRIGHT_TEST_MATCH=spec-325-categorias-prints.smoke.spec.ts`), comparados com a aba Vendedores.
