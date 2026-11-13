@@ -8,6 +8,7 @@
 import type { SQL } from 'bun'
 import { join } from 'node:path'
 
+import { rollbackCompanyExpenseOccurrenceJobIfApplied } from './company-expense-occurrence-job-rollback.assertion.js'
 import { migrationsDirectory, readMigrationNames } from './support.js'
 
 const MIGRATION_SUFFIX = '_whatsapp_inbox_chat_expire_job'
@@ -16,6 +17,9 @@ export async function rollbackWhatsAppInboxChatExpireJobIfApplied(
   database: SQL,
   directories: readonly string[],
 ): Promise<void> {
+  // Spec 325 T1.5: a rotina das contas é a mais nova e sai antes, pelo mesmo motivo.
+  await rollbackCompanyExpenseOccurrenceJobIfApplied(database, directories)
+
   const directory = directories.find((name) => name.endsWith(MIGRATION_SUFFIX))
   if (directory === undefined) return
   if (!(await readMigrationNames(database)).includes(directory)) return
