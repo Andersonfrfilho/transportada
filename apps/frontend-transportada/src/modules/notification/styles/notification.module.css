@@ -256,3 +256,13 @@
   --adn-color-accent-soft: color-mix(in srgb, var(--color-copper) 14%, transparent);
   --adn-color-faint: color-mix(in srgb, var(--color-slate) 55%, transparent);
 }
+
+/*
+ * No celular a página ganhava uma faixa lateral: o cabeçalho "só para leitor de tela" da coluna de
+ * ações é `position: absolute`, e sem ancestral posicionado ele escapava do `overflow-x: auto` da
+ * tabela e esticava a rolagem da página até a largura da tabela inteira. Posicionar o contêiner da
+ * tabela prende o elemento dentro dele.
+ */
+.notificationTheme :global(.adn-settings__table-scroll) {
+  position: relative;
+}
