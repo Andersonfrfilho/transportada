@@ -131,6 +131,9 @@ export type SettleOccurrenceInput = Readonly<{
   settlementNote?: string | null
 }>
 
+/** Trajeto lido das paradas da viagem; `origin` ausente quando a viagem tem uma parada só. */
+export type ExpenseTripRoute = Readonly<{ destination: string; origin: string | null }>
+
 /** RF1d: a linha da pessoa na parcela da viagem, copiada na inclusão (`diária × dias`). */
 export type ExpenseOccurrenceTrip = Readonly<{
   amount: string
@@ -138,6 +141,8 @@ export type ExpenseOccurrenceTrip = Readonly<{
   dailyAmount: string
   days: number
   parcelKind: ExpenseTripParcelKind
+  /** Ausente em API anterior ao trajeto; `null` quando a viagem não tem parada. */
+  route?: ExpenseTripRoute | null
   tripId: string
 }>
 
@@ -151,6 +156,7 @@ export type PendingExpenseTrip = Readonly<{
   completedOn: string
   gap: string
   parcelKind: ExpenseTripParcelKind
+  route?: ExpenseTripRoute | null
   tripId: string
 }>
 

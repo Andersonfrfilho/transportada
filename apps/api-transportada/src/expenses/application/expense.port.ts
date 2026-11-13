@@ -4,6 +4,8 @@
  * Spec 325 T1.1: forma das portas do módulo Contas, fixada pelos contratos de `test/expenses/`.
  * A T1.2 (schema) e a T1.4 (Drizzle) implementam; dinheiro é `numeric` em string, nunca float.
  */
+import type { ExpenseTripRoute } from '../domain/expense-trip-route.policy.js'
+
 export type ExpenseKind = 'fixed' | 'variable'
 export type ExpenseRecurrence = 'monthly' | 'bimonthly' | 'quarterly' | 'yearly' | 'fortnightly'
 export type ExpenseOccurrenceStatus = 'open' | 'paid' | 'canceled'
@@ -171,6 +173,8 @@ export type ExpensesPorts = {
   }
 }
 
+export type { ExpenseTripRoute } from '../domain/expense-trip-route.policy.js'
+
 /** Spec 325 RF1d/RF1e: a parcela de pessoa da viagem que o pagamento cobre. */
 export type ExpenseTripParcelKind = 'driver' | 'helper'
 
@@ -276,6 +280,11 @@ export type ExpenseOccurrenceTripPorts = Pick<
       readonly from: string
       readonly to: string
     }): Promise<readonly PayableTripCandidate[]>
+    /** Em lote: o trajeto lido das paradas; viagem sem parada, ou de outra empresa, não entra no mapa. */
+    readRoutes(input: {
+      readonly companyId: string
+      readonly tripIds: readonly string[]
+    }): Promise<ReadonlyMap<string, ExpenseTripRoute>>
     /** Em lote: viagem que não é da empresa, ou sem a pessoa naquele papel, não entra no mapa. */
     readPersonParcels(input: {
       readonly companyId: string

@@ -429,6 +429,7 @@ function serializeOccurrenceTrips(result: ExpenseOccurrenceTripsResult): Record<
       dailyAmount: item.dailyAmount,
       days: item.days,
       parcelKind: item.parcelKind,
+      route: item.route,
       tripId: item.tripId,
     })),
     occurrence: serializeBareOccurrence(result.occurrence),

@@ -156,6 +156,47 @@ describe('expenses response guard', () => {
     expect(available.pending[0]?.parcelKind).toBe('helper')
   })
 
+  it('lê o trajeto da viagem quando vem e tolera a API sem ele', () => {
+    const route = { destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' }
+    const trips = toOccurrenceTrips({
+      data: {
+        items: [{ ...TRIP, route }, { ...TRIP, route: null, tripId: 'trip-2' }, TRIP],
+        occurrence: OCCURRENCE,
+        tripsTotal: '600.00',
+      },
+    })
+    expect(trips.items[0]?.route).toEqual(route)
+    expect(trips.items[1]?.route).toBeNull()
+    expect(trips.items[2]?.route).toBeUndefined()
+
+    const available = toAvailableTrips({
+      data: {
+        available: [{ ...TRIP, route: { destination: 'CAMPINAS', origin: null } }],
+        pending: [
+          {
+            completedOn: '2026-11-04',
+            gap: 'NO_PLANNED_DURATION',
+            parcelKind: 'helper',
+            route,
+            tripId: 'trip-2',
+          },
+        ],
+        period: { from: '2026-11-01', to: '2026-11-30' },
+      },
+    })
+    expect(available.available[0]?.route).toEqual({ destination: 'CAMPINAS', origin: null })
+    expect(available.pending[0]?.route).toEqual(route)
+    expect(() =>
+      toOccurrenceTrips({
+        data: {
+          items: [{ ...TRIP, route: { destination: 7, origin: null } }],
+          occurrence: OCCURRENCE,
+          tripsTotal: '1.00',
+        },
+      }),
+    ).toThrow(ExpenseResponseError)
+  })
+
   it('o vocabulário daqui é o da API', async () => {
     const schema = await Bun.file(
       new URL('../../../api-transportada/src/database/company-expense.schema.ts', import.meta.url),

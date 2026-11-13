@@ -13,6 +13,7 @@ import {
   isOverdue,
   listCompetenceOptions,
   parseMoney,
+  formatTripRoute,
   resolveOccurrencePayeeKey,
   resolvePayeeLabelKey,
   summarizeOccurrences,
@@ -129,5 +130,16 @@ describe('contas — formulário de nova conta', () => {
 describe('contas — menu', () => {
   it('a página abre só com expenses.read', () => {
     expect(WORKSPACE_PERMISSIONS.expenses).toEqual(['expenses.read'])
+  })
+})
+
+describe('contas — viagens do pagamento', () => {
+  it('o trajeto da viagem é "origem → destino", só o destino com uma parada e nada sem ele', () => {
+    expect(formatTripRoute({ destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' })).toBe(
+      'RIBEIRAO PRETO → CAMPINAS',
+    )
+    expect(formatTripRoute({ destination: 'CAMPINAS', origin: null })).toBe('CAMPINAS')
+    expect(formatTripRoute(null)).toBeNull()
+    expect(formatTripRoute(undefined)).toBeNull()
   })
 })
