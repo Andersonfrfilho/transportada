@@ -72,6 +72,19 @@ describe('expenses response guard', () => {
     expect(page.totals.paidByDriver[0]?.paidAmount).toBe('10.50')
   })
 
+  it('lê o perfil do favorecido quando vem e tolera a API sem ele', () => {
+    const totals = { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] }
+    const withProfile = toOccurrencePage({
+      data: [{ ...LIST_ITEM, payeeProfile: 'helper' }],
+      totals,
+    })
+    expect(withProfile.items[0]?.payeeProfile).toBe('helper')
+    expect(toOccurrencePage({ data: [LIST_ITEM], totals }).items[0]?.payeeProfile).toBeUndefined()
+    expect(() =>
+      toOccurrencePage({ data: [{ ...LIST_ITEM, payeeProfile: 'boss' }], totals }),
+    ).toThrow(ExpenseResponseError)
+  })
+
   it('recusa valor numérico no lugar do texto de dinheiro', () => {
     expect(() =>
       toOccurrencePage({

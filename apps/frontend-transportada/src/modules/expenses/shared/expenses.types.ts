@@ -64,6 +64,9 @@ export type ExpenseOccurrence = Readonly<{
   status: ExpenseOccurrenceStatus
 }>
 
+export const EXPENSE_PAYEE_PROFILES = ['aggregate', 'driver', 'helper'] as const
+export type ExpensePayeeProfile = (typeof EXPENSE_PAYEE_PROFILES)[number]
+
 export type ExpenseOccurrenceListItem = ExpenseOccurrence &
   Readonly<{
     categoryId: string
@@ -73,6 +76,8 @@ export type ExpenseOccurrenceListItem = ExpenseOccurrence &
     payeeDriverId: string | null
     payeeDriverName: string | null
     payeeDriverPaymentModel: ExpenseDriverPaymentModel | null
+    /** Perfil do favorecido (T1.4c); ausente em API anterior à T1.4c. */
+    payeeProfile?: ExpensePayeeProfile | null
   }>
 
 export type ExpenseOccurrenceTotals = Readonly<{

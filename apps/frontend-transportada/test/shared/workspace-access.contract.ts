@@ -58,6 +58,8 @@ const EXPECTED_WORKSPACE_PERMISSIONS: Readonly<Record<string, readonly string[]>
   reimbursements: ['trip.financials'],
   // FinancialResultsWorkspace.page.tsx:27
   'trip-financials': ['trip.financials'],
+  // useExpensesWorkspace.hook.ts (spec 325): a API lê com expenses.read; só o administrador a tem
+  expenses: ['expenses.read'],
   // me-trip.routes.ts:109 (API) — a página do motorista não tem parede; spec 221 RF-E6
   'driver-trip': ['trip.report'],
   // cargo-arrival-http.support.ts (API): leitura é fleet.read (o separador tem), escrita é trip.manage
