@@ -27,6 +27,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
   > 🤖 Modelo: `sonnet`
 - [ ] **T1.4b** Viagens do pagamento: tabela `company_expense_occurrence_trips` (migration aditiva), listar viagens disponíveis do motorista no período, incluir/remover, total vira o previsto; contratos do CA05c.
   > 🤖 Modelo: `opus` (leitura cruzada com a parcela da viagem, sem somar de novo)
+- [ ] **T1.4c** Ajudante (RF1e): `unique(trip_id, parcel_kind)` em `company_expense_occurrence_trips`, parcela `helper` para o ajudante e rótulo "Ajudante"; contratos. ⚠️ Se a T1.2 e a T1.4b já estiverem mergeadas com `unique(trip_id)`, vira migration aditiva trocando a restrição.
+  > 🤖 Modelo: `opus` (leitura cruzada com as parcelas da viagem, sem somar de novo)
 - [ ] **T1.5** Rotina no `cron-transportada` que gera as ocorrências das fixas (idempotente).
   > 🤖 Modelo: `sonnet`
 
