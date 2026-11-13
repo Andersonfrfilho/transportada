@@ -719,6 +719,7 @@ import { DrizzleTripReportRepository } from './trips/infrastructure/drizzle-trip
 import { createTripProofPdfGateway } from './trips/infrastructure/trip-proof-pdf.gateway.js'
 import { createTripDocumentReportRoutes } from './trips/presentation/trip-document-report.routes.js'
 import { createOccurrenceAutomaticMailRoutes } from './occurrence-conversation/presentation/occurrence-automatic-mail.routes.js'
+import { createOccurrenceContractorNoticeRoutes } from './occurrence-conversation/presentation/occurrence-contractor-notice.routes.js'
 import { createDeliverContractorReplyToDriverUseCase } from './occurrence-conversation/application/deliver-contractor-reply-to-driver.use-case.js'
 import { createConversationTranscriptionReadPort } from './occurrence-conversation/infrastructure/conversation-transcription.query.js'
 import { createDrizzleContractorReplyDeliveryUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-delivery.repository.js'
@@ -850,6 +851,7 @@ import {
 } from './occurrence-conversation/application/automatic-occurrence-mail.hook.js'
 import { createSendAutomaticOccurrenceMailUseCase } from './occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import { createContractorOccurrenceGroupRepository } from './occurrence-conversation/infrastructure/contractor-occurrence-group.repository.js'
+import { createContractorManualNoticeRepository } from './occurrence-conversation/infrastructure/contractor-manual-notice.repository.js'
 import { createContractorOccurrenceChannelUseCase } from './occurrence-conversation/application/contractor-occurrence-channel.use-case.js'
 import { DrizzleContractorOccurrenceChannelRepository } from './occurrence-conversation/infrastructure/drizzle-contractor-occurrence-channel.repository.js'
 import { createContractorOccurrenceChannelRoutes } from './occurrence-conversation/presentation/contractor-occurrence-channel.routes.js'
@@ -1325,6 +1327,8 @@ function buildSendAutomaticOccurrenceMailUseCase(
       send: ({ body, companyId, groupJid, mentionNumber }) =>
         groupSender.sendText({ body, companyId, mentionNumber, number: groupJid }),
     }),
+    /** Spec 324: o botão "Avisar a contratante" reserva aqui, e o automático pergunta se o botão já avisou. */
+    manualNotice: createContractorManualNoticeRepository({ database: input.database }),
     reader: createAutomaticOccurrenceMailReader(input.database),
     sendMail: buildNoAttachmentOccurrenceMail(input),
   })
@@ -4958,6 +4962,7 @@ function createApplicationRoutes({
     }),
     /** Spec 248 T4.4b: a porta do robô da varredura do aviso automático, só da permissão de serviço. */
     ...createOccurrenceAutomaticMailRoutes({ sendAutomaticMail: sendAutomaticOccurrenceMail }),
+    ...createOccurrenceContractorNoticeRoutes({ sendManualNotice: sendAutomaticOccurrenceMail }),
     /** Spec 281 T5 (RF3/RF5): o mesmo boleto por WhatsApp (Evolution) ao cliente da nota, pelo painel. */
     ...createOccurrenceContractorReplyWhatsAppRoutes({
       forwardByWhatsApp: forwardContractorReplyByWhatsApp,

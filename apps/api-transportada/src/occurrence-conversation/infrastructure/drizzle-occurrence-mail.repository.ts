@@ -663,7 +663,9 @@ export function createAutomaticOccurrenceMailReader(
         }
       }
       const emailsContractor = type.emailsContractor
-      const contacts = emailsContractor
+      /** Spec 324 (D1): o botão manual lê o mesmo plano com o tipo desligado; `emailsContractor` segue o real. */
+      const readsChannels = emailsContractor || params.ignoreTypeOff === true
+      const contacts = readsChannels
         ? await database
             .select({
               email: contractorContacts.email,
@@ -685,16 +687,16 @@ export function createAutomaticOccurrenceMailReader(
       const planned = await readPlannedSuggestion({
         ...params,
         contractorId: target.contractorId,
-        emailsContractor,
+        emailsContractor: readsChannels,
       })
-      const chosenContactIds = emailsContractor
+      const chosenContactIds = readsChannels
         ? await readOccurrenceTypeRecipientContactIds(database, {
             companyId: params.companyId,
             occurrenceTypeId: type.occurrenceTypeId,
           })
         : []
-      /** Spec 318: o canal da contratante; só lido quando o tipo avisa. */
-      const groupChannel = emailsContractor
+      /** Spec 318: o canal da contratante; só lido quando o tipo avisa (ou no botão da 324). */
+      const groupChannel = readsChannels
         ? await findContractorOccurrenceGroupChannel(database, {
             companyId: params.companyId,
             contractorId: target.contractorId,

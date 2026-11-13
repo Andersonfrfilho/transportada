@@ -25,6 +25,8 @@ import {
   OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION,
   OCCURRENCE_AUTOMATIC_MAIL_SWEEP_JOB,
   OCCURRENCE_CONTRACTOR_GROUP_SEND_OPERATION,
+  OCCURRENCE_CONTRACTOR_MANUAL_NOTICE_KEY_PREFIX,
+  OCCURRENCE_CONTRACTOR_MANUAL_NOTICE_OPERATION,
   UNSAFE_EMAIL_HTML_PATTERN,
 } from '../src/occurrence-automatic-mail-sweep/domain/occurrence-automatic-mail-sweep.constant.js'
 import { OCCURRENCE_MAIL_UNSAFE_HTML_CASES } from './fixtures/occurrence-mail-unsafe-html-cases.fixture.js'
@@ -61,6 +63,8 @@ type Scenario = {
   readonly groupStatus?: 'completed' | 'failed' | 'processing'
   readonly cancelled?: boolean
   readonly hasContractor?: boolean
+  /** Spec 324: a reserva do botão "Avisar a contratante" do painel. */
+  readonly manualNoticeStatus?: 'completed' | 'failed' | 'processing'
   /** Spec 271: o que o módulo de notificação tem para a chave escolhida no tipo; padrão `usable`. */
   readonly template?: TemplateShape
   readonly typeEmailsContractor?: boolean
@@ -78,6 +82,8 @@ const SCENARIOS = {
   fresh: { ageMilliseconds: 2 * MINUTE },
   groupFailed: { ageMilliseconds: 30 * MINUTE, groupStatus: 'failed' },
   groupSent: { ageMilliseconds: 30 * MINUTE, groupStatus: 'completed' },
+  manualNoticeFailed: { ageMilliseconds: 30 * MINUTE, manualNoticeStatus: 'failed' },
+  manualNoticeSent: { ageMilliseconds: 30 * MINUTE, manualNoticeStatus: 'completed' },
   noContractor: { ageMilliseconds: 30 * MINUTE, hasContractor: false },
   noKey: { ageMilliseconds: 30 * MINUTE, typeHasKey: false },
   older: { ageMilliseconds: 45 * MINUTE },
@@ -233,6 +239,13 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
               ${`${OCCURRENCE_AUTOMATIC_MAIL_KEY_PREFIX}${occurrenceId}`}, 'automatic', ${scenario.groupStatus}, '{}'::jsonb)`,
       )
     }
+    if (scenario.manualNoticeStatus !== undefined) {
+      await db.execute(
+        sql`insert into idempotency_records (company_id, operation, idempotency_key, request_fingerprint, status, response)
+            values (${company}, ${OCCURRENCE_CONTRACTOR_MANUAL_NOTICE_OPERATION},
+              ${`${OCCURRENCE_CONTRACTOR_MANUAL_NOTICE_KEY_PREFIX}${occurrenceId}`}, 'manual', ${scenario.manualNoticeStatus}, '{}'::jsonb)`,
+      )
+    }
     ownIds.add(occurrenceId)
     return occurrenceId
   }
@@ -353,6 +366,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     expect(pending.map((item) => item.occurrenceId).sort()).toEqual(
       [
         occurrenceIds.groupFailed,
+        occurrenceIds.manualNoticeFailed,
         occurrenceIds.older,
         occurrenceIds.otherCompany,
         occurrenceIds.ripe,
@@ -423,6 +437,14 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     expect(listed).toContain(occurrenceIds.groupFailed)
   })
 
+  /** Spec 324: o escritório já avisou pelo botão; o botão que falhou não segura o automático. */
+  it('leaves out what the office already notified by hand, and keeps what failed there', async () => {
+    const listed = (await listOwn()).map((item) => item.occurrenceId)
+
+    expect(listed).not.toContain(occurrenceIds.manualNoticeSent)
+    expect(listed).toContain(occurrenceIds.manualNoticeFailed)
+  })
+
   it('skips what was registered before the template was chosen on the type (spec 269, kept)', async () => {
     const listed = (await listOwn()).map((item) => item.occurrenceId)
 
@@ -479,6 +501,7 @@ describeDatabase('a fila do varredor de e-mail automático (integration)', () =>
     expect(sent.sort()).toEqual(
       [
         occurrenceIds.groupFailed,
+        occurrenceIds.manualNoticeFailed,
         occurrenceIds.older,
         occurrenceIds.otherCompany,
         occurrenceIds.ripe,
