@@ -89,6 +89,21 @@ import { createFederalTaxSettingsRoutes } from './companies/presentation/federal
 import { DrizzleCompanyEntryKindRepository } from './companies/infrastructure/drizzle-company-entry-kind.repository.js'
 import { createCompanyEntryKindRoutes } from './companies/presentation/company-entry-kind.routes.js'
 import {
+  createCancelExpenseOccurrenceUseCase,
+  createListExpenseOccurrencesUseCase,
+  createSettleExpenseOccurrenceUseCase,
+} from './expenses/application/expense-occurrence.use-case.js'
+import {
+  createCreateExpenseCategoryUseCase,
+  createCreateExpenseUseCase,
+  createListExpenseCategoriesUseCase,
+  createListExpensesUseCase,
+  createSetExpenseCategoryActiveUseCase,
+  createUpdateExpenseUseCase,
+} from './expenses/application/expense.use-case.js'
+import { createDrizzleExpensesPorts } from './expenses/infrastructure/drizzle-expenses.repository.js'
+import { createExpenseRoutes } from './expenses/presentation/expense.routes.js'
+import {
   createCreateCompanyEntryKindUseCase,
   createDeactivateCompanyEntryKindUseCase,
   createListActiveCompanyEntryKindsUseCase,
@@ -3626,6 +3641,7 @@ function createApplicationRoutes({
   const tripCostRepository = new DrizzleTripCostRepository(database)
   const tripRevenueRepository = new DrizzleTripRevenueRepository(database)
   const companyEntryKindRepository = new DrizzleCompanyEntryKindRepository(database)
+  const expensesPorts = createDrizzleExpensesPorts(database)
   const applicableFreightRuleQuery = new DrizzleApplicableFreightRuleQuery(database)
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database,
@@ -4594,6 +4610,18 @@ function createApplicationRoutes({
       clear: createClearFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
       get: createGetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
       set: createSetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
+    }),
+    ...createExpenseRoutes({
+      cancelOccurrence: createCancelExpenseOccurrenceUseCase(expensesPorts),
+      createCategory: createCreateExpenseCategoryUseCase(expensesPorts),
+      createExpense: createCreateExpenseUseCase(expensesPorts),
+      listCategories: createListExpenseCategoriesUseCase(expensesPorts),
+      listExpenses: createListExpensesUseCase(expensesPorts),
+      listOccurrences: createListExpenseOccurrencesUseCase(expensesPorts),
+      now: () => new Date(),
+      setCategoryActive: createSetExpenseCategoryActiveUseCase(expensesPorts),
+      settleOccurrence: createSettleExpenseOccurrenceUseCase(expensesPorts),
+      updateExpense: createUpdateExpenseUseCase(expensesPorts),
     }),
     ...createCompanyEntryKindRoutes({
       create: createCreateCompanyEntryKindUseCase({ entryKinds: companyEntryKindRepository }),

@@ -34,6 +34,8 @@ export type CompanyExpense = {
   readonly recurrence: ExpenseRecurrence | null
   /** Dúvida 2: veículo opcional (`fleet_vehicles`), sem rateio. */
   readonly vehicleId?: string | null
+  /** `yyyy-mm` em que a conta começou: bimestral/trimestral/anual contam a partir dele. Sem ele, vale a janela. */
+  readonly anchorCompetence?: string
 }
 
 export type CompanyExpenseOccurrence = {
@@ -49,12 +51,61 @@ export type CompanyExpenseOccurrence = {
   readonly paidAt: string | null
   readonly paidBy: string | null
   readonly settlementNote: string | null
+  /** 1 em toda recorrência; na quinzenal, 1 = dia 15 e 2 = último dia. */
+  readonly slot?: 1 | 2
   readonly status: ExpenseOccurrenceStatus
 }
 
+/** Linha da lista de ocorrências: a ocorrência com o que a tela precisa da conta (nome, categoria, motorista). */
+export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
+  readonly categoryId: string
+  readonly categoryName: string
+  readonly expenseKind: ExpenseKind
+  readonly expenseName: string
+  readonly payeeDriverId: string | null
+  /** Derivado do cadastro na leitura, nunca copiado (RF1b). */
+  readonly payeeDriverName: string | null
+  readonly payeeDriverPaymentModel: ExpenseDriverRef['paymentModel'] | null
+}
+
+export type ExpenseOccurrenceFilters = {
+  readonly categoryId?: string
+  /** `yyyy-mm`. */
+  readonly competence?: string
+  readonly driverId?: string
+  readonly kind?: ExpenseKind
+  readonly status?: ExpenseOccurrenceStatus
+}
+
+export type ExpenseAuditEntry = {
+  readonly action: string
+  readonly actorUserId: string
+  readonly companyId: string
+  readonly correlationId: string
+  readonly entityId: string
+  readonly entityType: 'company_expense' | 'company_expense_category' | 'company_expense_occurrence'
+  readonly metadata: Record<string, unknown>
+}
+
 export type ExpensesPorts = {
+  /** RF9: a trilha grava a permissão `expenses.manage` (toda escrita do módulo exige ela). */
+  readonly audit: {
+    append(entry: ExpenseAuditEntry): Promise<void>
+  }
   readonly categories: {
+    create(input: {
+      companyId: string
+      name: string
+    }): Promise<CompanyExpenseCategory | 'name_taken'>
+    /** Primeiro uso da empresa: grava as 8 categorias da semente se ela ainda não tem nenhuma. Idempotente. */
+    ensureSeeded(input: { companyId: string }): Promise<void>
     findById(input: {
+      categoryId: string
+      companyId: string
+    }): Promise<CompanyExpenseCategory | null>
+    list(input: { companyId: string }): Promise<readonly CompanyExpenseCategory[]>
+    setActive(input: {
+      active: boolean
       categoryId: string
       companyId: string
     }): Promise<CompanyExpenseCategory | null>
@@ -65,20 +116,43 @@ export type ExpensesPorts = {
   readonly expenses: {
     create(input: Omit<CompanyExpense, 'active' | 'id'>): Promise<CompanyExpense>
     findById(input: { companyId: string; expenseId: string }): Promise<CompanyExpense | null>
+    list(input: { companyId: string }): Promise<readonly CompanyExpense[]>
     listActiveFixed(input: { companyId: string }): Promise<readonly CompanyExpense[]>
+    /** RF5: vale dali para frente; ocorrência já gerada não é reescrita. */
+    update(input: {
+      active?: boolean
+      companyId: string
+      dueDay?: number | null
+      expectedAmount?: string
+      expenseId: string
+      name?: string
+      vehicleId?: string | null
+    }): Promise<CompanyExpense | null>
   }
   readonly occurrences: {
+    /** `open` → `canceled` numa instrução só; `null` quando não existe ou já não está aberta. */
+    cancel(input: {
+      canceledBy: string
+      companyId: string
+      occurrenceId: string
+      reason: string
+    }): Promise<CompanyExpenseOccurrence | null>
     findById(input: {
       companyId: string
       occurrenceId: string
     }): Promise<CompanyExpenseOccurrence | null>
-    /** Única por (conta, competência): `ON CONFLICT DO NOTHING`; devolve `false` se já existia. */
+    /** Única por (conta, competência, slot): `ON CONFLICT DO NOTHING`; devolve `false` se já existia. */
     insertIfAbsent(
       input: Pick<
         CompanyExpenseOccurrence,
         'companyId' | 'competence' | 'dueDate' | 'expectedAmount' | 'expenseId'
-      >,
+      > & { readonly slot: 1 | 2 },
     ): Promise<boolean>
+    list(input: {
+      companyId: string
+      filters: ExpenseOccurrenceFilters
+    }): Promise<readonly ExpenseOccurrenceListItem[]>
+    /** Só baixa o que está `open`; `null` quando não existe ou já não está aberta (corrida). */
     markPaid(input: {
       occurrenceId: string
       paidAmount: string

@@ -90,3 +90,51 @@ export class ExpenseInvalidPaidAmountError extends ApiError {
     })
   }
 }
+
+/** Conta fixa sem recorrência/dia, ou variável sem vencimento (ou com os dois jeitos misturados). → 400 */
+export class ExpenseInvalidScheduleError extends ApiError {
+  public constructor(message: string) {
+    super({ code: 'EXPENSE_INVALID_SCHEDULE', message, status: 400 })
+  }
+}
+
+export class ExpenseNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_NOT_FOUND',
+      message: 'The expense is not registered in this company.',
+      status: 404,
+    })
+  }
+}
+
+/** Cancelar duas vezes, ou cancelar o que já foi pago → 409. */
+export class ExpenseOccurrenceNotCancelableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_OCCURRENCE_NOT_CANCELABLE',
+      message: 'Only an open occurrence can be canceled.',
+      status: 409,
+    })
+  }
+}
+
+export class ExpenseCategoryNameTakenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_CATEGORY_NAME_TAKEN',
+      message: 'A category with this name already exists.',
+      status: 409,
+    })
+  }
+}
+
+export class ExpenseInvalidAmountError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_INVALID_AMOUNT',
+      message: 'The amount must be a non-negative value with up to two decimal places.',
+      status: 400,
+    })
+  }
+}

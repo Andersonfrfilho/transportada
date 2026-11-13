@@ -41,6 +41,7 @@ async function seedOccurrence(status: 'canceled' | 'open'): Promise<string> {
     dueDate: '2026-11-05',
     expectedAmount: '1500.00',
     expenseId: expense.id,
+    slot: 1,
   })
   const row = ports.occurrenceRows[0]
   if (row === undefined) throw new Error('seed')
