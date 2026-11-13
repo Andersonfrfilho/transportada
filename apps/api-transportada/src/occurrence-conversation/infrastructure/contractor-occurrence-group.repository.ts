@@ -12,6 +12,9 @@
  * - O texto lê só o que a lista fechada do aviso usa (RF4, emenda de 11/11/2026): número da nota, tipo, data, etapa,
  *   observação, contratante, cliente (razão social do destinatário), endereço de entrega, valor da nota e, no tipo
  *   que pede, a nova data de vencimento. Nunca CPF, CNPJ nem telefone.
+ * - Spec 324 (D3): o botão "Avisar a contratante" reserva e grava na mesma operação com a chave dele
+ *   (`occurrence-manual-notice:<id>`, via `keyPrefix`), então nunca disputa a reserva do automático nem entra no filtro
+ *   da varredura do worker (que lê só `occurrence-auto-mail:`).
  */
 import { sql } from 'drizzle-orm'
 
@@ -110,13 +113,13 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
 }): ContractorOccurrenceGroupPort {
   const { database } = dependencies
   return {
-    async claim({ companyId, occurrenceId }) {
+    async claim({ companyId, keyPrefix, occurrenceId }) {
       const rows = await rowsOf(
         database,
         sql`insert into idempotency_records
               (company_id, operation, idempotency_key, request_fingerprint, status, response)
             values (${companyId}::uuid, ${CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION},
-                    ${KEY_PREFIX + occurrenceId}, ${CLAIM_FINGERPRINT}, 'processing', '{}'::jsonb)
+                    ${(keyPrefix ?? KEY_PREFIX) + occurrenceId}, ${CLAIM_FINGERPRINT}, 'processing', '{}'::jsonb)
             on conflict (company_id, operation, idempotency_key) do update
               set status = 'processing', updated_at = now()
               where idempotency_records.status = 'failed'
@@ -190,7 +193,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       }
     },
 
-    async record({ attempts, companyId, failure, occurrenceId, status }) {
+    async record({ attempts, companyId, failure, keyPrefix, occurrenceId, status }) {
       await database.execute(
         sql`update idempotency_records
             set status = ${status === 'failed' ? 'failed' : 'completed'},
@@ -198,7 +201,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
                 updated_at = now()
             where company_id = ${companyId}::uuid
               and operation = ${CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION}
-              and idempotency_key = ${KEY_PREFIX + occurrenceId}`,
+              and idempotency_key = ${(keyPrefix ?? KEY_PREFIX) + occurrenceId}`,
       )
     },
 

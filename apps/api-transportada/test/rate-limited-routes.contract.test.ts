@@ -16,6 +16,7 @@ import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conv
 import { createMeClientBoletoEmailsRoutes } from '../src/occurrence-conversation/presentation/me-client-boleto-emails.routes.js'
 import { createMeClientBoletoWhatsAppRoutes } from '../src/occurrence-conversation/presentation/me-client-boleto-whatsapp.routes.js'
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
+import { createOccurrenceContractorNoticeRoutes } from '../src/occurrence-conversation/presentation/occurrence-contractor-notice.routes.js'
 import { createOccurrenceContractorReplyRoutes } from '../src/occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
 import { createOfficeSubjectConversationWriteRoutes } from '../src/occurrence-conversation/presentation/office-subject-conversation-write.routes'
@@ -364,6 +365,28 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
           windowSeconds: 300,
         },
         signature: 'POST /trip-occurrences/:id/conversations/:participant/uploads',
+      },
+    ])
+  })
+
+  /** Spec 324 T1: o botão "Avisar a contratante" manda e-mail (ou grupo), no balde das mensagens da ocorrência. */
+  test('o aviso manual à contratante conta no Postgres, no balde das mensagens', () => {
+    const routes = createOccurrenceContractorNoticeRoutes(unusedDependencies() as never)
+
+    expect(
+      routes.map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      })),
+    ).toEqual([
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'occurrence-conversation',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trip-occurrences/:id/contractor-notice',
       },
     ])
   })

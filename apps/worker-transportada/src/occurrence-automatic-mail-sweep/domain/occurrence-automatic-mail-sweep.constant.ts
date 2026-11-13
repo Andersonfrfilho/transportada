@@ -24,6 +24,15 @@ export const OCCURRENCE_AUTOMATIC_MAIL_SEND_OPERATION = 'occurrence-conversation
 export const OCCURRENCE_CONTRACTOR_GROUP_SEND_OPERATION = 'occurrence-contractor-group.send'
 
 /**
+ * Spec 324: o botão "Avisar a contratante" do painel grava a reserva dele nesta operação, chave
+ * `occurrence-manual-notice:<id>`, `completed` quando chegou à contratante. A fila não pede o automático de quem o
+ * escritório já avisou à mão (a API também recusa, com `manual_notice_sent`; aqui só poupa a chamada).
+ */
+export const OCCURRENCE_CONTRACTOR_MANUAL_NOTICE_OPERATION =
+  'occurrence-contractor-manual-notice.send'
+export const OCCURRENCE_CONTRACTOR_MANUAL_NOTICE_KEY_PREFIX = 'occurrence-manual-notice:'
+
+/**
  * Spec 271 (ADR-0108): o modelo de e-mail à contratante mora em `notification.templates`. A fila só pede a ocorrência cujo tipo
  * escolheu uma chave com versão ativa utilizável — mesmo critério da API (`blocksContractorMailSend`): e-mail `pt-BR`, assunto
  * preenchido (`HTML_BODY_PATTERN` é cópia do da API; os dois contratos fixam o mesmo valor e os mesmos casos). Spec 272: corpo com HTML
