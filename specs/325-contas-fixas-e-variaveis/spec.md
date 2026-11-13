@@ -133,6 +133,9 @@ A categoria "Pagamento de motorista/agregado" não é rateada: o custo dele **j�
 - **RF14** Painel `/contas/resultado` ("Resultado do mês"): faturamento de fretes, custo das viagens, contas da empresa, lucro, margem, custo por km, receita por km e margem por km, com a variação sobre o mês comparado e a lista dos últimos meses.
 - **RF15** Margem por **viagem**, por **veículo** e por **cliente**, com rateio do veículo e rateio geral em colunas separadas; todas fecham com o total do painel (contrato de soma).
 - **RF16** Painel "Rateio das contas" em Configurações: grupo de cada categoria e critério de cada grupo (permissão `expenses.manage`; leitura do painel em `expenses.read`).
+- **RF18** Filtros do painel de resultado: **período** (intervalo de datas, não só mês), **veículo**, **cliente**, **categoria da conta** e **motorista/agregado**, além de "comparar com" e critério de rateio. Valem para indicadores, tabelas e exportação; filtro de veículo/cliente restringe viagens e as contas ligadas ao veículo; categoria e motorista restringem as contas.
+- **RF19** **Exportar PDF** (para imprimir ou enviar ao contador): cabeçalho com empresa, período e filtros aplicados, indicadores e as tabelas visíveis. Gerado no servidor, com os mesmos números da tela (um só cálculo).
+- **RF20** **Exportar planilha (CSV)**: uma linha por viagem com frete, custo, rateio do veículo, rateio geral e margem, mais um bloco de totais; separador `;`, decimal com vírgula e UTF-8 com BOM para abrir no Excel. Permissão `expenses.read`; exportação auditada (010).
 - **RF17** O **custo por km por veículo** e o geral saem por um caso de uso próprio e uma rota de leitura, para reaproveitamento (ver "Trabalho futuro").
 
 ### Critérios de aceite
@@ -141,6 +144,7 @@ A categoria "Pagamento de motorista/agregado" não é rateada: o custo dele **j�
 - CA07 Pagamento de motorista com viagens incluídas não altera o custo total nem o lucro.
 - CA08 Trocar o critério de um grupo muda a divisão entre viagens, mas não o total rateado.
 - CA09 Conta com `vehicle_id` não aparece no rateio de viagem de outro veículo.
+- CA11 PDF e CSV batem, centavo a centavo, com o painel para os mesmos filtros.
 - CA10 Isolamento por empresa e permissões, com contrato negativo.
 
 ### Dúvidas em aberto (decididas com padrão recomendado; Anderson pode trocar)

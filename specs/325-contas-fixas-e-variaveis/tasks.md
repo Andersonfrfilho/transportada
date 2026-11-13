@@ -60,6 +60,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
   > 🤖 Modelo: `sonnet`
 - [ ] **T4.4** Serviço de rateio (puro, sem banco) com os quatro critérios e o arredondamento por linha; contrato de tabela.
   > 🤖 Modelo: `opus` (dinheiro e regra que não pode duplicar)
+- [ ] **T4.6** Filtros no caso de uso do resultado e exportação PDF/CSV pelo mesmo cálculo (RF18 a RF20, CA11); auditoria da exportação.
+  > 🤖 Modelo: `sonnet`
 - [ ] **T4.5** Casos de uso e rotas de leitura: resultado do mês, margem por viagem/veículo/cliente, custo por km por veículo e geral (RF17); configuração de rateio.
   > 🤖 Modelo: `sonnet`
 
@@ -68,6 +70,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [ ] **T5.1** Módulo no frontend: cliente, validação, hooks, locales pt/en para o resultado e o rateio.
   > 🤖 Modelo: `sonnet`
 - [ ] **T5.2** Página `/contas/resultado`: indicadores, últimos meses, abas por viagem/veículo/cliente.
+  > 🤖 Modelo: `sonnet`
+- [ ] **T5.2b** Filtros (período, veículo, cliente, categoria, motorista/agregado) e botões Exportar PDF/CSV na página de resultado (RF18).
   > 🤖 Modelo: `sonnet`
 - [ ] **T5.3** Painel "Rateio das contas" em Configurações (`SETTINGS_PANELS`).
   > 🤖 Modelo: `sonnet`
