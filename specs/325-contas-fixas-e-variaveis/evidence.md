@@ -25,3 +25,9 @@ ocorrência tem `insertIfAbsent` (unique conta+competência, `ON CONFLICT DO NOT
 
 Pendência para a T1.4: a recorrência **quinzenal** tem duas datas por mês, mas a ocorrência é única por
 (conta, competência) — a T1.2 precisa decidir a chave (ex.: competência `yyyy-mm` + `slot`). Não está coberta aqui.
+
+## T1.2 — Schema, migration e semente (2026-11-13)
+
+- `bun test ./test/database-migration.contract.test.ts` com Postgres 16 descartável: 227 pass / 0 fail (contrato estático novo `company-expenses.static.contract.ts` + registro na cadeia).
+- Migration aplicada por `db:migrate` e rollback por `rollback.sql` num banco real: tabelas somem, entrada do journal removida; reaplicada, semeou as 8 categorias para a empresa existente (só "Pagamento de motorista/agregado" com `requires_driver`).
+- `tsc --noEmit`, `eslint` e `prettier --check` limpos. O `make migration-test` roda na CI (sem Docker nesta sessão).
