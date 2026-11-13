@@ -21,6 +21,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
   > 🤖 Modelo: `opus` (decide quem acessa)
 - [ ] **T1.4** Casos de uso e rotas: contas, categorias, ocorrências, baixa, cancelamento, listagem com totais; auditoria.
   > 🤖 Modelo: `sonnet`
+- [ ] **T1.4b** Viagens do pagamento: tabela `company_expense_occurrence_trips` (migration aditiva), listar viagens disponíveis do motorista no período, incluir/remover, total vira o previsto; contratos do CA05c.
+  > 🤖 Modelo: `opus` (leitura cruzada com a parcela da viagem, sem somar de novo)
 - [ ] **T1.5** Rotina no `cron-transportada` que gera as ocorrências das fixas (idempotente).
   > 🤖 Modelo: `sonnet`
 
@@ -29,6 +31,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [ ] **T2.1** Módulo `expenses` no frontend: cliente, validação de resposta, hooks, locales pt/en.
   > 🤖 Modelo: `sonnet`
 - [ ] **T2.2** Página `/contas` (lista, filtros, totais), formulário nova conta fixa/variável (com seletor de motorista/agregado) e diálogo de baixa; item no menu (`workspaceNavigation.constant.ts`) com guarda de permissão.
+  > 🤖 Modelo: `sonnet`
+- [ ] **T2.2b** Diálogo "Viagens do pagamento" (lista de viagens com diária × dias, incluir/remover, total).
   > 🤖 Modelo: `sonnet`
 - [ ] **T2.3** Painel "Categorias de contas" em Configurações (`SETTINGS_PANELS`).
   > 🤖 Modelo: `sonnet`

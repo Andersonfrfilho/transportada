@@ -27,7 +27,7 @@ A transportadora paga aluguel, contador, seguro, internet, folha (fixas) e manut
 ## Fora do escopo
 
 - Pagamento real, integração bancária, conciliação, boleto/OCR de conta.
-- Gerar o pagamento a partir da diária × dias da viagem (spec 143): aqui o pagamento é lançado/recorrente à mão; o custo da viagem continua sendo calculado pela 143 e **este módulo não o soma de novo** (sem DRE, não há dupla contagem).
+- Recalcular ou alterar o custo da viagem: ele continua sendo calculado pela 143. Este módulo só **lê** a parcela do motorista (`trip_financial_parcels`, `kind = 'driver'`) e **não a soma de novo** em nenhum total de despesa de viagem (sem DRE, não há dupla contagem).
 - Rateio de conta fixa por viagem/veículo e DRE (seguem para spec própria depois que houver dado).
 - Anexo do comprovante (candidato a v2).
 - Notificação de vencimento (v2, pelo módulo de notificação).
@@ -50,6 +50,10 @@ A transportadora paga aluguel, contador, seguro, internet, folha (fixas) e manut
 
 **Given** um agregado cadastrado **When** o operador lança "Pagamento de motorista/agregado", escolhe o agregado e o valor **Then** a conta aparece com o nome dele e o rótulo "Agregado"; ao dar baixa, o pago fica no total dele no mês.
 
+### P3c — Pagar o período pelas viagens feitas
+
+**Given** um motorista com viagens concluídas na quinzena **When** o operador abre o pagamento dele e inclui as viagens **Then** vê cada viagem com "R$ 200,00 × 3 dias", o total vira o valor previsto, e as viagens não aparecem em outro pagamento.
+
 ### P4 — Ver o que vence
 
 **Given** a lista **When** filtra por mês, tipo, categoria ou estado **Then** vê total previsto × pago e as vencidas destacadas.
@@ -58,6 +62,7 @@ A transportadora paga aluguel, contador, seguro, internet, folha (fixas) e manut
 
 - **RF1** Tabela `company_expenses` (a conta): `company_id`, nome, `kind` (`fixed`|`variable`), categoria (FK para cadastro da empresa, ver RF2), valor previsto (`numeric`), `active`, e para fixa: `recurrence` (`monthly`|`bimonthly`|`quarterly`|`yearly`) e `due_day` (1–31, mês curto cai no último dia).
 - **RF1b** Pagamento de motorista/agregado: a conta ganha `payee_driver_id` (FK opcional para `fleet_drivers`, da mesma empresa). A categoria semeada "Pagamento de motorista/agregado" **exige** o motorista; as demais categorias não aceitam. A lista mostra o nome do motorista e o rótulo "Motorista" ou "Agregado", derivado de `payment_model` na hora da leitura (nunca copiado). Ao escolher o motorista, o formulário sugere a recorrência pelo `payment_period` dele (`fortnightly`/`monthly`) e o valor pela diária cadastrada; tudo editável. Recorrência nova: `fortnightly` (quinzenal; vencimento nos dias 15 e último).
+- **RF1d** Viagens do pagamento (pedido do Anderson, 2026-11-13): na ocorrência de pagamento de motorista/agregado, o operador pode **incluir as viagens realizadas** (`completed`, do motorista da conta, cuja data de conclusão cai no período e que ainda não entraram em outro pagamento dele). Cada viagem entra com o valor da parcela `driver` já calculada na viagem (diária × dias, 143), copiado em `company_expense_occurrence_trips` (ocorrência, viagem, valor, dias, `unique(trip_id)`: uma viagem paga uma vez só). O valor previsto da ocorrência passa a ser a soma das viagens incluídas (editável; a diferença fica visível). Viagem sem parcela `driver` calculada (lacuna) não entra e aparece como pendência. Remover a viagem da ocorrência aberta a devolve ao conjunto disponível; ocorrência paga é imutável.
 - **RF1c** Filtro "Motorista/agregado" na lista, e total pago por pessoa no mês.
 - **RF2** Categorias são cadastro da empresa, como as espécies da 169: tabela `company_expense_categories` (nome único por empresa, ativa, ordem). Semente: Aluguel, Folha, Impostos, Seguro, Manutenção, Combustível, Pagamento de motorista/agregado, Outros.
 - **RF3** Tabela `company_expense_occurrences` (o que vence): conta, competência (`yyyy-mm`), vencimento, valor previsto, `status`, valor pago, data do pagamento, observação, autor da baixa. Única por (conta, competência). Conta variável tem exatamente uma ocorrência.
@@ -88,6 +93,7 @@ A transportadora paga aluguel, contador, seguro, internet, folha (fixas) e manut
 - CA02 Editar o valor da fixa não muda ocorrência paga nem já gerada.
 - CA03 Sem `expenses.read` a rota e o item do menu não aparecem.
 - CA04 Isolamento por empresa coberto por contrato negativo.
+- CA05c Viagem entra em no máximo uma ocorrência; viagem de outro motorista, não concluída ou sem parcela `driver` → `409`.
 - CA05b Conta da categoria de motorista sem motorista → `400`; motorista de outra empresa → `404`.
 - CA05 Totais previsto × pago da lista batem com a soma das ocorrências filtradas.
 
