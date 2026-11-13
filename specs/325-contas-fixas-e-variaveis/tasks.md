@@ -32,7 +32,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
   > 🤖 Modelo: `opus` (leitura cruzada com a parcela da viagem, sem somar de novo)
 - [ ] **T1.4c** Ajudante (RF1e): `unique(trip_id, parcel_kind)` em `company_expense_occurrence_trips`, parcela `helper` para o ajudante e rótulo "Ajudante"; contratos. ⚠️ Se a T1.2 e a T1.4b já estiverem mergeadas com `unique(trip_id)`, vira migration aditiva trocando a restrição.
   > 🤖 Modelo: `opus` (leitura cruzada com as parcelas da viagem, sem somar de novo)
-- [ ] **T1.5** Rotina no `cron-transportada` que gera as ocorrências das fixas (idempotente).
+- [x] **T1.5** Rotina no `cron-transportada` que gera as ocorrências das fixas (idempotente).
+      Feita: o `cron-transportada` só dá a batida (publica `job-run.v1`); a rotina `company-expense.occurrence.generate` é uma entrada do catálogo (nas quatro cópias, 1 dia) executada no **worker** (`src/company-expense-occurrence/`), com a política de calendário e o SQL espelhados da API e contratos de paridade. Migration aditiva `20261113201500_company_expense_occurrence_job` (CHECK de `job` + linha do relógio **pausada**). Detalhe em `evidence.md` § T1.5 e runbook § 5.33.
   > 🤖 Modelo: `sonnet`
 
 ## Fase 2 — Painel

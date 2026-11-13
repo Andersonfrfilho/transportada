@@ -317,6 +317,9 @@ import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-p
 import { createWhatsAppInboxExpireRoutine } from './whatsapp-inbox-expire/application/whatsapp-inbox-expire.routine.js'
 import { WHATSAPP_INBOX_CHAT_EXPIRE_JOB } from './whatsapp-inbox-expire/domain/whatsapp-inbox-expire.constant.js'
 import { createDrizzleExpireDueWhatsAppChats } from './whatsapp-inbox-expire/infrastructure/drizzle-whatsapp-inbox-expire.repository.js'
+import { createCompanyExpenseOccurrenceRoutine } from './company-expense-occurrence/application/company-expense-occurrence.routine.js'
+import { COMPANY_EXPENSE_OCCURRENCE_GENERATE_JOB } from './company-expense-occurrence/domain/company-expense-occurrence.constant.js'
+import { createDrizzleCompanyExpenseOccurrencePorts } from './company-expense-occurrence/infrastructure/drizzle-company-expense-occurrence.repository.js'
 import { buildHolidayProviderPullRegistry } from './holiday-provider-pull/infrastructure/holiday-provider-pull.registry.js'
 import { createStorageAudioObjectReader } from './conversation-audio-transcription/storage-audio-object-reader.gateway.js'
 import { isAudioTranscriptionConfigured } from './conversation-audio-transcription/audio-transcription-configured.policy.js'
@@ -1668,6 +1671,14 @@ export async function startWorkerRuntime(
             ),
             logger,
             now: () => new Date(),
+          }),
+          /** Spec 325 T1.5: sempre registrada — nasce pausada no relógio, e ligar é decisão do dono. */
+          [COMPANY_EXPENSE_OCCURRENCE_GENERATE_JOB]: createCompanyExpenseOccurrenceRoutine({
+            logger,
+            now: () => new Date(),
+            ports: createDrizzleCompanyExpenseOccurrencePorts(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
           }),
           /**
            * Spec 161 RF21: sempre registrada, como as outras retenções — a foto de ocorrência tem
