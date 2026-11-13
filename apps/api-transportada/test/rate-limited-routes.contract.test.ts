@@ -379,6 +379,8 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
         signature: `${route.method} ${route.pathname}`,
       })),
     ).toEqual([
+      /** Spec 324 T3: a leitura do estado do botão não envia nada, então não consome o balde. */
+      { rateLimit: undefined, signature: 'GET /trip-occurrences/:id/contractor-notice' },
       {
         rateLimit: {
           maxRequests: 30,

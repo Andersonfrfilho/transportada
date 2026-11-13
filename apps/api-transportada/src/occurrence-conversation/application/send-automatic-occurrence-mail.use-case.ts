@@ -131,6 +131,40 @@ export type AutomaticOccurrenceMailReaderPort = {
  * Spec 324 (D3, D8): a reserva do aviso manual, uma por ocorrência e por empresa, e a pergunta "o automático já
  * avisou?". `claim` devolve `false` com um aviso manual já enviado ou saindo agora; `failed` libera de novo.
  */
+export type ManualNoticeRecord = {
+  readonly automatic: null | { readonly at: string; readonly channel: 'email' | 'whatsapp_group' }
+  readonly manual: null | {
+    readonly actorName: null | string
+    readonly at: string
+    readonly channel: ManualNoticeChannel | null
+  }
+}
+
+/**
+ * Spec 324 T3 (RF1, RF4, D6): o que o painel mostra no botão. `available`: pode avisar (com o canal que o envio
+ * usaria); `notified`: já avisada, por quem e quando (RF4); `unavailable`: sem botão, com o motivo em texto claro.
+ */
+export type ManualNoticeState =
+  | {
+      readonly at: string
+      readonly by: 'automatic'
+      readonly channel: 'email' | 'whatsapp_group'
+      readonly status: 'notified'
+    }
+  | {
+      readonly actorName: null | string
+      readonly at: string
+      readonly by: 'manual'
+      readonly channel: ManualNoticeChannel | null
+      readonly status: 'notified'
+    }
+  | { readonly channel: 'email'; readonly recipientCount: number; readonly status: 'available' }
+  | { readonly channel: 'whatsapp_group'; readonly status: 'available' }
+  | {
+      readonly reason: 'blocked' | 'no_recipient' | 'no_template'
+      readonly status: 'unavailable'
+    }
+
 export type ManualContractorNoticePort = {
   claim(input: { readonly companyId: string; readonly occurrenceId: string }): Promise<boolean>
   /** O aviso automático saiu por algum canal (e-mail, grupo, ou a reserva por e-mail do grupo). */
@@ -138,6 +172,14 @@ export type ManualContractorNoticePort = {
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<boolean>
+  /**
+   * Spec 324 T3: quem avisou a contratante e quando, para a leitura do estado do botão. `manual` é o último clique que
+   * chegou (`sent`) com o nome de quem clicou; `automatic` é o aviso automático (e-mail ou grupo) já gravado.
+   */
+  readNoticeRecord(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<ManualNoticeRecord>
   /** O aviso manual já chegou à contratante: o automático (a varredura do worker) não repete. */
   isManualNoticeSent(input: {
     readonly companyId: string
@@ -455,6 +497,47 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
   }
 
   return {
+    /**
+     * Spec 324 T3: o estado do botão, pelas mesmas perguntas do `sendManual` na mesma ordem (marca da 321 → já
+     * avisada → canal), sem reservar nem enviar nada. `null`: não é ocorrência de nota (404 na rota).
+     */
+    async readNoticeState(input: {
+      readonly companyId: string
+      readonly occurrenceId: string
+    }): Promise<ManualNoticeState | null> {
+      const manualNotice = dependencies.manualNotice
+      if (manualNotice === undefined) throw new Error('Manual contractor notice is not configured')
+      const plan = await dependencies.reader.findPlan({ ...input, ignoreTypeOff: true })
+      if (plan === null) return null
+      if (occurrenceTypeNeverNotifiesContractor(plan)) {
+        return { reason: 'blocked', status: 'unavailable' }
+      }
+      const record = await manualNotice.readNoticeRecord(input)
+      if (record.manual !== null) return { ...record.manual, by: 'manual', status: 'notified' }
+      if (plan.emailsContractor && record.automatic !== null) {
+        return { ...record.automatic, by: 'automatic', status: 'notified' }
+      }
+      if (plan.groupChannel !== null && plan.groupChannel !== undefined) {
+        return { channel: 'whatsapp_group', status: 'available' }
+      }
+      const resolved = resolveOccurrenceRecipients({
+        chosenContactIds: plan.chosenContactIds,
+        contacts: plan.recipients.map((recipient) => ({
+          email: recipient.email,
+          id: recipient.contactId,
+          occurrenceStages: recipient.stages,
+        })),
+        stage: plan.stage,
+      })
+      const resolvedIds = new Set(resolved.contactIds)
+      const recipientCount = plan.recipients.filter(
+        (recipient) => resolvedIds.has(recipient.contactId) && recipient.email !== null,
+      ).length
+      if (recipientCount === 0) return { reason: 'no_recipient', status: 'unavailable' }
+      if (plan.suggested === null) return { reason: 'no_template', status: 'unavailable' }
+      return { channel: 'email', recipientCount, status: 'available' }
+    },
+
     async send(input: SendInput): Promise<AutomaticOccurrenceMailResult> {
       const plan = await dependencies.reader.findPlan(input)
       if (plan === null) return { outcome: 'skipped', reason: 'not_document' }

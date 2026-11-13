@@ -190,6 +190,42 @@ describe('o botão "Avisar a contratante" contra Postgres (spec 324 T1)', () => 
   )
 
   testWithPostgres(
+    'T3: o estado do botão — disponível, depois avisada pelo botão (quem, quando, canal), e bloqueada pela 321',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setType(database, seeded, { emailsContractor: false })
+        const { companyId, userId } = seeded.company
+        const useCase = notice(database, [])
+        const ref = { companyId, occurrenceId: seeded.occurrenceId }
+
+        expect(await useCase.readNoticeState(ref)).toEqual({
+          channel: 'email',
+          recipientCount: 2,
+          status: 'available',
+        })
+
+        await useCase.sendManual({ ...ref, actorUserId: userId, correlationId: 'c-324t3' })
+
+        expect(await useCase.readNoticeState(ref)).toMatchObject({
+          actorName: null, // o cenário não semeia perfil; o nome vem do perfil quando há
+          at: expect.any(String),
+          by: 'manual',
+          channel: 'email',
+          status: 'notified',
+        })
+
+        await setType(database, seeded, { blocksContractorNotice: true, emailsContractor: false })
+        expect(await useCase.readNoticeState(ref)).toEqual({
+          reason: 'blocked',
+          status: 'unavailable',
+        })
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
     'CA02: tipo desligado, contratante em grupo — posta no grupo pela chave do botão, nenhum e-mail',
     async () => {
       await withConversationDatabase(async (database) => {

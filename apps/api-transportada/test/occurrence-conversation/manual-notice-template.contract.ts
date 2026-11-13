@@ -314,6 +314,7 @@ describe('só o botão cai no modelo geral (spec 324 T1b, D10)', () => {
         claim: async () => true,
         isAutomaticNoticeSent: async () => false,
         isManualNoticeSent: async () => false,
+        readNoticeRecord: async () => ({ automatic: null, manual: null }),
         record: async () => {},
       },
       reader: { findPlan: async () => planned },
