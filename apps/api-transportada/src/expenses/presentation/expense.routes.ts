@@ -416,6 +416,7 @@ function serializeOccurrence(item: ExpenseOccurrenceListItem): Record<string, un
     payeeDriverId: item.payeeDriverId,
     payeeDriverName: item.payeeDriverName,
     payeeDriverPaymentModel: item.payeeDriverPaymentModel,
+    payeeProfile: item.payeeProfile,
   }
 }
 

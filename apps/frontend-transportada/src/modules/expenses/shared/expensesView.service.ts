@@ -86,14 +86,21 @@ export function summarizeOccurrences(input: {
   }
 }
 
-export type PayeeLabelKey = 'aggregate' | 'driver'
+export type PayeeLabelKey = 'aggregate' | 'driver' | 'helper'
 
-/** Rótulo derivado do cadastro na hora da leitura; ajudante entra com a T1.4c (API). */
+/** Rótulo derivado do cadastro quando a API não traz `payeeProfile`; nunca devolve ajudante. */
 export function resolvePayeeLabelKey(
   paymentModel: ExpenseDriverPaymentModel | null,
 ): PayeeLabelKey | null {
   if (paymentModel === null) return null
   return paymentModel === 'route_table' ? 'aggregate' : 'driver'
+}
+
+/** O perfil que a API devolve (T1.4c) vence; sem ele (API anterior), deriva do cadastro como antes. */
+export function resolveOccurrencePayeeKey(
+  occurrence: Pick<ExpenseOccurrenceListItem, 'payeeDriverPaymentModel' | 'payeeProfile'>,
+): PayeeLabelKey | null {
+  return occurrence.payeeProfile ?? resolvePayeeLabelKey(occurrence.payeeDriverPaymentModel)
 }
 
 export function maskMoney(value: string): string {

@@ -13,7 +13,7 @@ import {
   formatCivilDate,
   maskMoney,
   parseMoney,
-  resolvePayeeLabelKey,
+  resolveOccurrencePayeeKey,
   todayCivilDate,
   toTypedMoney,
 } from '../shared/expensesView.service'
@@ -36,7 +36,7 @@ export function ExpenseSettleDialog({ occurrence, onClose }: ExpenseSettleDialog
   const [note, setNote] = useState('')
   const parsedAmount = parseMoney(amount)
   const isReady = parsedAmount !== null && paidAt !== ''
-  const payeeKey = resolvePayeeLabelKey(occurrence.payeeDriverPaymentModel)
+  const payeeKey = resolveOccurrencePayeeKey(occurrence)
   const payee =
     occurrence.payeeDriverName === null || payeeKey === null
       ? ''

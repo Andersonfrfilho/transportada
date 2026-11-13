@@ -273,15 +273,15 @@ describe('viagens disponíveis (spec 325 P3c)', () => {
     expect(result.available.map((trip) => trip.tripId)).toEqual([TRIP_2, TRIP_LATE])
   })
 
-  it('a viagem em que o favorecido foi ajudante não entra pela parcela do motorista (a T1.4c a cobre)', async () => {
+  it('a viagem em que o favorecido foi ajudante só entra pela parcela helper (T1.4c); sem linha de ajudante, não aparece', async () => {
     const result = await createListAvailableExpenseTripsUseCase(context.ports).execute({
       companyId: COMPANY_A,
       occurrenceId: context.firstFortnight,
     })
 
-    expect([...result.available, ...result.pending].map((trip) => trip.tripId)).not.toContain(
-      TRIP_HELPER,
-    )
+    expect(
+      [...result.available, ...result.pending].filter((trip) => trip.tripId === TRIP_HELPER),
+    ).toEqual([])
   })
 })
 
@@ -339,7 +339,6 @@ describe('incluir e remover viagem (spec 325 RF1d, CA05c)', () => {
     const attempts = [
       [TRIP_OPEN, ExpenseTripNotCompletedError],
       [TRIP_OTHER_DRIVER, ExpenseTripNotPayeeError],
-      [TRIP_HELPER, ExpenseTripNotPayeeError],
       [TRIP_GAP, ExpenseTripParcelMissingError],
     ] as const
 

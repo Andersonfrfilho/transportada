@@ -21,7 +21,7 @@ import {
   formatCivilDate,
   isOverdue,
   listCompetenceOptions,
-  resolvePayeeLabelKey,
+  resolveOccurrencePayeeKey,
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 
@@ -67,7 +67,7 @@ export function ExpensesWorkspacePage() {
   }
 
   function renderPayee(row: ExpenseOccurrenceListItem) {
-    const key = resolvePayeeLabelKey(row.payeeDriverPaymentModel)
+    const key = resolveOccurrencePayeeKey(row)
     if (row.payeeDriverName === null || key === null) return null
     return (
       <span className={styles.rowDetail}>

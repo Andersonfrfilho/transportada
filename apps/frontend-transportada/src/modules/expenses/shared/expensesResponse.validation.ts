@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   EXPENSE_DRIVER_PAYMENT_MODELS,
+  EXPENSE_PAYEE_PROFILES,
   EXPENSE_KINDS,
   EXPENSE_OCCURRENCE_STATUSES,
   EXPENSE_RECURRENCES,
@@ -9,6 +10,7 @@ import {
   type Expense,
   type ExpenseCategory,
   type ExpenseDriverPaymentModel,
+  type ExpensePayeeProfile,
   type ExpenseKind,
   type ExpenseOccurrence,
   type ExpenseOccurrenceListItem,
@@ -163,6 +165,14 @@ function toListItem(value: unknown): ExpenseOccurrenceListItem {
       row.payeeDriverPaymentModel,
       EXPENSE_DRIVER_PAYMENT_MODELS,
     ),
+    ...(row.payeeProfile === undefined
+      ? {}
+      : {
+          payeeProfile: readNullableOneOf<ExpensePayeeProfile>(
+            row.payeeProfile,
+            EXPENSE_PAYEE_PROFILES,
+          ),
+        }),
   }
 }
 

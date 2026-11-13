@@ -31,8 +31,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [x] **T1.4b** Viagens do pagamento: tabela `company_expense_occurrence_trips` (migration aditiva), listar viagens disponíveis do motorista no período, incluir/remover, total vira o previsto; contratos do CA05c.
       Feita: migration `20261113201600_company_expense_occurrence_trips` + rollback (recusa com viagem incluída). Rotas `GET|POST /expense-occurrences/:id/trips`, `DELETE …/trips/:tripId` e `GET …/available-trips` (`?from&to` opcional). A linha da pessoa vem da valoração em lote da lista de viagens (`buildValuationFromContext`), copiada e arredondada ao centavo; incluir/remover travam a ocorrência aberta e recalculam o previsto pela soma (sem viagem, volta ao valor da conta). Provas em `evidence.md` § T1.4b. **Chave já pronta para a T1.4c:** `unique(trip_id, parcel_kind, driver_id)` com `parcel_kind in ('driver','helper')`.
   > 🤖 Modelo: `opus` (leitura cruzada com a parcela da viagem, sem somar de novo)
-- [ ] **T1.4c** Ajudante (RF1e): parcela `helper` para o ajudante e rótulo "Ajudante"; contratos.
-      **Sem migration:** a T1.4b já criou a tabela com `parcel_kind` (`driver`|`helper`) e `unique(trip_id, parcel_kind, driver_id)`. Falta: pôr `'helper'` em `PAYABLE_TRIP_PARCEL_KINDS` (`expense-occurrence-trip.use-case.ts`) e ler a linha do ajudante em `trip-person-parcel.gateway.ts` (hoje a parcela `helper` da valoração não tem `basis` por pessoa; a T1.4c precisa expor a linha de cada ajudante, sem somar de novo), mais o rótulo "Ajudante" na leitura.
+- [x] **T1.4c** Ajudante (RF1e): parcela `helper` para o ajudante e rótulo "Ajudante"; contratos.
+      Feita (sem migration): `PAYABLE_TRIP_PARCEL_KINDS = ['driver', 'helper']`; a parcela `helper` da valoração (149 D7) ganhou `basis: { of: 'helper', days, crew[] }`, uma linha por ajudante com diária (`Σ subtotal = amount`, exato), e `trip-person-parcel.gateway.ts` copia a linha da pessoa da parcela do papel que ela teve na viagem. Ajudante sem diária vai para `pending` (`HELPER_DAILY_RATE_MISSING`). A lista de ocorrências leva `payeeProfile` (`driver` | `aggregate` | `helper`, lido de `can_drive`/`payment_model` na hora); o texto "Motorista/Agregado/Ajudante" é da tela (T2.1). Provas em `evidence.md` § T1.4c.
   > 🤖 Modelo: `opus` (leitura cruzada com as parcelas da viagem, sem somar de novo)
 - [x] **T1.5** Rotina no `cron-transportada` que gera as ocorrências das fixas (idempotente).
       Feita: o `cron-transportada` só dá a batida (publica `job-run.v1`); a rotina `company-expense.occurrence.generate` é uma entrada do catálogo (nas quatro cópias, 1 dia) executada no **worker** (`src/company-expense-occurrence/`), com a política de calendário e o SQL espelhados da API e contratos de paridade. Migration aditiva `20261113201500_company_expense_occurrence_job` (CHECK de `job` + linha do relógio **pausada**). Detalhe em `evidence.md` § T1.5 e runbook § 5.33.
@@ -45,11 +45,13 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
   > 🤖 Modelo: `sonnet`
 - [x] **T2.2** Página `/contas` (lista, filtros, totais), formulário nova conta fixa/variável (com seletor de motorista/agregado) e diálogo de baixa; item no menu (`workspaceNavigation.constant.ts`) com guarda de permissão.
       Feita: página `/contas` (grupo Fiscal do menu, `expenses.read`), filtros (mês, tipo, categoria, estado, pessoa), totais (previsto, pago, em aberto, vencidas), diálogos "Nova conta" e "Dar baixa", tabela que vira cartão no celular. Prints em `prints/contas-*`. Notas em `evidence.md` § T2.2.
+      Da T1.4c (depois da T2.1): a ocorrência passou a trazer `payeeProfile` (`driver` → "Motorista", `aggregate` → "Agregado", `helper` → "Ajudante", `null` sem favorecido); o leitor da T2.1 ignora a chave até ela entrar no tipo e no guard. Cada viagem do pagamento já traz `parcelKind` (`driver` | `helper`). Seletor e filtro: "Motorista, agregado ou ajudante".
   > 🤖 Modelo: `sonnet`
 - [x] **T2.2b** Diálogo "Viagens do pagamento" (lista de viagens com diária × dias, incluir/remover, total).
       Feita: `ExpenseTripsDialog` (incluídas com diária × dias e total, "Adicionar viagens" com as disponíveis e as que ficam de fora com o motivo). Sem botão "usar como valor previsto": a API já recalcula o previsto a cada inclusão/remoção. Notas em `evidence.md` § T2.2b.
   > 🤖 Modelo: `sonnet`
-- [ ] **T2.3** Painel "Categorias de contas" em Configurações (`SETTINGS_PANELS`).
+- [x] **T2.3** Painel "Categorias de contas" em Configurações (`SETTINGS_PANELS`).
+      Feita: aba `expenseCategories` em Configurações (`ExpenseCategoriesPanel`, autocontido): lista, cadastro e desativar/reativar, só com `expenses.read` (ver) e `expenses.manage` (escrever). Prints em `prints/categorias-*`. Notas em `evidence.md` § T2.3.
   > 🤖 Modelo: `sonnet`
 - [ ] **T2.4** Prints claro/escuro × desktop/celular comparados a outra tela do painel; evidência.
   > 🤖 Modelo: `sonnet`

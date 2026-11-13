@@ -24,7 +24,10 @@ export type InMemoryTrip = {
 
 export type InMemoryExpenseTrips = ExpenseOccurrenceTripPorts & {
   readonly base: InMemoryExpenses
-  /** `${tripId}:${driverId}` → linha da pessoa na parcela `driver` da viagem. */
+  /**
+   * `${tripId}:${driverId}` → linha da pessoa na parcela `driver` da viagem; `${tripId}:${driverId}:helper` → na
+   * parcela `helper` (T1.4c).
+   */
   readonly parcels: Map<string, PayableTripParcel>
   /** Quantas vezes a valoração foi pedida (cada chamada = uma leitura em lote). */
   readonly parcelReads: string[][]
@@ -141,11 +144,12 @@ export function buildInMemoryExpenseTrips(base = buildInMemoryExpenses()): InMem
       readPersonParcels: async ({ companyId, driverId, parcelKind, tripIds }) => {
         parcelReads.push([...tripIds])
         const found = new Map<string, PayableTripParcel>()
-        if (parcelKind !== 'driver') return found
         for (const tripId of tripIds) {
           const trip = trips.find((row) => row.tripId === tripId && row.companyId === companyId)
           if (trip === undefined) continue
-          const parcel = parcels.get(`${tripId}:${driverId}`)
+          const key =
+            parcelKind === 'helper' ? `${tripId}:${driverId}:helper` : `${tripId}:${driverId}`
+          const parcel = parcels.get(key)
           if (parcel !== undefined) found.set(tripId, parcel)
         }
         return found

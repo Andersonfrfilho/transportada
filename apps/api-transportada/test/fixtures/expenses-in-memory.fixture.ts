@@ -12,6 +12,7 @@ import type {
   ExpenseDriverRef,
   ExpensesPorts,
 } from '../../src/expenses/application/expense.port.js'
+import { resolveExpensePayeeProfile } from '../../src/expenses/domain/expense-payee.policy.js'
 
 export const COMPANY_A = '00000000-0000-4000-8000-0000000000a1'
 export const COMPANY_B = '00000000-0000-4000-8000-0000000000b1'
@@ -21,6 +22,8 @@ export const CATEGORY_RENT_ID = '00000000-0000-4000-8000-00000000c001'
 export const CATEGORY_DRIVER_ID = '00000000-0000-4000-8000-00000000c002'
 export const DRIVER_A_ID = '00000000-0000-4000-8000-00000000d001'
 export const DRIVER_B_ID = '00000000-0000-4000-8000-00000000d002'
+/** Spec 325 RF1e: ajudante-puro (`can_drive = false`) da empresa A. */
+export const HELPER_A_ID = '00000000-0000-4000-8000-00000000d004'
 
 export type InMemoryExpenses = ExpensesPorts & {
   readonly auditRows: ExpenseAuditEntry[]
@@ -52,10 +55,12 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
       requiresDriver: true,
     },
   ]
-  const drivers: (ExpenseDriverRef & { readonly companyId: string })[] = [
-    { companyId: COMPANY_A, id: DRIVER_A_ID, paymentModel: 'route_table' },
-    { companyId: COMPANY_B, id: DRIVER_B_ID, paymentModel: 'fixed' },
-  ]
+  const drivers: (ExpenseDriverRef & { readonly canDrive: boolean; readonly companyId: string })[] =
+    [
+      { canDrive: true, companyId: COMPANY_A, id: DRIVER_A_ID, paymentModel: 'route_table' },
+      { canDrive: true, companyId: COMPANY_B, id: DRIVER_B_ID, paymentModel: 'fixed' },
+      { canDrive: false, companyId: COMPANY_A, id: HELPER_A_ID, paymentModel: 'fixed' },
+    ]
 
   return {
     audit: {
@@ -143,6 +148,7 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
               payeeDriverId: expense?.payeeDriverId ?? null,
               payeeDriverName: driver === undefined ? null : 'Motorista',
               payeeDriverPaymentModel: driver?.paymentModel ?? null,
+              payeeProfile: driver === undefined ? null : resolveExpensePayeeProfile(driver),
             }
           }),
       // unique (conta, competência, slot): ON CONFLICT DO NOTHING devolve false

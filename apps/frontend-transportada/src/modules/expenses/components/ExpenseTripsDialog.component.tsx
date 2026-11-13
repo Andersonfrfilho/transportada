@@ -13,7 +13,7 @@ import {
   useExpenseOccurrenceTrips,
 } from '../hooks/useExpenses.hook'
 import type { ExpenseOccurrenceListItem, ExpenseOccurrenceTrip } from '../shared/expenses.types'
-import { formatCivilDate, resolvePayeeLabelKey } from '../shared/expensesView.service'
+import { formatCivilDate, resolveOccurrencePayeeKey } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
 
@@ -40,7 +40,7 @@ export function ExpenseTripsDialog({ canManage, occurrence, onClose }: ExpenseTr
   const { includeTrip, removeTrip } = useExpenseMutations()
   const isOpen = occurrence.status === 'open'
   const canEdit = canManage && isOpen
-  const payeeKey = resolvePayeeLabelKey(occurrence.payeeDriverPaymentModel)
+  const payeeKey = resolveOccurrencePayeeKey(occurrence)
   const error = includeTrip.error ?? removeTrip.error ?? trips.error ?? available.error
   const included = trips.data?.items ?? []
   const includedKeys = new Set(included.map((trip) => `${trip.tripId}:${trip.parcelKind}`))

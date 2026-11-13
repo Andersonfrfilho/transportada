@@ -2,3 +2,4 @@
 import './expenses/response.contract'
 import './expenses/client.contract'
 import './expenses/view.contract'
+import './expenses/categories-panel.contract'

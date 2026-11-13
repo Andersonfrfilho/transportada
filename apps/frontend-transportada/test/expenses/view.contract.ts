@@ -13,6 +13,7 @@ import {
   isOverdue,
   listCompetenceOptions,
   parseMoney,
+  resolveOccurrencePayeeKey,
   resolvePayeeLabelKey,
   summarizeOccurrences,
   validateCreateForm,
@@ -74,6 +75,10 @@ describe('contas — leitura da lista', () => {
     expect(resolvePayeeLabelKey('route_table')).toBe('aggregate')
     expect(resolvePayeeLabelKey('fixed')).toBe('driver')
     expect(resolvePayeeLabelKey(null)).toBeNull()
+    expect(
+      resolveOccurrencePayeeKey({ payeeDriverPaymentModel: 'fixed', payeeProfile: 'helper' }),
+    ).toBe('helper')
+    expect(resolveOccurrencePayeeKey({ payeeDriverPaymentModel: 'route_table' })).toBe('aggregate')
   })
 
   it('a data civil não passa por Date', () => {
