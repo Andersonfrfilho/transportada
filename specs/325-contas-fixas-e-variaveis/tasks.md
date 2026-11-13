@@ -60,9 +60,9 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
   > 🤖 Modelo: `sonnet`
 - [ ] **T4.4** Serviço de rateio (puro, sem banco) com os quatro critérios e o arredondamento por linha; contrato de tabela.
   > 🤖 Modelo: `opus` (dinheiro e regra que não pode duplicar)
-- [ ] **T4.6** Filtros no caso de uso do resultado e exportação PDF/CSV pelo mesmo cálculo (RF18 a RF20, CA11); auditoria da exportação.
-  > 🤖 Modelo: `sonnet`
 - [ ] **T4.5** Casos de uso e rotas de leitura: resultado do mês, margem por viagem/veículo/cliente, custo por km por veículo e geral (RF17); configuração de rateio.
+  > 🤖 Modelo: `sonnet`
+- [ ] **T4.6** Filtros no caso de uso do resultado e exportação PDF/CSV pelo mesmo cálculo (RF18 a RF20, CA11); auditoria da exportação.
   > 🤖 Modelo: `sonnet`
 
 ## Fase 5 — Painel de resultado
