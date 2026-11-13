@@ -68,6 +68,7 @@ function setup(input: {
   readonly claims?: readonly boolean[]
   readonly mailError?: Error
   readonly manualSent?: boolean
+  readonly noticeRecord?: Awaited<ReturnType<ManualContractorNoticePort['readNoticeRecord']>>
   readonly plan: AutomaticOccurrenceMailPlan | null
 }) {
   const mails: SendOccurrenceMailInput[] = []
@@ -115,6 +116,7 @@ function setup(input: {
       },
       isAutomaticNoticeSent: async () => input.automaticSent ?? false,
       isManualNoticeSent: async () => input.manualSent ?? false,
+      readNoticeRecord: async () => input.noticeRecord ?? { automatic: null, manual: null },
       record: async (call) => void records.push(call),
     },
     reader: {
@@ -145,6 +147,8 @@ function setup(input: {
       correlationId: 'correlation-324',
       occurrenceId: OCCURRENCE_ID,
     })
+  const state = () =>
+    useCase.readNoticeState({ companyId: COMPANY_ID, occurrenceId: OCCURRENCE_ID })
   const automatic = () =>
     useCase.send({
       companyId: COMPANY_ID,
@@ -161,6 +165,7 @@ function setup(input: {
     planCalls,
     posts,
     records,
+    state,
   }
 }
 
@@ -289,6 +294,7 @@ describe('o botão "Avisar a contratante" (spec 324 T1)', () => {
         claim: async () => true,
         isAutomaticNoticeSent: async () => false,
         isManualNoticeSent: async () => false,
+        readNoticeRecord: async () => ({ automatic: null, manual: null }),
         record: async (call) => void fixture.records.push(call),
       },
       reader: {
@@ -445,5 +451,98 @@ describe('o botão "Avisar a contratante" (spec 324 T1)', () => {
       channel: 'email',
       reason: null,
     })
+  })
+})
+
+describe('o estado do botão "Avisar a contratante" (spec 324 T3)', () => {
+  test('tipo desligado e contratante por e-mail: pode avisar, com o canal e quantos recebem', async () => {
+    const fixture = setup({ plan: plan({ emailsContractor: false }) })
+
+    expect(await fixture.state()).toEqual({
+      channel: 'email',
+      recipientCount: 1,
+      status: 'available',
+    })
+    expect(fixture.planCalls).toEqual([
+      { companyId: COMPANY_ID, ignoreTypeOff: true, occurrenceId: OCCURRENCE_ID },
+    ])
+    expect(fixture.mails).toEqual([])
+    expect(fixture.records).toEqual([])
+  })
+
+  test('contratante com grupo: o canal é o grupo', async () => {
+    const fixture = setup({
+      plan: plan({
+        groupChannel: { emailFallback: false, groupJid: GROUP_JID, mentionPhone: MENTION_PHONE },
+      }),
+    })
+
+    expect(await fixture.state()).toEqual({ channel: 'whatsapp_group', status: 'available' })
+  })
+
+  test('tipo da 321 (CA05): indisponível por "blocked", mesmo já avisada', async () => {
+    const fixture = setup({
+      noticeRecord: {
+        automatic: null,
+        manual: { actorName: 'Ana', at: '2026-11-13T15:00:00.000Z', channel: 'email' },
+      },
+      plan: plan({ blocksContractorNotice: true }),
+    })
+
+    expect(await fixture.state()).toEqual({ reason: 'blocked', status: 'unavailable' })
+  })
+
+  test('RF4: avisada pelo botão devolve quem, quando e o canal', async () => {
+    const fixture = setup({
+      noticeRecord: {
+        automatic: null,
+        manual: { actorName: 'Ana', at: '2026-11-13T15:00:00.000Z', channel: 'whatsapp_group' },
+      },
+      plan: plan(),
+    })
+
+    expect(await fixture.state()).toEqual({
+      actorName: 'Ana',
+      at: '2026-11-13T15:00:00.000Z',
+      by: 'manual',
+      channel: 'whatsapp_group',
+      status: 'notified',
+    })
+  })
+
+  test('D8: tipo ligado já avisado pelo automático; tipo desligado ignora o registro automático', async () => {
+    const automatic = { at: '2026-11-13T15:00:00.000Z', channel: 'email' as const }
+    const on = setup({
+      noticeRecord: { automatic, manual: null },
+      plan: plan({ emailsContractor: true }),
+    })
+    expect(await on.state()).toEqual({ ...automatic, by: 'automatic', status: 'notified' })
+
+    const off = setup({
+      noticeRecord: { automatic, manual: null },
+      plan: plan({ emailsContractor: false }),
+    })
+    expect((await off.state())?.status).toBe('available')
+  })
+
+  test('D6: sem contato com e-mail na etapa, o motivo é no_recipient; sem modelo, no_template', async () => {
+    const none = setup({ plan: plan({ recipients: [] }) })
+    expect(await none.state()).toEqual({ reason: 'no_recipient', status: 'unavailable' })
+
+    const noEmail = setup({
+      plan: plan({
+        recipients: [
+          { contactId: 'c1', email: null, preferredChannel: 'whatsapp', stages: ['delivery'] },
+        ],
+      }),
+    })
+    expect(await noEmail.state()).toEqual({ reason: 'no_recipient', status: 'unavailable' })
+
+    const noTemplate = setup({ plan: plan({ suggested: null }) })
+    expect(await noTemplate.state()).toEqual({ reason: 'no_template', status: 'unavailable' })
+  })
+
+  test('parada, nota sem contratante ou outra empresa: null (404 na rota)', async () => {
+    expect(await setup({ plan: null }).state()).toBeNull()
   })
 })

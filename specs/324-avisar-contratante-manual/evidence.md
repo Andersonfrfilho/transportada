@@ -80,3 +80,19 @@ Hoje não há leitura única de "avisada". Fontes: `contractor_mail_messages` (e
 - `tsc --noEmit` da API e do painel sem erro; `eslint` e `prettier --check` nos arquivos tocados limpos.
 - Sem tela nem componente novo (só frases numa linha do tempo existente): sem prints nesta etapa; os da T4 cobrem o botão.
 - Produção não foi tocada; nada a registrar no runbook.
+
+## T3 — Leitura do estado do botão (13/11/2026, empilhada sobre a T2, PR #733)
+
+### O que entrou
+
+- **`GET /trip-occurrences/:id/contractor-notice`** (`occurrences.resolve`, a mesma do envio; sem `rateLimit`, não envia nada; `no-store`). Escolha: rota irmã do `POST` em vez de campo no `GET /trip-occurrences/:id`, porque o detalhe é `fleet.read` e o estado do botão só interessa a quem pode apertá-lo; o painel (T4) a relê ao abrir o diálogo (canal pode ter mudado). 404 para parada, nota sem contratante ou outra empresa.
+- **`readNoticeState`** no caso de uso, com as mesmas perguntas do `sendManual` na mesma ordem (`findPlan` com `ignoreTypeOff` → marca da 321 → já avisada → canal), sem reservar nem enviar. Resposta: `available` (canal `email` com `recipientCount`, ou `whatsapp_group`), `notified` (`by` `manual` com `actorName`, `at`, `channel`; ou `automatic` com `at` e `channel`) e `unavailable` com `reason` `blocked` | `no_recipient` | `no_template` (D6).
+- **União das fontes de "já avisada"** (achado da T0) em `readNoticeRecord` (`contractor-manual-notice.repository.ts`): a tabela da T2 (último clique `sent`, com o nome do perfil) e `idempotency_records` do automático (e-mail, ou grupo `completed`). O aviso automático só conta quando o tipo está ligado (D8), como no `sendManual`; `failed` do grupo sem e-mail enviado continua podendo avisar.
+- O modelo geral do D10 (T1b, PR #732) ainda não está nesta base: `no_template` some do caminho do e-mail quando ele entrar.
+
+### Testes
+
+- Contrato: `manual-contractor-notice.contract.ts` (+7 casos do estado) e `contractor-notice-routes.contract.ts` (+3: 403, 200 `no-store` com empresa do contexto, 404); `rate-limited-routes.contract.test.ts` prende que o GET não consome balde.
+- Integração contra Postgres 16 local: `contractor-manual-notice.integration.ts` (+1: disponível → avisada pelo botão → bloqueada pela 321) — **6 pass**.
+- `bun test` da API: 15130 pass, 0 fail, 35 skip. `tsc --noEmit` limpo; eslint e prettier limpos nos arquivos tocados.
+- Produção não foi tocada; nada a registrar no runbook.

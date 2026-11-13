@@ -19,6 +19,7 @@ import { sql } from 'drizzle-orm'
 import {
   AUTOMATIC_OCCURRENCE_MAIL_KEY_PREFIX,
   describeManualNoticeAttempt,
+  type ManualNoticeChannel,
   MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX,
   type ManualContractorNoticePort,
 } from '../application/send-automatic-occurrence-mail.use-case.js'
@@ -87,6 +88,56 @@ export function createContractorManualNoticeRepository(dependencies: {
             limit 1`,
       )) as unknown as readonly unknown[]
       return rows.length > 0
+    },
+
+    async readNoticeRecord({ companyId, occurrenceId }) {
+      const manualRows = (await database.execute(
+        sql`select n.created_at as at, n.channel as channel, p.name as actor_name
+            from occurrence_contractor_manual_notices n
+            left join identity_user_profiles p on p.user_id = n.actor_user_id
+            where n.company_id = ${companyId}::uuid
+              and n.occurrence_id = ${occurrenceId}::uuid
+              and n.status = 'sent'
+            order by n.created_at desc
+            limit 1`,
+      )) as unknown as readonly {
+        readonly actor_name: null | string
+        readonly at: Date | string
+        readonly channel: ManualNoticeChannel | null
+      }[]
+      const automaticRows = (await database.execute(
+        sql`select operation, updated_at as at
+            from idempotency_records
+            where company_id = ${companyId}::uuid
+              and idempotency_key = ${AUTOMATIC_OCCURRENCE_MAIL_KEY_PREFIX + occurrenceId}
+              and (operation = ${SEND_OCCURRENCE_MAIL_OPERATION}
+                   or (operation = ${CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION}
+                       and status = 'completed'))
+            order by updated_at desc
+            limit 1`,
+      )) as unknown as readonly { readonly at: Date | string; readonly operation: string }[]
+      const manual = manualRows[0]
+      const automatic = automaticRows[0]
+      return {
+        automatic:
+          automatic === undefined
+            ? null
+            : {
+                at: new Date(automatic.at).toISOString(),
+                channel:
+                  automatic.operation === CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION
+                    ? 'whatsapp_group'
+                    : 'email',
+              },
+        manual:
+          manual === undefined
+            ? null
+            : {
+                actorName: manual.actor_name,
+                at: new Date(manual.at).toISOString(),
+                channel: manual.channel,
+              },
+      }
     },
 
     async record({ actorUserId, companyId, correlationId, occurrenceId, result, status }) {

@@ -15,7 +15,10 @@ import type {
   AuthenticatedContext,
   CompanyContext,
 } from '../../src/identity/domain/tenant-context.js'
-import type { ManualOccurrenceNoticeResult } from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
+import type {
+  ManualNoticeState,
+  ManualOccurrenceNoticeResult,
+} from '../../src/occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import { createOccurrenceContractorNoticeRoutes } from '../../src/occurrence-conversation/presentation/occurrence-contractor-notice.routes.js'
 import { stubCompanyFiscalEnvironment } from '../fixtures/company-fiscal-environment.fixture.js'
 import { stubUserPictureExistence } from '../fixtures/user-picture-existence.fixture.js'
@@ -35,6 +38,7 @@ const OFFICE_PERMISSIONS: CompanyContext['permissions'] = new Set(['occurrences.
 function createFixture(params: {
   readonly permissions?: CompanyContext['permissions']
   readonly result?: ManualOccurrenceNoticeResult
+  readonly state?: ManualNoticeState | null
 }) {
   const calls: unknown[] = []
   const context: AuthenticatedContext<CompanyContext> = {
@@ -63,6 +67,12 @@ function createFixture(params: {
     rateLimitWindows: { consume: async () => ({ allowed: true }) },
     routes: createOccurrenceContractorNoticeRoutes({
       sendManualNotice: {
+        readNoticeState: async (input) => {
+          calls.push(input)
+          return params.state === undefined
+            ? { channel: 'whatsapp_group', status: 'available' }
+            : params.state
+        },
         sendManual: async (input) => {
           calls.push(input)
           return (
@@ -200,5 +210,42 @@ describe('a rota do botão "Avisar a contratante" (spec 324 T1)', () => {
 
     expect(response.status).toBe(404)
     expect(fixture.calls).toEqual([])
+  })
+})
+
+describe('a leitura do estado do botão (spec 324 T3)', () => {
+  function get(fixture: ReturnType<typeof createFixture>) {
+    return fixture.handle(jsonRequest({ method: 'GET', path: NOTICE_PATH }))
+  }
+
+  test('sem occurrences.resolve: 403 e nada é lido', async () => {
+    const fixture = createFixture({ permissions: new Set(['trip.manage', 'fleet.read']) })
+
+    expect((await get(fixture)).status).toBe(403)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('200 com o estado, empresa do contexto e no-store', async () => {
+    const state: ManualNoticeState = {
+      actorName: 'Ana',
+      at: '2026-11-13T15:00:00.000Z',
+      by: 'manual',
+      channel: 'email',
+      status: 'notified',
+    }
+    const fixture = createFixture({ state })
+
+    const response = await get(fixture)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({ data: state })
+    expect(fixture.calls).toEqual([
+      { companyId: COMPANY_CONTEXT.companyId, occurrenceId: OCCURRENCE_ID },
+    ])
+  })
+
+  test('parada, sem contratante ou de outra empresa: 404', async () => {
+    expect((await get(createFixture({ state: null }))).status).toBe(404)
   })
 })

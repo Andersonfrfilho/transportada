@@ -21,7 +21,10 @@ import { parseOptionalBody, parseUuidPathIdentifier } from '../../http/request-p
 import { defineRoute } from '../../http/router.service.js'
 import { JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import { TripOccurrenceNotFoundError } from '../../trips/domain/trip.error.js'
-import type { ManualOccurrenceNoticeResult } from '../application/send-automatic-occurrence-mail.use-case.js'
+import type {
+  ManualNoticeState,
+  ManualOccurrenceNoticeResult,
+} from '../application/send-automatic-occurrence-mail.use-case.js'
 import {
   OccurrenceContractorNoticeAlreadySentError,
   OccurrenceContractorNoticeBlockedError,
@@ -36,6 +39,11 @@ const EMPTY_BODY_SCHEMA = z.object({}).strict().readonly()
 
 export type OccurrenceContractorNoticeRoutesDependencies = {
   readonly sendManualNotice: {
+    /** Spec 324 T3: o estado do botão; `null` sem ocorrência de nota. */
+    readNoticeState(input: {
+      readonly companyId: string
+      readonly occurrenceId: string
+    }): Promise<ManualNoticeState | null>
     sendManual(input: {
       readonly actorUserId: string
       readonly companyId: string
@@ -61,6 +69,26 @@ export function createOccurrenceContractorNoticeRoutes(
   dependencies: OccurrenceContractorNoticeRoutesDependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
   return [
+    /**
+     * Spec 324 T3 (RF1/RF4/D6): o estado do botão, com a mesma permissão do envio — quem não pode avisar não precisa
+     * do estado, e o painel o relê ao abrir o diálogo (o canal pode ter mudado). Só leitura, sem corpo.
+     */
+    defineRoute<{ readonly occurrenceId: string }>({
+      async handle({ context, input }) {
+        const state = await dependencies.sendManualNotice.readNoticeState({
+          companyId: context.scope.companyId,
+          occurrenceId: input.occurrenceId,
+        })
+        if (state === null) throw new TripOccurrenceNotFoundError()
+        return jsonResponse(state)
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: OCCURRENCE_CONTRACTOR_NOTICE_PATH,
+      policy: CONTRACTOR_NOTICE_POLICY,
+    }),
     defineRoute<ContractorNoticeRouteInput>({
       async handle({ context, input }) {
         const result = await dependencies.sendManualNotice.sendManual({
