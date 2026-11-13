@@ -14,6 +14,7 @@ import {
   MONEY_SCALE,
   parseScaledDecimal,
 } from '../../shared/decimal.service.js'
+import { distributeByWeight as distribute } from '../../shared/proportional-split.policy.js'
 import {
   APPORTIONMENT_BASES,
   COST_BASES,
@@ -255,28 +256,6 @@ function giveEqually(input: {
   })
 
   return 0n
-}
-
-/**
- * Divide `total` pelos pesos sem perder centavo: piso em cada parte e o resto inteiro para o de maior
- * peso. Determinístico no empate — o primeiro índice vence —, porque resto que muda de dono entre
- * execuções faz a mesma viagem mostrar números diferentes.
- */
-function distribute(total: bigint, weights: readonly bigint[]): bigint[] {
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0n)
-  if (totalWeight === 0n || total === 0n) return weights.map(() => 0n)
-
-  const parts = weights.map((weight) => (total * weight) / totalWeight)
-  const remainder = total - parts.reduce((sum, part) => sum + part, 0n)
-  if (remainder === 0n) return parts
-
-  let heaviest = 0
-  weights.forEach((weight, index) => {
-    if (weight > (weights[heaviest] ?? 0n)) heaviest = index
-  })
-  parts[heaviest] = (parts[heaviest] ?? 0n) + remainder
-
-  return parts
 }
 
 function bucketOf(params: ApportionDocumentCostsParams, basis: ApportionmentBasis): bigint {
