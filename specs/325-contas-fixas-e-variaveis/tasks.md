@@ -64,7 +64,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [x] **T4.0** Anderson aprova os previews (`325-contas/prints/resultado-*`, `veiculo-*`, `rateio-*`) e as dúvidas 5 a 7 (ou aceita os padrões).
       Feita em 2026-11-13: Anderson aprovou os previews (resultado, veículo/cliente, rateio, lembretes e resposta "paguei") e os padrões das dúvidas 5 a 8 ("aprovado pode seguir").
   > 🤖 Modelo: `opus`
-- [ ] **T4.1** ADR-0116: o rateio é calculado na leitura, por grupo de custo, e o motorista não é somado de novo.
+- [x] **T4.1** ADR-0116: o rateio é calculado na leitura, por grupo de custo, e o motorista não é somado de novo.
+      Feita em 2026-11-13: [ADR-0116](../../docs/adr/0116-o-rateio-das-contas-e-calculado-na-leitura.md) aceita, com os pesos de cada critério, quem participa, o excedente do pagamento do motorista, o mês recalculado, a conta sem veículo e a soma que fecha. **Para a T4.5:** a data de conclusão da viagem é a mesma do pagamento (`payable-trip.query.ts`, T1.4b), nunca só `trips.closed_at`, que a conclusão pelo relatório do motorista não grava (ADR-0116 §3). Detalhe em `evidence.md` § T4.1.
   > 🤖 Modelo: `opus`
 - [ ] **T4.2** Contratos vermelhos: CA06 a CA10 (soma fecha, motorista não duplica, critério muda divisão e não total, veículo, isolamento).
   > 🤖 Modelo: `sonnet`
