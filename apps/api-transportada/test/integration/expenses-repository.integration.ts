@@ -113,6 +113,24 @@ describeDatabase('contas da empresa no banco (spec 325 T1.4)', () => {
     ])
   })
 
+  test('a semente classifica o grupo de custo de cada categoria (ADR-0116, T4.3)', async () => {
+    await createListExpenseCategoriesUseCase(ports()).execute({ companyId: companyB })
+    const rows = await database?.db.execute<{ cost_group: string; name: string }>(sql`
+      select name, cost_group from company_expense_categories where company_id = ${companyB}
+    `)
+    const groups = Object.fromEntries((rows ?? []).map((row) => [row.name, row.cost_group]))
+    expect(groups).toEqual({
+      Aluguel: 'administrative',
+      Combustível: 'per_km',
+      Folha: 'administrative',
+      Impostos: 'administrative',
+      Manutenção: 'per_km',
+      Outros: 'administrative',
+      'Pagamento de motorista/agregado': 'in_trip',
+      Seguro: 'vehicle_fixed',
+    })
+  })
+
   test('quinzenal grava os dois slots, e rodar a geração de novo não duplica', async () => {
     const created = await createCreateExpenseUseCase(ports()).execute({
       categoryId: await categoryId(companyA, 'Pagamento de motorista/agregado'),
