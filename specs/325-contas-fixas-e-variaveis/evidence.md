@@ -371,3 +371,10 @@ contrato que a cobra.
 
 - API: `bun --env-file=../../.env.test test ./test/expenses.contract.test.ts` → 70 pass / 0 fail (inclui `test/expenses/trip-route.contract.ts`, 4 casos, e o trajeto nas listas); integração contra Postgres 16 descartável (`expense-occurrence-trips.integration.ts`) → 8 pass, com o caso "o trajeto sai das paradas da própria empresa" (parada de outra empresa não vaza). `tsc --noEmit` e `eslint` limpos.
 - Painel: `bun run test` → 1496 pass / 0 fail; `tsc`, `eslint` e `prettier` limpos. Prints regerados em `prints/contas-viagens-*` (claro/escuro × desktop/celular).
+
+## T2.4 — Revisão de design da Fase 2 (2026-11-13)
+
+- Prints regerados por `test/spec-325-prints.smoke.spec.ts` e `test/spec-325-categorias-prints.smoke.spec.ts` (fora da CI, `VITE_SMOKE_AUTH_BYPASS=true`): 20 imagens em `prints/` (lista, nova, baixa, viagens, categorias × claro/escuro × desktop 1440/celular 375).
+- Comparação: filtros, cartão de totais, tabela, selos de estado e botões iguais aos de Ressarcimentos e da aba Vendedores (rótulo em cima, campo e seletor na altura padrão, botão primário/secundário padrão); e aos previews aprovados em `325-contas/prints` (diferenças só nos dados de exemplo e no rótulo "Motorista, agregado ou ajudante", decidido na T2.2).
+- **Desvio achado e corrigido:** no celular, o texto de apoio da célula (favorecido na lista de contas; papel "Motorista/Agregado/Ajudante" na lista de viagens do pagamento) virava um segundo filho da grade de duas colunas e caía sob a coluna do rótulo, deixando o valor vazio. As duas células agora têm um único filho (`<div>`), como as demais tabelas empilhadas. Prints regerados.
+- Provas: `bun test ./test/expenses.contract.test.ts` 26 pass / 0 fail; `tsc`, `eslint` e `prettier` limpos.
