@@ -162,3 +162,118 @@ export type ExpensesPorts = {
     }): Promise<CompanyExpenseOccurrence | null>
   }
 }
+
+/** Spec 325 RF1d/RF1e: a parcela de pessoa da viagem que o pagamento cobre. */
+export type ExpenseTripParcelKind = 'driver' | 'helper'
+
+/** Uma viagem incluída num pagamento: a linha da pessoa na parcela, copiada na inclusão. */
+export type ExpenseOccurrenceTrip = {
+  /** Centavos em texto (`numeric(14,2)`), a linha da pessoa arredondada meio para cima. */
+  readonly amount: string
+  /** `yyyy-mm-dd`, conclusão da viagem em São Paulo. */
+  readonly completedOn: string
+  /** Diária usada na viagem (`numeric(19,4)`). */
+  readonly dailyAmount: string
+  readonly days: number
+  readonly driverId: string
+  readonly occurrenceId: string
+  readonly parcelKind: ExpenseTripParcelKind
+  readonly tripId: string
+}
+
+/** Viagem concluída em que a pessoa estava na tripulação, com o papel dela ali. */
+export type PayableTripCandidate = {
+  readonly completedOn: string
+  readonly crewRole: ExpenseTripParcelKind
+  readonly tripId: string
+}
+
+/** O que a inclusão confere da viagem: dela a empresa, o status, a conclusão e a tripulação. */
+export type PayableTripFacts = {
+  readonly completedOn: string | null
+  readonly crew: readonly { readonly driverId: string; readonly role: ExpenseTripParcelKind }[]
+  readonly status: string
+  readonly tripId: string
+}
+
+/**
+ * A linha da pessoa na parcela da viagem, lida da **mesma** conta de valoração do produto (143/149). `missing` é a
+ * lacuna da viagem (sem dias conhecidos, sem condutor): o pagamento não a inclui, e ela aparece como pendência.
+ */
+export type PayableTripParcel =
+  | {
+      /** `numeric(19,4)` em texto, exatamente a linha da pessoa (`diária × dias`). */
+      readonly amount: string
+      readonly dailyAmount: string
+      readonly days: number
+      readonly status: 'priced'
+    }
+  | { readonly gap: string; readonly status: 'missing' }
+
+export type IncludeOccurrenceTripOutcome =
+  | { readonly occurrence: CompanyExpenseOccurrence; readonly status: 'included' }
+  | { readonly status: 'not_open' | 'taken' }
+
+export type RemoveOccurrenceTripOutcome =
+  | { readonly occurrence: CompanyExpenseOccurrence; readonly status: 'removed' }
+  | { readonly status: 'not_found' | 'not_open' }
+
+/** Portas da T1.4b. Conta, ocorrência e auditoria são as mesmas da T1.4. */
+export type ExpenseOccurrenceTripPorts = Pick<
+  ExpensesPorts,
+  'audit' | 'expenses' | 'occurrences'
+> & {
+  readonly occurrenceTrips: {
+    /**
+     * Numa transação, com a ocorrência travada e ainda `open`: grava a viagem e recalcula o previsto como a soma das
+     * viagens. `taken` quando a parte da pessoa naquela parcela já está noutro pagamento (o unique decide a corrida).
+     */
+    include(input: {
+      readonly companyId: string
+      readonly createdBy: string
+      readonly trip: ExpenseOccurrenceTrip
+    }): Promise<IncludeOccurrenceTripOutcome>
+    list(input: {
+      readonly companyId: string
+      readonly occurrenceId: string
+    }): Promise<readonly ExpenseOccurrenceTrip[]>
+    /** De quais viagens a parte da pessoa já está num pagamento (qualquer um), e em qual. */
+    listHeld(input: {
+      readonly companyId: string
+      readonly driverId: string
+      readonly parcelKind: ExpenseTripParcelKind
+      readonly tripIds: readonly string[]
+    }): Promise<ReadonlyMap<string, string>>
+    /**
+     * Numa transação, com a ocorrência travada e ainda `open`: tira a viagem e recalcula o previsto; sem viagem
+     * nenhuma, o previsto volta a `fallbackExpectedAmount` (o valor da conta).
+     */
+    remove(input: {
+      readonly companyId: string
+      readonly fallbackExpectedAmount: string
+      readonly occurrenceId: string
+      readonly parcelKind: ExpenseTripParcelKind
+      readonly tripId: string
+    }): Promise<RemoveOccurrenceTripOutcome>
+  }
+  readonly payableTrips: {
+    findFacts(input: {
+      readonly companyId: string
+      readonly tripId: string
+    }): Promise<PayableTripFacts | null>
+    /** Viagens `completed` da empresa com a pessoa na tripulação, concluídas no período (datas civis, inclusivas). */
+    listCompleted(input: {
+      readonly companyId: string
+      readonly driverId: string
+      readonly from: string
+      readonly to: string
+    }): Promise<readonly PayableTripCandidate[]>
+    /** Em lote: viagem que não é da empresa, ou sem a pessoa naquele papel, não entra no mapa. */
+    readPersonParcels(input: {
+      readonly companyId: string
+      readonly driverId: string
+      readonly parcelKind: ExpenseTripParcelKind
+      readonly tripIds: readonly string[]
+    }): Promise<ReadonlyMap<string, PayableTripParcel>>
+  }
+}

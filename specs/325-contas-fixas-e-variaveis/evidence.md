@@ -108,3 +108,60 @@ bun test ./test/identity.contract.test.ts ./test/frontend-contract.test.ts ...  
 
 **Para a T1.4b/T1.4c:** o `ExpenseOccurrenceListItem` já devolve `payeeDriverId`/nome/modelo; a tabela de viagens do pagamento entra ao lado sem mexer na chave
 `(expense, competence, slot)`. Dúvida deixada em aberto: a leitura aceita só `expenses.read` (sem "qualquer uma de"), conforme CA03.
+
+## T1.4b — Viagens do pagamento (2026-11-13)
+
+**Alinhamento com a T1.4c.** O PR #741 (docs do rateio) já estava mergeado e trouxe a T1.4c só como task. Para ela não
+precisar de migration trocando restrição, a tabela nasce com `parcel_kind` (`driver` | `helper`, CHECK) e a chave
+`unique(trip_id, parcel_kind, driver_id)`. O `driver_id` entra na chave porque a parcela da viagem soma a tripulação inteira
+daquele papel (dois condutores, ou dois ajudantes, são duas pessoas a pagar, e a valoração da 143 já tem uma linha por
+condutor); a regra continua "a parte de uma pessoa numa parcela da viagem é paga uma vez só". RF1d da spec foi ajustado.
+
+**Contratos** (de dentro de `apps/api-transportada`): `bun --env-file=../../.env.test test ./test/expenses.contract.test.ts` →
+56 pass / 0 fail (18 novos em `test/expenses/occurrence-trips.contract.ts`, mais as 4 rotas novas na lista exata de
+`expense-routes.contract.ts`). Migration: `DRIZZLE_TEST_DATABASE_URL=… bun run db:test` → 269 pass / 0 fail contra Postgres 16
+descartável (inclui `company-expense-occurrence-trips.static.contract.ts`, o snapshot e migration + rollback).
+**Integração** nova `test/integration/expense-occurrence-trips.integration.ts` (registrada em `test:integration`) contra Postgres 16:
+6 pass, junto dos 4 da T1.4 (10 pass), com a valoração real (`DrizzleTripValuationQuery`):
+
+- a quinzena lista as concluídas do favorecido pelo dia de São Paulo (conclusão às 23h30 de 15/11 em SP, 02h30 UTC de 16/11,
+  cai na 1ª quinzena), com `250,00 × 3 dias` lidos da diária do motorista e de `trips.daily_allowance_days`;
+- incluir copia a linha e o previsto vira a soma (`1250,00`); a mesma viagem em outro pagamento é 409;
+- duas inclusões **simultâneas** da mesma viagem em pagamentos diferentes: uma `included`, outra `taken`, uma linha só no banco;
+- remover recalcula, e sem viagem o previsto volta ao valor da conta;
+- ocorrência paga é imutável; viagem e ocorrência de outra empresa são 404 e `listHeld` da outra empresa vem vazio;
+- `audit_logs` com `expense.occurrence.trip.included|removed` e `permission = 'expenses.manage'`.
+
+Lista completa de contrato `bun --env-file=../../.env.test run test`: 15216 pass / 26 skip / 0 fail (230 arquivos). Na primeira
+rodada dois guardas pegaram o que faltava e foram corrigidos: a política do recorte de staging (`deploy/staging-refresh/prune-source.sql`
+ganhou `company_expense_occurrence_trips` como `keep`; viagem cortada leva a linha junto pela FK) e a lista fechada de leitores de
+posição (196 RF12): a leitura de `trip_status_events` foi para `infrastructure/payable-trip.query.ts`, só com colunas explícitas.
+`tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
+
+**Decisões**
+
+- **De onde vem o valor:** da valoração em lote da lista de viagens (spec 259, `readValuationContexts` +
+  `buildValuationFromContext`), a linha da pessoa em `basis.crew` (`diária × dias`). Não lê `trip_financial_results`: o
+  congelamento só existe por recálculo manual hoje (nenhuma escrita automática), então a valoração é o número que a viagem mostra.
+  O valor é **copiado** na inclusão; mudar a diária depois não altera o pagamento já montado.
+- **Arredondamento:** a linha (`numeric(19,4)`) vira centavos meio para cima, por viagem; o previsto é a soma das linhas
+  arredondadas, calculada pelo banco (`sum(amount)`) na mesma transação.
+- **Lacuna:** parcela `missing`/`period` (sem dias conhecidos, sem condutor) não entra; sai em `pending` com o código da lacuna
+  (`NO_PLANNED_DURATION` etc.), e o `POST` responde `409 EXPENSE_TRIP_PARCEL_MISSING`.
+- **Conclusão:** última transição para `completed` em `trip_status_events`; viagem anterior ao histórico cai em `closed_at` e
+  depois em `updated_at`. Só `status = 'completed'` entra.
+- **Período:** o da ocorrência (mês; quinzenal 1–15 / 16–último). `?from&to` (os dois, até 93 dias) alcança a viagem que ficou
+  para trás. A viagem já incluída em qualquer pagamento não aparece.
+- **Corrida:** incluir e remover travam a ocorrência (`FOR UPDATE`) e só agem com ela `open`; a baixa é
+  `UPDATE … WHERE status = 'open'`, então as duas nunca se cruzam. O `unique` decide a mesma viagem em duas ocorrências.
+- **Erros novos:** `409 EXPENSE_OCCURRENCE_NOT_DRIVER_PAYMENT` (conta sem favorecido), `404 EXPENSE_TRIP_NOT_FOUND`,
+  `409 EXPENSE_TRIP_NOT_COMPLETED`, `409 EXPENSE_TRIP_NOT_PAYEE` (favorecido fora da tripulação, ou ajudante até a T1.4c),
+  `409 EXPENSE_TRIP_PARCEL_MISSING`, `409 EXPENSE_TRIP_ALREADY_INCLUDED`, `404 EXPENSE_OCCURRENCE_TRIP_NOT_FOUND`. Repetir a
+  inclusão na mesma ocorrência é idempotente (200, sem auditoria nova).
+- **"Previsto editável" (RF1d):** não há rota para editar o previsto da ocorrência (nem antes desta task); a diferença fica
+  visível pela baixa (`paidAmount` livre) contra `tripsTotal`. Se a tela da T2.2b precisar editar o previsto, é uma rota nova.
+
+**Para a T1.4c:** acrescentar `'helper'` em `PAYABLE_TRIP_PARCEL_KINDS` e ler a linha do ajudante em
+`trip-person-parcel.gateway.ts`; a parcela `helper` da valoração ainda não tem `basis` por pessoa.
+**Para a T2.2b:** a resposta de `GET|POST|DELETE …/trips` é `{ data: { occurrence, items[], tripsTotal } }`; a de
+`available-trips` é `{ data: { period, available[], pending[] } }`.

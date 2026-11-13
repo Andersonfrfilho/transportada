@@ -30,6 +30,12 @@ import {
   USER_ID,
 } from '../fixtures/expenses-in-memory.fixture.js'
 
+const unused = {
+  execute: (): never => {
+    throw new Error('not used by this suite')
+  },
+}
+
 function buildRoutes(ports = buildInMemoryExpenses()) {
   return {
     ports,
@@ -37,6 +43,11 @@ function buildRoutes(ports = buildInMemoryExpenses()) {
       cancelOccurrence: createCancelExpenseOccurrenceUseCase(ports),
       createCategory: createCreateExpenseCategoryUseCase(ports),
       createExpense: createCreateExpenseUseCase(ports),
+      // T1.4b: as viagens do pagamento têm a própria suíte (`occurrence-trips.contract.ts`).
+      includeOccurrenceTrip: unused,
+      listAvailableTrips: unused,
+      listOccurrenceTrips: unused,
+      removeOccurrenceTrip: unused,
       listCategories: createListExpenseCategoriesUseCase(ports),
       listExpenses: createListExpensesUseCase(ports),
       listOccurrences: createListExpenseOccurrencesUseCase(ports),
@@ -101,6 +112,10 @@ describe('rotas de contas (spec 325 CA03)', () => {
       ['GET', '/expense-occurrences', 'expenses.read'],
       ['POST', '/expense-occurrences/:id/settlement', 'expenses.manage'],
       ['POST', '/expense-occurrences/:id/cancellation', 'expenses.manage'],
+      ['GET', '/expense-occurrences/:id/trips', 'expenses.read'],
+      ['GET', '/expense-occurrences/:id/available-trips', 'expenses.read'],
+      ['POST', '/expense-occurrences/:id/trips', 'expenses.manage'],
+      ['DELETE', '/expense-occurrences/:id/trips/:tripId', 'expenses.manage'],
       ['GET', '/expense-categories', 'expenses.read'],
       ['POST', '/expense-categories', 'expenses.manage'],
       ['PATCH', '/expense-categories/:id', 'expenses.manage'],

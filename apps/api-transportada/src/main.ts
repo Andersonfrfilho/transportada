@@ -102,6 +102,14 @@ import {
   createUpdateExpenseUseCase,
 } from './expenses/application/expense.use-case.js'
 import { createDrizzleExpensesPorts } from './expenses/infrastructure/drizzle-expenses.repository.js'
+import {
+  createIncludeExpenseOccurrenceTripUseCase,
+  createListAvailableExpenseTripsUseCase,
+  createListExpenseOccurrenceTripsUseCase,
+  createRemoveExpenseOccurrenceTripUseCase,
+} from './expenses/application/expense-occurrence-trip.use-case.js'
+import { createDrizzleExpenseOccurrenceTripPorts } from './expenses/infrastructure/drizzle-expense-occurrence-trips.repository.js'
+import { createTripPersonParcelReader } from './expenses/infrastructure/trip-person-parcel.gateway.js'
 import { createExpenseRoutes } from './expenses/presentation/expense.routes.js'
 import {
   createCreateCompanyEntryKindUseCase,
@@ -3643,6 +3651,13 @@ function createApplicationRoutes({
   const companyEntryKindRepository = new DrizzleCompanyEntryKindRepository(database)
   const expensesPorts = createDrizzleExpensesPorts(database)
   const applicableFreightRuleQuery = new DrizzleApplicableFreightRuleQuery(database)
+  /** Spec 325 T1.4b: a linha da pessoa na parcela vem da mesma valoração em lote da lista de viagens (259). */
+  const expenseOccurrenceTripPorts = createDrizzleExpenseOccurrenceTripPorts(database, {
+    readPersonParcels: createTripPersonParcelReader({
+      findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+      readValuationContexts: (query) => tripValuationQuery.readValuationContexts(query),
+    }),
+  })
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database,
     resolveStorageBucket(environment),
@@ -4615,6 +4630,10 @@ function createApplicationRoutes({
       cancelOccurrence: createCancelExpenseOccurrenceUseCase(expensesPorts),
       createCategory: createCreateExpenseCategoryUseCase(expensesPorts),
       createExpense: createCreateExpenseUseCase(expensesPorts),
+      includeOccurrenceTrip: createIncludeExpenseOccurrenceTripUseCase(expenseOccurrenceTripPorts),
+      listAvailableTrips: createListAvailableExpenseTripsUseCase(expenseOccurrenceTripPorts),
+      listOccurrenceTrips: createListExpenseOccurrenceTripsUseCase(expenseOccurrenceTripPorts),
+      removeOccurrenceTrip: createRemoveExpenseOccurrenceTripUseCase(expenseOccurrenceTripPorts),
       listCategories: createListExpenseCategoriesUseCase(expensesPorts),
       listExpenses: createListExpensesUseCase(expensesPorts),
       listOccurrences: createListExpenseOccurrencesUseCase(expensesPorts),
