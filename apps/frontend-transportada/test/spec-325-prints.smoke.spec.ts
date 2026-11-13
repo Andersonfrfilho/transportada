@@ -145,6 +145,7 @@ const TRIPS = {
       dailyAmount: '200.0000',
       days: 2,
       parcelKind: 'driver',
+      route: { destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' },
       tripId: '1f2a3b4c-0000-4000-8000-000000000001',
     },
     {
@@ -153,6 +154,7 @@ const TRIPS = {
       dailyAmount: '200.0000',
       days: 1,
       parcelKind: 'driver',
+      route: { destination: 'SAO CARLOS', origin: 'RIBEIRAO PRETO' },
       tripId: '1f2a3b4c-0000-4000-8000-000000000002',
     },
     {
@@ -161,6 +163,7 @@ const TRIPS = {
       dailyAmount: '250.0000',
       days: 3,
       parcelKind: 'driver',
+      route: { destination: 'CAMPINAS', origin: null },
       tripId: '1f2a3b4c-0000-4000-8000-000000000003',
     },
   ],
@@ -202,6 +205,7 @@ for (const theme of THEMES) {
                 completedOn: `${competence()}-11`,
                 gap: 'NO_PLANNED_DURATION',
                 parcelKind: 'driver',
+                route: { destination: 'ARARAQUARA', origin: 'RIBEIRAO PRETO' },
                 tripId: '1f2a3b4c-0000-4000-8000-000000000004',
               },
             ],

@@ -241,6 +241,7 @@ describeDatabase('viagens do pagamento no banco (spec 325 T1.4b)', () => {
         dailyAmount: '250.0000',
         days: 3,
         parcelKind: 'driver',
+        route: null,
         tripId: tripEarly,
       },
       {
@@ -249,6 +250,7 @@ describeDatabase('viagens do pagamento no banco (spec 325 T1.4b)', () => {
         dailyAmount: '250.0000',
         days: 2,
         parcelKind: 'driver',
+        route: null,
         tripId: tripMidnight,
       },
     ])
@@ -488,6 +490,7 @@ describeDatabase('viagens do pagamento no banco (spec 325 T1.4b)', () => {
         dailyAmount: '130.0000',
         days: 2,
         parcelKind: 'helper',
+        route: null,
         tripId: tripCrewed,
       },
     ])
@@ -501,6 +504,7 @@ describeDatabase('viagens do pagamento no banco (spec 325 T1.4b)', () => {
         completedOn: '2026-11-25',
         gap: 'HELPER_DAILY_RATE_MISSING',
         parcelKind: 'helper',
+        route: null,
         tripId: tripCrewed,
       },
     ])
@@ -531,5 +535,27 @@ describeDatabase('viagens do pagamento no banco (spec 325 T1.4b)', () => {
       ['driver', otherDriverId, '400.00'],
       ['helper', helperId, '260.00'],
     ])
+  })
+
+  test('o trajeto sai das paradas da própria empresa, na ordem do roteiro', async () => {
+    if (database === undefined) throw new Error('A disposable database is required')
+    const stops: readonly [string, string, number, string][] = [
+      [companyA, tripEarly, 2, 'RUA B, 2, CAMPINAS, SP'],
+      [companyA, tripEarly, 1, 'RUA A, 1, RIBEIRAO PRETO, SP'],
+      [companyB, tripCompanyB, 1, 'RUA Z, 9, SANTOS, SP'],
+    ]
+    for (const [companyId, tripId, sequence, label] of stops) {
+      await database.db.execute(sql`
+        insert into trip_stops (id, company_id, trip_id, sequence, address_key, label)
+        values (${crypto.randomUUID()}, ${companyId}, ${tripId}, ${sequence}, ${`key-${label}`}, ${label})
+      `)
+    }
+    const routes = await ports().payableTrips.readRoutes({
+      companyId: companyA,
+      tripIds: [tripEarly, tripMidnight, tripCompanyB],
+    })
+    expect(routes.get(tripEarly)).toEqual({ destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' })
+    expect(routes.has(tripMidnight)).toBe(false)
+    expect(routes.has(tripCompanyB)).toBe(false)
   })
 })

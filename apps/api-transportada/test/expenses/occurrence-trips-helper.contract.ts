@@ -155,6 +155,7 @@ describe('o ajudante no pagamento (spec 325 RF1e, T1.4c)', () => {
         dailyAmount: '120.0000',
         days: 3,
         parcelKind: 'helper',
+        route: null,
         tripId: TRIP_SHARED,
       },
       {
@@ -163,6 +164,7 @@ describe('o ajudante no pagamento (spec 325 RF1e, T1.4c)', () => {
         dailyAmount: '150.0000',
         days: 1,
         parcelKind: 'helper',
+        route: null,
         tripId: TRIP_HELPED,
       },
     ])
@@ -171,6 +173,7 @@ describe('o ajudante no pagamento (spec 325 RF1e, T1.4c)', () => {
         completedOn: '2026-11-12',
         gap: 'HELPER_DAILY_RATE_MISSING',
         parcelKind: 'helper',
+        route: null,
         tripId: TRIP_HELPER_GAP,
       },
     ])
