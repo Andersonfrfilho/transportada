@@ -1,7 +1,7 @@
 # Feature 325 — Contas fixas e variáveis da transportadora
 
 > Pedido do dono (Anderson), 2026-11-13: "registrar o módulo e a página de adicionar contas fixas e variáveis".
-> Status: **rascunho para aprovação**. Nada implementado. Quatro dúvidas abertas no fim (as respostas podem ser "usa o padrão").
+> Status: **aprovada** (2026-11-13). As quatro dúvidas foram fechadas (seção "Dúvidas"); implementação em andamento, uma task por vez.
 
 ## Specs do mesmo assunto (lidas)
 
@@ -97,9 +97,13 @@ A transportadora paga aluguel, contador, seguro, internet, folha (fixas) e manut
 - CA05b Conta da categoria de motorista sem motorista → `400`; motorista de outra empresa → `404`.
 - CA05 Totais previsto × pago da lista batem com a soma das ocorrências filtradas.
 
-## Dúvidas
+## Dúvidas (fechadas em 2026-11-13, T0.1)
 
-1. **[NEEDS CLARIFICATION]** Recorrência: basta quinzenal/mensal/bimestral/trimestral/anual com dia de vencimento? (Padrão adotado: sim.)
-2. **[NEEDS CLARIFICATION]** Vínculo opcional com **veículo** (ex.: seguro, IPVA, pneu do caminhão X) já na v1, ou só categoria? (Padrão: veículo opcional na conta, sem rateio.)
-3. **[NEEDS CLARIFICATION]** Vínculo com **viagem** nas variáveis (ex.: multa)? (Padrão: não; gasto de viagem continua na 061/169.)
-4. **[NEEDS CLARIFICATION]** Quem enxerga/edita: só dono/administrador, ou também o financeiro/escritório? (Padrão: `expenses.*` só para o papel administrador.)
+Anderson aprovou os padrões listados pelo coordenador no chat do projeto ("certo pode criar", 2026-11-13). Depois pediu o pagamento de motorista/agregado e aprovou a ligação com as viagens realizadas ("certo pode fazer").
+
+1. **Recorrência** → mensal, bimestral, trimestral e anual com dia de vencimento; **quinzenal** acrescentada depois (RF1b). Resolvida.
+2. **Veículo** → opcional na conta (seguro, IPVA, pneu do caminhão X), sem rateio. Resolvida. _Entra na T1.2 (coluna `vehicle_id`, FK opcional para `fleet_vehicles`)._
+3. **Viagem nas variáveis** → não; a conta variável fica sem vínculo com viagem, e o gasto de viagem continua na 061/169. Resolvida.
+4. **Quem vê e edita** → só o administrador (`expenses.read`/`expenses.manage` apenas no papel `company-admin`). Resolvida.
+
+Nenhum `[NEEDS CLARIFICATION]` aberto.
