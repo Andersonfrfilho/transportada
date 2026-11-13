@@ -66,10 +66,12 @@ export function ExpenseTripsDialog({ canManage, occurrence, onClose }: ExpenseTr
     return (
       <tr key={`${trip.tripId}:${trip.parcelKind}`}>
         <td data-column={t('trips.trip')}>
-          {routeText(trip) === null
-            ? t('trips.tripNumber', { id: tripLabel(trip) })
-            : t('trips.tripNumberRoute', { id: tripLabel(trip), route: routeText(trip) })}
-          <span className={styles.rowDetail}>{t(`parcelKind.${trip.parcelKind}`)}</span>
+          <div>
+            {routeText(trip) === null
+              ? t('trips.tripNumber', { id: tripLabel(trip) })
+              : t('trips.tripNumberRoute', { id: tripLabel(trip), route: routeText(trip) })}
+            <span className={styles.rowDetail}>{t(`parcelKind.${trip.parcelKind}`)}</span>
+          </div>
         </td>
         <td data-column={t('trips.completedOn')}>{formatCivilDate(trip.completedOn)}</td>
         <td data-column={t('trips.dailyTimesDays')}>

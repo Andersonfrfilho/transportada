@@ -214,8 +214,10 @@ export function ExpensesWorkspacePage() {
                 {page.items.map((row) => (
                   <tr key={row.id}>
                     <td data-column={t('list.account')}>
-                      {row.expenseName}
-                      {renderPayee(row)}
+                      <div>
+                        {row.expenseName}
+                        {renderPayee(row)}
+                      </div>
                     </td>
                     <td data-column={t('list.kind')}>{t(`kind.${row.expenseKind}`)}</td>
                     <td data-column={t('list.category')}>{row.categoryName}</td>

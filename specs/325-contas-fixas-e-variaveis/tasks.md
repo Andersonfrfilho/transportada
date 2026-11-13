@@ -53,7 +53,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [x] **T2.3** Painel "Categorias de contas" em Configurações (`SETTINGS_PANELS`).
       Feita: aba `expenseCategories` em Configurações (`ExpenseCategoriesPanel`, autocontido): lista, cadastro e desativar/reativar, só com `expenses.read` (ver) e `expenses.manage` (escrever). Prints em `prints/categorias-*`. Notas em `evidence.md` § T2.3.
   > 🤖 Modelo: `sonnet`
-- [ ] **T2.4** Prints claro/escuro × desktop/celular comparados a outra tela do painel; evidência.
+- [x] **T2.4** Prints claro/escuro × desktop/celular comparados a outra tela do painel; evidência.
+      Feita em 2026-11-13: prints das três telas da Fase 2 (lista, Nova conta, Dar baixa, Viagens do pagamento, Categorias) regerados em claro/escuro × desktop 1440/celular 375 e conferidos contra Vendedores e os previews aprovados. Um desvio achado e corrigido: no celular, a linha do favorecido ("Carlos Lima · Motorista") e o papel da viagem caíam sob a coluna do rótulo. Notas em `evidence.md` § T2.4.
   > 🤖 Modelo: `sonnet`
 
 ## Fase 3 — Publicação
