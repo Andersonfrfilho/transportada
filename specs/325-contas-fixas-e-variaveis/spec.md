@@ -9,7 +9,7 @@
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 061, 169 | A viagem lança gasto/receita avulso. Espécie é cadastro da empresa (`company_entry_kinds`, lado `expense`/`revenue`). **Conta fixa/variável não é lançamento de viagem**: é despesa da empresa, sem viagem obrigatória. |
 | 009      | Faturamento (recebível). Esta spec é o lado **a pagar**; não mexe em fatura.                                                                                                                                            |
-| 232, 259 | Lucro por nota/viagem usa só gasto de viagem. Rateio de conta fixa na viagem fica **fora** (ver Fora do escopo).                                                                                                        |
+| 232, 259 | Lucro por nota/viagem usa só gasto de viagem. Rateio de conta fixa na viagem entra na extensão desta spec (RF10 a RF17).                                                                                                |
 
 Não existe hoje módulo de despesa da empresa: confirmado em `apps/api-transportada/src` (sem `expenses`/`payables`) e no menu do painel (`workspaceNavigation.constant.ts`).
 
@@ -28,7 +28,7 @@ A transportadora paga aluguel, contador, seguro, internet, folha (fixas) e manut
 
 - Pagamento real, integração bancária, conciliação, boleto/OCR de conta.
 - Recalcular ou alterar o custo da viagem: ele continua sendo calculado pela 143. Este módulo só **lê** a parcela do motorista (`trip_financial_parcels`, `kind = 'driver'`) e **não a soma de novo** em nenhum total de despesa de viagem (sem DRE, não há dupla contagem).
-- Rateio de conta fixa por viagem/veículo e DRE (seguem para spec própria depois que houver dado).
+- Rateio de conta por viagem/veículo e o painel de resultado: entram como **extensão desta spec** (seção "Extensão: rateio e resultado do mês", fases 4 e 5 do tasks.md), depois da tela de Contas.
 - Anexo do comprovante (candidato a v2).
 - Notificação de vencimento (v2, pelo módulo de notificação).
 
@@ -107,3 +107,48 @@ Anderson aprovou os padrões listados pelo coordenador no chat do projeto ("cert
 4. **Quem vê e edita** → só o administrador (`expenses.read`/`expenses.manage` apenas no papel `company-admin`). Resolvida.
 
 Nenhum `[NEEDS CLARIFICATION]` aberto.
+
+## Extensão: rateio e resultado do mês (pedido do Anderson, 2026-11-13)
+
+> Pedido: ratear as contas entre as viagens para ver o custo real de cada uma, e um painel do mês com quanto faturamos, quanto gastamos e o lucro. Previews em `/mnt/project-files/325-contas/prints/` (`resultado-*`, `veiculo-*`, `rateio-*`, claro e escuro, desktop e celular). **Aguardando aprovação dos previews antes de implementar.**
+
+### Modelo de custo (como as grandes transportadoras fazem; base da ANTT)
+
+Três grupos de custo, e cada categoria de conta cai em um deles:
+
+| Grupo               | Exemplos                                | Como entra na viagem                              |
+| ------------------- | --------------------------------------- | ------------------------------------------------- |
+| **Fixo do veículo** | parcela, seguro, IPVA, rastreador       | dividido pelos km rodados no mês pelo veículo     |
+| **Variável por km** | combustível, pneus, manutenção, pedágio | pelo custo por km do veículo, ou direto na viagem |
+| **Administrativo**  | aluguel, contador, sistemas, impostos   | pelo faturamento da viagem                        |
+
+A categoria "Pagamento de motorista/agregado" não é rateada: o custo dele **já está na viagem** (143) e não é somado de novo.
+
+### Requisitos funcionais
+
+- **RF10** Cada categoria de conta (`company_expense_categories`) ganha `cost_group` (`vehicle_fixed` | `per_km` | `administrative` | `in_trip`). A semente classifica: Aluguel, Impostos, Folha, Outros → `administrative`; Seguro → `vehicle_fixed`; Manutenção, Combustível → `per_km`; Pagamento de motorista/agregado → `in_trip`.
+- **RF11** Critério de rateio **configurável por empresa e por grupo** (`company_expense_allocation_settings`): `per_km`, `per_trip_day`, `per_revenue` ou `equal`. Padrão (recomendado): fixo do veículo por km; variável pelo custo por km do veículo; administrativo pelo faturamento. Conta com `vehicle_id` vai só para as viagens daquele veículo; sem veículo segue o critério do grupo.
+- **RF12** Cálculo **na leitura** (sem gravar o rateio na viagem) sobre o período: valor considerado da conta = pago, se baixada; senão previsto. Viagem entra pela data de conclusão. Sem viagens no período, o rateio do grupo não se distribui e aparece como "não rateado".
+- **RF13** O pagamento de motorista/agregado **nunca é somado de novo**: a parcela `driver` das viagens incluídas (RF1d) conta só no custo da viagem. Se o valor pago passar da soma das viagens incluídas, a diferença entra como conta da empresa (decisão a confirmar, dúvida 5).
+- **RF14** Painel `/contas/resultado` ("Resultado do mês"): faturamento de fretes, custo das viagens, contas da empresa, lucro, margem, custo por km, receita por km e margem por km, com a variação sobre o mês comparado e a lista dos últimos meses.
+- **RF15** Margem por **viagem**, por **veículo** e por **cliente**, com rateio do veículo e rateio geral em colunas separadas; todas fecham com o total do painel (contrato de soma).
+- **RF16** Painel "Rateio das contas" em Configurações: grupo de cada categoria e critério de cada grupo (permissão `expenses.manage`; leitura do painel em `expenses.read`).
+- **RF17** O **custo por km por veículo** e o geral saem por um caso de uso próprio e uma rota de leitura, para reaproveitamento (ver "Trabalho futuro").
+
+### Critérios de aceite
+
+- CA06 Lucro do painel = faturamento − custo das viagens − contas da empresa, e a soma das margens por viagem, por veículo e por cliente bate com ele (diferença só do "não rateado").
+- CA07 Pagamento de motorista com viagens incluídas não altera o custo total nem o lucro.
+- CA08 Trocar o critério de um grupo muda a divisão entre viagens, mas não o total rateado.
+- CA09 Conta com `vehicle_id` não aparece no rateio de viagem de outro veículo.
+- CA10 Isolamento por empresa e permissões, com contrato negativo.
+
+### Dúvidas em aberto (decididas com padrão recomendado; Anderson pode trocar)
+
+5. **Pagamento de motorista maior que as viagens incluídas** → a diferença (bônus, adiantamento) entra como conta da empresa. _Padrão proposto._
+6. **Fechar o mês** → o rateio é recalculado ao abrir; se Anderson quiser congelar mês fechado (como o resultado congelado da viagem, 0049), entra como task própria. _Padrão: sem congelar._
+7. **Conta "da frota" sem veículo** (ex.: seguro único) → rateia pelo critério do grupo entre todos os veículos. _Padrão proposto._
+
+### Trabalho futuro (não implementar agora)
+
+**Tela de cotação de frete** (pedido do Anderson, 2026-11-13): usará o custo por km do veículo e o geral (RF17) para sugerir preço e margem de uma cotação. Esta extensão só deixa o cálculo acessível por caso de uso e rota de leitura; a cotação terá spec própria.

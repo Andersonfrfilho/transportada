@@ -47,3 +47,33 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 - [ ] **T3.1** Staging: migration + deploy; conferir a rotina do cron e a baixa de ponta a ponta. Produção só na próxima promoção (não é bug crítico).
   > 🤖 Modelo: `sonnet`
+
+## Fase 4 — Rateio (extensão, aguarda aprovação dos previews)
+
+- [ ] **T4.0** Anderson aprova os previews (`325-contas/prints/resultado-*`, `veiculo-*`, `rateio-*`) e as dúvidas 5 a 7 (ou aceita os padrões).
+  > 🤖 Modelo: `opus`
+- [ ] **T4.1** ADR-0116: o rateio é calculado na leitura, por grupo de custo, e o motorista não é somado de novo.
+  > 🤖 Modelo: `opus`
+- [ ] **T4.2** Contratos vermelhos: CA06 a CA10 (soma fecha, motorista não duplica, critério muda divisão e não total, veículo, isolamento).
+  > 🤖 Modelo: `sonnet`
+- [ ] **T4.3** Schema: `cost_group` na categoria + `company_expense_allocation_settings` + semente; migration aditiva e rollback (`make migration-test`).
+  > 🤖 Modelo: `sonnet`
+- [ ] **T4.4** Serviço de rateio (puro, sem banco) com os quatro critérios e o arredondamento por linha; contrato de tabela.
+  > 🤖 Modelo: `opus` (dinheiro e regra que não pode duplicar)
+- [ ] **T4.5** Casos de uso e rotas de leitura: resultado do mês, margem por viagem/veículo/cliente, custo por km por veículo e geral (RF17); configuração de rateio.
+  > 🤖 Modelo: `sonnet`
+
+## Fase 5 — Painel de resultado
+
+- [ ] **T5.1** Módulo no frontend: cliente, validação, hooks, locales pt/en para o resultado e o rateio.
+  > 🤖 Modelo: `sonnet`
+- [ ] **T5.2** Página `/contas/resultado`: indicadores, últimos meses, abas por viagem/veículo/cliente.
+  > 🤖 Modelo: `sonnet`
+- [ ] **T5.3** Painel "Rateio das contas" em Configurações (`SETTINGS_PANELS`).
+  > 🤖 Modelo: `sonnet`
+- [ ] **T5.4** Prints claro/escuro × desktop/celular comparados a outra tela; evidência; staging (produção na próxima promoção).
+  > 🤖 Modelo: `sonnet`
+
+## Trabalho futuro (sem task)
+
+- Tela de cotação de frete usando o custo por km (RF17). Spec própria.
