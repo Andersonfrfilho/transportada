@@ -30,7 +30,7 @@ A transportadora paga aluguel, contador, seguro, internet, folha (fixas) e manut
 - Recalcular ou alterar o custo da viagem: ele continua sendo calculado pela 143. Este módulo só **lê** a parcela do motorista (`trip_financial_parcels`, `kind = 'driver'`) e **não a soma de novo** em nenhum total de despesa de viagem (sem DRE, não há dupla contagem).
 - Rateio de conta por viagem/veículo e o painel de resultado: entram como **extensão desta spec** (seção "Extensão: rateio e resultado do mês", fases 4 e 5 do tasks.md), depois da tela de Contas.
 - Anexo do comprovante (candidato a v2).
-- Notificação de vencimento (v2, pelo módulo de notificação).
+- Notificação de vencimento: entra como extensão desta spec (RF24 a RF31, Fase 7 do tasks.md).
 
 ## Histórias priorizadas
 
@@ -111,7 +111,7 @@ Nenhum `[NEEDS CLARIFICATION]` aberto.
 
 ## Extensão: rateio e resultado do mês (pedido do Anderson, 2026-11-13)
 
-> Pedido: ratear as contas entre as viagens para ver o custo real de cada uma, e um painel do mês com quanto faturamos, quanto gastamos e o lucro. Previews em `/mnt/project-files/325-contas/prints/` (`resultado-*`, `veiculo-*`, `rateio-*`, claro e escuro, desktop e celular). **Aguardando aprovação dos previews antes de implementar.**
+> Pedido: ratear as contas entre as viagens para ver o custo real de cada uma, e um painel do mês com quanto faturamos, quanto gastamos e o lucro. Previews em `/mnt/project-files/325-contas/prints/` (`resultado-*`, `veiculo-*`, `rateio-*`, claro e escuro, desktop e celular). **Previews aprovados em 2026-11-13 (T4.0).**
 
 ### Modelo de custo (como as grandes transportadoras fazem; base da ANTT)
 
@@ -140,6 +140,14 @@ A categoria "Pagamento de motorista/agregado" não é rateada: o custo dele **j�
 - **RF21** **Previsão do próximo mês** (pedido do Anderson, 2026-11-13): faturamento, custo total e lucro previstos, com **faixa** (mínimo e máximo). Cálculo: contas recorrentes já cadastradas para o mês + média diária de faturamento e de custo por km dos últimos 3 a 6 meses fechados × dias úteis. Sem IA e sem modelo pago: média simples, explicada na tela ("Como é calculado").
 - **RF22** **Aviso de pouco dado**: com menos de 6 meses de histórico a previsão mostra o aviso "Poucos meses de dados" e usa a faixa mais larga; com menos de 3 meses não mostra previsão, só o aviso.
 - **RF23** **Alerta de fora do padrão**: conta, custo por km de veículo ou categoria acima (ou abaixo) de 10% da média dos últimos 3 meses aparece na lista "Fora do padrão", com os dois valores e a diferença. O limite de 10% é configurável.
+- **RF24** **Responsável** pela conta (pedido do Anderson, 2026-11-13): campo opcional `responsible_user_id` (usuário da mesma empresa) na conta. Sem responsável, o aviso vai para o `company-admin`.
+- **RF25** **Lembretes de vencimento** por e-mail, pelo módulo de notificação (modelo editável em Notificações, sem deploy; nunca `sendNotification` direto de regra de negócio): aviso N dias antes (padrão 3), no dia do vencimento e a cada dia de atraso até 3 avisos. Os dias são configuráveis por empresa. Conta paga ou cancelada para de avisar.
+- **RF26** **Canais**: e-mail é o padrão; WhatsApp e push são opcionais por responsável, nas preferências dele, e só saem se o canal da empresa estiver ativo.
+- **RF27** **Resumo diário** opcional (padrão 08:00, America/Sao_Paulo): um e-mail único com o que vence hoje e o que está vencido.
+- **RF28** Rotina no `cron-transportada`, idempotente: um aviso por (ocorrência, responsável, dia, tipo); rodar duas vezes no dia não duplica. Falha de envio não derruba a rotina e fica registrada.
+- **RF29** **Responder que pagou** (pedido do Anderson, 2026-11-13): o responsável responde "paguei" ao lembrete e a ocorrência é baixada na hora. Pelo **WhatsApp** (spec 281: o provedor recebe a resposta) a palavra "paguei" na conversa do aviso dá a baixa; pelo **e-mail**, o botão "Já paguei" (link assinado, de uso único, com validade) abre uma confirmação com valor e data antes de baixar.
+- **RF30** A baixa por resposta usa o **valor previsto** e a **data do dia**, grava o autor, o canal (`whatsapp` ou `email`) e a hora, e a lista mostra "Por <pessoa>, pelo WhatsApp". A resposta só vale se vier do **responsável da conta** (número ou e-mail cadastrado) e de ocorrência `open`; resposta repetida ou de ocorrência já paga/cancelada não baixa de novo e recebe a explicação.
+- **RF31** Correção: se o valor pago foi outro, o administrador ajusta em Contas. Como ocorrência paga é imutável (RF5), a baixa por resposta tem uma única exceção: **desfazer em até 24 horas**, pelo administrador, com motivo e na trilha de operações (dúvida 8).
 - **RF17** O **custo por km por veículo** e o geral saem por um caso de uso próprio e uma rota de leitura, para reaproveitamento (ver "Trabalho futuro").
 
 ### Critérios de aceite
@@ -151,6 +159,8 @@ A categoria "Pagamento de motorista/agregado" não é rateada: o custo dele **j�
 - CA11 PDF e CSV batem, centavo a centavo, com o painel para os mesmos filtros.
 - CA12 Previsão com menos de 3 meses de dado não é exibida; entre 3 e 5 meses exibe com o aviso; a faixa contém o valor previsto.
 - CA13 A lista "Fora do padrão" só traz itens além do limite configurado.
+- CA14 A rotina rodada duas vezes no mesmo dia não duplica aviso; conta paga ou cancelada não avisa; sem responsável, o aviso vai ao administrador.
+- CA15 "paguei" do responsável baixa com valor previsto e data do dia; de outra pessoa, de ocorrência paga/cancelada ou repetido não baixa; link do e-mail só vale uma vez.
 - CA10 Isolamento por empresa e permissões, com contrato negativo.
 
 ### Dúvidas em aberto (decididas com padrão recomendado; Anderson pode trocar)
@@ -158,6 +168,8 @@ A categoria "Pagamento de motorista/agregado" não é rateada: o custo dele **j�
 5. **Pagamento de motorista maior que as viagens incluídas** → a diferença (bônus, adiantamento) entra como conta da empresa. _Padrão proposto._
 6. **Fechar o mês** → o rateio é recalculado ao abrir; se Anderson quiser congelar mês fechado (como o resultado congelado da viagem, 0049), entra como task própria. _Padrão: sem congelar._
 7. **Conta "da frota" sem veículo** (ex.: seguro único) → rateia pelo critério do grupo entre todos os veículos. _Padrão proposto._
+
+8. **Desfazer baixa por resposta** → até 24 horas, só o administrador, com motivo. _Padrão proposto; Anderson pode trocar ou proibir._
 
 ### Trabalho futuro (não implementar agora)
 

@@ -59,7 +59,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 ## Fase 4 — Rateio (extensão, aguarda aprovação dos previews)
 
-- [ ] **T4.0** Anderson aprova os previews (`325-contas/prints/resultado-*`, `veiculo-*`, `rateio-*`) e as dúvidas 5 a 7 (ou aceita os padrões).
+- [x] **T4.0** Anderson aprova os previews (`325-contas/prints/resultado-*`, `veiculo-*`, `rateio-*`) e as dúvidas 5 a 7 (ou aceita os padrões).
+      Feita em 2026-11-13: Anderson aprovou os previews (resultado, veículo/cliente, rateio, lembretes e resposta "paguei") e os padrões das dúvidas 5 a 8 ("aprovado pode seguir").
   > 🤖 Modelo: `opus`
 - [ ] **T4.1** ADR-0116: o rateio é calculado na leitura, por grupo de custo, e o motorista não é somado de novo.
   > 🤖 Modelo: `opus`
@@ -96,6 +97,21 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [ ] **T6.3** Caso de uso e rota de leitura da previsão e dos alertas; limite em `company_expense_allocation_settings`.
   > 🤖 Modelo: `sonnet`
 - [ ] **T6.4** Cartão "Previsão" e lista "Fora do padrão" na página de resultado, com o aviso de poucos dados; prints claro/escuro × desktop/celular; evidência.
+  > 🤖 Modelo: `sonnet`
+
+## Fase 7 — Lembretes de vencimento
+
+- [ ] **T7.1** Contratos vermelhos: CA14 e CA15 (idempotência, paga/cancelada, sem responsável, canal desligado, "paguei" de quem não é o responsável).
+  > 🤖 Modelo: `sonnet`
+- [ ] **T7.2** Schema: `responsible_user_id` na conta, configuração de dias e resumo, registro de avisos enviados (única por ocorrência, responsável, dia e tipo), canal e autor da baixa por resposta; migration aditiva e rollback.
+  > 🤖 Modelo: `sonnet`
+- [ ] **T7.3** Modelo de e-mail "Aviso de conta a vencer" (HTML versionado, publicado pelo script de modelos) e regra de quem avisar, por qual canal e quando.
+  > 🤖 Modelo: `opus` (decide quem recebe aviso de dinheiro)
+- [ ] **T7.4** Rotina no `cron-transportada`: avisos e resumo diário, idempotente.
+  > 🤖 Modelo: `sonnet`
+- [ ] **T7.4b** Resposta "paguei": ler a resposta do WhatsApp (spec 281) e o link assinado do e-mail, validar o responsável e dar a baixa por resposta, com desfazer em 24 h (RF29 a RF31, CA15).
+  > 🤖 Modelo: `opus` (baixa de dinheiro por mensagem; identidade do remetente)
+- [ ] **T7.5** Painel: campo Responsável e avisos na conta, botão de desfazer baixa e painel "Lembretes de vencimento" em Configurações; prints claro/escuro × desktop/celular; evidência.
   > 🤖 Modelo: `sonnet`
 
 ## Trabalho futuro (sem task)
