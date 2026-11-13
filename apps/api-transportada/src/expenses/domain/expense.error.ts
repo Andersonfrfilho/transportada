@@ -216,3 +216,47 @@ export class ExpenseOccurrenceTripNotFoundError extends ApiError {
     })
   }
 }
+
+/** Spec 325 RF31: só o administrador desfaz a baixa por resposta. */
+export class ExpenseReplyUndoForbiddenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_REPLY_UNDO_FORBIDDEN',
+      message: 'Only an administrator can undo a settlement made by reply.',
+      status: 403,
+    })
+  }
+}
+
+/** Spec 325 RF31: passou das 24 horas. */
+export class ExpenseReplyUndoExpiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_REPLY_UNDO_EXPIRED',
+      message: 'The settlement made by reply can only be undone within 24 hours.',
+      status: 409,
+    })
+  }
+}
+
+/** Spec 325 RF31: o motivo é obrigatório. */
+export class ExpenseReplyUndoReasonRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_REPLY_UNDO_REASON_REQUIRED',
+      message: 'A reason is required to undo the settlement.',
+      status: 400,
+    })
+  }
+}
+
+/** Spec 325 RF5/RF31: baixa dada no painel é imutável; só a baixa por resposta tem desfazer. */
+export class ExpenseReplyUndoNotReplyError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_REPLY_UNDO_NOT_REPLY',
+      message: 'Only a settlement made by reply can be undone.',
+      status: 409,
+    })
+  }
+}
