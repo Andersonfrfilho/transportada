@@ -31,7 +31,12 @@ import {
   type WhatsAppEvolutionPanelProps,
 } from '../components/WhatsAppEvolutionPanel.component'
 import { ContractorAutomationsPanel } from '../components/ContractorAutomationsPanel.component'
+import {
+  EXPENSES_MANAGE_PERMISSION,
+  EXPENSES_READ_PERMISSION,
+} from '@/modules/expenses/shared/expenses.types'
 import { SalespeoplePanel } from '../components/SalespeoplePanel.component'
+import { ExpenseCategoriesPanel } from '../components/ExpenseCategoriesPanel.component'
 import { useWhatsAppEvolutionPanel } from '../hooks/useWhatsAppEvolutionPanel.hook'
 import {
   CompanyEntryKindCatalogPanel,
@@ -132,7 +137,9 @@ type SettingsBodyProps = Readonly<{
   activeTab: CompanySettingsTabId
   onTabChange: (tab: CompanySettingsTabId) => void
   canConfigureHolidayImport: boolean
+  canManageExpenses: boolean
   canManageSettings: boolean
+  canReadExpenses: boolean
   companyId: string | undefined
   /** Spec 221 RF-D2: a permissão vem do mapa de `workspaceAccess`, nunca de uma cópia local. */
   isForbidden: boolean
@@ -271,6 +278,11 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
     return <ContractorAutomationsPanel canManage={props.canManageSettings} />
   /** Spec 316 T1.4: painel autocontido — busca os próprios dados, só com `settings.manage`. */
   if (tab === 'salespeople') return <SalespeoplePanel canManage={props.canManageSettings} />
+  /** Spec 325 T2.3: painel autocontido — as permissões próprias são `expenses.read` e `expenses.manage`. */
+  if (tab === 'expenseCategories')
+    return (
+      <ExpenseCategoriesPanel canManage={props.canManageExpenses} canRead={props.canReadExpenses} />
+    )
   if (tab === 'entryKinds') return <CompanyEntryKindCatalogPanel {...props.entryKindCatalog} />
   /** Spec 218 RF-E1/RF-E2: painel autocontido — busca os próprios dados, como o de ocorrência acima. */
   if (tab === 'settingsResolution')
@@ -465,6 +477,8 @@ export function CompanySettingsPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         canConfigureHolidayImport={permissions.includes(HOLIDAY_IMPORT_CONFIGURE_PERMISSION)}
+        canManageExpenses={permissions.includes(EXPENSES_MANAGE_PERMISSION)}
+        canReadExpenses={permissions.includes(EXPENSES_READ_PERMISSION)}
         canManageSettings={canManageSettings}
         companyId={companyId}
         isForbidden={isWorkspaceForbidden({

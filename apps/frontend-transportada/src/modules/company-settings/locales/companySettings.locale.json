@@ -17,7 +17,8 @@
     "whatsapp": "WhatsApp",
     "automations": "Automações",
     "driverReminders": "Cobrança do motorista",
-    "salespeople": "Vendedores"
+    "salespeople": "Vendedores",
+    "expenseCategories": "Categorias de contas"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -1084,6 +1085,24 @@
       "notFound": "O vendedor ou o vínculo não existe mais.",
       "conflict": "Já existe um vendedor com esse e-mail ou WhatsApp.",
       "unknownClient": "Algum CNPJ da carteira não é de um cliente cadastrado."
+    }
+  },
+  "expenseCategories": {
+    "title": "Categorias de contas",
+    "subtitle": "As categorias das contas fixas e variáveis da empresa (aluguel, seguro, combustível…). Desative a que não usa mais: as contas antigas continuam mostrando o nome dela.",
+    "loading": "Carregando as categorias…",
+    "retry": "Tentar de novo",
+    "empty": "Nenhuma categoria cadastrada.",
+    "requiresDriver": "exige motorista",
+    "inactive": "inativa",
+    "deactivate": "Desativar",
+    "reactivate": "Reativar",
+    "name": "Nome da categoria",
+    "save": "Cadastrar",
+    "saving": "Cadastrando…",
+    "error": {
+      "EXPENSE_CATEGORY_NAME_TAKEN": "Já existe uma categoria com esse nome.",
+      "REQUEST_FAILED": "Não foi possível concluir. Tente de novo."
     }
   }
 }

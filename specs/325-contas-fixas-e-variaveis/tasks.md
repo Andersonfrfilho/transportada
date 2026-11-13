@@ -47,7 +47,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
   > 🤖 Modelo: `sonnet`
 - [ ] **T2.2b** Diálogo "Viagens do pagamento" (lista de viagens com diária × dias, incluir/remover, total).
   > 🤖 Modelo: `sonnet`
-- [ ] **T2.3** Painel "Categorias de contas" em Configurações (`SETTINGS_PANELS`).
+- [x] **T2.3** Painel "Categorias de contas" em Configurações (`SETTINGS_PANELS`).
+      Feita: aba `expenseCategories` em Configurações (`ExpenseCategoriesPanel`, autocontido): lista, cadastro e desativar/reativar, só com `expenses.read` (ver) e `expenses.manage` (escrever). Prints em `prints/categorias-*`. Notas em `evidence.md` § T2.3.
   > 🤖 Modelo: `sonnet`
 - [ ] **T2.4** Prints claro/escuro × desktop/celular comparados a outra tela do painel; evidência.
   > 🤖 Modelo: `sonnet`
