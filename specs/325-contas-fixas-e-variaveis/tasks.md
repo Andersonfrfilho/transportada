@@ -13,9 +13,9 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 ## Fase 1 — API
 
-- [ ] **T1.1** Contratos vermelhos: isolamento por empresa, baixa idempotente, geração única de ocorrência, dia 31, permissões.
+- [ ] **T1.1** Contratos vermelhos: motorista obrigatório na categoria de motorista, motorista de outra empresa, isolamento por empresa, baixa idempotente, geração única de ocorrência, dia 31, permissões.
   > 🤖 Modelo: `sonnet`
-- [ ] **T1.2** Schema + migration aditiva + rollback; categorias semeadas (`make migration-test`).
+- [ ] **T1.2** Schema (inclui `payee_driver_id`) + migration aditiva + rollback; categorias semeadas (`make migration-test`).
   > 🤖 Modelo: `sonnet`
 - [ ] **T1.3** Permissões `expenses.read`/`expenses.manage` em `authorization.policy.ts` + papéis.
   > 🤖 Modelo: `opus` (decide quem acessa)
@@ -28,7 +28,7 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 - [ ] **T2.1** Módulo `expenses` no frontend: cliente, validação de resposta, hooks, locales pt/en.
   > 🤖 Modelo: `sonnet`
-- [ ] **T2.2** Página `/contas` (lista, filtros, totais), formulário nova conta fixa/variável e diálogo de baixa; item no menu (`workspaceNavigation.constant.ts`) com guarda de permissão.
+- [ ] **T2.2** Página `/contas` (lista, filtros, totais), formulário nova conta fixa/variável (com seletor de motorista/agregado) e diálogo de baixa; item no menu (`workspaceNavigation.constant.ts`) com guarda de permissão.
   > 🤖 Modelo: `sonnet`
 - [ ] **T2.3** Painel "Categorias de contas" em Configurações (`SETTINGS_PANELS`).
   > 🤖 Modelo: `sonnet`
