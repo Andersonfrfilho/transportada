@@ -74,7 +74,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
   > 🤖 Modelo: `sonnet`
 - [ ] **T4.3** Schema: `cost_group` na categoria + `company_expense_allocation_settings` + semente; migration aditiva e rollback (`make migration-test`).
   > 🤖 Modelo: `sonnet`
-- [ ] **T4.4** Serviço de rateio (puro, sem banco) com os quatro critérios e o arredondamento por linha; contrato de tabela.
+- [x] **T4.4** Serviço de rateio (puro, sem banco) com os quatro critérios e o arredondamento por linha; contrato de tabela.
+      Feita: `allocateExpenses` em `src/expenses/domain/expense-allocation.policy.ts` (pesos `per_km`/`per_trip_day`/`per_revenue`/`equal`, conta com veículo só nas viagens dele, sem veículo e excedente do pagamento no rateio geral, `in_trip` só pelo excedente, peso zero e veículo sem viagem em não rateado). A divisão usa o **mesmo** `distribute` da 232, extraído para `src/shared/proportional-split.policy.ts` (`distributeByWeight`), que o rateio por nota passou a importar. `allocation.contract.ts` (18 da T4.2 + 7 de borda) saiu do entrypoint vermelho e roda por `test/expenses.contract.test.ts`. **Para a T4.5:** a política não lê data de banco; quem monta `AllocationTrip.completedOn` é a consulta da T4.5, com `completedOnSql` de `payable-trip.query.ts` (ainda não exportado; o contrato de `result-routes` cobra). Valor de conta com 4 casas só é aceito com o centavo exato (`'10.5000'`); senão lança. Provas em `evidence.md` § T4.4.
   > 🤖 Modelo: `opus` (dinheiro e regra que não pode duplicar)
 - [ ] **T4.5** Casos de uso e rotas de leitura: resultado do mês, margem por viagem/veículo/cliente, custo por km por veículo e geral (RF17); configuração de rateio.
   > 🤖 Modelo: `sonnet`
