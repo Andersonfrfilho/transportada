@@ -112,7 +112,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 ## Fase 7 — Lembretes de vencimento
 
-- [ ] **T7.1** Contratos vermelhos: CA14 e CA15 (idempotência, paga/cancelada, sem responsável, canal desligado, "paguei" de quem não é o responsável).
+- [x] **T7.1** Contratos vermelhos: CA14 e CA15 (idempotência, paga/cancelada, sem responsável, canal desligado, "paguei" de quem não é o responsável).
+      Feita: 31 contratos vermelhos em `apps/api-transportada/test/expenses/` (`reminders.contract.ts`, `reply-settlement.contract.ts`, entrypoint `reminders-red-entrypoint.ts`), com esqueleto que lança "not implemented" (`expense-reminder.port.ts`, `expense-reminder.use-case.ts`), erros de desfazer em `expense.error.ts` e fixture `expense-reminders-in-memory.fixture.ts`. ⚠️ **Fora da lista `test` do `package.json` de propósito**: a T7.4 move `reminders.contract.ts` e a T7.4b move `reply-settlement.contract.ts` para `test/expenses.contract.test.ts` quando ficarem verdes. Detalhe em `evidence.md` § T7.1.
   > 🤖 Modelo: `sonnet`
 - [ ] **T7.2** Schema: `responsible_user_id` na conta, configuração de dias e resumo, registro de avisos enviados (única por ocorrência, responsável, dia e tipo), canal e autor da baixa por resposta; migration aditiva e rollback.
   > 🤖 Modelo: `sonnet`
