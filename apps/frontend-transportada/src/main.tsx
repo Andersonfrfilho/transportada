@@ -151,6 +151,7 @@ function resolveWorkspaceFromPath(): WorkspaceNavigationItem['key'] | undefined 
   if (window.location.pathname === '/ressarcimentos') return 'reimbursements'
   if (window.location.pathname === '/resultados') return 'trip-financials'
   if (window.location.pathname === '/contas') return 'expenses'
+  if (window.location.pathname === '/contas/resultado') return 'expenses'
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/pendencias') return 'pendencias'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
@@ -300,6 +301,9 @@ const OperationsDashboardPage = lazy(async () => ({
   default: (await import('@/modules/operations/pages/OperationsDashboard.page'))
     .OperationsDashboardPage,
 }))
+const ExpenseResultPage = lazy(async () => ({
+  default: (await import('@/modules/expenses/pages/ExpenseResult.page')).ExpenseResultPage,
+}))
 const ExpensesWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/expenses/pages/ExpensesWorkspace.page')).ExpensesWorkspacePage,
 }))
@@ -357,7 +361,7 @@ function resolvePage(
     case 'trip-financials':
       return <FinancialResultsWorkspacePage />
     case 'expenses':
-      return <ExpensesWorkspacePage />
+      return input.path === '/contas/resultado' ? <ExpenseResultPage /> : <ExpensesWorkspacePage />
     case 'fleet':
       return <FleetWorkspacePage />
     case 'mdfe-manifest':
