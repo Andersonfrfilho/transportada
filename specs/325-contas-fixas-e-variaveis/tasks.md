@@ -91,10 +91,12 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [x] **T5.1** Módulo no frontend: cliente, validação, hooks, locales pt/en para o resultado e o rateio.
   > 🤖 Modelo: `sonnet`
       Feita: no módulo `expenses` (mesma chave raiz da T2.1): `expensesResult.types.ts`, `expensesResult.validation.ts` (guard manual, dinheiro sempre texto, margem e lucro com sinal), 5 métodos novos em `expensesClient.service.ts` (resultado, custo por km, ler e trocar o rateio, exportar PDF/CSV com os mesmos filtros), hooks `useExpenseResult.hook.ts` e locales pt/en (`result`, `allocation`). Contrato `test/expenses/result.contract.ts` na lista do `package.json`. Sem tela: a página é a T5.2, os filtros e botões a T5.2b e o painel de rateio a T5.3. Notas em `evidence.md` § T5.1.
-- [ ] **T5.2** Página `/contas/resultado`: indicadores, últimos meses, abas por viagem/veículo/cliente.
+- [x] **T5.2** Página `/contas/resultado`: indicadores, últimos meses, abas por viagem/veículo/cliente.
   > 🤖 Modelo: `sonnet`
-- [ ] **T5.2b** Filtros (período, veículo, cliente, categoria, motorista/agregado) e botões Exportar PDF/CSV na página de resultado (RF18).
+      Feita: `ExpenseResultPage` (`/contas/resultado`, botão "Ver resultado" em `/contas`): oito indicadores com variação sobre o período anterior de mesmo tamanho, últimos 4 meses e abas por viagem/veículo/cliente (rateio do veículo e geral em colunas separadas). Percentuais e custo por km saem da divisão exata de `decimalAmount.service`. Notas em `evidence.md` § T5.2.
+- [x] **T5.2b** Filtros (período, veículo, cliente, categoria, motorista/agregado) e botões Exportar PDF/CSV na página de resultado (RF18).
   > 🤖 Modelo: `sonnet`
+      Feita: filtros pelos componentes padrão (`DateRangePicker`, `Select`), exportação PDF/CSV pela rota da T4.6 com os mesmos filtros. Notas em `evidence.md` § T5.2/T5.2b.
 - [ ] **T5.3** Painel "Rateio das contas" em Configurações (`SETTINGS_PANELS`).
   > 🤖 Modelo: `sonnet`
 - [ ] **T5.4** Prints claro/escuro × desktop/celular comparados a outra tela; evidência; staging (produção na próxima promoção).
