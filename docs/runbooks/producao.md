@@ -1352,6 +1352,16 @@ Sintoma: o bot reenviava a cada ~30 min o lembrete `idle` ("Vamos iniciar a rota
 - **Conferir (somente leitura):** `select job, enabled, paused_origin, interval_seconds from job_schedules where job = 'company-expense.occurrence.generate'` e as últimas linhas de `job_executions` da rotina; `created = 0` no segundo ciclo é o esperado.
 - **Falha:** uma empresa que erra não segura as outras; o ciclo termina e fecha `unexpected_error` (o log `company_expense_occurrence_company_failed` traz `companyId` e a mensagem). Rollback: `rollback.sql` da migration (apaga a linha do relógio e as execuções da rotina; só com o worker também revertido).
 
+## 5.35 Rotina `company-expense.reminder.send` (spec 325 T7.4, 14/11/2026) — nasce pausada, nada alterado em produção
+
+- **O que faz:** de hora em hora (`interval_seconds = 3600`) o worker avisa **por e-mail** as contas abertas que vencem em N dias (padrão 3), hoje ou venceram há até 3 dias, por empresa. O aviso só sai a partir da hora configurada da empresa (`daily_summary_hour`, padrão 8h, São Paulo). Quem recebe: o responsável da conta; sem responsável (ou responsável que saiu da empresa ou sem canal) vai aos `company-admin` ativos.
+- **Idempotência:** o aviso é reservado em `company_expense_reminders_sent` (única por ocorrência, responsável, dia e tipo) **antes** de enviar; se o e-mail não saiu, a reserva é solta e a próxima rodada do dia tenta de novo. Rodar duas vezes no dia não duplica.
+- **Depende de:** o modelo `contas.aviso-vencimento` (e-mail, pt-BR) publicado em Notificações — sem ele o ciclo conta `templateMissing` e não envia; `EMAIL_*` do worker; `APP_BASE_URL` (o botão "Abrir Contas" some sem ele). Publicar os modelos em staging: `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/staging-325-publica-modelos-contas.sh` (simulação) e depois `--confirm`.
+- **Ainda não faz:** WhatsApp e push (contados em `unsupportedChannel`), resumo diário e o botão "Já paguei" (T7.4b).
+- **Estado inicial:** a migration `20261114160259_company_expense_reminder_job` semeia a linha em `job_schedules` com `enabled = false`, `paused_origin = 'system'`. Ligar pede a autorização do dono.
+- **Conferir (somente leitura):** `select job, enabled, paused_origin, interval_seconds from job_schedules where job = 'company-expense.reminder.send'`; as últimas linhas de `job_executions` da rotina (contadores `sent`, `skipped`, `failed`, `templateMissing`, `unsupportedChannel`); e `select count(*) from company_expense_reminders_sent where day = current_date`.
+- **Falha:** uma empresa que erra não segura as outras; o ciclo termina e fecha `unexpected_error` (log `company_expense_reminder_company_failed` com `companyId` e a mensagem). Rollback: `rollback.sql` da migration (apaga a linha do relógio e as execuções; só com o worker também revertido).
+
 ## 5.34 Bot do grupo ignorou a resposta do motorista: telefone errado no cadastro (13/11/2026)
 
 - **Sintoma:** no grupo "Thiago Suporte Transportadora" o lembrete marcou o motorista Thiago Fabris e ele respondeu "sim" e "1", mas o bot não registrou nada e encerrou com "Pedido encerrado sem resposta".

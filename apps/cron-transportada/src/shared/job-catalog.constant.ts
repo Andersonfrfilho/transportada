@@ -373,6 +373,16 @@ export const JOB_CATALOG = [
     /** Um dia: a janela é de quatro meses, e correr mais fino não gera nada que o ciclo anterior não gerou. */
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /**
+     * Spec 325 T7.4 (RF25, RF28): avisa as contas a vencer, no dia e vencidas, por empresa (um aviso por ocorrência,
+     * responsável, dia e tipo). Corre de hora em hora porque o aviso só sai a partir da hora configurada da empresa; o
+     * registro de enviado a torna idempotente. Nasce **pausada** (a migration a semeia desligada).
+     */
+    failureOutcomes: [],
+    job: 'company-expense.reminder.send',
+    minimumIntervalSeconds: 3_600,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

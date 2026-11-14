@@ -190,6 +190,12 @@ const CATALOG = [
     job: 'company-expense.occurrence.generate',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /** Spec 325 T7.4: avisa as contas a vencer; idempotente pelo registro de enviado. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'company-expense.reminder.send',
+    minimumIntervalSeconds: 3_600,
+  },
 ] as const
 
 describe('cron job catalog', () => {
