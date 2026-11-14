@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
@@ -20,11 +21,14 @@ import {
 import type { ExpenseExportFormat, ExpenseResultLine } from '../shared/expensesResult.types'
 import {
   amountPerKm,
+  forecastMarginPercent,
+  formatCompetenceLabel,
   formatMarginPercent,
   formatVariationPercent,
   isNegativeAmount,
   lineMarginPercent,
   monthPeriod,
+  outOfPatternPercent,
   subtractAmounts,
 } from '../shared/expensesResultView.service'
 import { formatCivilDate } from '../shared/expensesView.service'
@@ -35,7 +39,7 @@ const SHORT_ID_LENGTH = 8
 
 /** Spec 325 T5.2/T5.2b (RF14, RF15, RF18 a RF20): "Resultado do mês", com filtros e exportação. */
 export function ExpenseResultPage() {
-  const { t } = useTranslation('expenses')
+  const { i18n, t } = useTranslation('expenses')
   const page = useExpenseResultPage()
   const { exportResult } = useExpenseResultMutations()
   const [groupKind, setGroupKind] = useState<GroupKind>('trip')
@@ -181,6 +185,143 @@ export function ExpenseResultPage() {
           <dd>{money(profitPerKm)}</dd>
         </div>
       </dl>
+    )
+  }
+
+  /** Spec 325 T6.4 (RF21 a RF23): previsão do mês seguinte e itens fora do padrão, do mesmo cálculo da API. */
+  function renderForecast() {
+    const { forecast } = page
+    if (forecast === undefined) {
+      return page.forecastError === null ? null : (
+        <p className={styles.error} role="alert">
+          {t('resultPage.forecast.failed')}
+        </p>
+      )
+    }
+    const monthLabel = formatCompetenceLabel(forecast.nextMonth, i18n.language)
+    const values = forecast.forecast
+    const money = (value: string) => formatAmount(value)
+    const margin = values === null ? null : forecastMarginPercent(values)
+    return (
+      <section
+        aria-label={t('resultPage.forecast.title', { month: monthLabel })}
+        className={styles.panel}
+      >
+        <div className={styles.panelHead}>
+          <h2>{t('resultPage.forecast.title', { month: monthLabel })}</h2>
+          <Badge variant="secondary">{t('resultPage.forecast.estimate')}</Badge>
+        </div>
+        {forecast.warning === null && values !== null ? null : (
+          <p className={styles.notice} role="status">
+            {values === null
+              ? t('resultPage.forecast.unavailable', { months: forecast.monthsOfData })
+              : t('resultPage.forecast.fewData', { months: forecast.monthsOfData })}
+          </p>
+        )}
+        {values === null ? null : (
+          <>
+            <dl className={styles.indicators}>
+              <div>
+                <dt>{t('resultPage.forecast.revenue')}</dt>
+                <dd>{money(values.revenue.expected)}</dd>
+                <small>
+                  {t('resultPage.forecast.range', {
+                    max: money(values.revenue.max),
+                    min: money(values.revenue.min),
+                  })}
+                </small>
+              </div>
+              <div>
+                <dt>{t('resultPage.forecast.cost')}</dt>
+                <dd>{money(values.cost.expected)}</dd>
+                <small>
+                  {t('resultPage.forecast.range', {
+                    max: money(values.cost.max),
+                    min: money(values.cost.min),
+                  })}
+                </small>
+              </div>
+              <div>
+                <dt>{t('resultPage.forecast.profit')}</dt>
+                <dd
+                  className={
+                    isNegativeAmount(values.profit.expected) ? styles.amountOut : styles.amountIn
+                  }
+                >
+                  {money(values.profit.expected)}
+                </dd>
+                <small>
+                  {margin === null ? null : t('resultPage.forecast.margin', { value: margin })}
+                </small>
+              </div>
+              <div>
+                <dt>{t('resultPage.forecast.recurring')}</dt>
+                <dd>{money(forecast.recurringExpenses)}</dd>
+                <small>{t('resultPage.forecast.recurringHint', { month: monthLabel })}</small>
+              </div>
+            </dl>
+            <p className={styles.hint}>
+              {t('resultPage.forecast.how', {
+                months: forecast.monthsOfData,
+                recurring: money(forecast.recurringExpenses),
+              })}
+            </p>
+          </>
+        )}
+        <h3>{t('resultPage.outOfPattern.title')}</h3>
+        {forecast.outOfPattern.length === 0 ? (
+          <p className={styles.hint}>
+            {t('resultPage.outOfPattern.empty', { limit: forecast.thresholdPercent })}
+          </p>
+        ) : (
+          <div className={styles.tableScroll}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope="col">{t('resultPage.outOfPattern.item')}</th>
+                  <th scope="col">{t('resultPage.outOfPattern.current')}</th>
+                  <th scope="col">{t('resultPage.outOfPattern.average')}</th>
+                  <th scope="col">{t('resultPage.outOfPattern.difference')}</th>
+                  <th scope="col">{t('resultPage.outOfPattern.state')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {forecast.outOfPattern.map((alert) => (
+                  <tr key={`${alert.kind}:${alert.key}`}>
+                    <td data-column={t('resultPage.outOfPattern.item')}>
+                      <strong>{alert.label}</strong>
+                      <span className={styles.rowDetail}>
+                        {t(`resultPage.outOfPattern.kind.${alert.kind}`)}
+                      </span>
+                    </td>
+                    <td data-column={t('resultPage.outOfPattern.current')}>
+                      {money(alert.current)}
+                    </td>
+                    <td data-column={t('resultPage.outOfPattern.average')}>
+                      {money(alert.average)}
+                    </td>
+                    <td data-column={t('resultPage.outOfPattern.difference')}>
+                      <strong
+                        className={alert.direction === 'above' ? styles.amountOut : styles.amountIn}
+                      >
+                        {outOfPatternPercent(alert) ?? '—'}
+                      </strong>
+                    </td>
+                    <td data-column={t('resultPage.outOfPattern.state')}>
+                      <Badge variant={alert.direction === 'above' ? 'warning' : 'success'}>
+                        {t(`resultPage.outOfPattern.${alert.direction}`)}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className={styles.hint}>
+          {t('resultPage.outOfPattern.footnote', { limit: forecast.thresholdPercent })}
+        </p>
+      </section>
     )
   }
 
@@ -418,6 +559,7 @@ export function ExpenseResultPage() {
             </p>
           )}
           <p className={styles.hint}>{t('resultPage.notice')}</p>
+          {renderForecast()}
           {renderTrend()}
           <section className={styles.panel}>
             <div className={styles.panelHead}>

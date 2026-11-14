@@ -2,9 +2,16 @@
 import type { EXPENSE_ALLOCATABLE_GROUPS } from './expensesResult.types'
 import {
   EXPENSE_ALLOCATION_CRITERIA,
+  EXPENSE_FORECAST_STATUSES,
+  EXPENSE_OUT_OF_PATTERN_KINDS,
   EXPENSE_UNALLOCATED_REASONS,
   type ExpenseAllocationCriterion,
   type ExpenseAllocationSettings,
+  type ExpenseForecast,
+  type ExpenseForecastRange,
+  type ExpenseForecastStatus,
+  type ExpenseOutOfPatternAlert,
+  type ExpenseOutOfPatternKind,
   type ExpenseResult,
   type ExpenseResultFilters,
   type ExpenseResultLine,
@@ -166,4 +173,60 @@ export function toExpenseUnitCosts(payload: unknown): ExpenseUnitCosts {
 
 export function toExpenseAllocationSettings(payload: unknown): ExpenseAllocationSettings {
   return toSettingsRecord(readRecord(payload).data)
+}
+
+function toForecastRange(value: unknown): ExpenseForecastRange {
+  const row = readRecord(value)
+  return { expected: readMoney(row.expected), max: readMoney(row.max), min: readMoney(row.min) }
+}
+
+function toOutOfPatternAlert(value: unknown): ExpenseOutOfPatternAlert {
+  const row = readRecord(value)
+  return {
+    average: readMoney(row.average),
+    current: readMoney(row.current),
+    difference: readMoney(row.difference),
+    direction: readOneOf(row.direction, ['above', 'below'] as const),
+    key: readString(row.key),
+    kind: readOneOf<ExpenseOutOfPatternKind>(row.kind, EXPENSE_OUT_OF_PATTERN_KINDS),
+    label: readString(row.label),
+  }
+}
+
+function readCount(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new ExpenseResponseError()
+  }
+  return value
+}
+
+export function toExpenseForecast(payload: unknown): ExpenseForecast {
+  const body = readRecord(payload)
+  const data = readRecord(body.data)
+  const result = readRecord(data.forecast)
+  const status = readOneOf<ExpenseForecastStatus>(result.status, EXPENSE_FORECAST_STATUSES)
+  const values = result.forecast === null ? null : readRecord(result.forecast)
+  if ((status === 'unavailable') !== (values === null)) throw new ExpenseResponseError()
+  const threshold = data.thresholdPercent
+  if (typeof threshold !== 'number' || !Number.isFinite(threshold)) throw new ExpenseResponseError()
+  return {
+    calculatedAt: toCalculatedAt(body),
+    forecast:
+      values === null
+        ? null
+        : {
+            cost: toForecastRange(values.cost),
+            profit: toForecastRange(values.profit),
+            revenue: toForecastRange(values.revenue),
+          },
+    month: readString(data.month),
+    monthsOfData: readCount(result.monthsOfData),
+    nextMonth: readString(data.nextMonth),
+    nextMonthBusinessDays: readCount(data.nextMonthBusinessDays),
+    outOfPattern: readArray(data.outOfPattern).map(toOutOfPatternAlert),
+    recurringExpenses: readMoney(data.recurringExpenses),
+    status,
+    thresholdPercent: threshold,
+    warning: result.warning === null ? null : readOneOf(result.warning, ['few_data'] as const),
+  }
 }

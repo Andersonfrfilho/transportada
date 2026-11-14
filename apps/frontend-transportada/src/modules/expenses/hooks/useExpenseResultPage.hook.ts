@@ -24,7 +24,7 @@ import {
   previousPeriod,
 } from '../shared/expensesResultView.service'
 import { useExpenseCategories } from './useExpenses.hook'
-import { useExpenseResult, useExpenseUnitCosts } from './useExpenseResult.hook'
+import { useExpenseForecast, useExpenseResult, useExpenseUnitCosts } from './useExpenseResult.hook'
 
 const VEHICLE_OPTIONS_PAGE_SIZE = 100
 
@@ -70,6 +70,7 @@ export function useExpenseResultPage() {
     query: { filters: query.filters, ...previous },
   })
   const unitCosts = useExpenseUnitCosts({ enabled: canRead, query })
+  const forecast = useExpenseForecast({ enabled: canRead, month: filters.to.slice(0, 7) })
 
   const trend = useQueries({
     queries: listTrendCompetences(filters.to).map((competence) => {
@@ -114,6 +115,8 @@ export function useExpenseResultPage() {
     })),
     error: result.error,
     filters,
+    forecast: forecast.data,
+    forecastError: forecast.error,
     isAuthLoading: authQuery.isPending,
     isLoading: result.isPending && canRead,
     labelOf: {

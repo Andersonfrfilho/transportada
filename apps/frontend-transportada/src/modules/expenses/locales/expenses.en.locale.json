@@ -329,6 +329,38 @@
     "forbidden": "You do not have permission to see the result.",
     "errors": {
       "REQUEST_FAILED": "Could not calculate the result. Try again."
+    },
+    "forecast": {
+      "title": "{{month}} forecast",
+      "estimate": "Estimate",
+      "failed": "Could not calculate the forecast. The rest of the page is still valid.",
+      "unavailable": "Not enough closed months yet: the forecast needs 3 months with trips and there are {{months}}.",
+      "fewData": "Little data: the forecast uses {{months}} months. With 6 months it gets firmer, which is why the range below is wide.",
+      "revenue": "Forecast revenue",
+      "cost": "Forecast total cost",
+      "profit": "Forecast profit",
+      "recurring": "Bills already registered",
+      "range": "range {{min}} to {{max}}",
+      "margin": "margin of {{value}}",
+      "recurringHint": "recurring for {{month}}",
+      "how": "How it is calculated: recurring bills already registered ({{recurring}}) + daily average revenue and cost per km of the last {{months}} months × business days of the forecast month."
+    },
+    "outOfPattern": {
+      "title": "Out of pattern",
+      "item": "Item",
+      "current": "This month",
+      "average": "3-month average",
+      "difference": "Difference",
+      "state": "State",
+      "above": "Above",
+      "below": "Below",
+      "empty": "No item went past {{limit}}% of the last 3 months average.",
+      "footnote": "Shows what goes past {{limit}}% of the average of the last 3 closed months; an item with fewer than 3 months of history is left out.",
+      "kind": {
+        "category": "Category",
+        "expense": "Bill",
+        "vehicle_cost_per_km": "Vehicle cost per km"
+      }
     }
   }
 }
