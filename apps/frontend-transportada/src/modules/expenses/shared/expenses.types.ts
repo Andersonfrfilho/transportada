@@ -43,8 +43,14 @@ export type Expense = Readonly<{
   vehicleId: string | null
 }>
 
+/** ⚠️ Cópia por valor do vocabulário da API (ADR-0116 §1): o grupo de custo da categoria. */
+export const EXPENSE_COST_GROUPS = ['vehicle_fixed', 'per_km', 'administrative', 'in_trip'] as const
+export type ExpenseCostGroup = (typeof EXPENSE_COST_GROUPS)[number]
+
 export type ExpenseCategory = Readonly<{
   active: boolean
+  /** API anterior à T4.3 não manda o grupo: sem ele a categoria é administrativa (o padrão do banco). */
+  costGroup: ExpenseCostGroup
   id: string
   name: string
   requiresDriver: boolean

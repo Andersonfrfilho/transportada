@@ -52,6 +52,14 @@ export function useExpenseAllocationSettings(input: Readonly<{ enabled?: boolean
   })
 }
 
+export function useExpenseOutOfPatternThreshold(input: Readonly<{ enabled?: boolean }> = {}) {
+  return useQuery({
+    enabled: input.enabled ?? true,
+    queryFn: () => getExpensesClient().getOutOfPatternThreshold(),
+    queryKey: [EXPENSES_QUERY_KEY, 'out-of-pattern-threshold'],
+  })
+}
+
 export function useExpenseResultMutations() {
   const queryClient = useQueryClient()
 
@@ -60,6 +68,14 @@ export function useExpenseResultMutations() {
     updateAllocationSettings: useMutation({
       mutationFn: (settings: Partial<ExpenseAllocationSettings>) =>
         getExpensesClient().updateAllocationSettings(settings),
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: [EXPENSES_QUERY_KEY] })
+      },
+    }),
+    /** O limite do fora do padrão só muda o alerta da previsão: a raiz é renovada igual. */
+    updateOutOfPatternThreshold: useMutation({
+      mutationFn: (thresholdPercent: number) =>
+        getExpensesClient().updateOutOfPatternThreshold(thresholdPercent),
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: [EXPENSES_QUERY_KEY] })
       },

@@ -10,6 +10,7 @@ import {
   type CreateExpenseInput,
   type Expense,
   type ExpenseCategory,
+  type ExpenseCostGroup,
   type ExpenseOccurrence,
   type ExpenseOccurrenceFilters,
   type ExpenseOccurrencePage,
@@ -20,6 +21,7 @@ import {
 import {
   EXPENSE_ALLOCATION_SETTINGS_PATH,
   EXPENSE_FORECAST_PATH,
+  EXPENSE_OUT_OF_PATTERN_SETTINGS_PATH,
   EXPENSE_RESULT_EXPORT_PATH,
   EXPENSE_RESULT_PATH,
   EXPENSE_UNIT_COSTS_PATH,
@@ -36,6 +38,7 @@ import {
   toExpenseForecast,
   toExpenseResult,
   toExpenseUnitCosts,
+  toOutOfPatternThreshold,
 } from './expensesResult.validation'
 import {
   toAvailableTrips,
@@ -66,6 +69,7 @@ export type ExpensesClient = Readonly<{
   ) => Promise<ExpenseExportFile>
   getAllocationSettings: () => Promise<ExpenseAllocationSettings>
   getForecast: (month: string) => Promise<ExpenseForecast>
+  getOutOfPatternThreshold: () => Promise<number>
   getResult: (input: ExpenseResultQuery) => Promise<ExpenseResult>
   getUnitCosts: (input: ExpenseResultQuery) => Promise<ExpenseUnitCosts>
   includeTrip: (
@@ -79,11 +83,15 @@ export type ExpensesClient = Readonly<{
     input: Readonly<{ occurrenceId: string; tripId: string }>,
   ) => Promise<ExpenseOccurrenceTrips>
   setCategoryActive: (input: Readonly<{ active: boolean; id: string }>) => Promise<ExpenseCategory>
+  setCategoryCostGroup: (
+    input: Readonly<{ costGroup: ExpenseCostGroup; id: string }>,
+  ) => Promise<ExpenseCategory>
   settleOccurrence: (input: SettleOccurrenceInput) => Promise<ExpenseOccurrence>
   updateAllocationSettings: (
     settings: Partial<ExpenseAllocationSettings>,
   ) => Promise<ExpenseAllocationSettings>
   updateExpense: (input: Readonly<{ changes: UpdateExpenseInput; id: string }>) => Promise<Expense>
+  updateOutOfPatternThreshold: (thresholdPercent: number) => Promise<number>
 }>
 
 export function createExpensesClient(dependencies: ClientDependencies): ExpensesClient {
@@ -155,6 +163,11 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
           method: 'GET',
           path: `${EXPENSE_FORECAST_PATH}?${new URLSearchParams({ month }).toString()}`,
         }),
+      )
+    },
+    async getOutOfPatternThreshold() {
+      return toOutOfPatternThreshold(
+        await request({ dependencies, method: 'GET', path: EXPENSE_OUT_OF_PATTERN_SETTINGS_PATH }),
       )
     },
     async getResult(query) {
@@ -231,6 +244,16 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
         }),
       )
     },
+    async setCategoryCostGroup({ costGroup, id }) {
+      return toCategoryResponse(
+        await request({
+          body: JSON.stringify({ costGroup }),
+          dependencies,
+          method: 'PUT',
+          path: `${EXPENSE_CATEGORIES_PATH}/${id}/cost-group`,
+        }),
+      )
+    },
     async settleOccurrence({ id, ...body }) {
       return toOccurrenceResponse(
         await request({
@@ -248,6 +271,16 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
           dependencies,
           method: 'PUT',
           path: EXPENSE_ALLOCATION_SETTINGS_PATH,
+        }),
+      )
+    },
+    async updateOutOfPatternThreshold(thresholdPercent) {
+      return toOutOfPatternThreshold(
+        await request({
+          body: JSON.stringify({ thresholdPercent }),
+          dependencies,
+          method: 'PUT',
+          path: EXPENSE_OUT_OF_PATTERN_SETTINGS_PATH,
         }),
       )
     },

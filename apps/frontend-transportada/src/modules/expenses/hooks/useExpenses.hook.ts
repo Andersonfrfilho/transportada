@@ -5,6 +5,7 @@ import { getExpensesClient } from '../shared/expensesClient.service'
 import { EXPENSES_QUERY_KEY } from '../shared/expensesQueryKey.constant'
 import type {
   CreateExpenseInput,
+  ExpenseCostGroup,
   ExpenseOccurrenceFilters,
   SettleOccurrenceInput,
   UpdateExpenseInput,
@@ -101,6 +102,11 @@ export function useExpenseMutations() {
     setCategoryActive: useMutation({
       mutationFn: (request: Readonly<{ active: boolean; id: string }>) =>
         getExpensesClient().setCategoryActive(request),
+      onSuccess: invalidate,
+    }),
+    setCategoryCostGroup: useMutation({
+      mutationFn: (request: Readonly<{ costGroup: ExpenseCostGroup; id: string }>) =>
+        getExpensesClient().setCategoryCostGroup(request),
       onSuccess: invalidate,
     }),
     settleOccurrence: useMutation({

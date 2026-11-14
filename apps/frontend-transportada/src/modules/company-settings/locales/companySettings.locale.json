@@ -18,7 +18,8 @@
     "automations": "Automações",
     "driverReminders": "Cobrança do motorista",
     "salespeople": "Vendedores",
-    "expenseCategories": "Categorias de contas"
+    "expenseCategories": "Categorias de contas",
+    "expenseAllocation": "Rateio das contas"
   },
   "entryKinds": {
     "title": "Espécies de lançamento",
@@ -1103,6 +1104,49 @@
     "error": {
       "EXPENSE_CATEGORY_NAME_TAKEN": "Já existe uma categoria com esse nome.",
       "REQUEST_FAILED": "Não foi possível concluir. Tente de novo."
+    }
+  },
+  "expenseAllocation": {
+    "title": "Rateio das contas",
+    "subtitle": "Define em qual grupo cada categoria cai e como o grupo é dividido entre as viagens.",
+    "loading": "Carregando o rateio…",
+    "retry": "Tentar de novo",
+    "inactive": "inativa",
+    "group": {
+      "vehicle_fixed": "Fixo do veículo",
+      "per_km": "Variável por km",
+      "administrative": "Administrativo",
+      "in_trip": "Já está na viagem"
+    },
+    "criterion": {
+      "per_km": "Por km rodado no mês",
+      "per_km_variable": "Custo por km do veículo",
+      "per_trip_day": "Por dia de viagem",
+      "per_revenue": "Pelo faturamento da viagem",
+      "equal": "Igual por viagem"
+    },
+    "criteria": {
+      "title": "Como cada grupo é dividido",
+      "hint": "Conta ligada a um veículo vai só para as viagens dele; sem veículo, segue o critério do grupo."
+    },
+    "threshold": {
+      "title": "Fora do padrão",
+      "label": "Limite do alerta (%)",
+      "hint": "Um valor do mês é marcado como fora do padrão quando passa deste percentual sobre a média. De 0 a 1000, com até duas casas.",
+      "invalid": "Informe um número de 0 a 1000, com até duas casas."
+    },
+    "categories": {
+      "title": "Grupo de cada categoria",
+      "empty": "Nenhuma categoria cadastrada.",
+      "groupOf": "Grupo de custo de {{name}}",
+      "driverNote": "A categoria de motorista não é rateada: o custo dele já está na viagem."
+    },
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "saved": "Rateio salvo.",
+    "error": {
+      "loadFailed": "Não foi possível carregar o rateio.",
+      "saveFailed": "Não foi possível salvar. Confira o que mudou e tente de novo."
     }
   }
 }

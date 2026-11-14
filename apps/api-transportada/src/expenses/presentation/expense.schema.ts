@@ -52,6 +52,9 @@ const includeTripSchema = z.object({ tripId: z.uuid() }).strict()
 
 const cancelSchema = z.object({ reason: z.string().trim().min(1).max(500) }).strict()
 const createCategorySchema = z.object({ name: z.string().trim().min(1).max(80) }).strict()
+const setCategoryCostGroupSchema = z
+  .object({ costGroup: z.enum(['administrative', 'in_trip', 'per_km', 'vehicle_fixed']) })
+  .strict()
 const setCategoryActiveSchema = z.object({ active: z.boolean() }).strict()
 
 export type CreateExpenseBody = Omit<CreateExpenseInput, 'companyId' | 'createdBy' | 'today'>
@@ -153,4 +156,10 @@ export function parseAvailableTripsQuery(url: URL): { readonly period?: ExpenseT
   const period = validateExpenseTripPeriod({ from, to })
   if (period === null) throw invalidRequest()
   return { period }
+}
+
+export function parseSetCategoryCostGroupRequest(
+  request: Request,
+): Promise<{ readonly costGroup: 'administrative' | 'in_trip' | 'per_km' | 'vehicle_fixed' }> {
+  return parseBody(setCategoryCostGroupSchema, request)
 }
