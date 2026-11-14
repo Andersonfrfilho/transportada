@@ -28,6 +28,7 @@ export const EXPENSE_RESULT_PATH = '/expense-result'
 export const EXPENSE_RESULT_EXPORT_PATH = '/expense-result/export'
 export const EXPENSE_UNIT_COSTS_PATH = '/expense-unit-costs'
 export const EXPENSE_ALLOCATION_SETTINGS_PATH = '/expense-allocation-settings'
+export const EXPENSE_FORECAST_PATH = '/expense-forecast'
 export const EXPENSE_OUT_OF_PATTERN_SETTINGS_PATH = '/expense-out-of-pattern-settings'
 
 /** Limite do "fora do padrão" (T6.3): pontos percentuais, de 0 a 1000, até duas casas. */
@@ -113,3 +114,44 @@ export type ExpenseUnitCosts = Readonly<{
 }>
 
 export type ExpenseExportFile = Readonly<{ blob: Blob; fileName: string }>
+
+/** Spec 325 T6.4 (RF21 a RF23): previsão do próximo mês e itens fora do padrão (rota da T6.3). */
+export const EXPENSE_FORECAST_STATUSES = ['unavailable', 'limited', 'ok'] as const
+export type ExpenseForecastStatus = (typeof EXPENSE_FORECAST_STATUSES)[number]
+
+export const EXPENSE_OUT_OF_PATTERN_KINDS = ['category', 'expense', 'vehicle_cost_per_km'] as const
+export type ExpenseOutOfPatternKind = (typeof EXPENSE_OUT_OF_PATTERN_KINDS)[number]
+
+export type ExpenseForecastRange = Readonly<{ expected: string; max: string; min: string }>
+
+export type ExpenseForecastValues = Readonly<{
+  cost: ExpenseForecastRange
+  profit: ExpenseForecastRange
+  revenue: ExpenseForecastRange
+}>
+
+export type ExpenseOutOfPatternAlert = Readonly<{
+  average: string
+  current: string
+  difference: string
+  direction: 'above' | 'below'
+  key: string
+  kind: ExpenseOutOfPatternKind
+  label: string
+}>
+
+export type ExpenseForecast = Readonly<{
+  calculatedAt: string | null
+  /** `null` com menos de 3 meses de dado (`status: 'unavailable'`). */
+  forecast: ExpenseForecastValues | null
+  month: string
+  monthsOfData: number
+  nextMonth: string
+  nextMonthBusinessDays: number
+  outOfPattern: readonly ExpenseOutOfPatternAlert[]
+  recurringExpenses: string
+  status: ExpenseForecastStatus
+  thresholdPercent: number
+  /** `few_data` com 3 a 5 meses de dado (CA12). */
+  warning: 'few_data' | null
+}>

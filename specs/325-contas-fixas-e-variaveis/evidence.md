@@ -572,6 +572,14 @@ contrato que a cobra.
 - `bun test ./test/expenses.contract.test.ts`: 43 pass / 0 fail (contrato novo `test/expenses/result-view.contract.ts`: períodos, tendência, percentuais, centavos). `tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
 - Prints (smoke `test/spec-325-resultado-prints.smoke.spec.ts`, API dublada, fora da CI): `prints/resultado-{light,dark}-{desktop,mobile}.png`. Conferidos contra a tela de Contas vizinha: rótulo em cima, campos na altura padrão, botões `Button` padrão, tabelas no molde `.table` (cartão no celular). Exportar CSV exercitado no smoke (`format=csv` na requisição).
 
+## T6.4 — Cartão "Previsão" e lista "Fora do padrão" (2026-11-14)
+
+- Painel (`apps/frontend-transportada`, módulo `expenses`): `getForecast(month)` no cliente (`GET /expense-forecast?month=yyyy-mm`), guarda `toExpenseForecast` (status, aviso, faixa, alertas; resposta incoerente como previsão nula com status `limited`/`ok`, vocabulário e dinheiro inválidos viram `ExpenseResponseError`), hook `useExpenseForecast` e a seção em `ExpenseResultPage`. Falha da previsão mostra só um alerta; o resto da página segue.
+- Contas da tela pela divisão exata de `decimalAmount.service`: diferença `+18,0%` e margem prevista `34,7%`; média zero não tem percentual. O mês aparece como "Dezembro/2026", como na tendência.
+- Fora do padrão fica de fora o que a API não manda (item com menos de 3 meses de histórico); lista vazia diz o limite em uso. O limite vem de `thresholdPercent`.
+- Medido: `bun test ./test/expenses.contract.test.ts` 51 pass / 0 fail (contrato novo `test/expenses/forecast.contract.ts`); `tsc`, `eslint` e `prettier` limpos. Prints (smoke `spec-325-resultado-prints.smoke.spec.ts`, API dublada, fora da CI): `prints/previsao-{light,dark}-{desktop,mobile}.png` e `previsao-sem-dados-light-desktop.png`, conferidos contra o preview aprovado e contra a tela de Contas vizinha.
+- Os `resultado-*` não foram refeitos aqui (o PR 770 também mexe neles); o resultado completo com previsão sai quando os dois estiverem em staging.
+
 ## T5.2 — Detalhes da viagem no resultado (follow-up, 2026-11-14)
 
 - API: cada linha de `byTrip` ganha `trip { vehicleId, customerId, distanceMeters, route }` (aditivo; `byVehicle`/`byCustomer` e os valores não mudam). O trajeto é o da T2.2b (`deriveExpenseTripRoute`, primeira e última parada), lido em lote por `readTripRoutes`, extraído de `payable-trip.query.ts` e agora usado também por `allocation-trip.query.ts`. `AllocationTrip.route` é opcional e não entra no rateio.

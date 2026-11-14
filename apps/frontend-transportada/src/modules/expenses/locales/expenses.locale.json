@@ -330,6 +330,38 @@
     "forbidden": "Você não tem permissão para ver o resultado.",
     "errors": {
       "REQUEST_FAILED": "Não foi possível calcular o resultado. Tente de novo."
+    },
+    "forecast": {
+      "title": "Previsão de {{month}}",
+      "estimate": "Estimativa",
+      "failed": "Não foi possível calcular a previsão. O resto da tela segue valendo.",
+      "unavailable": "Ainda não há meses fechados suficientes: a previsão precisa de 3 meses com viagens e tem {{months}}.",
+      "fewData": "Poucos meses de dados: a previsão usa {{months}} meses. Com 6 meses ela fica mais firme; por isso a faixa abaixo é larga.",
+      "revenue": "Faturamento previsto",
+      "cost": "Custo total previsto",
+      "profit": "Lucro previsto",
+      "recurring": "Contas já cadastradas",
+      "range": "faixa de {{min}} a {{max}}",
+      "margin": "margem de {{value}}",
+      "recurringHint": "recorrentes de {{month}}",
+      "how": "Como é calculado: contas recorrentes já cadastradas ({{recurring}}) + média diária de faturamento e de custo por km dos últimos {{months}} meses × dias úteis do mês previsto."
+    },
+    "outOfPattern": {
+      "title": "Fora do padrão",
+      "item": "Item",
+      "current": "Mês atual",
+      "average": "Média 3 meses",
+      "difference": "Diferença",
+      "state": "Estado",
+      "above": "Acima",
+      "below": "Abaixo",
+      "empty": "Nenhum item passou de {{limit}}% da média dos 3 últimos meses.",
+      "footnote": "Aparece o que passa de {{limit}}% da média dos 3 últimos meses fechados; item com menos de 3 meses de histórico não entra.",
+      "kind": {
+        "category": "Categoria",
+        "expense": "Conta",
+        "vehicle_cost_per_km": "Custo por km do veículo"
+      }
     }
   }
 }

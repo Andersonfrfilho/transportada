@@ -5,7 +5,11 @@ import {
   zeroAmount,
 } from '@/modules/shared/decimalAmount.service'
 
-import type { ExpenseResultLine } from './expensesResult.types'
+import type {
+  ExpenseForecastValues,
+  ExpenseOutOfPatternAlert,
+  ExpenseResultLine,
+} from './expensesResult.types'
 
 const MONTHS_IN_TREND = 4
 const PERCENT_SCALE = 4
@@ -111,6 +115,25 @@ export function lineMarginPercent(line: ExpenseResultLine): null | string {
 
 export function isNegativeAmount(value: string): boolean {
   return value.startsWith('-') && value !== zeroAmount(4)
+}
+
+/** `yyyy-mm` em "Dezembro/2026" (mesma grafia da tendência), com o nome do mês na língua da tela. */
+export function formatCompetenceLabel(competence: string, locale: string): string {
+  const [year = 1970, month = 1] = competence.split('-').map(Number)
+  const name = new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' }).format(
+    new Date(Date.UTC(year, month - 1, 1)),
+  )
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)}/${String(year)}`
+}
+
+/** Diferença do mês sobre a média, com sinal (`+18,0%`); média zero não tem percentual. */
+export function outOfPatternPercent(alert: ExpenseOutOfPatternAlert): null | string {
+  return formatVariationPercent(alert.current, alert.average)
+}
+
+/** Faixa e margem da previsão: lucro previsto sobre o faturamento previsto. */
+export function forecastMarginPercent(forecast: ExpenseForecastValues): null | string {
+  return formatMarginPercent(forecast.profit.expected, forecast.revenue.expected)
 }
 
 /** Metros da rota em quilômetros inteiros (`620000` → `620`); a tela mostra o que a estrada mede, sem casa decimal. */

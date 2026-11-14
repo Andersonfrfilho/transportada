@@ -20,6 +20,7 @@ import {
 } from './expenses.types'
 import {
   EXPENSE_ALLOCATION_SETTINGS_PATH,
+  EXPENSE_FORECAST_PATH,
   EXPENSE_OUT_OF_PATTERN_SETTINGS_PATH,
   EXPENSE_RESULT_EXPORT_PATH,
   EXPENSE_RESULT_PATH,
@@ -27,12 +28,14 @@ import {
   type ExpenseAllocationSettings,
   type ExpenseExportFile,
   type ExpenseExportFormat,
+  type ExpenseForecast,
   type ExpenseResult,
   type ExpenseResultQuery,
   type ExpenseUnitCosts,
 } from './expensesResult.types'
 import {
   toExpenseAllocationSettings,
+  toExpenseForecast,
   toExpenseResult,
   toExpenseUnitCosts,
   toOutOfPatternThreshold,
@@ -65,6 +68,7 @@ export type ExpensesClient = Readonly<{
     input: ExpenseResultQuery & Readonly<{ format: ExpenseExportFormat }>,
   ) => Promise<ExpenseExportFile>
   getAllocationSettings: () => Promise<ExpenseAllocationSettings>
+  getForecast: (month: string) => Promise<ExpenseForecast>
   getOutOfPatternThreshold: () => Promise<number>
   getResult: (input: ExpenseResultQuery) => Promise<ExpenseResult>
   getUnitCosts: (input: ExpenseResultQuery) => Promise<ExpenseUnitCosts>
@@ -150,6 +154,15 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
     async getAllocationSettings() {
       return toExpenseAllocationSettings(
         await request({ dependencies, method: 'GET', path: EXPENSE_ALLOCATION_SETTINGS_PATH }),
+      )
+    },
+    async getForecast(month) {
+      return toExpenseForecast(
+        await request({
+          dependencies,
+          method: 'GET',
+          path: `${EXPENSE_FORECAST_PATH}?${new URLSearchParams({ month }).toString()}`,
+        }),
       )
     },
     async getOutOfPatternThreshold() {

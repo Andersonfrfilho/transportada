@@ -173,3 +173,121 @@ for (const theme of THEMES) {
     })
   }
 }
+
+/** T6.4: previsão do mês seguinte e "fora do padrão" (rota da T6.3, dublada). */
+function forecastBody(status: 'limited' | 'unavailable') {
+  const range = (expected: string, min: string, max: string) => ({ expected, max, min })
+  return {
+    calculatedAt: new Date().toISOString(),
+    data: {
+      forecast:
+        status === 'unavailable'
+          ? { forecast: null, monthsOfData: 1, status, warning: 'few_data' }
+          : {
+              forecast: {
+                cost: range('65600.00', '60000.00', '70000.00'),
+                profit: range('34900.00', '30000.00', '38000.00'),
+                revenue: range('100500.00', '94000.00', '107000.00'),
+              },
+              monthsOfData: 3,
+              status,
+              warning: 'few_data',
+            },
+      month: '2026-11',
+      nextMonth: '2026-12',
+      nextMonthBusinessDays: 22,
+      outOfPattern:
+        status === 'unavailable'
+          ? []
+          : [
+              {
+                average: '3340.00',
+                current: '3940.00',
+                difference: '600.00',
+                direction: 'above',
+                key: 'e1',
+                kind: 'expense',
+                label: 'Seguro da frota',
+              },
+              {
+                average: '5.19',
+                current: '5.92',
+                difference: '0.73',
+                direction: 'above',
+                key: 'v1',
+                kind: 'vehicle_cost_per_km',
+                label: 'ABC1D23',
+              },
+              {
+                average: '4.71',
+                current: '4.38',
+                difference: '-0.33',
+                direction: 'below',
+                key: 'v2',
+                kind: 'vehicle_cost_per_km',
+                label: 'GHI7J89',
+              },
+            ],
+      recurringExpenses: '12829.90',
+      thresholdPercent: 10,
+    },
+  }
+}
+
+for (const theme of THEMES) {
+  for (const [viewport, size] of Object.entries(VIEWPORTS)) {
+    test(`print: Previsão (${theme}, ${viewport})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme })
+      await page.setViewportSize(size)
+      await mockTripWorkspaceApi({
+        mode: 'all-authorized',
+        page,
+        permissions: ['expenses.read', 'expenses.manage', 'fleet.read'],
+      })
+      await page.route(/\/expense-forecast(?:\?.*)?$/, (route) =>
+        fulfill(route, forecastBody('limited')),
+      )
+      await page.route(/\/expense-unit-costs(?:\?.*)?$/, (route) =>
+        fulfill(route, {
+          data: {
+            general: {
+              costPerKm: '5.4100',
+              expensesShare: '12829.90',
+              kilometers: '11800.0000',
+              totalCost: '63829.90',
+              tripCost: '51000.00',
+              vehicleId: null,
+            },
+            perVehicle: [],
+          },
+        }),
+      )
+      await page.route(/\/expense-result(?:\?.*)?$/, (route) =>
+        fulfill(route, result('98400.00', '34570.10')),
+      )
+      await page.route(/\/expense-categories(?:\?.*)?$/, (route) => fulfill(route, { data: [] }))
+      await loginAsLocalUser(page)
+      await openResult(page)
+      const section = page.getByRole('region', { name: /Previsão de/ })
+      await expect(section).toBeVisible()
+      await expect(section.getByText('Seguro da frota')).toBeVisible()
+      await expect(section.getByText('+18,0%')).toBeVisible()
+      await section.screenshot({
+        path: resolve(PRINTS_DIRECTORY, `previsao-${theme}-${viewport}.png`),
+      })
+
+      if (theme === 'light' && viewport === 'desktop') {
+        await page.unroute(/\/expense-forecast(?:\?.*)?$/)
+        await page.route(/\/expense-forecast(?:\?.*)?$/, (route) =>
+          fulfill(route, forecastBody('unavailable')),
+        )
+        await page.reload()
+        await openResult(page)
+        await expect(page.getByText(/Ainda não há meses fechados suficientes/)).toBeVisible()
+        await page.getByRole('region', { name: /Previsão de/ }).screenshot({
+          path: resolve(PRINTS_DIRECTORY, 'previsao-sem-dados-light-desktop.png'),
+        })
+      }
+    })
+  }
+}

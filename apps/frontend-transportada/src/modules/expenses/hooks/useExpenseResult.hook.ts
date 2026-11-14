@@ -35,6 +35,15 @@ export function useExpenseUnitCosts(
   })
 }
 
+/** Spec 325 T6.4: previsão do mês seguinte a `month` (`yyyy-mm`) e itens fora do padrão; não depende dos filtros. */
+export function useExpenseForecast(input: Readonly<{ enabled?: boolean; month: string }>) {
+  return useQuery({
+    enabled: input.enabled ?? true,
+    queryFn: () => getExpensesClient().getForecast(input.month),
+    queryKey: [EXPENSES_QUERY_KEY, 'forecast', input.month],
+  })
+}
+
 export function useExpenseAllocationSettings(input: Readonly<{ enabled?: boolean }> = {}) {
   return useQuery({
     enabled: input.enabled ?? true,
