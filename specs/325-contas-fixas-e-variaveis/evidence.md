@@ -438,3 +438,24 @@ contrato que a cobra.
 - `bun test ./test/expenses.contract.test.ts`: 36 pass / 0 fail (`result.contract.ts` entrou no entrypoint, que já está na lista `test` do `package.json`); `bun run test` da app: 1496 pass / 0 fail.
 - `tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
 - Não há tela nesta task (T5.2/T5.2b/T5.3) nem mudança em produção, então não há prints e o runbook não muda.
+
+## T7.1 — Contratos vermelhos dos lembretes e da baixa por resposta (2026-11-13)
+
+**O que entrou** (`apps/api-transportada`, tudo vermelho de propósito; rodar com `bun --env-file=../../.env.test test ./test/expenses/reminders-red-entrypoint.ts`):
+
+| Arquivo                                      | Prende                                                                                                                                                                                                                                                                                                                                                              | Fecha na |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `test/expenses/reminders.contract.ts`        | CA14: aviso 3 dias antes (prazo configurável), no dia e a cada dia de atraso até 3; duas rodadas no mesmo dia não duplicam; paga/cancelada não avisa; sem responsável (ou responsável inexistente) vai ao administrador; canal desligado na empresa não sai; falha de envio não derruba a rotina; isolamento                                                        | T7.4     |
+| `test/expenses/reply-settlement.contract.ts` | CA15: "paguei" do responsável baixa com valor previsto e data do dia, gravando autor e canal; outra pessoa, número desconhecido, palavra outra, repetido, cancelada, sem responsável e outra empresa não baixam; link do e-mail de uso único, vencido ou de ex-responsável não baixa; desfazer (RF31): só administrador, em 24 h, com motivo, só baixa por resposta | T7.4b    |
+
+**Esqueleto:** `src/expenses/application/expense-reminder.port.ts` (formato das portas e dos resultados, fixado pelos contratos) e `expense-reminder.use-case.ts` (três factories que lançam "not implemented"); quatro erros `ExpenseReplyUndo*` em `expense.error.ts` (403/409/400/409) para o desfazer, para o teste não passar por "lançou qualquer coisa".
+
+**Decisões para a T7.2/T7.3/T7.4/T7.4b**
+
+- A chave do aviso enviado é (empresa, ocorrência, responsável, dia, tipo); o canal não entra: um aviso por pessoa e dia. A porta `sent.record` devolve `false` quando a chave já existe.
+- O filtro por status (só `open`) e a escolha do destinatário (responsável, senão administradores) são do caso de uso, não da consulta: a porta devolve tudo da empresa e o contrato prova o filtro.
+- Canal só sai se estiver ligado na empresa **e** na pessoa; e-mail é o padrão. Falha de envio é contada e não grava o registro de enviado.
+- Recusa da resposta devolve `refused` com o motivo (`not_responsible`, `not_open`, `unknown_word`, `already_used`, `expired`) para o bot e a tela explicarem (RF30); o link de e-mail não é gasto quando a ocorrência já não está aberta.
+- Desfazer lê a hora da baixa por resposta (`findReplySettlement`); baixa dada pelo painel não tem essa marca e continua imutável (RF5).
+
+**Resultado medido:** 31 testes, 0 pass / 31 fail (todos por "not implemented"). `tsc --noEmit`, `eslint` e `prettier --check` limpos; `bun test ./test/expenses.contract.test.ts` segue 133 pass / 0 fail (a lista oficial não mudou).
