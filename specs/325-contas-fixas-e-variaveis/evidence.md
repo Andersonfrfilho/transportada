@@ -444,3 +444,30 @@ contrato que a cobra.
 - Desfazer lê a hora da baixa por resposta (`findReplySettlement`); baixa dada pelo painel não tem essa marca e continua imutável (RF5).
 
 **Resultado medido:** 31 testes, 0 pass / 31 fail (todos por "not implemented"). `tsc --noEmit`, `eslint` e `prettier --check` limpos; `bun test ./test/expenses.contract.test.ts` segue 133 pass / 0 fail (a lista oficial não mudou).
+
+## T7.2 — Schema dos lembretes e da baixa por resposta (2026-11-14)
+
+**Migration** `20261114001611_company_expense_reminders` (aditiva; nenhuma linha existente muda; `snapshot.json` gerado pelo `db:generate`):
+
+| Objeto                                                                    | O que guarda                                                                                                                                                                                                                                     | Usado por  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `company_expenses.responsible_user_id` (nula, FK usuário)                 | O responsável da conta (RF24); nulo → administradores                                                                                                                                                                                            | T7.4/T7.5  |
+| `company_expense_reminder_settings` (1 por empresa)                       | `days_before` (3), `max_overdue_notices` (3), `email_enabled` (sim), `whatsapp_enabled`/`push_enabled` (não), `daily_summary_enabled` (não) e `daily_summary_hour` (8). Sem linha vale o padrão de `DEFAULT_REMINDER_SETTINGS`                   | T7.4/T7.5  |
+| `company_expense_reminders_sent`                                          | Aviso enviado. **Única** `(occurrence_id, recipient_user_id, day, kind)`; o canal é coluna, não entra na chave (decisão da T7.1). `sent.record` = `INSERT … ON CONFLICT DO NOTHING`                                                              | T7.4       |
+| `company_expense_summaries_sent`                                          | Resumo diário enviado, único `(company_id, recipient_user_id, day)` (RF27/RF28); não cabia na tabela de avisos porque o resumo não tem ocorrência                                                                                                | T7.4       |
+| `company_expense_reply_links`                                             | Link do "Já paguei" por e-mail: só o **hash** SHA-256 do token (`unique`, CHECK de 64 hex), `expires_at` e `used_at` (uso único)                                                                                                                 | T7.4b      |
+| `company_expense_occurrences.settled_via_channel` / `settled_by_reply_at` | Canal (`email`/`whatsapp`) e hora da baixa por resposta; o autor é o `paid_by_user_id` que já existe. CHECK: os dois andam juntos e só em ocorrência `paid`. O desfazer (RF31) lê a hora para a janela de 24 h e zera as duas colunas ao reabrir | T7.4b/T7.5 |
+
+**Decisões**
+
+- O motivo e o autor do desfazer ficam na trilha de operações (`audit_logs`), como pede o RF31; não ganharam coluna.
+- Preferência de canal por pessoa (WhatsApp/push "nas preferências dele", RF26) **não** entrou: a T7.3 decide quem recebe por qual canal e é onde essa leitura nasce; a configuração da empresa (liga/desliga por canal) já está aqui.
+- Recorte de staging (spec 291): `company_expense_reminder_settings` é `keep` (configuração); `reminders_sent`, `summaries_sent` e `reply_links` são `empty` (registro operacional e token de produção não atravessam; o contrato `staging-refresh` cobre as quatro).
+- O rollback (`rollback.sql`) recusa rodar se houver responsável, configuração, aviso, resumo, link ou baixa por resposta, porque apagar o registro reenviaria o aviso do dia e apagar a marca impediria o desfazer.
+
+**Resultado medido**
+
+- `bun test ./test/database-migration.contract.test.ts` com `DRIZZLE_TEST_DATABASE_URL` apontando para um Postgres 16 descartável: 242 pass / 0 fail (migration aplicada na cadeia inteira, snapshot, rollback). Sem banco: 238 pass / 4 skip.
+- Contrato novo `test/database-migration/company-expense-reminders.static.contract.ts` (7 testes): aditiva, chave única, listas fechadas iguais às do schema e da porta, padrão igual a `DEFAULT_REMINDER_SETTINGS`, só hash do token, política de staging, rollback.
+- `bun test ./test/deploy.contract.test.ts` 214 pass / 0 fail; `./test/expenses.contract.test.ts` 133 pass / 0 fail; `migration-chain` 4 pass; `tsc --noEmit`, `eslint` e `prettier --check` limpos.
+- Os 31 contratos vermelhos da T7.1 seguem fora da lista oficial (a T7.4/T7.4b os movem).
