@@ -424,6 +424,25 @@ contrato que a cobra.
 - Suíte de contrato da API: 15290 pass / 0 fail; `tsc --noEmit`, `eslint --max-warnings=0` e `prettier --check` limpos.
 - Não há tela nesta task (T5.2b) nem mudança em produção, então o runbook não muda.
 
+## T6.1 — Contratos vermelhos da previsão e do fora do padrão (2026-11-13)
+
+**O que entrou** (`apps/api-transportada`, vermelho de propósito; rodar com `bun --env-file=../../.env.test test ./test/expenses/forecast-red-entrypoint.ts`):
+
+| Arquivo                                    | Prende                                                                                                                                                                                                                                    | Fecha na |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `test/expenses/forecast.contract.ts`       | CA12: menos de 3 meses → sem previsão e aviso; 3 a 5 → previsão com aviso "poucos dados"; 6 ou mais → sem aviso; só os 6 meses mais recentes, em qualquer ordem; faixa contém o previsto; lucro = faturamento − custo; média por dia útil | T6.2     |
+| `test/expenses/out-of-pattern.contract.ts` | CA13: padrão de 10%; exatamente no limite não alerta, um centavo além alerta (acima e abaixo); limite configurável; média dos 3 meses mais recentes; menos de 3 meses não alerta; conta, categoria e custo por km do veículo              | T6.2     |
+
+**Resultado medido:** 26 testes, 1 pass (a constante do limite padrão) / 25 fail, todos por "not implemented". `tsc --noEmit` e `eslint` limpos; `bun test ./test/expenses.contract.test.ts` segue 133 pass / 0 fail (a lista oficial não mudou).
+
+**Regras aprovadas aplicadas:** a previsão só aparece com 3 meses ou mais de dados; o fora do padrão dispara **acima** de 10% da média (exatamente 10% não alerta).
+
+**Decisões deixadas para a T6.2 (os contratos não as fixam de propósito)**
+
+- Largura numérica da faixa: o contrato só exige mínimo ≤ previsto ≤ máximo e que a faixa de 3 a 5 meses não seja mais estreita que a de 6 meses com os mesmos valores.
+- Mês fechado sem viagem (zero faturamento) conta como mês de dado? E mês com zero dia útil? Veículo novo (custo por km sem 3 meses próprios) não alerta, pelo contrato de histórico menor que 3.
+- Média zero no fora do padrão (divisão): a T6.2 decide e acrescenta o caso.
+
 ## T7.1 — Contratos vermelhos dos lembretes e da baixa por resposta (2026-11-13)
 
 **O que entrou** (`apps/api-transportada`, tudo vermelho de propósito; rodar com `bun --env-file=../../.env.test test ./test/expenses/reminders-red-entrypoint.ts`):
