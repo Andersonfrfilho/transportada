@@ -37,6 +37,31 @@ function toRole(role: string): ExpenseTripParcelKind {
   return role === 'helper' ? 'helper' : 'driver'
 }
 
+/** Trajeto (primeira e última parada) de cada viagem, por empresa; só leitura. */
+export async function readTripRoutes(
+  database: Database,
+  { companyId, tripIds }: { readonly companyId: string; readonly tripIds: readonly string[] },
+): Promise<Map<string, ExpenseTripRoute>> {
+  const routes = new Map<string, ExpenseTripRoute>()
+  if (tripIds.length === 0) return routes
+  const stops = await database
+    .select({ label: tripStops.label, tripId: tripStops.tripId })
+    .from(tripStops)
+    .where(and(eq(tripStops.companyId, companyId), inArray(tripStops.tripId, [...tripIds])))
+    .orderBy(asc(tripStops.tripId), asc(tripStops.sequence))
+  const labelsByTrip = new Map<string, string[]>()
+  for (const stop of stops) {
+    const labels = labelsByTrip.get(stop.tripId) ?? []
+    labels.push(stop.label)
+    labelsByTrip.set(stop.tripId, labels)
+  }
+  for (const [tripId, labels] of labelsByTrip) {
+    const route = deriveExpenseTripRoute(labels)
+    if (route !== null) routes.set(tripId, route)
+  }
+  return routes
+}
+
 export function createPayableTripQueries(
   database: Database,
 ): Pick<ExpenseOccurrenceTripPorts['payableTrips'], 'findFacts' | 'listCompleted' | 'readRoutes'> {
@@ -59,26 +84,7 @@ export function createPayableTripQueries(
         tripId: trip.tripId,
       }
     },
-    readRoutes: async ({ companyId, tripIds }) => {
-      const routes = new Map<string, ExpenseTripRoute>()
-      if (tripIds.length === 0) return routes
-      const stops = await database
-        .select({ label: tripStops.label, tripId: tripStops.tripId })
-        .from(tripStops)
-        .where(and(eq(tripStops.companyId, companyId), inArray(tripStops.tripId, [...tripIds])))
-        .orderBy(asc(tripStops.tripId), asc(tripStops.sequence))
-      const labelsByTrip = new Map<string, string[]>()
-      for (const stop of stops) {
-        const labels = labelsByTrip.get(stop.tripId) ?? []
-        labels.push(stop.label)
-        labelsByTrip.set(stop.tripId, labels)
-      }
-      for (const [tripId, labels] of labelsByTrip) {
-        const route = deriveExpenseTripRoute(labels)
-        if (route !== null) routes.set(tripId, route)
-      }
-      return routes
-    },
+    readRoutes: ({ companyId, tripIds }) => readTripRoutes(database, { companyId, tripIds }),
     listCompleted: async ({ companyId, driverId, from, to }) => {
       const rows = await database
         .select({ completedOn: completedOnSql, crewRole: tripDrivers.role, tripId: trips.id })

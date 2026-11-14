@@ -18,7 +18,7 @@ import type { TripValuationContext } from '../../trips/application/read-trip-val
 import type { ExpenseResultPorts } from '../application/expense-result.port.js'
 import { NO_CUSTOMER_ID, NO_VEHICLE_ID } from '../domain/expense-result-filters.policy.js'
 import { pickTripCustomerTaxId } from '../domain/expense-trip-customer.policy.js'
-import { completedOnSql } from './payable-trip.query.js'
+import { completedOnSql, readTripRoutes } from './payable-trip.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -102,6 +102,8 @@ export function createAllocationTripQuery(
         for (const contractor of found) customerByTaxId.set(contractor.taxId, contractor.id)
       }
 
+      const routes = await readTripRoutes(database, { companyId, tripIds })
+
       return rows.flatMap((row) => {
         const trip = valued.get(row.tripId)
         if (trip === undefined) return []
@@ -115,6 +117,7 @@ export function createAllocationTripQuery(
             daysCount: daysOf(trip.context),
             distanceMeters: trip.context.distanceMeters ?? 0,
             revenue: trip.revenue,
+            route: routes.get(row.tripId) ?? null,
             tripId: row.tripId,
             vehicleId: row.vehicleId ?? NO_VEHICLE_ID,
           },

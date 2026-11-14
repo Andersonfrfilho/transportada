@@ -318,6 +318,7 @@
       "customer": "Cliente",
       "revenue": "Frete",
       "cost": "Custo da viagem",
+      "km": "Km",
       "vehicleShare": "Rateio do veículo",
       "generalShare": "Rateio geral",
       "margin": "Margem",
