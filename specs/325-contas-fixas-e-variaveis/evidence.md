@@ -592,3 +592,16 @@ contrato que a cobra.
 - Frontend: `bun run test` 8886 pass / 0 fail e `test:hooks` 1496 pass / 0 fail; contrato novo `test/expenses/allocation-panel.contract.ts` (endereço da aba, diff do Salvar, limite, rótulos, cliente e paridade pt/en). `tsc --noEmit` e `eslint` limpos nos arquivos tocados.
 - Primeira rodada reprovou `mutation-invalidation.contract.ts` (o hook do painel invalidava a chave `expenses` direto); corrigido: as mutações do módulo já renovam a raiz, e o painel só espera a releitura das próprias consultas.
 - Revisão de design (`web.md` §15), comparada com a aba vizinha "Categorias de contas": rótulo em cima, `Select` e campo na altura `--field-height`, botão padrão. Prints em `prints/rateio-{light,dark}-{desktop,mobile}.png` (1440 e 375), gerados por `test/spec-325-rateio-prints.smoke.spec.ts` (fora da CI). Desvios do preview aprovado: ganhou o bloco "Fora do padrão" (pedido da T5.3/T6.3) e o Salvar fica abaixo dos blocos.
+
+## T5.4 — Prints finais e comparação de design da Fase 5 (2026-11-14)
+
+**O que foi feito.** Prints de `/contas/resultado` (T5.2/T5.2b, com as linhas de viagem mostrando veículo, cliente, km e trajeto) e do painel "Rateio das contas" em Configurações (T5.3), regerados do `staging` em claro/escuro × desktop (1440) e celular (390), pelos smokes `test/spec-325-resultado-prints.smoke.spec.ts` e `test/spec-325-rateio-prints.smoke.spec.ts` (API dublada, fora da CI, `VITE_SMOKE_AUTH_BYPASS=true`). Arquivos: `prints/resultado-{light,dark}-{desktop,mobile}.png` e `prints/rateio-{light,dark}-{desktop,mobile}.png` (8 imagens; as de celular saíram idênticas às já versionadas).
+
+**Conferência (`web.md` §15), comparada com a tela vizinha de Contas e a aba "Categorias de contas":**
+
+- Rótulo em cima de cada campo; `DateRangePicker` e `Select` na altura padrão (`--field-height`); botões "Exportar PDF/CSV" e "Voltar às contas" são o `Button` padrão, sem estilo próprio.
+- Cartão de indicadores, "Últimos meses" e tabela de margem no molde `.table` (cartão empilhado no celular, um filho por célula, sem o desvio da grade de duas colunas corrigido na T2.4).
+- Linha de viagem: código, cliente e trajeto (primeira → última parada) na célula da viagem; colunas de veículo (placa) e km próprias. Sem dado, "—".
+- Tema escuro com contraste e bordas iguais aos do restante do painel; sem rolagem horizontal no celular.
+
+**Fora desta task.** O cartão "Previsão" e a lista "Fora do padrão" da página de resultado são da T6.4 (PR 771, ainda aberto); os prints da página com esses blocos saem lá. Sem mudança de código, de API nem em produção: o runbook não muda.
