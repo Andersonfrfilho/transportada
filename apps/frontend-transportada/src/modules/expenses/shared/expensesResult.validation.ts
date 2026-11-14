@@ -8,6 +8,8 @@ import {
   type ExpenseResult,
   type ExpenseResultFilters,
   type ExpenseResultLine,
+  type ExpenseResultTripInfo,
+  type ExpenseResultTripLine,
   type ExpenseResultPayment,
   type ExpenseUnallocatedItem,
   type ExpenseUnallocatedReason,
@@ -72,6 +74,32 @@ function toLine(value: unknown): ExpenseResultLine {
   }
 }
 
+function toRoute(value: unknown): ExpenseResultTripInfo['route'] {
+  if (value === null || value === undefined) return null
+  const row = readRecord(value)
+  return { destination: readString(row.destination), origin: readNullableString(row.origin) }
+}
+
+/** `trip` é aditivo: API anterior não o manda, e a linha segue valendo só pelos valores. */
+function toTripLine(value: unknown): ExpenseResultTripLine {
+  const line = toLine(value)
+  const trip = readRecord(value).trip
+  if (trip === undefined || trip === null) return line
+  const row = readRecord(trip)
+  if (typeof row.distanceMeters !== 'number' || !Number.isFinite(row.distanceMeters)) {
+    throw new ExpenseResponseError()
+  }
+  return {
+    ...line,
+    trip: {
+      customerId: readString(row.customerId),
+      distanceMeters: row.distanceMeters,
+      route: toRoute(row.route),
+      vehicleId: readString(row.vehicleId),
+    },
+  }
+}
+
 function toPayment(value: unknown): ExpenseResultPayment {
   const row = readRecord(value)
   return {
@@ -124,7 +152,7 @@ export function toExpenseResult(payload: unknown): ExpenseResult {
   const totals = readRecord(data.totals)
   return {
     byCustomer: readArray(data.byCustomer).map(toLine),
-    byTrip: readArray(data.byTrip).map(toLine),
+    byTrip: readArray(data.byTrip).map(toTripLine),
     byVehicle: readArray(data.byVehicle).map(toLine),
     calculatedAt: toCalculatedAt(body),
     excesses: readOptionalArray(data.excesses).map(toPayment),

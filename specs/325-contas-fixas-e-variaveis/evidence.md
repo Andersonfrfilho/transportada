@@ -563,7 +563,7 @@ contrato que a cobra.
 
 - Variação dos indicadores é sobre o **período anterior de mesmo tamanho**, com os mesmos filtros (uma segunda leitura de `GET /expense-result`). "Últimos meses" são quatro leituras mensais até o mês do fim do período, também com os filtros.
 - Custo, receita e margem por km usam os quilômetros de `GET /expense-unit-costs` do período; sem quilômetro mostram "—".
-- Nomes: veículo (placa) e cliente vêm das listas de opções dos filtros; id sem nome cai no próprio id. **Viagem aparece pelos 8 primeiros caracteres do id**, porque as linhas de `byTrip` da API só trazem o id (sem veículo, cliente nem km). O preview aprovado mostra código da viagem, veículo, cliente e km por linha: isso pede campos aditivos em `byTrip` na API e fica como **pendência para o Anderson decidir**.
+- Nomes: veículo (placa) e cliente vêm das listas de opções dos filtros; id sem nome cai no próprio id. **Viagem aparece pelos 8 primeiros caracteres do id** (a viagem não tem número no banco). Veículo, cliente, km e trajeto vieram no follow-up abaixo.
 - Previsão e "fora do padrão" do preview são da T6.4, não desta tarefa. "Comparar com" e "Critério de rateio" não são filtros desta tela (o critério é da T5.3).
 - Exportar usa `saveArchiveFile` com o blob da rota da T4.6; falha mostra alerta.
 
@@ -571,3 +571,9 @@ contrato que a cobra.
 
 - `bun test ./test/expenses.contract.test.ts`: 43 pass / 0 fail (contrato novo `test/expenses/result-view.contract.ts`: períodos, tendência, percentuais, centavos). `tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
 - Prints (smoke `test/spec-325-resultado-prints.smoke.spec.ts`, API dublada, fora da CI): `prints/resultado-{light,dark}-{desktop,mobile}.png`. Conferidos contra a tela de Contas vizinha: rótulo em cima, campos na altura padrão, botões `Button` padrão, tabelas no molde `.table` (cartão no celular). Exportar CSV exercitado no smoke (`format=csv` na requisição).
+
+## T5.2 — Detalhes da viagem no resultado (follow-up, 2026-11-14)
+
+- API: cada linha de `byTrip` ganha `trip { vehicleId, customerId, distanceMeters, route }` (aditivo; `byVehicle`/`byCustomer` e os valores não mudam). O trajeto é o da T2.2b (`deriveExpenseTripRoute`, primeira e última parada), lido em lote por `readTripRoutes`, extraído de `payable-trip.query.ts` e agora usado também por `allocation-trip.query.ts`. `AllocationTrip.route` é opcional e não entra no rateio.
+- Painel: `trip` é opcional na guarda (API anterior segue valendo; a coluna cai em "—"). Linha mostra código, cliente e trajeto, mais veículo e km. **Ordem de publicação: painel e API juntos em staging; o painel tolera a API antiga.**
+- Medido: `bun --env-file=../../.env.test test ./test/expenses.contract.test.ts` na API 211 pass / 0 fail (contrato novo "detalhes da viagem no resultado"); painel 44 pass / 0 fail; `tsc`, `eslint` e `prettier` limpos nas duas apps. Prints refeitos em `prints/resultado-*`.

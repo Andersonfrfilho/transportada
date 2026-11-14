@@ -1,5 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
+import type { ExpenseTripRoute } from './expenses.types'
+
 /** ⚠️ Cópia por valor do vocabulário da API (spec 325, T4.5/T4.6) — o bundle não carrega código de lá. */
 export const EXPENSE_ALLOCATABLE_GROUPS = ['vehicle_fixed', 'per_km', 'administrative'] as const
 export type ExpenseAllocatableGroup = (typeof EXPENSE_ALLOCATABLE_GROUPS)[number]
@@ -48,6 +50,16 @@ export type ExpenseResultLine = Readonly<{
   vehicleShare: string
 }>
 
+/** Aditivo na API (T5.2 do painel): ausente em API anterior, e a tela cai no id. */
+export type ExpenseResultTripInfo = Readonly<{
+  customerId: string
+  distanceMeters: number
+  route: ExpenseTripRoute | null
+  vehicleId: string
+}>
+
+export type ExpenseResultTripLine = ExpenseResultLine & Readonly<{ trip?: ExpenseResultTripInfo }>
+
 export type ExpenseResultPayment = Readonly<{
   amount: string
   occurrenceId: string
@@ -68,7 +80,7 @@ export type ExpenseAllocationSettings = Readonly<
 
 export type ExpenseResult = Readonly<{
   byCustomer: readonly ExpenseResultLine[]
-  byTrip: readonly ExpenseResultLine[]
+  byTrip: readonly ExpenseResultTripLine[]
   byVehicle: readonly ExpenseResultLine[]
   calculatedAt: string | null
   excesses: readonly ExpenseResultPayment[]

@@ -11,6 +11,8 @@
  *   mora uma vez, nas parcelas `driver`/`helper` da viagem;
  * - trocar o critério muda a divisão, nunca o total (§2, CA08).
  */
+import type { ExpenseTripRoute } from './expense-trip-route.policy.js'
+
 import { distributeByWeight } from '../../shared/proportional-split.policy.js'
 import { formatCents, parseMoneyToCents } from './expense-money.policy.js'
 
@@ -37,6 +39,8 @@ export type AllocationTrip = {
   readonly daysCount: number
   readonly distanceMeters: number
   readonly revenue: string
+  /** Primeira e última parada, só para a tela mostrar o trajeto (a T5.2 do painel); não entra no rateio. */
+  readonly route?: ExpenseTripRoute | null
   readonly tripId: string
   readonly vehicleId: string
 }

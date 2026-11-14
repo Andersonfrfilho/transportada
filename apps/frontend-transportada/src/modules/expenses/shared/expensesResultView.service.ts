@@ -112,3 +112,8 @@ export function lineMarginPercent(line: ExpenseResultLine): null | string {
 export function isNegativeAmount(value: string): boolean {
   return value.startsWith('-') && value !== zeroAmount(4)
 }
+
+/** Metros da rota em quilômetros inteiros (`620000` → `620`); a tela mostra o que a estrada mede, sem casa decimal. */
+export function formatKilometers(distanceMeters: number): string {
+  return String(Math.round(distanceMeters / 1000))
+}
