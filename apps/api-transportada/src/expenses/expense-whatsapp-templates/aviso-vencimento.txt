@@ -1,0 +1,8 @@
+💸 *{{conta}}* {{situacao}}
+
+*Valor previsto:* {{valor}}
+*Vencimento:* {{vencimento}}
+*Competência:* {{competencia}}
+*Categoria:* {{categoria}}
+
+Olá, {{responsavel}}. Se esta conta já foi paga, responda *paguei* nesta conversa e os lembretes param.

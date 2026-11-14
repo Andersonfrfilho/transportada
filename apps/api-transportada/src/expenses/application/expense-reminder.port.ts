@@ -17,9 +17,18 @@ export type ReminderSettings = {
   readonly maxOverdueNotices: number
   /** RF26: canais ligados na empresa; só neles o aviso sai. */
   readonly enabledChannels: readonly ReminderChannel[]
+  /** RF27: resumo diário ligado na empresa (padrão desligado). */
+  readonly dailySummaryEnabled: boolean
+  /**
+   * RF27 (T7.3): a hora cheia de São Paulo a partir da qual saem o resumo **e** os avisos do dia (padrão 8). Uma hora
+   * só por empresa: aviso de dinheiro de madrugada é lido junto com o resumo, ou não é lido.
+   */
+  readonly dailySummaryHour: number
 }
 
 export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
+  dailySummaryEnabled: false,
+  dailySummaryHour: 8,
   daysBefore: 3,
   enabledChannels: ['email'],
   maxOverdueNotices: 3,

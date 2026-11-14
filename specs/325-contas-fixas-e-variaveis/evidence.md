@@ -490,3 +490,60 @@ contrato que a cobra.
 - Contrato novo `test/database-migration/company-expense-reminders.static.contract.ts` (7 testes): aditiva, chave única, listas fechadas iguais às do schema e da porta, padrão igual a `DEFAULT_REMINDER_SETTINGS`, só hash do token, política de staging, rollback.
 - `bun test ./test/deploy.contract.test.ts` 214 pass / 0 fail; `./test/expenses.contract.test.ts` 133 pass / 0 fail; `migration-chain` 4 pass; `tsc --noEmit`, `eslint` e `prettier --check` limpos.
 - Os 31 contratos vermelhos da T7.1 seguem fora da lista oficial (a T7.4/T7.4b os movem).
+
+## T7.3 — Modelo do aviso e regra de quem, por qual canal e quando (2026-11-14)
+
+**Regra** (`src/expenses/domain/expense-reminder.policy.ts`, pura; datas civis de São Paulo em texto):
+
+| Pergunta                                     | Decisão                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quando (`reminderKindOn`)                    | `before` exatamente `daysBefore` dias antes (0 desliga), `due_today` no dia, `overdue` do 1º ao `maxOverdueNotices`-ésimo dia de atraso, **pelo calendário** (rotina que falhou num dia não empurra o aviso). O status (`open`) é do caso de uso.                                                                      |
+| A que horas (`isReminderHour`)               | A partir de `daily_summary_hour` (padrão 8h, São Paulo), para avisos **e** resumo: uma hora só por empresa, sem aviso de madrugada. `ReminderSettings` ganhou `dailySummaryEnabled` e `dailySummaryHour` (as colunas da T7.2).                                                                                         |
+| Quem (`chooseReminderRecipients`)            | O responsável, se ainda é da empresa (vínculo e conta ativos) **e** tem algum canal ligado na empresa. Senão, todos os `company-admin` ativos alcançáveis. **Responsável que não pode receber nada conta como sem responsável** (`responsible_unreachable`): o aviso de dinheiro cai no administrador em vez de sumir. |
+| Canal da pessoa (`personalReminderChannels`) | E-mail sempre que há e-mail (perfil, senão o contato do convite por e-mail) — **sem opt-out**, é o canal que garante o aviso; quem não quer recebê-lo pede para trocar o responsável. WhatsApp só com opt-in **e** número verificado (`user_whatsapp_phones.verified_at`). Push só com opt-in.                         |
+| Canal efetivo (`effectiveReminderChannels`)  | Os da pessoa ∩ os ligados na empresa, ordem fixa e-mail, WhatsApp, push.                                                                                                                                                                                                                                               |
+| Resumo (`belongsToDailySummary`)             | Ocorrência `open` que vence hoje ou já venceu, sem limite de dias de atraso. Quem recebe é o mesmo destinatário de cada conta.                                                                                                                                                                                         |
+
+**Preferência de canal por pessoa** (deixada pela T7.2): tabela própria `company_expense_reminder_preferences` (migration
+aditiva `20261114004108_company_expense_reminder_preferences`, `unique(company_id, user_id)`, `whatsapp_enabled`/`push_enabled`
+padrão `false`, sem coluna de e-mail; rollback recusa com linha; recorte de staging `keep`). Não reusei as preferências do
+módulo de notificação: lá o padrão é ligado (opt-out) e os canais do painel são só caixa e e-mail; aqui WhatsApp e push são
+opt-in e não aparecem na tela de Preferências de hoje. Leitor: `drizzle-expense-reminder-recipients.repository.ts`
+(`findById`/`findAdmins` sempre pelo vínculo ativo da empresa; `createDrizzleExpenseReminderSettings` devolve o padrão sem linha).
+A rota e a tela para a pessoa ligar WhatsApp/push ficam na T7.5.
+
+**Modelos** (editáveis em Notificações depois de publicados; layout no modelo, nunca em código — ADR-0110):
+
+- `contas.aviso-vencimento` e-mail (`src/expenses/expense-mail-templates/aviso-vencimento.html`): assunto
+  `{{conta}} {{situacao}} — {{valor}}`; texto `transportadora`, `responsavel`, `conta`, `categoria`, `favorecido`, `competencia`,
+  `vencimento`, `valor`, `situacao`; HTML do sistema `botaoJaPaguei` (link assinado da T7.4b; vazio até lá) e `botaoAbrirContas`.
+- `contas.aviso-vencimento` WhatsApp (`expense-whatsapp-templates/aviso-vencimento.txt`): o mesmo texto, sem HTML, com "responda
+  _paguei_" (RF29).
+- `contas.resumo-diario` e-mail: `transportadora`, `responsavel`, `dia`, `quantidade`, `totalAberto`; HTML `tabelaContas` e
+  `botaoAbrirContas`.
+- Régua (`expense-reminder-mail-template.policy.ts`): HTML seguro (SDK), área `<!-- mensagem -->`, HTML do sistema fora da área,
+  assunto, variáveis da lista fechada de cada modelo, WhatsApp sem HTML. O publicador (`occurrence-mail-templates-publish`) lê os
+  três arquivos e aplica essa régua pela chave `contas.*`.
+- Renderização (`expense-reminder-mail.policy.ts`): `interpolateEmailHtml` do SDK (valor escapado, só os botões e a tabela crus,
+  valor nunca reinterpretado), `htmlToPlainText` para o texto puro, dinheiro em centavos (`R$ 1.234,50`), botão só com URL
+  `https://`. ⚠️ O `text/plain` mostra "Já paguei" sem o link: a T7.4b decide se o texto puro leva a URL.
+- **Push:** o texto não entrou aqui. O push sai pelo módulo de notificação (catálogo), e a categoria nova no catálogo mexe na tela
+  de Preferências; fica para o notificador da T7.4, que é quem decide o envio.
+
+**Fica para depois**
+
+- Publicar os três modelos em staging/produção (`bun run scripts/occurrence-mail-templates-publish.ts --company <uuid> --confirm`)
+  é mudança de dados: pede aprovação, junto da T7.4.
+- O `APP_BASE_URL` (painel) dá o link do `botaoAbrirContas`; sem ele o botão some.
+
+**Resultado medido**
+
+- `bun test ./test/expenses.contract.test.ts`: 167 pass / 0 fail (34 novos: `reminder-policy.contract.ts` e
+  `reminder-mail-template.contract.ts`, registrados no entrypoint).
+- `bun --env-file=../../.env.test test ./test/integration/expense-reminder-recipients.integration.ts` contra Postgres 16
+  descartável: 7 pass / 0 fail (vínculo/conta desligados e outra empresa = não existe, e-mail do convite, WhatsApp exige número
+  verificado, preferência por empresa, padrão sem linha, unique). Registrado em `test:integration`.
+- `bun test ./test/database-migration.contract.test.ts` com `DRIZZLE_TEST_DATABASE_URL`: 246 pass / 0 fail (migration e rollback
+  na cadeia, snapshot, contrato estático novo `company-expense-reminder-preferences.static.contract.ts`).
+- `bun test ./test/deploy.contract.test.ts` 214 pass; `tsc --noEmit`, `eslint` e `prettier --check` limpos.
+- Os 31 contratos vermelhos da T7.1 seguem fora da lista oficial (a T7.4/T7.4b os movem).

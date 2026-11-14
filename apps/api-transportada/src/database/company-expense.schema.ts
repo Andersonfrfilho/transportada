@@ -473,6 +473,46 @@ export const companyExpenseReminderSettings = pgTable(
 )
 
 /**
+ * Spec 325 RF26 (T7.3): o canal que **a pessoa** quer, além do e-mail. Uma linha por pessoa e empresa; sem linha,
+ * só e-mail. WhatsApp e push nascem desligados (opt-in): aviso de dinheiro no celular de alguém só sai porque ela
+ * pediu. Não há coluna de e-mail de propósito: o e-mail é o canal que garante que o aviso chega (RF26), e quem não
+ * quer recebê-lo pede ao administrador para trocar o responsável da conta. O canal ainda precisa estar ligado na
+ * empresa (`company_expense_reminder_settings`) e o WhatsApp, de um número verificado (`user_whatsapp_phones`).
+ */
+export const companyExpenseReminderPreferences = pgTable(
+  'company_expense_reminder_preferences',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    whatsappEnabled: boolean('whatsapp_enabled').notNull().default(false),
+    pushEnabled: boolean('push_enabled').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_expense_reminder_preferences_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [identityUsers.id],
+      name: 'company_expense_reminder_preferences_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_expense_reminder_preferences_company_user_unique').on(
+      table.companyId,
+      table.userId,
+    ),
+  ],
+)
+
+/**
  * Spec 325 RF28 (T7.2): o registro dos avisos enviados. A chave única `(ocorrência, responsável, dia, tipo)` é o que
  * torna a rotina idempotente: gravar com `ON CONFLICT DO NOTHING` e só enviar quando a linha entrou (a porta
  * `sent.record` devolve `false` na repetição). O canal não entra na chave: um aviso por pessoa e dia (T7.1).
