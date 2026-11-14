@@ -79,7 +79,20 @@ export function ExpensesWorkspacePage() {
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
-        <h1>{t('title')}</h1>
+        <div className={styles.panelHead}>
+          <h1>{t('title')}</h1>
+          <Button
+            onClick={() => {
+              window.history.pushState({}, '', '/contas/resultado')
+              window.dispatchEvent(new PopStateEvent('popstate'))
+            }}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            {t('resultPage.open')}
+          </Button>
+        </div>
         <p className={styles.hint}>{t('subtitle')}</p>
       </header>
 

@@ -354,3 +354,62 @@
   gap: var(--space-3);
   justify-content: flex-end;
 }
+
+/* Spec 325 T5.2: indicadores do resultado, no mesmo molde de `.totals` (rótulo cinza, valor em negrito). */
+.indicators {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+}
+
+@media (min-width: 40rem) {
+  .indicators {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .indicators {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.indicators dt {
+  color: var(--color-slate);
+}
+
+.indicators dd {
+  font-weight: 700;
+  margin: 0;
+}
+
+.indicators small {
+  color: var(--color-slate);
+  display: block;
+}
+
+.notice {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.exportBar {
+  display: grid;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+@media (min-width: 40rem) {
+  .exportBar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.tripCode {
+  font-family: var(--font-utility);
+}
