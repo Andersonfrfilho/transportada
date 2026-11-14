@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
+  EXPENSE_COST_GROUPS,
   EXPENSE_DRIVER_PAYMENT_MODELS,
   EXPENSE_PAYEE_PROFILES,
   EXPENSE_KINDS,
@@ -129,6 +130,7 @@ function toCategory(value: unknown): ExpenseCategory {
   const row = readRecord(value)
   return {
     active: readBoolean(row.active),
+    costGroup: EXPENSE_COST_GROUPS.find((group) => group === row.costGroup) ?? 'administrative',
     id: readString(row.id),
     name: readString(row.name),
     requiresDriver: readBoolean(row.requiresDriver),

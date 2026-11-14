@@ -96,6 +96,12 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
         Object.assign(row, { active })
         return row
       },
+      setCostGroup: async ({ categoryId, companyId, costGroup }) => {
+        const row = categories.find((c) => c.id === categoryId && c.companyId === companyId)
+        if (row === undefined) return null
+        Object.assign(row, { costGroup })
+        return row
+      },
     },
     categoryRows: categories,
     drivers: {

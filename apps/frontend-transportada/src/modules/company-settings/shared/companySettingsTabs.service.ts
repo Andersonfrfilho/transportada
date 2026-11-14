@@ -33,6 +33,7 @@ export const SETTINGS_PANELS = [
   'driverStopReminders',
   'salespeople',
   'expenseCategories',
+  'expenseAllocation',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -63,6 +64,7 @@ export type SettingsDataSource =
   | 'driverAllowanceSettings'
   | 'driverStopReminderSettings'
   | 'entryKindCatalog'
+  | 'expenseAllocation'
   | 'expenseCategories'
   | 'federalTaxes'
   | 'freightRegions'
@@ -258,6 +260,12 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
     source: 'expenseCategories',
     tab: 'expenseCategories',
   },
+  /** Spec 325 T5.3 (RF16): grupo de cada categoria e critério de cada grupo — painel autocontido, aba própria (`expenses.read`/`expenses.manage`). */
+  expenseAllocation: {
+    module: 'company-settings',
+    source: 'expenseAllocation',
+    tab: 'expenseAllocation',
+  },
 }
 
 export function settingsPanelsOf(
@@ -308,6 +316,7 @@ export function resolveSettingsDataScope(
     driverAllowanceSettings: sources.has('driverAllowanceSettings'),
     driverStopReminderSettings: sources.has('driverStopReminderSettings'),
     entryKindCatalog: sources.has('entryKindCatalog'),
+    expenseAllocation: sources.has('expenseAllocation'),
     expenseCategories: sources.has('expenseCategories'),
     federalTaxes: sources.has('federalTaxes'),
     freightRegions: sources.has('freightRegions'),
@@ -343,6 +352,7 @@ export const COMPANY_SETTINGS_TAB_IDS = [
   'driverReminders',
   'salespeople',
   'expenseCategories',
+  'expenseAllocation',
 ] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]

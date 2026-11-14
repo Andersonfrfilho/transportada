@@ -24,6 +24,7 @@ import {
   createListExpenseCategoriesUseCase,
   createListExpensesUseCase,
   createSetExpenseCategoryActiveUseCase,
+  createSetExpenseCategoryCostGroupUseCase,
   createUpdateExpenseUseCase,
 } from '../../src/expenses/application/expense.use-case.js'
 import {
@@ -480,6 +481,7 @@ function buildRoutes(ports: InMemoryExpenseTrips) {
     now: () => new Date('2026-11-13T15:00:00Z'),
     removeOccurrenceTrip: createRemoveExpenseOccurrenceTripUseCase(ports),
     setCategoryActive: createSetExpenseCategoryActiveUseCase(base),
+    setCategoryCostGroup: createSetExpenseCategoryCostGroupUseCase(base),
     settleOccurrence: createSettleExpenseOccurrenceUseCase(base),
     updateExpense: createUpdateExpenseUseCase(base),
   })

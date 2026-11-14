@@ -18,7 +18,8 @@
     "automations": "Automations",
     "driverReminders": "Driver reminders",
     "salespeople": "Salespeople",
-    "expenseCategories": "Expense categories"
+    "expenseCategories": "Expense categories",
+    "expenseAllocation": "Expense allocation"
   },
   "entryKinds": {
     "title": "Entry kinds",
@@ -1103,6 +1104,49 @@
     "error": {
       "EXPENSE_CATEGORY_NAME_TAKEN": "A category with this name already exists.",
       "REQUEST_FAILED": "Could not finish. Try again."
+    }
+  },
+  "expenseAllocation": {
+    "title": "Expense allocation",
+    "subtitle": "Sets which group each category falls into and how each group is split across trips.",
+    "loading": "Loading the allocation…",
+    "retry": "Try again",
+    "inactive": "inactive",
+    "group": {
+      "vehicle_fixed": "Vehicle fixed",
+      "per_km": "Variable per km",
+      "administrative": "Administrative",
+      "in_trip": "Already in the trip"
+    },
+    "criterion": {
+      "per_km": "Per km driven in the month",
+      "per_km_variable": "Vehicle cost per km",
+      "per_trip_day": "Per trip day",
+      "per_revenue": "By trip revenue",
+      "equal": "Equal per trip"
+    },
+    "criteria": {
+      "title": "How each group is split",
+      "hint": "An expense tied to a vehicle goes only to that vehicle's trips; without a vehicle, it follows the group's criterion."
+    },
+    "threshold": {
+      "title": "Out of pattern",
+      "label": "Alert threshold (%)",
+      "hint": "A month's amount is flagged as out of pattern when it passes this percentage over the average. From 0 to 1000, up to two decimals.",
+      "invalid": "Enter a number from 0 to 1000, with up to two decimals."
+    },
+    "categories": {
+      "title": "Group of each category",
+      "empty": "No categories registered.",
+      "groupOf": "Cost group of {{name}}",
+      "driverNote": "The driver category is not allocated: its cost is already in the trip."
+    },
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Allocation saved.",
+    "error": {
+      "loadFailed": "Could not load the allocation.",
+      "saveFailed": "Could not save. Check what changed and try again."
     }
   }
 }

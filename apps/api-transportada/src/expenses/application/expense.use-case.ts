@@ -6,6 +6,7 @@
 import { formatCents, isCivilDate, parseMoneyToCents } from '../domain/expense-money.policy.js'
 import { competenceOfDate } from '../domain/expense-schedule.policy.js'
 import {
+  ExpenseCategoryCostGroupInvalidError,
   ExpenseCategoryNameTakenError,
   ExpenseCategoryNotFoundError,
   ExpenseDriverNotAllowedError,
@@ -297,6 +298,51 @@ export function createSetExpenseCategoryActiveUseCase(ports: ExpensesPorts): {
         entityId: updated.id,
         entityType: 'company_expense_category',
         metadata: { name: updated.name },
+      })
+      return updated
+    },
+  }
+}
+
+/** Spec 325 T5.3 (RF16): a categoria muda de grupo de custo; a de motorista é sempre `in_trip` e as outras nunca. */
+export function createSetExpenseCategoryCostGroupUseCase(ports: ExpensesPorts): {
+  execute(input: {
+    readonly categoryId: string
+    readonly companyId: string
+    readonly correlationId?: string
+    readonly costGroup: NonNullable<CompanyExpenseCategory['costGroup']>
+    readonly updatedBy: string
+  }): Promise<CompanyExpenseCategory>
+} {
+  return {
+    execute: async (input) => {
+      const current = await ports.categories.findById({
+        categoryId: input.categoryId,
+        companyId: input.companyId,
+      })
+      if (current === null) throw new ExpenseCategoryNotFoundError()
+      if ((input.costGroup === 'in_trip') !== current.requiresDriver) {
+        throw new ExpenseCategoryCostGroupInvalidError()
+      }
+      const previousGroup = current.costGroup ?? 'administrative'
+      const updated = await ports.categories.setCostGroup({
+        categoryId: input.categoryId,
+        companyId: input.companyId,
+        costGroup: input.costGroup,
+      })
+      if (updated === null) throw new ExpenseCategoryNotFoundError()
+      await ports.audit.append({
+        action: 'expense.category.cost_group_changed',
+        actorUserId: input.updatedBy,
+        companyId: input.companyId,
+        correlationId: input.correlationId ?? crypto.randomUUID(),
+        entityId: updated.id,
+        entityType: 'company_expense_category',
+        metadata: {
+          from: previousGroup,
+          name: updated.name,
+          to: updated.costGroup ?? input.costGroup,
+        },
       })
       return updated
     },

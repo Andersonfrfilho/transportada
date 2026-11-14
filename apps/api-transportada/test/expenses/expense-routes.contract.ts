@@ -17,6 +17,7 @@ import {
   createListExpenseCategoriesUseCase,
   createListExpensesUseCase,
   createSetExpenseCategoryActiveUseCase,
+  createSetExpenseCategoryCostGroupUseCase,
   createUpdateExpenseUseCase,
 } from '../../src/expenses/application/expense.use-case.js'
 import { createExpenseRoutes } from '../../src/expenses/presentation/expense.routes.js'
@@ -53,6 +54,7 @@ function buildRoutes(ports = buildInMemoryExpenses()) {
       listOccurrences: createListExpenseOccurrencesUseCase(ports),
       now: () => new Date('2026-11-13T15:00:00Z'),
       setCategoryActive: createSetExpenseCategoryActiveUseCase(ports),
+      setCategoryCostGroup: createSetExpenseCategoryCostGroupUseCase(ports),
       settleOccurrence: createSettleExpenseOccurrenceUseCase(ports),
       updateExpense: createUpdateExpenseUseCase(ports),
     }),
@@ -119,6 +121,7 @@ describe('rotas de contas (spec 325 CA03)', () => {
       ['GET', '/expense-categories', 'expenses.read'],
       ['POST', '/expense-categories', 'expenses.manage'],
       ['PATCH', '/expense-categories/:id', 'expenses.manage'],
+      ['PUT', '/expense-categories/:id/cost-group', 'expenses.manage'],
     ])
   })
 })
