@@ -48,6 +48,18 @@ export class ExpenseCategoryNotFoundError extends ApiError {
   }
 }
 
+/** ADR-0116 §1: o pagamento de motorista é `in_trip` e só ele; as demais categorias ficam num dos três grupos rateáveis. */
+export class ExpenseCategoryCostGroupInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_CATEGORY_COST_GROUP_INVALID',
+      message:
+        'The driver payment category stays in the trip group, and no other category can join it.',
+      status: 422,
+    })
+  }
+}
+
 export class ExpenseOccurrenceNotFoundError extends ApiError {
   public constructor() {
     super({

@@ -121,6 +121,12 @@ export type ExpensesPorts = {
       categoryId: string
       companyId: string
     }): Promise<CompanyExpenseCategory | null>
+    /** Spec 325 T5.3: troca o grupo de custo da categoria (o rateio é na leitura: nada gravado é refeito). */
+    setCostGroup(input: {
+      categoryId: string
+      companyId: string
+      costGroup: NonNullable<CompanyExpenseCategory['costGroup']>
+    }): Promise<CompanyExpenseCategory | null>
   }
   readonly drivers: {
     findById(input: { companyId: string; driverId: string }): Promise<ExpenseDriverRef | null>

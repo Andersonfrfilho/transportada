@@ -28,6 +28,10 @@ export const EXPENSE_RESULT_PATH = '/expense-result'
 export const EXPENSE_RESULT_EXPORT_PATH = '/expense-result/export'
 export const EXPENSE_UNIT_COSTS_PATH = '/expense-unit-costs'
 export const EXPENSE_ALLOCATION_SETTINGS_PATH = '/expense-allocation-settings'
+export const EXPENSE_OUT_OF_PATTERN_SETTINGS_PATH = '/expense-out-of-pattern-settings'
+
+/** Limite do "fora do padrão" (T6.3): pontos percentuais, de 0 a 1000, até duas casas. */
+export const EXPENSE_OUT_OF_PATTERN_RANGE = { max: 1000, min: 0 } as const
 
 /** Dinheiro é **texto** (`"1234.50"`): converter para número perderia centavo. */
 export type ExpenseResultPeriod = Readonly<{ from: string; to: string }>

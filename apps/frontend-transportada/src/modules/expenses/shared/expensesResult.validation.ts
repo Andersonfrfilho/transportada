@@ -192,6 +192,13 @@ export function toExpenseUnitCosts(payload: unknown): ExpenseUnitCosts {
   }
 }
 
+/** `data.thresholdPercent` é número (a API grava `numeric(6,2)` e devolve número JSON). */
+export function toOutOfPatternThreshold(payload: unknown): number {
+  const value = readRecord(readRecord(payload).data).thresholdPercent
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new ExpenseResponseError()
+  return value
+}
+
 export function toExpenseAllocationSettings(payload: unknown): ExpenseAllocationSettings {
   return toSettingsRecord(readRecord(payload).data)
 }

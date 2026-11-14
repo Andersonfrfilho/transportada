@@ -183,6 +183,19 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
           .returning()
         return row === undefined ? null : toCategory(row)
       },
+      setCostGroup: async ({ categoryId, companyId, costGroup }) => {
+        const [row] = await database
+          .update(companyExpenseCategories)
+          .set({ costGroup, updatedAt: new Date() })
+          .where(
+            and(
+              eq(companyExpenseCategories.companyId, companyId),
+              eq(companyExpenseCategories.id, categoryId),
+            ),
+          )
+          .returning()
+        return row === undefined ? null : toCategory(row)
+      },
     },
     drivers: {
       findById: async ({ companyId, driverId }): Promise<ExpenseDriverRef | null> => {

@@ -578,6 +578,21 @@ contrato que a cobra.
 - Painel: `trip` é opcional na guarda (API anterior segue valendo; a coluna cai em "—"). Linha mostra código, cliente e trajeto, mais veículo e km. **Ordem de publicação: painel e API juntos em staging; o painel tolera a API antiga.**
 - Medido: `bun --env-file=../../.env.test test ./test/expenses.contract.test.ts` na API 211 pass / 0 fail (contrato novo "detalhes da viagem no resultado"); painel 44 pass / 0 fail; `tsc`, `eslint` e `prettier` limpos nas duas apps. Prints refeitos em `prints/resultado-*`.
 
+## T5.3 — Painel "Rateio das contas" (2026-11-14)
+
+**O que entrou**
+
+- API: `PUT /expense-categories/:id/cost-group` (`expenses.manage`, corpo `{ costGroup }` estrito). Caso de uso `createSetExpenseCategoryCostGroupUseCase`, porta `categories.setCostGroup`, repositório Drizzle e diário `expense.category.cost_group_changed` (antes, depois, nome). Regra: `in_trip` é só da categoria que exige motorista, e ela não sai dele; senão `422 EXPENSE_CATEGORY_COST_GROUP_INVALID`. Categoria de outra empresa é `404`. Sem migration: a coluna `cost_group` já existia (T4.3), e o rateio é calculado na leitura (ADR-0116), então nada gravado precisa ser refeito.
+- Painel: aba "Rateio das contas" em Configurações (`expenseAllocation` em `SETTINGS_PANELS`, `SETTINGS_PANEL_PLACEMENT` e `COMPANY_SETTINGS_TAB_IDS`). Três blocos: "Como cada grupo é dividido" (três seletores), "Fora do padrão" (limite em %, 0 a 1000 com até duas casas) e "Grupo de cada categoria". O rascunho guarda só o que a pessoa mexeu; o Salvar manda o diff e relê as três consultas. Sem `expenses.manage` os campos ficam desligados e o botão some.
+- Módulo `expenses`: `costGroup` na categoria (leitura tolerante: ausente vira `administrative`), `setCategoryCostGroup`, `getOutOfPatternThreshold` e `updateOutOfPatternThreshold` no cliente e hooks.
+
+**Resultado medido**
+
+- API: `bun test ./test/expenses.contract.test.ts` 214 pass / 0 fail (4 contratos novos em `category-cost-group.contract.ts`, mais a linha da rota em `expense-routes.contract.ts`); `tsc --noEmit` e `prettier --check` limpos.
+- Frontend: `bun run test` 8886 pass / 0 fail e `test:hooks` 1496 pass / 0 fail; contrato novo `test/expenses/allocation-panel.contract.ts` (endereço da aba, diff do Salvar, limite, rótulos, cliente e paridade pt/en). `tsc --noEmit` e `eslint` limpos nos arquivos tocados.
+- Primeira rodada reprovou `mutation-invalidation.contract.ts` (o hook do painel invalidava a chave `expenses` direto); corrigido: as mutações do módulo já renovam a raiz, e o painel só espera a releitura das próprias consultas.
+- Revisão de design (`web.md` §15), comparada com a aba vizinha "Categorias de contas": rótulo em cima, `Select` e campo na altura `--field-height`, botão padrão. Prints em `prints/rateio-{light,dark}-{desktop,mobile}.png` (1440 e 375), gerados por `test/spec-325-rateio-prints.smoke.spec.ts` (fora da CI). Desvios do preview aprovado: ganhou o bloco "Fora do padrão" (pedido da T5.3/T6.3) e o Salvar fica abaixo dos blocos.
+
 ## T7.3 — Modelo do aviso e regra de quem, por qual canal e quando (2026-11-14)
 
 **Regra** (`src/expenses/domain/expense-reminder.policy.ts`, pura; datas civis de São Paulo em texto):

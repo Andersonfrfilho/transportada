@@ -99,6 +99,7 @@ import {
   createListExpenseCategoriesUseCase,
   createListExpensesUseCase,
   createSetExpenseCategoryActiveUseCase,
+  createSetExpenseCategoryCostGroupUseCase,
   createUpdateExpenseUseCase,
 } from './expenses/application/expense.use-case.js'
 import { createDrizzleExpensesPorts } from './expenses/infrastructure/drizzle-expenses.repository.js'
@@ -4665,6 +4666,7 @@ function createApplicationRoutes({
       listOccurrences: createListExpenseOccurrencesUseCase(expensesPorts),
       now: () => new Date(),
       setCategoryActive: createSetExpenseCategoryActiveUseCase(expensesPorts),
+      setCategoryCostGroup: createSetExpenseCategoryCostGroupUseCase(expensesPorts),
       settleOccurrence: createSettleExpenseOccurrenceUseCase(expensesPorts),
       updateExpense: createUpdateExpenseUseCase(expensesPorts),
     }),
