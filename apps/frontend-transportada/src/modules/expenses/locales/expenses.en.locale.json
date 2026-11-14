@@ -53,7 +53,9 @@
     "EXPENSE_TRIP_ALREADY_INCLUDED": "This trip is already in another payment.",
     "EXPENSE_OCCURRENCE_TRIP_NOT_FOUND": "This trip is not in this payment.",
     "EXPENSE_OCCURRENCE_ALREADY_PAID": "This bill is already paid.",
-    "EXPENSE_OCCURRENCE_CANCELED": "This bill was canceled."
+    "EXPENSE_OCCURRENCE_CANCELED": "This bill was canceled.",
+    "VALIDATION_ERROR": "Check the period and the filters and try again.",
+    "INVALID_REQUEST": "Check the period and the filters and try again."
   },
   "loading": "Loading bills…",
   "filters": {
@@ -157,5 +159,95 @@
     "remove": "Remove",
     "pendingTrip": "Trip {{id}} is left out: {{gap}}.",
     "pendingTripRoute": "Trip {{id}} ({{route}}) is left out: {{gap}}."
+  },
+  "result": {
+    "title": "Result",
+    "calculatedAt": "Calculated at {{value}}",
+    "period": {
+      "from": "From",
+      "to": "To"
+    },
+    "totals": {
+      "revenue": "Revenue",
+      "tripCost": "Trip cost",
+      "expenses": "Expenses",
+      "profit": "Profit",
+      "unallocated": "Unallocated"
+    },
+    "tabs": {
+      "trip": "By trip",
+      "vehicle": "By vehicle",
+      "customer": "By customer"
+    },
+    "columns": {
+      "name": "Name",
+      "revenue": "Revenue",
+      "cost": "Cost",
+      "vehicleShare": "Vehicle expenses",
+      "generalShare": "General expenses",
+      "margin": "Margin"
+    },
+    "noVehicle": "No vehicle",
+    "noCustomer": "No customer",
+    "unallocated": {
+      "title": "Unallocated expenses",
+      "reason": {
+        "no_trip_weight": "No trip with weight in the period",
+        "vehicle_without_trips": "Vehicle with no trips in the period"
+      }
+    },
+    "excesses": {
+      "title": "Payment above the included trips"
+    },
+    "paymentsWithoutTrips": {
+      "title": "Payment with no included trips"
+    },
+    "filters": {
+      "title": "Filters",
+      "vehicle": "Vehicle",
+      "customer": "Customer",
+      "category": "Category",
+      "payee": "Driver, contractor or helper",
+      "all": "All",
+      "clear": "Clear filters",
+      "note": "Filters choose what is shown and summed; the allocation is always over the whole period."
+    },
+    "export": {
+      "pdf": "Export PDF",
+      "csv": "Export CSV",
+      "exporting": "Exporting…",
+      "failed": "Could not export."
+    },
+    "unitCosts": {
+      "title": "Cost per kilometer",
+      "general": "Overall",
+      "vehicle": "Vehicle",
+      "kilometers": "Kilometers",
+      "tripCost": "Trip cost",
+      "expensesShare": "Allocated expenses",
+      "totalCost": "Total cost",
+      "costPerKm": "Cost per km",
+      "noKilometers": "No kilometers"
+    },
+    "empty": "No completed trips in this period.",
+    "loading": "Calculating the result…"
+  },
+  "allocation": {
+    "title": "Expense allocation",
+    "subtitle": "How each expense group is split across the trips of the period.",
+    "group": {
+      "vehicle_fixed": "Fixed vehicle expenses",
+      "per_km": "Per-kilometer variable expenses",
+      "administrative": "Administrative expenses"
+    },
+    "criterion": {
+      "per_km": "Per kilometer",
+      "per_trip_day": "Per trip day",
+      "per_revenue": "By revenue",
+      "equal": "Equal per trip"
+    },
+    "save": "Save criteria",
+    "saved": "Criteria saved.",
+    "loading": "Loading the criteria…"
   }
 }

@@ -88,8 +88,9 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 ## Fase 5 — Painel de resultado
 
-- [ ] **T5.1** Módulo no frontend: cliente, validação, hooks, locales pt/en para o resultado e o rateio.
+- [x] **T5.1** Módulo no frontend: cliente, validação, hooks, locales pt/en para o resultado e o rateio.
   > 🤖 Modelo: `sonnet`
+      Feita: no módulo `expenses` (mesma chave raiz da T2.1): `expensesResult.types.ts`, `expensesResult.validation.ts` (guard manual, dinheiro sempre texto, margem e lucro com sinal), 5 métodos novos em `expensesClient.service.ts` (resultado, custo por km, ler e trocar o rateio, exportar PDF/CSV com os mesmos filtros), hooks `useExpenseResult.hook.ts` e locales pt/en (`result`, `allocation`). Contrato `test/expenses/result.contract.ts` na lista do `package.json`. Sem tela: a página é a T5.2, os filtros e botões a T5.2b e o painel de rateio a T5.3. Notas em `evidence.md` § T5.1.
 - [ ] **T5.2** Página `/contas/resultado`: indicadores, últimos meses, abas por viagem/veículo/cliente.
   > 🤖 Modelo: `sonnet`
 - [ ] **T5.2b** Filtros (período, veículo, cliente, categoria, motorista/agregado) e botões Exportar PDF/CSV na página de resultado (RF18).
