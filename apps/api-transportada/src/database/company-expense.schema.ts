@@ -73,6 +73,11 @@ export const COMPANY_EXPENSE_DEFAULT_CRITERION: Readonly<
   Record<(typeof COMPANY_EXPENSE_ALLOCATABLE_GROUPS)[number], CompanyExpenseAllocationCriterion>
 > = { administrative: 'per_revenue', per_km: 'per_km', vehicle_fixed: 'per_km' }
 
+/** Spec 325 RF26/RF29 (T7.2): canais do lembrete e canais de onde vem a baixa por resposta. */
+export const COMPANY_EXPENSE_REMINDER_KINDS = ['before', 'due_today', 'overdue'] as const
+export const COMPANY_EXPENSE_REMINDER_CHANNELS = ['email', 'push', 'whatsapp'] as const
+export const COMPANY_EXPENSE_REPLY_CHANNELS = ['email', 'whatsapp'] as const
+
 const inList = (values: readonly string[]): string => values.map((v) => `'${v}'`).join(', ')
 
 /** Spec 325 RF2: categorias de conta, cadastro da empresa (nome único; desativa em vez de apagar). */
@@ -172,6 +177,8 @@ export const companyExpenses = pgTable(
     payeeDriverId: uuid('payee_driver_id'),
     /** Dúvida 2: veículo opcional (seguro, IPVA, pneu), sem rateio. */
     vehicleId: uuid('vehicle_id'),
+    /** RF24 (T7.2): quem recebe os lembretes de vencimento; nulo → os administradores da empresa. */
+    responsibleUserId: uuid('responsible_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -180,6 +187,13 @@ export const companyExpenses = pgTable(
       columns: [table.companyId],
       foreignColumns: [companies.id],
       name: 'company_expenses_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.responsibleUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'company_expenses_responsible_user_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
@@ -255,6 +269,11 @@ export const companyExpenseOccurrences = pgTable(
     paidAt: timestamp('paid_at', { withTimezone: true }),
     paidByUserId: uuid('paid_by_user_id'),
     settlementNote: text('settlement_note'),
+    /** RF30 (T7.2): canal e hora da baixa por resposta ("paguei"); nulos quando a baixa foi dada pelo painel (RF5). */
+    settledViaChannel: varchar('settled_via_channel', { length: 16 }).$type<
+      (typeof COMPANY_EXPENSE_REPLY_CHANNELS)[number]
+    >(),
+    settledByReplyAt: timestamp('settled_by_reply_at', { withTimezone: true }),
     canceledAt: timestamp('canceled_at', { withTimezone: true }),
     canceledByUserId: uuid('canceled_by_user_id'),
     cancelReason: text('cancel_reason'),
@@ -305,6 +324,11 @@ export const companyExpenseOccurrences = pgTable(
     check(
       'company_expense_occurrences_paid_check',
       sql`(${table.status} = 'paid' and ${table.paidAmount} > 0 and ${table.paidAt} is not null and ${table.paidByUserId} is not null) or (${table.status} <> 'paid' and ${table.paidAmount} is null and ${table.paidAt} is null and ${table.paidByUserId} is null)`,
+    ),
+    /** RF30/RF31: canal e hora andam juntos e só existem em ocorrência paga (o desfazer os zera ao reabrir). */
+    check(
+      'company_expense_occurrences_reply_check',
+      sql`(${table.settledViaChannel} is null) = (${table.settledByReplyAt} is null) and (${table.settledViaChannel} is null or ${table.status} = 'paid') and (${table.settledViaChannel} is null or ${table.settledViaChannel} in (${sql.raw(inList(COMPANY_EXPENSE_REPLY_CHANNELS))}))`,
     ),
     check(
       'company_expense_occurrences_canceled_check',
@@ -396,5 +420,178 @@ export const companyExpenseOccurrenceTrips = pgTable(
     check('company_expense_occurrence_trips_amount_check', sql`${table.amount} >= 0`),
     check('company_expense_occurrence_trips_daily_amount_check', sql`${table.dailyAmount} >= 0`),
     check('company_expense_occurrence_trips_days_check', sql`${table.days} >= 1`),
+  ],
+)
+
+/**
+ * Spec 325 RF25/RF26/RF27 (T7.2): a configuração dos lembretes, uma linha por empresa. Sem linha vale o padrão
+ * (`DEFAULT_REMINDER_SETTINGS`: 3 dias antes, até 3 avisos de atraso, só e-mail, sem resumo). E-mail é sempre o
+ * padrão (RF26) e por isso não tem coluna de desligar além da `email_enabled`, que nasce ligada.
+ */
+export const companyExpenseReminderSettings = pgTable(
+  'company_expense_reminder_settings',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    daysBefore: smallint('days_before').notNull().default(3),
+    maxOverdueNotices: smallint('max_overdue_notices').notNull().default(3),
+    emailEnabled: boolean('email_enabled').notNull().default(true),
+    whatsappEnabled: boolean('whatsapp_enabled').notNull().default(false),
+    pushEnabled: boolean('push_enabled').notNull().default(false),
+    /** RF27: resumo diário opcional; hora cheia em America/Sao_Paulo (padrão 08:00). */
+    dailySummaryEnabled: boolean('daily_summary_enabled').notNull().default(false),
+    dailySummaryHour: smallint('daily_summary_hour').notNull().default(8),
+    updatedByUserId: uuid('updated_by_user_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_expense_reminder_settings_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.updatedByUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'company_expense_reminder_settings_updated_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_expense_reminder_settings_company_unique').on(table.companyId),
+    check(
+      'company_expense_reminder_settings_days_check',
+      sql`${table.daysBefore} between 0 and 30 and ${table.maxOverdueNotices} between 0 and 10`,
+    ),
+    check(
+      'company_expense_reminder_settings_summary_hour_check',
+      sql`${table.dailySummaryHour} between 0 and 23`,
+    ),
+  ],
+)
+
+/**
+ * Spec 325 RF28 (T7.2): o registro dos avisos enviados. A chave única `(ocorrência, responsável, dia, tipo)` é o que
+ * torna a rotina idempotente: gravar com `ON CONFLICT DO NOTHING` e só enviar quando a linha entrou (a porta
+ * `sent.record` devolve `false` na repetição). O canal não entra na chave: um aviso por pessoa e dia (T7.1).
+ */
+export const companyExpenseRemindersSent = pgTable(
+  'company_expense_reminders_sent',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    recipientUserId: uuid('recipient_user_id').notNull(),
+    /** Dia civil de America/Sao_Paulo em que o aviso saiu. */
+    day: date({ mode: 'string' }).notNull(),
+    kind: varchar({ length: 16 }).notNull(),
+    channel: varchar({ length: 16 }).notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [companyExpenseOccurrences.companyId, companyExpenseOccurrences.id],
+      name: 'company_expense_reminders_sent_occurrence_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.recipientUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'company_expense_reminders_sent_recipient_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_expense_reminders_sent_key_unique').on(
+      table.occurrenceId,
+      table.recipientUserId,
+      table.day,
+      table.kind,
+    ),
+    index('company_expense_reminders_sent_day_idx').on(table.companyId, table.day),
+    check(
+      'company_expense_reminders_sent_kind_check',
+      sql`${table.kind} in (${sql.raw(inList(COMPANY_EXPENSE_REMINDER_KINDS))})`,
+    ),
+    check(
+      'company_expense_reminders_sent_channel_check',
+      sql`${table.channel} in (${sql.raw(inList(COMPANY_EXPENSE_REMINDER_CHANNELS))})`,
+    ),
+  ],
+)
+
+/** Spec 325 RF27/RF28 (T7.2): o resumo diário enviado, um por pessoa e dia (idempotência da rotina). */
+export const companyExpenseSummariesSent = pgTable(
+  'company_expense_summaries_sent',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    recipientUserId: uuid('recipient_user_id').notNull(),
+    day: date({ mode: 'string' }).notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_expense_summaries_sent_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.recipientUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'company_expense_summaries_sent_recipient_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_expense_summaries_sent_key_unique').on(
+      table.companyId,
+      table.recipientUserId,
+      table.day,
+    ),
+  ],
+)
+
+/**
+ * Spec 325 RF29 (T7.2): o link assinado do botão "Já paguei" do e-mail. Uso único, com validade; guarda só o **hash**
+ * do token (SHA-256, hex), nunca o token. `used_at` é gravado por `consume` na mesma transação da baixa.
+ */
+export const companyExpenseReplyLinks = pgTable(
+  'company_expense_reply_links',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    occurrenceId: uuid('occurrence_id').notNull(),
+    recipientUserId: uuid('recipient_user_id').notNull(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.occurrenceId],
+      foreignColumns: [companyExpenseOccurrences.companyId, companyExpenseOccurrences.id],
+      name: 'company_expense_reply_links_occurrence_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.recipientUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'company_expense_reply_links_recipient_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_expense_reply_links_token_hash_unique').on(table.tokenHash),
+    index('company_expense_reply_links_occurrence_idx').on(table.occurrenceId),
+    check(
+      'company_expense_reply_links_token_hash_check',
+      sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`,
+    ),
   ],
 )
