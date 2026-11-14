@@ -471,6 +471,27 @@ contrato que a cobra.
 - `bun test ./test/expenses.contract.test.ts`: **194 pass / 0 fail** (inclui os 26 da T6.1, agora verdes, e os de borda).
 - `bunx tsc --noEmit`: limpo. `bunx eslint` e `bunx prettier --check` nos arquivos alterados: limpos.
 
+## T6.3 — Caso de uso e rota da previsão e do fora do padrão (2026-11-14)
+
+**O que entrou** (`apps/api-transportada`): `src/expenses/application/expense-forecast.{port,use-case}.ts`, `infrastructure/drizzle-expense-forecast.repository.ts`, `presentation/expense-forecast.routes.ts`, ligados em `main.ts`; `buildExpenseUnitCosts` extraído do custo por km da T4.5 para o fora do padrão reaproveitar o mesmo cálculo.
+
+**Como o mês é lido.** `month` é o mês corrente; o previsto é o seguinte; o histórico são os 6 meses fechados antes dele, cada um por `computeExpenseResult` (faturamento e custo das viagens do mesmo caminho do painel); o padrão de cada item são os 3 fechados mais recentes. Dias úteis: calendário da cidade do perfil fiscal da empresa (spec 238, sábado conforme o ajuste); sem perfil ou com calendário recusado, segunda a sexta.
+
+**Decisões.**
+
+- Pagamento de motorista (`in_trip`) nunca entra nas contas do mês previsto nem no alerta: já está no custo das viagens (RF13).
+- Contas do mês previsto = ocorrências não canceladas da competência (fixas geradas até 3 meses à frente e variáveis já lançadas), pelo valor pago, se baixada, senão o previsto.
+- Itens do alerta: conta (`expense`), categoria (`category`) e custo por km do veículo (`vehicle_cost_per_km`, arredondado ao centavo como a tela mostra). Mês em que o item não existiu fica de fora de `previousMonths` (ausência, não zero); com menos de 3 meses a regra da T6.2 não alerta.
+- Limite: coluna `out_of_pattern_threshold_percent` em `company_expense_allocation_settings` (padrão 10). A troca grava o mesmo valor nos três grupos, criando a linha que faltar com o critério padrão; a configuração do rateio (T4.5), ao criar uma linha, herda o limite da empresa. Sem linha, vale 10.
+- **Recorte de staging (spec 291):** nenhuma tabela nova — a tabela já tem política `keep` em `deploy/staging-refresh/prune-source.sql`, e a coluna acompanha.
+
+**Provas.**
+
+- `test/expenses/forecast-use-case.contract.ts` (12) e `forecast-routes.contract.ts` (4): previsão indisponível/limitada/ok, contas do mês previsto, `in_trip` fora, isolamento por empresa (CA10), limite padrão, personalizado e exatamente no limite (CA13), custo por km com placa, mês sem viagem não vira zero, permissões e `companyId` só do contexto, mês inválido 400.
+- `test/database-migration/company-expense-out-of-pattern-threshold.static.contract.ts` (2) e a cadeia de migrations (`static-migration.contract.ts`).
+- `test/integration/expense-forecast.integration.ts` (7, Postgres 16 descartável): padrão 10 sem linha, troca só da empresa, três grupos, auditoria, herança pela configuração do rateio, CHECK recusando 1000,01, dias úteis sem perfil (21 em 11/2026), caso de uso inteiro sobre o SQL real. Rollback aplicado em banco migrado: coluna e CHECK saem e a linha do diário também.
+- `bun run test` (15376 pass, 0 fail), `bun run lint`, `bun run typecheck` e `drizzle-kit check` verdes.
+
 ## T7.1 — Contratos vermelhos dos lembretes e da baixa por resposta (2026-11-13)
 
 **O que entrou** (`apps/api-transportada`, tudo vermelho de propósito; rodar com `bun --env-file=../../.env.test test ./test/expenses/reminders-red-entrypoint.ts`):

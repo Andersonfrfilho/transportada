@@ -124,6 +124,16 @@ export const companyExpenseAllocationSettings = pgTable(
     companyId: uuid('company_id').notNull(),
     costGroup: varchar('cost_group', { length: 16 }).notNull(),
     criterion: varchar({ length: 16 }).notNull(),
+    /**
+     * Spec 325 T6.3 (RF23): limite do alerta de "fora do padrão", em pontos percentuais (padrão 10). É da empresa, não do
+     * grupo: a escrita grava o mesmo valor em todas as linhas e a leitura usa qualquer uma (sem linha, o padrão).
+     */
+    outOfPatternThresholdPercent: numeric('out_of_pattern_threshold_percent', {
+      precision: 6,
+      scale: 2,
+    })
+      .notNull()
+      .default('10.00'),
     updatedByUserId: uuid('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -150,6 +160,12 @@ export const companyExpenseAllocationSettings = pgTable(
     check(
       'company_expense_allocation_settings_cost_group_check',
       sql.raw(`"cost_group" in (${inList(COMPANY_EXPENSE_ALLOCATABLE_GROUPS)})`),
+    ),
+    check(
+      'company_expense_allocation_settings_threshold_check',
+      sql.raw(
+        `"out_of_pattern_threshold_percent" >= 0 and "out_of_pattern_threshold_percent" <= 1000`,
+      ),
     ),
     check(
       'company_expense_allocation_settings_criterion_check',
