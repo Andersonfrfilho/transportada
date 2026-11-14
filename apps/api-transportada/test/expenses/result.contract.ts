@@ -289,3 +289,34 @@ describe('o critério da empresa vale na leitura (ADR-0116 §2, §4)', () => {
     expect(cents(t2?.generalShare ?? '0')).toBeGreaterThan(cents(t1?.generalShare ?? '0'))
   })
 })
+
+describe('detalhes da viagem no resultado (T5.2, aditivo)', () => {
+  it('cada linha de viagem traz veículo, cliente, metros e trajeto sem mexer nos valores', async () => {
+    const ports = seed()
+    ports.tripRows[0] = aTrip({
+      cost: '300.00',
+      customerId: CUSTOMER_1,
+      distanceMeters: 620_000,
+      revenue: '1000.00',
+      route: { destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' },
+      tripId: 't1',
+      vehicleId: VEHICLE_1,
+    })
+    const result = await createGetExpenseResultUseCase(ports).execute({
+      companyId: RESULT_COMPANY_A,
+      ...PERIOD,
+    })
+
+    const t1 = result.byTrip.find((line) => line.id === 't1')
+    expect(t1?.trip).toEqual({
+      customerId: CUSTOMER_1,
+      distanceMeters: 620_000,
+      route: { destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' },
+      vehicleId: VEHICLE_1,
+    })
+    // Viagem sem trajeto lido: `null`, nunca ausente.
+    expect(result.byTrip.find((line) => line.id === 't2')?.trip.route).toBeNull()
+    // Os valores são os de sempre (cada linha ainda fecha com o total).
+    expect(sumCents(result.byTrip.map((line) => line.revenue))).toBe(cents(result.totals.revenue))
+  })
+})

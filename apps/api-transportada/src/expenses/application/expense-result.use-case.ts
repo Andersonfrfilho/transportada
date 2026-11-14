@@ -6,6 +6,7 @@
  * veículo e por cliente fecha com ele, centavo a centavo, com o não rateado sempre à vista.
  */
 import { formatCents, parseMoneyToCents } from '../domain/expense-money.policy.js'
+import type { ExpenseTripRoute } from '../domain/expense-trip-route.policy.js'
 import {
   allocateExpenses,
   DEFAULT_ALLOCATION_SETTINGS,
@@ -48,9 +49,20 @@ export type ExpenseResultLine = {
   readonly vehicleShare: string
 }
 
+/** O que a tela mostra ao lado da viagem (aditivo: quem só lê os valores ignora). */
+export type ExpenseResultTripInfo = {
+  readonly customerId: string
+  /** Metros da rota, para a tela dizer os quilômetros. */
+  readonly distanceMeters: number
+  readonly route: ExpenseTripRoute | null
+  readonly vehicleId: string
+}
+
+export type ExpenseResultTripLine = ExpenseResultLine & { readonly trip: ExpenseResultTripInfo }
+
 export type ExpenseResult = {
   readonly byCustomer: readonly ExpenseResultLine[]
-  readonly byTrip: readonly ExpenseResultLine[]
+  readonly byTrip: readonly ExpenseResultTripLine[]
   readonly byVehicle: readonly ExpenseResultLine[]
   /** Pagamento que passou das viagens incluídas, rateado como conta da empresa (ADR-0116 §5). */
   /** Os filtros aplicados, só quando houve algum. */
@@ -221,11 +233,23 @@ export async function computeExpenseResult(
       .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
       .map(([id, totals]) => toLine(id, totals))
 
+  const tripById = new Map(trips.map((trip) => [trip.tripId, trip]))
   const payeeByOccurrence = new Map(active.map((o) => [o.occurrenceId, o.payeeDriverId]))
   const nameByOccurrence = new Map(active.map((o) => [o.occurrenceId, o.name]))
   const result: ExpenseResult = {
     byCustomer: lines(byCustomer),
-    byTrip: lines(byTrip),
+    byTrip: lines(byTrip).map((line) => {
+      const trip = tripById.get(line.id)
+      return {
+        ...line,
+        trip: {
+          customerId: trip?.customerId ?? '',
+          distanceMeters: trip?.distanceMeters ?? 0,
+          route: trip?.route ?? null,
+          vehicleId: trip?.vehicleId ?? '',
+        },
+      }
+    }),
     byVehicle: lines(byVehicle),
     excesses: keptExcesses.map((excess) => ({
       amount: excess.amount,
