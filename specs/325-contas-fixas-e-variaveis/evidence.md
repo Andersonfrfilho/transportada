@@ -612,4 +612,6 @@ contrato que a cobra.
 - Linha de viagem: código, cliente e trajeto (primeira → última parada) na célula da viagem; colunas de veículo (placa) e km próprias. Sem dado, "—".
 - Tema escuro com contraste e bordas iguais aos do restante do painel; sem rolagem horizontal no celular.
 
-**Fora desta task.** O cartão "Previsão" e a lista "Fora do padrão" da página de resultado são da T6.4 (PR 771, ainda aberto); os prints da página com esses blocos saem lá. Sem mudança de código, de API nem em produção: o runbook não muda.
+**Atualização (2026-11-14, depois do merge da T6.4, PR 771).** Os quatro `prints/resultado-*` foram regerados com o cartão "Previsão" e a lista "Fora do padrão" visíveis na página inteira (a dublagem de `GET /expense-forecast` entrou no smoke `spec-325-resultado-prints.smoke.spec.ts`, que também confere que a região da previsão aparece; a checagem da placa na aba "Por veículo" passou a ser escopada à aba, porque a placa agora também aparece na previsão). Ordem na página conferida nos quatro prints: indicadores, previsão (aviso de poucos dados, faixa, como é calculado), fora do padrão, últimos meses e margem por viagem. Mesmo molde de cartão, `.table` e selos da tela vizinha; sem rolagem horizontal no celular. Os recortes `previsao-*` da T6.4 ficaram como estavam.
+
+**Fora desta task.** Sem mudança de código de produto, de API nem em produção: o runbook não muda.
