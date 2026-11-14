@@ -555,44 +555,6 @@ contrato que a cobra.
 - `bun test ./test/deploy.contract.test.ts` 214 pass / 0 fail; `./test/expenses.contract.test.ts` 133 pass / 0 fail; `migration-chain` 4 pass; `tsc --noEmit`, `eslint` e `prettier --check` limpos.
 - Os 31 contratos vermelhos da T7.1 seguem fora da lista oficial (a T7.4/T7.4b os movem).
 
-## T5.2 e T5.2b — Página de resultado, filtros e exportação (2026-11-14)
-
-**O que entrou** (`apps/frontend-transportada`, módulo `expenses`): `pages/ExpenseResult.page.tsx`, `hooks/useExpenseResultPage.hook.ts`, `shared/expensesResultView.service.ts`, locales `resultPage.*` (pt/en), estilos em `expenses.module.css` e a rota `/contas/resultado` em `main.tsx` (mesmo workspace `expenses`; o menu não ganhou entrada nova, a página abre por "Ver resultado" em Contas).
-
-**Decisões**
-
-- Variação dos indicadores é sobre o **período anterior de mesmo tamanho**, com os mesmos filtros (uma segunda leitura de `GET /expense-result`). "Últimos meses" são quatro leituras mensais até o mês do fim do período, também com os filtros.
-- Custo, receita e margem por km usam os quilômetros de `GET /expense-unit-costs` do período; sem quilômetro mostram "—".
-- Nomes: veículo (placa) e cliente vêm das listas de opções dos filtros; id sem nome cai no próprio id. **Viagem aparece pelos 8 primeiros caracteres do id** (a viagem não tem número no banco). Veículo, cliente, km e trajeto vieram no follow-up abaixo.
-- Previsão e "fora do padrão" do preview são da T6.4, não desta tarefa. "Comparar com" e "Critério de rateio" não são filtros desta tela (o critério é da T5.3).
-- Exportar usa `saveArchiveFile` com o blob da rota da T4.6; falha mostra alerta.
-
-**Resultado medido**
-
-- `bun test ./test/expenses.contract.test.ts`: 43 pass / 0 fail (contrato novo `test/expenses/result-view.contract.ts`: períodos, tendência, percentuais, centavos). `tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
-- Prints (smoke `test/spec-325-resultado-prints.smoke.spec.ts`, API dublada, fora da CI): `prints/resultado-{light,dark}-{desktop,mobile}.png`. Conferidos contra a tela de Contas vizinha: rótulo em cima, campos na altura padrão, botões `Button` padrão, tabelas no molde `.table` (cartão no celular). Exportar CSV exercitado no smoke (`format=csv` na requisição).
-
-## T5.2 — Detalhes da viagem no resultado (follow-up, 2026-11-14)
-
-- API: cada linha de `byTrip` ganha `trip { vehicleId, customerId, distanceMeters, route }` (aditivo; `byVehicle`/`byCustomer` e os valores não mudam). O trajeto é o da T2.2b (`deriveExpenseTripRoute`, primeira e última parada), lido em lote por `readTripRoutes`, extraído de `payable-trip.query.ts` e agora usado também por `allocation-trip.query.ts`. `AllocationTrip.route` é opcional e não entra no rateio.
-- Painel: `trip` é opcional na guarda (API anterior segue valendo; a coluna cai em "—"). Linha mostra código, cliente e trajeto, mais veículo e km. **Ordem de publicação: painel e API juntos em staging; o painel tolera a API antiga.**
-- Medido: `bun --env-file=../../.env.test test ./test/expenses.contract.test.ts` na API 211 pass / 0 fail (contrato novo "detalhes da viagem no resultado"); painel 44 pass / 0 fail; `tsc`, `eslint` e `prettier` limpos nas duas apps. Prints refeitos em `prints/resultado-*`.
-
-## T5.3 — Painel "Rateio das contas" (2026-11-14)
-
-**O que entrou**
-
-- API: `PUT /expense-categories/:id/cost-group` (`expenses.manage`, corpo `{ costGroup }` estrito). Caso de uso `createSetExpenseCategoryCostGroupUseCase`, porta `categories.setCostGroup`, repositório Drizzle e diário `expense.category.cost_group_changed` (antes, depois, nome). Regra: `in_trip` é só da categoria que exige motorista, e ela não sai dele; senão `422 EXPENSE_CATEGORY_COST_GROUP_INVALID`. Categoria de outra empresa é `404`. Sem migration: a coluna `cost_group` já existia (T4.3), e o rateio é calculado na leitura (ADR-0116), então nada gravado precisa ser refeito.
-- Painel: aba "Rateio das contas" em Configurações (`expenseAllocation` em `SETTINGS_PANELS`, `SETTINGS_PANEL_PLACEMENT` e `COMPANY_SETTINGS_TAB_IDS`). Três blocos: "Como cada grupo é dividido" (três seletores), "Fora do padrão" (limite em %, 0 a 1000 com até duas casas) e "Grupo de cada categoria". O rascunho guarda só o que a pessoa mexeu; o Salvar manda o diff e relê as três consultas. Sem `expenses.manage` os campos ficam desligados e o botão some.
-- Módulo `expenses`: `costGroup` na categoria (leitura tolerante: ausente vira `administrative`), `setCategoryCostGroup`, `getOutOfPatternThreshold` e `updateOutOfPatternThreshold` no cliente e hooks.
-
-**Resultado medido**
-
-- API: `bun test ./test/expenses.contract.test.ts` 214 pass / 0 fail (4 contratos novos em `category-cost-group.contract.ts`, mais a linha da rota em `expense-routes.contract.ts`); `tsc --noEmit` e `prettier --check` limpos.
-- Frontend: `bun run test` 8886 pass / 0 fail e `test:hooks` 1496 pass / 0 fail; contrato novo `test/expenses/allocation-panel.contract.ts` (endereço da aba, diff do Salvar, limite, rótulos, cliente e paridade pt/en). `tsc --noEmit` e `eslint` limpos nos arquivos tocados.
-- Primeira rodada reprovou `mutation-invalidation.contract.ts` (o hook do painel invalidava a chave `expenses` direto); corrigido: as mutações do módulo já renovam a raiz, e o painel só espera a releitura das próprias consultas.
-- Revisão de design (`web.md` §15), comparada com a aba vizinha "Categorias de contas": rótulo em cima, `Select` e campo na altura `--field-height`, botão padrão. Prints em `prints/rateio-{light,dark}-{desktop,mobile}.png` (1440 e 375), gerados por `test/spec-325-rateio-prints.smoke.spec.ts` (fora da CI). Desvios do preview aprovado: ganhou o bloco "Fora do padrão" (pedido da T5.3/T6.3) e o Salvar fica abaixo dos blocos.
-
 ## T7.3 — Modelo do aviso e regra de quem, por qual canal e quando (2026-11-14)
 
 **Regra** (`src/expenses/domain/expense-reminder.policy.ts`, pura; datas civis de São Paulo em texto):
@@ -649,3 +611,54 @@ A rota e a tela para a pessoa ligar WhatsApp/push ficam na T7.5.
   na cadeia, snapshot, contrato estático novo `company-expense-reminder-preferences.static.contract.ts`).
 - `bun test ./test/deploy.contract.test.ts` 214 pass; `tsc --noEmit`, `eslint` e `prettier --check` limpos.
 - Os 31 contratos vermelhos da T7.1 seguem fora da lista oficial (a T7.4/T7.4b os movem).
+
+## T5.2 e T5.2b — Página de resultado, filtros e exportação (2026-11-14)
+
+**O que entrou** (`apps/frontend-transportada`, módulo `expenses`): `pages/ExpenseResult.page.tsx`, `hooks/useExpenseResultPage.hook.ts`, `shared/expensesResultView.service.ts`, locales `resultPage.*` (pt/en), estilos em `expenses.module.css` e a rota `/contas/resultado` em `main.tsx` (mesmo workspace `expenses`; o menu não ganhou entrada nova, a página abre por "Ver resultado" em Contas).
+
+**Decisões**
+
+- Variação dos indicadores é sobre o **período anterior de mesmo tamanho**, com os mesmos filtros (uma segunda leitura de `GET /expense-result`). "Últimos meses" são quatro leituras mensais até o mês do fim do período, também com os filtros.
+- Custo, receita e margem por km usam os quilômetros de `GET /expense-unit-costs` do período; sem quilômetro mostram "—".
+- Nomes: veículo (placa) e cliente vêm das listas de opções dos filtros; id sem nome cai no próprio id. **Viagem aparece pelos 8 primeiros caracteres do id** (a viagem não tem número no banco). Veículo, cliente, km e trajeto vieram no follow-up abaixo.
+- Previsão e "fora do padrão" do preview são da T6.4, não desta tarefa. "Comparar com" e "Critério de rateio" não são filtros desta tela (o critério é da T5.3).
+- Exportar usa `saveArchiveFile` com o blob da rota da T4.6; falha mostra alerta.
+
+**Resultado medido**
+
+- `bun test ./test/expenses.contract.test.ts`: 43 pass / 0 fail (contrato novo `test/expenses/result-view.contract.ts`: períodos, tendência, percentuais, centavos). `tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
+- Prints (smoke `test/spec-325-resultado-prints.smoke.spec.ts`, API dublada, fora da CI): `prints/resultado-{light,dark}-{desktop,mobile}.png`. Conferidos contra a tela de Contas vizinha: rótulo em cima, campos na altura padrão, botões `Button` padrão, tabelas no molde `.table` (cartão no celular). Exportar CSV exercitado no smoke (`format=csv` na requisição).
+
+## T5.2 — Detalhes da viagem no resultado (follow-up, 2026-11-14)
+
+- API: cada linha de `byTrip` ganha `trip { vehicleId, customerId, distanceMeters, route }` (aditivo; `byVehicle`/`byCustomer` e os valores não mudam). O trajeto é o da T2.2b (`deriveExpenseTripRoute`, primeira e última parada), lido em lote por `readTripRoutes`, extraído de `payable-trip.query.ts` e agora usado também por `allocation-trip.query.ts`. `AllocationTrip.route` é opcional e não entra no rateio.
+- Painel: `trip` é opcional na guarda (API anterior segue valendo; a coluna cai em "—"). Linha mostra código, cliente e trajeto, mais veículo e km. **Ordem de publicação: painel e API juntos em staging; o painel tolera a API antiga.**
+- Medido: `bun --env-file=../../.env.test test ./test/expenses.contract.test.ts` na API 211 pass / 0 fail (contrato novo "detalhes da viagem no resultado"); painel 44 pass / 0 fail; `tsc`, `eslint` e `prettier` limpos nas duas apps. Prints refeitos em `prints/resultado-*`.
+
+## T5.3 — Painel "Rateio das contas" (2026-11-14)
+
+**O que entrou**
+
+- API: `PUT /expense-categories/:id/cost-group` (`expenses.manage`, corpo `{ costGroup }` estrito). Caso de uso `createSetExpenseCategoryCostGroupUseCase`, porta `categories.setCostGroup`, repositório Drizzle e diário `expense.category.cost_group_changed` (antes, depois, nome). Regra: `in_trip` é só da categoria que exige motorista, e ela não sai dele; senão `422 EXPENSE_CATEGORY_COST_GROUP_INVALID`. Categoria de outra empresa é `404`. Sem migration: a coluna `cost_group` já existia (T4.3), e o rateio é calculado na leitura (ADR-0116), então nada gravado precisa ser refeito.
+- Painel: aba "Rateio das contas" em Configurações (`expenseAllocation` em `SETTINGS_PANELS`, `SETTINGS_PANEL_PLACEMENT` e `COMPANY_SETTINGS_TAB_IDS`). Três blocos: "Como cada grupo é dividido" (três seletores), "Fora do padrão" (limite em %, 0 a 1000 com até duas casas) e "Grupo de cada categoria". O rascunho guarda só o que a pessoa mexeu; o Salvar manda o diff e relê as três consultas. Sem `expenses.manage` os campos ficam desligados e o botão some.
+- Módulo `expenses`: `costGroup` na categoria (leitura tolerante: ausente vira `administrative`), `setCategoryCostGroup`, `getOutOfPatternThreshold` e `updateOutOfPatternThreshold` no cliente e hooks.
+
+**Resultado medido**
+
+- API: `bun test ./test/expenses.contract.test.ts` 214 pass / 0 fail (4 contratos novos em `category-cost-group.contract.ts`, mais a linha da rota em `expense-routes.contract.ts`); `tsc --noEmit` e `prettier --check` limpos.
+- Frontend: `bun run test` 8886 pass / 0 fail e `test:hooks` 1496 pass / 0 fail; contrato novo `test/expenses/allocation-panel.contract.ts` (endereço da aba, diff do Salvar, limite, rótulos, cliente e paridade pt/en). `tsc --noEmit` e `eslint` limpos nos arquivos tocados.
+- Primeira rodada reprovou `mutation-invalidation.contract.ts` (o hook do painel invalidava a chave `expenses` direto); corrigido: as mutações do módulo já renovam a raiz, e o painel só espera a releitura das próprias consultas.
+- Revisão de design (`web.md` §15), comparada com a aba vizinha "Categorias de contas": rótulo em cima, `Select` e campo na altura `--field-height`, botão padrão. Prints em `prints/rateio-{light,dark}-{desktop,mobile}.png` (1440 e 375), gerados por `test/spec-325-rateio-prints.smoke.spec.ts` (fora da CI). Desvios do preview aprovado: ganhou o bloco "Fora do padrão" (pedido da T5.3/T6.3) e o Salvar fica abaixo dos blocos.
+
+## T5.4 — Prints finais e comparação de design da Fase 5 (2026-11-14)
+
+**O que foi feito.** Prints de `/contas/resultado` (T5.2/T5.2b, com as linhas de viagem mostrando veículo, cliente, km e trajeto) e do painel "Rateio das contas" em Configurações (T5.3), regerados do `staging` em claro/escuro × desktop (1440) e celular (390), pelos smokes `test/spec-325-resultado-prints.smoke.spec.ts` e `test/spec-325-rateio-prints.smoke.spec.ts` (API dublada, fora da CI, `VITE_SMOKE_AUTH_BYPASS=true`). Arquivos: `prints/resultado-{light,dark}-{desktop,mobile}.png` e `prints/rateio-{light,dark}-{desktop,mobile}.png` (8 imagens; as de celular saíram idênticas às já versionadas).
+
+**Conferência (`web.md` §15), comparada com a tela vizinha de Contas e a aba "Categorias de contas":**
+
+- Rótulo em cima de cada campo; `DateRangePicker` e `Select` na altura padrão (`--field-height`); botões "Exportar PDF/CSV" e "Voltar às contas" são o `Button` padrão, sem estilo próprio.
+- Cartão de indicadores, "Últimos meses" e tabela de margem no molde `.table` (cartão empilhado no celular, um filho por célula, sem o desvio da grade de duas colunas corrigido na T2.4).
+- Linha de viagem: código, cliente e trajeto (primeira → última parada) na célula da viagem; colunas de veículo (placa) e km próprias. Sem dado, "—".
+- Tema escuro com contraste e bordas iguais aos do restante do painel; sem rolagem horizontal no celular.
+
+**Fora desta task.** O cartão "Previsão" e a lista "Fora do padrão" da página de resultado são da T6.4 (PR 771, ainda aberto); os prints da página com esses blocos saem lá. Sem mudança de código, de API nem em produção: o runbook não muda.
