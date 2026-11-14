@@ -128,6 +128,9 @@ for (const theme of THEMES) {
           status: 200,
         })
       })
+      await page.route(/\/expense-forecast(?:\?.*)?$/, (route) =>
+        fulfill(route, forecastBody('limited')),
+      )
       await page.route(/\/expense-unit-costs(?:\?.*)?$/, (route) =>
         fulfill(route, {
           calculatedAt: new Date().toISOString(),
@@ -161,13 +164,14 @@ for (const theme of THEMES) {
       await openResult(page)
       await expect(page.getByRole('heading', { level: 1, name: 'Resultado do mês' })).toBeVisible()
       await expect(page.getByText('Faturamento de fretes')).toBeVisible()
+      await expect(page.getByRole('region', { name: /Previsão de/ })).toBeVisible()
       await page.screenshot({
         fullPage: true,
         path: resolve(PRINTS_DIRECTORY, `resultado-${theme}-${viewport}.png`),
       })
 
       await page.getByRole('tab', { name: 'Por veículo' }).click()
-      await expect(page.getByText('ABC1D23')).toBeVisible()
+      await expect(page.getByLabel('Por veículo').getByText('ABC1D23')).toBeVisible()
       await page.getByRole('button', { name: 'Exportar planilha (CSV)' }).click()
       await expect.poll(() => exportRequest).toContain('format=csv')
     })
