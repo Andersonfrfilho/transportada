@@ -10,6 +10,7 @@ import {
   parsePublishArguments,
   publishOccurrenceMailTemplates,
   readAddressCorrectionMailTemplateFile,
+  readExpenseTemplateFiles,
   readOccurrenceMailTemplateFiles,
   readOccurrenceWhatsappTemplateFiles,
   type PublicationPlan,
@@ -17,7 +18,7 @@ import {
 
 /**
  * Spec 272 T4.3 (ADR-0110 §13, D14): grava os modelos HTML do e-mail de ocorrência, o da correção de endereço (spec 286) e
- * o texto WhatsApp do aviso manual à contratante (spec 324 T1b) no módulo de notificação, uma versão nova por chave, nunca `UPDATE`. Sem `--confirm` só imprime o plano; `--confirm`
+ * o texto WhatsApp do aviso manual à contratante (spec 324 T1b) e os modelos das contas (spec 325 T7.3) no módulo de notificação, uma versão nova por chave, nunca `UPDATE`. Sem `--confirm` só imprime o plano; `--confirm`
  * aplica só `create`; `differs` exige `--overwrite <chave>`. Em staging/produção é mudança de dados: pede
  * aprovação humana. Imprime só chaves, versões e o veredito.
  *
@@ -61,6 +62,7 @@ async function main(): Promise<void> {
         ...readOccurrenceMailTemplateFiles(),
         readAddressCorrectionMailTemplateFile(),
         ...readOccurrenceWhatsappTemplateFiles(),
+        ...readExpenseTemplateFiles(),
       ],
     })
 

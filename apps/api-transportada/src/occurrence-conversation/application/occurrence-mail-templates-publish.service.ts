@@ -8,11 +8,19 @@
  *
  * Spec 324 (T1b, D10): o modelo geral do aviso manual à contratante tem também a versão WhatsApp da mesma chave
  * (`occurrence-whatsapp-templates/*.txt`, sem assunto). Cada modelo diz o canal; o plano o mostra ao lado da chave.
+ *
+ * Spec 325 (T7.3): os modelos das contas (`contas.aviso-vencimento` em e-mail e WhatsApp, `contas.resumo-diario` em
+ * e-mail) entram na mesma publicação, com a régua deles (`expense-reminder-mail-template.policy.ts`).
  */
 import { readdirSync, readFileSync } from 'node:fs'
 
 import { ADDRESS_CORRECTION_MAIL_TEMPLATE_KEY } from '../../address-correction/domain/address-correction-mail-template.constant.js'
 import { assessAddressCorrectionTemplate } from '../../address-correction/domain/address-correction-mail-template.policy.js'
+import { EXPENSE_TEMPLATE_KEY_PREFIX } from '../../expenses/domain/expense-reminder-mail-template.constant.js'
+import {
+  assessExpenseMailTemplate,
+  assessExpenseWhatsappTemplate,
+} from '../../expenses/domain/expense-reminder-mail-template.policy.js'
 import {
   assessManualNoticeEmailTemplate,
   assessManualNoticeWhatsappTemplate,
@@ -28,6 +36,14 @@ const TEMPLATES_DIR = new URL('../occurrence-mail-templates/', import.meta.url)
 const WHATSAPP_TEMPLATES_DIR = new URL('../occurrence-whatsapp-templates/', import.meta.url)
 const ADDRESS_CORRECTION_TEMPLATE_FILE = new URL(
   '../../address-correction/address-correction-mail-templates/correcao-endereco.html',
+  import.meta.url,
+)
+const EXPENSE_MAIL_TEMPLATES_DIR = new URL(
+  '../../expenses/expense-mail-templates/',
+  import.meta.url,
+)
+const EXPENSE_WHATSAPP_TEMPLATES_DIR = new URL(
+  '../../expenses/expense-whatsapp-templates/',
   import.meta.url,
 )
 const KEY_PREFIX = 'ocorrencia.'
@@ -133,6 +149,27 @@ export function readOccurrenceWhatsappTemplateFiles(): readonly OccurrenceMailTe
     }))
 }
 
+/** Spec 325 (T7.3): os modelos das contas, e-mail e WhatsApp, chave `contas.<arquivo>`. */
+export function readExpenseTemplateFiles(): readonly OccurrenceMailTemplateFile[] {
+  const mail = readdirSync(EXPENSE_MAIL_TEMPLATES_DIR)
+    .filter((name) => name.endsWith('.html'))
+    .sort()
+    .map((name) => ({
+      ...parseTemplateFile(readFileSync(new URL(name, EXPENSE_MAIL_TEMPLATES_DIR), 'utf8')),
+      key: `${EXPENSE_TEMPLATE_KEY_PREFIX}${name.slice(0, -'.html'.length)}`,
+    }))
+  const whatsapp = readdirSync(EXPENSE_WHATSAPP_TEMPLATES_DIR)
+    .filter((name) => name.endsWith('.txt'))
+    .sort()
+    .map((name) => ({
+      body: readFileSync(new URL(name, EXPENSE_WHATSAPP_TEMPLATES_DIR), 'utf8').trimEnd(),
+      channel: OCCURRENCE_WHATSAPP_TEMPLATE_CHANNEL,
+      key: `${EXPENSE_TEMPLATE_KEY_PREFIX}${name.slice(0, -'.txt'.length)}`,
+      subject: '',
+    }))
+  return [...mail, ...whatsapp]
+}
+
 function channelOf(template: OccurrenceMailTemplateFile): OccurrenceTemplateChannel {
   return template.channel ?? OCCURRENCE_MAIL_TEMPLATE_CHANNEL
 }
@@ -145,6 +182,11 @@ export function templateSlot(template: OccurrenceMailTemplateFile): string {
 
 /** Cada família de modelo tem a sua régua de variáveis. */
 function assessTemplateFile(template: OccurrenceMailTemplateFile): readonly PublicationProblem[] {
+  if (template.key.startsWith(EXPENSE_TEMPLATE_KEY_PREFIX)) {
+    return channelOf(template) === OCCURRENCE_WHATSAPP_TEMPLATE_CHANNEL
+      ? assessExpenseWhatsappTemplate({ body: template.body, key: template.key })
+      : assessExpenseMailTemplate({ key: template.key, template })
+  }
   if (channelOf(template) === OCCURRENCE_WHATSAPP_TEMPLATE_CHANNEL) {
     return assessManualNoticeWhatsappTemplate(template)
   }
