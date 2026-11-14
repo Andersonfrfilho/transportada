@@ -26,7 +26,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261114004108_company_expense_reminder_preferences';
+    WHERE "name" = '20261114014120_company_expense_reminder_preferences';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

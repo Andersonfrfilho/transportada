@@ -82,7 +82,7 @@ export type ExpenseResult = {
 const ZERO = 0n
 
 /** Pago vale o pago; o resto vale o previsto. Cancelada nunca entra (ADR-0116 §3). */
-function considered(occurrence: ResultOccurrence): string {
+export function considered(occurrence: ResultOccurrence): string {
   return occurrence.status === 'paid' && occurrence.paidAmount !== null
     ? occurrence.paidAmount
     : occurrence.expectedAmount
@@ -317,37 +317,38 @@ function unitLine(
  * Custo do veículo = custo das viagens + contas rateadas a elas; o geral soma também o não rateado, para que ele
  * represente todo o custo do período dividido por todos os quilômetros.
  */
+export function buildExpenseUnitCosts(computed: ComputedExpenseResult): ExpenseUnitCosts {
+  const metersByVehicle = new Map<string, bigint>()
+  for (const trip of computed.trips) {
+    const meters = BigInt(Math.max(0, Math.round(trip.distanceMeters)))
+    metersByVehicle.set(trip.vehicleId, (metersByVehicle.get(trip.vehicleId) ?? ZERO) + meters)
+  }
+  const perVehicle = [...computed.vehicleTotals.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([vehicleId, totals]) =>
+      unitLine(vehicleId, {
+        expenses: totals.vehicle + totals.general,
+        meters: metersByVehicle.get(vehicleId) ?? ZERO,
+        tripCost: totals.cost,
+      }),
+    )
+  let meters = ZERO
+  for (const value of metersByVehicle.values()) meters += value
+  return {
+    general: unitLine(null, {
+      expenses: computed.expensesTotal,
+      meters,
+      tripCost: cents(computed.result.totals.tripCost),
+    }),
+    perVehicle,
+  }
+}
+
 export function createGetExpenseUnitCostsUseCase(ports: ExpenseResultPorts): {
   execute(input: ExpenseResultInput): Promise<ExpenseUnitCosts>
 } {
   return {
-    execute: async (input) => {
-      const computed = await computeExpenseResult(ports, input)
-      const metersByVehicle = new Map<string, bigint>()
-      for (const trip of computed.trips) {
-        const meters = BigInt(Math.max(0, Math.round(trip.distanceMeters)))
-        metersByVehicle.set(trip.vehicleId, (metersByVehicle.get(trip.vehicleId) ?? ZERO) + meters)
-      }
-      const perVehicle = [...computed.vehicleTotals.entries()]
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([vehicleId, totals]) =>
-          unitLine(vehicleId, {
-            expenses: totals.vehicle + totals.general,
-            meters: metersByVehicle.get(vehicleId) ?? ZERO,
-            tripCost: totals.cost,
-          }),
-        )
-      let meters = ZERO
-      for (const value of metersByVehicle.values()) meters += value
-      return {
-        general: unitLine(null, {
-          expenses: computed.expensesTotal,
-          meters,
-          tripCost: cents(computed.result.totals.tripCost),
-        }),
-        perVehicle,
-      }
-    },
+    execute: async (input) => buildExpenseUnitCosts(await computeExpenseResult(ports, input)),
   }
 }
 

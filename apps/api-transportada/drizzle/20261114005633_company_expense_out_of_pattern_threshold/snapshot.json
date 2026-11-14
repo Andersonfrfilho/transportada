@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "e5bbafcb-9f0b-43b8-8461-be5c890cc21f",
+  "id": "109440a9-62d9-4902-8fea-4590f91774cf",
   "prevIds": [
     "20b61f6d-f390-4406-9924-645602d0faa9"
   ],
@@ -1563,12 +1563,6 @@
     {
       "isRlsEnabled": false,
       "name": "company_expense_occurrences",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
-      "isRlsEnabled": false,
-      "name": "company_expense_reminder_preferences",
       "entityType": "tables",
       "schema": "public"
     },
@@ -43892,6 +43886,19 @@
       "table": "company_expense_allocation_settings"
     },
     {
+      "type": "numeric(6,2)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'10.00'",
+      "generated": null,
+      "identity": null,
+      "name": "out_of_pattern_threshold_percent",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_expense_allocation_settings"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": false,
@@ -44449,97 +44456,6 @@
       "entityType": "columns",
       "schema": "public",
       "table": "company_expense_occurrences"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "gen_random_uuid()",
-      "generated": null,
-      "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "company_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "user_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences"
-    },
-    {
-      "type": "boolean",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "false",
-      "generated": null,
-      "identity": null,
-      "name": "whatsapp_enabled",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences"
-    },
-    {
-      "type": "boolean",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "false",
-      "generated": null,
-      "identity": null,
-      "name": "push_enabled",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "updated_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences"
     },
     {
       "type": "uuid",
@@ -68600,40 +68516,6 @@
       ],
       "onUpdate": "CASCADE",
       "onDelete": "RESTRICT",
-      "name": "company_expense_reminder_preferences_company_id_companies_id_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "user_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "identity_users",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "CASCADE",
-      "onDelete": "RESTRICT",
-      "name": "company_expense_reminder_preferences_user_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "company_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "companies",
-      "columnsTo": [
-        "id"
-      ],
-      "onUpdate": "CASCADE",
-      "onDelete": "RESTRICT",
       "name": "company_expense_reminder_settings_company_id_companies_id_fk",
       "entityType": "fks",
       "schema": "public",
@@ -72611,16 +72493,6 @@
       "name": "company_expense_occurrences_pkey",
       "schema": "public",
       "table": "company_expense_occurrences",
-      "entityType": "pks"
-    },
-    {
-      "columns": [
-        "id"
-      ],
-      "nameExplicit": false,
-      "name": "company_expense_reminder_preferences_pkey",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences",
       "entityType": "pks"
     },
     {
@@ -76683,18 +76555,6 @@
       "entityType": "uniques",
       "schema": "public",
       "table": "company_expense_occurrences"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        "company_id",
-        "user_id"
-      ],
-      "nullsNotDistinct": false,
-      "name": "company_expense_reminder_preferences_company_user_unique",
-      "entityType": "uniques",
-      "schema": "public",
-      "table": "company_expense_reminder_preferences"
     },
     {
       "nameExplicit": true,
@@ -85842,6 +85702,13 @@
     {
       "value": "\"cost_group\" in ('vehicle_fixed', 'per_km', 'administrative')",
       "name": "company_expense_allocation_settings_cost_group_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_expense_allocation_settings"
+    },
+    {
+      "value": "\"out_of_pattern_threshold_percent\" >= 0 and \"out_of_pattern_threshold_percent\" <= 1000",
+      "name": "company_expense_allocation_settings_threshold_check",
       "entityType": "checks",
       "schema": "public",
       "table": "company_expense_allocation_settings"

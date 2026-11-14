@@ -70,6 +70,8 @@ export const API_EXPENSE_RESULT_PATH = '/expense-result'
 export const API_EXPENSE_RESULT_EXPORT_PATH = '/expense-result/export'
 export const API_EXPENSE_UNIT_COSTS_PATH = '/expense-unit-costs'
 export const API_EXPENSE_ALLOCATION_SETTINGS_PATH = '/expense-allocation-settings'
+export const API_EXPENSE_FORECAST_PATH = '/expense-forecast'
+export const API_EXPENSE_OUT_OF_PATTERN_SETTINGS_PATH = '/expense-out-of-pattern-settings'
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
 /** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */

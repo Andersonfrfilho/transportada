@@ -55,6 +55,6 @@ describe('a preferência de canal dos lembretes entra aditiva (spec 325 T7.3)', 
     expect(text).toContain('Manual rollback only')
     expect(text).toContain('refusing to drop')
     expect(text).toContain('DROP TABLE "company_expense_reminder_preferences"')
-    expect(text).toContain("'20261114004108_company_expense_reminder_preferences'")
+    expect(text).toContain("'20261114014120_company_expense_reminder_preferences'")
   })
 })

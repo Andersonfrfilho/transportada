@@ -73,10 +73,22 @@ export function createDrizzleExpenseResultPorts(
       get: ({ companyId }) => readSettings(companyId),
       save: async ({ companyId, correlationId, settings, updatedBy }) => {
         await database.transaction(async (transaction) => {
+          // O limite do fora do padrão é da empresa e mora em toda linha (T6.3): a linha nova herda o valor da empresa.
+          const [existing] = await transaction
+            .select({ value: companyExpenseAllocationSettings.outOfPatternThresholdPercent })
+            .from(companyExpenseAllocationSettings)
+            .where(eq(companyExpenseAllocationSettings.companyId, companyId))
+            .limit(1)
           for (const [costGroup, criterion] of Object.entries(settings)) {
             await transaction
               .insert(companyExpenseAllocationSettings)
-              .values({ companyId, costGroup, criterion, updatedByUserId: updatedBy })
+              .values({
+                companyId,
+                costGroup,
+                criterion,
+                ...(existing === undefined ? {} : { outOfPatternThresholdPercent: existing.value }),
+                updatedByUserId: updatedBy,
+              })
               .onConflictDoUpdate({
                 set: { criterion, updatedAt: new Date(), updatedByUserId: updatedBy },
                 target: [
