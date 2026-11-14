@@ -443,6 +443,34 @@ contrato que a cobra.
 - Mês fechado sem viagem (zero faturamento) conta como mês de dado? E mês com zero dia útil? Veículo novo (custo por km sem 3 meses próprios) não alerta, pelo contrato de histórico menor que 3.
 - Média zero no fora do padrão (divisão): a T6.2 decide e acrescenta o caso.
 
+## T6.2 — Serviço puro da previsão e do fora do padrão (2026-11-14)
+
+**O que entrou** (`apps/api-transportada`):
+
+- `src/expenses/domain/expense-forecast.policy.ts`: `forecastNextMonth` (RF21, RF22, CA12) e `detectOutOfPattern` (RF23, CA13), puros e sem banco, com a conta em centavos (`bigint`) e arredondamento meio para cima, o mesmo do módulo. Constantes exportadas: `FORECAST_MIN_MONTHS = 3`, `FORECAST_FULL_MONTHS = 6`, `FORECAST_BAND_FLOOR_PERCENT = { ok: 15n, limited: 30n }`, `OUT_OF_PATTERN_MONTHS = 3` e o `DEFAULT_OUT_OF_PATTERN_THRESHOLD_PERCENT = 10` da T6.1.
+- `test/expenses/forecast.contract.ts` e `out-of-pattern.contract.ts` (os 26 da T6.1, sem mudança) passaram para `test/expenses.contract.test.ts`; `forecast-red-entrypoint.ts` foi apagado.
+- `test/expenses/forecast-edges.contract.ts`: contrato de tabela com as bordas abaixo (mês sem viagem, zero dia útil, veículo novo, média zero, faixa em números, limite fracionado e inválido, entrada inválida, ordem da saída).
+
+**Como a previsão é calculada** (o texto do "Como é calculado" da T6.4 sai daqui): pega os 6 meses fechados mais recentes; dos que tiveram movimento, soma faturamento e custo das viagens e divide pelos dias úteis somados (média por dia útil), multiplica pelos dias úteis do mês previsto e soma as contas recorrentes já cadastradas para o mês. Mês com mais dias úteis pesa mais na média, como o contrato da T6.1 exige.
+
+**Decisões dos pontos que a T6.1 deixou abertos** (em todas, o comportamento mais conservador: a previsão é usada pelo dono para decidir, então errar para "mostrar menos certeza" é melhor que errar para "parecer preciso")
+
+1. **Largura da faixa.** Meia largura de **15% do valor estimado com 6 meses** e **30% com 3 a 5 meses**, ou a variação que os próprios meses mostraram, se for maior (a faixa vai do pior ao melhor mês, cada um projetado para os dias úteis do mês previsto, para mês curto não parecer mês ruim). As contas recorrentes entram inteiras nos três pontos (são valores cadastrados, sem incerteza). O lucro usa o **pior e o melhor par**: mínimo = menor faturamento − maior custo, máximo = maior faturamento − menor custo. Por que: uma faixa calculada só pelo desvio de 3 a 6 meses parecidos sai estreita demais e passa uma precisão que a média simples não tem; o piso garante uma faixa honesta mesmo com meses iguais, e dobrar com pouco dado cumpre o "faixa mais larga" do RF22. Consequência aceita: o lucro mínimo pode ficar negativo com poucos dados (exemplo do contrato: 3 meses iguais, lucro previsto de 8.000,00 com faixa de −1.000,00 a 17.000,00), e é isso que a tela deve mostrar.
+2. **Mês sem viagem não é mês de dado.** Mês fechado com faturamento e custo de viagem zerados, ou com zero dia útil, **não conta** para os 3/6 meses e **não entra** na média, mas **ocupa o lugar dele** na janela dos 6 meses mais recentes (não puxa um mês mais antigo para o lugar). Por que: mês vazio quase sempre é a empresa ainda sem usar o sistema ou um buraco de lançamento, não um mês real sem frete; contá-lo mostraria a previsão antes de haver 3 meses de movimento de verdade e puxaria a média para baixo. Mês só com custo (sem faturamento) conta, porque houve operação. Se a empresa teve mesmo um mês parado, o efeito é a previsão ficar com menos meses (aviso de poucos dados ou nenhuma previsão), nunca uma média inventada.
+3. **Média zero no fora do padrão.** A regra é feita por multiplicação cruzada (|corrente − média| × 100 > limite × média), sem divisão. Média zero com corrente zero **não alerta**; média zero com qualquer valor diferente de zero **alerta** (um gasto que não existia e apareceu passa de qualquer porcentagem de zero, e é justamente o que a lista existe para mostrar). Por que: o contrário esconderia o caso mais grave, a conta nova ou a categoria que nunca teve gasto.
+
+**Outras decisões fixadas pelo contrato de borda**
+
+- A comparação usa a **média arredondada ao centavo**, a mesma que a tela mostra. Com a média exata, 99,99/100,00/100,00 (exibida 100,00) e corrente 110,00 alertaria com uma diferença exibida de exatamente 10%, contradizendo a regra na frente do usuário.
+- **Veículo novo** (ou conta nova) com menos de 3 meses próprios não alerta. Para a T6.3: `previousMonths` leva só os meses em que o item existiu; custo por km de mês sem viagem é **ausência**, não zero, senão o zero dispara alerta falso.
+- O limite aceita até duas casas (`12.5`), de 0 a 1000%; fora disso é `RangeError` (a T6.3 valida na entrada da configuração e devolve 400). Dinheiro negativo ou com três casas, dia útil fracionado ou negativo também são `RangeError`: entrada inválida não vira previsão.
+- A lista de alertas sai na ordem da entrada; ordenar (por exemplo, pela maior diferença) é decisão da tela ou da T6.3.
+
+**Resultado medido** (de `apps/api-transportada`, Bun 1.4.4 no contêiner):
+
+- `bun test ./test/expenses.contract.test.ts`: **194 pass / 0 fail** (inclui os 26 da T6.1, agora verdes, e os de borda).
+- `bunx tsc --noEmit`: limpo. `bunx eslint` e `bunx prettier --check` nos arquivos alterados: limpos.
+
 ## T7.1 — Contratos vermelhos dos lembretes e da baixa por resposta (2026-11-13)
 
 **O que entrou** (`apps/api-transportada`, tudo vermelho de propósito; rodar com `bun --env-file=../../.env.test test ./test/expenses/reminders-red-entrypoint.ts`):
