@@ -8,6 +8,7 @@
 import type { SQL } from 'bun'
 import { join } from 'node:path'
 
+import { rollbackCompanyExpenseReminderJobIfApplied } from './company-expense-reminder-job-rollback.assertion.js'
 import { migrationsDirectory, readMigrationNames } from './support.js'
 
 const MIGRATION_SUFFIX = '_company_expense_occurrence_job'
@@ -16,6 +17,8 @@ export async function rollbackCompanyExpenseOccurrenceJobIfApplied(
   database: SQL,
   directories: readonly string[],
 ): Promise<void> {
+  // A T7.4 é a mais nova e ampliou a CHECK depois desta: sai primeiro.
+  await rollbackCompanyExpenseReminderJobIfApplied(database, directories)
   const directory = directories.find((name) => name.endsWith(MIGRATION_SUFFIX))
   if (directory === undefined) return
   if (!(await readMigrationNames(database)).includes(directory)) return

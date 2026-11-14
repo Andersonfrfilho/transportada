@@ -629,6 +629,26 @@ sai se está ligado na empresa e na pessoa. Portas Drizzle em `drizzle-expense-r
 
 **Fica para a T7.4 (parte 2):** o notificador que entrega o e-mail renderizado, a rota do robô, a rotina do worker (`company-expense.reminder.send`) com a migration do agendamento (nasce pausada), o resumo diário (RF27) e a publicação dos modelos.
 
+## T7.4 (parte 2) — A rotina de lembretes no worker, só e-mail (2026-11-14)
+
+**Desenho.** O e-mail de entrega é do worker (a API só enfileira) e o módulo de notificação não preenche o HTML do sistema dos modelos
+(`botaoAbrirContas`), então a rotina inteira mora no worker, no mesmo desenho da 319 T7: o `cron` é o relógio, o worker executa e **espelha** a regra
+da API (cópia por valor de `expense-reminder.policy.ts`, `expense-reminder-mail.policy.ts` e das constantes), com contrato de paridade.
+
+**O que entrou**
+
+- Rotina `company-expense.reminder.send` (`apps/worker-transportada/src/company-expense-reminder/`), nas quatro cópias do catálogo (piso de 1 h), com a
+  migration `20261114160259_company_expense_reminder_job` (as duas CHECK de `job` e a linha em `job_schedules`, **pausada**, origem `system`), `rollback.sql`
+  e a asserção de rollback encadeada antes da da T1.5.
+- A rotina: hora de São Paulo (`isReminderHour`), tipo do aviso (`reminderKindOn`), destinatário (`chooseReminderRecipients`), reserva em
+  `company_expense_reminders_sent` antes do envio e solta se o e-mail falhar; modelo lido de `notification.templates` (versão ativa pt-BR; HTML inseguro
+  não envia); `botaoJaPaguei` vazio até a T7.4b.
+- Runbook de operação em `docs/runbooks/producao.md` § 5.35.
+
+**Fica para depois:** WhatsApp e push (hoje contados em `unsupportedChannel`), o resumo diário (RF27) e a publicação dos modelos em staging (script entregue ao Anderson; aguarda a execução dele).
+
+**Resultado medido:** worker `bun test ./test/company-expense-reminder.contract.test.ts` 13 pass / 0 fail (8 da rotina: dia/hora, uma vez só, duas rodadas, antes da hora, sem responsável, falha solta a reserva, sem modelo, canais extras, empresa que falha); paridade com a API (4); `job-catalog` verde nas quatro apps; `bun test ./test/database-migration.contract.test.ts` da API 244 pass / 0 fail (sem Postgres local, migration e rollback rodam na CI); `tsc` e `eslint` limpos no worker.
+
 ## T5.2 e T5.2b — Página de resultado, filtros e exportação (2026-11-14)
 
 **O que entrou** (`apps/frontend-transportada`, módulo `expenses`): `pages/ExpenseResult.page.tsx`, `hooks/useExpenseResultPage.hook.ts`, `shared/expensesResultView.service.ts`, locales `resultPage.*` (pt/en), estilos em `expenses.module.css` e a rota `/contas/resultado` em `main.tsx` (mesmo workspace `expenses`; o menu não ganhou entrada nova, a página abre por "Ver resultado" em Contas).

@@ -317,6 +317,9 @@ import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-p
 import { createWhatsAppInboxExpireRoutine } from './whatsapp-inbox-expire/application/whatsapp-inbox-expire.routine.js'
 import { WHATSAPP_INBOX_CHAT_EXPIRE_JOB } from './whatsapp-inbox-expire/domain/whatsapp-inbox-expire.constant.js'
 import { createDrizzleExpireDueWhatsAppChats } from './whatsapp-inbox-expire/infrastructure/drizzle-whatsapp-inbox-expire.repository.js'
+import { createCompanyExpenseReminderRoutine } from './company-expense-reminder/application/company-expense-reminder.routine.js'
+import { COMPANY_EXPENSE_REMINDER_SEND_JOB } from './company-expense-reminder/domain/company-expense-reminder.constant.js'
+import { createDrizzleCompanyExpenseReminderPorts } from './company-expense-reminder/infrastructure/drizzle-company-expense-reminder.repository.js'
 import { createCompanyExpenseOccurrenceRoutine } from './company-expense-occurrence/application/company-expense-occurrence.routine.js'
 import { COMPANY_EXPENSE_OCCURRENCE_GENERATE_JOB } from './company-expense-occurrence/domain/company-expense-occurrence.constant.js'
 import { createDrizzleCompanyExpenseOccurrencePorts } from './company-expense-occurrence/infrastructure/drizzle-company-expense-occurrence.repository.js'
@@ -1679,6 +1682,19 @@ export async function startWorkerRuntime(
             ports: createDrizzleCompanyExpenseOccurrencePorts(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),
+          }),
+          /** Spec 325 T7.4: sempre registrada — nasce pausada no relógio, e ligar é decisão do dono. */
+          [COMPANY_EXPENSE_REMINDER_SEND_JOB]: createCompanyExpenseReminderRoutine({
+            logger,
+            now: () => new Date(),
+            ports: createDrizzleCompanyExpenseReminderPorts({
+              appBaseUrl: config.appBaseUrl ?? null,
+              database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              emailDriver:
+                config.emailDelivery === undefined
+                  ? undefined
+                  : createWorkerEmailDriver(config.emailDelivery),
+            }),
           }),
           /**
            * Spec 161 RF21: sempre registrada, como as outras retenções — a foto de ocorrência tem
