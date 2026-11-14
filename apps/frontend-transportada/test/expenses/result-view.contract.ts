@@ -9,6 +9,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   amountPerKm,
   currentMonthPeriod,
+  formatKilometers,
   formatMarginPercent,
   formatVariationPercent,
   listTrendCompetences,
@@ -62,5 +63,11 @@ describe('expensesResultView.service', () => {
     expect(amountPerKm('63829.90', '11800.0000')).toBe('5.41')
     expect(amountPerKm('10.00', '0.0000')).toBeNull()
     expect(subtractAmounts('10.05', '0.10')).toBe('9.95')
+  })
+
+  it('formatKilometers arredonda os metros ao quilômetro', () => {
+    expect(formatKilometers(620_000)).toBe('620')
+    expect(formatKilometers(150_499)).toBe('150')
+    expect(formatKilometers(0)).toBe('0')
   })
 })

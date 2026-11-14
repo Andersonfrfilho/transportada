@@ -135,3 +135,8 @@ export function outOfPatternPercent(alert: ExpenseOutOfPatternAlert): null | str
 export function forecastMarginPercent(forecast: ExpenseForecastValues): null | string {
   return formatMarginPercent(forecast.profit.expected, forecast.revenue.expected)
 }
+
+/** Metros da rota em quilômetros inteiros (`620000` → `620`); a tela mostra o que a estrada mede, sem casa decimal. */
+export function formatKilometers(distanceMeters: number): string {
+  return String(Math.round(distanceMeters / 1000))
+}

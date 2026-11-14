@@ -47,12 +47,27 @@ const BY_TRIP = [
   ['c3d4e5f6', '9800.00', '4620.00', '327.22', '885.38', '3967.40'],
   ['d4e5f6a7', '2250.00', '980.00', '50.08', '203.28', '1016.64'],
   ['e5f6a7b8', '11400.00', '5900.00', '414.03', '1029.93', '4056.04'],
-].map(([id, revenue, cost, vehicleShare, generalShare, margin]) => ({
+].map(([id, revenue, cost, vehicleShare, generalShare, margin], index) => ({
   cost,
   generalShare,
   id,
   margin,
   revenue,
+  trip: {
+    customerId: [
+      'Distribuidora Alfa',
+      'Mercantil Norte',
+      'Distribuidora Alfa',
+      'Farmácias Sul',
+      'Mercantil Norte',
+    ][index],
+    distanceMeters: [620_000, 310_000, 980_000, 150_000, 1_240_000][index],
+    route: {
+      destination: ['CAMPINAS', 'SAO CARLOS', 'ARARAQUARA', 'BAURU', 'SANTOS'][index],
+      origin: 'RIBEIRAO PRETO',
+    },
+    vehicleId: ['ABC1D23', 'DEF4G56', 'ABC1D23', 'GHI7J89', 'JKL0M12'][index],
+  },
   vehicleShare,
 }))
 

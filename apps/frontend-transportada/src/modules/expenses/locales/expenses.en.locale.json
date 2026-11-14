@@ -318,6 +318,7 @@
       "customer": "Customer",
       "revenue": "Freight",
       "cost": "Trip cost",
+      "km": "Km",
       "vehicleShare": "Vehicle share",
       "generalShare": "General share",
       "margin": "Margin",

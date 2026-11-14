@@ -18,11 +18,16 @@ import {
   EXPENSE_NO_VEHICLE_ID,
   useExpenseResultPage,
 } from '../hooks/useExpenseResultPage.hook'
-import type { ExpenseExportFormat, ExpenseResultLine } from '../shared/expensesResult.types'
+import type {
+  ExpenseExportFormat,
+  ExpenseResultLine,
+  ExpenseResultTripLine,
+} from '../shared/expensesResult.types'
 import {
   amountPerKm,
   forecastMarginPercent,
   formatCompetenceLabel,
+  formatKilometers,
   formatMarginPercent,
   formatVariationPercent,
   isNegativeAmount,
@@ -31,7 +36,7 @@ import {
   outOfPatternPercent,
   subtractAmounts,
 } from '../shared/expensesResultView.service'
-import { formatCivilDate } from '../shared/expensesView.service'
+import { formatCivilDate, formatTripRoute } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 
 type GroupKind = 'customer' | 'trip' | 'vehicle'
@@ -106,6 +111,35 @@ export function ExpenseResultPage() {
         : page.labelOf.customer(line.id)
     }
     return line.id.slice(0, SHORT_ID_LENGTH)
+  }
+
+  /** Cliente e trajeto abaixo do código da viagem; sem o que a API manda, só o código. */
+  function renderTripDetail(line: ExpenseResultTripLine) {
+    const { trip } = line
+    if (trip === undefined) return null
+    const customer =
+      trip.customerId === EXPENSE_NO_CUSTOMER_ID
+        ? t('resultPage.filters.noCustomer')
+        : page.labelOf.customer(trip.customerId)
+    const route = formatTripRoute(trip.route)
+    return (
+      <>
+        <span className={styles.rowDetail}>{customer}</span>
+        {route === null ? null : <span className={styles.rowDetail}>{route}</span>}
+      </>
+    )
+  }
+
+  function renderTripVehicle(line: ExpenseResultTripLine) {
+    if (line.trip === undefined) return '—'
+    return line.trip.vehicleId === EXPENSE_NO_VEHICLE_ID
+      ? t('resultPage.filters.noVehicle')
+      : page.labelOf.vehicle(line.trip.vehicleId)
+  }
+
+  function renderTripKilometers(line: ExpenseResultTripLine) {
+    if (line.trip === undefined) return '—'
+    return formatKilometers(line.trip.distanceMeters)
   }
 
   function renderIndicators() {
@@ -391,6 +425,12 @@ export function ExpenseResultPage() {
           <thead>
             <tr>
               <th scope="col">{nameHeader}</th>
+              {kind === 'trip' ? (
+                <>
+                  <th scope="col">{t('resultPage.columns.vehicle')}</th>
+                  <th scope="col">{t('resultPage.columns.km')}</th>
+                </>
+              ) : null}
               <th scope="col">{t('resultPage.columns.revenue')}</th>
               <th scope="col">{t('resultPage.columns.cost')}</th>
               <th scope="col">{t('resultPage.columns.vehicleShare')}</th>
@@ -406,7 +446,18 @@ export function ExpenseResultPage() {
                   <strong className={kind === 'trip' ? styles.tripCode : undefined}>
                     {lineLabel(kind, line)}
                   </strong>
+                  {kind === 'trip' ? renderTripDetail(line as ExpenseResultTripLine) : null}
                 </td>
+                {kind === 'trip' ? (
+                  <>
+                    <td data-column={t('resultPage.columns.vehicle')}>
+                      {renderTripVehicle(line as ExpenseResultTripLine)}
+                    </td>
+                    <td data-column={t('resultPage.columns.km')}>
+                      {renderTripKilometers(line as ExpenseResultTripLine)}
+                    </td>
+                  </>
+                ) : null}
                 <td data-column={t('resultPage.columns.revenue')}>{formatAmount(line.revenue)}</td>
                 <td data-column={t('resultPage.columns.cost')}>{formatAmount(line.cost)}</td>
                 <td data-column={t('resultPage.columns.vehicleShare')}>
