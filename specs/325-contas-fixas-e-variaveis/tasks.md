@@ -102,7 +102,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 
 ## Fase 6 — Previsões (etapa final)
 
-- [ ] **T6.1** Contratos vermelhos: CA12 e CA13 (histórico curto, faixa, limite de fora do padrão).
+- [x] **T6.1** Contratos vermelhos: CA12 e CA13 (histórico curto, faixa, limite de fora do padrão).
+      Feita: 26 contratos vermelhos em `apps/api-transportada/test/expenses/` (`forecast.contract.ts`, `out-of-pattern.contract.ts`, entrypoint `forecast-red-entrypoint.ts`), com esqueleto que lança "not implemented" (`expense-forecast.policy.ts`). ⚠️ **Fora da lista `test` do `package.json` de propósito**: a T6.2 move os dois contratos para `test/expenses.contract.test.ts` quando ficarem verdes. Detalhe em `evidence.md` § T6.1.
   > 🤖 Modelo: `sonnet`
 - [ ] **T6.2** Serviço puro de previsão (média por dia útil, faixa, limite configurável) e alerta de fora do padrão; contrato de tabela com casos de borda (mês sem viagem, veículo novo).
   > 🤖 Modelo: `opus` (regra de estimativa que o dono vai usar para decidir)
