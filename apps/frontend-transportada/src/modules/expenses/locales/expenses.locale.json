@@ -249,5 +249,86 @@
     "save": "Salvar critérios",
     "saved": "Critérios salvos.",
     "loading": "Carregando os critérios…"
+  },
+  "resultPage": {
+    "title": "Resultado do mês",
+    "subtitle": "Quanto faturamos, quanto gastamos e o lucro que sobra, com as contas rateadas entre as viagens.",
+    "back": "Voltar às contas",
+    "open": "Ver resultado",
+    "filters": {
+      "period": "Período",
+      "vehicle": "Veículo",
+      "customer": "Cliente",
+      "category": "Categoria da conta",
+      "payee": "Motorista, agregado ou ajudante",
+      "all": "Todos",
+      "allFeminine": "Todas",
+      "noVehicle": "Sem veículo",
+      "noCustomer": "Sem cliente",
+      "placeholder": "dd/mm/aaaa a dd/mm/aaaa",
+      "clearDates": "Limpar",
+      "nextMonth": "Próximo mês",
+      "previousMonth": "Mês anterior",
+      "note": "Filtros valem para os indicadores, as tabelas e a exportação."
+    },
+    "export": {
+      "pdf": "Exportar PDF",
+      "csv": "Exportar planilha (CSV)",
+      "exporting": "Exportando…",
+      "failed": "Não foi possível exportar. Tente de novo."
+    },
+    "indicators": {
+      "revenue": "Faturamento de fretes",
+      "tripCost": "Custo das viagens",
+      "tripCostHint": "diárias e gastos lançados na viagem",
+      "expenses": "Contas da empresa",
+      "expensesHint": "fixas e variáveis, sem motorista",
+      "profit": "Lucro",
+      "margin": "Margem",
+      "costPerKm": "Custo por km",
+      "costPerKmHint": "{{km}} km em {{trips}} viagens",
+      "revenuePerKm": "Receita por km",
+      "profitPerKm": "Margem por km",
+      "variation": "{{value}} sobre o período anterior",
+      "previousMargin": "período anterior: {{value}}"
+    },
+    "notice": "Os números são recalculados toda vez que a tela abre, com as contas e o critério de hoje. O mês fechado não é congelado.",
+    "unallocated": "Contas sem viagem para ratear: {{amount}}. Elas entram no total das contas, mas não em nenhuma viagem.",
+    "trend": {
+      "title": "Últimos meses",
+      "month": "Mês",
+      "revenue": "Faturamento",
+      "cost": "Custo total",
+      "profit": "Lucro",
+      "margin": "Margem"
+    },
+    "tabs": {
+      "title": "Margem por {{kind}}",
+      "ariaLabel": "Agrupar a margem",
+      "trip": "Por viagem",
+      "vehicle": "Por veículo",
+      "customer": "Por cliente",
+      "kindTrip": "viagem",
+      "kindVehicle": "veículo",
+      "kindCustomer": "cliente"
+    },
+    "columns": {
+      "trip": "Viagem",
+      "vehicle": "Veículo",
+      "customer": "Cliente",
+      "revenue": "Frete",
+      "cost": "Custo da viagem",
+      "vehicleShare": "Rateio do veículo",
+      "generalShare": "Rateio geral",
+      "margin": "Margem",
+      "percent": "%"
+    },
+    "footnote": "Rateio do veículo: contas fixas do caminhão. Rateio geral: contas administrativas e as sem veículo.",
+    "empty": "Nenhuma viagem concluída neste período.",
+    "loading": "Calculando o resultado…",
+    "forbidden": "Você não tem permissão para ver o resultado.",
+    "errors": {
+      "REQUEST_FAILED": "Não foi possível calcular o resultado. Tente de novo."
+    }
   }
 }

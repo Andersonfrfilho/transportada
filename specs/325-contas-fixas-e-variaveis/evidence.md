@@ -554,3 +554,20 @@ contrato que a cobra.
 - Contrato novo `test/database-migration/company-expense-reminders.static.contract.ts` (7 testes): aditiva, chave única, listas fechadas iguais às do schema e da porta, padrão igual a `DEFAULT_REMINDER_SETTINGS`, só hash do token, política de staging, rollback.
 - `bun test ./test/deploy.contract.test.ts` 214 pass / 0 fail; `./test/expenses.contract.test.ts` 133 pass / 0 fail; `migration-chain` 4 pass; `tsc --noEmit`, `eslint` e `prettier --check` limpos.
 - Os 31 contratos vermelhos da T7.1 seguem fora da lista oficial (a T7.4/T7.4b os movem).
+
+## T5.2 e T5.2b — Página de resultado, filtros e exportação (2026-11-14)
+
+**O que entrou** (`apps/frontend-transportada`, módulo `expenses`): `pages/ExpenseResult.page.tsx`, `hooks/useExpenseResultPage.hook.ts`, `shared/expensesResultView.service.ts`, locales `resultPage.*` (pt/en), estilos em `expenses.module.css` e a rota `/contas/resultado` em `main.tsx` (mesmo workspace `expenses`; o menu não ganhou entrada nova, a página abre por "Ver resultado" em Contas).
+
+**Decisões**
+
+- Variação dos indicadores é sobre o **período anterior de mesmo tamanho**, com os mesmos filtros (uma segunda leitura de `GET /expense-result`). "Últimos meses" são quatro leituras mensais até o mês do fim do período, também com os filtros.
+- Custo, receita e margem por km usam os quilômetros de `GET /expense-unit-costs` do período; sem quilômetro mostram "—".
+- Nomes: veículo (placa) e cliente vêm das listas de opções dos filtros; id sem nome cai no próprio id. **Viagem aparece pelos 8 primeiros caracteres do id**, porque as linhas de `byTrip` da API só trazem o id (sem veículo, cliente nem km). O preview aprovado mostra código da viagem, veículo, cliente e km por linha: isso pede campos aditivos em `byTrip` na API e fica como **pendência para o Anderson decidir**.
+- Previsão e "fora do padrão" do preview são da T6.4, não desta tarefa. "Comparar com" e "Critério de rateio" não são filtros desta tela (o critério é da T5.3).
+- Exportar usa `saveArchiveFile` com o blob da rota da T4.6; falha mostra alerta.
+
+**Resultado medido**
+
+- `bun test ./test/expenses.contract.test.ts`: 43 pass / 0 fail (contrato novo `test/expenses/result-view.contract.ts`: períodos, tendência, percentuais, centavos). `tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
+- Prints (smoke `test/spec-325-resultado-prints.smoke.spec.ts`, API dublada, fora da CI): `prints/resultado-{light,dark}-{desktop,mobile}.png`. Conferidos contra a tela de Contas vizinha: rótulo em cima, campos na altura padrão, botões `Button` padrão, tabelas no molde `.table` (cartão no celular). Exportar CSV exercitado no smoke (`format=csv` na requisição).

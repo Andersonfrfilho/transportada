@@ -249,5 +249,86 @@
     "save": "Save criteria",
     "saved": "Criteria saved.",
     "loading": "Loading the criteria…"
+  },
+  "resultPage": {
+    "title": "Monthly result",
+    "subtitle": "What we billed, what we spent and the profit left, with company bills split across trips.",
+    "back": "Back to bills",
+    "open": "View result",
+    "filters": {
+      "period": "Period",
+      "vehicle": "Vehicle",
+      "customer": "Customer",
+      "category": "Bill category",
+      "payee": "Driver, contractor or helper",
+      "all": "All",
+      "allFeminine": "All",
+      "noVehicle": "No vehicle",
+      "noCustomer": "No customer",
+      "placeholder": "dd/mm/yyyy to dd/mm/yyyy",
+      "clearDates": "Clear",
+      "nextMonth": "Next month",
+      "previousMonth": "Previous month",
+      "note": "Filters apply to the indicators, the tables and the export."
+    },
+    "export": {
+      "pdf": "Export PDF",
+      "csv": "Export spreadsheet (CSV)",
+      "exporting": "Exporting…",
+      "failed": "Could not export. Try again."
+    },
+    "indicators": {
+      "revenue": "Freight revenue",
+      "tripCost": "Trip costs",
+      "tripCostHint": "allowances and expenses recorded on the trip",
+      "expenses": "Company bills",
+      "expensesHint": "fixed and variable, without driver pay",
+      "profit": "Profit",
+      "margin": "Margin",
+      "costPerKm": "Cost per km",
+      "costPerKmHint": "{{km}} km over {{trips}} trips",
+      "revenuePerKm": "Revenue per km",
+      "profitPerKm": "Profit per km",
+      "variation": "{{value}} over the previous period",
+      "previousMargin": "previous period: {{value}}"
+    },
+    "notice": "Numbers are recalculated every time the screen opens, using today's bills and criteria. A closed month is not frozen.",
+    "unallocated": "Bills with no trip to split across: {{amount}}. They count in the bills total but in no trip.",
+    "trend": {
+      "title": "Recent months",
+      "month": "Month",
+      "revenue": "Revenue",
+      "cost": "Total cost",
+      "profit": "Profit",
+      "margin": "Margin"
+    },
+    "tabs": {
+      "title": "Margin by {{kind}}",
+      "ariaLabel": "Group the margin",
+      "trip": "By trip",
+      "vehicle": "By vehicle",
+      "customer": "By customer",
+      "kindTrip": "trip",
+      "kindVehicle": "vehicle",
+      "kindCustomer": "customer"
+    },
+    "columns": {
+      "trip": "Trip",
+      "vehicle": "Vehicle",
+      "customer": "Customer",
+      "revenue": "Freight",
+      "cost": "Trip cost",
+      "vehicleShare": "Vehicle share",
+      "generalShare": "General share",
+      "margin": "Margin",
+      "percent": "%"
+    },
+    "footnote": "Vehicle share: the truck's fixed bills. General share: administrative bills and those with no vehicle.",
+    "empty": "No completed trip in this period.",
+    "loading": "Calculating the result…",
+    "forbidden": "You do not have permission to see the result.",
+    "errors": {
+      "REQUEST_FAILED": "Could not calculate the result. Try again."
+    }
   }
 }
