@@ -112,6 +112,13 @@ import { createDrizzleExpenseOccurrenceTripPorts } from './expenses/infrastructu
 import { createTripPersonParcelReader } from './expenses/infrastructure/trip-person-parcel.gateway.js'
 import { createExpenseRoutes } from './expenses/presentation/expense.routes.js'
 import { createExpenseResultRoutes } from './expenses/presentation/expense-result.routes.js'
+import { createExpenseForecastRoutes } from './expenses/presentation/expense-forecast.routes.js'
+import {
+  createGetExpenseForecastUseCase,
+  createGetOutOfPatternSettingsUseCase,
+  createUpdateOutOfPatternSettingsUseCase,
+} from './expenses/application/expense-forecast.use-case.js'
+import { createDrizzleExpenseForecastPorts } from './expenses/infrastructure/drizzle-expense-forecast.repository.js'
 import {
   createGetExpenseAllocationSettingsUseCase,
   createGetExpenseResultUseCase,
@@ -3676,6 +3683,7 @@ function createApplicationRoutes({
     findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
     readValuationContexts: (query) => tripValuationQuery.readValuationContexts(query),
   })
+  const expenseForecastPorts = createDrizzleExpenseForecastPorts(database, expenseResultPorts)
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database,
     resolveStorageBucket(environment),
@@ -4669,6 +4677,11 @@ function createApplicationRoutes({
       getSettings: createGetExpenseAllocationSettingsUseCase(expenseResultPorts),
       getUnitCosts: createGetExpenseUnitCostsUseCase(expenseResultPorts),
       updateSettings: createUpdateExpenseAllocationSettingsUseCase(expenseResultPorts),
+    }),
+    ...createExpenseForecastRoutes({
+      getForecast: createGetExpenseForecastUseCase(expenseForecastPorts),
+      getSettings: createGetOutOfPatternSettingsUseCase(expenseForecastPorts),
+      updateSettings: createUpdateOutOfPatternSettingsUseCase(expenseForecastPorts),
     }),
     ...createCompanyEntryKindRoutes({
       create: createCreateCompanyEntryKindUseCase({ entryKinds: companyEntryKindRepository }),
