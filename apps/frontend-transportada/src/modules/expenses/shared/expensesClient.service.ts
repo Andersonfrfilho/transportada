@@ -18,6 +18,23 @@ import {
   type UpdateExpenseInput,
 } from './expenses.types'
 import {
+  EXPENSE_ALLOCATION_SETTINGS_PATH,
+  EXPENSE_RESULT_EXPORT_PATH,
+  EXPENSE_RESULT_PATH,
+  EXPENSE_UNIT_COSTS_PATH,
+  type ExpenseAllocationSettings,
+  type ExpenseExportFile,
+  type ExpenseExportFormat,
+  type ExpenseResult,
+  type ExpenseResultQuery,
+  type ExpenseUnitCosts,
+} from './expensesResult.types'
+import {
+  toExpenseAllocationSettings,
+  toExpenseResult,
+  toExpenseUnitCosts,
+} from './expensesResult.validation'
+import {
   toAvailableTrips,
   toCategories,
   toCategoryResponse,
@@ -41,6 +58,12 @@ export type ExpensesClient = Readonly<{
   cancelOccurrence: (input: Readonly<{ id: string; reason: string }>) => Promise<ExpenseOccurrence>
   createCategory: (name: string) => Promise<ExpenseCategory>
   createExpense: (input: CreateExpenseInput) => Promise<Expense>
+  exportResult: (
+    input: ExpenseResultQuery & Readonly<{ format: ExpenseExportFormat }>,
+  ) => Promise<ExpenseExportFile>
+  getAllocationSettings: () => Promise<ExpenseAllocationSettings>
+  getResult: (input: ExpenseResultQuery) => Promise<ExpenseResult>
+  getUnitCosts: (input: ExpenseResultQuery) => Promise<ExpenseUnitCosts>
   includeTrip: (
     input: Readonly<{ occurrenceId: string; tripId: string }>,
   ) => Promise<ExpenseOccurrenceTrips>
@@ -53,6 +76,9 @@ export type ExpensesClient = Readonly<{
   ) => Promise<ExpenseOccurrenceTrips>
   setCategoryActive: (input: Readonly<{ active: boolean; id: string }>) => Promise<ExpenseCategory>
   settleOccurrence: (input: SettleOccurrenceInput) => Promise<ExpenseOccurrence>
+  updateAllocationSettings: (
+    settings: Partial<ExpenseAllocationSettings>,
+  ) => Promise<ExpenseAllocationSettings>
   updateExpense: (input: Readonly<{ changes: UpdateExpenseInput; id: string }>) => Promise<Expense>
 }>
 
@@ -98,6 +124,41 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
           dependencies,
           method: 'POST',
           path: EXPENSES_PATH,
+        }),
+      )
+    },
+    async exportResult({ format, ...query }) {
+      const response = await send({
+        dependencies,
+        method: 'GET',
+        path: `${EXPENSE_RESULT_EXPORT_PATH}?${serializeResultQuery(query, { format })}`,
+      })
+      if (!response.ok) throw new Error(readErrorCode(await readJson(response)))
+      return {
+        blob: await response.blob(),
+        fileName: readFileName(response.headers.get('content-disposition'), format),
+      }
+    },
+    async getAllocationSettings() {
+      return toExpenseAllocationSettings(
+        await request({ dependencies, method: 'GET', path: EXPENSE_ALLOCATION_SETTINGS_PATH }),
+      )
+    },
+    async getResult(query) {
+      return toExpenseResult(
+        await request({
+          dependencies,
+          method: 'GET',
+          path: `${EXPENSE_RESULT_PATH}?${serializeResultQuery(query)}`,
+        }),
+      )
+    },
+    async getUnitCosts({ from, to }) {
+      return toExpenseUnitCosts(
+        await request({
+          dependencies,
+          method: 'GET',
+          path: `${EXPENSE_UNIT_COSTS_PATH}?${serializeResultQuery({ from, to })}`,
         }),
       )
     },
@@ -167,6 +228,16 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
         }),
       )
     },
+    async updateAllocationSettings(settings) {
+      return toExpenseAllocationSettings(
+        await request({
+          body: JSON.stringify({ settings }),
+          dependencies,
+          method: 'PUT',
+          path: EXPENSE_ALLOCATION_SETTINGS_PATH,
+        }),
+      )
+    },
     async updateExpense({ changes, id }) {
       return toExpenseResponse(
         await request({
@@ -191,6 +262,24 @@ export function serializeFilters(filters: ExpenseOccurrenceFilters): string {
   return search.toString()
 }
 
+/** Período obrigatório; só vão os filtros preenchidos (a API recusa chave desconhecida e id mal formado). */
+export function serializeResultQuery(
+  query: ExpenseResultQuery,
+  extra: Readonly<Record<string, string>> = {},
+): string {
+  const search = new URLSearchParams({ from: query.from, to: query.to })
+  for (const [key, value] of Object.entries(query.filters ?? {})) {
+    if (typeof value === 'string' && value !== '') search.set(key, value)
+  }
+  for (const [key, value] of Object.entries(extra)) search.set(key, value)
+  return search.toString()
+}
+
+function readFileName(header: string | null, format: ExpenseExportFormat): string {
+  const match = header === null ? null : /filename="([^"]+)"/.exec(header)
+  return match?.[1] ?? `resultado-contas.${format}`
+}
+
 export function getExpensesClient(): ExpensesClient {
   return createExpensesClient({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
@@ -199,21 +288,20 @@ export function getExpensesClient(): ExpensesClient {
   })
 }
 
-async function request(
+async function send(
   input: Readonly<{
     body?: string
     dependencies: ClientDependencies
-    method: 'DELETE' | 'GET' | 'PATCH' | 'POST'
+    method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
     path: string
   }>,
-): Promise<unknown> {
+): Promise<Response> {
   const accessToken = await input.dependencies.getAccessToken()
   const headers: Record<string, string> = { authorization: `Bearer ${accessToken}` }
   if (input.body !== undefined) headers['content-type'] = 'application/json'
 
-  let response: Response
   try {
-    response = await input.dependencies.fetch(
+    return await input.dependencies.fetch(
       new Request(`${input.dependencies.apiUrl}${input.path}`, {
         ...(input.body === undefined ? {} : { body: input.body }),
         cache: 'no-store',
@@ -224,14 +312,27 @@ async function request(
   } catch {
     throw new Error('REQUEST_FAILED')
   }
+}
 
+async function readJson(response: Response): Promise<unknown> {
   const rawBody = await response.text()
-  let payload: unknown
   try {
-    payload = rawBody.length === 0 ? {} : (JSON.parse(rawBody) as unknown)
+    return rawBody.length === 0 ? {} : (JSON.parse(rawBody) as unknown)
   } catch {
     throw new Error('RESPONSE_INVALID')
   }
+}
+
+async function request(
+  input: Readonly<{
+    body?: string
+    dependencies: ClientDependencies
+    method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
+    path: string
+  }>,
+): Promise<unknown> {
+  const response = await send(input)
+  const payload = await readJson(response)
   /** O código sobe como veio: `EXPENSE_TRIP_ALREADY_INCLUDED` vira frase na tela. */
   if (!response.ok) throw new Error(readErrorCode(payload))
 

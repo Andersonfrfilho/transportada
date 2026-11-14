@@ -424,6 +424,21 @@ contrato que a cobra.
 - Suíte de contrato da API: 15290 pass / 0 fail; `tsc --noEmit`, `eslint --max-warnings=0` e `prettier --check` limpos.
 - Não há tela nesta task (T5.2b) nem mudança em produção, então o runbook não muda.
 
+## T5.1 — Módulo do resultado e do rateio no painel (2026-11-14)
+
+**O que entrou** (`apps/frontend-transportada/src/modules/expenses`, padrão da T2.1):
+
+- **Tipos e guard:** `shared/expensesResult.types.ts` copia por valor o vocabulário da API (grupos e critérios de rateio, motivos de não rateado, `sem-veiculo`/`sem-cliente`, caminhos); `shared/expensesResult.validation.ts` recusa forma inesperada (`ExpenseResponseError`): dinheiro só como texto decimal com sinal e até 4 casas (lucro e margem podem ser negativos), vocabulário conferido e nunca afirmado, `excesses`, `paymentsWithoutTrips`, `unallocatedItems`, `settings` e `filters` opcionais como a API os omite, `costPerKm` `null` sem quilômetro.
+- **Cliente:** `getResult`, `getUnitCosts` (só o período, RF17), `getAllocationSettings`, `updateAllocationSettings` (`PUT { settings }`) e `exportResult` (devolve `blob` e o nome do `content-disposition`; erro sobe o código da API). `serializeResultQuery` manda só os filtros preenchidos. O `request` foi dividido em `send`/`readJson` para a exportação reusar o envio sem tratar o arquivo como JSON.
+- **Hooks:** `hooks/useExpenseResult.hook.ts` com a chave raiz `expenses`; trocar o critério invalida a raiz inteira (resultado e custo por km mudam juntos).
+- **Locales pt/en:** blocos `result` (totais, abas, colunas, filtros, exportação, custo por km) e `allocation` (grupos e critérios), mais erros de validação.
+
+**Prova**
+
+- `bun test ./test/expenses.contract.test.ts`: 36 pass / 0 fail (`result.contract.ts` entrou no entrypoint, que já está na lista `test` do `package.json`); `bun run test` da app: 1496 pass / 0 fail.
+- `tsc --noEmit`, `eslint` e `prettier --check` limpos nos arquivos tocados.
+- Não há tela nesta task (T5.2/T5.2b/T5.3) nem mudança em produção, então não há prints e o runbook não muda.
+
 ## T6.1 — Contratos vermelhos da previsão e do fora do padrão (2026-11-13)
 
 **O que entrou** (`apps/api-transportada`, vermelho de propósito; rodar com `bun --env-file=../../.env.test test ./test/expenses/forecast-red-entrypoint.ts`):

@@ -53,7 +53,9 @@
     "EXPENSE_TRIP_ALREADY_INCLUDED": "Esta viagem já entrou em outro pagamento.",
     "EXPENSE_OCCURRENCE_TRIP_NOT_FOUND": "Esta viagem não está neste pagamento.",
     "EXPENSE_OCCURRENCE_ALREADY_PAID": "Esta conta já foi paga.",
-    "EXPENSE_OCCURRENCE_CANCELED": "Esta conta foi cancelada."
+    "EXPENSE_OCCURRENCE_CANCELED": "Esta conta foi cancelada.",
+    "VALIDATION_ERROR": "Confira o período e os filtros e tente de novo.",
+    "INVALID_REQUEST": "Confira o período e os filtros e tente de novo."
   },
   "loading": "Carregando as contas…",
   "filters": {
@@ -157,5 +159,95 @@
     "remove": "Remover",
     "pendingTrip": "Viagem {{id}} fica de fora: {{gap}}.",
     "pendingTripRoute": "Viagem {{id}} ({{route}}) fica de fora: {{gap}}."
+  },
+  "result": {
+    "title": "Resultado",
+    "calculatedAt": "Calculado em {{value}}",
+    "period": {
+      "from": "De",
+      "to": "Até"
+    },
+    "totals": {
+      "revenue": "Faturamento",
+      "tripCost": "Custo das viagens",
+      "expenses": "Contas",
+      "profit": "Lucro",
+      "unallocated": "Não rateado"
+    },
+    "tabs": {
+      "trip": "Por viagem",
+      "vehicle": "Por veículo",
+      "customer": "Por cliente"
+    },
+    "columns": {
+      "name": "Nome",
+      "revenue": "Faturamento",
+      "cost": "Custo",
+      "vehicleShare": "Contas do veículo",
+      "generalShare": "Contas gerais",
+      "margin": "Margem"
+    },
+    "noVehicle": "Sem veículo",
+    "noCustomer": "Sem cliente",
+    "unallocated": {
+      "title": "Contas não rateadas",
+      "reason": {
+        "no_trip_weight": "Sem viagem com peso no período",
+        "vehicle_without_trips": "Veículo sem viagens no período"
+      }
+    },
+    "excesses": {
+      "title": "Pagamento acima das viagens incluídas"
+    },
+    "paymentsWithoutTrips": {
+      "title": "Pagamento sem viagens incluídas"
+    },
+    "filters": {
+      "title": "Filtros",
+      "vehicle": "Veículo",
+      "customer": "Cliente",
+      "category": "Categoria",
+      "payee": "Motorista, agregado ou ajudante",
+      "all": "Todos",
+      "clear": "Limpar filtros",
+      "note": "Os filtros escolhem o que aparece e soma; o rateio é sempre sobre o período inteiro."
+    },
+    "export": {
+      "pdf": "Exportar PDF",
+      "csv": "Exportar CSV",
+      "exporting": "Exportando…",
+      "failed": "Não foi possível exportar."
+    },
+    "unitCosts": {
+      "title": "Custo por quilômetro",
+      "general": "Geral",
+      "vehicle": "Veículo",
+      "kilometers": "Quilômetros",
+      "tripCost": "Custo das viagens",
+      "expensesShare": "Contas rateadas",
+      "totalCost": "Custo total",
+      "costPerKm": "Custo por km",
+      "noKilometers": "Sem quilômetro"
+    },
+    "empty": "Nenhuma viagem concluída neste período.",
+    "loading": "Calculando o resultado…"
+  },
+  "allocation": {
+    "title": "Rateio das contas",
+    "subtitle": "Como cada grupo de conta é dividido entre as viagens do período.",
+    "group": {
+      "vehicle_fixed": "Contas fixas do veículo",
+      "per_km": "Contas variáveis por quilômetro",
+      "administrative": "Contas administrativas"
+    },
+    "criterion": {
+      "per_km": "Por quilômetro",
+      "per_trip_day": "Por dia de viagem",
+      "per_revenue": "Pelo faturamento",
+      "equal": "Igual para cada viagem"
+    },
+    "save": "Salvar critérios",
+    "saved": "Critérios salvos.",
+    "loading": "Carregando os critérios…"
   }
 }
