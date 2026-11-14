@@ -97,6 +97,10 @@ export function buildInMemoryReminders(): InMemoryReminders {
         state.sentKeys.add(k)
         return Promise.resolve(true)
       },
+      release(key) {
+        state.sentKeys.delete(keyOf(key))
+        return Promise.resolve()
+      },
     },
     settings: { get: () => Promise.resolve(state.settings) },
   }

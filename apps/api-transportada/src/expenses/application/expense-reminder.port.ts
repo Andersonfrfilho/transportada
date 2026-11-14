@@ -75,7 +75,9 @@ export type ReminderPorts = {
   }
   readonly sent: {
     /** `false` quando a chave já existia (única por ocorrência, responsável, dia e tipo). */
-    record(key: SentReminderKey): Promise<boolean>
+    record(key: SentReminderKey & { readonly channel: ReminderChannel }): Promise<boolean>
+    /** Desfaz a reserva de `record` quando nenhum canal entregou, para a próxima rodada tentar de novo. */
+    release(key: SentReminderKey): Promise<void>
   }
   readonly settings: {
     get(input: { companyId: string }): Promise<ReminderSettings>

@@ -612,6 +612,23 @@ A rota e a tela para a pessoa ligar WhatsApp/push ficam na T7.5.
 - `bun test ./test/deploy.contract.test.ts` 214 pass; `tsc --noEmit`, `eslint` e `prettier --check` limpos.
 - Os 31 contratos vermelhos da T7.1 seguem fora da lista oficial (a T7.4/T7.4b os movem).
 
+## T7.4 (parte 1) — O caso de uso dos lembretes (2026-11-14)
+
+**O que entrou** (`apps/api-transportada`): `createRunExpenseRemindersUseCase` (`expense-reminder.use-case.ts`) aplica `reminderKindOn` e
+`chooseReminderRecipients` da T7.3; só ocorrência `open`; sem responsável, ou responsável inexistente/inalcançável, vai ao administrador; canal só
+sai se está ligado na empresa e na pessoa. Portas Drizzle em `drizzle-expense-reminders.repository.ts` (`listForReminders`, `sent.record`, `sent.release`).
+
+**Decisões**
+
+- **Reserva antes do envio.** `sent.record` (INSERT … ON CONFLICT DO NOTHING na chave `(ocorrência, responsável, dia, tipo)`) é feito **antes** de enviar:
+  duas rotinas ao mesmo tempo não mandam duas vezes. Se nenhum canal entregou, `sent.release` solta a reserva e a próxima rodada do dia tenta de novo
+  (a falha não vira "enviado", como pede a T7.1). A porta ganhou `release` e `record` passou a levar o canal (coluna `channel` do registro).
+- Falha de envio é contada e não derruba a rotina; destinatário nenhum (nem administrador alcançável) conta como falha.
+
+**Resultado medido:** `bun test ./test/expenses.contract.test.ts` com o contrato `reminders.contract.ts` (12 testes, antes 0/12) agora na lista oficial; `tsc --noEmit` limpo.
+
+**Fica para a T7.4 (parte 2):** o notificador que entrega o e-mail renderizado, a rota do robô, a rotina do worker (`company-expense.reminder.send`) com a migration do agendamento (nasce pausada), o resumo diário (RF27) e a publicação dos modelos.
+
 ## T5.2 e T5.2b — Página de resultado, filtros e exportação (2026-11-14)
 
 **O que entrou** (`apps/frontend-transportada`, módulo `expenses`): `pages/ExpenseResult.page.tsx`, `hooks/useExpenseResultPage.hook.ts`, `shared/expensesResultView.service.ts`, locales `resultPage.*` (pt/en), estilos em `expenses.module.css` e a rota `/contas/resultado` em `main.tsx` (mesmo workspace `expenses`; o menu não ganhou entrada nova, a página abre por "Ver resultado" em Contas).
