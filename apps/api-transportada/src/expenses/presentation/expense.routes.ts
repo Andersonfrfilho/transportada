@@ -42,6 +42,7 @@ import {
   parseCreateExpenseRequest,
   parseOccurrenceFilters,
   parseSetCategoryActiveRequest,
+  parseSetCategoryCostGroupRequest,
   parseSettleRequest,
   parseUpdateExpenseRequest,
 } from './expense.schema.js'
@@ -50,6 +51,7 @@ const READ_POLICY = { permission: 'expenses.read', scope: 'company' } as const
 const MANAGE_POLICY = { permission: 'expenses.manage', scope: 'company' } as const
 const EXPENSE_PATH = `${API_EXPENSES_PATH}/:id`
 const CATEGORY_PATH = `${API_EXPENSE_CATEGORIES_PATH}/:id`
+const CATEGORY_COST_GROUP_PATH = `${API_EXPENSE_CATEGORIES_PATH}/:id/cost-group`
 const SETTLEMENT_PATH = `${API_EXPENSE_OCCURRENCES_PATH}/:id/settlement`
 const CANCELLATION_PATH = `${API_EXPENSE_OCCURRENCES_PATH}/:id/cancellation`
 const OCCURRENCE_TRIPS_PATH = `${API_EXPENSE_OCCURRENCES_PATH}/:id/trips`
@@ -109,6 +111,15 @@ type Dependencies = {
       readonly categoryId: string
       readonly companyId: string
       readonly correlationId: string
+      readonly updatedBy: string
+    }): Promise<CompanyExpenseCategory>
+  }
+  readonly setCategoryCostGroup: {
+    execute(input: {
+      readonly categoryId: string
+      readonly companyId: string
+      readonly correlationId: string
+      readonly costGroup: 'administrative' | 'in_trip' | 'per_km' | 'vehicle_fixed'
       readonly updatedBy: string
     }): Promise<CompanyExpenseCategory>
   }
@@ -361,6 +372,32 @@ export function createExpenseRoutes(
         id: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: CATEGORY_PATH,
+      policy: MANAGE_POLICY,
+    }),
+    defineRoute<
+      WithId<
+        WithCorrelation<{
+          readonly costGroup: 'administrative' | 'in_trip' | 'per_km' | 'vehicle_fixed'
+        }>
+      >
+    >({
+      async handle({ context, input }): Promise<Response> {
+        const updated = await dependencies.setCategoryCostGroup.execute({
+          categoryId: input.id,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          costGroup: input.costGroup,
+          updatedBy: context.scope.userId,
+        })
+        return jsonResponse({ data: serializeCategory(updated) })
+      },
+      method: 'PUT',
+      parse: async ({ correlationId, pathParameters, request }) => ({
+        ...(await parseSetCategoryCostGroupRequest(request)),
+        correlationId,
+        id: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: CATEGORY_COST_GROUP_PATH,
       policy: MANAGE_POLICY,
     }),
   ]

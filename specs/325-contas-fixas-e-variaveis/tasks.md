@@ -95,7 +95,8 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
   > 🤖 Modelo: `sonnet`
 - [ ] **T5.2b** Filtros (período, veículo, cliente, categoria, motorista/agregado) e botões Exportar PDF/CSV na página de resultado (RF18).
   > 🤖 Modelo: `sonnet`
-- [ ] **T5.3** Painel "Rateio das contas" em Configurações (`SETTINGS_PANELS`).
+- [x] **T5.3** Painel "Rateio das contas" em Configurações (`SETTINGS_PANELS`).
+      Feita: aba própria `expenseAllocation` (`ExpenseAllocationPanel`, `expenses.read` lê e `expenses.manage` grava) com o critério de cada grupo, o limite do "fora do padrão" (T6.3) e o grupo de custo de cada categoria; um Salvar só, que manda o que mudou. Rota nova `PUT /expense-categories/:id/cost-group` (`expenses.manage`, auditada como `expense.category.cost_group_changed`): o pagamento de motorista fica sempre em `in_trip` e nenhuma outra categoria entra nele (`422 EXPENSE_CATEGORY_COST_GROUP_INVALID`). Prints em `prints/rateio-*`. Notas em `evidence.md` § T5.3.
   > 🤖 Modelo: `sonnet`
 - [ ] **T5.4** Prints claro/escuro × desktop/celular comparados a outra tela; evidência; staging (produção na próxima promoção).
   > 🤖 Modelo: `sonnet`

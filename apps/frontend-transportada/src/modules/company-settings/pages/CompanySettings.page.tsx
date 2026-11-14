@@ -36,6 +36,7 @@ import {
   EXPENSES_READ_PERMISSION,
 } from '@/modules/expenses/shared/expenses.types'
 import { SalespeoplePanel } from '../components/SalespeoplePanel.component'
+import { ExpenseAllocationPanel } from '../components/ExpenseAllocationPanel.component'
 import { ExpenseCategoriesPanel } from '../components/ExpenseCategoriesPanel.component'
 import { useWhatsAppEvolutionPanel } from '../hooks/useWhatsAppEvolutionPanel.hook'
 import {
@@ -282,6 +283,11 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'expenseCategories')
     return (
       <ExpenseCategoriesPanel canManage={props.canManageExpenses} canRead={props.canReadExpenses} />
+    )
+  /** Spec 325 T5.3: painel autocontido — mesmas permissões das categorias. */
+  if (tab === 'expenseAllocation')
+    return (
+      <ExpenseAllocationPanel canManage={props.canManageExpenses} canRead={props.canReadExpenses} />
     )
   if (tab === 'entryKinds') return <CompanyEntryKindCatalogPanel {...props.entryKindCatalog} />
   /** Spec 218 RF-E1/RF-E2: painel autocontido — busca os próprios dados, como o de ocorrência acima. */
