@@ -18,6 +18,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tooltip } from '@/components/ui/tooltip'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
+import { installChunkReloadHandler } from '@/modules/shared/chunkReload.service'
 import { applyColorTheme, readStoredColorTheme } from '@/modules/shared/colorTheme.service'
 import { useColorTheme } from '@/modules/shared/useColorTheme.hook'
 import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service'
@@ -81,6 +82,8 @@ applyColorTheme({
   document,
   theme: readStoredColorTheme(typeof window === 'undefined' ? null : window.localStorage),
 })
+
+installChunkReloadHandler(window)
 
 if (!isSmokeAuthBypassEnabled()) {
   registerSW({ immediate: true })
