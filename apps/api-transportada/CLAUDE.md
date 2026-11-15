@@ -1435,7 +1435,7 @@ Valor exato em `bigint`, `0` é valor; "quem pagou" obrigatório e `driver` exig
 - **Viagem antiga não é reordenada.** A migration `trip_stop_order_source` deixa tudo `unordered`; só viagem tocada depois entra no ordenador.
 - **Testes:** contratos `test/trip-domain/draft-stop-order.contract.ts` (propriedades com semente fixa) e `test/trip-stops/order-draft-trip-stops.contract.ts`; integração com Postgres `test/integration/draft-stop-order.integration.ts` (CA1–CA4, na lista do `test:integration`). Detalhe e evidência: `specs/323-paradas-ordenadas-no-rascunho/evidence.md`.
 
-## A API de integração (spec 340)
+## A API de integração (spec 341)
 
 `integration-api/`: chave por empresa (`integration_api_keys`, só o hash SHA-256; a chave `tms_…` aparece uma vez na criação) com
 capacidades `quote`/`pickup`. Administração em `/integration-keys` (`settings.manage`, auditada **sem** a chave nem o hash);
@@ -1444,3 +1444,9 @@ rotas do parceiro em `/integration/freight-quotes` e `/integration/pickup-reques
 Cotação devolve só `total`/`currency`/`validUntil`; o pedido (`source = 'integration'`, sem contratante) leva `integration_key_id`
 e só a chave que o fez o lê ou cancela (outra → 404). Webhook e tela de chaves ainda não existem. Detalhe: `specs/340-*` e o
 documento do parceiro em `docs/integracao/api-de-integracao.md`.
+
+**A cotação é por endereço, nunca por km do parceiro** (spec 342). `createCalculateFreightQuoteByAddressUseCase` localiza origem e destino
+(`geocoded_addresses`, depois Google; `city` é recusado), mede a estrada pelo `readRouteGeometry` da viagem e entrega a distância e o pedágio
+por eixo ao cálculo de sempre. Recusas: `FREIGHT_QUOTE_ADDRESS_NOT_LOCATED` 422, `_ROUTE_UNAVAILABLE` 503, `_TOLL_UNKNOWN` 422 (catálogo
+vazio/velho ou praça sem tarifa). `distanceKm` e `tollAmount` no corpo são 400. Rotas: `/integration/freight-quotes` (parceiro) e
+`POST /freight-quotes/by-address` (`freight.simulate`). Detalhe: `specs/342-cotacao-por-endereco/`.

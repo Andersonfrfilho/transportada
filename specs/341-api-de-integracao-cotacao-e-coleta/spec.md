@@ -1,4 +1,4 @@
-# Spec 340 — API de integração: cotação e pedido de coleta
+# Spec 341 — API de integração: cotação e pedido de coleta
 
 **Origem:** pedido do Anderson (2026-11-15): "essas cotações de frete seria bom disponibilizarmos para integração" e "a solicitação de viagem também", com doc só das rotas necessárias e worker para alto volume.
 
@@ -10,7 +10,7 @@
 - **D4. O parceiro vê o mínimo.** Cotação devolve só `total`, `validUntil` (7 dias) e `currency`. Pedido devolve estado, janelas e `scheduled`; nunca contratante, viagem, documento ou a nota de aceite.
 - **D5. O pedido é o da 339**, `source = 'integration'`, sem contratante (D4 da 339: cliente entra no cadastro só na aceitação). `pickup_requests.integration_key_id` limita quem lê e cancela: outra chave recebe 404.
 - **D6. Volume.** As rotas só gravam; e-mail e WhatsApp saem pela caixa de saída entregue pelo worker (T4 da 339). A cotação é só cálculo em memória e uma leitura de parâmetros.
-- **D7. Distância vem do parceiro (`distanceKm`).** Calcular por endereço exigiria geocodificação e rota na chamada pública; fica como decisão aberta.
+- **D7. (revogada em 2026-11-15)** A distância não vem do parceiro: a cotação é por endereço, spec 342.
 - **D8. Webhook fora desta versão.** É opcional no contrato; exige segredo selado por chave, política anti-SSRF e entrega com tentativas no worker. Proposta para a próxima etapa.
 
 ## Fora de escopo

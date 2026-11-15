@@ -413,7 +413,12 @@ describe('rotas de integração', () => {
   test('cotar sem chave é 401; com chave devolve só total, moeda e validade de 7 dias', async () => {
     const { created, routes: registered } = await buildRoutes()
     const quote = find(registered, 'POST', '/integration/freight-quotes')
-    const body = JSON.stringify({ axles: 5, cargoType: 5, distanceKm: '100' })
+    const body = JSON.stringify({
+      axles: 5,
+      cargoType: 5,
+      destination: ADDRESS,
+      origin: ADDRESS,
+    })
     const call = (authorization: string | null) =>
       quote.execute({
         correlationId: 'c',
@@ -434,6 +439,34 @@ describe('rotas de integração', () => {
     expect(await response.json()).toEqual({
       data: { currency: 'BRL', total: '4493.4600', validUntil: '2026-11-23' },
     })
+  })
+
+  test('o parceiro não dita a distância nem o pedágio: distanceKm e tollAmount são recusados', async () => {
+    const { created, routes: registered } = await buildRoutes()
+    const quote = find(registered, 'POST', '/integration/freight-quotes')
+    for (const extra of [{ distanceKm: '100' }, { tollAmount: '10' }]) {
+      await expect(
+        quote.execute({
+          correlationId: 'c',
+          limitTarget: async () => ({ allowed: true }),
+          pathParameters: {},
+          request: new Request('http://x/integration/freight-quotes', {
+            body: JSON.stringify({
+              axles: 5,
+              cargoType: 5,
+              destination: ADDRESS,
+              origin: ADDRESS,
+              ...extra,
+            }),
+            headers: {
+              authorization: `Bearer ${created.plainKey}`,
+              'content-type': 'application/json',
+            },
+            method: 'POST',
+          }),
+        } as never),
+      ).rejects.toMatchObject({ status: 400 })
+    }
   })
 
   test('o pedido devolvido ao parceiro não leva contratante, viagem, documento nem nota de aceite', async () => {
