@@ -1,6 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import {
+  EXPENSE_FLOW_ACTION_KIND,
+  EXPENSE_FLOW_CONTEXT_KEY,
+  EXPENSE_FLOW_NODE,
+} from '../domain/whatsapp-expense-flow.constant.js'
 import { DRIVER_LIST_HEADING } from '../domain/whatsapp-driver-list-heading.constant.js'
 import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
 
@@ -62,6 +67,7 @@ export const WHATSAPP_ROOT_FLOW_GRAPH: FlowGraphData = {
       next: {
         byAnswer: {
           emitir_documentos: ISSUANCE_FLOW_NODE.start,
+          lancar_conta: EXPENSE_FLOW_NODE.start,
           minha_viagem: DRIVER_FLOW_NODE.currentTrip,
           viagens_armazem: OPERATOR_FLOW_NODE.listTrips,
         },
@@ -71,6 +77,7 @@ export const WHATSAPP_ROOT_FLOW_GRAPH: FlowGraphData = {
         ['emitir_documentos', '📄 Emitir documentos'],
         ['minha_viagem', '🚚 Minha viagem'],
         ['viagens_armazem', '🏭 Viagens do armazém'],
+        ['lancar_conta', '💰 Lançar conta'],
       ],
       question: 'Olá! O que você quer fazer?',
       type: 'menu',
@@ -79,6 +86,7 @@ export const WHATSAPP_ROOT_FLOW_GRAPH: FlowGraphData = {
     ...buildDriverTripFlowNodes(),
     ...buildOperatorTripFlowNodes(),
     ...buildAttendantFieldFlowNodes(),
+    ...buildExpenseFlowNodes(),
     /** Spec 286 T8 (RF7): as falas do bot, uma `directMessage` editável por nó. */
     ...buildBotSpeechNodes(),
   },
@@ -472,6 +480,32 @@ function buildAttendantFieldFlowNodes(): FlowGraphData['nodes'] {
     [ATTENDANT_FLOW_NODE.closeRouter]: {
       actionKind: ATTENDANT_FLOW_ACTION_KIND.closeRouter,
       id: ATTENDANT_FLOW_NODE.closeRouter,
+      type: 'action',
+    },
+  }
+}
+
+/**
+ * Spec 326 — o ramo "Lançar conta". Uma entrada de resposta (texto livre ou toque na lista) e um
+ * roteador que anda um passo por mensagem; `expense_start` abre o fluxo e confere o papel.
+ */
+function buildExpenseFlowNodes(): FlowGraphData['nodes'] {
+  return {
+    [EXPENSE_FLOW_NODE.start]: {
+      actionKind: EXPENSE_FLOW_ACTION_KIND.start,
+      id: EXPENSE_FLOW_NODE.start,
+      type: 'action',
+    },
+    [EXPENSE_FLOW_NODE.entry]: {
+      contextKey: EXPENSE_FLOW_CONTEXT_KEY.answer,
+      id: EXPENSE_FLOW_NODE.entry,
+      next: EXPENSE_FLOW_NODE.router,
+      question: 'Responda à pergunta acima.',
+      type: 'entrada_choice',
+    },
+    [EXPENSE_FLOW_NODE.router]: {
+      actionKind: EXPENSE_FLOW_ACTION_KIND.router,
+      id: EXPENSE_FLOW_NODE.router,
       type: 'action',
     },
   }

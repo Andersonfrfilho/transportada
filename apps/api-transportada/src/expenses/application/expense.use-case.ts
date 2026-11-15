@@ -25,6 +25,8 @@ import type {
 import { generateOccurrencesForExpense } from './expense-occurrence.use-case.js'
 
 export type CreateExpenseInput = {
+  /** Spec 326: por onde a conta foi lançada; vai à trilha de auditoria. Sem ele, o painel. */
+  readonly channel?: 'panel' | 'whatsapp'
   readonly categoryId: string
   readonly companyId: string
   readonly correlationId?: string
@@ -143,6 +145,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
         entityType: 'company_expense',
         metadata: {
           categoryId: expense.categoryId,
+          channel: input.channel ?? 'panel',
           expectedAmount: expense.expectedAmount,
           installmentsTotal: expense.installmentsTotal ?? null,
           kind: expense.kind,

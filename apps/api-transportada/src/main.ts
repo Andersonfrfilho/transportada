@@ -468,6 +468,8 @@ import { createDrizzleWhatsAppOccurrenceDraftRepository } from './whatsapp-comma
 import { createWhatsAppOccurrencePhotoStore } from './whatsapp-commands/infrastructure/whatsapp-occurrence-photo.adapter.js'
 import { createWhatsAppOccurrenceRequirementsReader } from './whatsapp-commands/infrastructure/whatsapp-occurrence-requirements.query.js'
 import { describeWhatsAppDriverEventResult } from './whatsapp-commands/application/whatsapp-driver-event-speech.service.js'
+import { createExpenseFlowActions } from './whatsapp-commands/application/register-expense-flow-actions.js'
+import { formatFiscalDay } from './shared/fiscal-day.service.js'
 import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
 import { createIssuanceWhatsAppFlowActions } from './whatsapp-commands/application/register-issuance-flow-actions.js'
 import { createPreviewDocumentSelectionUseCase } from './whatsapp-commands/application/preview-document-selection.use-case.js'
@@ -2067,6 +2069,17 @@ export function bootstrap(): Bun.Server<undefined> {
     deliverDocument: (input) => whatsappOfficeDelivery.deliverByDocument(input),
     listRoadTrips: (input) => listAttendantRoadTrips(database.db, input),
   })
+  /**
+   * Spec 326: o financeiro lança conta pela conversa direta — o mesmo caso de uso do painel (spec 325).
+   * Instância própria das portas (sem estado), porque as rotas montam as delas em outra função.
+   */
+  const whatsappExpensesPorts = createDrizzleExpensesPorts(database.db)
+  const expenseWhatsAppFlowActions = createExpenseFlowActions({
+    createExpense: (input) => createCreateExpenseUseCase(whatsappExpensesPorts).execute(input),
+    listCategories: (input) =>
+      createListExpenseCategoriesUseCase(whatsappExpensesPorts).execute(input),
+    today: () => formatFiscalDay(new Date()),
+  })
   const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
     speech: whatsappBotSpeech,
     /**
@@ -2390,6 +2403,7 @@ export function bootstrap(): Bun.Server<undefined> {
       ...operatorWhatsAppFlowActions,
       ...attendantWhatsAppFlowActions,
       ...issuanceWhatsAppFlowActions,
+      ...expenseWhatsAppFlowActions,
     ],
     /**
      * Spec 144 T008 — lê a versão publicada (a linha viva do módulo, a que `create`/`save`

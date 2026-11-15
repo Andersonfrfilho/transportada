@@ -15,6 +15,7 @@ import type { FlowGraphData } from '@adatechnology/meta-whatsapp-contracts'
  */
 export const WHATSAPP_ROOT_MENU_OPTION_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
   emitir_documentos: ['cte.submit', 'nfse.issue'],
+  lancar_conta: ['expenses.manage'],
   minha_viagem: ['trip.report'],
   viagens_armazem: ['trip.manage'],
 }
