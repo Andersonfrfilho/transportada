@@ -74,7 +74,7 @@ console.log(
 /** Viagem com distância planejada e ao menos duas paradas; o km da primeira perna vale sempre, o pedágio só quando a viagem tem exatamente a perna. */
 const trips = rowsOf(
   await exec(sql`
-    select t.id, t.company_id, t.planned_distance_meters, t.planned_return_distance_meters, t.planned_toll
+    select t.id, t.company_id, t.planned_distance_meters, t.planned_return_distance_meters, t.planned_toll, t.planned_route
     from trips t
     where t.planned_distance_meters is not null
       and (select count(*) from trip_stops s where s.trip_id = t.id) >= 2
@@ -103,6 +103,70 @@ for (const trip of trips) {
       from trip_stops s left join geocoded_addresses g on g.address_key = s.address_key
       where s.trip_id = ${tripId} order by s.sequence asc`),
   )
+  /**
+   * Reprodução exata: a rota congelada guarda os pontos (barracão incluso) e o km de cada trecho. Mede cada trecho com o
+   * gateway da cotação e compara trecho a trecho e no pedágio total (que na viagem cobre a rota inteira, volta inclusa).
+   */
+  const frozen = trip.planned_route as {
+    legs?: { distanceMetres?: number }[]
+    points?: { latitude: string; longitude: string }[]
+  } | null
+  const frozenPoints = frozen?.points ?? []
+  const frozenLegs = frozen?.legs ?? []
+  if (frozenPoints.length === frozenLegs.length + 1 && frozenLegs.length > 0) {
+    const planned = trip.planned_toll as { axles?: { count?: number }; total?: string } | null
+    const routeAxles = planned?.axles?.count ?? 5
+    let oursTotal = 0
+    let frozenTotal = 0
+    let tollTotal = 0
+    let tollKnownAll = true
+    const perLeg: string[] = []
+    for (let index = 0; index < frozenLegs.length; index += 1) {
+      const from = frozenPoints[index] as { latitude: string; longitude: string }
+      const to = frozenPoints[index + 1] as { latitude: string; longitude: string }
+      const leg = await road.read({
+        axles: routeAxles,
+        companyId: String(trip.company_id),
+        destination: {
+          latitude: String(to.latitude),
+          longitude: String(to.longitude),
+          precision: 'street',
+        },
+        origin: {
+          latitude: String(from.latitude),
+          longitude: String(from.longitude),
+          precision: 'street',
+        },
+        vehicleType: 'truck',
+      })
+      const frozenMeters = Number(frozenLegs[index]?.distanceMetres ?? 0)
+      frozenTotal += frozenMeters
+      if (leg === null) {
+        perLeg.push('indisponivel')
+        continue
+      }
+      oursTotal += leg.distanceMeters
+      perLeg.push(`${(leg.distanceMeters / 1000).toFixed(1)}/${(frozenMeters / 1000).toFixed(1)}`)
+      if (
+        leg.toll === null ||
+        leg.toll.boothsWithoutCharge > 0 ||
+        leg.toll.catalogStatus !== 'current'
+      )
+        tollKnownAll = false
+      else tollTotal += Number(leg.toll.total)
+    }
+    const kmDelta =
+      frozenTotal > 0 ? (((oursTotal - frozenTotal) / frozenTotal) * 100).toFixed(1) : '?'
+    console.log(
+      `__RESULT__ viagem=${label} rota_congelada trechos=${frozenLegs.length} km_cotacao=${(oursTotal / 1000).toFixed(1)} km_congelado=${(frozenTotal / 1000).toFixed(1)} delta_km_pct=${kmDelta}` +
+        ` pedagio_cotacao=${tollKnownAll ? tollTotal.toFixed(4) : 'desconhecido'} pedagio_congelado=${planned?.total ?? '?'} eixos=${routeAxles} trechos_km_cotacao/congelado=${perLeg.join(' ')}`,
+    )
+  } else {
+    console.log(
+      `__RESULT__ viagem=${label} rota_congelada=ausente_ou_incompleta pontos=${frozenPoints.length} trechos=${frozenLegs.length}`,
+    )
+  }
+
   const located = stops.filter((stop) => stop.latitude != null)
   if (located.length < 2) {
     console.log(`__RESULT__ viagem=${label} pulada=sem_coordenada_guardada paradas=${stops.length}`)
@@ -213,7 +277,7 @@ for (const trip of trips) {
     )
   } catch (error) {
     console.log(
-      `__RESULT__ viagem=${label} cotacao_recusada=${error instanceof Error ? error.name : 'erro'}`,
+      `__RESULT__ viagem=${label} cotacao_recusada=${(error as { code?: string }).code ?? (error instanceof Error ? error.name : 'erro')}`,
     )
   }
 }
