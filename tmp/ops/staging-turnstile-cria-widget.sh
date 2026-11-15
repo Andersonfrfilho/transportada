@@ -7,7 +7,8 @@
 # Token da Cloudflare com permissao minima: dash.cloudflare.com > My Profile > API Tokens > Create Token > Custom token >
 # "Account" > "Turnstile" > "Edit" (nada mais), restrito a conta que vai hospedar o widget.
 #
-# Uso: CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... bash tmp/ops/staging-turnstile-cria-widget.sh
+# Uso: bash tmp/ops/staging-turnstile-cria-widget.sh   (pede o token e o Account ID, sem eco; ou use as variaveis
+#   CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID para pular a pergunta)
 #   Opcionais: DOMAINS="staging.fernandes-transportadora.com.br" (separados por virgula), RAILWAY_ENVIRONMENT=staging,
 #              FORCE=1 (sobrescreve variaveis que ja existem; sem isto o script para se elas ja estiverem preenchidas).
 # Requer: railway CLI logado no projeto, curl, python3 e terminal interativo.
@@ -18,8 +19,6 @@ OUT_DIR="$REPO/tmp/ops/saidas"
 mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/staging-turnstile-$(date -u +%Y%m%dT%H%M%SZ).txt"
 
-: "${CLOUDFLARE_API_TOKEN:?defina CLOUDFLARE_API_TOKEN (permissao Account > Turnstile > Edit)}"
-: "${CLOUDFLARE_ACCOUNT_ID:?defina CLOUDFLARE_ACCOUNT_ID (Cloudflare > conta > Overview > Account ID)}"
 ENVIRONMENT="${RAILWAY_ENVIRONMENT:-staging}"
 DOMAINS="${DOMAINS:-staging.fernandes-transportadora.com.br}"
 case "$ENVIRONMENT" in production|main) echo "Recusado: este script e so de staging (§ 5.39)." >&2; exit 1 ;; esac
@@ -29,7 +28,15 @@ fi
 [ -t 0 ] || { echo "Confirmacao exige terminal interativo (TTY); recusado." >&2; exit 1; }
 for tool in railway curl python3; do command -v "$tool" >/dev/null || { echo "$tool nao encontrado" >&2; exit 1; }; done
 
-log() { printf '%s\n' "$*" | tee -a "$OUT"; }
+if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+  read -r -s -p 'Token da Cloudflare (Account > Turnstile > Edit; nao aparece na tela): ' CLOUDFLARE_API_TOKEN; echo
+fi
+if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+  read -r -p 'Account ID da Cloudflare (Overview da conta): ' CLOUDFLARE_ACCOUNT_ID
+fi
+[ -n "$CLOUDFLARE_API_TOKEN" ] && [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "Token vazio ou Account ID invalido (32 hexadecimais)." >&2; exit 1; }
+
+log() { printf '%s\n' "$*" >> "$OUT"; }
 read_var() { # servico nome -> valor (vazio se ausente)
   railway variables -s "$1" -e "$ENVIRONMENT" --json 2>/dev/null |
     python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1],""))' "$2" || true
@@ -73,3 +80,5 @@ log "dominios: $DOMAINS"
 log "site key: $SITE_KEY"
 log "variaveis gravadas: api TURNSTILE_SECRET_KEY, landing VITE_TURNSTILE_SITE_KEY ($ENVIRONMENT)"
 log "Aguarde o redeploy da api e da landing de staging e teste o formulario publico."
+unset CLOUDFLARE_API_TOKEN
+echo "$OUT"
