@@ -202,6 +202,37 @@ function RequestDetail({ id }: Readonly<{ id: string }>) {
           <dt>{t('detail.contact')}</dt>
           <dd>{[request.requesterEmail, request.requesterPhone].filter(Boolean).join(' · ')}</dd>
         </div>
+        {request.originContactName === null && request.originContactPhone === null ? null : (
+          <div>
+            <dt>{t('detail.originContact')}</dt>
+            <dd>
+              {[request.originContactName, request.originContactPhone].filter(Boolean).join(' · ')}
+            </dd>
+          </div>
+        )}
+        {request.destinationContactName === null &&
+        request.destinationContactPhone === null ? null : (
+          <div>
+            <dt>{t('detail.destinationContact')}</dt>
+            <dd>
+              {[request.destinationContactName, request.destinationContactPhone]
+                .filter(Boolean)
+                .join(' · ')}
+            </dd>
+          </div>
+        )}
+        {request.accessNotes === null ? null : (
+          <div>
+            <dt>{t('detail.accessNotes')}</dt>
+            <dd>{request.accessNotes}</dd>
+          </div>
+        )}
+        {request.cargoValue === null ? null : (
+          <div>
+            <dt>{t('detail.cargoValue')}</dt>
+            <dd>R$ {request.cargoValue}</dd>
+          </div>
+        )}
         {request.quotedTotalAmount === null ? null : (
           <div>
             <dt>{t('detail.quoted')}</dt>

@@ -218,8 +218,14 @@ function json(body: unknown, status: number): Response {
 /** O que o cliente enxerga: nada de id de usuário, de viagem ou de contratante, e nada de preço interno. */
 function toClientView(record: PickupRequestRecord): Record<string, unknown> {
   return {
+    accessNotes: record.accessNotes,
     acceptedWindowEnd: record.acceptedWindowEnd,
     acceptedWindowStart: record.acceptedWindowStart,
+    cargoValue: record.cargoValue,
+    destinationContactName: record.destinationContactName,
+    destinationContactPhone: record.destinationContactPhone,
+    originContactName: record.originContactName,
+    originContactPhone: record.originContactPhone,
     cargoDescription: record.cargoDescription,
     createdAt: record.createdAt.toISOString(),
     decisionNote: record.status === 'refused' ? record.decisionNote : null,

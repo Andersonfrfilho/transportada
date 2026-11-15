@@ -86,6 +86,15 @@ export const pickupRequests = pgTable(
     volumes: integer().notNull(),
     weightKg: numeric('weight_kg', { precision: 12, scale: 3 }).notNull(),
     note: text(),
+    /** Quem recebe a ligação do motorista em cada ponta (spec 341). Opcionais: o pedido nunca depende deles. */
+    originContactName: text('origin_contact_name'),
+    originContactPhone: text('origin_contact_phone'),
+    destinationContactName: text('destination_contact_name'),
+    destinationContactPhone: text('destination_contact_phone'),
+    /** Horário de funcionamento da doca e restrições de acesso (agendamento, altura, veículo que não entra). */
+    accessNotes: text('access_notes'),
+    /** Valor da mercadoria declarado pelo cliente; base do ad valorem e do GRIS na cotação. */
+    cargoValue: numeric('cargo_value', { precision: 19, scale: 4 }),
     /** Total que o cliente viu no orçamento (326/338), para registrar divergência da decisão. */
     quotedTotalAmount: numeric('quoted_total_amount', { precision: 19, scale: 4 }),
     quoteValidUntil: date('quote_valid_until', { mode: 'string' }),

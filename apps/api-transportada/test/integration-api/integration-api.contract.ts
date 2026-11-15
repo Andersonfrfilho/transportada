@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { RegisteredAnonymousRoute } from '../../src/http/router.service.js'
 import type { PickupRequestAddress } from '../../src/database/pickup-request.schema.js'
 import {
   createCancelIntegrationPickupUseCase,
@@ -123,6 +124,12 @@ function fakePickups() {
         expiresAt: input.expiresAt,
         id: `00000000-0000-4000-8000-${String(sequence + 100).padStart(12, '0')}`,
         integrationKeyId: input.integrationKeyId ?? null,
+        accessNotes: input.accessNotes ?? null,
+        cargoValue: input.cargoValue ?? null,
+        destinationContactName: input.destinationContactName ?? null,
+        destinationContactPhone: input.destinationContactPhone ?? null,
+        originContactName: input.originContactName ?? null,
+        originContactPhone: input.originContactPhone ?? null,
         kind: input.kind,
         note: input.note,
         origin: input.origin,
@@ -178,6 +185,10 @@ function pickupInput(
     kind: 'pickup',
     note: null,
     origin: ADDRESS,
+    accessNotes: 'Doca 2, agendar com 1 dia',
+    cargoValue: '15000.0000',
+    originContactName: 'Maria',
+    originContactPhone: '+5516999999999',
     quote: { total: '4493.4600', validUntil: '2026-11-23' },
     requesterEmail: 'a@b.com',
     requesterName: 'Parceiro',
@@ -300,6 +311,11 @@ describe('pedido de coleta por integração', () => {
       companyId: COMPANY,
       contractorId: null,
       integrationKeyId: caller.keyId,
+      accessNotes: 'Doca 2, agendar com 1 dia',
+      cargoValue: '15000.0000',
+      originContactName: 'Maria',
+      originContactPhone: '+5516999999999',
+      destinationContactName: null,
       quotedTotalAmount: '4493.4600',
       source: 'integration',
       status: 'requested',
@@ -375,11 +391,7 @@ describe('rotas de integração', () => {
     return { ...context, routes }
   }
 
-  function find(
-    routes: Awaited<ReturnType<typeof buildRoutes>>['routes'],
-    method: string,
-    pathname: string,
-  ) {
+  function find(routes: readonly RegisteredAnonymousRoute[], method: string, pathname: string) {
     const route = routes.find(
       (candidate) => candidate.method === method && candidate.pathname === pathname,
     )

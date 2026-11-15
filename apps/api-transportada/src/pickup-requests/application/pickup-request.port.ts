@@ -8,7 +8,16 @@ import type {
   PickupRequestStatus,
 } from '../../database/pickup-request.schema.js'
 
-export type PickupRequestRecord = {
+export type PickupRequestExtras = {
+  readonly accessNotes: string | null
+  readonly cargoValue: string | null
+  readonly destinationContactName: string | null
+  readonly destinationContactPhone: string | null
+  readonly originContactName: string | null
+  readonly originContactPhone: string | null
+}
+
+export type PickupRequestRecord = PickupRequestExtras & {
   readonly acceptedTotalAmount: string | null
   readonly acceptedWindowEnd: string | null
   readonly acceptedWindowStart: string | null
@@ -43,7 +52,7 @@ export type PickupRequestRecord = {
   readonly windowStart: string
 }
 
-export type NewPickupRequest = {
+export type NewPickupRequest = Partial<PickupRequestExtras> & {
   readonly cargoDescription: string
   readonly companyId: string
   readonly contractorId: string | null

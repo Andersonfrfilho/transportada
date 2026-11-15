@@ -17,6 +17,12 @@ export type AddressForm = {
 }
 
 export type PickupRequestForm = {
+  accessNotes: string
+  cargoValue: string
+  destinationContactName: string
+  destinationContactPhone: string
+  originContactName: string
+  originContactPhone: string
   cargoDescription: string
   destination: AddressForm
   kind: PickupRequestKind
@@ -42,6 +48,12 @@ export const EMPTY_ADDRESS: AddressForm = {
 }
 
 export const EMPTY_PICKUP_FORM: PickupRequestForm = {
+  accessNotes: '',
+  cargoValue: '',
+  destinationContactName: '',
+  destinationContactPhone: '',
+  originContactName: '',
+  originContactPhone: '',
   cargoDescription: '',
   destination: EMPTY_ADDRESS,
   kind: 'pickup',
@@ -120,6 +132,15 @@ export function buildPickupRequestInput(
     errors.requesterEmail = 'E-mail inválido.'
   if (phone !== '' && (phone.length < 10 || phone.length > 15))
     errors.requesterPhone = 'Telefone inválido.'
+  const originPhone = digits(form.originContactPhone)
+  const destinationPhone = digits(form.destinationContactPhone)
+  if (originPhone !== '' && (originPhone.length < 10 || originPhone.length > 15))
+    errors.originContactPhone = 'Telefone inválido.'
+  if (destinationPhone !== '' && (destinationPhone.length < 10 || destinationPhone.length > 15))
+    errors.destinationContactPhone = 'Telefone inválido.'
+  const cargoValue = form.cargoValue.trim().replace(/\./gu, '').replace(',', '.')
+  if (cargoValue !== '' && !/^\d{1,15}(\.\d{1,2})?$/u.test(cargoValue))
+    errors.cargoValue = 'Valor inválido (ex.: 1500,00).'
   const volumes = Number(form.volumes)
   if (!Number.isInteger(volumes) || volumes <= 0)
     errors.volumes = 'Informe os volumes (inteiro maior que zero).'
@@ -138,6 +159,14 @@ export function buildPickupRequestInput(
   return {
     errors: null,
     input: {
+      accessNotes: form.accessNotes.trim() === '' ? null : form.accessNotes.trim(),
+      cargoValue: cargoValue === '' ? null : cargoValue,
+      destinationContactName:
+        form.destinationContactName.trim() === '' ? null : form.destinationContactName.trim(),
+      destinationContactPhone: destinationPhone === '' ? null : destinationPhone,
+      originContactName:
+        form.originContactName.trim() === '' ? null : form.originContactName.trim(),
+      originContactPhone: originPhone === '' ? null : originPhone,
       cargoDescription: form.cargoDescription.trim(),
       destination: toAddress(form.destination),
       idempotencyKey: context.idempotencyKey,
