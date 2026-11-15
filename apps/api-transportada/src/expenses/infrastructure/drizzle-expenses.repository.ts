@@ -6,6 +6,7 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import {
   COMPANY_EXPENSE_DRIVER_CATEGORY_NAME,
@@ -14,6 +15,8 @@ import {
   companyExpenses,
 } from '../../database/company-expense.schema.js'
 import { fleetDrivers } from '../../database/fleet.schema.js'
+import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
+import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { formatFiscalDay } from '../../shared/fiscal-day.service.js'
 import type {
@@ -22,9 +25,14 @@ import type {
   CompanyExpenseOccurrence,
   ExpenseDriverRef,
   ExpenseOccurrenceListItem,
+  ExpensePerson,
   ExpensesPorts,
 } from '../application/expense.port.js'
 import { resolveExpensePayeeProfile } from '../domain/expense-payee.policy.js'
+
+/** Spec 328: a ficha de quem causou a conta, ao lado da do favorecido (`fleetDrivers`). */
+const causedByDriver = alias(fleetDrivers, 'expense_caused_by_driver')
+const causedByUserProfile = alias(identityUserProfiles, 'expense_caused_by_user')
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -62,6 +70,10 @@ function toExpense(row: ExpenseRow): CompanyExpense {
   return {
     active: row.active,
     anchorCompetence: formatFiscalDay(row.createdAt).slice(0, 7),
+    billLocation: row.billLocation,
+    causedByDriverId: row.causedByDriverId,
+    causedByName: row.causedByName,
+    causedByUserId: row.causedByUserId,
     categoryId: row.categoryId,
     companyId: row.companyId,
     dueDay: row.dueDay,
@@ -213,11 +225,54 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
         }
       },
     },
+    people: {
+      isActiveMember: async ({ companyId, userId }) => {
+        const [row] = await database
+          .select({ id: userCompanyMemberships.id })
+          .from(userCompanyMemberships)
+          .where(
+            and(
+              eq(userCompanyMemberships.companyId, companyId),
+              eq(userCompanyMemberships.userId, userId),
+              eq(userCompanyMemberships.status, 'active'),
+            ),
+          )
+          .limit(1)
+        return row !== undefined
+      },
+      list: async ({ companyId }): Promise<readonly ExpensePerson[]> => {
+        const drivers = await database
+          .select({ id: fleetDrivers.id, name: fleetDrivers.name })
+          .from(fleetDrivers)
+          .where(and(eq(fleetDrivers.companyId, companyId), eq(fleetDrivers.status, 'active')))
+        const users = await database
+          .select({ id: identityUserProfiles.userId, name: identityUserProfiles.name })
+          .from(userCompanyMemberships)
+          .innerJoin(
+            identityUserProfiles,
+            eq(identityUserProfiles.userId, userCompanyMemberships.userId),
+          )
+          .where(
+            and(
+              eq(userCompanyMemberships.companyId, companyId),
+              eq(userCompanyMemberships.status, 'active'),
+            ),
+          )
+        return [
+          ...drivers.map((row): ExpensePerson => ({ id: row.id, kind: 'driver', name: row.name })),
+          ...users.map((row): ExpensePerson => ({ id: row.id, kind: 'user', name: row.name })),
+        ].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+      },
+    },
     expenses: {
       create: async (input) => {
         const [created] = await database
           .insert(companyExpenses)
           .values({
+            billLocation: input.billLocation ?? null,
+            causedByDriverId: input.causedByDriverId ?? null,
+            causedByName: input.causedByName ?? null,
+            causedByUserId: input.causedByUserId ?? null,
             categoryId: input.categoryId,
             companyId: input.companyId,
             dueDay: input.dueDay,
@@ -323,6 +378,12 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
       list: async ({ companyId, filters }) => {
         const rows = await database
           .select({
+            causedByDriverId: companyExpenses.causedByDriverId,
+            causedByDriverName: causedByDriver.name,
+            causedByName: companyExpenses.causedByName,
+            causedByUserId: companyExpenses.causedByUserId,
+            causedByUserName: causedByUserProfile.name,
+            billLocation: companyExpenses.billLocation,
             categoryId: companyExpenses.categoryId,
             categoryName: companyExpenseCategories.name,
             driverCanDrive: fleetDrivers.canDrive,
@@ -356,9 +417,29 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
               eq(fleetDrivers.id, companyExpenses.payeeDriverId),
             ),
           )
+          .leftJoin(
+            causedByDriver,
+            and(
+              eq(causedByDriver.companyId, companyExpenses.companyId),
+              eq(causedByDriver.id, companyExpenses.causedByDriverId),
+            ),
+          )
+          .leftJoin(
+            causedByUserProfile,
+            eq(causedByUserProfile.userId, companyExpenses.causedByUserId),
+          )
           .where(
             and(
               eq(companyExpenseOccurrences.companyId, companyId),
+              filters.causedByUserId === undefined
+                ? undefined
+                : eq(companyExpenses.causedByUserId, filters.causedByUserId),
+              filters.causedByName === undefined
+                ? undefined
+                : sql`lower(${companyExpenses.causedByName}) = lower(${filters.causedByName})`,
+              filters.causedByDriverId === undefined
+                ? undefined
+                : eq(companyExpenses.causedByDriverId, filters.causedByDriverId),
               filters.competence === undefined
                 ? undefined
                 : eq(companyExpenseOccurrences.competence, filters.competence),
@@ -378,6 +459,12 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
         return rows.map(
           (row): ExpenseOccurrenceListItem => ({
             ...toOccurrence(row.occurrence),
+            causedByDriverId: row.causedByDriverId,
+            causedByDriverName: row.causedByDriverName,
+            causedByName: row.causedByName,
+            causedByUserId: row.causedByUserId,
+            causedByUserName: row.causedByUserName,
+            billLocation: row.billLocation,
             categoryId: row.categoryId,
             categoryName: row.categoryName,
             expenseKind: row.expenseKind,

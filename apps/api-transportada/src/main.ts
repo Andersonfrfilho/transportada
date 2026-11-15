@@ -97,6 +97,7 @@ import {
   createCreateExpenseCategoryUseCase,
   createCreateExpenseUseCase,
   createListExpenseCategoriesUseCase,
+  createListExpensePeopleUseCase,
   createListExpensesUseCase,
   createSetExpenseCategoryActiveUseCase,
   createSetExpenseCategoryCostGroupUseCase,
@@ -2119,6 +2120,8 @@ export function bootstrap(): Bun.Server<undefined> {
     createExpense: (input) => createCreateExpenseUseCase(whatsappExpensesPorts).execute(input),
     listCategories: (input) =>
       createListExpenseCategoriesUseCase(whatsappExpensesPorts).execute(input),
+    /** Quem causou a conta (spec 328): fichas ativas da frota, só o rótulo — nada de aviso. */
+    listPeople: (input) => createListExpensePeopleUseCase(whatsappExpensesPorts).execute(input),
     today: () => formatFiscalDay(new Date()),
   })
   const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
@@ -4786,6 +4789,7 @@ function createApplicationRoutes({
       listOccurrenceTrips: createListExpenseOccurrenceTripsUseCase(expenseOccurrenceTripPorts),
       removeOccurrenceTrip: createRemoveExpenseOccurrenceTripUseCase(expenseOccurrenceTripPorts),
       listCategories: createListExpenseCategoriesUseCase(expensesPorts),
+      listPeople: createListExpensePeopleUseCase(expensesPorts),
       listExpenses: createListExpensesUseCase(expensesPorts),
       listOccurrences: createListExpenseOccurrencesUseCase(expensesPorts),
       now: () => new Date(),

@@ -27,6 +27,9 @@ export const EXPENSE_FLOW_CONTEXT_KEY = {
   amount: 'expenseAmount',
   answer: 'expenseAnswer',
   categoryId: 'expenseCategoryId',
+  billLocation: 'expenseBillLocation',
+  causedById: 'expenseCausedById',
+  causedByName: 'expenseCausedByName',
   dueDate: 'expenseDueDate',
   dueDay: 'expenseDueDay',
   kind: 'expenseKind',
@@ -38,7 +41,10 @@ export const EXPENSE_FLOW_CONTEXT_KEY = {
 
 export const EXPENSE_FLOW_STEP = {
   amount: 'amount',
+  billLocation: 'bill_location',
   category: 'category',
+  causedBy: 'caused_by',
+  causedByName: 'caused_by_name',
   confirm: 'confirm',
   dueDate: 'due_date',
   dueDay: 'due_day',
@@ -51,6 +57,8 @@ export const EXPENSE_FLOW_ANSWER = {
   cancel: 'cancel',
   confirm: 'confirm',
   fix: 'fix',
+  otherName: 'other_name',
+  skip: 'skip',
 } as const
 
 export const EXPENSE_RECURRENCE_OPTIONS = [
@@ -68,6 +76,12 @@ export const EXPENSE_TEXT = {
   blocked: 'Lançar conta não está disponível para o seu perfil.',
   cancelled: 'Certo, não lancei nada.',
   categoryChoice: 'Em qual categoria?',
+  causedByChoice:
+    'Quem causou esta conta, se alguém causou? É opcional. Escolha a pessoa ou toque em Pular.',
+  billLocationAsk:
+    'Onde está a conta agora? Por exemplo: com a Andréia, ou fatura do cartão. É opcional: toque em Pular ou escreva.',
+  causedByNameAsk: 'Digite o nome de quem causou.',
+  causedByInvalid: 'Escolha uma pessoa da lista acima ou toque em Pular.',
   categoryInvalid: 'Escolha uma categoria da lista acima.',
   createFailed: 'Não consegui lançar a conta agora. Confira em Contas, no painel.',
   dueDate: 'Qual o vencimento? Por exemplo: 20/11, 20/11/2026, hoje ou amanhã.',

@@ -35,6 +35,12 @@ describe('expenses client', () => {
     )
   })
 
+  it('o filtro de quem causou a conta vai pela chave da API (spec 328)', () => {
+    expect(serializeFilters({ causedByDriverId: 'driver-1', competence: '2026-11' })).toBe(
+      'causedByDriverId=driver-1&competence=2026-11',
+    )
+  })
+
   it('baixa e cancelamento vão para as rotas certas, sem o id no corpo', async () => {
     const occurrence = {
       competence: '2026-11',

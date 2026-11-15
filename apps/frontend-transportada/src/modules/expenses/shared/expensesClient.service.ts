@@ -4,12 +4,14 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 
 import {
   EXPENSE_CATEGORIES_PATH,
+  EXPENSE_PEOPLE_PATH,
   EXPENSE_OCCURRENCES_PATH,
   EXPENSES_PATH,
   type AvailableExpenseTrips,
   type CreateExpenseInput,
   type Expense,
   type ExpenseCategory,
+  type ExpensePerson,
   type ExpenseCostGroup,
   type ExpenseOccurrence,
   type ExpenseOccurrenceFilters,
@@ -43,6 +45,7 @@ import {
 import {
   toAvailableTrips,
   toCategories,
+  toExpensePeople,
   toCategoryResponse,
   toExpenseResponse,
   toExpenses,
@@ -76,6 +79,7 @@ export type ExpensesClient = Readonly<{
     input: Readonly<{ occurrenceId: string; tripId: string }>,
   ) => Promise<ExpenseOccurrenceTrips>
   listCategories: () => Promise<readonly ExpenseCategory[]>
+  listPeople: () => Promise<readonly ExpensePerson[]>
   listExpenses: () => Promise<readonly Expense[]>
   listOccurrences: (filters: ExpenseOccurrenceFilters) => Promise<ExpenseOccurrencePage>
   listTrips: (occurrenceId: string) => Promise<ExpenseOccurrenceTrips>
@@ -203,6 +207,11 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
         await request({ dependencies, method: 'GET', path: EXPENSE_CATEGORIES_PATH }),
       )
     },
+    async listPeople() {
+      return toExpensePeople(
+        await request({ dependencies, method: 'GET', path: EXPENSE_PEOPLE_PATH }),
+      )
+    },
     async listExpenses() {
       return toExpenses(await request({ dependencies, method: 'GET', path: EXPENSES_PATH }))
     },
@@ -301,6 +310,9 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
 export function serializeFilters(filters: ExpenseOccurrenceFilters): string {
   const search = new URLSearchParams()
   if (filters.categoryId !== undefined) search.set('categoryId', filters.categoryId)
+  if (filters.causedByDriverId !== undefined)
+    search.set('causedByDriverId', filters.causedByDriverId)
+  if (filters.causedByUserId !== undefined) search.set('causedByUserId', filters.causedByUserId)
   if (filters.competence !== undefined) search.set('competence', filters.competence)
   if (filters.driverId !== undefined) search.set('driverId', filters.driverId)
   if (filters.kind !== undefined) search.set('kind', filters.kind)

@@ -147,6 +147,12 @@ export function formatInstallment(
 
 export type CreateFormFields = Readonly<{
   amount: string
+  /** Onde a conta está (texto livre, opcional). */
+  billLocation: string
+  /** Spec 328: opcional; `driver:<id>` | `user:<id>`, vazio = ninguém. */
+  causedBy: string
+  /** Causador digitado (fora do cadastro); só vale sem `causedBy`. */
+  causedByName: string
   categoryId: string
   dueDate: string
   dueDay: string
@@ -161,6 +167,9 @@ export type CreateFormFields = Readonly<{
 
 export const EMPTY_CREATE_FORM: CreateFormFields = {
   amount: '',
+  billLocation: '',
+  causedBy: '',
+  causedByName: '',
   categoryId: '',
   dueDate: '',
   dueDay: '',
@@ -200,4 +209,14 @@ export function validateCreateForm(
     }
   }
   return issues
+}
+
+/** Spec 328: a escolha do select (`driver:<id>` | `user:<id>`) vira a chave certa da API. */
+export function causedByKeys(choice: string): {
+  causedByDriverId?: string
+  causedByUserId?: string
+} {
+  if (choice.startsWith('driver:')) return { causedByDriverId: choice.slice('driver:'.length) }
+  if (choice.startsWith('user:')) return { causedByUserId: choice.slice('user:'.length) }
+  return {}
 }

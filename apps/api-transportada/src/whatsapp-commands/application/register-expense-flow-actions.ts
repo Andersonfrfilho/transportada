@@ -45,6 +45,10 @@ export type ExpenseFlowCategory = {
 
 export type ExpenseFlowCreateInput = {
   readonly categoryId: string
+  readonly billLocation?: string
+  readonly causedByDriverId?: string
+  readonly causedByName?: string
+  readonly causedByUserId?: string
   readonly channel: 'whatsapp'
   readonly companyId: string
   readonly createdBy: string
@@ -59,6 +63,12 @@ export type ExpenseFlowCreateInput = {
 
 export type ExpenseFlowDependencies = {
   readonly createExpense: (input: ExpenseFlowCreateInput) => Promise<unknown>
+  /** Pessoas da frota ativas (motorista, agregado, ajudante): só rótulo informativo da conta. */
+  readonly listPeople?: (input: {
+    readonly companyId: string
+  }) => Promise<
+    readonly { readonly id: string; readonly kind: 'driver' | 'user'; readonly name: string }[]
+  >
   readonly listCategories: (input: {
     readonly companyId: string
   }) => Promise<readonly ExpenseFlowCategory[]>
@@ -74,6 +84,9 @@ const CLEARED = {
   [KEY.amount]: undefined,
   [KEY.answer]: undefined,
   [KEY.categoryId]: undefined,
+  [KEY.billLocation]: undefined,
+  [KEY.causedById]: undefined,
+  [KEY.causedByName]: undefined,
   [KEY.dueDate]: undefined,
   [KEY.dueDay]: undefined,
   [KEY.kind]: undefined,
@@ -133,6 +146,44 @@ export function createExpenseFlowActions(
     return ASK_AGAIN(STEP.category)
   }
 
+  const people = async (companyId: string) =>
+    deps.listPeople === undefined ? [] : await deps.listPeople({ companyId })
+
+  /** As perguntas de quem causou e de onde a conta está só existem com a lista de pessoas ligada (produção). */
+  async function askCausedByOrConfirm(input: Input, context: Record<string, unknown>, page = 1) {
+    if (deps.listPeople === undefined) return confirmWith(input, context)
+    const everyone = await people(input.actor.scope.companyId)
+    await sendDynamicChoice({
+      body: EXPENSE_TEXT.causedByChoice,
+      channel: input.channel,
+      options: [
+        { id: EXPENSE_FLOW_ANSWER.skip, title: '⏭️ Pular' },
+        { id: EXPENSE_FLOW_ANSWER.otherName, title: '✍️ Digitar um nome' },
+        ...everyone.map((person) => ({ id: `${person.kind}:${person.id}`, title: person.name })),
+      ],
+      page,
+      to: input.session.whatsappNumber,
+    })
+    return ASK_AGAIN(STEP.causedBy, context)
+  }
+
+  async function askBillLocation(input: Input, context: Record<string, unknown>) {
+    await sendDynamicChoice({
+      body: EXPENSE_TEXT.billLocationAsk,
+      channel: input.channel,
+      options: [{ id: EXPENSE_FLOW_ANSWER.skip, title: '⏭️ Pular' }],
+      page: 1,
+      to: input.session.whatsappNumber,
+    })
+    return ASK_AGAIN(STEP.billLocation, context)
+  }
+
+  /** `askConfirm` devolve só o passo; o que já foi respondido segue no contexto. */
+  async function confirmWith(input: Input, context: Record<string, unknown>) {
+    const asked = await askConfirm(input, context)
+    return { ...asked, context: { ...context, ...asked.context } }
+  }
+
   async function askRecurrence(input: Input) {
     await sendDynamicChoice({
       body: EXPENSE_TEXT.recurrenceChoice,
@@ -151,6 +202,15 @@ export function createExpenseFlowActions(
     const recurrence = EXPENSE_RECURRENCE_OPTIONS.find(
       ([id]) => id === readString(context, KEY.recurrence),
     )
+    const causedById = readString(context, KEY.causedById)
+    const causedBy =
+      readString(context, KEY.causedByName) ??
+      (causedById === undefined
+        ? undefined
+        : (await people(input.actor.scope.companyId)).find(
+            (person) => `${person.kind}:${person.id}` === causedById,
+          )?.name)
+    const billLocation = readString(context, KEY.billLocation)
     const when =
       kind === 'fixed'
         ? `${recurrence?.[1].replace('📆 ', '') ?? ''}, todo dia ${readString(context, KEY.dueDay) ?? ''}`
@@ -163,6 +223,8 @@ export function createExpenseFlowActions(
       `Categoria: ${category?.name ?? ''}`,
       `Valor: R$ ${formatBrl(readString(context, KEY.amount) ?? '0.00')}`,
       `Vencimento: ${when}`,
+      ...(causedBy === undefined ? [] : [`Quem causou: ${causedBy}`]),
+      ...(billLocation === undefined ? [] : [`Onde está: ${billLocation}`]),
     ].join('\n')
     await sendDynamicChoice({
       body: summary,
@@ -245,9 +307,7 @@ export function createExpenseFlowActions(
     if (step === STEP.dueDate) {
       const dueDate = parseExpenseDueDate(answer, deps.today())
       if (dueDate === undefined) return reject(EXPENSE_TEXT.dueDateInvalid)
-      const next = { ...context, [KEY.dueDate]: dueDate }
-      const asked = await askConfirm(input, next)
-      return { ...asked, context: { ...asked.context, [KEY.dueDate]: dueDate } }
+      return askCausedByOrConfirm(input, { ...context, [KEY.dueDate]: dueDate })
     }
 
     if (step === STEP.recurrence) {
@@ -261,9 +321,39 @@ export function createExpenseFlowActions(
     if (step === STEP.dueDay) {
       const day = parseExpenseDueDay(answer)
       if (day === undefined) return reject(EXPENSE_TEXT.dueDayInvalid)
-      const next = { ...context, [KEY.dueDay]: String(day) }
-      const asked = await askConfirm(input, next)
-      return { ...asked, context: { ...asked.context, [KEY.dueDay]: String(day) } }
+      return askCausedByOrConfirm(input, { ...context, [KEY.dueDay]: String(day) })
+    }
+
+    if (step === STEP.causedBy) {
+      const page = parseMenuPageNavigation(answer)
+      if (page !== undefined) return askCausedByOrConfirm(input, context, page)
+      if (answer === EXPENSE_FLOW_ANSWER.skip || answer.toLowerCase() === 'pular') {
+        return askBillLocation(input, context)
+      }
+      if (answer === EXPENSE_FLOW_ANSWER.otherName) {
+        await channel.sendText(to, EXPENSE_TEXT.causedByNameAsk)
+        return ASK_AGAIN(STEP.causedByName, context)
+      }
+      const everyone = await people(actor.scope.companyId)
+      if (!everyone.some((person) => `${person.kind}:${person.id}` === answer)) {
+        return reject(EXPENSE_TEXT.causedByInvalid)
+      }
+      return askBillLocation(input, { ...context, [KEY.causedById]: answer })
+    }
+
+    if (step === STEP.causedByName) {
+      if (answer.length < 2 || answer.length > EXPENSE_NAME_MAX_LENGTH + 40) {
+        return reject(EXPENSE_TEXT.nameInvalid)
+      }
+      return askBillLocation(input, { ...context, [KEY.causedByName]: answer })
+    }
+
+    if (step === STEP.billLocation) {
+      if (answer === EXPENSE_FLOW_ANSWER.skip || answer.toLowerCase() === 'pular') {
+        return confirmWith(input, context)
+      }
+      if (answer.length > 120) return reject(EXPENSE_TEXT.billLocationAsk)
+      return confirmWith(input, { ...context, [KEY.billLocation]: answer })
     }
 
     if (step === STEP.confirm) {
@@ -284,6 +374,9 @@ export function createExpenseFlowActions(
     const recurrence = readString(context, KEY.recurrence) as Recurrence | undefined
     const dueDate = readString(context, KEY.dueDate)
     const dueDay = Number(readString(context, KEY.dueDay))
+    const causedById = readString(context, KEY.causedById)
+    const causedByName = readString(context, KEY.causedByName)
+    const billLocation = readString(context, KEY.billLocation)
     const complete =
       (kind === 'fixed' || kind === 'variable') &&
       name !== undefined &&
@@ -298,6 +391,14 @@ export function createExpenseFlowActions(
     try {
       await deps.createExpense({
         categoryId,
+        ...(billLocation === undefined ? {} : { billLocation }),
+        ...(causedByName === undefined ? {} : { causedByName }),
+        ...(causedById?.startsWith('driver:') === true
+          ? { causedByDriverId: causedById.slice('driver:'.length) }
+          : {}),
+        ...(causedById?.startsWith('user:') === true
+          ? { causedByUserId: causedById.slice('user:'.length) }
+          : {}),
         channel: 'whatsapp',
         companyId: actor.scope.companyId,
         createdBy: actor.scope.userId,

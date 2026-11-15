@@ -70,7 +70,7 @@ const CATEGORIES = [
   { id: 'CATD', name: 'Pagamento de motorista/agregado', requiresDriver: true },
 ]
 
-function setup(roles: readonly string[] = ['company-admin']) {
+function setup(roles: readonly string[] = ['company-admin'], withPeople = false) {
   const texts: string[] = []
   const lists: { body: string; rows: { id: string; title: string }[] }[] = []
   const created: Record<string, unknown>[] = []
@@ -80,6 +80,14 @@ function setup(roles: readonly string[] = ['company-admin']) {
       if (failures.create) throw new Error('boom')
       created.push(input as unknown as Record<string, unknown>)
     },
+    ...(withPeople
+      ? {
+          listPeople: async () => [
+            { id: 'P1', kind: 'driver' as const, name: 'João Motorista' },
+            { id: 'P2', kind: 'user' as const, name: 'Ana do escritório' },
+          ],
+        }
+      : {}),
     listCategories: async () => CATEGORIES.map((c) => ({ ...c, active: true })),
     today: () => '2026-11-15',
   }
@@ -249,5 +257,69 @@ describe('regras de segurança e de conversa', () => {
     const out = await t.say('confirm')
     expect(out?.next).toBe('menu')
     expect(t.texts.at(-1)).toContain('painel')
+  })
+})
+
+describe('quem causou a conta e onde ela está (opcionais)', () => {
+  async function untilCause(t: ReturnType<typeof setup>) {
+    await t.start()
+    await t.say('variable')
+    await t.say('Multa de trânsito')
+    await t.say('CAT1')
+    await t.say('195,23')
+    await t.say('20/11')
+  }
+
+  test('pessoa da frota: pergunta com Pular e Digitar um nome, e grava a ficha', async () => {
+    const t = setup(['company-admin'], true)
+    await untilCause(t)
+    expect(t.lists.at(-1)?.rows.map((r) => r.id)).toEqual([
+      'skip',
+      'other_name',
+      'driver:P1',
+      'user:P2',
+    ])
+    await t.say('driver:P1')
+    expect(t.lists.at(-1)?.body).toContain('Onde está a conta')
+    await t.say('Com a Andréia')
+    expect(t.lists.at(-1)?.body).toContain('Quem causou: João Motorista')
+    expect(t.lists.at(-1)?.body).toContain('Onde está: Com a Andréia')
+    await t.say('confirm')
+    expect(t.created[0]).toMatchObject({ billLocation: 'Com a Andréia', causedByDriverId: 'P1' })
+  })
+
+  test('usuário do escritório vai como causedByUserId', async () => {
+    const t = setup(['company-admin'], true)
+    await untilCause(t)
+    await t.say('user:P2')
+    await t.say('pular')
+    await t.say('confirm')
+    expect(t.created[0]).toMatchObject({ causedByUserId: 'P2' })
+    expect(t.created[0]).not.toHaveProperty('billLocation')
+  })
+
+  test('nome digitado vai como causedByName', async () => {
+    const t = setup(['company-admin'], true)
+    await untilCause(t)
+    await t.say('other_name')
+    expect(t.texts.at(-1)).toContain('nome')
+    await t.say('Seu Zé do posto')
+    await t.say('skip')
+    expect(t.lists.at(-1)?.body).toContain('Quem causou: Seu Zé do posto')
+    await t.say('confirm')
+    expect(t.created[0]).toMatchObject({ causedByName: 'Seu Zé do posto' })
+  })
+
+  test('Pular nos dois segue sem nada, e pessoa fora da lista pergunta de novo', async () => {
+    const t = setup(['company-admin'], true)
+    await untilCause(t)
+    await t.say('driver:XX')
+    expect(t.texts.at(-1)).toContain('Pular')
+    await t.say('pular')
+    await t.say('pular')
+    expect(t.lists.at(-1)?.body).not.toContain('Quem causou')
+    await t.say('confirm')
+    expect(t.created[0]).not.toHaveProperty('causedByDriverId')
+    expect(t.created[0]).not.toHaveProperty('billLocation')
   })
 })

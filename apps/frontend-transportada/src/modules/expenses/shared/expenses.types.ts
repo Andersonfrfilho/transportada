@@ -28,10 +28,20 @@ export const EXPENSES_MANAGE_PERMISSION = 'expenses.manage'
 export const EXPENSES_PATH = '/expenses'
 export const EXPENSE_CATEGORIES_PATH = '/expense-categories'
 export const EXPENSE_OCCURRENCES_PATH = '/expense-occurrences'
+export const EXPENSE_PEOPLE_PATH = '/expense-people'
+
+/** Spec 328: opção de "quem causou" — ficha da frota ativa ou usuário do escritório. */
+export type ExpensePerson = Readonly<{ id: string; kind: 'driver' | 'user'; name: string }>
 
 /** Dinheiro é **texto** do começo ao fim (`"1234.50"`): converter para número perderia centavo. */
 export type Expense = Readonly<{
   active: boolean
+  /** Spec 328: quem causou a conta (ficha da frota); `null` sem causador (e API anterior à 328). */
+  causedByDriverId: string | null
+  /** Spec 328: causador digitado (fora do cadastro) e onde a conta está; `null` quando não informados. */
+  causedByName: string | null
+  causedByUserId: string | null
+  billLocation: string | null
   categoryId: string
   dueDay: number | null
   expectedAmount: string
@@ -79,6 +89,13 @@ export type ExpensePayeeProfile = (typeof EXPENSE_PAYEE_PROFILES)[number]
 
 export type ExpenseOccurrenceListItem = ExpenseOccurrence &
   Readonly<{
+    /** Spec 328: ausente em API anterior; nunca é quem recebe os avisos. */
+    causedByDriverId?: string | null
+    causedByDriverName?: string | null
+    causedByName?: string | null
+    causedByUserId?: string | null
+    causedByUserName?: string | null
+    billLocation?: string | null
     categoryId: string
     categoryName: string
     expenseKind: ExpenseKind
@@ -108,6 +125,8 @@ export type ExpenseOccurrencePage = Readonly<{
 }>
 
 export type ExpenseOccurrenceFilters = Readonly<{
+  causedByDriverId?: string
+  causedByUserId?: string
   categoryId?: string
   competence?: string
   driverId?: string
@@ -116,6 +135,10 @@ export type ExpenseOccurrenceFilters = Readonly<{
 }>
 
 export type CreateExpenseInput = Readonly<{
+  billLocation?: string
+  causedByDriverId?: string
+  causedByName?: string
+  causedByUserId?: string
   categoryId: string
   dueDate?: string
   dueDay?: number
@@ -130,6 +153,10 @@ export type CreateExpenseInput = Readonly<{
 
 export type UpdateExpenseInput = Readonly<{
   active?: boolean
+  billLocation?: string | null
+  causedByDriverId?: string | null
+  causedByName?: string | null
+  causedByUserId?: string | null
   dueDay?: number
   expectedAmount?: string
   name?: string

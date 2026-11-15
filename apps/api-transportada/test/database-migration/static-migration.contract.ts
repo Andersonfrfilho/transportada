@@ -466,6 +466,7 @@ describe('Drizzle migrations', () => {
       '20261115140000_pickup_request_notifications',
       '20261115150000_integration_api_keys',
       '20261115160000_pickup_request_extras',
+      '20261115163620_company_expense_caused_by_and_bill_location',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
