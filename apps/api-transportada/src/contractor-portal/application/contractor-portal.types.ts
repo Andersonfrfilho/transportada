@@ -25,6 +25,32 @@ export type ContractorDelivery = {
   readonly tripStatus: string | null
 }
 
+/**
+ * Spec 340 D4: os marcos da entrega, numa **lista fechada**. A coordenada é a da **parada de destino**
+ * (a do endereço geocodificado), nunca a de quem dirige; sem placa, motorista, valor nem trajeto.
+ */
+export const CONTRACTOR_DELIVERY_EVENT_KINDS = [
+  'received',
+  'separated',
+  'loaded',
+  'en_route',
+  'arrived',
+  'delivered',
+  'returned',
+] as const
+
+export type ContractorDeliveryEventKind = (typeof CONTRACTOR_DELIVERY_EVENT_KINDS)[number]
+
+export type ContractorDeliveryEvent = {
+  readonly kind: ContractorDeliveryEventKind
+  readonly occurredAt: string
+}
+
+export type ContractorDeliveryEvents = {
+  readonly destination: { readonly latitude: string; readonly longitude: string } | null
+  readonly events: readonly ContractorDeliveryEvent[]
+}
+
 export type ContractorScheduleTarget = {
   /** Nulo enquanto a parada não foi reconciliada — a nota está na viagem, a parada ainda não. */
   readonly stopId: string | null
@@ -38,6 +64,12 @@ export type ContractorPortalRepositoryPort = {
     readonly context: CompanyContext
     readonly scope: ContractorScope
   }): Promise<ContractorScheduleTarget | null>
+  /** `null` quando a chave não é de nota dele ou não existe — as duas respondem igual. */
+  listDeliveryEvents(input: {
+    readonly accessKey: string
+    readonly context: CompanyContext
+    readonly scope: ContractorScope
+  }): Promise<ContractorDeliveryEvents | null>
   isBatchWithinScope(input: {
     readonly batchId: string
     readonly context: CompanyContext

@@ -3,6 +3,8 @@ import type {
   ChargeBatch,
   ChargeBatchItem,
   Delivery,
+  DeliveryEventKind,
+  DeliveryEvents,
   DeliveryLocation,
   DeliverySchedule,
   Occurrence,
@@ -58,6 +60,37 @@ export function toDeliveryLocation(payload: unknown): DeliveryLocation | null {
   if (latitude === '' || longitude === '') return null
 
   return { latitude, longitude, recordedAt: readString(row, 'recordedAt') }
+}
+
+const EVENT_KINDS: readonly DeliveryEventKind[] = [
+  'received',
+  'separated',
+  'loaded',
+  'en_route',
+  'arrived',
+  'delivered',
+  'returned',
+]
+
+export function toDeliveryEvents(payload: unknown): DeliveryEvents {
+  const empty: DeliveryEvents = { destination: null, events: [] }
+  if (!isRecord(payload) || !isRecord(payload.data)) return empty
+  const row = payload.data
+  const rawEvents: unknown[] = Array.isArray(row.events) ? row.events : []
+  const events = rawEvents.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const kind = EVENT_KINDS.find((candidate) => candidate === item.kind)
+    const occurredAt = readString(item, 'occurredAt')
+    return kind === undefined || occurredAt === '' ? [] : [{ kind, occurredAt }]
+  })
+  const destination = isRecord(row.destination) ? row.destination : null
+  const latitude = destination === null ? '' : readString(destination, 'latitude')
+  const longitude = destination === null ? '' : readString(destination, 'longitude')
+
+  return {
+    destination: latitude === '' || longitude === '' ? null : { latitude, longitude },
+    events,
+  }
 }
 
 export function toDeliverySchedule(payload: unknown): DeliverySchedule | null {
