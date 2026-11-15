@@ -4,7 +4,8 @@
  * Spec 325 T7.3 (RF24, RF26): quem recebe o aviso e por quais canais, lido do banco. O que só o banco prova: o vínculo
  * ativo da empresa decide quem existe (outra empresa, vínculo ou conta desligados = não existe), o e-mail vem do perfil
  * ou do contato do convite, o WhatsApp exige opt-in **e** número verificado, a preferência é por empresa, e sem linha de
- * configuração vale o padrão.
+ * configuração vale o padrão. Motorista nunca recebe (decisão do Anderson, 2026-11-15): papel de quem dirige, direto ou por
+ * grupo, ou ficha da frota que dirige — nem como responsável, nem sendo também administrador. O ajudante recebe.
  */
 import { SQL } from 'bun'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
@@ -39,6 +40,16 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
   const formerAdmin = crypto.randomUUID()
   /** Operador convidado por WhatsApp, sem e-mail, com push ligado. */
   const operator = crypto.randomUUID()
+  /** Administrador que também é motorista: nunca recebe. */
+  const drivingAdmin = crypto.randomUUID()
+  /** Motorista marcado como responsável: nunca recebe. */
+  const driver = crypto.randomUUID()
+  /** Financeiro que é agregado por grupo: nunca recebe. */
+  const groupAggregate = crypto.randomUUID()
+  /** Operador com ficha da frota que dirige: nunca recebe. */
+  const fleetDriver = crypto.randomUUID()
+  /** Ajudante (ficha que não dirige): recebe. */
+  const helper = crypto.randomUUID()
   const databaseName = `transportada_325_t73_${crypto.randomUUID().replaceAll('-', '')}`
   let adminSql: SQL | undefined
   let database: TestDatabase | undefined
@@ -53,7 +64,7 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
     membershipStatus?: 'active' | 'disabled'
     roles: string[]
     userId: string
-  }): Promise<void> {
+  }): Promise<string> {
     const membershipId = crypto.randomUUID()
     await db().execute(sql`
       insert into user_company_memberships (id, user_id, company_id, status)
@@ -64,6 +75,7 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
         sql`insert into membership_roles (membership_id, role) values (${membershipId}, ${role})`,
       )
     }
+    return membershipId
   }
 
   beforeAll(async () => {
@@ -92,6 +104,18 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
       ],
       [formerAdmin, 'active', 'Fábio Ex', 'email', 'fabio@exemplo.com.br', 'fabio@exemplo.com.br'],
       [operator, 'active', 'Otto Op', 'whatsapp', '5516999990001', ''],
+      [
+        drivingAdmin,
+        'active',
+        'Dora Dirige',
+        'email',
+        'dora@exemplo.com.br',
+        'dora@exemplo.com.br',
+      ],
+      [driver, 'active', 'Mário Mot', 'email', 'mario@exemplo.com.br', 'mario@exemplo.com.br'],
+      [groupAggregate, 'active', 'Gil Grupo', 'email', 'gil@exemplo.com.br', 'gil@exemplo.com.br'],
+      [fleetDriver, 'active', 'Fred Frota', 'email', 'fred@exemplo.com.br', 'fred@exemplo.com.br'],
+      [helper, 'active', 'Hugo Ajuda', 'email', 'hugo@exemplo.com.br', 'hugo@exemplo.com.br'],
     ]
     for (const [userId, status, name, channel, address, email] of people) {
       await db().execute(sql`insert into identity_users (id, status) values (${userId}, ${status})`)
@@ -111,6 +135,42 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
       userId: formerAdmin,
     })
     await addMember({ companyId: companyA, roles: ['operator'], userId: operator })
+    await addMember({
+      companyId: companyA,
+      roles: ['company-admin', 'driver'],
+      userId: drivingAdmin,
+    })
+    await addMember({ companyId: companyA, roles: ['driver'], userId: driver })
+    const groupMembership = await addMember({
+      companyId: companyA,
+      roles: ['finance'],
+      userId: groupAggregate,
+    })
+    const groupId = crypto.randomUUID()
+    await db().execute(
+      sql`insert into company_groups (id, company_id, name) values (${groupId}, ${companyA}, 'Agregados')`,
+    )
+    await db().execute(
+      sql`insert into company_group_roles (group_id, role) values (${groupId}, 'aggregate')`,
+    )
+    await db().execute(
+      sql`insert into membership_groups (membership_id, group_id) values (${groupMembership}, ${groupId})`,
+    )
+    const fleetMembership = await addMember({
+      companyId: companyA,
+      roles: ['operator'],
+      userId: fleetDriver,
+    })
+    const helperMembership = await addMember({
+      companyId: companyA,
+      roles: ['helper'],
+      userId: helper,
+    })
+    await db().execute(sql`
+      insert into fleet_drivers (id, company_id, membership_id, name, tax_id, payment_model, can_drive, can_act_as_helper)
+      values (${crypto.randomUUID()}, ${companyA}, ${fleetMembership}, 'Fred Frota', '12345678911', 'route_table', true, false),
+             (${crypto.randomUUID()}, ${companyA}, ${helperMembership}, 'Hugo Ajuda', '12345678912', 'route_table', false, true)
+    `)
 
     await db().execute(sql`
       insert into user_whatsapp_phones (user_id, phone, verified_at) values
@@ -137,11 +197,32 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
     }
   }, 60_000)
 
-  test('administradores: só vínculo e conta ativos com o papel, cada um com os canais dele', async () => {
+  test('administradores: só vínculo e conta ativos com o papel, nunca o que também dirige, cada um com os canais dele', async () => {
     const recipients = createDrizzleExpenseReminderRecipients(db())
     expect(await recipients.findAdmins({ companyId: companyA })).toEqual([
       { channels: ['email', 'whatsapp'], userId: admin },
     ])
+  })
+
+  test('motorista nunca recebe: responsável por papel, por grupo ou pela ficha da frota é "não existe"', async () => {
+    const recipients = createDrizzleExpenseReminderRecipients(db())
+    for (const userId of [driver, groupAggregate, fleetDriver, drivingAdmin]) {
+      expect({
+        userId,
+        recipient: await recipients.findById({ companyId: companyA, userId }),
+      }).toEqual({
+        recipient: null,
+        userId,
+      })
+    }
+  })
+
+  test('o ajudante (ficha que não dirige) recebe normalmente', async () => {
+    const recipients = createDrizzleExpenseReminderRecipients(db())
+    expect(await recipients.findById({ companyId: companyA, userId: helper })).toEqual({
+      channels: ['email'],
+      userId: helper,
+    })
   })
 
   test('a preferência é por empresa: na B a mesma pessoa só tem e-mail', async () => {

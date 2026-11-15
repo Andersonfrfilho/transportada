@@ -12,7 +12,8 @@
  *   que não rodou num dia não empurra o aviso para depois). Nada antes de `dailySummaryHour`.
  * - **Quem**: o responsável, se ele ainda é da empresa **e** tem algum canal ligado na empresa; senão os administradores
  *   (`company-admin` ativos). Responsável que não pode receber nada conta como sem responsável: o aviso cai no
- *   administrador em vez de não sair.
+ *   administrador em vez de não sair. **Motorista nunca recebe** (`isBarredFromExpenseReminders`): o leitor de
+ *   destinatários o tira antes de chegar aqui, como responsável e como administrador.
  * - **Canal**: e-mail sempre que a pessoa tem e-mail; WhatsApp só com opt-in **e** número verificado; push só com opt-in.
  *   Cada um ainda precisa estar ligado na empresa. A ordem é fixa (e-mail, WhatsApp, push).
  */
@@ -94,6 +95,24 @@ export type ReminderPersonFacts = {
   readonly whatsappOptIn: boolean
 }
 
+/** Papéis de quem dirige: motorista e agregado. O ajudante (`helper`) não dirige e não entra aqui. */
+export const EXPENSE_REMINDER_DRIVING_ROLES = ['driver', 'aggregate'] as const
+
+/**
+ * RF24 (decisão do Anderson, 2026-11-15): **motorista nunca recebe aviso de conta**, nem marcado como responsável nem
+ * sendo também administrador. Motorista = papel de quem dirige, direto ou por grupo, ou ficha da frota que dirige
+ * (`fleet_drivers.can_drive`). Responsável motorista conta como sem responsável: o aviso cai nos administradores.
+ */
+export function isBarredFromExpenseReminders(facts: {
+  readonly drivesInFleet: boolean
+  readonly roles: readonly string[]
+}): boolean {
+  return (
+    facts.drivesInFleet ||
+    facts.roles.some((role) => (EXPENSE_REMINDER_DRIVING_ROLES as readonly string[]).includes(role))
+  )
+}
+
 /** RF26: os canais da pessoa (sem a empresa). E-mail não tem opt-out: é o canal que garante o aviso. */
 export function personalReminderChannels(facts: ReminderPersonFacts): readonly ReminderChannel[] {
   return CHANNEL_ORDER.filter((channel) => {
@@ -117,7 +136,7 @@ export function effectiveReminderChannels(input: {
 export type ReminderRecipientReason =
   /** O responsável da conta recebe. */
   | 'responsible'
-  /** Conta sem responsável, ou responsável que saiu da empresa: vai aos administradores (RF24). */
+  /** Conta sem responsável, responsável que saiu da empresa ou que é motorista: vai aos administradores (RF24). */
   | 'no_responsible'
   /** O responsável existe, mas não tem nenhum canal ligado na empresa: vai aos administradores. */
   | 'responsible_unreachable'

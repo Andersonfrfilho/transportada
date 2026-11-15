@@ -612,6 +612,26 @@ A rota e a tela para a pessoa ligar WhatsApp/push ficam na T7.5.
 - `bun test ./test/deploy.contract.test.ts` 214 pass; `tsc --noEmit`, `eslint` e `prettier --check` limpos.
 - Os 31 contratos vermelhos da T7.1 seguem fora da lista oficial (a T7.4/T7.4b os movem).
 
+## RF24 — Motorista nunca recebe aviso de conta (2026-11-15)
+
+Decisão do Anderson (2026-11-15): "nunca o motorista deve receber aviso de conta".
+
+| Pergunta                                  | Decisão                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quem é motorista                          | Papel `driver` ou `aggregate`, direto (`membership_roles`) ou por grupo (`membership_groups` + `company_group_roles`), **ou** ficha da frota ligada ao vínculo com `can_drive` (qualquer situação da ficha). Regra pura `isBarredFromExpenseReminders` (`expense-reminder.policy.ts`, cópia por valor no worker, marcadores no contrato de paridade). |
+| Motorista que também é administrador      | Não recebe: o "nunca" vale sobre o papel de administrador.                                                                                                                                                                                                                                                                                            |
+| Responsável motorista                     | Conta como sem responsável: o leitor devolve "não existe" e o aviso cai nos administradores (`reason: 'no_responsible'`).                                                                                                                                                                                                                             |
+| Ajudante (`helper`, ficha que não dirige) | Continua podendo receber: não dirige.                                                                                                                                                                                                                                                                                                                 |
+| Onde a regra mora                         | Nos dois leitores de destinatários: `drizzle-expense-reminder-recipients.repository.ts` (API) e `drizzle-company-expense-reminder.repository.ts` (worker, rotina da T7.4). Nenhum dos dois devolve motorista, como responsável ou como administrador.                                                                                                 |
+| Painel                                    | O campo Responsável ainda não existe (T7.5): anotado no `tasks.md` que ele não oferece motorista e que a API recusa gravar um.                                                                                                                                                                                                                        |
+
+**Resultado medido**
+
+- `bun test ./test/expenses.contract.test.ts` (API): 268 pass / 0 fail (7 casos novos de `isBarredFromExpenseReminders`).
+- `test/integration/expense-reminder-recipients.integration.ts` (API, Postgres 16 descartável): 9 pass / 0 fail. Motorista por papel, por grupo, pela ficha e administrador que dirige saem; o ajudante recebe. Com o filtro desligado, 2 testes falham.
+- `test/integration/company-expense-reminder-people.integration.ts` (worker, novo, registrado em `test:integration`): 3 pass / 0 fail. Com o filtro desligado, 2 falham.
+- `bun test ./test/company-expense-reminder.contract.test.ts` (worker, inclui a paridade com os marcadores novos): 13 pass / 0 fail. `tsc --noEmit` e `eslint` limpos nas duas apps.
+
 ## T7.4 (parte 1) — O caso de uso dos lembretes (2026-11-14)
 
 **O que entrou** (`apps/api-transportada`): `createRunExpenseRemindersUseCase` (`expense-reminder.use-case.ts`) aplica `reminderKindOn` e
