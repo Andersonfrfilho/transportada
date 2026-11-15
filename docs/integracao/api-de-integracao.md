@@ -1,6 +1,6 @@
 # API de integração — cotação e pedido de coleta/entrega
 
-> **Status: spec 340, implementada e ainda não publicada em produção.** São quatro rotas, as únicas que o parceiro
+> **Status: spec 341, implementada e ainda não publicada em produção.** São quatro rotas, as únicas que o parceiro
 > precisa. O aviso por webhook **não faz parte desta versão**: o parceiro acompanha o pedido consultando-o (§2.3).
 
 ## 1. Acesso

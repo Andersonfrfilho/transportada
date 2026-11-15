@@ -1,4 +1,4 @@
-# Tasks — spec 340
+# Tasks — spec 341
 
 - [x] T1 Tabela `integration_api_keys` + coluna `pickup_requests.integration_key_id` (migration `20261115150000`, rollback guardado, `prune-source.sql` = `empty`).
 - [x] T2 Política da chave (geração, hash, leitura do Bearer) e casos de uso (criar, listar, revogar, autenticar) com auditoria sem a chave.

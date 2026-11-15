@@ -1435,7 +1435,7 @@ Valor exato em `bigint`, `0` é valor; "quem pagou" obrigatório e `driver` exig
 - **Viagem antiga não é reordenada.** A migration `trip_stop_order_source` deixa tudo `unordered`; só viagem tocada depois entra no ordenador.
 - **Testes:** contratos `test/trip-domain/draft-stop-order.contract.ts` (propriedades com semente fixa) e `test/trip-stops/order-draft-trip-stops.contract.ts`; integração com Postgres `test/integration/draft-stop-order.integration.ts` (CA1–CA4, na lista do `test:integration`). Detalhe e evidência: `specs/323-paradas-ordenadas-no-rascunho/evidence.md`.
 
-## A API de integração (spec 340)
+## A API de integração (spec 341)
 
 `integration-api/`: chave por empresa (`integration_api_keys`, só o hash SHA-256; a chave `tms_…` aparece uma vez na criação) com
 capacidades `quote`/`pickup`. Administração em `/integration-keys` (`settings.manage`, auditada **sem** a chave nem o hash);

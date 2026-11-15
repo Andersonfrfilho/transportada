@@ -65,7 +65,7 @@ viagem. Aceitar **gera uma sugestão** (entrar numa viagem existente ou criar um
 
 - **D10 — Muita chamada: a API grava e o worker entrega** (Anderson, 15/11/2026). Pedido, aceite e recusa só validam e
   gravam, junto com o evento de saída (outbox) na mesma transação; e-mail, WhatsApp e webhook do parceiro saem pelo
-  worker, com repetição e espera crescente. A cotação (spec 340) é conta pura e fica síncrona, com cache curto de
+  worker, com repetição e espera crescente. A cotação (spec 341) é conta pura e fica síncrona, com cache curto de
   parâmetros e preço do diesel por empresa e limite por chave.
 
 ## Histórias
