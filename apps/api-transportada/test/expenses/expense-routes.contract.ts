@@ -120,7 +120,7 @@ describe('rotas de contas (spec 325 CA03)', () => {
       ['GET', '/expense-occurrences/:id/available-trips', 'expenses.read'],
       ['POST', '/expense-occurrences/:id/trips', 'expenses.manage'],
       ['DELETE', '/expense-occurrences/:id/trips/:tripId', 'expenses.manage'],
-      ['GET', '/expense-people', 'expenses.manage'],
+      ['GET', '/expense-people', 'expenses.read'],
       ['GET', '/expense-categories', 'expenses.read'],
       ['POST', '/expense-categories', 'expenses.manage'],
       ['PATCH', '/expense-categories/:id', 'expenses.manage'],

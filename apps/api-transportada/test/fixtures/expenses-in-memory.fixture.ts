@@ -169,9 +169,8 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
           .filter(
             (o) =>
               filters.causedByName === undefined ||
-              expenseRows
-                .find((e) => e.id === o.expenseId)
-                ?.causedByName?.toLowerCase() === filters.causedByName.toLowerCase(),
+              expenseRows.find((e) => e.id === o.expenseId)?.causedByName?.toLowerCase() ===
+                filters.causedByName.toLowerCase(),
           )
           .map((o) => {
             const expense = expenseRows.find((e) => e.id === o.expenseId)
@@ -186,7 +185,10 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
               causedByDriverName: causedBy === undefined ? null : 'Quem causou',
               causedByName: expense?.causedByName ?? null,
               causedByUserId: expense?.causedByUserId ?? null,
-              causedByUserName: expense?.causedByUserId === undefined || expense.causedByUserId === null ? null : 'Ana do escritório',
+              causedByUserName:
+                expense?.causedByUserId === undefined || expense.causedByUserId === null
+                  ? null
+                  : 'Ana do escritório',
               billLocation: expense?.billLocation ?? null,
               expenseKind: expense?.kind ?? 'fixed',
               expenseName: expense?.name ?? '',

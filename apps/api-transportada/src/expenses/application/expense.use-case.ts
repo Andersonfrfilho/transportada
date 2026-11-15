@@ -191,7 +191,11 @@ function causeChanges(input: {
   readonly causedByDriverId?: string | null
   readonly causedByName?: string | null
   readonly causedByUserId?: string | null
-}): { causedByDriverId?: string | null; causedByName?: string | null; causedByUserId?: string | null } {
+}): {
+  causedByDriverId?: string | null
+  causedByName?: string | null
+  causedByUserId?: string | null
+} {
   const driver = input.causedByDriverId
   const user = input.causedByUserId
   const name = input.causedByName === undefined ? undefined : normalizeName(input.causedByName)

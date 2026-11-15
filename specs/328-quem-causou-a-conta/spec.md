@@ -4,9 +4,10 @@ Pedido do Anderson (15/11/2026): a conta ganha um campo **opcional** "quem causo
 
 ## Leitura adotada
 
+- Por decisão do Anderson (15/11), o causador é **uma entre três escolhas**: ficha da frota, usuário do escritório ou um **nome digitado** (fora do cadastro). Só uma por conta (CHECK `num_nonnulls <= 1`).
 - É uma **pessoa da frota** (`fleet_drivers`: motorista, agregado ou ajudante), escolhida na ficha. Não é quem recebe aviso.
 - **Informativo**: nada dispara aviso, cobrança nem desconto a partir dele. Motorista e ajudante continuam sem receber nada de Contas (spec 325 RF24).
-- Usuário do escritório como causador fica fora (pergunta em aberto).
+- Campo novo **"onde a conta está"** (`bill_location`, texto livre até 120): com quem está o boleto ou em que fatura/cartão a cobrança aparece. Não há cadastro de faturas de cartão no produto (o módulo de faturas é o de frete), então é texto livre.
 
 ## Requisitos
 
@@ -14,6 +15,7 @@ Pedido do Anderson (15/11/2026): a conta ganha um campo **opcional** "quem causo
 - RF2 `POST`/`PATCH /expenses` aceitam `causedByDriverId` (PATCH com `null` limpa); ficha de outra empresa ou inexistente é recusada (`ExpenseDriverNotFoundError`).
 - RF3 A lista de vencimentos devolve `causedByDriverId` e `causedByDriverName` e filtra por `?causedByDriverId=`.
 - RF4 Painel: campo no cadastro, linha "Causada por" na lista e filtro.
+- RF6 `GET /expense-people` (`expenses.read`) lista fichas ativas e usuários com vínculo ativo para o seletor.
 - RF5 WhatsApp "Lançar conta": pergunta opcional com "Pular" depois do vencimento; entra no resumo; sem pessoas na frota a pergunta nem aparece.
 
 ## Publicação

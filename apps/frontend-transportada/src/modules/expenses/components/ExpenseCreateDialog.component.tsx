@@ -17,6 +17,7 @@ import {
   type ExpenseRecurrence,
 } from '../shared/expenses.types'
 import {
+  causedByKeys,
   EMPTY_CREATE_FORM,
   maskMoney,
   parseMoney,
@@ -31,6 +32,7 @@ import { useCalendarLabels } from './useCalendarLabels.hook'
 type ExpenseCreateDialogProps = Readonly<{
   categories: readonly ExpenseCategory[]
   driverOptions: readonly SelectOption[]
+  peopleOptions: readonly SelectOption[]
   onClose: () => void
   vehicleOptions: readonly SelectOption[]
 }>
@@ -40,7 +42,11 @@ function buildInput(fields: typeof EMPTY_CREATE_FORM): CreateExpenseInput | null
   if (expectedAmount === null) return null
   return {
     categoryId: fields.categoryId,
-    ...(fields.causedByDriverId === '' ? {} : { causedByDriverId: fields.causedByDriverId }),
+    ...(fields.billLocation.trim() === '' ? {} : { billLocation: fields.billLocation.trim() }),
+    ...causedByKeys(fields.causedBy),
+    ...(fields.causedBy === '' && fields.causedByName.trim() !== ''
+      ? { causedByName: fields.causedByName.trim() }
+      : {}),
     expectedAmount,
     kind: fields.kind,
     name: fields.name.trim(),
@@ -63,6 +69,7 @@ export function ExpenseCreateDialog({
   categories,
   driverOptions,
   onClose,
+  peopleOptions,
   vehicleOptions,
 }: ExpenseCreateDialogProps) {
   const { t } = useTranslation('expenses')
@@ -220,13 +227,34 @@ export function ExpenseCreateDialog({
           <Select
             ariaLabel={t('create.causedBy')}
             clearable
-            onChange={(value) => patch({ causedByDriverId: value })}
-            options={driverOptions}
+            onChange={(value) => patch({ causedBy: value, causedByName: '' })}
+            options={peopleOptions}
             placeholder={t('create.causedByPlaceholder')}
-            value={fields.causedByDriverId}
+            value={fields.causedBy}
           />
         </div>
+        {fields.causedBy === '' ? (
+          <label className={styles.field}>
+            <span>{t('create.causedByName')}</span>
+            <input
+              maxLength={120}
+              onChange={(event) => patch({ causedByName: event.target.value })}
+              placeholder={t('create.causedByNamePlaceholder')}
+              value={fields.causedByName}
+            />
+          </label>
+        ) : null}
         <p className={styles.hint}>{t('create.causedByHint')}</p>
+        <label className={styles.field}>
+          <span>{t('create.billLocation')}</span>
+          <input
+            maxLength={120}
+            onChange={(event) => patch({ billLocation: event.target.value })}
+            placeholder={t('create.billLocationPlaceholder')}
+            value={fields.billLocation}
+          />
+        </label>
+        <p className={styles.hint}>{t('create.billLocationHint')}</p>
         <div className={styles.field}>
           <span>{t('create.vehicle')}</span>
           <Select

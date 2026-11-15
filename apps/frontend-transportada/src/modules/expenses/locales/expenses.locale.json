@@ -84,7 +84,8 @@
     "status": "Estado",
     "actions": "Ações",
     "trips": "Viagens",
-    "settle": "Dar baixa"
+    "settle": "Dar baixa",
+    "billLocation": "Onde está: {{place}}"
   },
   "calendar": {
     "chooseYear": "Escolher o ano",
@@ -121,7 +122,7 @@
     "dueDate": "Vencimento",
     "causedBy": "Quem causou a conta (opcional)",
     "causedByPlaceholder": "Ninguém",
-    "causedByHint": "Só informa de quem foi a causa (a multa do motorista, o dano do ajudante). Quem aparece aqui não recebe aviso de conta.",
+    "causedByHint": "Só informa de quem foi a causa (a multa do motorista, o dano do ajudante). Pode ser uma ficha da frota, alguém do escritório ou um nome digitado. Quem aparece aqui não recebe aviso de conta.",
     "vehicle": "Veículo (opcional)",
     "vehiclePlaceholder": "Nenhum",
     "save": "Salvar conta",
@@ -135,7 +136,12 @@
       "dueDate": "vencimento",
       "dueDay": "dia do vencimento (1 a 31)",
       "installments": "parcelas (2 a 600)"
-    }
+    },
+    "causedByName": "Ou digite um nome",
+    "causedByNamePlaceholder": "Quem não está no cadastro",
+    "billLocation": "Onde a conta está (opcional)",
+    "billLocationPlaceholder": "Ex.: fatura do cartão da empresa",
+    "billLocationHint": "Texto livre: com quem está o boleto ou em que fatura a cobrança aparece."
   },
   "settle": {
     "title": "Dar baixa",

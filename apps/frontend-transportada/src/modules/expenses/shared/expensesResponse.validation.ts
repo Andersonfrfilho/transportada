@@ -13,6 +13,7 @@ import {
   type ExpenseDriverPaymentModel,
   type ExpensePayeeProfile,
   type ExpenseKind,
+  type ExpensePerson,
   type ExpenseOccurrence,
   type ExpenseOccurrenceListItem,
   type ExpenseOccurrencePage,
@@ -120,6 +121,9 @@ function toExpense(value: unknown): Expense {
   return {
     active: readBoolean(row.active),
     causedByDriverId: readNullableString(row.causedByDriverId),
+    causedByName: readNullableString(row.causedByName),
+    causedByUserId: readNullableString(row.causedByUserId),
+    billLocation: readNullableString(row.billLocation),
     categoryId: readString(row.categoryId),
     dueDay: readNullableInteger(row.dueDay),
     expectedAmount: readMoney(row.expectedAmount),
@@ -168,6 +172,10 @@ function toListItem(value: unknown): ExpenseOccurrenceListItem {
     ...toOccurrence(row),
     causedByDriverId: readNullableString(row.causedByDriverId),
     causedByDriverName: readNullableString(row.causedByDriverName),
+    causedByName: readNullableString(row.causedByName),
+    causedByUserId: readNullableString(row.causedByUserId),
+    causedByUserName: readNullableString(row.causedByUserName),
+    billLocation: readNullableString(row.billLocation),
     categoryId: readString(row.categoryId),
     categoryName: readString(row.categoryName),
     expenseKind: readOneOf<ExpenseKind>(row.expenseKind, EXPENSE_KINDS),
@@ -250,6 +258,17 @@ export function toExpenses(payload: unknown): readonly Expense[] {
 
 export function toExpenseResponse(payload: unknown): Expense {
   return toExpense(readData(payload))
+}
+
+export function toExpensePeople(payload: unknown): readonly ExpensePerson[] {
+  return readArray(readData(payload)).map((value) => {
+    const row = readRecord(value)
+    return {
+      id: readString(row.id),
+      kind: readOneOf<'driver' | 'user'>(row.kind, ['driver', 'user']),
+      name: readString(row.name),
+    }
+  })
 }
 
 export function toCategories(payload: unknown): readonly ExpenseCategory[] {

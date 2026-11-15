@@ -10,7 +10,10 @@ import {
   createCreateExpenseUseCase,
   createUpdateExpenseUseCase,
 } from '../../src/expenses/application/expense.use-case.js'
-import { ExpenseDriverNotFoundError } from '../../src/expenses/domain/expense.error.js'
+import {
+  ExpenseDriverNotFoundError,
+  ExpenseInvalidScheduleError,
+} from '../../src/expenses/domain/expense.error.js'
 import {
   buildInMemoryExpenses,
   CATEGORY_RENT_ID,
@@ -18,6 +21,7 @@ import {
   DRIVER_A_ID,
   DRIVER_B_ID,
   HELPER_A_ID,
+  OFFICE_USER_A_ID,
   USER_ID,
 } from '../fixtures/expenses-in-memory.fixture.js'
 
@@ -118,5 +122,65 @@ describe('quem causou a conta (spec 328)', () => {
     expect(only[0]?.causedByDriverId).toBe(HELPER_A_ID)
     expect(only[0]?.causedByDriverName).not.toBeNull()
     expect(all.find((item) => item.expenseName === 'Sem causador')?.causedByDriverName).toBeNull()
+  })
+})
+
+describe('causador usuário ou nome digitado, e onde a conta está (spec 328)', () => {
+  it('usuário do escritório, nome digitado e onde está entram e são auditados', async () => {
+    const ports = buildInMemoryExpenses()
+    const byUser = await createCreateExpenseUseCase(ports).execute({
+      ...base,
+      billLocation: '  Com a Andréia ',
+      causedByUserId: OFFICE_USER_A_ID,
+    })
+    expect(byUser.causedByUserId).toBe(OFFICE_USER_A_ID)
+    expect(byUser.billLocation).toBe('Com a Andréia')
+    expect(ports.auditRows.at(-1)?.metadata.causedByUserId).toBe(OFFICE_USER_A_ID)
+    const byName = await createCreateExpenseUseCase(ports).execute({
+      ...base,
+      causedByName: ' Seu Zé do posto ',
+    })
+    expect(byName.causedByName).toBe('Seu Zé do posto')
+    expect(byName.billLocation).toBeNull()
+  })
+
+  it('só um causador por conta, e usuário de fora da empresa é recusado', async () => {
+    const ports = buildInMemoryExpenses()
+    await expect(
+      createCreateExpenseUseCase(ports).execute({
+        ...base,
+        causedByDriverId: DRIVER_A_ID,
+        causedByName: 'Fulano',
+      }),
+    ).rejects.toBeInstanceOf(ExpenseInvalidScheduleError)
+    await expect(
+      createCreateExpenseUseCase(ports).execute({ ...base, causedByUserId: crypto.randomUUID() }),
+    ).rejects.toBeInstanceOf(ExpenseDriverNotFoundError)
+  })
+
+  it('trocar o causador limpa os outros; limpar o lugar com null', async () => {
+    const ports = buildInMemoryExpenses()
+    const created = await createCreateExpenseUseCase(ports).execute({
+      ...base,
+      billLocation: 'Fatura do cartão',
+      causedByDriverId: DRIVER_A_ID,
+    })
+    const update = createUpdateExpenseUseCase(ports)
+    const toName = await update.execute({
+      companyId: COMPANY_A,
+      expenseId: created.id,
+      causedByName: 'Seu Zé',
+      updatedBy: USER_ID,
+    } as never)
+    expect(toName.causedByName).toBe('Seu Zé')
+    expect(toName.causedByDriverId).toBeNull()
+    const cleared = await update.execute({
+      billLocation: null,
+      companyId: COMPANY_A,
+      expenseId: created.id,
+      updatedBy: USER_ID,
+    } as never)
+    expect(cleared.billLocation).toBeNull()
+    expect(cleared.causedByName).toBe('Seu Zé')
   })
 })

@@ -60,6 +60,11 @@ export function ExpensesWorkspacePage() {
     value: driver.id,
   }))
 
+  const peopleOptions = workspace.people.map((person) => ({
+    label: person.name,
+    value: `${person.kind}:${person.id}`,
+  }))
+
   function renderStatus(row: ExpenseOccurrenceListItem) {
     if (isOverdue(row, today)) return <Badge variant="warning">{t('status.overdue')}</Badge>
     const variant =
@@ -78,11 +83,19 @@ export function ExpensesWorkspacePage() {
   }
 
   function renderCausedBy(row: ExpenseOccurrenceListItem) {
-    if (row.causedByDriverName === undefined || row.causedByDriverName === null) return null
+    const name = row.causedByDriverName ?? row.causedByUserName ?? row.causedByName ?? null
+    if (name === null && (row.billLocation ?? null) === null) return null
     return (
-      <span className={styles.rowDetail}>
-        {t('list.causedBy', { name: row.causedByDriverName })}
-      </span>
+      <>
+        {name === null ? null : (
+          <span className={styles.rowDetail}>{t('list.causedBy', { name })}</span>
+        )}
+        {row.billLocation === undefined || row.billLocation === null ? null : (
+          <span className={styles.rowDetail}>
+            {t('list.billLocation', { place: row.billLocation })}
+          </span>
+        )}
+      </>
     )
   }
 
@@ -177,10 +190,10 @@ export function ExpensesWorkspacePage() {
           <Select
             ariaLabel={t('filters.causedBy')}
             clearable
-            onChange={(value) => workspace.setFilter('causedByDriverId', value)}
-            options={driverOptions}
+            onChange={(value) => workspace.setFilter('causedBy', value)}
+            options={peopleOptions}
             placeholder={t('filters.all')}
-            value={filters.causedByDriverId}
+            value={filters.causedBy}
           />
         </div>
       </section>
@@ -321,6 +334,7 @@ export function ExpensesWorkspacePage() {
           categories={workspace.categories}
           driverOptions={driverOptions}
           onClose={workspace.closeDialog}
+          peopleOptions={peopleOptions}
           vehicleOptions={workspace.vehicleOptions}
         />
       ) : null}

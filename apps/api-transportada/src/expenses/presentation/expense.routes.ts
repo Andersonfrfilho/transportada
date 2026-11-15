@@ -340,7 +340,7 @@ export function createExpenseRoutes(
       method: 'GET',
       parse: () => undefined,
       pathname: API_EXPENSE_PEOPLE_PATH,
-      policy: MANAGE_POLICY,
+      policy: READ_POLICY,
     }),
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {

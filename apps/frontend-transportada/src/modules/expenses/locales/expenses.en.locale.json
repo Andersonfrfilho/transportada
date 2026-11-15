@@ -84,7 +84,8 @@
     "status": "Status",
     "actions": "Actions",
     "trips": "Trips",
-    "settle": "Settle"
+    "settle": "Settle",
+    "billLocation": "Where it is: {{place}}"
   },
   "calendar": {
     "chooseYear": "Choose the year",
@@ -121,7 +122,7 @@
     "dueDate": "Due date",
     "causedBy": "Who caused the expense (optional)",
     "causedByPlaceholder": "Nobody",
-    "causedByHint": "Only records who caused it (a driver's fine, a helper's damage). Whoever is listed here does not receive expense reminders.",
+    "causedByHint": "Only records who caused it (a driver's fine, a helper's damage). Pick a fleet record, an office user or type a name. Whoever is listed here does not receive expense reminders.",
     "vehicle": "Vehicle (optional)",
     "vehiclePlaceholder": "None",
     "save": "Save bill",
@@ -135,7 +136,12 @@
       "dueDate": "due date",
       "dueDay": "due day (1 to 31)",
       "installments": "installments (2 to 600)"
-    }
+    },
+    "causedByName": "Or type a name",
+    "causedByNamePlaceholder": "Someone not in the registry",
+    "billLocation": "Where the bill is (optional)",
+    "billLocationPlaceholder": "E.g. company credit card statement",
+    "billLocationHint": "Free text: who holds the bill or which statement the charge shows up on."
   },
   "settle": {
     "title": "Settle",

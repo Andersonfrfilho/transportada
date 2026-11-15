@@ -38,6 +38,14 @@ export function useExpenseCategories(input: Readonly<{ enabled?: boolean }> = {}
   })
 }
 
+export function useExpensePeople(input: Readonly<{ enabled?: boolean }> = {}) {
+  return useQuery({
+    enabled: input.enabled ?? true,
+    queryFn: () => getExpensesClient().listPeople(),
+    queryKey: [EXPENSES_QUERY_KEY, 'people'],
+  })
+}
+
 export function useExpenseOccurrenceTrips(
   input: Readonly<{ enabled?: boolean; occurrenceId: string | null }>,
 ) {

@@ -2117,15 +2117,7 @@ export function bootstrap(): Bun.Server<undefined> {
     listCategories: (input) =>
       createListExpenseCategoriesUseCase(whatsappExpensesPorts).execute(input),
     /** Quem causou a conta (spec 328): fichas ativas da frota, só o rótulo — nada de aviso. */
-    listPeople: async (input) =>
-      (
-        await new DrizzleFleetDriverRepository(database.db).list({
-          companyId: input.companyId,
-          cursor: null,
-          filters: { statusEq: 'active' },
-          limit: 100,
-        })
-      ).items.map((person) => ({ id: person.id, name: person.name })),
+    listPeople: (input) => createListExpensePeopleUseCase(whatsappExpensesPorts).execute(input),
     today: () => formatFiscalDay(new Date()),
   })
   const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
