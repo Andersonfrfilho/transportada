@@ -54,6 +54,7 @@ function fakeRepository() {
   const rows = new Map<string, PickupRequestRecord>()
   const audits: PickupRequestAuditEntry[] = []
   let sequence = 0
+  const contractorsByTaxId = new Map<string, string>()
   const repository: PickupRequestRepositoryPort = {
     appendAudit: async (entry) => {
       audits.push(entry)
@@ -115,6 +116,13 @@ function fakeRepository() {
       rows.set(id, record)
       return { created: true, record }
     },
+    resolveContractorByTaxId: async ({ taxId }) => {
+      const known = contractorsByTaxId.get(taxId)
+      if (known !== undefined) return { contractorId: known, created: false }
+      const created = `99999999-9999-4999-8999-${String(contractorsByTaxId.size + 1).padStart(12, '0')}`
+      contractorsByTaxId.set(taxId, created)
+      return { contractorId: created, created: true }
+    },
     isTripOpen: async ({ companyId, tripId }) => companyId === COMPANY && tripId === OPEN_TRIP,
     listForContractor: async ({ contractorIds }) =>
       [...rows.values()].filter(
@@ -147,6 +155,7 @@ function fakeRepository() {
         acceptedTotalAmount: patch.acceptedTotalAmount ?? row.acceptedTotalAmount,
         acceptedWindowEnd: patch.acceptedWindowEnd ?? row.acceptedWindowEnd,
         acceptedWindowStart: patch.acceptedWindowStart ?? row.acceptedWindowStart,
+        contractorId: patch.contractorId ?? row.contractorId,
         decisionNote: patch.decisionNote ?? row.decisionNote,
         status: to,
         tripId: patch.tripId ?? row.tripId,
@@ -313,6 +322,55 @@ describe('pickup request use cases (spec 339)', () => {
     })
     expect(scheduled.status).toBe('scheduled')
     expect(scheduled.tripId).toBe(OPEN_TRIP)
+  })
+
+  test('an anonymous request gets its client on acceptance, reusing the same document', async () => {
+    const { repository } = setup()
+    const base = {
+      cargoDescription: 'Caixas',
+      companyId: COMPANY,
+      contractorId: null,
+      destination: ADDRESS,
+      expiresAt: new Date(NOW.getTime() + 7 * 86_400_000),
+      kind: 'pickup' as const,
+      note: null,
+      origin: ADDRESS,
+      quotedTotalAmount: null,
+      quoteValidUntil: null,
+      requesterEmail: 'a@example.com',
+      requesterName: 'Anônimo',
+      requesterPhone: null,
+      requesterTaxId: '12345678000199',
+      source: 'public_quote' as const,
+      volumes: 1,
+      weightKg: '10.000',
+      windowEnd: '2026-11-20',
+      windowStart: '2026-11-18',
+    }
+    const first = await repository.insert({ ...base, idempotencyKey: 'a' })
+    const second = await repository.insert({ ...base, idempotencyKey: 'b' })
+    const accept = createAcceptPickupRequestUseCase({ repository })
+    const office = { companyId: COMPANY, userId: USER } as never
+    const one = await accept({
+      acceptedTotalAmount: null,
+      acceptedWindowEnd: null,
+      acceptedWindowStart: null,
+      context: office,
+      correlationId: 'c',
+      id: first.record.id,
+      note: null,
+    })
+    const two = await accept({
+      acceptedTotalAmount: null,
+      acceptedWindowEnd: null,
+      acceptedWindowStart: null,
+      context: office,
+      correlationId: 'c',
+      id: second.record.id,
+      note: null,
+    })
+    expect(one.record.contractorId).not.toBeNull()
+    expect(two.record.contractorId).toBe(one.record.contractorId)
   })
 
   test('a refused request cannot be accepted, and another company sees it as missing', async () => {

@@ -246,11 +246,20 @@ export function createAcceptPickupRequestUseCase(
     if (!canTransitionPickupRequest(current.status, 'accepted'))
       throw new PickupRequestInvalidTransitionError()
 
+    const contractor =
+      current.contractorId === null
+        ? await dependencies.repository.resolveContractorByTaxId({
+            companyId: input.context.companyId,
+            displayName: current.requesterName,
+            taxId: current.requesterTaxId,
+          })
+        : null
     const updated = await dependencies.repository.transition({
       companyId: input.context.companyId,
       from: current.status,
       id: input.id,
       patch: {
+        ...(contractor === null ? {} : { contractorId: contractor.contractorId }),
         acceptedTotalAmount: input.acceptedTotalAmount,
         acceptedWindowEnd: input.acceptedWindowEnd ?? current.windowEnd,
         acceptedWindowStart: input.acceptedWindowStart ?? current.windowStart,
@@ -265,6 +274,7 @@ export function createAcceptPickupRequestUseCase(
       actorUserId: input.context.userId,
       after: {
         acceptedTotalAmount: updated.acceptedTotalAmount,
+        contractorCreated: contractor?.created ?? false,
         quotedTotalAmount: updated.quotedTotalAmount,
         status: 'accepted',
       },

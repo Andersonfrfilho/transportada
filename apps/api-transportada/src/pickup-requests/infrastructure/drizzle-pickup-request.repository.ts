@@ -7,6 +7,7 @@ import type {
   CompanySettingsDatabase,
   CompanySettingsQueryable,
 } from '../../companies/infrastructure/drizzle-company-settings.types.js'
+import { contractors } from '../../database/delivery-client.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { pickupRequestNotifications, pickupRequests } from '../../database/pickup-request.schema.js'
 import type {
@@ -89,6 +90,38 @@ export class DrizzlePickupRequestRepository implements PickupRequestRepositoryPo
       .limit(1)
     if (existing === undefined) throw new Error('PICKUP_REQUEST_INSERT_RETURNED_NOTHING')
     return { created: false, record: toRecord(existing) }
+  }
+
+  public async resolveContractorByTaxId(input: {
+    readonly companyId: string
+    readonly displayName: string
+    readonly taxId: string
+  }): Promise<{ readonly contractorId: string; readonly created: boolean }> {
+    const [existing] = await this.database
+      .select({ id: contractors.id })
+      .from(contractors)
+      .where(and(eq(contractors.companyId, input.companyId), eq(contractors.taxId, input.taxId)))
+      .limit(1)
+    if (existing !== undefined) return { contractorId: existing.id, created: false }
+    const [created] = await this.database
+      .insert(contractors)
+      .values({
+        companyId: input.companyId,
+        displayName: input.displayName,
+        notes: 'Cadastrado automaticamente ao aceitar um pedido de coleta. Conferir os dados.',
+        taxId: input.taxId,
+      })
+      .onConflictDoNothing({ target: [contractors.companyId, contractors.taxId] })
+      .returning({ id: contractors.id })
+    if (created !== undefined) return { contractorId: created.id, created: true }
+    // Corrida: outro pedido criou o mesmo documento entre a leitura e a escrita.
+    const [raced] = await this.database
+      .select({ id: contractors.id })
+      .from(contractors)
+      .where(and(eq(contractors.companyId, input.companyId), eq(contractors.taxId, input.taxId)))
+      .limit(1)
+    if (raced === undefined) throw new Error('PICKUP_REQUEST_CONTRACTOR_RESOLVE_FAILED')
+    return { contractorId: raced.id, created: false }
   }
 
   public async find(input: {

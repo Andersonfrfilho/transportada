@@ -69,6 +69,8 @@ export type PickupRequestTransitionPatch = {
   readonly acceptedTotalAmount?: string | null
   readonly acceptedWindowEnd?: string | null
   readonly acceptedWindowStart?: string | null
+  /** Pedido anônimo (338/340): o contratante é ligado só na aceitação (D4). */
+  readonly contractorId?: string | null
   readonly decidedByUserId?: string | null
   readonly decisionNote?: string | null
   readonly tripId?: string | null
@@ -92,6 +94,15 @@ export type PickupRequestAuditEntry = {
 }
 
 export type PickupRequestRepositoryPort = {
+  /**
+   * Spec 339 D4: o cliente do pedido anônimo entra no cadastro só na aceitação. Reaproveita o contratante do mesmo documento
+   * na empresa; senão cria um novo, marcado nas observações como "a conferir".
+   */
+  resolveContractorByTaxId(input: {
+    readonly companyId: string
+    readonly displayName: string
+    readonly taxId: string
+  }): Promise<{ readonly contractorId: string; readonly created: boolean }>
   appendAudit(entry: PickupRequestAuditEntry): Promise<void>
   /** Estados que ficaram `requested` além do prazo, de todas as empresas (rotina do cron). */
   expireDue(input: { readonly now: Date }): Promise<readonly PickupRequestRecord[]>
