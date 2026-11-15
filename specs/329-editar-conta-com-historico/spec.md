@@ -20,7 +20,7 @@
    Mesmo valor em vigor: nenhuma linha de histórico.
 4. `GET /expenses/:id/amount-history` (`expenses.read`): valor de abertura e mudanças. Auditoria `expense.amount.changed`.
 5. `company_expenses.bill_url` (http/https, até 500), opcional; a lista mostra "Abrir o boleto" com `rel="noopener noreferrer"`.
-6. Cinco categorias padrão (Água e esgoto, Energia elétrica, Gás, Internet e telefone, Financiamentos): na migration, só para empresa que
+6. Seis categorias padrão (Água e esgoto, Energia elétrica, Gás, Internet e telefone, Financiamentos, Funcionários): na migration, só para empresa que
    já tem categoria (idempotente pelo unique empresa+nome); empresa nova as recebe na semente. Nenhuma categoria existente é tocada.
 7. Criar, editar e dar baixa aguardam a renovação da lista; criar leva a lista ao mês da conta nova e limpa filtros que a escondam.
 

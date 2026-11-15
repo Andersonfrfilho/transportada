@@ -91,7 +91,7 @@ describeDatabase('contas da empresa no banco (spec 325 T1.4)', () => {
     }
   }, 60_000)
 
-  test('empresa nova recebe as 13 categorias no primeiro uso, uma vez só', async () => {
+  test('empresa nova recebe as 14 categorias no primeiro uso, uma vez só', async () => {
     const first = await createListExpenseCategoriesUseCase(ports()).execute({ companyId: companyA })
     const second = await createListExpenseCategoriesUseCase(ports()).execute({
       companyId: companyA,
@@ -111,8 +111,9 @@ describeDatabase('contas da empresa no banco (spec 325 T1.4)', () => {
       'Gás',
       'Internet e telefone',
       'Financiamentos',
+      'Funcionários',
     ])
-    expect(second).toHaveLength(13)
+    expect(second).toHaveLength(14)
     expect(first.filter((c) => c.requiresDriver).map((c) => c.name)).toEqual([
       'Pagamento de motorista/agregado',
     ])

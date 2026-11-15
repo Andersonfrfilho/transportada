@@ -31,7 +31,7 @@ describe('histórico de valores da conta (spec 329)', () => {
     expect(text).toContain(
       'ON CONFLICT ON CONSTRAINT "company_expense_categories_company_name_unique" DO NOTHING',
     )
-    expect(text).toContain("('Financiamentos', 13)")
+    expect(text).toContain("('Funcionários', 14)")
     expect(text).not.toMatch(/\bDROP\b/u)
   })
 

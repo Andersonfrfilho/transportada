@@ -27,7 +27,8 @@ CROSS JOIN (VALUES
   ('Energia elétrica', 10),
   ('Gás', 11),
   ('Internet e telefone', 12),
-  ('Financiamentos', 13)
+  ('Financiamentos', 13),
+  ('Funcionários', 14)
 ) AS s("name", "display_order")
 WHERE EXISTS (SELECT 1 FROM "company_expense_categories" e WHERE e."company_id" = c."id")
 ON CONFLICT ON CONSTRAINT "company_expense_categories_company_name_unique" DO NOTHING;

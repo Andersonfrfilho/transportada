@@ -39,7 +39,7 @@ const causedByUserProfile = alias(identityUserProfiles, 'expense_caused_by_user'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
-/** RF2 + spec 329: as 13 categorias da semente (8 da migration inicial + consumo, internet/telefone e financiamentos). */
+/** RF2 + spec 329: as 14 categorias da semente (8 da migration inicial + consumo, internet/telefone, financiamentos e funcionários). */
 const SEED_CATEGORIES = [
   ['Aluguel', false, 'administrative'],
   ['Folha', false, 'administrative'],
@@ -54,6 +54,7 @@ const SEED_CATEGORIES = [
   ['Gás', false, 'administrative'],
   ['Internet e telefone', false, 'administrative'],
   ['Financiamentos', false, 'administrative'],
+  ['Funcionários', false, 'administrative'],
 ] as const
 
 const AUDIT_PERMISSION = 'expenses.manage'
