@@ -25,6 +25,7 @@ import { DrizzleFreightQuoteSettingsRepository } from '../src/freight-quote/infr
 import { createQuoteRoadGateway } from '../src/freight-quote/infrastructure/quote-road.gateway.js'
 import { createDrizzleTollBoothRepository } from '../src/toll-booths/infrastructure/drizzle-toll-booth.repository.js'
 import { createCompanyScopedTollBoothGateway } from '../src/trips/infrastructure/company-scoped-toll-booth.gateway.js'
+import { reconstructFrozenRoute } from './staging-quote-check.route.js'
 import { createOsrmRouteGeometryGateway } from '../src/trips/infrastructure/osrm-route-geometry.gateway.js'
 
 type Row = Record<string, unknown>
@@ -103,37 +104,23 @@ for (const trip of trips) {
       from trip_stops s left join geocoded_addresses g on g.address_key = s.address_key
       where s.trip_id = ${tripId} order by s.sequence asc`),
   )
-  /**
-   * Reprodução da rota congelada: `planned_route.points` é o TRAÇADO (centenas de pontos), não os waypoints. O primeiro e o
-   * último ponto são o barracão; as paradas vêm de `trip_stops`. Com saída e retorno há uma perna a mais de cada lado
-   * (`legs = paradas + 1`); sem barracão, `legs = paradas - 1`. Qualquer outra conta é dita, nunca adivinhada.
-   */
-  const frozen = trip.planned_route as {
-    legs?: { distanceMetres?: number }[]
-    points?: { latitude: string; longitude: string }[]
-  } | null
-  const frozenLegs = frozen?.legs ?? []
-  const frozenPoints = frozen?.points ?? []
+  /** Reprodução da rota congelada: a reconstrução é pura e testada em `test/ops/staging-quote-check-route.contract.ts`. */
   const stopPoints = stops.filter((stop) => stop.latitude != null)
-  const fromStops = stopPoints.map((stop) => ({
-    latitude: String(stop.latitude),
-    longitude: String(stop.longitude),
-  }))
-  let waypoints: { latitude: string; longitude: string }[] | null = null
-  if (stopPoints.length === stops.length && frozenPoints.length >= 2) {
-    if (frozenLegs.length === stops.length + 1) {
-      waypoints = [
-        frozenPoints[0] as never,
-        ...fromStops,
-        frozenPoints[frozenPoints.length - 1] as never,
-      ]
-    } else if (frozenLegs.length === stops.length - 1) {
-      waypoints = fromStops
-    }
-  }
-  if (waypoints === null) {
+  const reconstructed =
+    stopPoints.length === stops.length
+      ? reconstructFrozenRoute({
+          plannedRoute: trip.planned_route,
+          stops: stopPoints.map((stop) => ({
+            latitude: String(stop.latitude),
+            longitude: String(stop.longitude),
+          })),
+        })
+      : {
+          reason: `parada_sem_coordenada paradas=${stops.length} com_coordenada=${stopPoints.length}`,
+        }
+  if ('reason' in reconstructed) {
     console.log(
-      `__RESULT__ viagem=${label} rota_congelada=nao_reproduzivel paradas=${stops.length} com_coordenada=${stopPoints.length} trechos=${frozenLegs.length}`,
+      `__RESULT__ viagem=${label} rota_congelada=nao_reproduzivel motivo=${reconstructed.reason}`,
     )
   } else {
     const planned = trip.planned_toll as { axles?: { count?: number }; total?: string } | null
@@ -143,25 +130,17 @@ for (const trip of trips) {
     let tollTotal = 0
     let tollKnownAll = true
     const perLeg: string[] = []
-    for (let index = 0; index < frozenLegs.length; index += 1) {
-      const from = waypoints[index] as { latitude: string; longitude: string }
-      const to = waypoints[index + 1] as { latitude: string; longitude: string }
+    for (let index = 0; index < reconstructed.frozenLegMeters.length; index += 1) {
+      const from = reconstructed.waypoints[index] as { latitude: string; longitude: string }
+      const to = reconstructed.waypoints[index + 1] as { latitude: string; longitude: string }
       const leg = await road.read({
         axles: routeAxles,
         companyId: String(trip.company_id),
-        destination: {
-          latitude: String(to.latitude),
-          longitude: String(to.longitude),
-          precision: 'street',
-        },
-        origin: {
-          latitude: String(from.latitude),
-          longitude: String(from.longitude),
-          precision: 'street',
-        },
+        destination: { latitude: to.latitude, longitude: to.longitude, precision: 'street' },
+        origin: { latitude: from.latitude, longitude: from.longitude, precision: 'street' },
         vehicleType: 'truck',
       })
-      const frozenMeters = Number(frozenLegs[index]?.distanceMetres ?? 0)
+      const frozenMeters = reconstructed.frozenLegMeters[index] ?? 0
       frozenTotal += frozenMeters
       if (leg === null) {
         perLeg.push('indisponivel')
@@ -180,7 +159,8 @@ for (const trip of trips) {
     const kmDelta =
       frozenTotal > 0 ? (((oursTotal - frozenTotal) / frozenTotal) * 100).toFixed(1) : '?'
     console.log(
-      `__RESULT__ viagem=${label} rota_congelada trechos=${frozenLegs.length} km_cotacao=${(oursTotal / 1000).toFixed(1)} km_congelado=${(frozenTotal / 1000).toFixed(1)} delta_km_pct=${kmDelta}` +
+      `__RESULT__ viagem=${label} rota_congelada criterio=${reconstructed.criterion} sem_pedagio=${reconstructed.isNoToll} trechos=${reconstructed.frozenLegMeters.length}` +
+        ` km_cotacao=${(oursTotal / 1000).toFixed(1)} km_congelado=${(frozenTotal / 1000).toFixed(1)} delta_km_pct=${kmDelta}` +
         ` pedagio_cotacao=${tollKnownAll ? tollTotal.toFixed(4) : 'desconhecido'} pedagio_congelado=${planned?.total ?? '?'} eixos=${routeAxles} trechos_km_cotacao/congelado=${perLeg.join(' ')}`,
     )
   }
