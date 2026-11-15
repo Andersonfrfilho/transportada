@@ -28,6 +28,11 @@ import {
   formatOptions,
   formatReplyHint,
 } from '../../whatsapp-commands/domain/whatsapp-message-format.policy.js'
+import {
+  describeDocumentsByStop,
+  describeTripSituation,
+  type BotStopContext,
+} from '../domain/bot-trip-context.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
 import {
   SENDER_NOT_ALLOWED_TEXT,
@@ -37,6 +42,9 @@ import {
 export const GROUP_DELIVERY_STEP = { answer: 'answer', choose: 'choose' } as const
 
 export type GroupDeliveryDocument = {
+  /** Onde a nota está na viagem: o bot situa o motorista antes de pedir a nota. */
+  readonly stop?: BotStopContext | undefined
+  readonly vehiclePlate?: string | undefined
   readonly city?: string | undefined
   readonly id: string
   readonly number: string
@@ -119,10 +127,19 @@ function describeDocument(document: GroupDeliveryDocument): string {
 
 /** RF1: as notas como opções (ícone + nota + cliente + cidade) e a instrução em itálico. */
 function describeDocumentChoices(documents: readonly GroupDeliveryDocument[]): string {
-  const options = documents
-    .slice(0, BATCH_LIMIT)
-    .map((document) => ({ action: describeDocument(document), icon: '🧾' }))
-  return [formatOptions(options), '', formatReplyHint(DOCUMENT_REPLY_HINT)].join('\n')
+  const shown = documents.slice(0, BATCH_LIMIT)
+  const situation = describeTripSituation(documents)
+  const list = shown.some((document) => document.stop !== undefined)
+    ? describeDocumentsByStop(shown, (document) =>
+        describeDocument(document as GroupDeliveryDocument),
+      ).join('\n')
+    : formatOptions(shown.map((document) => ({ action: describeDocument(document), icon: '🧾' })))
+  return [
+    ...(situation === null ? [] : [situation, '']),
+    list,
+    '',
+    formatReplyHint(DOCUMENT_REPLY_HINT),
+  ].join('\n')
 }
 
 export function createGroupDeliveryFlow(ports: GroupDeliveryFlowPorts) {

@@ -10,6 +10,7 @@ import {
   botProfileLine,
   registeredFirstName,
 } from '../../src/whatsapp/domain/bot-greeting.policy.js'
+import { GROUP_DELIVERY_TEXT } from '../../src/whatsapp/application/whatsapp-group-delivery-flow.service.js'
 import { GROUP_OCCURRENCE_TEXT } from '../../src/whatsapp/application/whatsapp-group-occurrence-flow.service.js'
 
 const stop = (sequence: number, state: 'arrived' | 'later' | 'next') => ({
@@ -71,5 +72,29 @@ describe('saudação pelo nome do cadastro', () => {
   test('só avisa o perfil quando a pessoa tem mais de um', () => {
     expect(botProfileLine({ isDriver: true, isOffice: false })).toBeNull()
     expect(botProfileLine({ isDriver: true, isOffice: true })).toContain('*motorista*')
+  })
+})
+
+describe('contexto da viagem na lista de entrega', () => {
+  test('agrupa as notas por parada e diz onde o motorista está', () => {
+    const text = GROUP_DELIVERY_TEXT.askDocument([
+      {
+        id: 'a',
+        number: '100',
+        recipientName: 'Padaria Sol',
+        stop: { city: 'Franca', sequence: 1, state: 'arrived', totalStops: 2 },
+        vehiclePlate: 'ABC1D23',
+      },
+      {
+        id: 'b',
+        number: '101',
+        recipientName: 'Mercado Lua',
+        stop: { city: 'Batatais', sequence: 2, state: 'next', totalStops: 2 },
+        vehiclePlate: 'ABC1D23',
+      },
+    ])
+    expect(text).toContain('Viagem do *ABC1D23* · 2 notas em aberto em 2 paradas')
+    expect(text).toContain('📍 *Parada 1 de 2 · Franca* — você está aqui')
+    expect(text).toContain('➡️ *Parada 2 de 2 · Batatais* — a próxima')
   })
 })

@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { describeStopStates, orderDocumentsByStop } from '../domain/bot-trip-context.policy.js'
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
@@ -108,7 +109,12 @@ export function createGroupDeliveryWiring(dependencies: {
         }),
       async listOpenDocuments({ companyId, driverId }) {
         const seen = new Map<string, GroupDeliveryDocument>()
-        for (const stop of await placeOpenStops({ companyId, driverId })) {
+        const stops = await placeOpenStops({ companyId, driverId })
+        const states = describeStopStates(
+          stops,
+          (stopId) => stops.find((stop) => stop.id === stopId)?.city ?? '',
+        )
+        for (const stop of stops) {
           for (const document of stop.documents) {
             const open =
               document.separationStatus !== 'delivered' && document.separationStatus !== 'returned'
@@ -118,11 +124,12 @@ export function createGroupDeliveryWiring(dependencies: {
                 id: document.id,
                 number: document.number,
                 recipientName: document.recipientDisplayName,
+                stop: states.get(stop.id),
               })
             }
           }
         }
-        return [...seen.values()]
+        return orderDocumentsByStop([...seen.values()])
       },
       preparations: dependencies.preparations,
       resolveSenderRole: dependencies.resolveSenderRole,
