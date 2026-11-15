@@ -23,6 +23,7 @@ import {
 
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type { EvolutionConversationInbound } from '../../occurrence-conversation/application/evolution-conversation-inbound.service.js'
+import { isDirectExpenseIntent } from '../domain/direct-expense-intent.policy.js'
 import { API_PUBLIC_WHATSAPP_EVOLUTION_WEBHOOK_PATH } from '../../shared/api.constant.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import {
@@ -289,7 +290,7 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         if (
           driver !== null &&
           event.text !== null &&
-          /\bcontas?\b/i.test(event.text) &&
+          isDirectExpenseIntent(event.text) &&
           (await groupInbound.findDirectExpenseLauncher?.({ companyId, phone: event.from })) ===
             true
         ) {
