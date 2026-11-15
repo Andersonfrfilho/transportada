@@ -463,6 +463,8 @@
     "confirmCancel": "Cancelar {{count}}",
     "running": "Registrando…",
     "close": "Fechar",
-    "partial": "{{succeeded}} registrada(s) e {{failed}} com erro. As que falharam continuam selecionadas; tente de novo ou abra uma a uma."
+    "partial": "{{succeeded}} registrada(s) e {{failed}} com erro. As que falharam continuam selecionadas; tente de novo ou abra uma a uma.",
+    "select": "Selecionar",
+    "selectAllLabel": "Selecionar as {{count}} contas em aberto listadas"
   }
 }

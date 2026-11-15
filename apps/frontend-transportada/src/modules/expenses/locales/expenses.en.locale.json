@@ -463,6 +463,8 @@
     "confirmCancel": "Cancel {{count}}",
     "running": "Saving…",
     "close": "Close",
-    "partial": "{{succeeded}} saved and {{failed}} failed. The failed ones stay selected; retry or open them one by one."
+    "partial": "{{succeeded}} saved and {{failed}} failed. The failed ones stay selected; retry or open them one by one.",
+    "select": "Select",
+    "selectAllLabel": "Select the {{count}} open bills listed"
   }
 }

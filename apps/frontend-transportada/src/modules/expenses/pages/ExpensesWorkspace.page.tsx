@@ -317,35 +317,45 @@ export function ExpensesWorkspacePage() {
           ) : null}
         </div>
 
-        {canManage && workspace.selection.count > 0 ? (
-          <div className={styles.bulkBar} role="region" aria-label={t('bulk.bar')}>
-            <p>
-              {t('bulk.selected', {
-                amount: formatAmount(workspace.selection.expected),
-                count: workspace.selection.count,
-              })}
-            </p>
-            <div className={styles.rowActions}>
-              <Button
-                onClick={() => workspace.openDialog({ action: 'settle', kind: 'bulk' })}
-                size="sm"
-                type="button"
-              >
-                <Icon name="save" />
-                {t('bulk.settle')}
-              </Button>
-              <Button
-                onClick={() => workspace.openDialog({ action: 'cancel', kind: 'bulk' })}
-                size="sm"
-                type="button"
-                variant="secondary"
-              >
-                {t('bulk.cancel')}
-              </Button>
-              <Button onClick={workspace.clearSelection} size="sm" type="button" variant="ghost">
-                {t('bulk.clear')}
-              </Button>
-            </div>
+        {canManage && workspace.openItems.length > 0 ? (
+          <div aria-label={t('bulk.bar')} className={styles.bulkBar} role="region">
+            <Checkbox
+              ariaLabel={t('bulk.selectAll')}
+              checked={workspace.isAllSelected}
+              indeterminate={workspace.selectedIds.size > 0}
+              label={
+                workspace.selection.count > 0
+                  ? t('bulk.selected', {
+                      amount: formatAmount(workspace.selection.expected),
+                      count: workspace.selection.count,
+                    })
+                  : t('bulk.selectAllLabel', { count: workspace.openItems.length })
+              }
+              onChange={workspace.toggleAll}
+            />
+            {workspace.selection.count > 0 ? (
+              <div className={styles.rowActions}>
+                <Button
+                  onClick={() => workspace.openDialog({ action: 'settle', kind: 'bulk' })}
+                  size="sm"
+                  type="button"
+                >
+                  <Icon name="save" />
+                  {t('bulk.settle')}
+                </Button>
+                <Button
+                  onClick={() => workspace.openDialog({ action: 'cancel', kind: 'bulk' })}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  {t('bulk.cancel')}
+                </Button>
+                <Button onClick={workspace.clearSelection} size="sm" type="button" variant="ghost">
+                  {t('bulk.clear')}
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -363,17 +373,7 @@ export function ExpensesWorkspacePage() {
               <thead>
                 <tr>
                   <th scope="col">
-                    {canManage ? (
-                      <Checkbox
-                        ariaLabel={t('bulk.selectAll')}
-                        checked={workspace.isAllSelected}
-                        disabled={workspace.openItems.length === 0}
-                        indeterminate={workspace.selectedIds.size > 0}
-                        onChange={workspace.toggleAll}
-                      />
-                    ) : (
-                      <span className={styles.srOnly}>{t('bulk.selectAll')}</span>
-                    )}
+                    <span className={styles.srOnly}>{t('bulk.select')}</span>
                   </th>
                   <th scope="col">{t('list.account')}</th>
                   <th scope="col">{t('list.kind')}</th>
