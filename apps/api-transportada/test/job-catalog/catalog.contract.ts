@@ -242,6 +242,7 @@ const SEED_MIGRATIONS = [
   '20261113201500_company_expense_occurrence_job',
   '20261114160259_company_expense_reminder_job',
   '20261115140000_pickup_request_notifications',
+  '20261115150000_integration_api_keys',
 ] as const
 
 describe('job catalog', () => {

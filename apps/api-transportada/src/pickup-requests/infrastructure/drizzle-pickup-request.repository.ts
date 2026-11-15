@@ -53,6 +53,7 @@ export class DrizzlePickupRequestRepository implements PickupRequestRepositoryPo
         destination: input.destination,
         expiresAt: input.expiresAt,
         idempotencyKey: input.idempotencyKey,
+        integrationKeyId: input.integrationKeyId ?? null,
         kind: input.kind,
         note: input.note,
         origin: input.origin,
@@ -178,6 +179,7 @@ export class DrizzlePickupRequestRepository implements PickupRequestRepositoryPo
   public async transition(input: {
     readonly companyId: string
     readonly contractorIds?: readonly string[]
+    readonly integrationKeyId?: string
     readonly from: PickupRequestStatus
     readonly id: string
     readonly patch: PickupRequestTransitionPatch
@@ -201,6 +203,9 @@ export class DrizzlePickupRequestRepository implements PickupRequestRepositoryPo
             input.contractorIds === undefined
               ? undefined
               : inArray(pickupRequests.contractorId, [...input.contractorIds]),
+            input.integrationKeyId === undefined
+              ? undefined
+              : eq(pickupRequests.integrationKeyId, input.integrationKeyId),
           ),
         )
         .returning()
@@ -319,6 +324,7 @@ function toRecord(row: Row): PickupRequestRecord {
     destination: row.destination,
     expiresAt: row.expiresAt,
     id: row.id,
+    integrationKeyId: row.integrationKeyId,
     kind: row.kind,
     note: row.note,
     origin: row.origin,

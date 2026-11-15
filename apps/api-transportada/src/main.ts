@@ -194,6 +194,22 @@ import {
   createSchedulePickupRequestUseCase,
 } from './pickup-requests/application/pickup-request.use-case.js'
 import { DrizzlePickupRequestRepository } from './pickup-requests/infrastructure/drizzle-pickup-request.repository.js'
+import {
+  createCancelIntegrationPickupUseCase,
+  createCreateIntegrationPickupUseCase,
+  createGetIntegrationPickupUseCase,
+} from './integration-api/application/integration-api.use-case.js'
+import {
+  createAuthenticateIntegrationKeyUseCase,
+  createCreateIntegrationKeyUseCase,
+  createListIntegrationKeysUseCase,
+  createRevokeIntegrationKeyUseCase,
+} from './integration-api/application/integration-key.use-case.js'
+import { DrizzleIntegrationKeyRepository } from './integration-api/infrastructure/drizzle-integration-key.repository.js'
+import {
+  createIntegrationKeyAdminRoutes,
+  createIntegrationRoutes,
+} from './integration-api/presentation/integration-api.routes.js'
 import { createPickupRequestRoutes } from './pickup-requests/presentation/pickup-request.routes.js'
 import {
   createCalculateFreightQuoteUseCase,
@@ -3191,9 +3207,26 @@ function createAnonymousRoutes({
           }),
           resolveClientIp,
         })
+  /**
+   * Spec 340: a porta do parceiro. Anônima para o roteador (a credencial é a chave de API, resolvida na rota) e por isso
+   * existe sempre, como os webhooks: a empresa vem da chave, não de `config.companyId`.
+   */
+  const integrationKeyRepository = new DrizzleIntegrationKeyRepository(database)
+  const integrationPickupRepository = new DrizzlePickupRequestRepository(database)
+  const integrationRoutes = createIntegrationRoutes({
+    authenticate: createAuthenticateIntegrationKeyUseCase({ repository: integrationKeyRepository }),
+    calculate: createCalculateFreightQuoteUseCase({
+      fuelPrices: new DrizzleFuelPriceRepository(database),
+      settings: new DrizzleFreightQuoteSettingsRepository(database),
+    }),
+    cancelPickup: createCancelIntegrationPickupUseCase({ repository: integrationPickupRepository }),
+    createPickup: createCreateIntegrationPickupUseCase({ repository: integrationPickupRepository }),
+    getPickup: createGetIntegrationPickupUseCase({ repository: integrationPickupRepository }),
+  })
   if (config.companyId === undefined) {
     return [
       ...nfseCallbackRoutes,
+      ...integrationRoutes,
       ...contractorMailInboundWebhookRoutes,
       ...whatsappWebhookRoutes,
       ...whatsappEvolutionWebhookRoutes,
@@ -3226,6 +3259,7 @@ function createAnonymousRoutes({
   return [
     ...loginHintRoutes,
     ...nfseCallbackRoutes,
+    ...integrationRoutes,
     ...contractorMailInboundWebhookRoutes,
     ...whatsappWebhookRoutes,
     ...whatsappEvolutionWebhookRoutes,
@@ -3434,6 +3468,7 @@ function createApplicationRoutes({
   const recordTripLocation = createRecordTripLocationUseCase({ repository: tripLocationRepository })
   const contractorPortalRepository = new DrizzleContractorPortalRepository(database)
   const pickupRequestRepository = new DrizzlePickupRequestRepository(database)
+  const integrationKeyAdminRepository = new DrizzleIntegrationKeyRepository(database)
   const pickupRequestDependencies = {
     repository: pickupRequestRepository,
     resolveScope: (input: Parameters<typeof contractorPortalRepository.resolveScope>[0]) =>
@@ -4745,6 +4780,11 @@ function createApplicationRoutes({
       listForOffice: createListPickupRequestsUseCase(pickupRequestDependencies),
       refuse: createRefusePickupRequestUseCase(pickupRequestDependencies),
       schedule: createSchedulePickupRequestUseCase(pickupRequestDependencies),
+    }),
+    ...createIntegrationKeyAdminRoutes({
+      createKey: createCreateIntegrationKeyUseCase({ repository: integrationKeyAdminRepository }),
+      listKeys: createListIntegrationKeysUseCase({ repository: integrationKeyAdminRepository }),
+      revokeKey: createRevokeIntegrationKeyUseCase({ repository: integrationKeyAdminRepository }),
     }),
     ...createFreightQuoteRoutes({
       calculate: createCalculateFreightQuoteUseCase({

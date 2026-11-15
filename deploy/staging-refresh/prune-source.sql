@@ -188,6 +188,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('identity_user_pictures', 'keep', null),
   ('identity_user_profiles', 'keep', null),
   ('identity_users', 'keep', null),
+  ('integration_api_keys', 'empty', null),
   ('invitation_delivery_outbox', 'empty', null),
   ('job_executions', 'empty', null),
   ('job_schedules', 'keep', null),

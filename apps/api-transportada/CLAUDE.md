@@ -1434,3 +1434,13 @@ Valor exato em `bigint`, `0` é valor; "quem pagou" obrigatório e `driver` exig
 - **Botão Ordenar paradas.** `POST /trips/:id/stops/auto-order` (`trip.manage`, 409 em viagem despachada): refaz também a ordem manual e recongela a rota. Escrita sempre por `reorderTripStops` (`source` padrão `manual`), nunca pelo repositório.
 - **Viagem antiga não é reordenada.** A migration `trip_stop_order_source` deixa tudo `unordered`; só viagem tocada depois entra no ordenador.
 - **Testes:** contratos `test/trip-domain/draft-stop-order.contract.ts` (propriedades com semente fixa) e `test/trip-stops/order-draft-trip-stops.contract.ts`; integração com Postgres `test/integration/draft-stop-order.integration.ts` (CA1–CA4, na lista do `test:integration`). Detalhe e evidência: `specs/323-paradas-ordenadas-no-rascunho/evidence.md`.
+
+## A API de integração (spec 340)
+
+`integration-api/`: chave por empresa (`integration_api_keys`, só o hash SHA-256; a chave `tms_…` aparece uma vez na criação) com
+capacidades `quote`/`pickup`. Administração em `/integration-keys` (`settings.manage`, auditada **sem** a chave nem o hash);
+rotas do parceiro em `/integration/freight-quotes` e `/integration/pickup-requests[/:id[/cancel]]`, **anônimas para o roteador**
+(a credencial é a chave, resolvida no `parse`; a empresa vem dela, nunca do corpo), com balde por IP e por chave no Postgres.
+Cotação devolve só `total`/`currency`/`validUntil`; o pedido (`source = 'integration'`, sem contratante) leva `integration_key_id`
+e só a chave que o fez o lê ou cancela (outra → 404). Webhook e tela de chaves ainda não existem. Detalhe: `specs/340-*` e o
+documento do parceiro em `docs/integracao/api-de-integracao.md`.

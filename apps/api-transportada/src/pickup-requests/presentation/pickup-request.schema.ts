@@ -43,36 +43,87 @@ const addressSchema = z
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
+const createShape = {
+  cargoDescription: text(500),
+  destination: addressSchema,
+  kind: z.enum(PICKUP_REQUEST_KINDS),
+  note: z.string().trim().max(1000).nullable().optional(),
+  origin: addressSchema,
+  requesterEmail: z.string().trim().email().max(254).nullable().optional(),
+  requesterName: text(120),
+  requesterPhone: z
+    .string()
+    .regex(/^\+?\d{10,15}$/)
+    .nullable()
+    .optional(),
+  volumes: z.number().int().positive().max(100000),
+  weightKg: z
+    .string()
+    .regex(/^\d{1,9}(\.\d{1,3})?$/)
+    .refine((value) => Number(value) > 0),
+  windowEnd: date,
+  windowStart: date,
+}
+
+const CONTACT_REQUIRED = {
+  message: 'contact',
+  path: ['requesterEmail'],
+}
+
 const createSchema = z
+  .object(createShape)
+  .strict()
+  .refine(
+    (value) => (value.requesterEmail ?? null) !== null || (value.requesterPhone ?? null) !== null,
+    CONTACT_REQUIRED,
+  )
+
+/**
+ * Spec 340: o corpo do pedido que chega pela chave de integração. É o do portal mais quem pede (documento) e a
+ * cotação que o cliente aceitou. O parceiro não tem sessão, então o documento é o que liga o pedido ao cadastro.
+ */
+const integrationSchema = z
   .object({
-    cargoDescription: text(500),
-    destination: addressSchema,
-    kind: z.enum(PICKUP_REQUEST_KINDS),
-    note: z.string().trim().max(1000).nullable().optional(),
-    origin: addressSchema,
-    requesterEmail: z.string().trim().email().max(254).nullable().optional(),
-    requesterName: text(120),
-    requesterPhone: z
-      .string()
-      .regex(/^\+?\d{10,15}$/)
+    ...createShape,
+    quote: z
+      .object({ total: z.string().regex(/^\d{1,15}(\.\d{1,4})?$/), validUntil: date })
+      .strict()
       .nullable()
       .optional(),
-    volumes: z.number().int().positive().max(100000),
-    weightKg: z
-      .string()
-      .regex(/^\d{1,9}(\.\d{1,3})?$/)
-      .refine((value) => Number(value) > 0),
-    windowEnd: date,
-    windowStart: date,
+    requesterTaxId: z.string().regex(/^(?:\d{11}|\d{14})$/),
   })
   .strict()
   .refine(
     (value) => (value.requesterEmail ?? null) !== null || (value.requesterPhone ?? null) !== null,
-    {
-      message: 'contact',
-      path: ['requesterEmail'],
-    },
+    CONTACT_REQUIRED,
   )
+
+export type IntegrationPickupBody = CreatePickupRequestBody & {
+  readonly quote: { readonly total: string; readonly validUntil: string } | null
+  readonly requesterTaxId: string
+}
+
+export async function parseIntegrationPickupRequest(
+  request: Request,
+): Promise<IntegrationPickupBody> {
+  const body = await parseBody(integrationSchema, request)
+  return {
+    cargoDescription: body.cargoDescription,
+    destination: body.destination,
+    kind: body.kind,
+    note: body.note ?? null,
+    origin: body.origin,
+    quote: body.quote ?? null,
+    requesterEmail: body.requesterEmail ?? null,
+    requesterName: body.requesterName,
+    requesterPhone: body.requesterPhone ?? null,
+    requesterTaxId: body.requesterTaxId,
+    volumes: body.volumes,
+    weightKg: body.weightKg,
+    windowEnd: body.windowEnd,
+    windowStart: body.windowStart,
+  }
+}
 
 export type CreatePickupRequestBody = {
   readonly cargoDescription: string

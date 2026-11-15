@@ -21,6 +21,8 @@ export type PickupRequestRecord = {
   readonly destination: PickupRequestAddress
   readonly expiresAt: Date
   readonly id: string
+  /** Spec 340: a chave de integração que fez o pedido; nulo nas demais portas. */
+  readonly integrationKeyId: string | null
   readonly kind: PickupRequestKind
   readonly note: string | null
   readonly origin: PickupRequestAddress
@@ -48,6 +50,7 @@ export type NewPickupRequest = {
   readonly destination: PickupRequestAddress
   readonly expiresAt: Date
   readonly idempotencyKey: string
+  readonly integrationKeyId?: string | null
   readonly kind: PickupRequestKind
   readonly note: string | null
   readonly origin: PickupRequestAddress
@@ -146,5 +149,7 @@ export type PickupRequestRepositoryPort = {
     readonly to: PickupRequestStatus
     /** Escopo do contratante: o cliente só mexe no pedido dele. Ausente é o escritório. */
     readonly contractorIds?: readonly string[]
+    /** Escopo da chave de integração: ela só mexe no pedido que ela mesma fez. */
+    readonly integrationKeyId?: string
   }): Promise<PickupRequestRecord | null>
 }

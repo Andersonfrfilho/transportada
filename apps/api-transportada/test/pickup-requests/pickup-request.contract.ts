@@ -94,6 +94,7 @@ function fakeRepository() {
         destination: input.destination,
         expiresAt: input.expiresAt,
         id,
+        integrationKeyId: null,
         kind: input.kind,
         note: input.note,
         origin: input.origin,

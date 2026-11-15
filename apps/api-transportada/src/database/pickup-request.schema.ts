@@ -97,6 +97,8 @@ export const pickupRequests = pgTable(
     acceptedWindowStart: date('accepted_window_start', { mode: 'string' }),
     acceptedWindowEnd: date('accepted_window_end', { mode: 'string' }),
     acceptedTotalAmount: numeric('accepted_total_amount', { precision: 19, scale: 4 }),
+    /** Spec 340: a chave de integração que fez o pedido; é o que limita quem lê e cancela. Sem FK (rastro). */
+    integrationKeyId: uuid('integration_key_id'),
     tripId: uuid('trip_id'),
     tripStopId: uuid('trip_stop_id'),
     /** Spec 339 D9: sem decisão até aqui o cron expira o pedido. */
@@ -113,6 +115,9 @@ export const pickupRequests = pgTable(
       table.idempotencyKey,
     ),
     index('pickup_requests_company_status_idx').on(table.companyId, table.status, table.createdAt),
+    index('pickup_requests_integration_key_idx')
+      .on(table.integrationKeyId, table.createdAt)
+      .where(sql`${table.integrationKeyId} is not null`),
     index('pickup_requests_company_contractor_idx').on(table.companyId, table.contractorId),
     index('pickup_requests_open_expiry_idx')
       .on(table.expiresAt)
