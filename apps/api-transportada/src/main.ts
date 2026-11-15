@@ -182,6 +182,14 @@ import { DrizzleSalespersonRepository } from './salespeople/infrastructure/drizz
 import { createSalespersonRoutes } from './salespeople/presentation/salesperson.routes.js'
 import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastructure/drizzle-location-retention-settings.repository.js'
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
+import { createFreightQuoteRoutes } from './freight-quote/presentation/freight-quote.routes.js'
+import {
+  createCalculateFreightQuoteUseCase,
+  createClearFreightQuoteSettingsUseCase,
+  createGetFreightQuoteSettingsUseCase,
+  createSetFreightQuoteSettingsUseCase,
+} from './freight-quote/application/freight-quote.use-case.js'
+import { DrizzleFreightQuoteSettingsRepository } from './freight-quote/infrastructure/drizzle-freight-quote-settings.repository.js'
 import { createLocationRetentionSettingsRoutes } from './companies/presentation/location-retention-settings.routes.js'
 import { DrizzleCompanyFiscalEnvironmentRepository } from './companies/infrastructure/drizzle-company-fiscal-environment.repository.js'
 import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
@@ -3501,6 +3509,7 @@ function createApplicationRoutes({
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
   const federalTaxSettingsRepository = new DrizzleFederalTaxSettingsRepository(database)
   const driverAllowanceSettingsRepository = new DrizzleDriverAllowanceSettingsRepository(database)
+  const freightQuoteSettingsRepository = new DrizzleFreightQuoteSettingsRepository(database)
   const locationRetentionDependencies = {
     now: () => new Date(),
     settings: new DrizzleLocationRetentionSettingsRepository(database),
@@ -4694,6 +4703,15 @@ function createApplicationRoutes({
       listActive: createListActiveCompanyEntryKindsUseCase({
         entryKinds: companyEntryKindRepository,
       }),
+    }),
+    ...createFreightQuoteRoutes({
+      calculate: createCalculateFreightQuoteUseCase({
+        fuelPrices: fuelPriceRepository,
+        settings: freightQuoteSettingsRepository,
+      }),
+      clear: createClearFreightQuoteSettingsUseCase({ settings: freightQuoteSettingsRepository }),
+      get: createGetFreightQuoteSettingsUseCase({ settings: freightQuoteSettingsRepository }),
+      set: createSetFreightQuoteSettingsUseCase({ settings: freightQuoteSettingsRepository }),
     }),
     ...createDriverAllowanceSettingsRoutes({
       clear: createClearDriverAllowanceSettingsUseCase({

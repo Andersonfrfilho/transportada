@@ -1,0 +1,96 @@
+{
+  "title": "Orçamento de frete",
+  "subtitle": "Calcula o preço pelo custo da viagem, com margem e piso mínimo da ANTT. É só consulta: nada é gravado.",
+  "origin": {
+    "company": "Valores da empresa",
+    "default": "Valores iniciais do sistema"
+  },
+  "lines": {
+    "fuel": "Combustível",
+    "driver": "Motorista",
+    "maintenanceAndTires": "Manutenção e pneus",
+    "fixed": "Custos fixos (seguro, IPVA, depreciação)",
+    "toll": "Pedágio"
+  },
+  "fuelOrigin": {
+    "company": "consumo da empresa",
+    "reference": "consumo de referência por eixos"
+  },
+  "quote": {
+    "title": "Calcular orçamento",
+    "hint": "Informe a distância e o veículo. Pedágio e preço do diesel são opcionais: sem o diesel, vale o preço da empresa ou da ANP.",
+    "distanceKm": "Distância (km)",
+    "axles": "Eixos do veículo",
+    "axlesOption": "{{count}} eixos",
+    "cargoType": "Tipo de carga (ANTT)",
+    "cargoValue": "Valor da carga (R$)",
+    "tollAmount": "Pedágio da viagem (R$)",
+    "share": "Parte do veículo ocupada (%)",
+    "fuelPrice": "Preço do diesel (R$/litro)",
+    "fuelPricePlaceholder": "Preço da empresa ou da ANP",
+    "highPerformance": "Veículo de alto desempenho (tabela C da ANTT)",
+    "eightAxles": "A norma não tem coluna de 8 eixos: o piso usa o de 7 eixos, como manda o Art. 5 §5.",
+    "calculate": "Calcular",
+    "calculating": "Calculando…"
+  },
+  "result": {
+    "title": "Resultado",
+    "tripCost": "Custo da viagem",
+    "shipmentCost": "Custo deste embarque ({{share}}% da viagem)",
+    "margin": "Margem",
+    "anttFloor": "Piso mínimo da ANTT (tabela {{table}})",
+    "freight": "Frete",
+    "adValorem": "Frete-valor (ad valorem)",
+    "gris": "GRIS (gerenciamento de risco)",
+    "total": "Total do orçamento",
+    "floorApplied": "O custo mais a margem ficou abaixo do piso da ANTT, então o frete usa o piso.",
+    "floorFormula": "Piso = km × {{ccd}} + {{cc}} (coeficientes para {{axles}} eixos).",
+    "fuel": "Combustível: {{price}} por litro, {{consumption}} km/l ({{origin}})."
+  },
+  "settings": {
+    "title": "Parâmetros do orçamento",
+    "hint": "Valores iniciais de mercado para um caminhão de três eixos em carga geral. Troque cada um pelo número real da sua operação.",
+    "fields": {
+      "marginPercent": "Margem sobre o preço (%)",
+      "expectedOccupancyPercent": "Ocupação esperada do veículo (%)",
+      "driverCostPerKm": "Motorista (R$/km)",
+      "maintenanceCostPerKm": "Manutenção (R$/km)",
+      "tiresCostPerKm": "Pneus (R$/km)",
+      "fixedCostPerKm": "Custos fixos (R$/km)",
+      "adValoremPercent": "Frete-valor, ad valorem (%)",
+      "grisPercent": "GRIS (%)",
+      "fuelKmPerLiter": "Consumo (km/l)"
+    },
+    "why": {
+      "marginPercent": "Inicial {{value}}%. O transporte rodoviário costuma operar entre 10% e 20% do preço de venda.",
+      "expectedOccupancyPercent": "Inicial {{value}}%. Quanto do veículo costuma ir ocupado: divide o custo da viagem entre os embarques.",
+      "driverCostPerKm": "Inicial R$ {{value}}. Salário, encargos e diárias do motorista divididos pelos km rodados.",
+      "maintenanceCostPerKm": "Inicial R$ {{value}}. Manutenção preventiva e corretiva por km.",
+      "tiresCostPerKm": "Inicial R$ {{value}}. Pneus e recapagem por km.",
+      "fixedCostPerKm": "Inicial R$ {{value}}. Depreciação, IPVA, seguro do veículo e rastreador por km.",
+      "adValoremPercent": "Inicial {{value}}% do valor da carga. O mercado cobra de 0,1% a 0,5% pelo risco de dano.",
+      "grisPercent": "Inicial {{value}}% do valor da carga. Gerenciamento de risco: de 0,1% a 0,3%, mais em carga visada.",
+      "fuelKmPerLiter": "Deixe em branco para usar o consumo de referência pelo número de eixos (de 4,5 km/l com 2 eixos a 1,9 km/l com 9)."
+    },
+    "fuelKmPerLiterPlaceholder": "Referência por eixos",
+    "applyAnttFloor": "Nunca cobrar abaixo do piso mínimo da ANTT",
+    "anttSource": "O piso segue a {{resolution}}, em vigor desde {{date}}. A tabela é lei e muda por atualização do sistema, não por esta tela.",
+    "anttLink": "Ver a norma",
+    "save": "Gravar parâmetros",
+    "clear": "Voltar aos valores iniciais",
+    "saved": "Parâmetros atualizados.",
+    "readOnly": "Só quem administra a empresa altera os parâmetros."
+  },
+  "errors": {
+    "REQUEST_FAILED": "Não foi possível concluir. Tente de novo.",
+    "NETWORK_ERROR": "Sem conexão com o servidor.",
+    "RESPONSE_INVALID": "A resposta do servidor veio num formato inesperado.",
+    "FREIGHT_QUOTE_FUEL_PRICE_MISSING": "Sem preço de diesel. Informe o preço no campo ou cadastre-o em Empresa > Combustível.",
+    "FREIGHT_QUOTE_MARGIN_INVALID": "A margem precisa ficar abaixo de 100%.",
+    "FREIGHT_QUOTE_OCCUPANCY_INVALID": "A ocupação esperada precisa ficar entre 0 e 100%.",
+    "FREIGHT_QUOTE_SHARE_INVALID": "A parte do veículo precisa ficar entre 0 e 100%.",
+    "FREIGHT_QUOTE_DISTANCE_INVALID": "A distância precisa ser maior que zero.",
+    "FREIGHT_QUOTE_FUEL_PRICE_INVALID": "O preço do diesel precisa ser maior que zero.",
+    "FREIGHT_QUOTE_CONSUMPTION_INVALID": "O consumo precisa ser maior que zero."
+  }
+}

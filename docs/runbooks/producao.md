@@ -1369,3 +1369,7 @@ Sintoma: o bot reenviava a cada ~30 min o lembrete `idle` ("Vamos iniciar a rota
 - **Conferir (somente leitura):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-motorista-numero-grupo.sh` (`scripts/ops/producao-motorista-numero-grupo.sh`): telefone cadastrado, grupo vinculado e quem tem cada número. As duas últimas consultas (pedidos e mensagens do dia) falharam com erro de SQL (`interval` parametrizado) e precisam de ajuste antes de serem usadas.
 - **Correção aplicada em produção (Anderson, 13/11/2026, 17:02):** `scripts/ops/producao-corrigir-telefone-thiago.sh` (simulação por padrão, `--confirm` grava; só altera a linha que ainda tem o número antigo). Resultado: `phone` de `16988062774` para `16988092774`, `version` 4 para 5, uma linha. Depois, o motorista marca o bot de novo no grupo.
 - **Cuidado:** simulação e `--confirm` no mesmo minuto gravam no mesmo arquivo de saída e o segundo sobrescreve o primeiro.
+
+## 5.36 Orçamento de frete (spec 326, 15/11/2026) — nada alterado em produção
+
+A spec 326 só vai a `staging`. Ela cria a tabela `company_freight_quote_settings` (migration `20261115050000_freight_quote_settings`) e a tela `/orcamento`; sem linha gravada a API devolve os valores iniciais do sistema. Ordem de publicação: migration, API, painel. Rollback manual em `apps/api-transportada/drizzle/20261115050000_freight_quote_settings/rollback.sql` (recusa rodar com parâmetro gravado). Nenhum passo em produção até a promoção de `staging`; a tabela do piso da ANTT é código (Res. 6.084/2026), não dado do banco.

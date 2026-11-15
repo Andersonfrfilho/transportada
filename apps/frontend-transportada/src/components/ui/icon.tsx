@@ -92,6 +92,7 @@ export type IconName =
   | 'workspace-trip-financials'
   | 'workspace-fleet'
   | 'workspace-freight'
+  | 'workspace-freight-quote'
   | 'workspace-mdfe-manifest'
   | 'workspace-nfe'
   | 'workspace-nfse-invoice'
@@ -380,6 +381,14 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M14 10h4l3 3v4h-7z',
     'M7 20a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
     'M17 20a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
+  ],
+  /* Prancheta com cifrão: o orçamento é o preço antes de haver viagem, não o veículo do frete. */
+  'workspace-freight-quote': [
+    'M6 3h12v18H6z',
+    'M9 7h6',
+    'M9 11h6',
+    'M12 14v5',
+    'M14 15h-3a1 1 0 0 0 0 2h2a1 1 0 0 1 0 2h-3',
   ],
   'workspace-mdfe-manifest': [
     'M4 6h11v9H4z',
