@@ -49,6 +49,23 @@ export function botGreeting(now: Date, senderName: null | string): string {
   return `${GREETING[dayPartOf(now)]}${name === '' ? '' : `, ${name}`}! 👋`
 }
 
+/** O nome em minúsculas ou MAIÚSCULAS do cadastro vira "Andreia"; o do WhatsApp só entra se não há cadastro. */
+export function registeredFirstName(name: null | string): string {
+  const first = firstNameOf(name)
+  return first === ''
+    ? ''
+    : `${first.charAt(0).toLocaleUpperCase('pt-BR')}${first.slice(1).toLocaleLowerCase('pt-BR')}`
+}
+
+/** Quem tem mais de um perfil ouve em qual deles o bot está atendendo agora; um perfil só não precisa. */
+export function botProfileLine(profiles: {
+  readonly isDriver: boolean
+  readonly isOffice: boolean
+}): null | string {
+  if (!(profiles.isDriver && profiles.isOffice)) return null
+  return '_Vi que você é motorista e também do escritório. Por aqui eu atendo como *motorista*; para o escritório, use o painel._'
+}
+
 export function botFarewell(now: Date): string {
   return FAREWELL[dayPartOf(now)]
 }

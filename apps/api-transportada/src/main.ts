@@ -383,6 +383,7 @@ import { createWhatsAppOfficeDelivery } from './whatsapp-commands/infrastructure
 import {
   createAttendantFinder,
   findActiveDriverByPhone,
+  findRegisteredPerson,
   isCrewPhone,
 } from './whatsapp/infrastructure/whatsapp-group-sender.adapter.js'
 import { createWhatsAppSenderRoleResolver } from './whatsapp/application/whatsapp-sender-role.service.js'
@@ -2858,6 +2859,7 @@ function createEvolutionWebhook(input: {
       ? undefined
       : createWhatsAppGroupRequestSessions({
           clock: () => new Date(),
+          resolvePerson: (lookup) => findRegisteredPerson(database, lookup),
           flow:
             input.groupStop === undefined
               ? createGroupOccurrenceFlow(input.groupOccurrence)
