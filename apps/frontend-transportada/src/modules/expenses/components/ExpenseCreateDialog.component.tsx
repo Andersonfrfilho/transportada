@@ -22,6 +22,7 @@ import {
 import {
   causedByKeys,
   employeeKeys,
+  isEmployeeCategoryName,
   EMPTY_CREATE_FORM,
   maskMoney,
   parseMoney,
@@ -100,6 +101,7 @@ export function ExpenseCreateDialog({
   const [showIssues, setShowIssues] = useState(false)
   const category = categories.find((candidate) => candidate.id === fields.categoryId)
   const requiresDriver = category?.requiresDriver ?? false
+  const showEmployee = category !== undefined && isEmployeeCategoryName(category.name)
   const issues = validateCreateForm(fields, { requiresDriver })
 
   function patch(changes: Partial<typeof EMPTY_CREATE_FORM>): void {
@@ -108,7 +110,9 @@ export function ExpenseCreateDialog({
 
   async function save(): Promise<void> {
     setShowIssues(true)
-    const input = buildInput(fields)
+    const input = buildInput(
+      showEmployee ? fields : { ...fields, employee: '', employeeName: '', employmentType: '' },
+    )
     if (issues.length > 0 || input === null) return
     try {
       await createExpense.mutateAsync(input)
@@ -263,13 +267,15 @@ export function ExpenseCreateDialog({
             />
           </div>
         )}
-        <ExpenseEmployeeFields
-          employee={fields.employee}
-          employeeName={fields.employeeName}
-          employmentType={fields.employmentType}
-          onChange={patch}
-          peopleOptions={peopleOptions}
-        />
+        {showEmployee ? (
+          <ExpenseEmployeeFields
+            employee={fields.employee}
+            employeeName={fields.employeeName}
+            employmentType={fields.employmentType}
+            onChange={patch}
+            peopleOptions={peopleOptions}
+          />
+        ) : null}
         <ExpensePersonField
           choice={fields.causedBy}
           hint={t('create.causedByHint')}
@@ -280,16 +286,6 @@ export function ExpenseCreateDialog({
           options={peopleOptions}
           placeholder={t('create.causedByPlaceholder')}
         />
-        <label className={styles.field}>
-          <span>{t('create.billLocation')}</span>
-          <input
-            maxLength={120}
-            onChange={(event) => patch({ billLocation: event.target.value })}
-            placeholder={t('create.billLocationPlaceholder')}
-            value={fields.billLocation}
-          />
-        </label>
-        <p className={styles.hint}>{t('create.billLocationHint')}</p>
         <label className={styles.field}>
           <span>{t('create.billUrl')}</span>
           <input

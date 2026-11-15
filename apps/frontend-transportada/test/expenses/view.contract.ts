@@ -10,6 +10,7 @@ import type { ExpenseOccurrenceListItem } from '@/modules/expenses/shared/expens
 import {
   EMPTY_CREATE_FORM,
   employeeKeys,
+  isEmployeeCategoryName,
   fromPersonFieldValue,
   toPersonFieldValue,
   formatCivilDate,
@@ -206,5 +207,15 @@ describe('campo único de pessoa (spec 332)', () => {
       name: 'A própria empresa',
     })
     expect(fromPersonFieldValue('')).toEqual({ choice: '', name: '' })
+  })
+})
+
+describe('spec 332 — o bloco Funcionário é só da folha', () => {
+  it('reconhece Folha e Funcionários, com ou sem acento e caixa', () => {
+    expect(isEmployeeCategoryName('Folha')).toBe(true)
+    expect(isEmployeeCategoryName(' funcionários ')).toBe(true)
+    expect(isEmployeeCategoryName('FUNCIONARIOS')).toBe(true)
+    expect(isEmployeeCategoryName('Aluguel')).toBe(false)
+    expect(isEmployeeCategoryName('Cartão de crédito')).toBe(false)
   })
 })

@@ -17,6 +17,7 @@ import {
   causedByKeys,
   currentCompetence,
   employeeKeys,
+  isEmployeeCategoryName,
   isValidBillUrl,
   listCompetenceOptions,
   maskMoney,
@@ -54,6 +55,11 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
   const [name, setName] = useState(occurrence.expenseName)
   const [causedBy, setCausedBy] = useState(initialCausedBy(occurrence))
   const [causedByName, setCausedByName] = useState(occurrence.causedByName ?? '')
+  const showEmployee =
+    isEmployeeCategoryName(occurrence.categoryName) ||
+    initialEmployee(occurrence) !== '' ||
+    (occurrence.employeeName ?? '') !== '' ||
+    (occurrence.employmentType ?? null) !== null
   const [employee, setEmployee] = useState(initialEmployee(occurrence))
   const [employeeName, setEmployeeName] = useState(occurrence.employeeName ?? '')
   const [employmentType, setEmploymentType] = useState(occurrence.employmentType ?? '')
@@ -141,17 +147,19 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
           onChange={setSubtypeId}
           value={subtypeId}
         />
-        <ExpenseEmployeeFields
-          employee={employee}
-          employeeName={employeeName}
-          employmentType={employmentType}
-          onChange={(changes) => {
-            if (changes.employee !== undefined) setEmployee(changes.employee)
-            if (changes.employeeName !== undefined) setEmployeeName(changes.employeeName)
-            if (changes.employmentType !== undefined) setEmploymentType(changes.employmentType)
-          }}
-          peopleOptions={peopleOptions}
-        />
+        {showEmployee ? (
+          <ExpenseEmployeeFields
+            employee={employee}
+            employeeName={employeeName}
+            employmentType={employmentType}
+            onChange={(changes) => {
+              if (changes.employee !== undefined) setEmployee(changes.employee)
+              if (changes.employeeName !== undefined) setEmployeeName(changes.employeeName)
+              if (changes.employmentType !== undefined) setEmploymentType(changes.employmentType)
+            }}
+            peopleOptions={peopleOptions}
+          />
+        ) : null}
         <ExpensePersonField
           choice={causedBy}
           hint={t('create.causedByHint')}
@@ -165,15 +173,17 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
           options={peopleOptions}
           placeholder={t('create.causedByPlaceholder')}
         />
-        <label className={styles.field}>
-          <span>{t('create.billLocation')}</span>
-          <input
-            maxLength={120}
-            onChange={(event) => setBillLocation(event.target.value)}
-            placeholder={t('create.billLocationPlaceholder')}
-            value={billLocation}
-          />
-        </label>
+        {(occurrence.billLocation ?? '') === '' ? null : (
+          <label className={styles.field}>
+            <span>{t('create.billLocation')}</span>
+            <input
+              maxLength={120}
+              onChange={(event) => setBillLocation(event.target.value)}
+              placeholder={t('create.billLocationPlaceholder')}
+              value={billLocation}
+            />
+          </label>
+        )}
         <label className={styles.field}>
           <span>{t('create.billUrl')}</span>
           <input

@@ -255,6 +255,16 @@ export function fromPersonFieldValue(value: string): { choice: string; name: str
     : { choice: value, name: '' }
 }
 
+/** Spec 332: só a conta de folha/funcionários pergunta quem é o funcionário e o vínculo. */
+export function isEmployeeCategoryName(name: string): boolean {
+  const normalized = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+  return normalized === 'folha' || normalized === 'funcionarios'
+}
+
 /** Spec 330: o funcionário escolhido vira a chave certa da API (mesma convenção do causador). */
 export function employeeKeys(choice: string): {
   employeeDriverId?: string
