@@ -20,7 +20,12 @@ Política de estados (`requested → accepted|refused|canceled|expired → sched
 (`test/pickup-requests/pickup-request.contract.ts`, 10 passam; `authorization`, `rate-limited-routes`,
 `contractor-portal-schema` ajustados). Painel: `pickup.request`/`pickup.manage` na lista ordenada e nos grupos de permissão.
 
+## T5 e T6 (telas)
+
+- Portal (`apps/frontend-client`): aba "Coletas", formulário, lista e cancelamento; `test/pickup-requests.contract.test.ts`.
+- Painel (`apps/frontend-transportada`): workspace `/coletas` ("Pedidos de coleta e entrega", `pickup.manage`, grupo Operações): filtro por situação, lista, detalhe, aceitar (janela e valor opcionais), recusar (motivo obrigatório) e, depois do aceite, "Encaixar nesta viagem" nas viagens abertas ou "Criar nova viagem". `bun run test` do painel: 1496 pass, 0 fail; eslint limpo nos arquivos novos; contratos de menu e de acesso atualizados.
+- ⚠️ Falta o print de design (claro/escuro, 1440/375) e criar a viagem já preenchida a partir do pedido (hoje leva à tela de Viagens).
+
 ## Pendente neste PR
 
-T3 (cadastro do cliente anônimo, depende da 338), T4 (avisos por worker: e-mail, WhatsApp, webhook; expiração no cron),
-T5/T6 (telas), T6b (parada física na viagem), T7, T8.
+T3 (cadastro do cliente anônimo, depende da 338), T6b (parada física na viagem), T7, T8.
