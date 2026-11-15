@@ -1427,3 +1427,17 @@ O formulário público (cotação da 338 e pedido de coleta anônimo da 339) val
 - **Rodar a conferência da §5.40 pelo conector do Railway não é possível.** O agente do Railway (`railway-agent`) não executa comando no container do `api` nem consulta o banco (sem `railway ssh`, sem SQL); lê arquivos e logs. O agente de nuvem (`run-cloud-agent-task`) roda numa VM própria, sem acesso ao banco de staging. A conferência continua sendo o script, rodado por quem tem o `railway` logado.
 - **O script precisa do checkout inteiro da `staging`** (`git pull`), não só dos três arquivos: a entrada importa `src/freight-quote/**`. Com a cópia local atrasada ele falha com `Could not resolve ../src/freight-quote/...` (visto em 15/11/2026).
 - **Nenhum conector cria o widget do Turnstile.** O da Cloudflare disponível aqui cobre Workers, KV, D1, R2 e Hyperdrive; Turnstile só pelo painel da Cloudflare ou pelo script da §5.39.
+
+## 5.41 Painel em branco de vez em quando em staging (15/11/2026)
+
+**Sintoma:** o painel de staging fica em branco por alguns minutos e volta sozinho.
+
+**O que foi conferido (somente leitura, Railway de staging, conector):** `environment-status` sem serviço caído; nenhum deploy `FAILED` ou `CRASHED` em `api`, `transportada-frontend`, `worker`, `driver`; memória do `api` em ~0,35 GB (pico 0,38); nenhum 404 nem 5xx no painel. Staging recebe um deploy a cada ~25–60 min (todo merge reconstrói `api`, `transportada-frontend`, `driver`), e o container antigo sai ~2 min depois do novo subir.
+
+**Causa provável:** a aba aberta antes do deploy aponta para `/assets/<hash>.js` do build antigo. Ao abrir uma tela carregada sob demanda, o arquivo já não existe (`server.ts` devolve 404 de propósito para `/assets/`), o `import()` falha e a tela fica em branco até alguém dar F5. Não havia tratamento de `vite:preloadError`.
+
+**Correção:** `chunkReload.service.ts` recarrega a aba **uma vez** (trava de 30 s em `sessionStorage`) quando o Vite avisa que o chunk não carregou.
+
+**Fora do escopo / observação:** o console mostrou uma fonte `data:` bloqueada pela CSP (`font-src 'self'`). É aviso de fonte (cai na fonte do aparelho), não causa tela em branco; não foi liberado `data:` na CSP.
+
+**Se voltar a acontecer:** olhar `list-deployments` do `transportada-frontend` na hora do relato (deploy em andamento?) e o console do navegador (erro de chunk ou de API).
