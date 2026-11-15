@@ -1003,5 +1003,26 @@
       "resolved": "Resolvida"
     },
     "stopLevel": "Parada"
+  },
+  "pushDevice": {
+    "title": "Aviso no celular",
+    "enable": "Ativar neste aparelho",
+    "enabling": "Ativando…",
+    "disable": "Desativar",
+    "disabling": "Desativando…",
+    "state": {
+      "on": "Notificações ativas neste aparelho.",
+      "off": "Notificações desligadas neste aparelho. Toque para receber avisos do escritório no celular.",
+      "denied": "O navegador bloqueou as notificações. Libere nas configurações do site e volte aqui.",
+      "unsupported": "Este aparelho ou navegador não recebe notificações. No iPhone, adicione o app à Tela de Início antes de ativar."
+    },
+    "failure": {
+      "denied": "Não foi possível ativar: a permissão foi negada.",
+      "no_key": "Não foi possível ativar: o servidor ainda não está configurado para notificações.",
+      "subscribe_failed": "Não foi possível ativar: o navegador não criou a inscrição.",
+      "register_failed": "Não foi possível ativar: o cadastro do aparelho falhou. Tente de novo.",
+      "timeout": "Não foi possível ativar: demorou demais. Tente de novo.",
+      "unregister_failed": "Desligado neste aparelho, mas o servidor não confirmou. Tente de novo."
+    }
   }
 }

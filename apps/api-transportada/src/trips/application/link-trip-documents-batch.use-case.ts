@@ -6,6 +6,11 @@ import {
   freezeTripRouteGracefully,
   type TripRouteFreezeLogger,
 } from './freeze-trip-route-gracefully.js'
+import {
+  orderDraftTripStopsGracefully,
+  snapshotStopIdsGracefully,
+} from './order-draft-trip-stops-gracefully.js'
+import type { OrderDraftTripStops } from './order-draft-trip-stops.use-case.js'
 import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
 import type { TripDocument } from './trip.port.js'
 
@@ -54,6 +59,8 @@ export function createLinkTripDocumentsBatchUseCase(dependencies: {
   readonly repository: LinkTripDocumentsBatchPort
   /** Spec 153 D6: viagem ainda não despachada recalcula com `cheapest`. Ausente, comportamento igual a antes. */
   readonly routeFreezer?: PlanTripRouteTollFreezer
+  /** Spec 323: ordena as paradas pela estrada depois do vínculo. Ausente, a ordem é a de chegada, como antes. */
+  readonly stopOrderer?: OrderDraftTripStops
 }): LinkTripDocumentsBatchUseCase {
   return {
     async execute(input) {
@@ -63,6 +70,13 @@ export function createLinkTripDocumentsBatchUseCase(dependencies: {
        * primeira **da mesma transação** — um erro que não diz nada ao operador.
        */
       const unique = [...new Set(input.nfeDocumentIds)]
+      const stopOrderScope = {
+        companyId: input.context.companyId,
+        ...(dependencies.logger === undefined ? {} : { logger: dependencies.logger }),
+        orderer: dependencies.stopOrderer,
+        tripId: input.tripId,
+      }
+      const knownStopIds = await snapshotStopIdsGracefully(stopOrderScope)
       const result = await dependencies.repository.linkDocumentsBatch({
         companyId: input.context.companyId,
         nfeDocumentIds: unique,
@@ -75,6 +89,8 @@ export function createLinkTripDocumentsBatchUseCase(dependencies: {
        * já apagou a rota velha (T704 M1) e o congelamento roda depois, sem poder derrubá-la.
        */
       if (result.linked.length > 0) {
+        /** Spec 323: antes do congelamento, para a rota congelada descrever a ordem final. */
+        await orderDraftTripStopsGracefully({ ...stopOrderScope, knownStopIds })
         await freezeTripRouteGracefully({
           companyId: input.context.companyId,
           freezer: dependencies.routeFreezer,

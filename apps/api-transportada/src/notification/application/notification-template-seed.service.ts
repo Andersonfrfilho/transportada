@@ -9,14 +9,14 @@ import { createApiNotificationModule } from '../infrastructure/notification-modu
 
 import {
   NOTIFICATION_CATALOG,
-  type NotificationProductChannel,
+  type NotificationCatalogChannel,
 } from '../domain/notification-catalog.constant.js'
 import { NOTIFICATION_DEFAULT_LOCALE } from '../notification.constant.js'
 
 export type NotificationTemplateSeed = {
   readonly active: boolean
   readonly body: string
-  readonly channel: NotificationProductChannel
+  readonly channel: NotificationCatalogChannel
   readonly companyId: string
   readonly key: string
   readonly locale: string

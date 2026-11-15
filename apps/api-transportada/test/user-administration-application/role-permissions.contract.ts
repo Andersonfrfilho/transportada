@@ -65,6 +65,17 @@ describe('matriz de papel e permissão', () => {
     expect(holders).toEqual(['company-admin'])
   })
 
+  /** Spec 325 RF7: a tela de grupos oferece as permissões de Contas, e só o company-admin as concede por papel. */
+  test('oferece expenses.read e expenses.manage no catálogo e as mostra só no company-admin', () => {
+    for (const permission of ['expenses.read', 'expenses.manage']) {
+      expect(matrix.permissions).toContain(permission)
+      const holders = matrix.roles
+        .filter((entry) => entry.permissions.includes(permission))
+        .map((entry) => entry.role)
+      expect(holders).toEqual(['company-admin'])
+    }
+  })
+
   test('não oferece permissão de serviço, e o papel automation segue mostrando todas', () => {
     for (const permission of SERVICE_ONLY_PERMISSIONS) {
       expect(matrix.permissions).not.toContain(permission)

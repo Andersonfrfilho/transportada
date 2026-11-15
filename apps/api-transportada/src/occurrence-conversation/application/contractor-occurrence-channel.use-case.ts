@@ -143,12 +143,17 @@ export function createContractorOccurrenceChannelUseCase(dependencies: {
         mentionPhone: channel.mentionPhone,
         template: `${TEST_HEADER}\n\n${template}`,
         values: {
+          cliente: 'Cliente Exemplo Ltda',
+          contratante: 'Contratante Exemplo Ltda',
           data: moment.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+          enderecoEntrega: 'RUA EXEMPLO, 100, CIDADE, UF',
           momento: 'entrega',
+          novaData: '',
           numeroNota: '000000',
           numeroNotaSemSerie: '000000',
           observacao: 'Exemplo de resumo da ocorrência.',
           tipoOcorrencia: 'Teste',
+          valorNota: '1.250,00',
         },
       })
       try {

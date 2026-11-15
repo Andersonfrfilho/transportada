@@ -110,6 +110,28 @@ describe('rotas do módulo de notificações', () => {
     ).toBe(true)
     expect(router.match(notificationRequest({ pathname: '/notifications' }))).toBe(false)
   })
+
+  test('com chave VAPID configurada a rota pública /push/vapid-public-key devolve a chave', async () => {
+    const { router } = notificationHttpFixture({ vapidPublicKey: 'chave-publica-vapid-teste' })
+
+    const response = await router.handle(
+      notificationRequest({ pathname: `${NOTIFICATION_ROUTES_BASE_PATH}/push/vapid-public-key` }),
+    )
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { data: { publicKey: string } }
+    expect(body.data.publicKey).toBe('chave-publica-vapid-teste')
+  })
+
+  test('sem chave VAPID a rota de consulta não existe', async () => {
+    const { router } = notificationHttpFixture()
+
+    const response = await router.handle(
+      notificationRequest({ pathname: `${NOTIFICATION_ROUTES_BASE_PATH}/push/vapid-public-key` }),
+    )
+
+    expect(response.status).toBe(404)
+  })
 })
 
 const FIRST_COMPANY_ID = '00000000-0000-4000-8000-0000000000a1'

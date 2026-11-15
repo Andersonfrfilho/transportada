@@ -11,7 +11,12 @@ import type {
   OccurrenceAttachmentMode,
   OccurrenceItemsMode,
 } from './occurrence.constant'
-import type { OccurrenceQuantityUnit, TripCrewRole } from './trip.constant'
+import type {
+  OccurrenceQuantityUnit,
+  STOP_ORDER_ERROR_CODE,
+  STOP_ORDER_SOURCE,
+  TripCrewRole,
+} from './trip.constant'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
  * `closed → completed`). ADR-0058 acrescentou `on_delivery_route`, a viagem na estrada.
@@ -974,6 +979,10 @@ export type TripDetail = Trip &
     occupancy: TripOccupancy | null
     /** Spec 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */
     trailer: TripTrailer | null
+    /** Spec 323 D4: por que o ordenador não ordenou. Opcional como todo campo novo (spec 078 D2). */
+    stopOrderErrorCode?: null | StopOrderErrorCode
+    /** Spec 323 D4: quem decidiu a ordem das paradas. Ausente é tratado como `unordered`. */
+    stopOrderSource?: StopOrderSource
     stops: readonly TripStopDetail[]
   }>
 
@@ -1260,6 +1269,19 @@ export type ReadTripAllowedActionsInput = Readonly<{
 }>
 
 export type ReorderTripStopsResult = Readonly<{ tripStatus: TripStatus }>
+
+/** Spec 323 D4: de onde veio a ordem das paradas. */
+export type StopOrderSource = (typeof STOP_ORDER_SOURCE)[keyof typeof STOP_ORDER_SOURCE]
+/** Spec 323: códigos estáveis da falha do ordenador; a tela os traduz. */
+export type StopOrderErrorCode = (typeof STOP_ORDER_ERROR_CODE)[keyof typeof STOP_ORDER_ERROR_CODE]
+
+export type AutoOrderTripStopsInput = Readonly<{ tripId: string }>
+/** Spec 323 RF4: o resultado do botão "Ordenar paradas". */
+export type AutoOrderTripStopsResult = Readonly<{
+  errorCode: null | StopOrderErrorCode
+  excludedStopCount: number
+  status: 'ordered' | 'skipped' | 'unchanged' | 'unordered'
+}>
 
 export type ReorderTripStopsInput = Readonly<{ stopIds: readonly string[]; tripId: string }>
 

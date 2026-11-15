@@ -7,6 +7,7 @@ import {
   createNotificationModule,
   type NotificationModule,
 } from '@adatechnology/notification-module'
+import { createWebPushProvider } from '@adatechnology/push-provider'
 
 import type { ApiEnvironment } from '../../shared/api.types.js'
 import {
@@ -20,7 +21,7 @@ import { createInMemoryNotificationCache } from './in-memory-notification-cache.
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 type CreateApiNotificationModuleParams = {
-  readonly config: Pick<ApiEnvironment, 'cryptography' | 'emailChannelEnabled'>
+  readonly config: Pick<ApiEnvironment, 'cryptography' | 'emailChannelEnabled' | 'vapid'>
   readonly db: Database
   /** Ausente, o módulo cai na fila em memória dele — que ninguém consome e que morre no restart. */
   readonly queue?: QueuePort
@@ -47,6 +48,7 @@ export function createApiNotificationModule({
   whatsappDriver,
 }: CreateApiNotificationModuleParams): NotificationModule {
   const emailDriver = config.emailChannelEnabled ? createWorkerOwnedEmailDriver() : undefined
+  const pushDriver = config.vapid ? createWebPushProvider({ vapidKeys: config.vapid }) : undefined
 
   return createNotificationModule({
     config: {
@@ -55,13 +57,18 @@ export function createApiNotificationModule({
       suppressionHmacKey: config.cryptography.notificationSuppressionHmacKey,
     },
     db: db as never,
-    features: { email: emailDriver !== undefined, whatsapp: whatsappDriver !== undefined },
+    features: {
+      email: emailDriver !== undefined,
+      whatsapp: whatsappDriver !== undefined,
+      push: pushDriver !== undefined,
+    },
     providers: {
       // Sem `cache` o módulo **pula** a checagem de nonce do webhook em silêncio, e o replay passa.
       cache: createInMemoryNotificationCache(),
       channels: {
         ...(emailDriver === undefined ? {} : { email: emailDriver }),
         ...(whatsappDriver === undefined ? {} : { whatsapp: whatsappDriver }),
+        ...(pushDriver === undefined ? {} : { push: pushDriver }),
       },
       ...(queue === undefined ? {} : { queue }),
       recipientResolver: createIdentityRecipientResolver({ db }),

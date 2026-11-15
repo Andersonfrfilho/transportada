@@ -66,6 +66,11 @@ function createFixture(permissions?: CompanyContext['permissions']) {
             return [DELIVERY]
           },
         },
+        readDeliveryEvents: {
+          async execute() {
+            return { destination: null, events: [] }
+          },
+        },
         readDeliveryLocation: {
           async execute(input) {
             locationCalls.push(structuredClone(input))
@@ -117,6 +122,24 @@ describe('a rota de entregas do contratante (spec 063 T005)', () => {
     ])
   })
 
+  /** Spec 340 D4: o marco é tipo e hora, a coordenada é da parada — nada de motorista, placa ou valor. */
+  test('publica os marcos da entrega como lista fechada', async () => {
+    const fixture = createFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: `/client/me/deliveries/${DELIVERY.accessKey}/events` }),
+    )
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      data: { destination: unknown; events: readonly Record<string, unknown>[] }
+    }
+    expect(Object.keys(body.data).sort()).toEqual(['destination', 'events'])
+    for (const event of body.data.events) {
+      expect(Object.keys(event).sort()).toEqual(['kind', 'occurredAt'])
+    }
+  })
+
   /** Um UUID nosso na mão do cliente é identificador para tentar em outra rota. */
   test('não devolve id interno de nota, de viagem nem de vínculo', async () => {
     const fixture = createFixture()
@@ -164,6 +187,11 @@ describe('a rota de entregas do contratante (spec 063 T005)', () => {
       listDeliveries: {
         async execute() {
           return []
+        },
+      },
+      readDeliveryEvents: {
+        async execute() {
+          return { destination: null, events: [] }
         },
       },
       readDeliveryLocation: {
@@ -284,6 +312,11 @@ describe('a rota de entregas do contratante (spec 063 T005)', () => {
           listDeliveries: {
             async execute() {
               return []
+            },
+          },
+          readDeliveryEvents: {
+            async execute() {
+              return { destination: null, events: [] }
             },
           },
           readDeliveryLocation: {

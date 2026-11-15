@@ -3,6 +3,7 @@ import type {
   ChargeBatch,
   ChargeDecision,
   Delivery,
+  DeliveryEvents,
   DeliveryLocation,
   DeliverySchedule,
   Occurrence,
@@ -16,6 +17,7 @@ import {
   toChargeBatches,
   toConversation,
   toDeliveries,
+  toDeliveryEvents,
   toDeliveryLocation,
   toDeliverySchedule,
   toOccurrenceDecisionResult,
@@ -48,6 +50,7 @@ export type PortalClient = Readonly<{
   /** Spec 183 T702b: o PUT direto ao bucket, sem o token — a URL assinada já é a autorização. */
   putConversationUpload: (input: { readonly file: File; readonly url: string }) => Promise<void>
   readConversation: (ref: string) => Promise<PortalConversation>
+  readEvents: (accessKey: string) => Promise<DeliveryEvents>
   readLocation: (accessKey: string) => Promise<DeliveryLocation | null>
   /** Spec 183 T702b: a URL de subida do anexo, pela referência da conversa. */
   requestConversationUpload: (input: {
@@ -137,6 +140,14 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
     async readConversation(ref) {
       return toConversation(
         await request({ method: 'GET', path: `${CONVERSATIONS_PATH}/${encodeURIComponent(ref)}` }),
+      )
+    },
+    async readEvents(accessKey) {
+      return toDeliveryEvents(
+        await request({
+          method: 'GET',
+          path: `${DELIVERIES_PATH}/${encodeURIComponent(accessKey)}/events`,
+        }),
       )
     },
     async readLocation(accessKey) {

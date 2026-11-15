@@ -450,6 +450,18 @@ describe('Drizzle migrations', () => {
       '20261110224844_whatsapp_chats',
       '20261111002237_canhoto_pickup_resolution',
       '20261111003528_whatsapp_inbox_chat_expire_job',
+      '20261111193708_trip_stop_order_source',
+      '20261113142806_contractor_manual_notices',
+      '20261113175316_company_expenses',
+      '20261113201500_company_expense_occurrence_job',
+      '20261113201600_company_expense_occurrence_trips',
+      '20261113215631_company_expense_allocation',
+      '20261114001611_company_expense_reminders',
+      '20261114005633_company_expense_out_of_pattern_threshold',
+      '20261114014120_company_expense_reminder_preferences',
+      '20261114160259_company_expense_reminder_job',
+      '20261115034548_company_expense_installments',
+      '20261115050000_freight_quote_settings',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

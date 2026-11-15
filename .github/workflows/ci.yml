@@ -59,7 +59,27 @@ jobs:
       # pagam o download.
       - name: Install Playwright Chromium
         if: matrix.app == 'frontend-transportada'
-        run: bun run --cwd apps/frontend-transportada playwright install --with-deps chromium
+        run: bun run --cwd apps/frontend-transportada playwright install chromium
+      - name: Bibliotecas de sistema do Chromium
+        if: matrix.app == 'frontend-transportada'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: bun run --cwd apps/frontend-transportada playwright install-deps chromium
+      # O apt só instala o que o Chromium precisa de biblioteca de sistema. Quando o DNS do runner cai
+      # (11/11/2026: `Temporary failure resolving 'archive.ubuntu.com'` em todo job, 3h seguidas, zero
+      # teste rodado), a falha do apt não diz nada sobre o código — mas o que importa é se o Chromium
+      # abre. Este passo cobra isso: `ldd` no binário do cache, e falha se faltar biblioteca de verdade.
+      - name: Chromium tem as bibliotecas de sistema?
+        if: matrix.app == 'frontend-transportada'
+        run: |
+          bin=$(find ~/.cache/ms-playwright -type f \( -name headless_shell -o -name chrome \) | head -1)
+          test -n "$bin" || { echo "::error::binário do Chromium não encontrado no cache"; exit 1; }
+          missing=$(ldd "$bin" | grep 'not found' || true)
+          if [ -n "$missing" ]; then
+            echo "::error::faltam bibliotecas para o Chromium:"
+            echo "$missing"
+            exit 1
+          fi
       - run: bun run --cwd apps/${{ matrix.app }} test
       - run: bun run --cwd apps/${{ matrix.app }} build
 
@@ -311,8 +331,23 @@ jobs:
       # Teto próprio: espelho pendurado vira passo vermelho em 5 minutos, com nome, em vez de gate
       # cancelado no fim do job sem dizer onde parou.
       - name: Bibliotecas de sistema do Chromium
+        continue-on-error: true
         timeout-minutes: 5
         run: bun run --cwd apps/frontend-transportada playwright install-deps chromium
+      # O apt só instala o que o Chromium precisa de biblioteca de sistema. Quando o DNS do runner cai
+      # (11/11/2026: `Temporary failure resolving 'archive.ubuntu.com'` em todo job, 3h seguidas, zero
+      # teste rodado), a falha do apt não diz nada sobre o código — mas o que importa é se o Chromium
+      # abre. Este passo cobra isso: `ldd` no binário do cache, e falha se faltar biblioteca de verdade.
+      - name: Chromium tem as bibliotecas de sistema?
+        run: |
+          bin=$(find ~/.cache/ms-playwright -type f \( -name headless_shell -o -name chrome \) | head -1)
+          test -n "$bin" || { echo "::error::binário do Chromium não encontrado no cache"; exit 1; }
+          missing=$(ldd "$bin" | grep 'not found' || true)
+          if [ -n "$missing" ]; then
+            echo "::error::faltam bibliotecas para o Chromium:"
+            echo "$missing"
+            exit 1
+          fi
       - run: make identity-bootstrap
       - name: Local authenticated smoke
         run: |

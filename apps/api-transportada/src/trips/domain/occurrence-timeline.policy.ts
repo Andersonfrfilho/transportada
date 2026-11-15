@@ -131,6 +131,17 @@ export type OccurrenceTimelineSource =
       readonly status: string
     })
   /**
+   * Spec 324 T2 (D4): o botão "Avisar a contratante" — quem clicou (ator `operation`), por onde (`channel`: `email`,
+   * `whatsapp_group`, `email_fallback`, ou nulo quando nada foi tentado) e o desfecho (`status` `sent`/`failed`, com o
+   * motivo). Nunca o texto, o endereço, o grupo nem o número.
+   */
+  | (SourceBase & {
+      readonly channel: null | string
+      readonly kind: 'contractor.notice.manual'
+      readonly reason: null | string
+      readonly status: string
+    })
+  /**
    * Spec 281 T9: uma tentativa de mandar o boleto ao cliente por WhatsApp (o alvo `client_boleto_whatsapp`). Só o
    * status e o motivo: nunca o número, o texto nem o anexo.
    */
@@ -215,6 +226,39 @@ export type OccurrenceTimeline = {
   readonly timings: OccurrenceTimelineTimings
 }
 
+/**
+ * Spec 324 T2: todos os `kind` que a API manda, na ordem de prioridade do mesmo instante. O painel tem a lista dele
+ * (`KNOWN_EVENT_KINDS`) e descarta o que não conhece: o contrato de paridade compara as duas.
+ */
+export const OCCURRENCE_TIMELINE_EVENT_KINDS = [
+  'occurrence.recorded',
+  'occurrence.photo',
+  'case.transition',
+  'contractor.mail.sent',
+  'contractor.mail.received',
+  'contractor.group.whatsapp',
+  'contractor.notice.manual',
+  'contractor.reply',
+  'contractor.reply.document',
+  'contractor.reply.delivery',
+  'contractor.reply.driver_read',
+  'contractor.client.whatsapp',
+  'contractor.client.email',
+  'group.boleto_return',
+  'occurrence.cancelled',
+  'resolution.resolved',
+  'resolution.reopened',
+] as const satisfies readonly OccurrenceTimelineSource['kind'][]
+
+/** `kind` novo na união sem entrar na lista reprova o typecheck aqui, antes do contrato de paridade. */
+type MissingTimelineEventKind = Exclude<
+  OccurrenceTimelineSource['kind'],
+  (typeof OCCURRENCE_TIMELINE_EVENT_KINDS)[number]
+>
+const EVERY_TIMELINE_EVENT_KIND_LISTED: [MissingTimelineEventKind] extends [never] ? true : never =
+  true
+void EVERY_TIMELINE_EVENT_KIND_LISTED
+
 /** No mesmo instante o registro vem primeiro, depois as fotos, a tratativa, os e-mails e o cancelamento. */
 const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> = {
   'case.transition': 2,
@@ -227,6 +271,7 @@ const KIND_PRIORITY: Readonly<Record<OccurrenceTimelineSource['kind'], number>> 
   'contractor.reply.document': 5,
   'contractor.reply.driver_read': 5,
   'contractor.group.whatsapp': 4,
+  'contractor.notice.manual': 4,
   'group.boleto_return': 5,
   'occurrence.cancelled': 6,
   'occurrence.photo': 1,
@@ -326,6 +371,7 @@ function isKeyEvent(source: OccurrenceTimelineSource): boolean {
   if (source.kind === 'contractor.client.email') return source.status === 'sent'
   if (source.kind === 'group.boleto_return') return source.status === 'posted_to_group'
   if (source.kind === 'contractor.group.whatsapp') return source.status === 'sent'
+  if (source.kind === 'contractor.notice.manual') return source.status === 'sent'
   if (source.kind === 'resolution.resolved' || source.kind === 'resolution.reopened') return true
   return source.kind === 'case.transition' && source.toStatus === 'decided'
 }
@@ -419,6 +465,7 @@ function stageAfter(
     case 'contractor.client.whatsapp':
     case 'contractor.client.email':
     case 'contractor.group.whatsapp':
+    case 'contractor.notice.manual':
     case 'group.boleto_return':
       return undefined
   }

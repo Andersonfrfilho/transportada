@@ -16,7 +16,7 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
  * destinatário deixaria de fora a indústria que contrata o frete para entregar na loja do cliente
  * dela — que é o caso mais comum da carteira.
  */
-const CONTRACTOR_ROLES = ['emitter', 'recipient'] as const
+export const CONTRACTOR_ROLES = ['emitter', 'recipient'] as const
 
 /**
  * ADR-0050 §4: o servidor decide o que é do cliente. Esta query **não recebe filtro de documento** —

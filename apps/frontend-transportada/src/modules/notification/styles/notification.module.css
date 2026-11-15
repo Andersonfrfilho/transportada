@@ -36,6 +36,7 @@
   --adn-color-danger: var(--color-alert);
   --adn-color-faint: color-mix(in srgb, var(--color-slate) 55%, transparent);
   --adn-color-muted: var(--color-slate);
+  --adn-color-success: var(--color-ready);
   --adn-color-surface: var(--color-graphite);
   --adn-color-text: var(--color-fog);
   --adn-color-warning: var(--color-copper);
@@ -242,4 +243,26 @@
 .notificationPopoverBody :global(.adn-item__body) {
   overflow-wrap: anywhere;
   -webkit-line-clamp: 4;
+}
+
+/*
+ * O pacote pinta o tema escuro dele sob `.dark .adn-settings` (especificidade 0,2,0), que mistura o
+ * acento com azul-noite fixo. O painel mantém `dark` em `<html>` nos dois temas, então no claro as pílulas
+ * (canal, "Tabela" ativa) saíam em marrom-escuro. A classe dobrada sobe a especificidade para 0,2,0 e,
+ * vindo depois na folha, o tema do painel vence nos dois temas.
+ */
+.notificationTheme.notificationTheme {
+  --adn-color-accent-line: color-mix(in srgb, var(--color-copper) 45%, transparent);
+  --adn-color-accent-soft: color-mix(in srgb, var(--color-copper) 14%, transparent);
+  --adn-color-faint: color-mix(in srgb, var(--color-slate) 55%, transparent);
+}
+
+/*
+ * No celular a página ganhava uma faixa lateral: o cabeçalho "só para leitor de tela" da coluna de
+ * ações é `position: absolute`, e sem ancestral posicionado ele escapava do `overflow-x: auto` da
+ * tabela e esticava a rolagem da página até a largura da tabela inteira. Posicionar o contêiner da
+ * tabela prende o elemento dentro dele.
+ */
+.notificationTheme :global(.adn-settings__table-scroll) {
+  position: relative;
 }

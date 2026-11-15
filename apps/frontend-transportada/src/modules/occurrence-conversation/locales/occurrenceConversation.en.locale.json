@@ -791,5 +791,55 @@
       "back": "Back to tabs",
       "tabs": "Client conversation channels"
     }
+  },
+  "contractorNotice": {
+    "title": "Contractor notice",
+    "button": "Notify the contractor",
+    "error": "Could not load the contractor notice state.",
+    "channel": {
+      "whatsapp_group": "Channel: the contractor's WhatsApp group",
+      "email": "Channel: e-mail to {{count}} stage contact(s)"
+    },
+    "channelName": {
+      "whatsapp_group": "WhatsApp group",
+      "email": "e-mail"
+    },
+    "notified": {
+      "manual": "Notified on {{at}} by {{name}} ({{channel}}).",
+      "automatic": "Notified on {{at}} by the automatic notice ({{channel}})."
+    },
+    "unavailable": {
+      "no_recipient": "Cannot notify: the contractor has no contact for this stage (or the e-mail is not verified).",
+      "no_template": "Cannot notify: no notice template is available.",
+      "blocked": ""
+    },
+    "dialog": {
+      "title": "Notify the contractor",
+      "close": "Close",
+      "previewTitle": "Text that will be sent",
+      "noPreview": "The text preview is not available. The send uses the type's template.",
+      "cancel": "Cancel",
+      "confirm": "Send notice",
+      "retry": "Try again",
+      "sending": "Sending…"
+    },
+    "outcome": {
+      "sent": {
+        "email": "Notice sent by e-mail.",
+        "whatsapp_group": "Notice sent to the WhatsApp group."
+      },
+      "failed": "The notice was not delivered. Try again.",
+      "skipped": {
+        "mail_not_ready": "The company e-mail is not ready to send.",
+        "no_recipient": "There is no recipient for this stage.",
+        "no_template_selected": "No notice template is available.",
+        "other": "The notice was not sent."
+      }
+    },
+    "failure": {
+      "OCCURRENCE_CONTRACTOR_NOTICE_ALREADY_SENT": "The contractor was already notified about this occurrence.",
+      "OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED": "This occurrence type never notifies the contractor.",
+      "generic": "Could not send the notice. Try again."
+    }
   }
 }

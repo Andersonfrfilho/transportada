@@ -62,6 +62,16 @@ export const API_COMPANY_SETTINGS_AUDIO_TRANSCRIPTION_PATH = '/company-settings/
 /** Spec 322: a empresa liga ou desliga o e-mail do aviso da ocorrência que o motorista registra. */
 export const API_COMPANY_SETTINGS_DRIVER_OCCURRENCE_EMAIL_PATH =
   '/company-settings/driver-occurrence-email'
+/** Spec 325: contas fixas e variáveis da empresa (`expenses.read` lê, `expenses.manage` escreve). */
+export const API_EXPENSES_PATH = '/expenses'
+export const API_EXPENSE_CATEGORIES_PATH = '/expense-categories'
+export const API_EXPENSE_OCCURRENCES_PATH = '/expense-occurrences'
+export const API_EXPENSE_RESULT_PATH = '/expense-result'
+export const API_EXPENSE_RESULT_EXPORT_PATH = '/expense-result/export'
+export const API_EXPENSE_UNIT_COSTS_PATH = '/expense-unit-costs'
+export const API_EXPENSE_ALLOCATION_SETTINGS_PATH = '/expense-allocation-settings'
+export const API_EXPENSE_FORECAST_PATH = '/expense-forecast'
+export const API_EXPENSE_OUT_OF_PATTERN_SETTINGS_PATH = '/expense-out-of-pattern-settings'
 /** Spec 169 RF1: cadastro de espécie de lançamento (gasto/receita), por empresa. */
 export const API_COMPANY_SETTINGS_ENTRY_KINDS_PATH = '/company-settings/entry-kinds'
 /** Spec 149: a diária geral do ajudante — a própria da ficha do motorista vence quando existe. */
@@ -72,6 +82,9 @@ export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'
 export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
+/** Orçamento de frete pelo custo da viagem (spec 326): parâmetros da empresa e cálculo sem gravar. */
+export const API_FREIGHT_QUOTE_SETTINGS_PATH = '/freight-quote/settings'
+export const API_FREIGHT_QUOTES_PATH = '/freight-quotes'
 /** Spec 060: o cliente que tem hora e tem preço, e o embarcador que paga o repasse. */
 export const API_DELIVERY_CLIENTS_PATH = '/delivery-clients'
 export const API_CONTRACTORS_PATH = '/contractors'

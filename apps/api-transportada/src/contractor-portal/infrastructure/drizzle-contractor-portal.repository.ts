@@ -6,6 +6,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type {
   ContractorDelivery,
+  ContractorDeliveryEvents,
   ContractorPortalRepositoryPort,
   ContractorScheduleTarget,
 } from '../application/contractor-portal.types.js'
@@ -15,6 +16,7 @@ import {
   listContractorBatchIds,
   listContractorBindings,
 } from './contractor-binding.query.js'
+import { findContractorDeliveryEvents } from './contractor-delivery-events.query.js'
 import {
   findScheduleTargetByAccessKey,
   listContractorDeliveries,
@@ -31,6 +33,18 @@ export class DrizzleContractorPortalRepository implements ContractorPortalReposi
     readonly scope: ContractorScope
   }): Promise<ContractorScheduleTarget | null> {
     return findScheduleTargetByAccessKey(this.database, {
+      accessKey: input.accessKey,
+      companyId: input.context.companyId,
+      scope: input.scope,
+    })
+  }
+
+  public async listDeliveryEvents(input: {
+    readonly accessKey: string
+    readonly context: CompanyContext
+    readonly scope: ContractorScope
+  }): Promise<ContractorDeliveryEvents | null> {
+    return findContractorDeliveryEvents(this.database, {
       accessKey: input.accessKey,
       companyId: input.context.companyId,
       scope: input.scope,

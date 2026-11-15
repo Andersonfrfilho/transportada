@@ -51,7 +51,7 @@ function setup(
   settings: DeliveryProofFieldSettings,
   deliverResult?: WhatsAppDriverEventResult,
   actor: WhatsAppDriverActor = ACTOR,
-  extra: Pick<WhatsAppDeliveryPreparationPorts, 'describeDocument'> = {},
+  extra: Pick<WhatsAppDeliveryPreparationPorts, 'clock' | 'describeDocument'> = {},
 ) {
   const rows = new Map<string, WhatsAppDeliveryPreparation & { status: string }>()
   const objects = new Map<string, Uint8Array>()
@@ -725,5 +725,33 @@ describe('spec 218: a exceção da contratante no WhatsApp', () => {
     const done = await t.answer('1')
     expect(done).toMatchObject({ finished: true, texts: ['registered:17234'] })
     expect(t.delivered).toHaveLength(1)
+  })
+})
+
+describe('preparo esquecido não conta como entrega aberta (spec 299)', () => {
+  const NOW = new Date('2026-11-11T12:00:00.000Z')
+  const hoursAgo = (hours: number) => new Date(NOW.getTime() - hours * 60 * 60 * 1000)
+
+  test('parado há mais que o prazo deixa de segurar; recente e sem hora conhecida seguem abertos', async () => {
+    const t = setup(OFF, undefined, ACTOR, { clock: () => NOW })
+    await t.begin()
+    const [row] = [...t.rows.values()]
+    expect(row).toBeDefined()
+    // Sem `updatedAt` (fonte que não traz a hora): vale como recente.
+    expect(await t.service.hasOpen(ACTOR)).toBe(true)
+
+    t.rows.set('P1', {
+      ...(row as WhatsAppDeliveryPreparation & { status: string }),
+      updatedAt: hoursAgo(1),
+    })
+    expect(await t.service.hasOpen(ACTOR)).toBe(true)
+
+    t.rows.set('P1', {
+      ...(row as WhatsAppDeliveryPreparation & { status: string }),
+      updatedAt: hoursAgo(45),
+    })
+    expect(await t.service.hasOpen(ACTOR)).toBe(false)
+    // A conversa continua aberta para quem responder: só deixou de contar como pergunta pendente.
+    expect(t.status()).toEqual(['open'])
   })
 })

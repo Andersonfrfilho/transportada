@@ -15,6 +15,8 @@ import {
 import { createIdentityRecipientResolver } from './identity-recipient.resolver.js'
 import type { EmailDeliveryEnvironment } from '../../shared/worker.types.js'
 import { createWorkerEmailDriver } from './email-driver.factory.js'
+import { createWebPushProvider } from '@adatechnology/push-provider'
+
 import {
   createStandardEmailBrandingResolver,
   withStandardEmailLayout,
@@ -27,6 +29,12 @@ type CreateWorkerNotificationModuleParams = {
   readonly emailDelivery: EmailDeliveryEnvironment | undefined
   readonly queue: QueuePort
   readonly suppressionHmacKey: string
+  /** Ausente, o push fica sem driver: a entrega falha alto (`channel_not_configured`) em vez de sumir. */
+  readonly vapid?: {
+    readonly privateKey: string
+    readonly publicKey: string
+    readonly subject: string
+  }
 }
 
 /**
@@ -45,6 +53,9 @@ export function createWorkerNotificationModule(
           resolveBranding: createStandardEmailBrandingResolver(params.db),
         })
 
+  const pushDriver =
+    params.vapid === undefined ? undefined : createWebPushProvider({ vapidKeys: params.vapid })
+
   return createNotificationModule({
     config: {
       defaultLocale: NOTIFICATION_DEFAULT_LOCALE,
@@ -52,9 +63,12 @@ export function createWorkerNotificationModule(
       suppressionHmacKey: params.suppressionHmacKey,
     },
     db: params.db as never,
-    features: { email: emailDriver !== undefined },
+    features: { email: emailDriver !== undefined, push: pushDriver !== undefined },
     providers: {
-      ...(emailDriver === undefined ? {} : { channels: { email: emailDriver } }),
+      channels: {
+        ...(emailDriver === undefined ? {} : { email: emailDriver }),
+        ...(pushDriver === undefined ? {} : { push: pushDriver }),
+      },
       queue: params.queue,
       recipientResolver: createIdentityRecipientResolver({ db: params.db }),
     },

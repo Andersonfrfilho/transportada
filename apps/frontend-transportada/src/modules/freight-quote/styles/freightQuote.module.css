@@ -1,0 +1,167 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+.shell {
+  display: grid;
+  gap: var(--space-6);
+  padding-block: var(--space-6);
+  width: var(--layout-width);
+  margin: 0 auto;
+}
+
+.header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.hint {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.error {
+  color: var(--color-alert);
+  margin: 0;
+}
+
+.warning {
+  color: var(--color-copper);
+  margin: 0;
+}
+
+.status {
+  color: var(--color-ready);
+  margin: 0;
+}
+
+/* Rótulo em cima, campo na altura padrão — o mesmo molde de `expenses` e `tripFinancials`. */
+.field {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  min-width: 0;
+}
+
+.field input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font-family: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.field input::placeholder {
+  color: var(--color-slate);
+}
+
+.field input:disabled {
+  opacity: 0.6;
+}
+
+.field input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.fieldCheck {
+  align-self: end;
+  min-height: var(--field-height);
+  display: flex;
+  align-items: center;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 64rem) {
+  .form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.panel {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.panelHead {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.panelHead h2,
+.panelHead h3 {
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.result {
+  border-top: 1px solid var(--color-slate);
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+}
+
+.lines {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.lines > div {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.lines dt {
+  color: var(--color-slate);
+}
+
+.lines dd {
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+  text-align: right;
+}
+
+.lineTotal dt,
+.lineTotal dd {
+  color: var(--color-fog);
+  font-weight: 700;
+}
+
+.grandTotal {
+  border-top: 1px solid var(--color-slate);
+  padding-top: var(--space-2);
+}
+
+.grandTotal dt,
+.grandTotal dd {
+  color: var(--color-fog);
+  font-size: 1.125rem;
+  font-weight: 700;
+}

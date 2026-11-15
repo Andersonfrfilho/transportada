@@ -30,6 +30,10 @@ import driverTripLocale from '@/modules/driver-trip/locales/driverTrip.locale.js
 import driverTripEnglishLocale from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
 import accessKeyLookupLocale from '@/modules/nfe-access-key-lookup/locales/accessKeyLookup.locale.json'
 import accessKeyLookupEnglishLocale from '@/modules/nfe-access-key-lookup/locales/accessKeyLookup.en.locale.json'
+import expensesLocale from '@/modules/expenses/locales/expenses.locale.json'
+import expensesEnglishLocale from '@/modules/expenses/locales/expenses.en.locale.json'
+import freightQuoteLocale from '@/modules/freight-quote/locales/freightQuote.locale.json'
+import freightQuoteEnglishLocale from '@/modules/freight-quote/locales/freightQuote.en.locale.json'
 import extraChargesLocale from '@/modules/extra-charges/locales/extraCharges.locale.json'
 import extraChargesEnglishLocale from '@/modules/extra-charges/locales/extraCharges.en.locale.json'
 import keyReaderLocale from '@/modules/shared/locales/keyReader.locale.json'
@@ -84,6 +88,8 @@ void i18n.use(initReactI18next).init({
       documentIntake: documentIntakeEnglishLocale,
       driverTrip: driverTripEnglishLocale,
       accessKeyLookup: accessKeyLookupEnglishLocale,
+      expenses: expensesEnglishLocale,
+      freightQuote: freightQuoteEnglishLocale,
       extraCharges: extraChargesEnglishLocale,
       fleet: fleetEnglishLocale,
       identity: identityEnglishLocale,
@@ -116,6 +122,8 @@ void i18n.use(initReactI18next).init({
       documentIntake: documentIntakeLocale,
       driverTrip: driverTripLocale,
       accessKeyLookup: accessKeyLookupLocale,
+      expenses: expensesLocale,
+      freightQuote: freightQuoteLocale,
       extraCharges: extraChargesLocale,
       fleet: fleetLocale,
       identity: identityLocale,

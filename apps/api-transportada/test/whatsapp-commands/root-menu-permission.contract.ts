@@ -51,9 +51,10 @@ describe('filterMenuOptionsByPermission', () => {
     expect(filtered).toEqual(OPTIONS)
   })
 
-  test('a tabela declara exatamente as três opções de D2', () => {
+  test('a tabela declara as opções de D2 e a de contas (spec 326)', () => {
     expect(WHATSAPP_ROOT_MENU_OPTION_PERMISSIONS).toEqual({
       emitir_documentos: ['cte.submit', 'nfse.issue'],
+      lancar_conta: ['expenses.manage'],
       minha_viagem: ['trip.report'],
       viagens_armazem: ['trip.manage'],
     })

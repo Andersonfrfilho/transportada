@@ -39,6 +39,7 @@ type NotificationHttpFixtureParams = {
   readonly membership?: boolean
   readonly now?: Date
   readonly webhookSecret?: string
+  readonly vapidPublicKey?: string
 }
 
 export function notificationHttpFixture({
@@ -48,6 +49,7 @@ export function notificationHttpFixture({
   membership = true,
   now,
   webhookSecret,
+  vapidPublicKey,
 }: NotificationHttpFixtureParams = {}) {
   const calls: NotificationCalls = { listNotifications: [], receiveDeliveryReceipt: [] }
 
@@ -80,6 +82,7 @@ export function notificationHttpFixture({
       ...(now === undefined ? {} : { now }),
     }),
     ...(webhookSecret === undefined ? {} : { webhookSecret }),
+    ...(vapidPublicKey === undefined ? {} : { vapidPublicKey }),
   })
 
   return { calls, router }

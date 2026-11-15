@@ -142,6 +142,14 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    * (mesmo raciocínio do `cargo.measure`). Só o `company-admin`, que controla os grupos; ler segue `settings.manage`.
    */
   'holiday-import.configure',
+  /**
+   * Spec 325 RF7 / ADR-0115: as contas da empresa (aluguel, salário, pagamento de motorista/agregado) são dinheiro da
+   * empresa inteira, com permissão própria. Não sai de carona com `trip.financials` (margem da viagem) nem com
+   * `billing.read` (o que a empresa cobra): quem fatura não precisa ver o salário de ninguém. Ler e escrever separados,
+   * para um grupo poder dar só a consulta. Só o `company-admin` recebe (spec 325, dúvida 4); concedível por grupo.
+   */
+  'expenses.read',
+  'expenses.manage',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -185,6 +193,8 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'cargo.measure',
     'occurrences.resolve',
     'holiday-import.configure',
+    'expenses.read',
+    'expenses.manage',
   ]),
   finance: Object.freeze([
     'cte.read',

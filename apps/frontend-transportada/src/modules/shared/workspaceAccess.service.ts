@@ -19,6 +19,8 @@ export const WORKSPACE_PERMISSIONS = {
   nfe: ['invoices.read', 'invoices.import'],
   // freightViewModel.service.ts:42-46 — a parede só cai quando faltam as duas
   freight: ['settings.manage', 'freight.simulate'],
+  // FreightQuote.page.tsx (spec 326): a API lê e calcula com freight.simulate
+  'freight-quote': ['freight.simulate'],
   // CteBatchWorkspace.page.tsx:75-76
   'cte-batch': ['cte.manage', 'cte.submit'],
   // canReadTrip (trip.constant.ts:25), usado em useTripWorkspace.hook.ts:243
@@ -53,6 +55,8 @@ export const WORKSPACE_PERMISSIONS = {
   reimbursements: ['trip.financials'],
   // FinancialResultsWorkspace.page.tsx:27
   'trip-financials': ['trip.financials'],
+  // useExpensesWorkspace.hook.ts (spec 325): a API lê com expenses.read; só o administrador a tem
+  expenses: ['expenses.read'],
   // me-trip.routes.ts:109 (API) — a página do motorista não tem parede
   'driver-trip': ['trip.report'],
   // cargo-arrival-http.support.ts (API): ler a chegada é fleet.read; escrever (trip.manage) fica na tela

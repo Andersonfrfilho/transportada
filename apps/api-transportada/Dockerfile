@@ -61,6 +61,8 @@ COPY apps/api-transportada/src/address-correction/address-correction-mail-templa
 COPY apps/api-transportada/src/occurrence-conversation/application apps/api-transportada/src/occurrence-conversation/application
 COPY apps/api-transportada/src/occurrence-conversation/domain apps/api-transportada/src/occurrence-conversation/domain
 COPY apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates
+# Spec 324 T1b: o texto WhatsApp do modelo geral do aviso manual, lido pelo mesmo publicador.
+COPY apps/api-transportada/src/occurrence-conversation/occurrence-whatsapp-templates apps/api-transportada/src/occurrence-conversation/occurrence-whatsapp-templates
 COPY apps/api-transportada/scripts/occurrence-mail-templates-publish.ts apps/api-transportada/scripts/occurrence-mail-templates-publish.ts
 # Spec 286 T8: republicação do grafo raiz do WhatsApp (falas `fala_*` do bot), também via `railway ssh`.
 COPY apps/api-transportada/scripts/whatsapp-flow-publish.ts apps/api-transportada/scripts/whatsapp-flow-publish.ts

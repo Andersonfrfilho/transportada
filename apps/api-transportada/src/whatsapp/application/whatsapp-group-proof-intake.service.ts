@@ -154,6 +154,7 @@ export function createGroupProofIntake(ports: GroupProofIntakePorts) {
       // canhoto (spec 294 T4.8), que só liga com o OCR do worker e com notas abertas do motorista, e só quando o bot é
       // marcado na foto ou o motorista já chegou na parada e falta a baixa (o bot mesmo pediu "a foto do canhoto" ali).
       const preparationOpen = await ports.preparations.hasOpen({ companyId, driverId })
+      // Chegou na parada e falta a baixa: a foto vale sem marcar o bot, com ou sem OCR (sem ele, baixa a nota da parada).
       const stopInProgress =
         media.mentionsBot ||
         (await ports.preparations.acceptsPhotoFromStopInProgress?.({ companyId, driverId })) ===

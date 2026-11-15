@@ -16,6 +16,7 @@ import {
   navigateToDriverSection,
 } from '@/modules/shared/driverRoute.service'
 
+import { DriverPushDeviceCard } from '../components/DriverPushDeviceCard.component'
 import styles from '../../driver-trip/styles/driverTrip.module.css'
 import { resolveNotificationDestination } from '../shared/notificationDestination.service'
 
@@ -35,6 +36,7 @@ export function DriverNotificationsPage() {
         {t('nav.trip')}
       </Button>
       <h1 className={styles.profileName}>{t('nav.notifications')}</h1>
+      <DriverPushDeviceCard />
       <NotificationList
         onSelect={(notification) => {
           const destination = resolveNotificationDestination(notification)

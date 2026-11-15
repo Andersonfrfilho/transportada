@@ -393,3 +393,18 @@ export class ContractorReplyOriginalRequestMissingError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 324 (D3, D8): a contratante já foi avisada desta ocorrência — pelo automático, ou pelo botão (enviado ou saindo
+ * agora). `notifiedBy` no corpo diz quem: `automatic` ou `manual`.
+ */
+export class OccurrenceContractorNoticeAlreadySentError extends ApiError {
+  public constructor(by: 'automatic' | 'manual') {
+    super({
+      code: 'OCCURRENCE_CONTRACTOR_NOTICE_ALREADY_SENT',
+      extraBody: { notifiedBy: by },
+      message: 'The contracting party was already notified about this occurrence',
+      status: 409,
+    })
+  }
+}

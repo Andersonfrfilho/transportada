@@ -856,6 +856,7 @@ por `railway ssh`. Script: `tmp/ops/staging-publica-grafo-whatsapp.sh <previa|ad
    histórico tiver edição `source=panel`). Depois, `publicar`.
 3. `sobrescrever fala_a,fala_b` leva o texto do código a chaves `fala_*` editadas no painel (spec 299).
 4. Feito em 2026-11-07 em staging: versão 3 → 4 (21 falas regravadas, 2 nós novos da 299).
+5. Spec 326 (lançar conta pelo WhatsApp) acrescenta o nó `expense_start`, `expense_entry` e `expense_router` e a opção `lancar_conta` no menu: depois de ir a staging, rode `previa` e `publicar`.
 
 ## 5.27 Quem pode confirmar como atendente no grupo do WhatsApp (10/11/2026) — somente leitura
 
@@ -909,6 +910,60 @@ do tipo (ex.: `ocorrencia.prorrogacao-boleto`), depois `ocorrencia.contratante-g
 `template_missing` em `idempotency_records` (operação `occurrence-contractor-group.send`) e a ocorrência não vai ao grupo. Conferir
 com `scripts/ops/staging-confere-ocorrencia-unica.sh` (somente leitura) e publicar o modelo com
 `scripts/ops/staging-publica-modelo-grupo-ocorrencia.sh [--confirm]` (staging; sem `--confirm` só simula; sempre versão nova).
+
+## 5.31 Ordem das paradas no rascunho (spec 323, 11/11/2026)
+
+O rascunho da viagem nasce com as paradas na ordem da estrada (OSRM, a partir do barracão), sem clique. Fases B e C
+estão em staging (#720 e #721). **Produção não mudou nada nesta fase:** a promoção staging → main ainda não aconteceu.
+
+- **Migration aditiva:** `trips.stop_order_source` (`unordered` por padrão) e `trips.stop_order_error_code` (nulo sem
+  falha). A viagem que já existe fica `unordered` e **não é reordenada retroativamente**. Rollback no `rollback.sql` da pasta da migration.
+- **Dependência:** `ROUTING_MATRIX_URL` do `api` apontando para o OSRM. Sem ela o ordenador não é montado e tudo segue
+  como antes (linha de chegada, sem aviso). Falha do OSRM vira `ROUTING_MATRIX_UNAVAILABLE` gravado na viagem, nunca linha reta.
+- **Conferir a origem da ordem (somente leitura).** Use o `railway ssh` do serviço `api` e rode o `psql` do `DATABASE_URL`
+  (nunca cole o valor na tela):
+
+  ```sql
+  SELECT stop_order_source, stop_order_error_code, count(*)
+  FROM trips
+  GROUP BY 1, 2
+  ORDER BY 3 DESC;
+  ```
+
+  Depois de promover, o esperado é ver `suggested` nas viagens criadas depois do deploy. `ROUTING_MATRIX_UNAVAILABLE` em
+  muita viagem quer dizer OSRM fora do ar: confira `osrm` antes de mexer em qualquer coisa.
+
+- **Reordenar uma viagem específica** pelo painel (botão **Ordenar paradas**, `trip.manage`), não por SQL. Viagem despachada
+  responde 409 e não muda.
+- **Validação em staging (T11 da spec 323, pendente):** reproduzir pela tela o lote com Matão, Monte Alto e Jaboticabal
+  intercalados, conferir a ordem e o selo de origem. Anotar o resultado em `specs/323-paradas-ordenadas-no-rascunho/evidence.md`.
+
+## 5.32 Modelo geral do aviso manual à contratante (spec 324 T1b, 13/11/2026) — só staging
+
+O botão "Avisar a contratante" (spec 324) nunca fica sem texto: sem modelo no tipo, ele usa o modelo geral
+`ocorrencia.contratante-aviso-manual` de Notificações (e-mail com assunto + HTML e WhatsApp em texto, `pt-BR`). O aviso
+automático **não** o lê. No grupo, a ordem é a versão WhatsApp da chave do tipo, depois `ocorrencia.contratante-grupo`,
+depois o geral. Os arquivos versionados são `apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates/contratante-aviso-manual.html`
+e `.../occurrence-whatsapp-templates/contratante-aviso-manual.txt`.
+
+- **Publicar em staging:** script em `/home/miyazaki/Documents/personal/transportada/tmp/ops/staging-324-publica-modelo-aviso-manual.sh`
+  (cópia em `324-avisar-contratante-manual/` dos arquivos do projeto). Sem argumento é **simulação** (create/same/differs por
+  canal, nada gravado); `--confirm` grava a versão 1 de cada canal; `differs` (texto editado na tela) só vira versão nova com
+  `--overwrite`. Nunca muda o texto de uma versão: desativa a anterior e insere a próxima, na mesma transação. Saída em
+  `tmp/ops/saidas/staging-324-publica-modelo-aviso-manual-<modo>-<data>.txt`.
+- **Alternativa pelo publicador do repositório** (dentro do container da `api`):
+  `bun run scripts/occurrence-mail-templates-publish.ts --company <uuid>` lista também o modelo geral nos dois canais
+  (coluna de canal no plano). Cuidado: com `--confirm` ele também cria os outros modelos de ocorrência que faltarem.
+- **Conferir (somente leitura):**
+
+  ```sql
+  SELECT key, channel, version, active
+  FROM notification.templates
+  WHERE key = 'ocorrencia.contratante-aviso-manual'
+  ORDER BY channel, version;
+  ```
+
+- **Produção:** nada publicado. Vai junto com a promoção da spec 324, com aprovação.
 
 ## 6. Erros que não devem se repetir
 
@@ -1272,3 +1327,58 @@ O motorista 87 reenviou pelo app, em 10/11/2026 às 17:34 UTC, uma fila velha de
 - A trava da spec 320 retém só **ocorrência de nota** (decisão do dono); saiu, chegou e entregou atrasados continuam entrando. Estender é uma mudança pequena, mas pede decisão.
 - Armadilha do script: `railway ssh` precisa rodar de dentro da pasta do repositório (projeto ligado); o script agora entra nela sozinho. Lista de ids no `bun` SQL é `in ${sql(lista)}`, não `= any(${lista}::uuid[])`.
 - Interruptor da trava: `GET`/`PUT /company-settings/field-report-hold` (`settings.manage`) e a caixa em Pendências. Desligado por padrão em toda empresa; ligar em produção pede aprovação humana.
+
+## 5.30 Lembrete "Vamos iniciar a rota?" repetindo sem parar (11/11/2026)
+
+Sintoma: o bot reenviava a cada ~30 min o lembrete `idle` ("Vamos iniciar a rota?") a motoristas de viagens `dispatched` sem toque (ex.: d5fe956c, 12 paradas, parada há 2 dias) e de viagem já `completed`.
+
+- **Causa 1:** a varredura do `idle` (`drizzle-driver-stop-reminder-idle-reconciliation.repository.ts`) comparava `r.anchor_at >= idle_stage.anchor_at`. O Postgres tem microssegundos, o lembrete grava a âncora em milissegundos (`Date`), então a âncora nunca "alcançava" e um lembrete novo nascia assim que o anterior escalava (3 tentativas, ~2 h por ciclo). O #710 (preparo esquecido deixou de segurar o lembrete) fez o problema aparecer. Correção: `date_trunc('milliseconds', idle_stage.anchor_at)`.
+- **Causa 2:** o portão só fechava o lembrete com a parada baixada; viagem `completed`/cancelada com parada em aberto continuava cobrando. Correção: `readStop` considera fechada a parada de viagem fora de `TRIP_ON_ROAD_STATUSES`.
+- **Freio em produção (11/11/2026, 16:02 BRT):** `DRIVER_REMINDERS_ENABLED=false` no serviço `api` (script `tmp/ops/producao-lembrete-rota-freio-variavel.sh pausar`; `religar` volta). Religar só depois da correção em produção. O script `producao-lembrete-rota-freio.sh` (ssh + `UPDATE` em `company_driver_reminder_settings`) travou no `railway ssh`; prefira o da variável.
+- **Diagnóstico (somente leitura):** `tmp/ops/producao-lembrete-rota-diagnostico.sh` lista os lembretes pendentes/recentes com o status da viagem e das paradas.
+
+## 5.31 Conferir o envio de push (12/11/2026) — somente leitura
+
+- **Script:** `tmp/ops/producao-push-confere.sh` confere, para `api` e `worker`, a presença (sem valor) de `RABBITMQ_URL`, `QUEUE_PREFIX` e `VAPID_*`, lista os logs de 7 dias de fila/push e consulta as entregas de push no banco. Saída em `tmp/ops/saidas/push-confere-*.txt`. Os nomes das tabelas do módulo de notificação variam: as consultas ao banco podem falhar sem prejuízo.
+- **Medido em 12/11/2026:** produção tem `RABBITMQ_URL` no `api` e no `worker`, e **não tem `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` em nenhum dos dois**: o push está desligado (sem driver, sem aparelho entregável). O aviso `notification.queue.not_configured` não aparece.
+- **Quem entrega é o worker.** A fila é consumida por ele, então o driver de push (`createWebPushProvider`) precisa existir **nele** com as mesmas chaves da API. Antes desta correção só a API o criava e todo push cairia em `channel_not_configured`. Para ligar: pôr as três variáveis (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`) no `api` **e** no `worker` (mesmo par), e só depois oferecer o canal `push` no catálogo (`NOTIFICATION_PRODUCT_CHANNELS`), que hoje é inbox + e-mail.
+- **Rotas do módulo:** `POST /v1/notifications` (disparo) e `PUT /v1/notification-category-policies` exigem `settings.manage`, como a escrita de modelos. Antes, qualquer usuário logado da empresa passava.
+- **Definir as chaves (12/11/2026):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-push-chaves-vapid.sh staging` gera o par VAPID (ou reaproveita o do `api`) e grava o **mesmo par** no `api` e no `worker`; `production` pede confirmação digitada, e `--force` troca o par (todo aparelho cadastrado precisa ativar de novo). Nunca imprime a privada. Gravar variável redeploya os dois serviços. Conferir depois: `GET /v1/push/vapid-public-key` devolve a pública (87 caracteres, começa com `B`).
+- **App do motorista:** a ativação é um botão em Notificações ("Ativar neste aparelho"), não mais um pedido de permissão no login. Estado e motivo da falha aparecem na tela; o aparelho cadastrado fica em `notification.devices` (driver `webpush`).
+
+## 5.32 Ativar os tipos de ocorrência de entrega em staging, sem aviso à contratante (13/11/2026)
+
+- **Estado medido em staging (13/11, 11:51, `staging-tipos-ocorrencia-estado.sh`, somente leitura):** só "Prorrogação do boleto" estava ativa. "Local fechado" e "Endereço incorreto" não existiam; "Espera longa" estava inativa, sem espera mínima e com `emails_contractor` ligado; "Cobrança inesperada" não existe (o tipo é "Cobrança no recebimento", inativo). O script antigo `staging-configura-tipos-ocorrencia.sh` não tinha sido aplicado.
+- **Regra do Anderson:** nenhum desses quatro tipos vai direto à contratante (`emails_contractor = false`). O aviso manual fica para o botão da spec 324.
+- **Ativar:** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/staging-ativa-tipos-ocorrencia.sh` (simulação: abre a transação, mostra antes/depois e desfaz) e, depois de conferir a saída, o mesmo comando com `--confirm`. Cria "Local fechado" e "Endereço incorreto", e configura "Espera longa" (espera mínima 30 min, observação obrigatória), "Cobrança no recebimento" (valor e observação obrigatórios) e os dois novos. Não mexe em outro tipo. A saída vai para `tmp/ops/saidas/`.
+- **Conferir o estado a qualquer hora (somente leitura):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/staging-tipos-ocorrencia-estado.sh`.
+- ⚠️ Há tipos inativos com `emails_contractor` ligado (Recusa, Avaria, Devolução, Destinatário ausente, Doca interditada, Exigiram agendamento, Item avariado): ao ativar qualquer um, conferir esse campo antes.
+
+## 5.33 Rotina `company-expense.occurrence.generate` (spec 325 T1.5, 13/11/2026) — nasce pausada, nada alterado em produção
+
+- **O que faz:** uma vez por dia (`interval_seconds = 86400`) o worker gera, por empresa, as ocorrências das contas fixas ativas (mês corrente + 3) em `company_expense_occurrences`. Idempotente pela chave `(expense_id, competence, slot)` (`ON CONFLICT DO NOTHING`); conta inativa e conta variável não geram. A data civil é a de America/Sao_Paulo. A âncora das recorrências bimestral/trimestral/anual é o mês de criação da conta em São Paulo, igual à API.
+- **Estado inicial:** a migration `20261113201500_company_expense_occurrence_job` semeia a linha em `job_schedules` com `enabled = false`, `paused_origin = 'system'`. Até ligar, as ocorrências só nascem no cadastro da conta (API). Ligar pede a autorização do dono; em staging liga-se pelo painel de rotinas (retomar) e a execução aparece com contadores `companies` e `created`.
+- **Conferir (somente leitura):** `select job, enabled, paused_origin, interval_seconds from job_schedules where job = 'company-expense.occurrence.generate'` e as últimas linhas de `job_executions` da rotina; `created = 0` no segundo ciclo é o esperado.
+- **Falha:** uma empresa que erra não segura as outras; o ciclo termina e fecha `unexpected_error` (o log `company_expense_occurrence_company_failed` traz `companyId` e a mensagem). Rollback: `rollback.sql` da migration (apaga a linha do relógio e as execuções da rotina; só com o worker também revertido).
+
+## 5.35 Rotina `company-expense.reminder.send` (spec 325 T7.4, 14/11/2026) — nasce pausada, nada alterado em produção
+
+- **O que faz:** de hora em hora (`interval_seconds = 3600`) o worker avisa **por e-mail** as contas abertas que vencem em N dias (padrão 3), hoje ou venceram há até 3 dias, por empresa. O aviso só sai a partir da hora configurada da empresa (`daily_summary_hour`, padrão 8h, São Paulo). Quem recebe: o responsável da conta; sem responsável (ou responsável que saiu da empresa ou sem canal) vai aos `company-admin` ativos.
+- **Idempotência:** o aviso é reservado em `company_expense_reminders_sent` (única por ocorrência, responsável, dia e tipo) **antes** de enviar; se o e-mail não saiu, a reserva é solta e a próxima rodada do dia tenta de novo. Rodar duas vezes no dia não duplica.
+- **Depende de:** o modelo `contas.aviso-vencimento` (e-mail, pt-BR) publicado em Notificações — sem ele o ciclo conta `templateMissing` e não envia; `EMAIL_*` do worker; `APP_BASE_URL` (o botão "Abrir Contas" some sem ele). Publicar os modelos em staging: `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/staging-325-publica-modelos-contas.sh` (simulação) e depois `--confirm`.
+- **Ainda não faz:** WhatsApp e push (contados em `unsupportedChannel`), resumo diário e o botão "Já paguei" (T7.4b).
+- **Estado inicial:** a migration `20261114160259_company_expense_reminder_job` semeia a linha em `job_schedules` com `enabled = false`, `paused_origin = 'system'`. Ligar pede a autorização do dono.
+- **Conferir (somente leitura):** `select job, enabled, paused_origin, interval_seconds from job_schedules where job = 'company-expense.reminder.send'`; as últimas linhas de `job_executions` da rotina (contadores `sent`, `skipped`, `failed`, `templateMissing`, `unsupportedChannel`); e `select count(*) from company_expense_reminders_sent where day = current_date`.
+- **Falha:** uma empresa que erra não segura as outras; o ciclo termina e fecha `unexpected_error` (log `company_expense_reminder_company_failed` com `companyId` e a mensagem). Rollback: `rollback.sql` da migration (apaga a linha do relógio e as execuções; só com o worker também revertido).
+
+## 5.34 Bot do grupo ignorou a resposta do motorista: telefone errado no cadastro (13/11/2026)
+
+- **Sintoma:** no grupo "Thiago Suporte Transportadora" o lembrete marcou o motorista Thiago Fabris e ele respondeu "sim" e "1", mas o bot não registrou nada e encerrou com "Pedido encerrado sem resposta".
+- **Causa:** o pedido do grupo nasce com o telefone do cadastro (`fleet_drivers.phone`) como dono, e sem marcar o bot só o dono é ouvido (`decideGroupMessage`, `owner_reply`). O cadastro tinha `16988062774`; as respostas vieram de `16988092774` (um dígito: 06 no lugar de 09). A resposta de quem não é o dono, sem marcação, é descartada sem aviso (`not_addressed`).
+- **Conferir (somente leitura):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-motorista-numero-grupo.sh` (`scripts/ops/producao-motorista-numero-grupo.sh`): telefone cadastrado, grupo vinculado e quem tem cada número. As duas últimas consultas (pedidos e mensagens do dia) falharam com erro de SQL (`interval` parametrizado) e precisam de ajuste antes de serem usadas.
+- **Correção aplicada em produção (Anderson, 13/11/2026, 17:02):** `scripts/ops/producao-corrigir-telefone-thiago.sh` (simulação por padrão, `--confirm` grava; só altera a linha que ainda tem o número antigo). Resultado: `phone` de `16988062774` para `16988092774`, `version` 4 para 5, uma linha. Depois, o motorista marca o bot de novo no grupo.
+- **Cuidado:** simulação e `--confirm` no mesmo minuto gravam no mesmo arquivo de saída e o segundo sobrescreve o primeiro.
+
+## 5.36 Orçamento de frete (spec 326, 15/11/2026) — nada alterado em produção
+
+A spec 326 só vai a `staging`. Ela cria a tabela `company_freight_quote_settings` (migration `20261115050000_freight_quote_settings`) e a tela `/orcamento`; sem linha gravada a API devolve os valores iniciais do sistema. Ordem de publicação: migration, API, painel. Rollback manual em `apps/api-transportada/drizzle/20261115050000_freight_quote_settings/rollback.sql` (recusa rodar com parâmetro gravado). Nenhum passo em produção até a promoção de `staging`; a tabela do piso da ANTT é código (Res. 6.084/2026), não dado do banco.

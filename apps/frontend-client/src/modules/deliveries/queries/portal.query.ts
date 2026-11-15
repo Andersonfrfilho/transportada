@@ -34,6 +34,17 @@ export function useDeliveryLocation(
   })
 }
 
+export function useDeliveryEvents(
+  client: PortalClient,
+  input: { readonly accessKey: string; readonly enabled: boolean },
+) {
+  return useQuery({
+    enabled: input.enabled,
+    queryFn: () => client.readEvents(input.accessKey),
+    queryKey: ['client', 'delivery-events', input.accessKey],
+  })
+}
+
 export function useScheduleDelivery(client: PortalClient) {
   const queryClient = useQueryClient()
 

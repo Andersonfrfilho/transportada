@@ -232,6 +232,8 @@ export const TRIP_DETAIL: TripDetail = {
       role: 'driver',
     },
   ],
+  stopOrderErrorCode: null,
+  stopOrderSource: 'unordered',
   stops: [],
 }
 

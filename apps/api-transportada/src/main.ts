@@ -89,6 +89,50 @@ import { createFederalTaxSettingsRoutes } from './companies/presentation/federal
 import { DrizzleCompanyEntryKindRepository } from './companies/infrastructure/drizzle-company-entry-kind.repository.js'
 import { createCompanyEntryKindRoutes } from './companies/presentation/company-entry-kind.routes.js'
 import {
+  createCancelExpenseOccurrenceUseCase,
+  createListExpenseOccurrencesUseCase,
+  createSettleExpenseOccurrenceUseCase,
+} from './expenses/application/expense-occurrence.use-case.js'
+import {
+  createCreateExpenseCategoryUseCase,
+  createCreateExpenseUseCase,
+  createListExpenseCategoriesUseCase,
+  createListExpensesUseCase,
+  createSetExpenseCategoryActiveUseCase,
+  createSetExpenseCategoryCostGroupUseCase,
+  createUpdateExpenseUseCase,
+} from './expenses/application/expense.use-case.js'
+import { createDrizzleExpensesPorts } from './expenses/infrastructure/drizzle-expenses.repository.js'
+import {
+  createIncludeExpenseOccurrenceTripUseCase,
+  createListAvailableExpenseTripsUseCase,
+  createListExpenseOccurrenceTripsUseCase,
+  createRemoveExpenseOccurrenceTripUseCase,
+} from './expenses/application/expense-occurrence-trip.use-case.js'
+import { createDrizzleExpenseOccurrenceTripPorts } from './expenses/infrastructure/drizzle-expense-occurrence-trips.repository.js'
+import { createTripPersonParcelReader } from './expenses/infrastructure/trip-person-parcel.gateway.js'
+import { createExpenseRoutes } from './expenses/presentation/expense.routes.js'
+import { createExpenseResultRoutes } from './expenses/presentation/expense-result.routes.js'
+import { createExpenseForecastRoutes } from './expenses/presentation/expense-forecast.routes.js'
+import {
+  createGetExpenseForecastUseCase,
+  createGetOutOfPatternSettingsUseCase,
+  createUpdateOutOfPatternSettingsUseCase,
+} from './expenses/application/expense-forecast.use-case.js'
+import { createDrizzleExpenseForecastPorts } from './expenses/infrastructure/drizzle-expense-forecast.repository.js'
+import {
+  createGetExpenseAllocationSettingsUseCase,
+  createGetExpenseResultUseCase,
+  createGetExpenseUnitCostsUseCase,
+  createUpdateExpenseAllocationSettingsUseCase,
+} from './expenses/application/expense-result.use-case.js'
+import { createExportExpenseResultUseCase } from './expenses/application/expense-result-export.use-case.js'
+import { renderExpenseResultPdf } from './expenses/infrastructure/expense-result-pdf.gateway.js'
+import {
+  createDrizzleExpenseExportPorts,
+  createDrizzleExpenseResultPorts,
+} from './expenses/infrastructure/drizzle-expense-result.repository.js'
+import {
   createCreateCompanyEntryKindUseCase,
   createDeactivateCompanyEntryKindUseCase,
   createListActiveCompanyEntryKindsUseCase,
@@ -138,6 +182,14 @@ import { DrizzleSalespersonRepository } from './salespeople/infrastructure/drizz
 import { createSalespersonRoutes } from './salespeople/presentation/salesperson.routes.js'
 import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastructure/drizzle-location-retention-settings.repository.js'
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
+import { createFreightQuoteRoutes } from './freight-quote/presentation/freight-quote.routes.js'
+import {
+  createCalculateFreightQuoteUseCase,
+  createClearFreightQuoteSettingsUseCase,
+  createGetFreightQuoteSettingsUseCase,
+  createSetFreightQuoteSettingsUseCase,
+} from './freight-quote/application/freight-quote.use-case.js'
+import { DrizzleFreightQuoteSettingsRepository } from './freight-quote/infrastructure/drizzle-freight-quote-settings.repository.js'
 import { createLocationRetentionSettingsRoutes } from './companies/presentation/location-retention-settings.routes.js'
 import { DrizzleCompanyFiscalEnvironmentRepository } from './companies/infrastructure/drizzle-company-fiscal-environment.repository.js'
 import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
@@ -424,6 +476,8 @@ import { createDrizzleWhatsAppOccurrenceDraftRepository } from './whatsapp-comma
 import { createWhatsAppOccurrencePhotoStore } from './whatsapp-commands/infrastructure/whatsapp-occurrence-photo.adapter.js'
 import { createWhatsAppOccurrenceRequirementsReader } from './whatsapp-commands/infrastructure/whatsapp-occurrence-requirements.query.js'
 import { describeWhatsAppDriverEventResult } from './whatsapp-commands/application/whatsapp-driver-event-speech.service.js'
+import { createExpenseFlowActions } from './whatsapp-commands/application/register-expense-flow-actions.js'
+import { formatFiscalDay } from './shared/fiscal-day.service.js'
 import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
 import { createIssuanceWhatsAppFlowActions } from './whatsapp-commands/application/register-issuance-flow-actions.js'
 import { createPreviewDocumentSelectionUseCase } from './whatsapp-commands/application/preview-document-selection.use-case.js'
@@ -680,6 +734,9 @@ import { createTripUseCase } from './trips/application/trip.use-case'
 import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
 import { listReturnedWithActiveCte } from './trips/application/list-returned-with-active-cte.use-case'
 import { createLinkTripDocumentsBatchUseCase } from './trips/application/link-trip-documents-batch.use-case.js'
+import { createOrderDraftTripStops } from './trips/application/order-draft-trip-stops.use-case.js'
+import { createDrizzleDraftStopOrderRepository } from './trips/infrastructure/drizzle-draft-stop-order.repository.js'
+import { createOsrmRoadMatrixGateway } from './trips/infrastructure/osrm-road-matrix.gateway.js'
 import { previewTripCargo } from './trips/application/preview-trip-cargo.use-case.js'
 import { readCargoPreviewContext } from './trips/infrastructure/trip-cargo-preview.query.js'
 import { previewTripValuation } from './trips/application/read-trip-valuation.use-case.js'
@@ -716,6 +773,7 @@ import { DrizzleTripReportRepository } from './trips/infrastructure/drizzle-trip
 import { createTripProofPdfGateway } from './trips/infrastructure/trip-proof-pdf.gateway.js'
 import { createTripDocumentReportRoutes } from './trips/presentation/trip-document-report.routes.js'
 import { createOccurrenceAutomaticMailRoutes } from './occurrence-conversation/presentation/occurrence-automatic-mail.routes.js'
+import { createOccurrenceContractorNoticeRoutes } from './occurrence-conversation/presentation/occurrence-contractor-notice.routes.js'
 import { createDeliverContractorReplyToDriverUseCase } from './occurrence-conversation/application/deliver-contractor-reply-to-driver.use-case.js'
 import { createConversationTranscriptionReadPort } from './occurrence-conversation/infrastructure/conversation-transcription.query.js'
 import { createDrizzleContractorReplyDeliveryUnitOfWork } from './occurrence-conversation/infrastructure/drizzle-contractor-reply-delivery.repository.js'
@@ -847,6 +905,7 @@ import {
 } from './occurrence-conversation/application/automatic-occurrence-mail.hook.js'
 import { createSendAutomaticOccurrenceMailUseCase } from './occurrence-conversation/application/send-automatic-occurrence-mail.use-case.js'
 import { createContractorOccurrenceGroupRepository } from './occurrence-conversation/infrastructure/contractor-occurrence-group.repository.js'
+import { createContractorManualNoticeRepository } from './occurrence-conversation/infrastructure/contractor-manual-notice.repository.js'
 import { createContractorOccurrenceChannelUseCase } from './occurrence-conversation/application/contractor-occurrence-channel.use-case.js'
 import { DrizzleContractorOccurrenceChannelRepository } from './occurrence-conversation/infrastructure/drizzle-contractor-occurrence-channel.repository.js'
 import { createContractorOccurrenceChannelRoutes } from './occurrence-conversation/presentation/contractor-occurrence-channel.routes.js'
@@ -1067,6 +1126,7 @@ import { findActiveAddressCorrectionMailTemplate } from './address-correction/in
 import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/public-inbound-email.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
+import { createReadContractorDeliveryEventsUseCase } from './contractor-portal/application/read-contractor-delivery-events.use-case.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
 import { createMeClientDiagnosticsRoutes } from './trips/presentation/me-client-diagnostics.routes.js'
 import { createMeLocationRoutes } from './trips/presentation/me-location.routes.js'
@@ -1322,6 +1382,8 @@ function buildSendAutomaticOccurrenceMailUseCase(
       send: ({ body, companyId, groupJid, mentionNumber }) =>
         groupSender.sendText({ body, companyId, mentionNumber, number: groupJid }),
     }),
+    /** Spec 324: o botão "Avisar a contratante" reserva aqui, e o automático pergunta se o botão já avisou. */
+    manualNotice: createContractorManualNoticeRepository({ database: input.database }),
     reader: createAutomaticOccurrenceMailReader(input.database),
     sendMail: buildNoAttachmentOccurrenceMail(input),
   })
@@ -1806,26 +1868,29 @@ export function bootstrap(): Bun.Server<undefined> {
   const canhotoReaderConfig = isCanhotoOcrEnabled(process.env)
     ? readWorkerBotAudioTranscriberConfig(process.env)
     : undefined
-  const whatsappCanhotoRecognition =
-    canhotoReaderConfig === undefined
-      ? undefined
-      : createWhatsAppCanhotoRecognition({
-          findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
-          listStops: listWhatsAppDriverStops,
-          logger,
-          media: whatsappPreparationMedia,
-          preparations: whatsappDeliveryPreparations,
-          questions: whatsappCanhotoQuestions,
-          reader: createWorkerCanhotoReader(canhotoReaderConfig),
-          /** Spec 321 T4 (D4b): a coleta de canhoto encaixada na viagem do motorista também recebe a foto. */
-          canhotoPickups: createWhatsAppCanhotoPickupPort({
-            bucket: whatsappStorageBucket,
-            collection: createDrizzleCanhotoPickupCollection(database.db),
-            logger,
-            repository: whatsappDeliveryProofRepository,
-            storage: whatsappStorageGateway,
-          }),
-        })
+  /**
+   * Sem o OCR (produção) o reconhecimento existe sem leitor: a foto da parada em que o motorista chegou baixa a nota dela
+   * sem pedir o @ do bot nem perguntar nada; qualquer outra foto segue calada.
+   */
+  const whatsappCanhotoRecognition = createWhatsAppCanhotoRecognition({
+    findCanhotoByHash: (input) => whatsappDeliveryProofRepository.findCanhotoByHash(input),
+    listStops: listWhatsAppDriverStops,
+    logger,
+    media: whatsappPreparationMedia,
+    preparations: whatsappDeliveryPreparations,
+    questions: whatsappCanhotoQuestions,
+    ...(canhotoReaderConfig === undefined
+      ? {}
+      : { reader: createWorkerCanhotoReader(canhotoReaderConfig) }),
+    /** Spec 321 T4 (D4b): a coleta de canhoto encaixada na viagem do motorista também recebe a foto. */
+    canhotoPickups: createWhatsAppCanhotoPickupPort({
+      bucket: whatsappStorageBucket,
+      collection: createDrizzleCanhotoPickupCollection(database.db),
+      logger,
+      repository: whatsappDeliveryProofRepository,
+      storage: whatsappStorageGateway,
+    }),
+  })
   const whatsappDriverCollections = combineWhatsAppDriverCollections({
     canhoto: whatsappCanhotoRecognition,
     deliveries: whatsappDeliveryPreparations,
@@ -2012,6 +2077,17 @@ export function bootstrap(): Bun.Server<undefined> {
     },
     deliverDocument: (input) => whatsappOfficeDelivery.deliverByDocument(input),
     listRoadTrips: (input) => listAttendantRoadTrips(database.db, input),
+  })
+  /**
+   * Spec 326: o financeiro lança conta pela conversa direta — o mesmo caso de uso do painel (spec 325).
+   * Instância própria das portas (sem estado), porque as rotas montam as delas em outra função.
+   */
+  const whatsappExpensesPorts = createDrizzleExpensesPorts(database.db)
+  const expenseWhatsAppFlowActions = createExpenseFlowActions({
+    createExpense: (input) => createCreateExpenseUseCase(whatsappExpensesPorts).execute(input),
+    listCategories: (input) =>
+      createListExpenseCategoriesUseCase(whatsappExpensesPorts).execute(input),
+    today: () => formatFiscalDay(new Date()),
   })
   const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
     speech: whatsappBotSpeech,
@@ -2336,6 +2412,7 @@ export function bootstrap(): Bun.Server<undefined> {
       ...operatorWhatsAppFlowActions,
       ...attendantWhatsAppFlowActions,
       ...issuanceWhatsAppFlowActions,
+      ...expenseWhatsAppFlowActions,
     ],
     /**
      * Spec 144 T008 — lê a versão publicada (a linha viva do módulo, a que `create`/`save`
@@ -2480,6 +2557,9 @@ export function bootstrap(): Bun.Server<undefined> {
           ...(config.notificationWebhookSecret === undefined
             ? {}
             : { webhookSecret: config.notificationWebhookSecret }),
+          ...(config.vapid?.publicKey === undefined
+            ? {}
+            : { vapidPublicKey: config.vapid.publicKey }),
         }),
       },
       ...(userModule === undefined || config.companyId === undefined
@@ -3414,6 +3494,9 @@ function createApplicationRoutes({
    * O agendamento do portal escreve pela mesma máquina da 060 — a `tripStopSchedules` acima, não uma
    * cópia. É a ADR-0050 §6: nenhuma regra de agendamento mora no portal.
    */
+  const readContractorDeliveryEvents = createReadContractorDeliveryEventsUseCase({
+    repository: contractorPortalRepository,
+  })
   const readContractorDeliveryLocation = createReadContractorDeliveryLocationUseCase({
     locations: tripLocationRepository,
     repository: contractorPortalRepository,
@@ -3444,6 +3527,7 @@ function createApplicationRoutes({
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
   const federalTaxSettingsRepository = new DrizzleFederalTaxSettingsRepository(database)
   const driverAllowanceSettingsRepository = new DrizzleDriverAllowanceSettingsRepository(database)
+  const freightQuoteSettingsRepository = new DrizzleFreightQuoteSettingsRepository(database)
   const locationRetentionDependencies = {
     now: () => new Date(),
     settings: new DrizzleLocationRetentionSettingsRepository(database),
@@ -3613,7 +3697,21 @@ function createApplicationRoutes({
   const tripCostRepository = new DrizzleTripCostRepository(database)
   const tripRevenueRepository = new DrizzleTripRevenueRepository(database)
   const companyEntryKindRepository = new DrizzleCompanyEntryKindRepository(database)
+  const expensesPorts = createDrizzleExpensesPorts(database)
   const applicableFreightRuleQuery = new DrizzleApplicableFreightRuleQuery(database)
+  /** Spec 325 T1.4b: a linha da pessoa na parcela vem da mesma valoração em lote da lista de viagens (259). */
+  const expenseOccurrenceTripPorts = createDrizzleExpenseOccurrenceTripPorts(database, {
+    readPersonParcels: createTripPersonParcelReader({
+      findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+      readValuationContexts: (query) => tripValuationQuery.readValuationContexts(query),
+    }),
+  })
+  /** Spec 325 T4.5: o resultado e o rateio leem a mesma valoração em lote da lista de viagens (259). */
+  const expenseResultPorts = createDrizzleExpenseResultPorts(database, {
+    findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+    readValuationContexts: (query) => tripValuationQuery.readValuationContexts(query),
+  })
+  const expenseForecastPorts = createDrizzleExpenseForecastPorts(database, expenseResultPorts)
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(
     database,
     resolveStorageBucket(environment),
@@ -3748,6 +3846,30 @@ function createApplicationRoutes({
       list: (input) => listContractorOccurrences(database, input),
     },
     repository: contractorPortalRepository,
+  })
+  /**
+   * Spec 323: a ordem das paradas do rascunho pela estrada. Sem `ROUTING_MATRIX_URL` o ordenador não existe e as
+   * paradas ficam na ordem de chegada, como antes. O vínculo recongela a rota depois (sem congelador aqui); o botão
+   * "Ordenar paradas" passa o congelador.
+   */
+  const draftStopOrderRepository = createDrizzleDraftStopOrderRepository(database)
+  const roadMatrix =
+    routingMatrixUrl === undefined
+      ? undefined
+      : createOsrmRoadMatrixGateway({ baseUrl: routingMatrixUrl })
+  const draftStopOrderBase = {
+    depot: {
+      readDepot: (input: { readonly companyId: string }) => routeDepotQuery.readDepot(input),
+    },
+    logger,
+    matrix: roadMatrix,
+    reorder: tripRouteRepository,
+    repository: draftStopOrderRepository,
+  }
+  const draftStopOrderer = createOrderDraftTripStops(draftStopOrderBase)
+  const draftStopOrdererWithFreeze = createOrderDraftTripStops({
+    ...draftStopOrderBase,
+    routeFreezer: tripRouteTollFreezer,
   })
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
@@ -3957,6 +4079,7 @@ function createApplicationRoutes({
     repository: mdfeIssuanceRepository,
   })
   const trips = createTripUseCase({
+    stopOrderer: draftStopOrderer,
     /**
      * A coluna de valores de `/trips`: uma consulta para as notas da página inteira, e a busca de
      * regra de frete memoizada por chave. Ver `readTripRevenueTotals` — chamar `readTripValuation`
@@ -4557,6 +4680,38 @@ function createApplicationRoutes({
       get: createGetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
       set: createSetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
     }),
+    ...createExpenseRoutes({
+      cancelOccurrence: createCancelExpenseOccurrenceUseCase(expensesPorts),
+      createCategory: createCreateExpenseCategoryUseCase(expensesPorts),
+      createExpense: createCreateExpenseUseCase(expensesPorts),
+      includeOccurrenceTrip: createIncludeExpenseOccurrenceTripUseCase(expenseOccurrenceTripPorts),
+      listAvailableTrips: createListAvailableExpenseTripsUseCase(expenseOccurrenceTripPorts),
+      listOccurrenceTrips: createListExpenseOccurrenceTripsUseCase(expenseOccurrenceTripPorts),
+      removeOccurrenceTrip: createRemoveExpenseOccurrenceTripUseCase(expenseOccurrenceTripPorts),
+      listCategories: createListExpenseCategoriesUseCase(expensesPorts),
+      listExpenses: createListExpensesUseCase(expensesPorts),
+      listOccurrences: createListExpenseOccurrencesUseCase(expensesPorts),
+      now: () => new Date(),
+      setCategoryActive: createSetExpenseCategoryActiveUseCase(expensesPorts),
+      setCategoryCostGroup: createSetExpenseCategoryCostGroupUseCase(expensesPorts),
+      settleOccurrence: createSettleExpenseOccurrenceUseCase(expensesPorts),
+      updateExpense: createUpdateExpenseUseCase(expensesPorts),
+    }),
+    ...createExpenseResultRoutes({
+      exportResult: createExportExpenseResultUseCase({
+        ports: { ...expenseResultPorts, ...createDrizzleExpenseExportPorts(database) },
+        renderPdf: renderExpenseResultPdf,
+      }),
+      getResult: createGetExpenseResultUseCase(expenseResultPorts),
+      getSettings: createGetExpenseAllocationSettingsUseCase(expenseResultPorts),
+      getUnitCosts: createGetExpenseUnitCostsUseCase(expenseResultPorts),
+      updateSettings: createUpdateExpenseAllocationSettingsUseCase(expenseResultPorts),
+    }),
+    ...createExpenseForecastRoutes({
+      getForecast: createGetExpenseForecastUseCase(expenseForecastPorts),
+      getSettings: createGetOutOfPatternSettingsUseCase(expenseForecastPorts),
+      updateSettings: createUpdateOutOfPatternSettingsUseCase(expenseForecastPorts),
+    }),
     ...createCompanyEntryKindRoutes({
       create: createCreateCompanyEntryKindUseCase({ entryKinds: companyEntryKindRepository }),
       deactivate: createDeactivateCompanyEntryKindUseCase({
@@ -4566,6 +4721,15 @@ function createApplicationRoutes({
       listActive: createListActiveCompanyEntryKindsUseCase({
         entryKinds: companyEntryKindRepository,
       }),
+    }),
+    ...createFreightQuoteRoutes({
+      calculate: createCalculateFreightQuoteUseCase({
+        fuelPrices: fuelPriceRepository,
+        settings: freightQuoteSettingsRepository,
+      }),
+      clear: createClearFreightQuoteSettingsUseCase({ settings: freightQuoteSettingsRepository }),
+      get: createGetFreightQuoteSettingsUseCase({ settings: freightQuoteSettingsRepository }),
+      set: createSetFreightQuoteSettingsUseCase({ settings: freightQuoteSettingsRepository }),
     }),
     ...createDriverAllowanceSettingsRoutes({
       clear: createClearDriverAllowanceSettingsUseCase({
@@ -4722,7 +4886,7 @@ function createApplicationRoutes({
                */
               findLiveTripIdForDocuments: (input) =>
                 tripRepository.findLiveTripIdForDocuments(input),
-              link: (input) => trips.linkDocument(input),
+              link: (input) => trips.linkDocument({ ...input, orderStops: false }),
               /**
                * A leitura vai direto ao caso de uso de listar parada, e não ao ciclo de vida com um
                * contexto meia-boca: aqui só o `companyId` importa, e é o que `listTripStops` recebe.
@@ -4730,7 +4894,8 @@ function createApplicationRoutes({
               listStops: async (input) =>
                 (await listTripStops({ ...input, repository: tripStopLookupRepository })).stops,
               planRoute: (input) => tripLifecycle.planRoute.execute(input),
-              reorder: (input) => tripLifecycle.reorderStops.execute(input),
+              reorder: (input) =>
+                tripLifecycle.reorderStops.execute({ ...input, source: 'suggested' }),
               /** Spec 148 T7: o aceite que vincula e solta as notas que não couberam na prévia. */
               readReleasePlan: (input) =>
                 tripDocumentReviewRepository.readReleasePlan({
@@ -4923,6 +5088,7 @@ function createApplicationRoutes({
     }),
     /** Spec 248 T4.4b: a porta do robô da varredura do aviso automático, só da permissão de serviço. */
     ...createOccurrenceAutomaticMailRoutes({ sendAutomaticMail: sendAutomaticOccurrenceMail }),
+    ...createOccurrenceContractorNoticeRoutes({ sendManualNotice: sendAutomaticOccurrenceMail }),
     /** Spec 281 T5 (RF3/RF5): o mesmo boleto por WhatsApp (Evolution) ao cliente da nota, pelo painel. */
     ...createOccurrenceContractorReplyWhatsAppRoutes({
       forwardByWhatsApp: forwardContractorReplyByWhatsApp,
@@ -5493,6 +5659,7 @@ function createApplicationRoutes({
     ...createOccurrenceWatchersRoutes({ useCase: occurrenceWatchers }),
     ...createContractorDeliveryRoutes({
       listDeliveries: { execute: (input) => readContractorDeliveries(input) },
+      readDeliveryEvents: { execute: (input) => readContractorDeliveryEvents(input) },
       readDeliveryLocation: { execute: (input) => readContractorDeliveryLocation(input) },
       scheduleDelivery: { execute: (input) => scheduleContractorDelivery(input) },
     }),
@@ -6794,6 +6961,7 @@ function createApplicationRoutes({
         logger,
         repository: tripRepository,
         routeFreezer: tripRouteTollFreezer,
+        stopOrderer: draftStopOrderer,
       }),
       previewCargo: {
         execute: (input) =>
@@ -6869,6 +7037,15 @@ function createApplicationRoutes({
       releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
       retireTripStop: { execute: (input) => trips.retireStop(input) },
       reorderStops: { execute: (input) => tripLifecycle.reorderStops.execute(input) },
+      autoOrderStops: {
+        execute: (input) =>
+          draftStopOrdererWithFreeze.execute({
+            companyId: input.context.companyId,
+            intent: 'reorder_all',
+            strict: true,
+            tripId: input.tripId,
+          }),
+      },
       separateTripDocument: { execute: (input) => tripLifecycle.separate.execute(input) },
     }),
     ...createCteEmissionProfileRoutes({

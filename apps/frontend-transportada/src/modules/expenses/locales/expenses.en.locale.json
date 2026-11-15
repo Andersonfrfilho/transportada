@@ -1,0 +1,372 @@
+{
+  "title": "Bills",
+  "subtitle": "What the company pays: fixed bills, variable bills and payments to drivers, contractors and helpers.",
+  "forbidden": "You do not have permission to see the company bills.",
+  "kind": {
+    "fixed": "Fixed",
+    "variable": "Variable"
+  },
+  "recurrence": {
+    "monthly": "Monthly",
+    "bimonthly": "Every two months",
+    "quarterly": "Quarterly",
+    "yearly": "Yearly",
+    "fortnightly": "Twice a month"
+  },
+  "status": {
+    "open": "Open",
+    "paid": "Paid",
+    "canceled": "Canceled",
+    "overdue": "Overdue"
+  },
+  "payee": {
+    "driver": "Driver",
+    "aggregate": "Contractor",
+    "helper": "Helper"
+  },
+  "parcelKind": {
+    "driver": "Driver",
+    "helper": "Helper"
+  },
+  "totals": {
+    "expected": "Expected",
+    "paid": "Paid",
+    "count": "Bills",
+    "paidByDriver": "Paid per driver, contractor or helper",
+    "open": "Open",
+    "overdue": "Overdue"
+  },
+  "gap": {
+    "NO_PLANNED_DURATION": "Trip has no planned duration",
+    "NO_DRIVER": "Trip has no driver",
+    "OTHER": "Parcel without a calculated value"
+  },
+  "errors": {
+    "REQUEST_FAILED": "Could not reach the server. Try again.",
+    "RESPONSE_INVALID": "The server answered something that could not be read.",
+    "EXPENSE_RESPONSE_INVALID": "The server answered something that could not be read.",
+    "EXPENSE_OCCURRENCE_NOT_DRIVER_PAYMENT": "This bill is not a payment to a driver, contractor or helper.",
+    "EXPENSE_TRIP_NOT_FOUND": "Trip not found.",
+    "EXPENSE_TRIP_NOT_COMPLETED": "The trip is not completed yet.",
+    "EXPENSE_TRIP_NOT_PAYEE": "This person was not part of the trip crew.",
+    "EXPENSE_TRIP_PARCEL_MISSING": "The trip has no calculated daily rate.",
+    "EXPENSE_TRIP_ALREADY_INCLUDED": "This trip is already in another payment.",
+    "EXPENSE_OCCURRENCE_TRIP_NOT_FOUND": "This trip is not in this payment.",
+    "EXPENSE_OCCURRENCE_ALREADY_PAID": "This bill is already paid.",
+    "EXPENSE_OCCURRENCE_CANCELED": "This bill was canceled.",
+    "VALIDATION_ERROR": "Check the period and the filters and try again.",
+    "INVALID_REQUEST": "Check the period and the filters and try again."
+  },
+  "loading": "Loading bills…",
+  "filters": {
+    "title": "Filters",
+    "month": "Month",
+    "kind": "Type",
+    "category": "Category",
+    "status": "Status",
+    "payee": "Driver, contractor or helper",
+    "all": "All",
+    "allFeminine": "All"
+  },
+  "list": {
+    "installment": "Installment {{installment}}",
+    "title": "Bills of the month",
+    "new": "New bill",
+    "empty": "No bills this month with these filters.",
+    "account": "Bill",
+    "kind": "Type",
+    "category": "Category",
+    "due": "Due date",
+    "expected": "Expected",
+    "paid": "Paid",
+    "status": "Status",
+    "actions": "Actions",
+    "trips": "Trips",
+    "settle": "Settle"
+  },
+  "calendar": {
+    "chooseYear": "Choose the year",
+    "clear": "Clear",
+    "nextMonth": "Next month",
+    "open": "Open the calendar",
+    "placeholder": "dd/mm/yyyy",
+    "previousMonth": "Previous month"
+  },
+  "dialog": {
+    "close": "Close",
+    "cancel": "Cancel"
+  },
+  "create": {
+    "title": "New bill",
+    "name": "Name",
+    "kind": "Type",
+    "kindOption": {
+      "fixed": "Fixed (recurring)",
+      "variable": "Variable (one-off)"
+    },
+    "category": "Category",
+    "categoryPlaceholder": "Choose the category",
+    "amount": "Expected amount",
+    "amountPlaceholder": "0.00",
+    "payee": "Driver, contractor or helper",
+    "payeePlaceholder": "Choose the person",
+    "recurrence": "Recurrence",
+    "dueDay": "Due day",
+    "fortnightlyHint": "Fortnightly is due on the 15th and on the last day of the month.",
+    "installments": "Installments (optional)",
+    "installmentsPlaceholder": "E.g. 10 (empty = no end)",
+    "installmentsHint": "Expected amount is per installment. Generation stops after the last one.",
+    "dueDate": "Due date",
+    "vehicle": "Vehicle (optional)",
+    "vehiclePlaceholder": "None",
+    "save": "Save bill",
+    "saving": "Saving…",
+    "issues": "Check: {{fields}}.",
+    "issue": {
+      "name": "name",
+      "category": "category",
+      "amount": "expected amount",
+      "payee": "driver, contractor or helper",
+      "dueDate": "due date",
+      "dueDay": "due day (1 to 31)",
+      "installments": "installments (2 to 600)"
+    }
+  },
+  "settle": {
+    "title": "Settle",
+    "summary": "{{name}} · due {{due}} · expected {{amount}}",
+    "amount": "Amount paid",
+    "paidAt": "Payment date",
+    "note": "Note",
+    "notePlaceholder": "Optional",
+    "confirm": "Confirm payment",
+    "sending": "Saving…"
+  },
+  "trips": {
+    "title": "Trips of the payment",
+    "summary": "{{name}}{{payee}}. Only completed trips not paid yet.",
+    "trip": "Trip",
+    "tripNumber": "Trip {{id}}",
+    "tripNumberRoute": "Trip {{id}} · {{route}}",
+    "completedOn": "Completed",
+    "dailyTimesDays": "Daily rate × days",
+    "dailyTimesDaysValue_one": "{{daily}} × {{count}} day",
+    "dailyTimesDaysValue_other": "{{daily}} × {{count}} days",
+    "amount": "Amount",
+    "actions": "Actions",
+    "total": "Payment total",
+    "empty": "No trip included in this payment. The expected amount is the bill's.",
+    "add": "Add trips",
+    "hideAvailable": "Hide available trips",
+    "availableTitle": "Available trips",
+    "availableEmpty": "No completed trip available in the period.",
+    "include": "Include",
+    "remove": "Remove",
+    "pendingTrip": "Trip {{id}} is left out: {{gap}}.",
+    "pendingTripRoute": "Trip {{id}} ({{route}}) is left out: {{gap}}."
+  },
+  "result": {
+    "title": "Result",
+    "calculatedAt": "Calculated at {{value}}",
+    "period": {
+      "from": "From",
+      "to": "To"
+    },
+    "totals": {
+      "revenue": "Revenue",
+      "tripCost": "Trip cost",
+      "expenses": "Expenses",
+      "profit": "Profit",
+      "unallocated": "Unallocated"
+    },
+    "tabs": {
+      "trip": "By trip",
+      "vehicle": "By vehicle",
+      "customer": "By customer"
+    },
+    "columns": {
+      "name": "Name",
+      "revenue": "Revenue",
+      "cost": "Cost",
+      "vehicleShare": "Vehicle expenses",
+      "generalShare": "General expenses",
+      "margin": "Margin"
+    },
+    "noVehicle": "No vehicle",
+    "noCustomer": "No customer",
+    "unallocated": {
+      "title": "Unallocated expenses",
+      "reason": {
+        "no_trip_weight": "No trip with weight in the period",
+        "vehicle_without_trips": "Vehicle with no trips in the period"
+      }
+    },
+    "excesses": {
+      "title": "Payment above the included trips"
+    },
+    "paymentsWithoutTrips": {
+      "title": "Payment with no included trips"
+    },
+    "filters": {
+      "title": "Filters",
+      "vehicle": "Vehicle",
+      "customer": "Customer",
+      "category": "Category",
+      "payee": "Driver, contractor or helper",
+      "all": "All",
+      "clear": "Clear filters",
+      "note": "Filters choose what is shown and summed; the allocation is always over the whole period."
+    },
+    "export": {
+      "pdf": "Export PDF",
+      "csv": "Export CSV",
+      "exporting": "Exporting…",
+      "failed": "Could not export."
+    },
+    "unitCosts": {
+      "title": "Cost per kilometer",
+      "general": "Overall",
+      "vehicle": "Vehicle",
+      "kilometers": "Kilometers",
+      "tripCost": "Trip cost",
+      "expensesShare": "Allocated expenses",
+      "totalCost": "Total cost",
+      "costPerKm": "Cost per km",
+      "noKilometers": "No kilometers"
+    },
+    "empty": "No completed trips in this period.",
+    "loading": "Calculating the result…"
+  },
+  "allocation": {
+    "title": "Expense allocation",
+    "subtitle": "How each expense group is split across the trips of the period.",
+    "group": {
+      "vehicle_fixed": "Fixed vehicle expenses",
+      "per_km": "Per-kilometer variable expenses",
+      "administrative": "Administrative expenses"
+    },
+    "criterion": {
+      "per_km": "Per kilometer",
+      "per_trip_day": "Per trip day",
+      "per_revenue": "By revenue",
+      "equal": "Equal per trip"
+    },
+    "save": "Save criteria",
+    "saved": "Criteria saved.",
+    "loading": "Loading the criteria…"
+  },
+  "resultPage": {
+    "title": "Monthly result",
+    "subtitle": "What we billed, what we spent and the profit left, with company bills split across trips.",
+    "back": "Back to bills",
+    "open": "View result",
+    "filters": {
+      "period": "Period",
+      "vehicle": "Vehicle",
+      "customer": "Customer",
+      "category": "Bill category",
+      "payee": "Driver, contractor or helper",
+      "all": "All",
+      "allFeminine": "All",
+      "noVehicle": "No vehicle",
+      "noCustomer": "No customer",
+      "placeholder": "dd/mm/yyyy to dd/mm/yyyy",
+      "clearDates": "Clear",
+      "nextMonth": "Next month",
+      "previousMonth": "Previous month",
+      "note": "Filters apply to the indicators, the tables and the export."
+    },
+    "export": {
+      "pdf": "Export PDF",
+      "csv": "Export spreadsheet (CSV)",
+      "exporting": "Exporting…",
+      "failed": "Could not export. Try again."
+    },
+    "indicators": {
+      "revenue": "Freight revenue",
+      "tripCost": "Trip costs",
+      "tripCostHint": "allowances and expenses recorded on the trip",
+      "expenses": "Company bills",
+      "expensesHint": "fixed and variable, without driver pay",
+      "profit": "Profit",
+      "margin": "Margin",
+      "costPerKm": "Cost per km",
+      "costPerKmHint": "{{km}} km over {{trips}} trips",
+      "revenuePerKm": "Revenue per km",
+      "profitPerKm": "Profit per km",
+      "variation": "{{value}} over the previous period",
+      "previousMargin": "previous period: {{value}}"
+    },
+    "notice": "Numbers are recalculated every time the screen opens, using today's bills and criteria. A closed month is not frozen.",
+    "unallocated": "Bills with no trip to split across: {{amount}}. They count in the bills total but in no trip.",
+    "trend": {
+      "title": "Recent months",
+      "month": "Month",
+      "revenue": "Revenue",
+      "cost": "Total cost",
+      "profit": "Profit",
+      "margin": "Margin"
+    },
+    "tabs": {
+      "title": "Margin by {{kind}}",
+      "ariaLabel": "Group the margin",
+      "trip": "By trip",
+      "vehicle": "By vehicle",
+      "customer": "By customer",
+      "kindTrip": "trip",
+      "kindVehicle": "vehicle",
+      "kindCustomer": "customer"
+    },
+    "columns": {
+      "trip": "Trip",
+      "vehicle": "Vehicle",
+      "customer": "Customer",
+      "revenue": "Freight",
+      "cost": "Trip cost",
+      "km": "Km",
+      "vehicleShare": "Vehicle share",
+      "generalShare": "General share",
+      "margin": "Margin",
+      "percent": "%"
+    },
+    "footnote": "Vehicle share: the truck's fixed bills. General share: administrative bills and those with no vehicle.",
+    "empty": "No completed trip in this period.",
+    "loading": "Calculating the result…",
+    "forbidden": "You do not have permission to see the result.",
+    "errors": {
+      "REQUEST_FAILED": "Could not calculate the result. Try again."
+    },
+    "forecast": {
+      "title": "{{month}} forecast",
+      "estimate": "Estimate",
+      "failed": "Could not calculate the forecast. The rest of the page is still valid.",
+      "unavailable": "Not enough closed months yet: the forecast needs 3 months with trips and there are {{months}}.",
+      "fewData": "Little data: the forecast uses {{months}} months. With 6 months it gets firmer, which is why the range below is wide.",
+      "revenue": "Forecast revenue",
+      "cost": "Forecast total cost",
+      "profit": "Forecast profit",
+      "recurring": "Bills already registered",
+      "range": "range {{min}} to {{max}}",
+      "margin": "margin of {{value}}",
+      "recurringHint": "recurring for {{month}}",
+      "how": "How it is calculated: recurring bills already registered ({{recurring}}) + daily average revenue and cost per km of the last {{months}} months × business days of the forecast month."
+    },
+    "outOfPattern": {
+      "title": "Out of pattern",
+      "item": "Item",
+      "current": "This month",
+      "average": "3-month average",
+      "difference": "Difference",
+      "state": "State",
+      "above": "Above",
+      "below": "Below",
+      "empty": "No item went past {{limit}}% of the last 3 months average.",
+      "footnote": "Shows what goes past {{limit}}% of the average of the last 3 closed months; an item with fewer than 3 months of history is left out.",
+      "kind": {
+        "category": "Category",
+        "expense": "Bill",
+        "vehicle_cost_per_km": "Vehicle cost per km"
+      }
+    }
+  }
+}

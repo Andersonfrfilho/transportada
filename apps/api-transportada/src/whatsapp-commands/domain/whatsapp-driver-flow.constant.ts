@@ -129,3 +129,10 @@ export const DRIVER_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlo
   TRIP_ROUTE_NOT_PLANNED: '🚫 *O roteiro da viagem ainda não foi planejado.*',
   TRIP_TRAILER_REQUIRED: '🚫 *O cavalo precisa de uma carreta atrelada antes de sair.*',
 }
+
+/**
+ * Spec 299: uma entrega em preparo que ninguém mexe há tanto tempo é conversa esquecida (o pedido do grupo já
+ * expirou). Passado esse tempo ela deixa de contar como "pergunta aberta" para o lembrete e para a leitura da foto.
+ * Em 11/11/2026 a NF 918095 ficou 45 h aberta e segurou a cobrança do motorista.
+ */
+export const WHATSAPP_DELIVERY_PREPARATION_STALE_AFTER_MS = 6 * 60 * 60 * 1000

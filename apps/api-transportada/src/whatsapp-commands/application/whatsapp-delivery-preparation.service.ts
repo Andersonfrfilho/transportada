@@ -41,6 +41,7 @@ import {
 import { DELIVERY_PROOF_SPEECH } from '../domain/whatsapp-delivery-proof-speech.constant.js'
 import type { DeliveryProofQuestionView } from '../domain/whatsapp-delivery-proof-question.policy.js'
 import { CANHOTO_TEXT } from '../domain/whatsapp-driver-canhoto.policy.js'
+import { WHATSAPP_DELIVERY_PREPARATION_STALE_AFTER_MS } from '../domain/whatsapp-driver-flow.constant.js'
 import { TripCanhotoAlreadyAttachedError } from '../../trips/domain/stop-order.error.js'
 import {
   describeOutOfOrderNotUnderstood,
@@ -833,7 +834,14 @@ export function createWhatsAppDeliveryPreparations(
 
     async hasOpen({ companyId, driverId }) {
       const preparations = await repository.listOpenForDriver({ companyId, driverId })
-      return preparations.length > 0
+      const nowMs = (ports.clock ?? (() => new Date()))().getTime()
+      // Preparo parado há mais que o prazo é conversa esquecida: não segura o lembrete nem a leitura da foto.
+      // Sem hora conhecida (`updatedAt` ausente) vale como recente, como sempre valeu.
+      return preparations.some(
+        (item) =>
+          item.updatedAt === undefined ||
+          nowMs - item.updatedAt.getTime() < WHATSAPP_DELIVERY_PREPARATION_STALE_AFTER_MS,
+      )
     },
 
     async begin({ actor, channel, documentId, documentNumber, location }) {
