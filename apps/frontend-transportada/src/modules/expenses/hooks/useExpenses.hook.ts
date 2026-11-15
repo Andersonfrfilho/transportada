@@ -5,8 +5,10 @@ import { getExpensesClient } from '../shared/expensesClient.service'
 import { EXPENSES_QUERY_KEY } from '../shared/expensesQueryKey.constant'
 import type {
   CreateExpenseInput,
+  ExpenseCategory,
   ExpenseCostGroup,
   ExpenseOccurrenceFilters,
+  ExpenseSubtype,
   SettleOccurrenceInput,
   UpdateExpenseInput,
 } from '../shared/expenses.types'
@@ -35,6 +37,14 @@ export function useExpenseCategories(input: Readonly<{ enabled?: boolean }> = {}
     enabled: input.enabled ?? true,
     queryFn: () => getExpensesClient().listCategories(),
     queryKey: [EXPENSES_QUERY_KEY, 'categories'],
+  })
+}
+
+export function useExpenseSubtypes(input: Readonly<{ enabled?: boolean }> = {}) {
+  return useQuery({
+    enabled: input.enabled ?? true,
+    queryFn: () => getExpensesClient().listSubtypes(),
+    queryKey: [EXPENSES_QUERY_KEY, 'subtypes'],
   })
 }
 
@@ -102,7 +112,31 @@ export function useExpenseMutations() {
     }),
     createCategory: useMutation({
       mutationFn: (name: string) => getExpensesClient().createCategory(name),
-      onSuccess: invalidate,
+      // Digitar e Enter: a categoria nova já aparece na lista (o campo a seleciona pelo id) antes da releitura.
+      onSuccess: (created) => {
+        queryClient.setQueryData<readonly ExpenseCategory[]>(
+          [EXPENSES_QUERY_KEY, 'categories'],
+          (current) =>
+            (current ?? []).some((item) => item.id === created.id)
+              ? current
+              : [...(current ?? []), created],
+        )
+        invalidate()
+      },
+    }),
+    createSubtype: useMutation({
+      mutationFn: (request: Readonly<{ categoryId: string; name: string }>) =>
+        getExpensesClient().createSubtype(request),
+      // O tipo novo já aparece na lista sem esperar a releitura (o campo o seleciona pelo id, e o rótulo vem daqui).
+      onSuccess: (created) => {
+        queryClient.setQueryData<readonly ExpenseSubtype[]>(
+          [EXPENSES_QUERY_KEY, 'subtypes'],
+          (current) =>
+            (current ?? []).some((item) => item.id === created.id)
+              ? current
+              : [...(current ?? []), created],
+        )
+      },
     }),
     createExpense: useMutation({
       mutationFn: (request: CreateExpenseInput) => getExpensesClient().createExpense(request),

@@ -22,7 +22,12 @@ import {
   summarizeOccurrences,
   todayCivilDate,
 } from '../shared/expensesView.service'
-import { useExpenseCategories, useExpenseOccurrences, useExpensePeople } from './useExpenses.hook'
+import {
+  useExpenseCategories,
+  useExpenseOccurrences,
+  useExpensePeople,
+  useExpenseSubtypes,
+} from './useExpenses.hook'
 
 const VEHICLE_OPTIONS_PAGE_SIZE = 100
 
@@ -30,6 +35,8 @@ export type ExpensesFilterState = Readonly<{
   /** `driver:<id>` | `user:<id>`; vazio = todas. */
   causedBy: string
   categoryId: string
+  /** Spec 331: tipo da categoria (qual cartão); vazio = todos. */
+  subtypeId: string
   competence: string
   driverId: string
   kind: '' | ExpenseKind
@@ -47,6 +54,7 @@ function toApiFilters(filters: ExpensesFilterState): ExpenseOccurrenceFilters {
   return {
     competence: filters.competence,
     ...(filters.categoryId === '' ? {} : { categoryId: filters.categoryId }),
+    ...(filters.subtypeId === '' ? {} : { subtypeId: filters.subtypeId }),
     ...causedByKeys(filters.causedBy),
     ...(filters.driverId === '' ? {} : { driverId: filters.driverId }),
     ...(filters.kind === '' ? {} : { kind: filters.kind }),
@@ -63,6 +71,7 @@ export function useExpensesWorkspace() {
   const [filters, setFilters] = useState<ExpensesFilterState>({
     causedBy: '',
     categoryId: '',
+    subtypeId: '',
     competence: currentCompetence(),
     driverId: '',
     kind: '',
@@ -72,6 +81,7 @@ export function useExpensesWorkspace() {
 
   const occurrences = useExpenseOccurrences({ enabled: canRead, filters: toApiFilters(filters) })
   const categories = useExpenseCategories({ enabled: canRead })
+  const subtypes = useExpenseSubtypes({ enabled: canRead })
   const people = useExpensePeople({ enabled: canRead })
   const driverOptions = useDriverOptions({ enabled: canRead, permissions })
   const fleetController = createFleetController({ client: getFleetClient(), permissions })
@@ -100,6 +110,7 @@ export function useExpensesWorkspace() {
     driverOptions,
     filters,
     people: people.data ?? [],
+    subtypes: subtypes.data ?? [],
     isAuthLoading: authQuery.isPending,
     isLoading: occurrences.isPending && canRead,
     loadError: occurrences.error,
@@ -110,6 +121,7 @@ export function useExpensesWorkspace() {
         ...current,
         causedBy: '',
         categoryId: '',
+        subtypeId: '',
         competence: input.dueDate === undefined ? current.competence : input.dueDate.slice(0, 7),
         driverId: '',
         kind: '',

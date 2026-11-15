@@ -18,6 +18,7 @@ import {
   toCategories,
   toExpenses,
   toOccurrencePage,
+  toSubtypes,
   toOccurrenceTrips,
 } from '@/modules/expenses/shared/expensesResponse.validation'
 
@@ -87,6 +88,19 @@ describe('expenses response guard', () => {
     })
     expect(withoutCause.items[0]?.causedByDriverId).toBeNull()
     expect(withoutCause.items[0]?.causedByDriverName).toBeNull()
+  })
+
+  it('lê o tipo da conta e tolera a API anterior sem ele (spec 331)', () => {
+    const totals = { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] }
+    const page = toOccurrencePage({
+      data: [{ ...LIST_ITEM, subtypeId: 'sub-1', subtypeName: 'Mercado Pago' }, LIST_ITEM],
+      totals,
+    })
+    expect(page.items[0]?.subtypeName).toBe('Mercado Pago')
+    expect(page.items[1]?.subtypeId).toBeNull()
+    expect(
+      toSubtypes({ data: [{ active: true, categoryId: 'c1', id: 's1', name: 'Nubank' }] }),
+    ).toEqual([{ active: true, categoryId: 'c1', id: 's1', name: 'Nubank' }])
   })
 
   it('lê o funcionário e o vínculo da conta, e ignora vínculo desconhecido (spec 330)', () => {

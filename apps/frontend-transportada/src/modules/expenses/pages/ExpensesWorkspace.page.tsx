@@ -174,13 +174,37 @@ export function ExpensesWorkspacePage() {
           <Select
             ariaLabel={t('filters.category')}
             clearable
-            onChange={(value) => workspace.setFilter('categoryId', value)}
+            onChange={(value) => {
+              workspace.setFilter('categoryId', value)
+              workspace.setFilter('subtypeId', '')
+            }}
             options={workspace.categories.map((category) => ({
               label: category.name,
               value: category.id,
             }))}
             placeholder={t('filters.allFeminine')}
             value={filters.categoryId}
+          />
+        </div>
+        <div className={styles.field}>
+          <span>{t('filters.subtype')}</span>
+          <Select
+            ariaLabel={t('filters.subtype')}
+            clearable
+            onChange={(value) => workspace.setFilter('subtypeId', value)}
+            options={workspace.subtypes
+              .filter(
+                (subtype) => filters.categoryId === '' || subtype.categoryId === filters.categoryId,
+              )
+              .map((subtype) => ({
+                label:
+                  filters.categoryId === ''
+                    ? `${workspace.categories.find((category) => category.id === subtype.categoryId)?.name ?? ''} · ${subtype.name}`
+                    : subtype.name,
+                value: subtype.id,
+              }))}
+            placeholder={t('filters.all')}
+            value={filters.subtypeId}
           />
         </div>
         <div className={styles.field}>
@@ -299,7 +323,14 @@ export function ExpensesWorkspacePage() {
                       </div>
                     </td>
                     <td data-column={t('list.kind')}>{t(`kind.${row.expenseKind}`)}</td>
-                    <td data-column={t('list.category')}>{row.categoryName}</td>
+                    <td data-column={t('list.category')}>
+                      {row.categoryName}
+                      {row.subtypeName === undefined || row.subtypeName === null ? null : (
+                        <span className={styles.rowDetail}>
+                          {t('list.subtype', { name: row.subtypeName })}
+                        </span>
+                      )}
+                    </td>
                     <td data-column={t('list.due')}>{formatCivilDate(row.dueDate)}</td>
                     <td data-column={t('list.expected')}>{formatAmount(row.expectedAmount)}</td>
                     <td data-column={t('list.paid')}>

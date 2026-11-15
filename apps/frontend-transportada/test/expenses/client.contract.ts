@@ -41,6 +41,12 @@ describe('expenses client', () => {
     )
   })
 
+  it('o filtro por tipo vai pela chave da API (spec 331)', () => {
+    expect(serializeFilters({ competence: '2026-11', subtypeId: 'sub-1' })).toBe(
+      'subtypeId=sub-1&competence=2026-11',
+    )
+  })
+
   it('baixa e cancelamento vão para as rotas certas, sem o id no corpo', async () => {
     const occurrence = {
       competence: '2026-11',

@@ -168,6 +168,8 @@ export type CreateFormFields = Readonly<{
   name: string
   payeeDriverId: string
   recurrence: ExpenseRecurrence
+  /** Spec 331: tipo da categoria (qual cartão); vazio = sem tipo. */
+  subtypeId: string
   vehicleId: string
 }>
 
@@ -188,6 +190,7 @@ export const EMPTY_CREATE_FORM: CreateFormFields = {
   name: '',
   payeeDriverId: '',
   recurrence: 'monthly',
+  subtypeId: '',
   vehicleId: '',
 }
 

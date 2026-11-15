@@ -67,7 +67,8 @@
     "causedBy": "Causada por",
     "payee": "Motorista, agregado ou ajudante",
     "all": "Todos",
-    "allFeminine": "Todas"
+    "allFeminine": "Todas",
+    "subtype": "Type"
   },
   "list": {
     "installment": "Parcela {{installment}}",
@@ -90,7 +91,8 @@
     "billLink": "Abrir o boleto",
     "employee": "Funcionário: {{name}}",
     "employeeWithType": "Funcionário: {{name}} · {{type}}",
-    "employmentOnly": "Vínculo: {{type}}"
+    "employmentOnly": "Vínculo: {{type}}",
+    "subtype": "Type: {{name}}"
   },
   "calendar": {
     "chooseYear": "Escolher o ano",
@@ -173,7 +175,10 @@
     "employeeNamePlaceholder": "Quem não está no cadastro",
     "employmentType": "Tipo de vínculo",
     "employmentTypePlaceholder": "Sem tipo",
-    "employeeHint": "Para salário e pagamento de funcionário. Vale qualquer pessoa do cadastro (motorista, agregado, ajudante ou quem só tem acessos no escritório) ou um nome digitado. Para pagar duas vezes ao mês, escolha a recorrência Quinzenal."
+    "employeeHint": "Para salário e pagamento de funcionário. Vale qualquer pessoa do cadastro (motorista, agregado, ajudante ou quem só tem acessos no escritório) ou um nome digitado. Para pagar duas vezes ao mês, escolha a recorrência Quinzenal.",
+    "categoryCreate": "Adicionar «{{name}}»",
+    "categoryEmpty": "Digite o nome e aperte Enter para cadastrar a categoria",
+    "categorySearch": "Buscar ou digitar a categoria"
   },
   "settle": {
     "title": "Dar baixa",
@@ -417,5 +422,14 @@
     "daily": "Diarista",
     "autonomous": "Autônomo",
     "other": "Outro"
+  },
+  "subtype": {
+    "label": "Tipo (opcional)",
+    "none": "Sem tipo",
+    "create": "Adicionar «{{name}}»",
+    "empty": "Digite o nome e aperte Enter para cadastrar",
+    "placeholder": "Qual cartão, qual financiamento…",
+    "search": "Buscar ou digitar o tipo",
+    "hint": "Digite o nome e aperte Enter: o tipo é cadastrado nesta categoria e já fica selecionado. Quem usa o mesmo tipo soma junto no filtro, parcelado ou à vista."
   }
 }

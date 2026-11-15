@@ -27,6 +27,7 @@ export const EXPENSES_MANAGE_PERMISSION = 'expenses.manage'
 
 export const EXPENSES_PATH = '/expenses'
 export const EXPENSE_CATEGORIES_PATH = '/expense-categories'
+export const EXPENSE_SUBTYPES_PATH = '/expense-subtypes'
 export const EXPENSE_OCCURRENCES_PATH = '/expense-occurrences'
 export const EXPENSE_PEOPLE_PATH = '/expense-people'
 
@@ -65,6 +66,7 @@ export type Expense = Readonly<{
   employeeName?: string | null
   employeeUserId?: string | null
   employmentType?: ExpenseEmploymentType | null
+  subtypeId?: string | null
   billLocation: string | null
   /** Spec 329: link de onde se pega o boleto; ausente em API anterior. */
   billUrl?: string | null
@@ -110,6 +112,14 @@ export type ExpenseOccurrence = Readonly<{
   status: ExpenseOccurrenceStatus
 }>
 
+/** Spec 331: tipo dentro da categoria (qual cartão, qual financiamento). */
+export type ExpenseSubtype = Readonly<{
+  active: boolean
+  categoryId: string
+  id: string
+  name: string
+}>
+
 /** Spec 330: vínculo do funcionário (cópia por valor da API). */
 export const EXPENSE_EMPLOYMENT_TYPES = ['clt', 'daily', 'autonomous', 'other'] as const
 export type ExpenseEmploymentType = (typeof EXPENSE_EMPLOYMENT_TYPES)[number]
@@ -131,6 +141,8 @@ export type ExpenseOccurrenceListItem = ExpenseOccurrence &
     employeeUserId?: string | null
     employeeUserName?: string | null
     employmentType?: ExpenseEmploymentType | null
+    subtypeId?: string | null
+    subtypeName?: string | null
     billLocation?: string | null
     billUrl?: string | null
     categoryId: string
@@ -165,6 +177,7 @@ export type ExpenseOccurrenceFilters = Readonly<{
   causedByDriverId?: string
   causedByUserId?: string
   categoryId?: string
+  subtypeId?: string
   competence?: string
   driverId?: string
   kind?: ExpenseKind
@@ -181,6 +194,7 @@ export type CreateExpenseInput = Readonly<{
   employeeName?: string
   employeeUserId?: string
   employmentType?: ExpenseEmploymentType
+  subtypeId?: string
   categoryId: string
   dueDate?: string
   dueDay?: number
@@ -204,6 +218,7 @@ export type UpdateExpenseInput = Readonly<{
   employeeName?: string | null
   employeeUserId?: string | null
   employmentType?: ExpenseEmploymentType | null
+  subtypeId?: string | null
   dueDay?: number
   /** Spec 329: `yyyy-mm` da primeira competência com o `expectedAmount` novo (sem ele, a do mês). */
   effectiveFrom?: string
