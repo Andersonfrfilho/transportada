@@ -1420,7 +1420,7 @@ O formulário público (cotação da 338 e pedido de coleta anônimo da 339) val
 - **Saída:** só o caminho de `tmp/ops/saidas/staging-orcamento-confere-<data>.txt`. O arquivo tem números e códigos; nunca endereço, coordenada, nome ou credencial.
 - **Como ler:** `delta_km_pct` perto de zero é o esperado (mesma estrada). `pedagio_comparavel=false` quer dizer que a viagem tem trecho a mais (saída da base ou volta), então o pedágio dela não é o da perna: vale só o km. Diferença de pedágio com `pedagio_comparavel=true` ou `catalogo` diferente de `current` é achado a investigar.
 - **O que NÃO mede:** a geocodificação do endereço digitado (o script usa a coordenada já guardada da parada e não chama o Google). Isso se confere na tela `/orcamento`, com o endereço de uma viagem.
-- Nunca foi rodado numa sessão com `railway` logado: o primeiro uso confirma a subida em pedaços.
+- Primeiro uso em 15/11/2026 (Anderson): a subida em pedaços funcionou; a primeira versão achou 0 viagens candidatas (filtro estrito demais), e a seguinte imprime contagens de diagnóstico.
 
 ### 5.40.1 O que os conectores não fazem (15/11/2026)
 
