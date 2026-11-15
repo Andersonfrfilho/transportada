@@ -5,7 +5,7 @@
  * ativo da empresa decide quem existe (outra empresa, vínculo ou conta desligados = não existe), o e-mail vem do perfil
  * ou do contato do convite, o WhatsApp exige opt-in **e** número verificado, a preferência é por empresa, e sem linha de
  * configuração vale o padrão. Motorista nunca recebe (decisão do Anderson, 2026-11-15): papel de quem dirige, direto ou por
- * grupo, ou ficha da frota que dirige — nem como responsável, nem sendo também administrador. O ajudante recebe.
+ * grupo, ou ficha da frota que dirige — nem como responsável, nem sendo também administrador. O ajudante também não recebe (decisão de 2026-11-15).
  */
 import { SQL } from 'bun'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
@@ -217,12 +217,9 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
     }
   })
 
-  test('o ajudante (ficha que não dirige) recebe normalmente', async () => {
+  test('o ajudante nunca recebe: papel e ficha que ajuda são "não existe" (decisão de 2026-11-15)', async () => {
     const recipients = createDrizzleExpenseReminderRecipients(db())
-    expect(await recipients.findById({ companyId: companyA, userId: helper })).toEqual({
-      channels: ['email'],
-      userId: helper,
-    })
+    expect(await recipients.findById({ companyId: companyA, userId: helper })).toBeNull()
   })
 
   test('a preferência é por empresa: na B a mesma pessoa só tem e-mail', async () => {

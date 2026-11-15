@@ -121,13 +121,14 @@ describe('por qual canal (spec 325 RF26, T7.3)', () => {
   })
 })
 
-describe('motorista nunca recebe aviso de conta (spec 325 RF24, decisão de 2026-11-15)', () => {
+describe('motorista e ajudante nunca recebem aviso de conta (spec 325 RF24, decisão de 2026-11-15)', () => {
   test.each([
     [['driver'], false, true, 'motorista'],
     [['aggregate'], false, true, 'agregado'],
     [['company-admin', 'driver'], false, true, 'administrador que também dirige'],
     [['operator'], true, true, 'ficha da frota que dirige, sem o papel'],
-    [['helper'], false, false, 'ajudante não dirige'],
+    [['helper'], false, true, 'ajudante (papel)'],
+    [['operator'], false, false, 'operador'],
     [['company-admin'], false, false, 'administrador'],
     [['finance'], false, false, 'financeiro'],
   ] as const)('%p, frota %p → barrado %p (%s)', (roles, drivesInFleet, barred) => {

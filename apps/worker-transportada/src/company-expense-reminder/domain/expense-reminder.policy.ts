@@ -95,13 +95,13 @@ export type ReminderPersonFacts = {
   readonly whatsappOptIn: boolean
 }
 
-/** Papéis de quem dirige: motorista e agregado. O ajudante (`helper`) não dirige e não entra aqui. */
-export const EXPENSE_REMINDER_DRIVING_ROLES = ['driver', 'aggregate'] as const
+/** Papéis da tripulação: motorista, agregado e ajudante. Conta é controle financeiro da empresa, e a tripulação não recebe. */
+export const EXPENSE_REMINDER_DRIVING_ROLES = ['driver', 'aggregate', 'helper'] as const
 
 /**
- * RF24 (decisão do Anderson, 2026-11-15): **motorista nunca recebe aviso de conta**, nem marcado como responsável nem
- * sendo também administrador. Motorista = papel de quem dirige, direto ou por grupo, ou ficha da frota que dirige
- * (`fleet_drivers.can_drive`). Responsável motorista conta como sem responsável: o aviso cai nos administradores.
+ * RF24 (decisão do Anderson, 2026-11-15): **nem motorista nem ajudante recebe aviso de conta** (o ajudante entrou em 2026-11-15, depois da primeira
+ * decisão), nem marcado como responsável nem sendo também administrador. Tripulação = papel de motorista, agregado ou
+ * ajudante, direto ou por grupo, ou ficha da frota que dirige ou ajuda (`fleet_drivers.can_drive` ou `can_act_as_helper`). Responsável motorista conta como sem responsável: o aviso cai nos administradores.
  */
 export function isBarredFromExpenseReminders(facts: {
   readonly drivesInFleet: boolean

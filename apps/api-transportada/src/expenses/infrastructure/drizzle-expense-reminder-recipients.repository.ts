@@ -49,12 +49,12 @@ const MEMBERSHIP_ROLES = sql<string[]>`array(
    where ${membershipGroups.membershipId} = ${userCompanyMemberships.id}
 )`
 
-/** Ficha da frota que dirige, ligada a este vínculo (qualquer situação da ficha). */
+/** Ficha da frota que dirige ou ajuda, ligada a este vínculo (qualquer situação da ficha). */
 const DRIVES_IN_FLEET = sql<boolean>`exists(
   select 1 from ${fleetDrivers}
    where ${fleetDrivers.companyId} = ${userCompanyMemberships.companyId}
      and ${fleetDrivers.membershipId} = ${userCompanyMemberships.id}
-     and ${fleetDrivers.canDrive}
+     and (${fleetDrivers.canDrive} or ${fleetDrivers.canActAsHelper})
 )`
 
 /** E-mail do perfil, senão o contato quando o canal do convite foi e-mail. */
