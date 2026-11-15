@@ -10,6 +10,8 @@ export type ActiveFixedExpense = {
   readonly dueDay: number | null
   readonly expectedAmount: string
   readonly id: string
+  /** Total de parcelas da conta (spec 325, extensão parcelas); nulo = sem fim. */
+  readonly installmentsTotal: number | null
   readonly recurrence: ExpenseRecurrence
 }
 
@@ -19,6 +21,8 @@ export type ExpenseOccurrenceToInsert = {
   readonly dueDate: string
   readonly expectedAmount: string
   readonly expenseId: string
+  /** Número da parcela quando a conta é parcelada; nulo nas demais. */
+  readonly installmentNumber: number | null
   readonly slot: 1 | 2
 }
 

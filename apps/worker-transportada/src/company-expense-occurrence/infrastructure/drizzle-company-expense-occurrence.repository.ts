@@ -18,6 +18,7 @@ type ActiveFixedRow = {
   readonly due_day: number | null
   readonly expected_amount: string
   readonly id: string
+  readonly installments_total: number | null
   readonly recurrence: string
 }
 
@@ -35,9 +36,10 @@ export function createDrizzleCompanyExpenseOccurrencePorts(
     insertIfAbsent: async (input) => {
       const rows = await database.execute(sql`
         insert into company_expense_occurrences
-          (company_id, expense_id, competence, slot, due_date, expected_amount)
+          (company_id, expense_id, competence, slot, installment_number, due_date, expected_amount)
         values (
           ${input.companyId}::uuid, ${input.expenseId}::uuid, ${input.competence}, ${input.slot}::smallint,
+          ${input.installmentNumber}::smallint,
           ${input.dueDate}::date, ${input.expectedAmount}::numeric
         )
         on conflict (expense_id, competence, slot) do nothing
@@ -47,7 +49,7 @@ export function createDrizzleCompanyExpenseOccurrencePorts(
     },
     listActiveFixed: async ({ companyId }) => {
       const rows = (await database.execute(sql`
-        select id, company_id, recurrence, due_day, expected_amount::text as expected_amount,
+        select id, company_id, recurrence, due_day, installments_total, expected_amount::text as expected_amount,
                to_char(created_at at time zone 'America/Sao_Paulo', 'YYYY-MM') as anchor_competence
         from company_expenses
         where company_id = ${companyId}::uuid and active = true and kind = 'fixed'
@@ -60,6 +62,7 @@ export function createDrizzleCompanyExpenseOccurrencePorts(
           dueDay: row.due_day,
           expectedAmount: row.expected_amount,
           id: row.id,
+          installmentsTotal: row.installments_total,
           recurrence: row.recurrence as ExpenseRecurrence,
         }),
       )

@@ -749,3 +749,11 @@ Decisão do Anderson: "nem motorista nem ajudante deve receber nada relacionado 
 - A opção "Lançar conta" do WhatsApp (spec 326) já recusa `helper`.
 - Não mudou: a permissão `expenses.*` por papel. Quem a tem por grupo continua tendo (ver a pergunta ao Anderson no PR).
 - Provas: `bun test ./test/expenses.contract.test.ts` (API) 273 pass; paridade do worker 4 pass; `company-expense-occurrence/parity` já falhava em `staging` antes desta mudança (linha de `resolveExpenseSlots`, vinda do PR 777), fora do escopo.
+
+## Correção — a rotina do worker não conhecia as parcelas (2026-11-15)
+
+O PR 777 (parcelas) mudou a política de calendário da API, mas a cópia do worker ficou para trás: a rotina `company-expense-occurrence.generate` gerava as ocorrências de uma conta parcelada **sem número de parcela e sem parar no total**, e `test/company-expense-occurrence/parity.contract.ts` falhava em `staging` desde então.
+
+- Política do worker igual à da API (`installmentsTotal`, `installmentNumber`, corte no total); a porta, a rotina e o SQL (`installments_total` na leitura e `installment_number` na escrita) passam a levar a parcela.
+- Contratos: parada no total e numeração (`routine.contract.ts`), paridade com as linhas novas, e integração contra Postgres (`company-expense-occurrence.integration.test.ts`: parcelas 1 e 2, sem número nas contas sem parcelamento).
+- Provas: `bun test ./test/company-expense-occurrence.contract.test.ts` (worker) 19 pass; `tsc` e `eslint` limpos nos arquivos tocados. A integração roda no CI (`integration-worker`).
