@@ -17,6 +17,11 @@
  *   até a coleta terminar. Assinatura e produtos continuam só no app e voltam com a frase do campo.
  * - Sem valor no texto do grupo: a nota vai pelo número.
  */
+import {
+  describeDocumentsByStop,
+  describeTripSituation,
+  type BotStopContext,
+} from '../domain/bot-trip-context.policy.js'
 import { DRIVER_LIST_HEADING } from '../../whatsapp-commands/domain/whatsapp-driver-list-heading.constant.js'
 import { formatSpokenNoteAmount } from '../domain/bot-spoken-note.policy.js'
 import { formatBotClock } from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
@@ -46,6 +51,9 @@ export const GROUP_DOCUMENT_LIST_LIMIT = 40
 export const GROUP_OCCURRENCE_NOTE_MAX_LENGTH = 500
 
 export type GroupDriverDocument = {
+  /** Onde a nota está na viagem (parada, estado, placa): o bot situa o motorista antes de pedir a nota. */
+  readonly stop?: BotStopContext | undefined
+  readonly vehiclePlate?: string | undefined
   readonly id: string
   readonly number: string
   /** Spec 292 T9: o que o "Entendi assim" do áudio mostra da nota falada. */
@@ -215,12 +223,21 @@ export const GROUP_OCCURRENCE_TEXT = {
   askDocument: (documents: readonly GroupDriverDocument[]) => {
     const shown = documents.slice(0, GROUP_DOCUMENT_LIST_LIMIT)
     const overflow = documents.length - shown.length
+    const situation = describeTripSituation(documents)
+    const hasStops = shown.some((document) => document.stop !== undefined)
     return [
       DRIVER_LIST_HEADING.occurrenceDocument,
+      ...(situation === null ? [] : ['', situation]),
       '',
-      formatOptions(
-        shown.map((document) => ({ action: describeNoteOption(document), icon: '🧾' })),
-      ),
+      ...(hasStops
+        ? describeDocumentsByStop(shown, (document) =>
+            describeNoteOption(document as GroupDriverDocument),
+          )
+        : [
+            formatOptions(
+              shown.map((document) => ({ action: describeNoteOption(document), icon: '🧾' })),
+            ),
+          ]),
       ...(overflow > 0 ? [`_E mais ${overflow} nota(s): digite o número da nota._`] : []),
       '',
       '_Responda com o número da opção ou da nota._',

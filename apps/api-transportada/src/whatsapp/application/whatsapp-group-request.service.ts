@@ -16,7 +16,12 @@
  *
  * ⚠️ Nada de número nem texto em log: só empresa, pedido e motivo.
  */
-import { botFarewell, botGreeting } from '../domain/bot-greeting.policy.js'
+import {
+  botFarewell,
+  botGreeting,
+  botProfileLine,
+  registeredFirstName,
+} from '../domain/bot-greeting.policy.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { AdmittedGroupMessage } from './evolution-group-inbound.service.js'
 import { isDriverCancelText } from '../../whatsapp-commands/domain/whatsapp-driver-choice.policy.js'
@@ -143,8 +148,10 @@ function greeted(
   outcome: GroupFlowOutcome,
   senderName: null | string,
   now: Date,
+  profiles?: { readonly isDriver: boolean; readonly isOffice: boolean },
 ): GroupFlowOutcome {
-  const greeting = botGreeting(now, senderName)
+  const profileLine = profiles === undefined ? null : botProfileLine(profiles)
+  const greeting = `${botGreeting(now, senderName)}${profileLine === null ? '' : `\n${profileLine}`}`
   if (outcome.kind === 'not_understood') {
     return { ...outcome, prompt: `${greeting}\n\n${outcome.prompt}` }
   }
@@ -172,6 +179,15 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
   readonly onQuestionAsked?: GroupQuestionAsked
   /** O pedido terminou: o que ele guardou para si (ex.: o ponto compartilhado) deixa de valer. */
   readonly onRequestClosed?: GroupRequestClosed
+  /** O nome e os perfis do cadastro para o telefone; ausente, a saudação usa o nome do WhatsApp como antes. */
+  readonly resolvePerson?: (input: {
+    readonly companyId: string
+    readonly phone: string
+  }) => Promise<null | {
+    readonly isDriver: boolean
+    readonly isOffice: boolean
+    readonly name: string
+  }>
   readonly replies: GroupReplySenderPort
   readonly repository: GroupRequestRepositoryPort
 }): WhatsAppGroupRequestSessions {
@@ -346,7 +362,21 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
         await link(request)
         logger.info(GROUP_REQUEST_LOG.opened, { companyId, requestId: request.id })
         const started = await flow.start(turnOf(message, request))
-        return apply(message, request, greeted(started, message.senderName, dependencies.clock()))
+        const person = await dependencies
+          .resolvePerson?.({ companyId, phone: message.sender })
+          .catch(() => null)
+        const knownName =
+          person === null || person === undefined ? null : registeredFirstName(person.name)
+        return apply(
+          message,
+          request,
+          greeted(
+            started,
+            knownName === null || knownName === '' ? message.senderName : knownName,
+            dependencies.clock(),
+            person ?? undefined,
+          ),
+        )
       }
 
       await link(open)

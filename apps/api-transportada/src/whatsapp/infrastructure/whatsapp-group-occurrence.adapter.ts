@@ -38,6 +38,8 @@ import {
   WHATSAPP_DRIVER_EVENT,
   type WhatsAppDriverEventResult,
 } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
+import { orderDocumentsByStop, type BotStopState } from '../domain/bot-trip-context.policy.js'
+import { cityOfStopLabel } from '../../whatsapp-commands/domain/whatsapp-stop-card.policy.js'
 import type { WhatsAppDeliveryPreparations } from '../../whatsapp-commands/application/whatsapp-delivery-preparation.service.js'
 import type { WhatsAppOccurrenceDrafts } from '../../whatsapp-commands/application/whatsapp-occurrence-draft.service.js'
 import { BOT_SPEECH_DEFAULTS } from '../../whatsapp-commands/domain/whatsapp-bot-speech.constant.js'
@@ -174,21 +176,42 @@ export function createGroupOccurrencePorts(dependencies: {
       const seen = new Map<string, GroupDriverDocument>()
       for (const trip of trips) {
         if (terminal.has(trip.status)) continue
-        for (const stop of trip.stops) {
+        const stops = [...trip.stops].sort((left, right) => left.sequence - right.sequence)
+        const open = stops.filter((stop) => stop.completedAt === null)
+        const next = open.find((stop) => stop.arrivedAt === null && stop.enRouteSince === null)
+        for (const stop of stops) {
+          const state: BotStopState =
+            stop.completedAt !== null
+              ? 'done'
+              : stop.arrivedAt !== null
+                ? 'arrived'
+                : stop.enRouteSince !== null
+                  ? 'en_route'
+                  : stop === next
+                    ? 'next'
+                    : 'later'
           for (const document of stop.documents) {
-            if (!seen.has(document.id))
-              seen.set(document.id, {
-                address: stop.label,
-                id: document.id,
-                number: document.number,
-                recipientName: document.recipientDisplayName || document.recipientName,
-                series: document.series,
-                totalAmount: document.totalAmount,
-              })
+            if (seen.has(document.id)) continue
+            seen.set(document.id, {
+              address: stop.label,
+              id: document.id,
+              number: document.number,
+              recipientName: document.recipientDisplayName || document.recipientName,
+              series: document.series,
+              stop: {
+                arrivedAt: stop.arrivedAt,
+                city: cityOfStopLabel(stop.label),
+                sequence: stop.sequence,
+                state,
+                totalStops: stops.length,
+              },
+              totalAmount: document.totalAmount,
+              vehiclePlate: trip.vehiclePlate,
+            })
           }
         }
       }
-      return [...seen.values()]
+      return orderDocumentsByStop([...seen.values()])
     },
 
     /** Spec 292 T9: a contratante é o emitente da nota (ADR-0048 §1), pelo nome do cadastro se houver. */
