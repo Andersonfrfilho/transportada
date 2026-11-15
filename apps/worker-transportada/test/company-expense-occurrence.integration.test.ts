@@ -34,6 +34,7 @@ describeDatabase('geração das ocorrências das contas fixas (integration)', ()
   const monthlyId = crypto.randomUUID()
   const fortnightlyId = crypto.randomUUID()
   const inactiveId = crypto.randomUUID()
+  const installmentsId = crypto.randomUUID()
   const variableId = crypto.randomUUID()
   const provider = createDrizzleProvider({ connection: databaseUrl ?? 'postgres://unused' })
   const db = provider.db
@@ -42,15 +43,17 @@ describeDatabase('geração das ocorrências das contas fixas (integration)', ()
     readonly active: boolean
     readonly dueDay: number | null
     readonly id: string
+    readonly installmentsTotal?: number
     readonly kind: 'fixed' | 'variable'
     readonly recurrence: string | null
   }) {
     await db.execute(sql`
       insert into company_expenses
-        (id, company_id, name, kind, category_id, expected_amount, active, recurrence, due_day, created_at)
+        (id, company_id, name, kind, category_id, expected_amount, active, recurrence, due_day, installments_total, created_at)
       values (
         ${input.id}::uuid, ${companyId}::uuid, ${`conta ${input.id}`}, ${input.kind}, ${categoryId}::uuid,
-        1500.50, ${input.active}, ${input.recurrence}, ${input.dueDay}::smallint, '2026-11-02T12:00:00Z'
+        1500.50, ${input.active}, ${input.recurrence}, ${input.dueDay}::smallint,
+        ${input.installmentsTotal ?? null}::smallint, '2026-11-02T12:00:00Z'
       )
     `)
   }
@@ -73,6 +76,14 @@ describeDatabase('geração das ocorrências das contas fixas (integration)', ()
       id: fortnightlyId,
       kind: 'fixed',
       recurrence: 'fortnightly',
+    })
+    await insertExpense({
+      active: true,
+      dueDay: 5,
+      id: installmentsId,
+      installmentsTotal: 2,
+      kind: 'fixed',
+      recurrence: 'monthly',
     })
     await insertExpense({
       active: false,
@@ -112,7 +123,7 @@ describeDatabase('geração das ocorrências das contas fixas (integration)', ()
 
   async function occurrences() {
     return db.execute(sql`
-      select expense_id, competence, slot, due_date::text as due_date, expected_amount::text as expected_amount, status
+      select expense_id, competence, slot, installment_number, due_date::text as due_date, expected_amount::text as expected_amount, status
       from company_expense_occurrences where company_id = ${companyId}::uuid
       order by expense_id, competence, slot
     `)
@@ -138,6 +149,16 @@ describeDatabase('geração das ocorrências das contas fixas (integration)', ()
     expect(byExpense(fortnightlyId)).toHaveLength(8)
     expect(byExpense(inactiveId)).toHaveLength(0)
     expect(byExpense(variableId)).toHaveLength(0)
+  })
+
+  test('conta parcelada grava o número da parcela e para no total (extensão parcelas da 325)', async () => {
+    const rows = (await occurrences()).filter((row) => row.expense_id === installmentsId)
+    expect(rows.map((row) => [row.competence, row.installment_number])).toEqual([
+      ['2026-11', 1],
+      ['2026-12', 2],
+    ])
+    const plain = (await occurrences()).filter((row) => row.expense_id === monthlyId)
+    expect(plain.every((row) => row.installment_number === null)).toBe(true)
   })
 
   test('o segundo ciclo, e a conta cadastrada de novo no meio, não duplicam nada', async () => {

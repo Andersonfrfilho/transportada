@@ -24,8 +24,9 @@ const POLICY_LINES = [
   'quarterly: 3,',
   'yearly: 12,',
   'const day = Math.min(params.dueDay, lastDayOfMonth(year, month))',
-  'if (distance < 0 || distance % MONTHS_BETWEEN[params.recurrence] !== 0) return []',
-  'dueDay: 31 }), slot: 2 }',
+  'if (distance < 0 || distance % step !== 0) return []',
+  'const base = (distance / step) * perPeriod',
+  'return total === null ? slots : slots.filter((item) => (item.installmentNumber ?? 0) <= total)',
 ]
 
 describe('paridade da rotina das contas fixas com a API (spec 325 T1.5)', () => {
