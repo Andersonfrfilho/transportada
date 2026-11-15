@@ -77,6 +77,7 @@ describe('o recorte do contratante (spec 063 T003)', () => {
         findScheduleTarget: async () => null,
         isBatchWithinScope: async () => false,
         listBatchIds: async () => [],
+        listDeliveryEvents: async () => null,
         listDeliveries: async (input) => {
           seen.push(input)
           return []
@@ -253,6 +254,7 @@ function emptyRepository(): ContractorPortalRepositoryPort {
     findScheduleTarget: async () => null,
     isBatchWithinScope: async () => false,
     listBatchIds: async () => [],
+    listDeliveryEvents: async () => null,
     listDeliveries: async () => [],
     resolveScope: async () =>
       resolveContractorScope([{ contractorId: 'c1', taxId: '12345678901' }]),

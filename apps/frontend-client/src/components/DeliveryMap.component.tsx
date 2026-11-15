@@ -9,7 +9,11 @@ import {
 
 const GRID_STEPS = 4
 
-type DeliveryMapProps = Readonly<{ location: DeliveryLocation }>
+type DeliveryMapProps = Readonly<{
+  /** Spec 340 D5: a parada de destino, quando cabe na janela do mapa. */
+  destination?: Readonly<{ latitude: string; longitude: string }> | null
+  location: DeliveryLocation
+}>
 
 /**
  * ADR-0050 §5: **o mapa é desenho nosso.** Nada de tile de terceiro — a CSP declara `frame-src
@@ -22,11 +26,14 @@ type DeliveryMapProps = Readonly<{ location: DeliveryLocation }>
  * contorno trocaria privacidade por enfeite. O que fica é um localizador com grade e escala: dá a
  * posição e a noção de distância, que é o que a pergunta "onde está minha carga" pede.
  */
-export function DeliveryMap({ location }: DeliveryMapProps) {
+export function DeliveryMap({ destination = null, location }: DeliveryMapProps) {
   const point = toPoint(location)
   if (point === null) return null
 
   const marker = projectPoint({ center: point, point })
+  const destinationPoint = destination === null ? null : toPoint(destination)
+  const target =
+    destinationPoint === null ? null : projectPoint({ center: point, point: destinationPoint })
   const gridStep = MAP_VIEWBOX_SIZE / GRID_STEPS
 
   return (
@@ -45,6 +52,17 @@ export function DeliveryMap({ location }: DeliveryMapProps) {
             </g>
           ),
         )}
+        {target !== null && (
+          <g aria-label="Destino">
+            <rect
+              fill="var(--color-ready)"
+              height={5}
+              width={5}
+              x={target.x - 2.5}
+              y={target.y - 2.5}
+            />
+          </g>
+        )}
         <circle cx={marker.x} cy={marker.y} fill="var(--color-copper)" r={3} />
         <circle
           cx={marker.x}
@@ -58,6 +76,7 @@ export function DeliveryMap({ location }: DeliveryMapProps) {
       </svg>
       <p className="panel__label">
         {formatCoordinate(point.latitude)}, {formatCoordinate(point.longitude)} · grade de ~13 km
+        {target !== null && ' · quadrado verde: destino'}
       </p>
       <figcaption className="panel__label">
         Última posição em {new Date(location.recordedAt).toLocaleString('pt-BR')}

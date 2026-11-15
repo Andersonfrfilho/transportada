@@ -16,11 +16,15 @@ import type { TripStopSchedule } from '../../delivery-clients/application/trip-s
 import type { TripLocationPing } from '../../trips/application/trip-location.port.js'
 import { API_CLIENT_DELIVERIES_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
-import type { ContractorDelivery } from '../application/contractor-portal.types.js'
+import type {
+  ContractorDelivery,
+  ContractorDeliveryEvents,
+} from '../application/contractor-portal.types.js'
 
 const TRACK_POLICY = { permission: 'deliveries.track', scope: 'company' } as const
 
 const DELIVERY_SCHEDULE_PATH = `${API_CLIENT_DELIVERIES_PATH}/:accessKey/schedule`
+const DELIVERY_EVENTS_PATH = `${API_CLIENT_DELIVERIES_PATH}/:accessKey/events`
 const DELIVERY_LOCATION_PATH = `${API_CLIENT_DELIVERIES_PATH}/:accessKey/location`
 
 /**
@@ -41,6 +45,12 @@ const scheduleSchema = z
   .strict()
 
 export type ContractorDeliveryRoutesDependencies = {
+  readonly readDeliveryEvents: {
+    execute(input: {
+      readonly accessKey: string
+      readonly context: CompanyContext
+    }): Promise<ContractorDeliveryEvents>
+  }
   readonly readDeliveryLocation: {
     execute(input: {
       readonly accessKey: string
@@ -121,6 +131,38 @@ export function createContractorDeliveryRoutes(
       /** A chave de acesso não é UUID: o roteador só entrega segmento livre em `opaque`. */
       pathParameterFormat: 'opaque',
       pathname: DELIVERY_SCHEDULE_PATH,
+      policy: TRACK_POLICY,
+    }),
+    defineRoute<{ readonly accessKey: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.readDeliveryEvents.execute({
+          accessKey: input.accessKey,
+          context: context.scope,
+        })
+
+        /** Lista fechada: só tipo e hora de cada marco e a coordenada da parada de destino. */
+        return new Response(
+          JSON.stringify({
+            data: {
+              destination: result.destination,
+              events: result.events.map((event) => ({
+                kind: event.kind,
+                occurredAt: event.occurredAt,
+              })),
+            },
+          }),
+          {
+            headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
+            status: 200,
+          },
+        )
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        accessKey: parseAccessKey(pathParameters.accessKey ?? ''),
+      }),
+      pathParameterFormat: 'opaque',
+      pathname: DELIVERY_EVENTS_PATH,
       policy: TRACK_POLICY,
     }),
     defineRoute<{ readonly accessKey: string }>({
