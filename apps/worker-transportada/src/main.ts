@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { describeStartupFailure } from './startup-failure.service.js'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createLogger } from '@adatechnology/logger'
 import { createRabbitMqProvider, type RabbitMqProvider } from '@adatechnology/rabbitmq-provider'
@@ -2547,8 +2548,8 @@ export async function bootstrap(
 }
 
 if (import.meta.main) {
-  void bootstrap().catch(() => {
-    process.stderr.write('worker_startup_failed\n')
+  void bootstrap().catch((error: unknown) => {
+    process.stderr.write(`worker_startup_failed ${describeStartupFailure(error)}\n`)
     process.exitCode = 1
   })
 }
