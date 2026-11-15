@@ -16,6 +16,7 @@ import {
   listCompetenceOptions,
   maskMoney,
   parseMoney,
+  toTypedMoney,
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
@@ -41,7 +42,8 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
   const [causedByName, setCausedByName] = useState(occurrence.causedByName ?? '')
   const [billLocation, setBillLocation] = useState(occurrence.billLocation ?? '')
   const [billUrl, setBillUrl] = useState(occurrence.billUrl ?? '')
-  const [newAmount, setNewAmount] = useState('')
+  const [newAmount, setNewAmount] = useState(toTypedMoney(occurrence.expectedAmount))
+  const [amountMode, setAmountMode] = useState<'adjustment' | 'correction'>('correction')
   const [effectiveFrom, setEffectiveFrom] = useState(currentCompetence())
   const [showIssue, setShowIssue] = useState(false)
   const history = useExpenseAmountHistory({ expenseId: occurrence.expenseId })
@@ -60,7 +62,15 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
       name: name.trim(),
       billLocation: billLocation.trim() === '' ? null : billLocation.trim(),
       billUrl: billUrl.trim() === '' ? null : billUrl.trim(),
-      ...(typedAmount === null ? {} : { effectiveFrom, expectedAmount: typedAmount }),
+      ...(typedAmount === null
+        ? {}
+        : amountMode === 'correction'
+          ? {
+              amountKind: 'correction' as const,
+              correctionCompetence: occurrence.competence,
+              expectedAmount: typedAmount,
+            }
+          : { effectiveFrom, expectedAmount: typedAmount }),
       causedByDriverId: keys.causedByDriverId ?? null,
       causedByUserId: keys.causedByUserId ?? null,
       causedByName: typed === '' ? null : typed,
@@ -155,7 +165,21 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
             value={newAmount}
           />
         </label>
-        {typedAmount === null ? null : (
+        <div className={styles.field}>
+          <span>{t('edit.amountMode')}</span>
+          <Select
+            ariaLabel={t('edit.amountMode')}
+            onChange={(value) =>
+              setAmountMode(value === 'adjustment' ? 'adjustment' : 'correction')
+            }
+            options={[
+              { label: t('edit.modeCorrection'), value: 'correction' },
+              { label: t('edit.modeAdjustment'), value: 'adjustment' },
+            ]}
+            value={amountMode}
+          />
+        </div>
+        {typedAmount === null || amountMode === 'correction' ? null : (
           <div className={styles.field}>
             <span>{t('edit.effectiveFrom')}</span>
             <Select
@@ -166,7 +190,9 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
             />
           </div>
         )}
-        <p className={styles.hint}>{t('edit.amountHint')}</p>
+        <p className={styles.hint}>
+          {t(amountMode === 'correction' ? 'edit.correctionHint' : 'edit.amountHint')}
+        </p>
         <p className={styles.hint}>{t('edit.hint')}</p>
         {history.data === undefined ? null : (
           <div className={styles.field}>
@@ -175,12 +201,15 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
               <li>{t('edit.historyBase', { amount: formatAmount(history.data.baseAmount) })}</li>
               {history.data.changes.map((change) => (
                 <li key={change.id}>
-                  {t('edit.historyChange', {
-                    competence: change.effectiveCompetence,
-                    from: formatAmount(change.previousAmount),
-                    to: formatAmount(change.newAmount),
-                    when: change.createdAt.slice(0, 10).split('-').reverse().join('/'),
-                  })}
+                  {t(
+                    change.kind === 'correction' ? 'edit.historyCorrection' : 'edit.historyChange',
+                    {
+                      competence: change.effectiveCompetence,
+                      from: formatAmount(change.previousAmount),
+                      to: formatAmount(change.newAmount),
+                      when: change.createdAt.slice(0, 10).split('-').reverse().join('/'),
+                    },
+                  )}
                 </li>
               ))}
             </ul>

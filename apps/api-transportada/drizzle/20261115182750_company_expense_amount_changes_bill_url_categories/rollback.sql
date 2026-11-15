@@ -29,7 +29,7 @@ DECLARE
   deleted_migrations integer;
 BEGIN
   DELETE FROM "drizzle"."__drizzle_migrations"
-    WHERE "name" = '20261115180059_company_expense_amount_changes_bill_url_categories';
+    WHERE "name" = '20261115182750_company_expense_amount_changes_bill_url_categories';
 
   GET DIAGNOSTICS deleted_migrations = ROW_COUNT;
   IF deleted_migrations <> 1 THEN

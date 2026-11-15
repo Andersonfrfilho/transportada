@@ -105,6 +105,7 @@ function toAmountChange(row: typeof companyExpenseAmountChanges.$inferSelect): E
     effectiveCompetence: row.effectiveCompetence,
     expenseId: row.expenseId,
     id: row.id,
+    kind: row.kind === 'correction' ? 'correction' : 'adjustment',
     newAmount: row.newAmount,
     previousAmount: row.previousAmount,
   }
@@ -139,6 +140,7 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             companyId: input.companyId,
             effectiveCompetence: input.effectiveCompetence,
             expenseId: input.expenseId,
+            kind: input.kind,
             newAmount: input.newAmount,
             previousAmount: input.previousAmount,
           })
@@ -384,7 +386,15 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
       },
     },
     occurrences: {
-      applyAmountFrom: async ({ amount, companyId, expenseId, fromCompetence, today }) => {
+      applyAmountFrom: async ({
+        amount,
+        companyId,
+        expenseId,
+        fromCompetence,
+        onlyNotDue,
+        today,
+        untilCompetence,
+      }) => {
         const rows = await database
           .update(companyExpenseOccurrences)
           .set({ expectedAmount: amount, updatedAt: new Date() })
@@ -394,7 +404,10 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
               eq(companyExpenseOccurrences.expenseId, expenseId),
               eq(companyExpenseOccurrences.status, 'open'),
               sql`${companyExpenseOccurrences.competence} >= ${fromCompetence}`,
-              sql`${companyExpenseOccurrences.dueDate} >= ${today}::date`,
+              ...(untilCompetence === null
+                ? []
+                : [sql`${companyExpenseOccurrences.competence} < ${untilCompetence}`]),
+              ...(onlyNotDue ? [sql`${companyExpenseOccurrences.dueDate} >= ${today}::date`] : []),
               sql`not exists (select 1 from ${companyExpenseOccurrenceTrips} where ${companyExpenseOccurrenceTrips.occurrenceId} = ${companyExpenseOccurrences.id})`,
             ),
           )

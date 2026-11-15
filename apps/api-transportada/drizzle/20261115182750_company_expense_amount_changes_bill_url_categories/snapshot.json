@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "f22150e4-18c5-47f1-a597-ddb57312cc43",
+  "id": "94a065f2-0ce9-4319-b7d8-ce526c9dca37",
   "prevIds": [
     "7d861d7d-f842-4478-83f4-85339728c51d"
   ],
@@ -45040,6 +45040,19 @@
       "table": "company_expense_amount_changes"
     },
     {
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'adjustment'",
+      "generated": null,
+      "identity": null,
+      "name": "kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "company_expense_amount_changes"
+    },
+    {
       "type": "uuid",
       "typeSchema": null,
       "notNull": true,
@@ -87740,6 +87753,13 @@
       "entityType": "checks",
       "schema": "public",
       "table": "company_expense_allocation_settings"
+    },
+    {
+      "value": "\"kind\" in ('adjustment', 'correction')",
+      "name": "company_expense_amount_changes_kind_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "company_expense_amount_changes"
     },
     {
       "value": "\"effective_competence\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'",

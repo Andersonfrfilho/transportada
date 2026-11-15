@@ -44,6 +44,11 @@ const updateExpenseSchema = z
     causedByDriverId: z.uuid().nullable().optional(),
     causedByName: z.string().trim().max(120).nullable().optional(),
     causedByUserId: z.uuid().nullable().optional(),
+    amountKind: z.enum(['adjustment', 'correction']).optional(),
+    correctionCompetence: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+      .optional(),
     dueDay: z.number().int().min(1).max(31).optional(),
     effectiveFrom: z
       .string()
@@ -87,6 +92,8 @@ export function parseUpdateExpenseRequest(request: Request): Promise<{
   readonly causedByDriverId?: string | null
   readonly causedByName?: string | null
   readonly causedByUserId?: string | null
+  readonly amountKind?: 'adjustment' | 'correction'
+  readonly correctionCompetence?: string
   readonly dueDay?: number
   readonly effectiveFrom?: string
   readonly expectedAmount?: string

@@ -39,6 +39,7 @@ export type ExpenseAmountChange = Readonly<{
   createdAt: string
   effectiveCompetence: string
   id: string
+  kind?: 'adjustment' | 'correction'
   newAmount: string
   previousAmount: string
 }>
@@ -183,6 +184,9 @@ export type UpdateExpenseInput = Readonly<{
   dueDay?: number
   /** Spec 329: `yyyy-mm` da primeira competência com o `expectedAmount` novo (sem ele, a do mês). */
   effectiveFrom?: string
+  /** Spec 329: `correction` troca um valor digitado errado (inclusive conta vencida e não paga); padrão `adjustment`. */
+  amountKind?: 'adjustment' | 'correction'
+  correctionCompetence?: string
   expectedAmount?: string
   name?: string
   vehicleId?: string | null

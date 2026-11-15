@@ -406,10 +406,16 @@ export const companyExpenseAmountChanges = pgTable(
     effectiveCompetence: varchar('effective_competence', { length: 7 }).notNull(),
     previousAmount: numeric('previous_amount', { precision: 14, scale: 2 }).notNull(),
     newAmount: numeric('new_amount', { precision: 14, scale: 2 }).notNull(),
+    /** `adjustment` = reajuste com vigência; `correction` = valor digitado errado, corrigido (o antigo continua na linha). */
+    kind: varchar({ length: 16 }).notNull().default('adjustment'),
     changedByUserId: uuid('changed_by_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    check(
+      'company_expense_amount_changes_kind_check',
+      sql`${table.kind} in ('adjustment', 'correction')`,
+    ),
     foreignKey({
       columns: [table.companyId, table.expenseId],
       foreignColumns: [companyExpenses.companyId, companyExpenses.id],

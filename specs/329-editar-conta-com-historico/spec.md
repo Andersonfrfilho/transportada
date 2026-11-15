@@ -32,3 +32,7 @@ comprovante da spec 327).
 ## Publicação
 
 API (migration) antes do painel: o painel novo manda `billUrl`/`effectiveFrom`, que a API antiga recusa (`.strict()`).
+
+## Correção de valor digitado errado (urgente)
+
+O Editar tem dois modos para o valor: **reajuste** (vale a partir de uma competência; não mexe em parcela vencida, paga ou cancelada) e **correção** (`amountKind = correction`). A correção troca o valor do trecho que contém a competência escolhida, inclusive a parcela vencida e não paga e o valor de abertura; parcela paga ou cancelada nunca muda. Cada mudança fica em `company_expense_amount_changes` com `kind` (`adjustment` | `correction`), e o histórico mostra "Correção" ou "Reajuste", de quanto para quanto, quem e quando.
