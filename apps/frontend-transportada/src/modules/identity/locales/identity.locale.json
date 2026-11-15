@@ -148,7 +148,7 @@
       "edit": "Alterar",
       "cancelEdit": "Manter",
       "identifiers": {
-        "title": "E-mails e telefones",
+        "title": "E-mails, telefones e WhatsApp",
         "intro": "Por qualquer um deles a pessoa entra no sistema, e por qualquer um deles se fala com ela.",
         "emails": "E-mails",
         "phones": "Telefones",
@@ -158,9 +158,6 @@
         "addPhone": "Acrescentar telefone",
         "add": "Acrescentar",
         "remove": "Remover",
-        "whatsapp": "Recebe WhatsApp",
-        "whatsappTag": "WhatsApp",
-        "whatsappHint": "A marca de WhatsApp fica registrada para quando as notificações escolherem por onde sair — hoje ela ainda não muda o envio.",
         "fromProfile": "vem do cadastro acima"
       },
       "whatsapp": {

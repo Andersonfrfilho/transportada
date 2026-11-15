@@ -4,9 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatPhone, PHONE_MASK_LENGTH } from '@/modules/shared/phone.service'
 
 import { useCompanyUserWhatsAppPhone } from '../hooks/useCompanyUserWhatsAppPhone.hook'
 import styles from '../styles/userAdministration.module.css'
+
+import { CompanyUserMaskedField } from './CompanyUserField.component'
 
 type CompanyUserWhatsAppPanelProps = Readonly<{
   disabled?: boolean
@@ -69,8 +72,8 @@ export function CompanyUserWhatsAppPanel({
   }
 
   return (
-    <div className={styles.mirrorPanel}>
-      <h3>{t('users.editDialog.whatsapp.title')}</h3>
+    <div className={styles.storedField}>
+      <span className={styles.storedFieldLabel}>{t('users.editDialog.whatsapp.title')}</span>
       <p className={styles.fieldHint}>{t('users.editDialog.whatsapp.intro')}</p>
 
       {state === undefined ? (
@@ -86,22 +89,18 @@ export function CompanyUserWhatsAppPanel({
         </p>
       )}
 
-      <label className={styles.field}>
-        <span>{t('users.editDialog.whatsapp.label')}</span>
-        <input
-          autoComplete="off"
-          disabled={isBusy}
-          inputMode="tel"
-          maxLength={32}
-          onChange={(event) => {
-            setPhone(event.target.value)
-            setNotice(undefined)
-          }}
-          placeholder={t('users.editDialog.whatsapp.placeholder')}
-          type="tel"
-          value={phone}
-        />
-      </label>
+      <CompanyUserMaskedField
+        disabled={isBusy}
+        format={formatPhone}
+        inputMode="tel"
+        label={t('users.editDialog.whatsapp.label')}
+        maxLength={PHONE_MASK_LENGTH}
+        onChange={(value) => {
+          setPhone(value)
+          setNotice(undefined)
+        }}
+        value={phone}
+      />
 
       <div className={styles.panelActions}>
         <Button disabled={isBusy || phone.trim() === ''} onClick={() => void save()} type="button">
