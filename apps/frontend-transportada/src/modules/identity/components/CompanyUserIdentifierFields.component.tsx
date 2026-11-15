@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,8 @@ type CompanyUserIdentifierFieldsProps = Readonly<{
   isPending: boolean
   onAdd: (entry: Readonly<{ isWhatsapp: boolean; kind: 'email' | 'phone'; value: string }>) => void
   onRemove: (identifierId: string) => void
+  /** O WhatsApp verificado mora junto dos telefones: um bloco só, sem segunda lista. */
+  whatsapp?: ReactNode
 }>
 
 /**
@@ -35,13 +37,16 @@ export function CompanyUserIdentifierFields({
   isPending,
   onAdd,
   onRemove,
+  whatsapp,
 }: CompanyUserIdentifierFieldsProps) {
   const { t } = useTranslation('identity')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
 
-  const emails = identifiers.filter((entry) => entry.kind === 'email')
-  const phones = identifiers.filter((entry) => entry.kind === 'phone')
+  /** O que vem do cadastro já está à vista nos campos guardados acima: repetir aqui era duplicidade. */
+  const extras = identifiers.filter((entry) => entry.source !== 'profile')
+  const emails = extras.filter((entry) => entry.kind === 'email')
+  const phones = extras.filter((entry) => entry.kind === 'phone')
 
   function addEmail(): void {
     if (email.trim() === '') return
@@ -105,6 +110,7 @@ export function CompanyUserIdentifierFields({
           {t('users.editDialog.identifiers.add')}
         </Button>
       </div>
+      {whatsapp}
     </div>
   )
 }

@@ -148,7 +148,7 @@
       "edit": "Change",
       "cancelEdit": "Keep",
       "identifiers": {
-        "title": "Emails and phones",
+        "title": "Emails, phones and WhatsApp",
         "intro": "Any of them lets the person sign in, and any of them reaches them.",
         "emails": "Emails",
         "phones": "Phones",
