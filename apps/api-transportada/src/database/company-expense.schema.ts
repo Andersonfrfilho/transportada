@@ -205,6 +205,8 @@ export const companyExpenses = pgTable(
     causedByDriverId: uuid('caused_by_driver_id'),
     /** Spec 328: onde a conta está agora (com quem ou em que lugar está o boleto); texto livre, opcional, só informativo. */
     billLocation: varchar('bill_location', { length: 120 }),
+    /** Spec 329: link de onde se pega o boleto (portal do fornecedor etc.); opcional, http(s), só informativo. */
+    billUrl: varchar('bill_url', { length: 500 }),
     /** Spec 328: quem causou, quando é gente do escritório (usuário da empresa); no máximo um dos dois causadores. */
     causedByUserId: uuid('caused_by_user_id'),
     /** Spec 328: quem causou, quando é alguém fora do cadastro (nome digitado); no máximo um dos três causadores. */
@@ -385,6 +387,55 @@ export const companyExpenseOccurrences = pgTable(
     check(
       'company_expense_occurrences_canceled_check',
       sql`(${table.status} = 'canceled') = (${table.canceledAt} is not null)`,
+    ),
+  ],
+)
+
+/**
+ * Spec 329: cada mudança de valor de uma conta é uma linha nova, nunca um UPDATE do valor antigo. `expense.expected_amount`
+ * fica sendo o valor de abertura; o valor de uma competência é o da última mudança com `effective_competence` até ela.
+ * Só cresce: não há rota nem rollback que apague linha (o rollback recusa com dado).
+ */
+export const companyExpenseAmountChanges = pgTable(
+  'company_expense_amount_changes',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    expenseId: uuid('expense_id').notNull(),
+    /** `yyyy-mm`: a primeira competência que usa o valor novo. */
+    effectiveCompetence: varchar('effective_competence', { length: 7 }).notNull(),
+    previousAmount: numeric('previous_amount', { precision: 14, scale: 2 }).notNull(),
+    newAmount: numeric('new_amount', { precision: 14, scale: 2 }).notNull(),
+    changedByUserId: uuid('changed_by_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.expenseId],
+      foreignColumns: [companyExpenses.companyId, companyExpenses.id],
+      name: 'company_expense_amount_changes_expense_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.changedByUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'company_expense_amount_changes_changed_by_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    index('company_expense_amount_changes_expense_idx').on(
+      table.expenseId,
+      table.effectiveCompetence,
+      table.createdAt,
+    ),
+    check(
+      'company_expense_amount_changes_competence_check',
+      sql`${table.effectiveCompetence} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'`,
+    ),
+    check(
+      'company_expense_amount_changes_amount_check',
+      sql`${table.previousAmount} >= 0 and ${table.newAmount} >= 0`,
     ),
   ],
 )

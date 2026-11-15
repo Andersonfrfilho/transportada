@@ -25,7 +25,8 @@ type ActiveFixedRow = {
 /**
  * ⚠️ Espelha `listActiveFixed` e `insertIfAbsent` de `drizzle-expenses.repository.ts` da API (SQL por valor, sem schema
  * copiado): mesmas condições (`active`, `kind = 'fixed'`) e mesma chave `ON CONFLICT (expense_id, competence, slot)`.
- * A âncora é o mês de criação da conta em America/Sao_Paulo — sem coluna própria, é o mês em que o cadastro gerou a
+ * Spec 329: o valor da competência é o da última mudança de `company_expense_amount_changes` com início até ela, senão o de
+ * abertura da conta — a mesma subconsulta da API. A âncora é o mês de criação da conta em America/Sao_Paulo — sem coluna própria, é o mês em que o cadastro gerou a
  * primeira janela, e fica estável entre as execuções (a janela anda, a âncora não). A paridade é cobrada por
  * `test/company-expense-occurrence/sql-parity.contract.ts`.
  */
@@ -40,7 +41,13 @@ export function createDrizzleCompanyExpenseOccurrencePorts(
         values (
           ${input.companyId}::uuid, ${input.expenseId}::uuid, ${input.competence}, ${input.slot}::smallint,
           ${input.installmentNumber}::smallint,
-          ${input.dueDate}::date, ${input.expectedAmount}::numeric
+          ${input.dueDate}::date,
+          coalesce((
+            select new_amount from company_expense_amount_changes
+            where expense_id = ${input.expenseId}::uuid and effective_competence <= ${input.competence}
+            order by effective_competence desc, created_at desc
+            limit 1
+          ), ${input.expectedAmount}::numeric)
         )
         on conflict (expense_id, competence, slot) do nothing
         returning id

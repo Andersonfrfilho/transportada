@@ -6,6 +6,7 @@
  */
 import type {
   CompanyExpense,
+  ExpenseAmountChange,
   ExpenseAuditEntry,
   CompanyExpenseCategory,
   CompanyExpenseOccurrence,
@@ -28,6 +29,7 @@ export const OFFICE_USER_A_ID = '00000000-0000-4000-8000-0000000000e1'
 export const HELPER_A_ID = '00000000-0000-4000-8000-00000000d004'
 
 export type InMemoryExpenses = ExpensesPorts & {
+  readonly amountChangeRows: ExpenseAmountChange[]
   readonly auditRows: ExpenseAuditEntry[]
   readonly categoryRows: (CompanyExpenseCategory & { readonly companyId: string })[]
   /** Quantas vezes a semente foi pedida, por empresa (a empresa nova não a recebe pela migration). */
@@ -40,6 +42,7 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
   const expenseRows: CompanyExpense[] = []
   const occurrenceRows: CompanyExpenseOccurrence[] = []
   const auditRows: ExpenseAuditEntry[] = []
+  const amountChangeRows: ExpenseAmountChange[] = []
   const seedCalls: string[] = []
   const categories: (CompanyExpenseCategory & { readonly companyId: string })[] = [
     {
@@ -65,6 +68,26 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
     ]
 
   return {
+    amountChangeRows,
+    amountChanges: {
+      append: async (input) => {
+        const row: ExpenseAmountChange = {
+          changedByUserId: input.changedByUserId,
+          createdAt: new Date().toISOString(),
+          effectiveCompetence: input.effectiveCompetence,
+          expenseId: input.expenseId,
+          id: crypto.randomUUID(),
+          newAmount: input.newAmount,
+          previousAmount: input.previousAmount,
+        }
+        amountChangeRows.push(row)
+        return row
+      },
+      list: async ({ expenseId }) =>
+        amountChangeRows
+          .filter((row) => row.expenseId === expenseId)
+          .sort((a, b) => a.effectiveCompetence.localeCompare(b.effectiveCompetence)),
+    },
     audit: {
       append: async (entry) => {
         auditRows.push(entry)
@@ -143,6 +166,22 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
     },
     occurrenceRows,
     occurrences: {
+      applyAmountFrom: async ({ amount, companyId, expenseId, fromCompetence, today }) => {
+        let changed = 0
+        for (const row of occurrenceRows) {
+          if (
+            row.companyId === companyId &&
+            row.expenseId === expenseId &&
+            row.status === 'open' &&
+            row.competence >= fromCompetence &&
+            row.dueDate >= today
+          ) {
+            Object.assign(row, { expectedAmount: amount })
+            changed += 1
+          }
+        }
+        return changed
+      },
       cancel: async ({ canceledBy, companyId, occurrenceId, reason }) => {
         const row = occurrenceRows.find((o) => o.id === occurrenceId && o.companyId === companyId)
         if (row?.status !== 'open') return null
@@ -207,6 +246,12 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
             (o.slot ?? 1) === input.slot,
         )
         if (exists) return false
+        const effective = amountChangeRows
+          .filter(
+            (c) => c.expenseId === input.expenseId && c.effectiveCompetence <= input.competence,
+          )
+          .sort((a, b) => a.effectiveCompetence.localeCompare(b.effectiveCompetence))
+          .at(-1)
         occurrenceRows.push({
           id: crypto.randomUUID(),
           paidAmount: null,
@@ -215,6 +260,7 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
           settlementNote: null,
           status: 'open',
           ...input,
+          expectedAmount: effective?.newAmount ?? input.expectedAmount,
         })
         return true
       },

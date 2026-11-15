@@ -8,6 +8,7 @@ import {
   EXPENSE_RECURRENCES,
   EXPENSE_TRIP_PARCEL_KINDS,
   type AvailableExpenseTrips,
+  type ExpenseAmountHistory,
   type Expense,
   type ExpenseCategory,
   type ExpenseDriverPaymentModel,
@@ -124,6 +125,7 @@ function toExpense(value: unknown): Expense {
     causedByName: readNullableString(row.causedByName),
     causedByUserId: readNullableString(row.causedByUserId),
     billLocation: readNullableString(row.billLocation),
+    billUrl: readNullableString(row.billUrl),
     categoryId: readString(row.categoryId),
     dueDay: readNullableInteger(row.dueDay),
     expectedAmount: readMoney(row.expectedAmount),
@@ -176,6 +178,7 @@ function toListItem(value: unknown): ExpenseOccurrenceListItem {
     causedByUserId: readNullableString(row.causedByUserId),
     causedByUserName: readNullableString(row.causedByUserName),
     billLocation: readNullableString(row.billLocation),
+    billUrl: readNullableString(row.billUrl),
     categoryId: readString(row.categoryId),
     categoryName: readString(row.categoryName),
     expenseKind: readOneOf<ExpenseKind>(row.expenseKind, EXPENSE_KINDS),
@@ -249,6 +252,23 @@ function toPendingTrip(value: unknown): PendingExpenseTrip {
     parcelKind: readOneOf<ExpenseTripParcelKind>(row.parcelKind, EXPENSE_TRIP_PARCEL_KINDS),
     ...readOptionalRoute(row),
     tripId: readString(row.tripId),
+  }
+}
+
+export function toAmountHistory(payload: unknown): ExpenseAmountHistory {
+  const data = readRecord(readData(payload))
+  return {
+    baseAmount: readMoney(data.baseAmount),
+    changes: readArray(data.changes).map((item) => {
+      const row = readRecord(item)
+      return {
+        createdAt: readString(row.createdAt),
+        effectiveCompetence: readString(row.effectiveCompetence),
+        id: readString(row.id),
+        newAmount: readMoney(row.newAmount),
+        previousAmount: readMoney(row.previousAmount),
+      }
+    }),
   }
 }
 

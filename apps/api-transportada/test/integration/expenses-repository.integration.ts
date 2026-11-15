@@ -91,7 +91,7 @@ describeDatabase('contas da empresa no banco (spec 325 T1.4)', () => {
     }
   }, 60_000)
 
-  test('empresa nova recebe as 8 categorias no primeiro uso, uma vez só', async () => {
+  test('empresa nova recebe as 14 categorias no primeiro uso, uma vez só', async () => {
     const first = await createListExpenseCategoriesUseCase(ports()).execute({ companyId: companyA })
     const second = await createListExpenseCategoriesUseCase(ports()).execute({
       companyId: companyA,
@@ -106,8 +106,14 @@ describeDatabase('contas da empresa no banco (spec 325 T1.4)', () => {
       'Combustível',
       'Pagamento de motorista/agregado',
       'Outros',
+      'Água e esgoto',
+      'Energia elétrica',
+      'Gás',
+      'Internet e telefone',
+      'Financiamentos',
+      'Funcionários',
     ])
-    expect(second).toHaveLength(8)
+    expect(second).toHaveLength(14)
     expect(first.filter((c) => c.requiresDriver).map((c) => c.name)).toEqual([
       'Pagamento de motorista/agregado',
     ])
@@ -120,10 +126,16 @@ describeDatabase('contas da empresa no banco (spec 325 T1.4)', () => {
     `)
     const groups = Object.fromEntries((rows ?? []).map((row) => [row.name, row.cost_group]))
     expect(groups).toEqual({
+      'Água e esgoto': 'administrative',
       Aluguel: 'administrative',
       Combustível: 'per_km',
+      'Energia elétrica': 'administrative',
+      Financiamentos: 'administrative',
       Folha: 'administrative',
+      Funcionários: 'administrative',
+      Gás: 'administrative',
       Impostos: 'administrative',
+      'Internet e telefone': 'administrative',
       Manutenção: 'per_km',
       Outros: 'administrative',
       'Pagamento de motorista/agregado': 'in_trip',

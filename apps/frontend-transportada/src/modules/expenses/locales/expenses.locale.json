@@ -85,7 +85,9 @@
     "actions": "Ações",
     "trips": "Viagens",
     "settle": "Dar baixa",
-    "billLocation": "Onde está: {{place}}"
+    "edit": "Editar",
+    "billLocation": "Onde está: {{place}}",
+    "billLink": "Abrir o boleto"
   },
   "calendar": {
     "chooseYear": "Escolher o ano",
@@ -98,6 +100,18 @@
   "dialog": {
     "close": "Fechar",
     "cancel": "Cancelar"
+  },
+  "edit": {
+    "title": "Editar conta",
+    "save": "Salvar alterações",
+    "saving": "Salvando…",
+    "hint": "Esta edição vale para a conta inteira, não só para esta parcela. O valor e o vencimento não mudam aqui.",
+    "newAmount": "Novo valor (opcional)",
+    "effectiveFrom": "Vale a partir de",
+    "amountHint": "O valor antigo fica guardado no histórico. Só mudam as contas em aberto ainda a vencer, da competência escolhida em diante; paga, cancelada ou vencida não muda.",
+    "history": "Histórico de valores",
+    "historyBase": "Valor de abertura: {{amount}}",
+    "historyChange": "A partir de {{competence}}: {{from}} → {{to}} (registrado em {{when}})"
   },
   "create": {
     "title": "Nova conta",
@@ -135,13 +149,16 @@
       "payee": "motorista, agregado ou ajudante",
       "dueDate": "vencimento",
       "dueDay": "dia do vencimento (1 a 31)",
-      "installments": "parcelas (2 a 600)"
+      "installments": "parcelas (2 a 600)",
+      "billUrl": "link do boleto"
     },
     "causedByName": "Ou digite um nome",
     "causedByNamePlaceholder": "Quem não está no cadastro",
     "billLocation": "Onde a conta está (opcional)",
     "billLocationPlaceholder": "Ex.: fatura do cartão da empresa",
-    "billLocationHint": "Texto livre: com quem está o boleto ou em que fatura a cobrança aparece."
+    "billLocationHint": "Texto livre: com quem está o boleto ou em que fatura a cobrança aparece.",
+    "billUrl": "Link do boleto",
+    "billUrlPlaceholder": "https://… (portal do fornecedor)"
   },
   "settle": {
     "title": "Dar baixa",

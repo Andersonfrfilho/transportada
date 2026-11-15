@@ -5,6 +5,8 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 import {
   EXPENSE_CATEGORIES_PATH,
   EXPENSE_PEOPLE_PATH,
+  expenseAmountHistoryPath,
+  type ExpenseAmountHistory,
   EXPENSE_OCCURRENCES_PATH,
   EXPENSES_PATH,
   type AvailableExpenseTrips,
@@ -43,6 +45,7 @@ import {
   toOutOfPatternThreshold,
 } from './expensesResult.validation'
 import {
+  toAmountHistory,
   toAvailableTrips,
   toCategories,
   toExpensePeople,
@@ -79,6 +82,7 @@ export type ExpensesClient = Readonly<{
     input: Readonly<{ occurrenceId: string; tripId: string }>,
   ) => Promise<ExpenseOccurrenceTrips>
   listCategories: () => Promise<readonly ExpenseCategory[]>
+  getAmountHistory: (expenseId: string) => Promise<ExpenseAmountHistory>
   listPeople: () => Promise<readonly ExpensePerson[]>
   listExpenses: () => Promise<readonly Expense[]>
   listOccurrences: (filters: ExpenseOccurrenceFilters) => Promise<ExpenseOccurrencePage>
@@ -205,6 +209,11 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
     async listCategories() {
       return toCategories(
         await request({ dependencies, method: 'GET', path: EXPENSE_CATEGORIES_PATH }),
+      )
+    },
+    async getAmountHistory(expenseId) {
+      return toAmountHistory(
+        await request({ dependencies, method: 'GET', path: expenseAmountHistoryPath(expenseId) }),
       )
     },
     async listPeople() {

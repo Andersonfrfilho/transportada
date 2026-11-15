@@ -21,6 +21,7 @@ import type {
   ExpenseOccurrenceFilters,
   ExpenseOccurrenceListItem,
   ExpensePerson,
+  ExpenseAmountChange,
 } from '../application/expense.port.js'
 import type {
   CancelExpenseOccurrenceInput,
@@ -96,6 +97,12 @@ type Dependencies = {
   }
   readonly listCategories: {
     execute(input: { readonly companyId: string }): Promise<readonly CompanyExpenseCategory[]>
+  }
+  readonly listAmountHistory: {
+    execute(input: { readonly companyId: string; readonly expenseId: string }): Promise<{
+      readonly baseAmount: string
+      readonly changes: readonly ExpenseAmountChange[]
+    }>
   }
   readonly listPeople: {
     execute(input: { readonly companyId: string }): Promise<readonly ExpensePerson[]>
@@ -182,6 +189,7 @@ export function createExpenseRoutes(
           ...changes,
           companyId: context.scope.companyId,
           expenseId: id,
+          today: formatFiscalDay(dependencies.now()),
           updatedBy: context.scope.userId,
         })
         return jsonResponse({ data: serializeExpense(updated) })
@@ -329,6 +337,32 @@ export function createExpenseRoutes(
       pathname: OCCURRENCE_TRIP_PATH,
       policy: MANAGE_POLICY,
     }),
+    /** Spec 329: o valor de abertura e cada mudança de valor da conta, da mais antiga para a mais nova. */
+    defineRoute<{ readonly id: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const history = await dependencies.listAmountHistory.execute({
+          companyId: context.scope.companyId,
+          expenseId: input.id,
+        })
+        return jsonResponse({
+          data: {
+            baseAmount: history.baseAmount,
+            changes: history.changes.map((change) => ({
+              changedByUserId: change.changedByUserId,
+              createdAt: change.createdAt,
+              effectiveCompetence: change.effectiveCompetence,
+              id: change.id,
+              newAmount: change.newAmount,
+              previousAmount: change.previousAmount,
+            })),
+          },
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({ id: parseUuidPathIdentifier(pathParameters.id ?? '') }),
+      pathname: `${EXPENSE_PATH}/amount-history`,
+      policy: READ_POLICY,
+    }),
     /** Spec 328: as pessoas que a tela oferece em "quem causou" (frota ativa + usuários do escritório). */
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {
@@ -426,6 +460,7 @@ function serializeExpense(expense: CompanyExpense): Record<string, unknown> {
     active: expense.active,
     categoryId: expense.categoryId,
     billLocation: expense.billLocation ?? null,
+    billUrl: expense.billUrl ?? null,
     causedByDriverId: expense.causedByDriverId ?? null,
     causedByName: expense.causedByName ?? null,
     causedByUserId: expense.causedByUserId ?? null,
@@ -479,6 +514,7 @@ function serializeOccurrence(item: ExpenseOccurrenceListItem): Record<string, un
     causedByUserId: item.causedByUserId ?? null,
     causedByUserName: item.causedByUserName ?? null,
     billLocation: item.billLocation ?? null,
+    billUrl: item.billUrl ?? null,
     expenseKind: item.expenseKind,
     expenseName: item.expenseName,
     installmentsTotal: item.installmentsTotal ?? null,

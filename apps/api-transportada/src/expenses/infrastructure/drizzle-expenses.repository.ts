@@ -10,8 +10,10 @@ import { alias } from 'drizzle-orm/pg-core'
 
 import {
   COMPANY_EXPENSE_DRIVER_CATEGORY_NAME,
+  companyExpenseAmountChanges,
   companyExpenseCategories,
   companyExpenseOccurrences,
+  companyExpenseOccurrenceTrips,
   companyExpenses,
 } from '../../database/company-expense.schema.js'
 import { fleetDrivers } from '../../database/fleet.schema.js'
@@ -23,6 +25,7 @@ import type {
   CompanyExpense,
   CompanyExpenseCategory,
   CompanyExpenseOccurrence,
+  ExpenseAmountChange,
   ExpenseDriverRef,
   ExpenseOccurrenceListItem,
   ExpensePerson,
@@ -36,7 +39,7 @@ const causedByUserProfile = alias(identityUserProfiles, 'expense_caused_by_user'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
-/** RF2: as 8 categorias da semente, na ordem da migration. */
+/** RF2 + spec 329: as 14 categorias da semente (8 da migration inicial + consumo, internet/telefone, financiamentos e funcionários). */
 const SEED_CATEGORIES = [
   ['Aluguel', false, 'administrative'],
   ['Folha', false, 'administrative'],
@@ -46,6 +49,12 @@ const SEED_CATEGORIES = [
   ['Combustível', false, 'per_km'],
   [COMPANY_EXPENSE_DRIVER_CATEGORY_NAME, true, 'in_trip'],
   ['Outros', false, 'administrative'],
+  ['Água e esgoto', false, 'administrative'],
+  ['Energia elétrica', false, 'administrative'],
+  ['Gás', false, 'administrative'],
+  ['Internet e telefone', false, 'administrative'],
+  ['Financiamentos', false, 'administrative'],
+  ['Funcionários', false, 'administrative'],
 ] as const
 
 const AUDIT_PERMISSION = 'expenses.manage'
@@ -71,6 +80,7 @@ function toExpense(row: ExpenseRow): CompanyExpense {
     active: row.active,
     anchorCompetence: formatFiscalDay(row.createdAt).slice(0, 7),
     billLocation: row.billLocation,
+    billUrl: row.billUrl,
     causedByDriverId: row.causedByDriverId,
     causedByName: row.causedByName,
     causedByUserId: row.causedByUserId,
@@ -85,6 +95,18 @@ function toExpense(row: ExpenseRow): CompanyExpense {
     payeeDriverId: row.payeeDriverId,
     recurrence: row.recurrence,
     vehicleId: row.vehicleId,
+  }
+}
+
+function toAmountChange(row: typeof companyExpenseAmountChanges.$inferSelect): ExpenseAmountChange {
+  return {
+    changedByUserId: row.changedByUserId,
+    createdAt: row.createdAt.toISOString(),
+    effectiveCompetence: row.effectiveCompetence,
+    expenseId: row.expenseId,
+    id: row.id,
+    newAmount: row.newAmount,
+    previousAmount: row.previousAmount,
   }
 }
 
@@ -108,6 +130,40 @@ function toOccurrence(row: OccurrenceRow): CompanyExpenseOccurrence {
 
 export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
   return {
+    amountChanges: {
+      append: async (input) => {
+        const [row] = await database
+          .insert(companyExpenseAmountChanges)
+          .values({
+            changedByUserId: input.changedByUserId,
+            companyId: input.companyId,
+            effectiveCompetence: input.effectiveCompetence,
+            expenseId: input.expenseId,
+            newAmount: input.newAmount,
+            previousAmount: input.previousAmount,
+          })
+          .returning()
+        if (row === undefined)
+          throw new Error('company_expense_amount_changes insert returned no row')
+        return toAmountChange(row)
+      },
+      list: async ({ companyId, expenseId }) => {
+        const rows = await database
+          .select()
+          .from(companyExpenseAmountChanges)
+          .where(
+            and(
+              eq(companyExpenseAmountChanges.companyId, companyId),
+              eq(companyExpenseAmountChanges.expenseId, expenseId),
+            ),
+          )
+          .orderBy(
+            asc(companyExpenseAmountChanges.effectiveCompetence),
+            asc(companyExpenseAmountChanges.createdAt),
+          )
+        return rows.map(toAmountChange)
+      },
+    },
     audit: {
       append: async (entry) => {
         await database.insert(auditLogs).values({
@@ -270,6 +326,7 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
           .insert(companyExpenses)
           .values({
             billLocation: input.billLocation ?? null,
+            billUrl: input.billUrl ?? null,
             causedByDriverId: input.causedByDriverId ?? null,
             causedByName: input.causedByName ?? null,
             causedByUserId: input.causedByUserId ?? null,
@@ -327,6 +384,23 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
       },
     },
     occurrences: {
+      applyAmountFrom: async ({ amount, companyId, expenseId, fromCompetence, today }) => {
+        const rows = await database
+          .update(companyExpenseOccurrences)
+          .set({ expectedAmount: amount, updatedAt: new Date() })
+          .where(
+            and(
+              eq(companyExpenseOccurrences.companyId, companyId),
+              eq(companyExpenseOccurrences.expenseId, expenseId),
+              eq(companyExpenseOccurrences.status, 'open'),
+              sql`${companyExpenseOccurrences.competence} >= ${fromCompetence}`,
+              sql`${companyExpenseOccurrences.dueDate} >= ${today}::date`,
+              sql`not exists (select 1 from ${companyExpenseOccurrenceTrips} where ${companyExpenseOccurrenceTrips.occurrenceId} = ${companyExpenseOccurrences.id})`,
+            ),
+          )
+          .returning({ id: companyExpenseOccurrences.id })
+        return rows.length
+      },
       cancel: async ({ canceledBy, companyId, occurrenceId, reason }) => {
         const now = new Date()
         const [row] = await database
@@ -362,9 +436,19 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
         return row === undefined ? null : toOccurrence(row)
       },
       insertIfAbsent: async (input) => {
+        // Spec 329: o valor da competência é o da última mudança com início até ela; sem mudança, o que veio.
         const inserted = await database
           .insert(companyExpenseOccurrences)
-          .values(input)
+          .values({
+            ...input,
+            expectedAmount: sql`coalesce((
+              select ${companyExpenseAmountChanges.newAmount} from ${companyExpenseAmountChanges}
+              where ${companyExpenseAmountChanges.expenseId} = ${input.expenseId}::uuid
+                and ${companyExpenseAmountChanges.effectiveCompetence} <= ${input.competence}
+              order by ${companyExpenseAmountChanges.effectiveCompetence} desc, ${companyExpenseAmountChanges.createdAt} desc
+              limit 1
+            ), ${input.expectedAmount}::numeric)`,
+          })
           .onConflictDoNothing({
             target: [
               companyExpenseOccurrences.expenseId,
@@ -384,6 +468,7 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             causedByUserId: companyExpenses.causedByUserId,
             causedByUserName: causedByUserProfile.name,
             billLocation: companyExpenses.billLocation,
+            billUrl: companyExpenses.billUrl,
             categoryId: companyExpenses.categoryId,
             categoryName: companyExpenseCategories.name,
             driverCanDrive: fleetDrivers.canDrive,
@@ -465,6 +550,7 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             causedByUserId: row.causedByUserId,
             causedByUserName: row.causedByUserName,
             billLocation: row.billLocation,
+            billUrl: row.billUrl,
             categoryId: row.categoryId,
             categoryName: row.categoryName,
             expenseKind: row.expenseKind,

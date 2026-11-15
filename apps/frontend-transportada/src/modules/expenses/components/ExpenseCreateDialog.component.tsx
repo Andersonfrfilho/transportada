@@ -34,6 +34,7 @@ type ExpenseCreateDialogProps = Readonly<{
   driverOptions: readonly SelectOption[]
   peopleOptions: readonly SelectOption[]
   onClose: () => void
+  onCreated: (input: CreateExpenseInput) => void
   vehicleOptions: readonly SelectOption[]
 }>
 
@@ -43,6 +44,7 @@ function buildInput(fields: typeof EMPTY_CREATE_FORM): CreateExpenseInput | null
   return {
     categoryId: fields.categoryId,
     ...(fields.billLocation.trim() === '' ? {} : { billLocation: fields.billLocation.trim() }),
+    ...(fields.billUrl.trim() === '' ? {} : { billUrl: fields.billUrl.trim() }),
     ...causedByKeys(fields.causedBy),
     ...(fields.causedBy === '' && fields.causedByName.trim() !== ''
       ? { causedByName: fields.causedByName.trim() }
@@ -69,6 +71,7 @@ export function ExpenseCreateDialog({
   categories,
   driverOptions,
   onClose,
+  onCreated,
   peopleOptions,
   vehicleOptions,
 }: ExpenseCreateDialogProps) {
@@ -91,6 +94,7 @@ export function ExpenseCreateDialog({
     if (issues.length > 0 || input === null) return
     try {
       await createExpense.mutateAsync(input)
+      onCreated(input)
       onClose()
     } catch {
       /* o erro fica em `createExpense.error` e aparece abaixo */
@@ -255,6 +259,17 @@ export function ExpenseCreateDialog({
           />
         </label>
         <p className={styles.hint}>{t('create.billLocationHint')}</p>
+        <label className={styles.field}>
+          <span>{t('create.billUrl')}</span>
+          <input
+            aria-invalid={showIssues && issues.includes('billUrl')}
+            inputMode="url"
+            maxLength={500}
+            onChange={(event) => patch({ billUrl: event.target.value })}
+            placeholder={t('create.billUrlPlaceholder')}
+            value={fields.billUrl}
+          />
+        </label>
         <div className={styles.field}>
           <span>{t('create.vehicle')}</span>
           <Select

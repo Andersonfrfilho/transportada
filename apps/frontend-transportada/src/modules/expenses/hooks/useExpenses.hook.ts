@@ -38,6 +38,13 @@ export function useExpenseCategories(input: Readonly<{ enabled?: boolean }> = {}
   })
 }
 
+export function useExpenseAmountHistory(input: Readonly<{ expenseId: string }>) {
+  return useQuery({
+    queryFn: () => getExpensesClient().getAmountHistory(input.expenseId),
+    queryKey: [EXPENSES_QUERY_KEY, 'amount-history', input.expenseId],
+  })
+}
+
 export function useExpensePeople(input: Readonly<{ enabled?: boolean }> = {}) {
   return useQuery({
     enabled: input.enabled ?? true,
@@ -82,6 +89,10 @@ export function useExpenseMutations() {
   function invalidate(): void {
     void queryClient.invalidateQueries({ queryKey: [EXPENSES_QUERY_KEY] })
   }
+  /** Spec 329: criar, editar e dar baixa só fecham o diálogo com a lista já renovada (a lista não atualizava sozinha). */
+  function invalidateAndWait(): Promise<void> {
+    return queryClient.invalidateQueries({ queryKey: [EXPENSES_QUERY_KEY] })
+  }
 
   return {
     cancelOccurrence: useMutation({
@@ -95,7 +106,7 @@ export function useExpenseMutations() {
     }),
     createExpense: useMutation({
       mutationFn: (request: CreateExpenseInput) => getExpensesClient().createExpense(request),
-      onSuccess: invalidate,
+      onSuccess: invalidateAndWait,
     }),
     includeTrip: useMutation({
       mutationFn: (request: Readonly<{ occurrenceId: string; tripId: string }>) =>
@@ -119,12 +130,12 @@ export function useExpenseMutations() {
     }),
     settleOccurrence: useMutation({
       mutationFn: (request: SettleOccurrenceInput) => getExpensesClient().settleOccurrence(request),
-      onSuccess: invalidate,
+      onSuccess: invalidateAndWait,
     }),
     updateExpense: useMutation({
       mutationFn: (request: Readonly<{ changes: UpdateExpenseInput; id: string }>) =>
         getExpensesClient().updateExpense(request),
-      onSuccess: invalidate,
+      onSuccess: invalidateAndWait,
     }),
   }
 }

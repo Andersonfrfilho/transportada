@@ -41,6 +41,11 @@ describe('paridade da rotina das contas fixas com a API (spec 325 T1.5)', () => 
   test('o SQL do worker usa a mesma chave de conflito e os mesmos filtros da API', async () => {
     const [worker, api] = await Promise.all([read(WORKER_SQL), read(API_REPOSITORY)])
     expect(worker).toContain('on conflict (expense_id, competence, slot) do nothing')
+    // Spec 329: o valor da competência sai da última mudança de valor com início até ela, na API e no worker.
+    expect(worker).toContain('from company_expense_amount_changes')
+    expect(worker).toContain('effective_competence <= ${input.competence}')
+    expect(api).toContain('companyExpenseAmountChanges.effectiveCompetence')
+    expect(api).toContain('<= ${input.competence}')
     expect(api).toContain('companyExpenseOccurrences.expenseId')
     expect(api).toContain('companyExpenseOccurrences.competence')
     expect(api).toContain('companyExpenseOccurrences.slot')

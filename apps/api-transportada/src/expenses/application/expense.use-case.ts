@@ -19,6 +19,7 @@ import {
 import type {
   CompanyExpense,
   CompanyExpenseCategory,
+  ExpenseAmountChange,
   ExpensePerson,
   ExpenseRecurrence,
   ExpensesPorts,
@@ -30,6 +31,8 @@ export type CreateExpenseInput = {
   readonly channel?: 'panel' | 'whatsapp'
   /** Spec 328: quem causou a conta (opcional; qualquer ficha da frota da empresa, inclusive ajudante). */
   readonly billLocation?: string
+  /** Spec 329: link de onde se pega o boleto (http/https). */
+  readonly billUrl?: string
   readonly causedByDriverId?: string
   readonly causedByName?: string
   readonly causedByUserId?: string
@@ -121,6 +124,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
       const expense = await ports.expenses.create({
         anchorCompetence: competenceOfDate(input.today),
         billLocation: normalizeBillLocation(input.billLocation),
+        billUrl: normalizeBillUrl(input.billUrl),
         causedByDriverId: input.causedByDriverId ?? null,
         causedByName: normalizeName(input.causedByName),
         causedByUserId: input.causedByUserId ?? null,
@@ -157,6 +161,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
         metadata: {
           categoryId: expense.categoryId,
           billLocation: expense.billLocation ?? null,
+          billUrl: expense.billUrl ?? null,
           causedByDriverId: expense.causedByDriverId ?? null,
           causedByName: expense.causedByName ?? null,
           causedByUserId: expense.causedByUserId ?? null,
@@ -176,6 +181,22 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
 /** Spec 328: "onde a conta está" é texto livre; vazio é "não informado". */
 function normalizeName(value: string | null | undefined): string | null {
   return normalizeBillLocation(value)
+}
+
+/** Spec 329: o link do boleto é http(s) e cabe em 500; vazio é "não informado". */
+function normalizeBillUrl(value: string | null | undefined): string | null {
+  const text = value?.trim() ?? ''
+  if (text === '') return null
+  let parsed: URL
+  try {
+    parsed = new URL(text)
+  } catch {
+    throw new ExpenseInvalidScheduleError('billUrl must be a valid http(s) link.')
+  }
+  if ((parsed.protocol !== 'https:' && parsed.protocol !== 'http:') || text.length > 500) {
+    throw new ExpenseInvalidScheduleError('billUrl must be a valid http(s) link.')
+  }
+  return text
 }
 
 function normalizeBillLocation(value: string | null | undefined): string | null {
@@ -253,19 +274,27 @@ export type UpdateExpenseInput = {
   readonly active?: boolean
   /** Spec 328: `null` limpa. */
   readonly billLocation?: string | null
+  /** Spec 329: `null` limpa. */
+  readonly billUrl?: string | null
   readonly causedByDriverId?: string | null
   readonly causedByUserId?: string | null
   readonly companyId: string
   readonly correlationId?: string
   readonly dueDay?: number
+  /** Spec 329: `yyyy-mm` da primeira competência com o `expectedAmount` novo; sem ele, a do mês de `today`. */
+  readonly effectiveFrom?: string
   readonly expectedAmount?: string
   readonly expenseId: string
   readonly name?: string
+  readonly today?: string
   readonly updatedBy: string
   readonly vehicleId?: string | null
 }
 
-/** RF5: o novo valor/dia vale dali para frente; nenhuma ocorrência já gerada é tocada. */
+/**
+ * RF5 + spec 329: valor novo nunca sobrescreve o antigo. Vira uma linha do histórico com a competência de início; só as
+ * ocorrências abertas e ainda a vencer dessa competência em diante mudam (paga, cancelada ou vencida fica como estava).
+ */
 export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
   execute(input: UpdateExpenseInput): Promise<CompanyExpense>
 } {
@@ -285,6 +314,7 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
       const name = input.name?.trim()
       if (name === '') throw new ExpenseInvalidScheduleError('name is required.')
       await assertCause(ports, input)
+      const amountChange = await resolveAmountChange(ports, current, input)
       const updated = await ports.expenses.update({
         companyId: input.companyId,
         expenseId: input.expenseId,
@@ -292,15 +322,45 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
         ...(input.billLocation === undefined
           ? {}
           : { billLocation: normalizeBillLocation(input.billLocation) }),
+        ...(input.billUrl === undefined ? {} : { billUrl: normalizeBillUrl(input.billUrl) }),
         ...causeChanges(input),
         ...(input.dueDay === undefined ? {} : { dueDay: input.dueDay }),
-        ...(input.expectedAmount === undefined
-          ? {}
-          : { expectedAmount: assertAmount(input.expectedAmount) }),
         ...(name === undefined ? {} : { name }),
         ...(input.vehicleId === undefined ? {} : { vehicleId: input.vehicleId }),
       })
       if (updated === null) throw new ExpenseNotFoundError()
+      if (amountChange !== null) {
+        const change = await ports.amountChanges.append({
+          changedByUserId: input.updatedBy,
+          companyId: input.companyId,
+          effectiveCompetence: amountChange.effectiveCompetence,
+          expenseId: input.expenseId,
+          newAmount: amountChange.newAmount,
+          previousAmount: amountChange.previousAmount,
+        })
+        const applied = await ports.occurrences.applyAmountFrom({
+          amount: amountChange.newAmount,
+          companyId: input.companyId,
+          expenseId: input.expenseId,
+          fromCompetence: amountChange.effectiveCompetence,
+          today: amountChange.today,
+        })
+        await ports.audit.append({
+          action: 'expense.amount.changed',
+          actorUserId: input.updatedBy,
+          companyId: input.companyId,
+          correlationId: input.correlationId ?? crypto.randomUUID(),
+          entityId: updated.id,
+          entityType: 'company_expense',
+          metadata: {
+            appliedToOccurrences: applied,
+            changeId: change.id,
+            effectiveCompetence: change.effectiveCompetence,
+            newAmount: change.newAmount,
+            previousAmount: change.previousAmount,
+          },
+        })
+      }
       await ports.audit.append({
         action: 'expense.updated',
         actorUserId: input.updatedBy,
@@ -318,10 +378,70 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
   }
 }
 
+type ResolvedAmountChange = {
+  readonly effectiveCompetence: string
+  readonly newAmount: string
+  readonly previousAmount: string
+  readonly today: string
+}
+
+/** Valor em vigor numa competência: o da última mudança com início até ela; sem nenhuma, o de abertura. */
+export function amountInEffect(
+  expense: CompanyExpense,
+  changes: readonly ExpenseAmountChange[],
+  competence: string,
+): string {
+  let amount = expense.expectedAmount
+  for (const change of changes) {
+    if (change.effectiveCompetence <= competence) amount = change.newAmount
+  }
+  return amount
+}
+
+async function resolveAmountChange(
+  ports: ExpensesPorts,
+  current: CompanyExpense,
+  input: UpdateExpenseInput,
+): Promise<ResolvedAmountChange | null> {
+  if (input.expectedAmount === undefined) return null
+  const newAmount = assertAmount(input.expectedAmount)
+  const today = input.today ?? new Date().toISOString().slice(0, 10)
+  const effectiveCompetence = input.effectiveFrom ?? competenceOfDate(today)
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/u.test(effectiveCompetence)) {
+    throw new ExpenseInvalidScheduleError('effectiveFrom must be yyyy-mm.')
+  }
+  const changes = await ports.amountChanges.list({
+    companyId: input.companyId,
+    expenseId: input.expenseId,
+  })
+  const previousAmount = amountInEffect(current, changes, effectiveCompetence)
+  if (previousAmount === newAmount) return null
+  return { effectiveCompetence, newAmount, previousAmount, today }
+}
+
+export function createListExpenseAmountHistoryUseCase(ports: ExpensesPorts): {
+  execute(input: {
+    readonly companyId: string
+    readonly expenseId: string
+  }): Promise<{ readonly baseAmount: string; readonly changes: readonly ExpenseAmountChange[] }>
+} {
+  return {
+    execute: async ({ companyId, expenseId }) => {
+      const expense = await ports.expenses.findById({ companyId, expenseId })
+      if (expense === null) throw new ExpenseNotFoundError()
+      return {
+        baseAmount: expense.expectedAmount,
+        changes: await ports.amountChanges.list({ companyId, expenseId }),
+      }
+    },
+  }
+}
+
 function snapshot(expense: CompanyExpense): Record<string, unknown> {
   return {
     active: expense.active,
     billLocation: expense.billLocation ?? null,
+    billUrl: expense.billUrl ?? null,
     causedByDriverId: expense.causedByDriverId ?? null,
     causedByName: expense.causedByName ?? null,
     causedByUserId: expense.causedByUserId ?? null,

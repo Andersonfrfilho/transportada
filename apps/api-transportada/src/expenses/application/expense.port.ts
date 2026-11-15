@@ -44,6 +44,8 @@ export type CompanyExpense = {
   readonly causedByDriverId?: string | null
   /** Spec 328: onde a conta está agora (texto livre). */
   readonly billLocation?: string | null
+  /** Spec 329: link de onde se pega o boleto. */
+  readonly billUrl?: string | null
   /** Spec 328: o causador quando é usuário do escritório (no máximo um entre este e `causedByDriverId`). */
   readonly causedByUserId?: string | null
   /** Spec 328: o causador quando é alguém fora do cadastro (nome digitado). */
@@ -95,6 +97,7 @@ export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
   readonly causedByUserName?: string | null
   readonly causedByName?: string | null
   readonly billLocation?: string | null
+  readonly billUrl?: string | null
   readonly categoryName: string
   readonly expenseKind: ExpenseKind
   readonly expenseName: string
@@ -131,7 +134,35 @@ export type ExpenseAuditEntry = {
   readonly metadata: Record<string, unknown>
 }
 
+/** Spec 329: uma mudança de valor da conta; só se acrescenta, nunca se reescreve. */
+export type ExpenseAmountChange = {
+  readonly changedByUserId: string
+  readonly createdAt: string
+  /** `yyyy-mm`: a primeira competência com o valor novo. */
+  readonly effectiveCompetence: string
+  readonly expenseId: string
+  readonly id: string
+  readonly newAmount: string
+  readonly previousAmount: string
+}
+
 export type ExpensesPorts = {
+  /** Spec 329: histórico append-only dos valores da conta. */
+  readonly amountChanges: {
+    append(input: {
+      readonly changedByUserId: string
+      readonly companyId: string
+      readonly effectiveCompetence: string
+      readonly expenseId: string
+      readonly newAmount: string
+      readonly previousAmount: string
+    }): Promise<ExpenseAmountChange>
+    /** Da mais antiga para a mais nova (por competência de início e depois por registro). */
+    list(input: {
+      readonly companyId: string
+      readonly expenseId: string
+    }): Promise<readonly ExpenseAmountChange[]>
+  }
   /** RF9: a trilha grava a permissão `expenses.manage` (toda escrita do módulo exige ela). */
   readonly audit: {
     append(entry: ExpenseAuditEntry): Promise<void>
@@ -178,6 +209,7 @@ export type ExpensesPorts = {
       active?: boolean
       causedByDriverId?: string | null
       billLocation?: string | null
+      billUrl?: string | null
       causedByUserId?: string | null
       causedByName?: string | null
       companyId: string
@@ -190,6 +222,17 @@ export type ExpensesPorts = {
     }): Promise<CompanyExpense | null>
   }
   readonly occurrences: {
+    /**
+     * Spec 329: aplica o valor novo às ocorrências **abertas**, da competência em diante, ainda a vencer (`dueDate >= today`).
+     * Paga, cancelada ou já vencida nunca é reescrita. Devolve quantas mudaram.
+     */
+    applyAmountFrom(input: {
+      readonly amount: string
+      readonly companyId: string
+      readonly expenseId: string
+      readonly fromCompetence: string
+      readonly today: string
+    }): Promise<number>
     /** `open` → `canceled` numa instrução só; `null` quando não existe ou já não está aberta. */
     cancel(input: {
       canceledBy: string

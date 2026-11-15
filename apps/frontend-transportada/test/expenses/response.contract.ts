@@ -13,6 +13,7 @@ import {
 } from '@/modules/expenses/shared/expenses.types'
 import {
   ExpenseResponseError,
+  toAmountHistory,
   toAvailableTrips,
   toCategories,
   toExpenses,
@@ -241,5 +242,33 @@ describe('expenses response guard', () => {
     for (const status of EXPENSE_OCCURRENCE_STATUSES) {
       expect(expensesLocale.status[status]).toBeString()
     }
+  })
+})
+
+describe('histórico de valores da conta (spec 329)', () => {
+  it('lê o valor de abertura e as mudanças, e recusa forma inesperada', () => {
+    const history = toAmountHistory({
+      data: {
+        baseAmount: '12000.00',
+        changes: [
+          {
+            changedByUserId: 'u',
+            createdAt: '2026-11-15T18:00:00.000Z',
+            effectiveCompetence: '2027-02',
+            id: 'c1',
+            newAmount: '13000.00',
+            previousAmount: '12000.00',
+          },
+        ],
+      },
+    })
+    expect(history.baseAmount).toBe('12000.00')
+    expect(history.changes[0]).toMatchObject({
+      effectiveCompetence: '2027-02',
+      newAmount: '13000.00',
+    })
+    expect(() => toAmountHistory({ data: { baseAmount: 12000, changes: [] } })).toThrow(
+      ExpenseResponseError,
+    )
   })
 })
