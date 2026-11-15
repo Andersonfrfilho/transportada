@@ -165,3 +165,19 @@
   font-size: 1.125rem;
   font-weight: 700;
 }
+
+.addressGroup {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: var(--space-3, 0.75rem);
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin: 0;
+  padding: var(--space-3, 0.75rem);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+}
+
+.addressGroup legend {
+  padding: 0 var(--space-2, 0.5rem);
+  font-weight: 600;
+}

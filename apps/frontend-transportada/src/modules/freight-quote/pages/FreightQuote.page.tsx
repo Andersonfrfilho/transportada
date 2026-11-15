@@ -25,6 +25,7 @@ import {
   formatAmount,
   formatDecimalField,
   startSettingsDraft,
+  type AddressDraft,
   type NumericSettingKey,
   type QuoteDraft,
   type SettingsDraft,
@@ -135,6 +136,12 @@ function QuoteResultPanel({ result }: Readonly<{ result: FreightQuoteResult }>) 
         </p>
       ) : null}
       <p className={styles.hint}>
+        {t('result.road', {
+          distance: formatDecimalField(result.distanceKm),
+          toll: formatAmount(result.tollAmount),
+        })}
+      </p>
+      <p className={styles.hint}>
         {t('result.fuel', {
           consumption: formatDecimalField(result.fuelKmPerLiter),
           origin: t(`fuelOrigin.${result.fuelKmPerLiterOrigin}`),
@@ -142,6 +149,31 @@ function QuoteResultPanel({ result }: Readonly<{ result: FreightQuoteResult }>) 
         })}
       </p>
     </section>
+  )
+}
+
+const ADDRESS_FIELDS = ['postalCode', 'street', 'number', 'district', 'city', 'state'] as const
+
+function AddressFields(
+  props: Readonly<{ legend: string; onChange: (value: AddressDraft) => void; value: AddressDraft }>,
+) {
+  const { t } = useTranslation('freightQuote')
+  return (
+    <fieldset className={styles.addressGroup}>
+      <legend>{props.legend}</legend>
+      {ADDRESS_FIELDS.map((key) => (
+        <label className={styles.field} key={key}>
+          <span>{t(`quote.address.${key}`)}</span>
+          <input
+            autoComplete="off"
+            inputMode={key === 'postalCode' ? 'numeric' : undefined}
+            maxLength={key === 'state' ? 2 : undefined}
+            onChange={(event) => props.onChange({ ...props.value, [key]: event.target.value })}
+            value={props.value[key]}
+          />
+        </label>
+      ))}
+    </fieldset>
   )
 }
 
@@ -162,14 +194,16 @@ function QuotePanel({ settings }: Readonly<{ settings: FreightQuoteSettings | un
       </div>
       <p className={styles.hint}>{t('quote.hint')}</p>
       <div className={styles.form}>
-        <label className={styles.field}>
-          <span>{t('quote.distanceKm')}</span>
-          <input
-            inputMode="decimal"
-            onChange={(event) => patch({ distanceKm: event.target.value })}
-            value={draft.distanceKm}
-          />
-        </label>
+        <AddressFields
+          legend={t('quote.origin')}
+          onChange={(origin) => patch({ origin })}
+          value={draft.origin}
+        />
+        <AddressFields
+          legend={t('quote.destination')}
+          onChange={(destination) => patch({ destination })}
+          value={draft.destination}
+        />
         <div className={styles.field}>
           <span>{t('quote.axles')}</span>
           <Select
@@ -198,15 +232,6 @@ function QuotePanel({ settings }: Readonly<{ settings: FreightQuoteSettings | un
             onChange={(event) => patch({ cargoValue: event.target.value })}
             placeholder="0"
             value={draft.cargoValue}
-          />
-        </label>
-        <label className={styles.field}>
-          <span>{t('quote.tollAmount')}</span>
-          <input
-            inputMode="decimal"
-            onChange={(event) => patch({ tollAmount: event.target.value })}
-            placeholder="0"
-            value={draft.tollAmount}
           />
         </label>
         <label className={styles.field}>
