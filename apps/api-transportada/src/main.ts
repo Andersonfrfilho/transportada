@@ -2969,10 +2969,23 @@ function createEvolutionWebhook(input: {
                 fromPhone: phone,
                 now: new Date(),
               })
-              return (
+              const allowed =
                 resolved?.status === 'authorized' &&
                 resolved.context.scope.permissions.has('expenses.manage')
-              )
+              // Só o motivo, nunca o número: sem isso "por que ela não vê Lançar conta" não deixa rastro.
+              logger.info('whatsapp_evolution.direct_expense_launcher', {
+                allowed,
+                companyId,
+                reason:
+                  resolved === undefined
+                    ? 'no_resolver'
+                    : resolved.status === 'denied'
+                      ? resolved.reason
+                      : allowed
+                        ? 'ok'
+                        : 'missing_expenses_manage',
+              })
+              return allowed
             },
           }),
       // Spec 308 D2.4: quem tem envio de XML liberado (a mesma regra do recebimento) vê a opção no 1:1.
