@@ -95,3 +95,46 @@ export function describeDocumentsByStop(
   })
   return lines
 }
+
+type StopLike = {
+  readonly arrivedAt: string | null
+  readonly completedAt: string | null
+  readonly enRouteSince: string | null
+  readonly id: string
+  readonly sequence: number
+}
+
+/** Onde cada parada está (chegou, a caminho, próxima, adiante, concluída), pela mesma regra nos três fluxos. */
+export function describeStopStates(
+  stops: readonly StopLike[],
+  cityOf: (stopId: string) => string,
+): Map<string, BotStopContext> {
+  const ordered = [...stops].sort((left, right) => left.sequence - right.sequence)
+  const next = ordered.find(
+    (stop) => stop.completedAt === null && stop.arrivedAt === null && stop.enRouteSince === null,
+  )
+  return new Map(
+    ordered.map((stop) => {
+      const state: BotStopState =
+        stop.completedAt !== null
+          ? 'done'
+          : stop.arrivedAt !== null
+            ? 'arrived'
+            : stop.enRouteSince !== null
+              ? 'en_route'
+              : stop === next
+                ? 'next'
+                : 'later'
+      return [
+        stop.id,
+        {
+          arrivedAt: stop.arrivedAt,
+          city: cityOf(stop.id),
+          sequence: stop.sequence,
+          state,
+          totalStops: ordered.length,
+        },
+      ]
+    }),
+  )
+}
