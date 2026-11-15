@@ -86,6 +86,9 @@ describe('authorization contract', () => {
       'cargo.measure',
       // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
       'deliveries.track',
+      // Spec 339: pedir coleta/entrega pelo portal e decidir o pedido no escritório
+      'pickup.request',
+      'pickup.manage',
       // ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega
       'charges.decide',
       // Spec 164 T6: tratar a tratativa da ocorrência é do escritório — nunca separador/driver/aggregate
@@ -131,6 +134,7 @@ describe('authorization contract', () => {
         'trip.report-on-behalf',
         'trip.financials',
         'cargo.measure',
+        'pickup.manage',
         'occurrences.resolve',
         'holiday-import.configure',
         'expenses.read',
@@ -197,6 +201,7 @@ describe('authorization contract', () => {
         /** ADR-0049 §6, emendada: quem escolhe a carga vê o que ela custa. */
         'trip.financials',
         'cargo.measure',
+        'pickup.manage',
         'occurrences.resolve',
       ],
       viewer: [
@@ -213,7 +218,7 @@ describe('authorization contract', () => {
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage', 'cargo.measure'],
       helper: ['trip.read'],
-      contractor: ['deliveries.track', 'charges.decide', 'occurrences.decide'],
+      contractor: ['deliveries.track', 'charges.decide', 'occurrences.decide', 'pickup.request'],
       automation: [
         'mdfe.auto-issue',
         'whatsapp.settle',
@@ -498,6 +503,7 @@ describe('authorization contract', () => {
         permission !== 'occurrence.automatic-mail' &&
         permission !== 'driver.cnh-picture' &&
         permission !== 'deliveries.track' &&
+        permission !== 'pickup.request' &&
         permission !== 'charges.decide' &&
         permission !== 'occurrences.decide',
     )

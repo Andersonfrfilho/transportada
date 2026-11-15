@@ -9,6 +9,7 @@ import { ChargeBatchListPage } from '@/modules/charges/ChargeBatchList.page'
 import { DeliveryListPage } from '@/modules/deliveries/DeliveryList.page'
 import { ReportsPage } from '@/modules/reports/Reports.page'
 import { SummaryPage } from '@/modules/reports/Summary.page'
+import { PickupRequestListPage } from '@/modules/pickup-requests/PickupRequestList.page'
 import { OccurrenceListPage } from '@/modules/occurrences/OccurrenceList.page'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service'
@@ -33,7 +34,7 @@ const deploymentEnvironment = getDeploymentEnvironment()
 
 applyEnvironmentBadge({ document, environment: deploymentEnvironment })
 
-type Tab = 'charges' | 'deliveries' | 'occurrences' | 'reports' | 'summary'
+type Tab = 'charges' | 'deliveries' | 'occurrences' | 'pickups' | 'reports' | 'summary'
 
 type PageFrameProps = Readonly<{ children: ReactNode }>
 
@@ -102,6 +103,14 @@ function App() {
                 Relatórios
               </button>
               <button
+                aria-current={tab === 'pickups'}
+                className={tab === 'pickups' ? '' : 'secondary'}
+                onClick={() => setTab('pickups')}
+                type="button"
+              >
+                Coletas
+              </button>
+              <button
                 className="secondary nav__logout"
                 onClick={() => void getKeycloakAuthProvider().logout()}
                 type="button"
@@ -115,6 +124,12 @@ function App() {
           {tab === 'deliveries' && <DeliveryListPage client={client} />}
           {tab === 'charges' && <ChargeBatchListPage client={client} />}
           {tab === 'occurrences' && <OccurrenceListPage client={client} />}
+          {tab === 'pickups' && (
+            <PickupRequestListPage
+              client={client}
+              today={new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })}
+            />
+          )}
         </main>
       </PageFrame>
     </QueryClientProvider>

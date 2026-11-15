@@ -204,6 +204,12 @@ const CATALOG = [
     job: 'company-expense.reminder.send',
     minimumIntervalSeconds: 3_600,
   },
+  {
+    /** Spec 339 T4: entrega os avisos do pedido de coleta, expira e alerta pedido parado. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'pickup-request.notify',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -235,6 +241,8 @@ const SEED_MIGRATIONS = [
   '20261111003528_whatsapp_inbox_chat_expire_job',
   '20261113201500_company_expense_occurrence_job',
   '20261114160259_company_expense_reminder_job',
+  '20261115140000_pickup_request_notifications',
+  '20261115150000_integration_api_keys',
 ] as const
 
 describe('job catalog', () => {

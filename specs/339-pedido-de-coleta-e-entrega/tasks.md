@@ -2,15 +2,15 @@
 
 Regra: teste de aceite antes da implementação; task só fecha com evidência em `evidence.md`.
 
-- [ ] **T0 — Investigar** `trip_stops` (há `kind` de coleta?), rota de parada manual, `contractor_portal`, padrão da 150
+- [x] **T0 — Investigar** `trip_stops` (há `kind` de coleta?), rota de parada manual, `contractor_portal`, padrão da 150
       (pedido → decisão) e modelos de e-mail; registrar achados.
-- [ ] **T1 — Banco**: `pickup_requests` (+ eventos de decisão), migration aditiva com rollback guardado, snapshot, linha em
+- [x] **T1 — Banco**: `pickup_requests` (+ eventos de decisão), migration aditiva com rollback guardado, snapshot, linha em
       `deploy/staging-refresh/prune-source.sql`.
-- [ ] **T2 — Domínio/API**: política de estados, criar/cancelar pelo portal, aceitar/recusar pelo painel, permissão
+- [x] **T2 — Domínio/API**: política de estados, criar/cancelar pelo portal, aceitar/recusar pelo painel, permissão
       `pickup.manage`, contratos (CA01–CA03, isolamento).
 - [ ] **T3 — Cadastro do cliente na aceitação** (D4), com contrato de idempotência por documento.
 - [ ] **T4 — Notificações** (D6, e-mail + WhatsApp + portal; D9 alerta e expiração no cron): chaves de modelo, script de publicação, outbox, reenvio.
-- [ ] **T5 — Portal do cliente**: formulário, lista e detalhe do pedido (i18n, claro/escuro, mobile).
-- [ ] **T6 — Painel**: fila de pedidos, decisão, sugestão de viagem na aceitação (existente ou nova) com confirmação (CA04).
+- [x] **T5 — Portal do cliente**: formulário, lista e detalhe do pedido (i18n, claro/escuro, mobile).
+- [x] **T6 — Painel**: fila de pedidos, decisão, sugestão de viagem na aceitação (existente ou nova) com confirmação (CA04). Falta só o print de design claro/escuro e 1440/375.
 - [ ] **T7 — Pedido anônimo** (depende da 338): captcha, confirmação de contato, rate limit.
 - [ ] **T8 — Prints, evidence.md, runbook e publicação em staging** (migration → API → painel → portal).

@@ -85,6 +85,9 @@ export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
 /** Orçamento de frete pelo custo da viagem (spec 326): parâmetros da empresa e cálculo sem gravar. */
 export const API_FREIGHT_QUOTE_SETTINGS_PATH = '/freight-quote/settings'
 export const API_FREIGHT_QUOTES_PATH = '/freight-quotes'
+/** Spec 339: o escritório decide; o portal pede por `/client/me/pickup-requests`. */
+export const API_PICKUP_REQUESTS_PATH = '/pickup-requests'
+export const API_CLIENT_PICKUP_REQUESTS_PATH = '/client/me/pickup-requests'
 /** Spec 060: o cliente que tem hora e tem preço, e o embarcador que paga o repasse. */
 export const API_DELIVERY_CLIENTS_PATH = '/delivery-clients'
 export const API_CONTRACTORS_PATH = '/contractors'

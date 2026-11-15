@@ -122,6 +122,13 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'cargo.measure',
   /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
   'deliveries.track',
+  /**
+   * Spec 339: pedir coleta/entrega pelo portal. Permissão própria — acompanhar a carga (`deliveries.track`)
+   * não dá direito de abrir pedido no nome da transportadora.
+   */
+  'pickup.request',
+  /** Spec 339: decidir o pedido (aceitar, recusar) e encaixar numa viagem é do escritório. */
+  'pickup.manage',
   /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */
   'charges.decide',
   /**
@@ -191,6 +198,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'trip.report-on-behalf',
     'trip.financials',
     'cargo.measure',
+    'pickup.manage',
     'occurrences.resolve',
     'holiday-import.configure',
     'expenses.read',
@@ -268,6 +276,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
      */
     'trip.financials',
     'cargo.measure',
+    'pickup.manage',
     'occurrences.resolve',
   ]),
   viewer: Object.freeze([
@@ -302,7 +311,12 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
    * vem do papel, vem do vínculo, e é o repositório que o aplica. Nada de frota, faturamento ou
    * documento fiscal: quem paga o frete acompanha a carga, não administra a transportadora.
    */
-  contractor: Object.freeze(['deliveries.track', 'charges.decide', 'occurrences.decide']),
+  contractor: Object.freeze([
+    'deliveries.track',
+    'charges.decide',
+    'occurrences.decide',
+    'pickup.request',
+  ]),
   /**
    * ADR-0047 §4: **uma permissão, e só ela.** O token do serviço é cross-tenant — ele alcança toda
    * empresa onde exista a membership sintética —, e é por isso que o escopo não pode ser generoso.

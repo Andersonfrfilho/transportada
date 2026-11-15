@@ -317,6 +317,10 @@ import { createDrizzlePurgeExpiredRateLimitWindows } from './rate-limit-window-p
 import { createWhatsAppInboxExpireRoutine } from './whatsapp-inbox-expire/application/whatsapp-inbox-expire.routine.js'
 import { WHATSAPP_INBOX_CHAT_EXPIRE_JOB } from './whatsapp-inbox-expire/domain/whatsapp-inbox-expire.constant.js'
 import { createDrizzleExpireDueWhatsAppChats } from './whatsapp-inbox-expire/infrastructure/drizzle-whatsapp-inbox-expire.repository.js'
+import { createPickupRequestNotifyRoutine } from './pickup-request-notify/application/pickup-request-notify.routine.js'
+import { PICKUP_REQUEST_NOTIFY_JOB } from './pickup-request-notify/domain/pickup-request-notify.constant.js'
+import { createDrizzlePickupRequestNotifyPorts } from './pickup-request-notify/infrastructure/drizzle-pickup-request-notify.repository.js'
+import { createPickupRequestNotifyDelivery } from './pickup-request-notify/infrastructure/pickup-request-notify-delivery.factory.js'
 import { createCompanyExpenseReminderRoutine } from './company-expense-reminder/application/company-expense-reminder.routine.js'
 import { COMPANY_EXPENSE_REMINDER_SEND_JOB } from './company-expense-reminder/domain/company-expense-reminder.constant.js'
 import { createDrizzleCompanyExpenseReminderPorts } from './company-expense-reminder/infrastructure/drizzle-company-expense-reminder.repository.js'
@@ -1696,6 +1700,40 @@ export async function startWorkerRuntime(
                   : createWorkerEmailDriver(config.emailDelivery),
             }),
           }),
+          /** Spec 339 T4: sempre registrada — nasce pausada no relógio, e ligar é decisão do dono. */
+          [PICKUP_REQUEST_NOTIFY_JOB]: (() => {
+            const notifyDatabase = database.db as ReturnType<typeof createDrizzleProvider>['db']
+            return createPickupRequestNotifyRoutine({
+              logger,
+              now: () => new Date(),
+              ports: createDrizzlePickupRequestNotifyPorts({
+                database: notifyDatabase,
+                delivery: createPickupRequestNotifyDelivery({
+                  database: notifyDatabase,
+                  findMailSettings: (query) =>
+                    createDrizzleContractorMailOutboundWorkerRepository(
+                      notifyDatabase,
+                    ).findSettingsByCompanyId(query),
+                  mailGateway: createResendMailGateway({
+                    fetch: (target, init) => fetch(target, init),
+                  }),
+                  resendDisabled: config.emailResendDisabled === true,
+                  secretService: createContractorMailCredentialSecretService({
+                    envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+                  }),
+                  sendWhatsAppText: createEvolutionClientDocumentSender({
+                    envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+                    pacer: createEvolutionSendPacer({
+                      claimSlot: createDrizzleEvolutionSendSlotClaimer(notifyDatabase),
+                      maxWaitMs: 120_000,
+                    }),
+                    runner: notifyDatabase,
+                  }).sendText,
+                }),
+                links: { office: config.appBaseUrl ?? null, portal: null },
+              }),
+            })
+          })(),
           /**
            * Spec 161 RF21: sempre registrada, como as outras retenções — a foto de ocorrência tem
            * cinco anos, e o prazo só existe porque uma rotina o cumpre. A porta é mínima

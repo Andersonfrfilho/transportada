@@ -61,6 +61,8 @@ export const WORKSPACE_PERMISSIONS = {
   'driver-trip': ['trip.report'],
   // cargo-arrival-http.support.ts (API): ler a chegada é fleet.read; escrever (trip.manage) fica na tela
   'cargo-receiving': ['fleet.read'],
+  // pickup-request.routes.ts (API, spec 339): o escritório lê e decide com pickup.manage
+  'pickup-requests': ['pickup.manage'],
 } as const satisfies Record<GatedWorkspaceKey, readonly string[]>
 
 function isGatedWorkspace(workspace: WorkspaceKey): workspace is GatedWorkspaceKey {

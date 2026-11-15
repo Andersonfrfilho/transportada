@@ -184,6 +184,34 @@ import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastr
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
 import { createFreightQuoteRoutes } from './freight-quote/presentation/freight-quote.routes.js'
 import {
+  createAcceptPickupRequestUseCase,
+  createCancelPickupRequestUseCase,
+  createCreatePickupRequestUseCase,
+  createGetPickupRequestUseCase,
+  createListContractorPickupRequestsUseCase,
+  createListPickupRequestsUseCase,
+  createRefusePickupRequestUseCase,
+  createSchedulePickupRequestUseCase,
+} from './pickup-requests/application/pickup-request.use-case.js'
+import { DrizzlePickupRequestRepository } from './pickup-requests/infrastructure/drizzle-pickup-request.repository.js'
+import {
+  createCancelIntegrationPickupUseCase,
+  createCreateIntegrationPickupUseCase,
+  createGetIntegrationPickupUseCase,
+} from './integration-api/application/integration-api.use-case.js'
+import {
+  createAuthenticateIntegrationKeyUseCase,
+  createCreateIntegrationKeyUseCase,
+  createListIntegrationKeysUseCase,
+  createRevokeIntegrationKeyUseCase,
+} from './integration-api/application/integration-key.use-case.js'
+import { DrizzleIntegrationKeyRepository } from './integration-api/infrastructure/drizzle-integration-key.repository.js'
+import {
+  createIntegrationKeyAdminRoutes,
+  createIntegrationRoutes,
+} from './integration-api/presentation/integration-api.routes.js'
+import { createPickupRequestRoutes } from './pickup-requests/presentation/pickup-request.routes.js'
+import {
   createCalculateFreightQuoteUseCase,
   createClearFreightQuoteSettingsUseCase,
   createGetFreightQuoteSettingsUseCase,
@@ -3180,9 +3208,26 @@ function createAnonymousRoutes({
           }),
           resolveClientIp,
         })
+  /**
+   * Spec 340: a porta do parceiro. Anônima para o roteador (a credencial é a chave de API, resolvida na rota) e por isso
+   * existe sempre, como os webhooks: a empresa vem da chave, não de `config.companyId`.
+   */
+  const integrationKeyRepository = new DrizzleIntegrationKeyRepository(database)
+  const integrationPickupRepository = new DrizzlePickupRequestRepository(database)
+  const integrationRoutes = createIntegrationRoutes({
+    authenticate: createAuthenticateIntegrationKeyUseCase({ repository: integrationKeyRepository }),
+    calculate: createCalculateFreightQuoteUseCase({
+      fuelPrices: new DrizzleFuelPriceRepository(database),
+      settings: new DrizzleFreightQuoteSettingsRepository(database),
+    }),
+    cancelPickup: createCancelIntegrationPickupUseCase({ repository: integrationPickupRepository }),
+    createPickup: createCreateIntegrationPickupUseCase({ repository: integrationPickupRepository }),
+    getPickup: createGetIntegrationPickupUseCase({ repository: integrationPickupRepository }),
+  })
   if (config.companyId === undefined) {
     return [
       ...nfseCallbackRoutes,
+      ...integrationRoutes,
       ...contractorMailInboundWebhookRoutes,
       ...whatsappWebhookRoutes,
       ...whatsappEvolutionWebhookRoutes,
@@ -3215,6 +3260,7 @@ function createAnonymousRoutes({
   return [
     ...loginHintRoutes,
     ...nfseCallbackRoutes,
+    ...integrationRoutes,
     ...contractorMailInboundWebhookRoutes,
     ...whatsappWebhookRoutes,
     ...whatsappEvolutionWebhookRoutes,
@@ -3422,6 +3468,13 @@ function createApplicationRoutes({
   const tripLocationRepository = new DrizzleTripLocationRepository(database)
   const recordTripLocation = createRecordTripLocationUseCase({ repository: tripLocationRepository })
   const contractorPortalRepository = new DrizzleContractorPortalRepository(database)
+  const pickupRequestRepository = new DrizzlePickupRequestRepository(database)
+  const integrationKeyAdminRepository = new DrizzleIntegrationKeyRepository(database)
+  const pickupRequestDependencies = {
+    repository: pickupRequestRepository,
+    resolveScope: (input: Parameters<typeof contractorPortalRepository.resolveScope>[0]) =>
+      contractorPortalRepository.resolveScope(input),
+  }
   const readContractorDeliveries = createReadContractorDeliveriesUseCase({
     repository: contractorPortalRepository,
   })
@@ -4721,6 +4774,21 @@ function createApplicationRoutes({
       listActive: createListActiveCompanyEntryKindsUseCase({
         entryKinds: companyEntryKindRepository,
       }),
+    }),
+    ...createPickupRequestRoutes({
+      accept: createAcceptPickupRequestUseCase(pickupRequestDependencies),
+      cancel: createCancelPickupRequestUseCase(pickupRequestDependencies),
+      create: createCreatePickupRequestUseCase(pickupRequestDependencies),
+      get: createGetPickupRequestUseCase(pickupRequestDependencies),
+      listForContractor: createListContractorPickupRequestsUseCase(pickupRequestDependencies),
+      listForOffice: createListPickupRequestsUseCase(pickupRequestDependencies),
+      refuse: createRefusePickupRequestUseCase(pickupRequestDependencies),
+      schedule: createSchedulePickupRequestUseCase(pickupRequestDependencies),
+    }),
+    ...createIntegrationKeyAdminRoutes({
+      createKey: createCreateIntegrationKeyUseCase({ repository: integrationKeyAdminRepository }),
+      listKeys: createListIntegrationKeysUseCase({ repository: integrationKeyAdminRepository }),
+      revokeKey: createRevokeIntegrationKeyUseCase({ repository: integrationKeyAdminRepository }),
     }),
     ...createFreightQuoteRoutes({
       calculate: createCalculateFreightQuoteUseCase({

@@ -1381,6 +1381,14 @@ Sintoma: o bot reenviava a cada ~30 min o lembrete `idle` ("Vamos iniciar a rota
 - **Conferir (somente leitura):** `select job, enabled, paused_origin, interval_seconds from job_schedules where job = 'company-expense.reminder.send'`; as últimas linhas de `job_executions` da rotina (contadores `sent`, `skipped`, `failed`, `templateMissing`, `unsupportedChannel`); e `select count(*) from company_expense_reminders_sent where day = current_date`.
 - **Falha:** uma empresa que erra não segura as outras; o ciclo termina e fecha `unexpected_error` (log `company_expense_reminder_company_failed` com `companyId` e a mensagem). Rollback: `rollback.sql` da migration (apaga a linha do relógio e as execuções; só com o worker também revertido).
 
+## 5.37 Rotina `pickup-request.notify` e pedido de coleta/entrega (spec 339 T4, 15/11/2026) — nasce pausada, nada alterado em produção
+
+- **O que faz:** a cada 5 minutos (`interval_seconds = 300`) o worker (1) expira o pedido `requested` com `expires_at` vencido (7 dias), (2) marca uma vez o pedido parado há mais de 24 h (`stale_alerted_at`) e (3) entrega, em lotes de 100, os avisos pendentes da caixa de saída `pickup_request_notifications` (e-mail pelo Resend da transportadora no modelo padrão de e-mail; WhatsApp pelo Evolution da empresa). A API só grava a linha, na mesma transação da mudança de estado.
+- **Tentativas:** até 5, com espera de 2, 10, 30, 120 e 480 minutos; depois vira `failed` com `last_error`. Sem contato ou sem canal vira `skipped`. O aviso reservado fica invisível por 10 minutos (`available_at` à frente), então um ciclo que morre no meio não perde nada.
+- **Estado inicial:** a migration `20261115140000_pickup_request_notifications` semeia a linha em `job_schedules` com `enabled = false`, `paused_origin = 'system'`. Ligar pede a autorização do dono. Com a rotina pausada o pedido funciona, mas ninguém é avisado e nada expira.
+- **Conferir (somente leitura):** `select job, enabled, paused_origin from job_schedules where job = 'pickup-request.notify'`; `select status, count(*) from pickup_request_notifications group by 1`; `select event, audience, channel, last_error from pickup_request_notifications where status in ('failed','skipped') order by created_at desc limit 20`.
+- **Rollback:** `rollback.sql` recusa se a caixa de saída tem linhas (apagar perderia aviso não entregue).
+
 ## 5.34 Bot do grupo ignorou a resposta do motorista: telefone errado no cadastro (13/11/2026)
 
 - **Sintoma:** no grupo "Thiago Suporte Transportadora" o lembrete marcou o motorista Thiago Fabris e ele respondeu "sim" e "1", mas o bot não registrou nada e encerrou com "Pedido encerrado sem resposta".
@@ -1392,3 +1400,7 @@ Sintoma: o bot reenviava a cada ~30 min o lembrete `idle` ("Vamos iniciar a rota
 ## 5.36 Orçamento de frete (spec 326, 15/11/2026) — nada alterado em produção
 
 A spec 326 só vai a `staging`. Ela cria a tabela `company_freight_quote_settings` (migration `20261115050000_freight_quote_settings`) e a tela `/orcamento`; sem linha gravada a API devolve os valores iniciais do sistema. Ordem de publicação: migration, API, painel. Rollback manual em `apps/api-transportada/drizzle/20261115050000_freight_quote_settings/rollback.sql` (recusa rodar com parâmetro gravado). Nenhum passo em produção até a promoção de `staging`; a tabela do piso da ANTT é código (Res. 6.084/2026), não dado do banco.
+
+## 5.38 Chaves da API de integração (spec 340, 15/11/2026) — nada alterado em produção
+
+A spec 340 cria `integration_api_keys` e a coluna `pickup_requests.integration_key_id` (migration `20261115150000_integration_api_keys`; rollback manual ao lado, recusa rodar com chave cadastrada ou pedido feito por integração). Ordem: migration, API. **Criar uma chave** (empresa-admin, `settings.manage`): `POST /v1/integration-keys` com `{ "name": "Parceiro X", "scopes": ["quote","pickup"] }`; a resposta traz o campo `key` **uma única vez** — entregue ao parceiro por canal seguro e não a guarde. **Revogar:** `POST /v1/integration-keys/{id}/revoke`; vale na próxima chamada. Parceiro recebendo `401` com chave que funcionava: conferir `GET /v1/integration-keys` (`revokedAt`). `429` vem do balde por chave (120 cotações, 30 pedidos e 120 consultas por minuto) ou do teto por IP. A tabela é esvaziada no refresh de staging. Documento do parceiro: `docs/integracao/api-de-integracao.md`.

@@ -157,3 +157,60 @@ export type PortalConversationMessageInput = Readonly<{
   idempotencyKey: string
   ref: string
 }>
+
+/** Spec 339: o pedido de coleta/entrega como o portal o vê — sem id de contratante, sem documento. */
+export type PickupRequestKind = 'delivery' | 'pickup'
+export type PickupRequestStatus =
+  | 'accepted'
+  | 'canceled'
+  | 'done'
+  | 'expired'
+  | 'refused'
+  | 'requested'
+  | 'scheduled'
+
+export type PickupRequestAddress = Readonly<{
+  city: string
+  cityIbgeCode: string | null
+  complement: string | null
+  district: string
+  number: string
+  postalCode: string
+  state: string
+  street: string
+}>
+
+export type PickupRequest = Readonly<{
+  acceptedWindowEnd: string | null
+  acceptedWindowStart: string | null
+  cargoDescription: string
+  createdAt: string
+  decisionNote: string | null
+  destination: PickupRequestAddress
+  expiresAt: string
+  id: string
+  kind: PickupRequestKind
+  origin: PickupRequestAddress
+  scheduled: boolean
+  status: PickupRequestStatus
+  volumes: number
+  weightKg: string
+  windowEnd: string
+  windowStart: string
+}>
+
+export type PickupRequestInput = Readonly<{
+  cargoDescription: string
+  destination: PickupRequestAddress
+  idempotencyKey: string
+  kind: PickupRequestKind
+  note: string | null
+  origin: PickupRequestAddress
+  requesterEmail: string | null
+  requesterName: string
+  requesterPhone: string | null
+  volumes: number
+  weightKg: string
+  windowEnd: string
+  windowStart: string
+}>

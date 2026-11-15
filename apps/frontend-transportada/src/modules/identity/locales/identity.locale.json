@@ -516,6 +516,14 @@
         "label": "Acompanhar entrega (portal)",
         "where": "Portal do contratante: seguir a carga das notas da conta dele."
       },
+      "pickup.request": {
+        "label": "Pedir coleta ou entrega (portal)",
+        "where": "Portal do contratante: solicitar coleta ou entrega à transportadora."
+      },
+      "pickup.manage": {
+        "label": "Decidir pedidos de coleta e entrega",
+        "where": "Aceitar ou recusar o pedido do cliente e encaixá-lo numa viagem."
+      },
       "charges.decide": {
         "label": "Decidir repasse (portal)",
         "where": "Portal do contratante: aceitar ou recusar cobrança adicional."
@@ -559,6 +567,7 @@
         "settings": "Configurações",
         "operations": "Operação e auditoria",
         "portal": "Portal do contratante",
+        "pickup": "Pedidos de coleta e entrega",
         "other": "Outras",
         "occurrences": "Ocorrências",
         "expenses": "Contas"

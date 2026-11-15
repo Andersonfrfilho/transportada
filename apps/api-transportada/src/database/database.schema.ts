@@ -85,6 +85,8 @@ import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
 import { companyDriverAllowanceSettings } from './company-driver-allowance-settings.schema.js'
 import { companyFreightQuoteSettings } from './company-freight-quote-settings.schema.js'
+import { integrationApiKeys } from './integration-api-key.schema.js'
+import { pickupRequestNotifications, pickupRequests } from './pickup-request.schema.js'
 import { companyDriverReminderSettings } from './company-driver-reminder-settings.schema.js'
 import { driverStopReminders } from './driver-stop-reminder.schema.js'
 import { companyLocationRetentionSettings } from './company-location-retention-settings.schema.js'
@@ -230,6 +232,8 @@ import {
 
 export * from './company-driver-allowance-settings.schema.js'
 export * from './company-freight-quote-settings.schema.js'
+export * from './integration-api-key.schema.js'
+export * from './pickup-request.schema.js'
 export * from './company-driver-reminder-settings.schema.js'
 export * from './driver-stop-reminder.schema.js'
 export * from './company-location-retention-settings.schema.js'
@@ -338,6 +342,9 @@ export const databaseSchema = {
   companyDistributionSettings,
   companyDriverAllowanceSettings,
   companyFreightQuoteSettings,
+  integrationApiKeys,
+  pickupRequestNotifications,
+  pickupRequests,
   companyDriverReminderSettings,
   driverStopReminders,
   companyLocationRetentionSettings,

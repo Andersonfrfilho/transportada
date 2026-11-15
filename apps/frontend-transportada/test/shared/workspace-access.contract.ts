@@ -66,6 +66,8 @@ const EXPECTED_WORKSPACE_PERMISSIONS: Readonly<Record<string, readonly string[]>
   // cargo-arrival-http.support.ts (API): leitura é fleet.read (o separador tem), escrita é trip.manage
   // e fica dentro da tela (`canManage`); spec 237 T2.4
   'cargo-receiving': ['fleet.read'],
+  // pickup-request.routes.ts (API, spec 339): o escritório lê e decide com pickup.manage
+  'pickup-requests': ['pickup.manage'],
 }
 
 describe('mapa de permissão por workspace — cobertura', () => {
