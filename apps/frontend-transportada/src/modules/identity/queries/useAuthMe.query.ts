@@ -89,6 +89,10 @@ export const COMPANY_PERMISSIONS = [
   'cargo.measure',
   /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
   'deliveries.track',
+  /** Spec 339: pedir coleta/entrega pelo portal (só o papel `contractor`). */
+  'pickup.request',
+  /** Spec 339: decidir o pedido de coleta/entrega e encaixá-lo numa viagem. */
+  'pickup.manage',
   /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */
   'charges.decide',
   /**

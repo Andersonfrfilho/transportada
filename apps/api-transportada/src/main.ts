@@ -184,6 +184,18 @@ import { DrizzleLocationRetentionSettingsRepository } from './companies/infrastr
 import { createDriverAllowanceSettingsRoutes } from './companies/presentation/driver-allowance-settings.routes.js'
 import { createFreightQuoteRoutes } from './freight-quote/presentation/freight-quote.routes.js'
 import {
+  createAcceptPickupRequestUseCase,
+  createCancelPickupRequestUseCase,
+  createCreatePickupRequestUseCase,
+  createGetPickupRequestUseCase,
+  createListContractorPickupRequestsUseCase,
+  createListPickupRequestsUseCase,
+  createRefusePickupRequestUseCase,
+  createSchedulePickupRequestUseCase,
+} from './pickup-requests/application/pickup-request.use-case.js'
+import { DrizzlePickupRequestRepository } from './pickup-requests/infrastructure/drizzle-pickup-request.repository.js'
+import { createPickupRequestRoutes } from './pickup-requests/presentation/pickup-request.routes.js'
+import {
   createCalculateFreightQuoteUseCase,
   createClearFreightQuoteSettingsUseCase,
   createGetFreightQuoteSettingsUseCase,
@@ -3421,6 +3433,12 @@ function createApplicationRoutes({
   const tripLocationRepository = new DrizzleTripLocationRepository(database)
   const recordTripLocation = createRecordTripLocationUseCase({ repository: tripLocationRepository })
   const contractorPortalRepository = new DrizzleContractorPortalRepository(database)
+  const pickupRequestRepository = new DrizzlePickupRequestRepository(database)
+  const pickupRequestDependencies = {
+    repository: pickupRequestRepository,
+    resolveScope: (input: Parameters<typeof contractorPortalRepository.resolveScope>[0]) =>
+      contractorPortalRepository.resolveScope(input),
+  }
   const readContractorDeliveries = createReadContractorDeliveriesUseCase({
     repository: contractorPortalRepository,
   })
@@ -4717,6 +4735,16 @@ function createApplicationRoutes({
       listActive: createListActiveCompanyEntryKindsUseCase({
         entryKinds: companyEntryKindRepository,
       }),
+    }),
+    ...createPickupRequestRoutes({
+      accept: createAcceptPickupRequestUseCase(pickupRequestDependencies),
+      cancel: createCancelPickupRequestUseCase(pickupRequestDependencies),
+      create: createCreatePickupRequestUseCase(pickupRequestDependencies),
+      get: createGetPickupRequestUseCase(pickupRequestDependencies),
+      listForContractor: createListContractorPickupRequestsUseCase(pickupRequestDependencies),
+      listForOffice: createListPickupRequestsUseCase(pickupRequestDependencies),
+      refuse: createRefusePickupRequestUseCase(pickupRequestDependencies),
+      schedule: createSchedulePickupRequestUseCase(pickupRequestDependencies),
     }),
     ...createFreightQuoteRoutes({
       calculate: createCalculateFreightQuoteUseCase({

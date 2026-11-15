@@ -63,6 +63,11 @@ viagem. Aceitar **gera uma sugestão** (entrar numa viagem existente ou criar um
   sem resposta. Sem decisão em 7 dias corridos (igual à validade do orçamento), o pedido **expira**: vira `expired`, o
   cliente é avisado e pode pedir de novo. A rotina de expiração é do cron, idempotente.
 
+- **D10 — Muita chamada: a API grava e o worker entrega** (Anderson, 15/11/2026). Pedido, aceite e recusa só validam e
+  gravam, junto com o evento de saída (outbox) na mesma transação; e-mail, WhatsApp e webhook do parceiro saem pelo
+  worker, com repetição e espera crescente. A cotação (spec 340) é conta pura e fica síncrona, com cache curto de
+  parâmetros e preço do diesel por empresa e limite por chave.
+
 ## Histórias
 
 - **H1** — Como cliente do portal, abro "Solicitar coleta/entrega", informo origem, destino, janela, carga e envio;

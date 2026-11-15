@@ -2,11 +2,11 @@
 
 Regra: teste de aceite antes da implementação; task só fecha com evidência em `evidence.md`.
 
-- [ ] **T0 — Investigar** `trip_stops` (há `kind` de coleta?), rota de parada manual, `contractor_portal`, padrão da 150
+- [x] **T0 — Investigar** `trip_stops` (há `kind` de coleta?), rota de parada manual, `contractor_portal`, padrão da 150
       (pedido → decisão) e modelos de e-mail; registrar achados.
-- [ ] **T1 — Banco**: `pickup_requests` (+ eventos de decisão), migration aditiva com rollback guardado, snapshot, linha em
+- [x] **T1 — Banco**: `pickup_requests` (+ eventos de decisão), migration aditiva com rollback guardado, snapshot, linha em
       `deploy/staging-refresh/prune-source.sql`.
-- [ ] **T2 — Domínio/API**: política de estados, criar/cancelar pelo portal, aceitar/recusar pelo painel, permissão
+- [x] **T2 — Domínio/API**: política de estados, criar/cancelar pelo portal, aceitar/recusar pelo painel, permissão
       `pickup.manage`, contratos (CA01–CA03, isolamento).
 - [ ] **T3 — Cadastro do cliente na aceitação** (D4), com contrato de idempotência por documento.
 - [ ] **T4 — Notificações** (D6, e-mail + WhatsApp + portal; D9 alerta e expiração no cron): chaves de modelo, script de publicação, outbox, reenvio.

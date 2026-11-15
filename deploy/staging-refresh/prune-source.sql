@@ -249,6 +249,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('occurrence_conversations', 'empty', null),
   ('password_reset_delivery_outbox', 'empty', null),
   ('password_reset_requests', 'empty', null),
+  ('pickup_requests', 'window', 'created_at'),
   ('processed_messages', 'empty', null),
   ('processing_jobs', 'empty', null),
   ('processing_outbox', 'empty', null),

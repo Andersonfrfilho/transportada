@@ -47,7 +47,11 @@ export const PERMISSION_GROUPS = [
   { key: 'operations', permissions: ['operations.read', 'operations.run', 'audit.read'] },
   { key: 'occurrences', permissions: ['occurrences.resolve'] },
   { key: 'expenses', permissions: ['expenses.read', 'expenses.manage'] },
-  { key: 'portal', permissions: ['deliveries.track', 'charges.decide', 'occurrences.decide'] },
+  {
+    key: 'portal',
+    permissions: ['deliveries.track', 'pickup.request', 'charges.decide', 'occurrences.decide'],
+  },
+  { key: 'pickup', permissions: ['pickup.manage'] },
 ] as const
 
 export const OTHER_PERMISSION_GROUP = 'other'
