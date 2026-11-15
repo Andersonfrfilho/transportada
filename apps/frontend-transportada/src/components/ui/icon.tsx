@@ -93,6 +93,7 @@ export type IconName =
   | 'workspace-fleet'
   | 'workspace-freight'
   | 'workspace-freight-quote'
+  | 'workspace-pickup-requests'
   | 'workspace-mdfe-manifest'
   | 'workspace-nfe'
   | 'workspace-nfse-invoice'
@@ -381,6 +382,13 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M14 10h4l3 3v4h-7z',
     'M7 20a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
     'M17 20a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
+  ],
+  /* Caixa com seta para cima: o pedido de coleta chega do cliente e espera o encaixe. */
+  'workspace-pickup-requests': [
+    'M4 9h16v11H4z',
+    'M9 9V5h6v4',
+    'M12 17v-5',
+    'M9.5 14.5 12 12l2.5 2.5',
   ],
   /* Prancheta com cifrão: o orçamento é o preço antes de haver viagem, não o veículo do frete. */
   'workspace-freight-quote': [

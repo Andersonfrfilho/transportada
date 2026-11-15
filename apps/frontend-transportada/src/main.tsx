@@ -117,9 +117,13 @@ function resolveOpenGroups(
       'expenses',
       'nfse-invoice',
     ].includes(workspace),
-    operations: ['operations', 'trip-occurrences', 'cargo-receiving', 'driver-trip'].includes(
-      workspace,
-    ),
+    operations: [
+      'operations',
+      'trip-occurrences',
+      'cargo-receiving',
+      'pickup-requests',
+      'driver-trip',
+    ].includes(workspace),
     registries: ['cte-profiles', 'fleet'].includes(workspace),
   }
 }
@@ -166,6 +170,7 @@ function resolveWorkspaceFromPath(): WorkspaceNavigationItem['key'] | undefined 
   if (parseCargoReceivingRoute(window.location.pathname) !== null) return 'cargo-receiving'
   if (window.location.pathname === '/freight') return 'freight'
   if (window.location.pathname === '/orcamento') return 'freight-quote'
+  if (window.location.pathname === '/coletas') return 'pickup-requests'
   if (window.location.pathname === '/usuarios') return 'users'
   if (window.location.pathname === '/papeis') return 'access-profiles'
 
@@ -201,6 +206,7 @@ function resolveCurrentWorkspaceWithSource(): Readonly<{
     storedWorkspace === 'trip-occurrences' ||
     storedWorkspace === 'freight' ||
     storedWorkspace === 'freight-quote' ||
+    storedWorkspace === 'pickup-requests' ||
     storedWorkspace === 'trip' ||
     storedWorkspace === 'users' ||
     storedWorkspace === 'access-profiles'
@@ -277,6 +283,9 @@ const FinancialResultsWorkspacePage = lazy(async () => ({
 }))
 const FleetWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/fleet/pages/FleetWorkspace.page')).FleetWorkspacePage,
+}))
+const PickupRequestsPage = lazy(async () => ({
+  default: (await import('@/modules/pickup-requests/pages/PickupRequests.page')).PickupRequestsPage,
 }))
 const FreightQuotePage = lazy(async () => ({
   default: (await import('@/modules/freight-quote/pages/FreightQuote.page')).FreightQuotePage,
@@ -402,6 +411,8 @@ function resolvePage(
       return <FreightWorkspacePage />
     case 'freight-quote':
       return <FreightQuotePage />
+    case 'pickup-requests':
+      return <PickupRequestsPage />
     case 'users':
       return <UserAdministrationPage />
     case 'access-profiles':
