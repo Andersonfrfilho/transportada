@@ -19,6 +19,8 @@ export const WORKSPACE_PERMISSIONS = {
   nfe: ['invoices.read', 'invoices.import'],
   // freightViewModel.service.ts:42-46 — a parede só cai quando faltam as duas
   freight: ['settings.manage', 'freight.simulate'],
+  // FreightQuote.page.tsx (spec 326): a API lê e calcula com freight.simulate
+  'freight-quote': ['freight.simulate'],
   // CteBatchWorkspace.page.tsx:75-76
   'cte-batch': ['cte.manage', 'cte.submit'],
   // canReadTrip (trip.constant.ts:25), usado em useTripWorkspace.hook.ts:243

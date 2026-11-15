@@ -4,6 +4,7 @@ import { DRIVER_TRIP_PATH } from '@/modules/driver-trip/shared/driverWorkspace.s
 const NAVIGATION_ENTRIES = [
   { href: '/', key: 'nfe', label: 'NF-e' },
   { href: '/freight', key: 'freight', label: 'Frete' },
+  { href: '/orcamento', key: 'freight-quote', label: 'Orçamento' },
   { href: '/cte-batches', key: 'cte-batch', label: 'CT-e' },
   { href: '/trips', key: 'trip', label: 'Viagens' },
   { href: '/mdfe-manifests', key: 'mdfe-manifest', label: 'MDF-e' },
@@ -54,6 +55,7 @@ export const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
       [
         'nfe',
         'freight',
+        'freight-quote',
         'cte-batch',
         'trip',
         'mdfe-manifest',

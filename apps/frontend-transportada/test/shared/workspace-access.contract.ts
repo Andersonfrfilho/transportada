@@ -22,6 +22,7 @@ const EXPECTED_WORKSPACE_PERMISSIONS: Readonly<Record<string, readonly string[]>
   nfe: ['invoices.read', 'invoices.import'],
   // freightViewModel.service.ts:42-46 — a parede só cai quando faltam as duas
   freight: ['settings.manage', 'freight.simulate'],
+  'freight-quote': ['freight.simulate'],
   // CteBatchWorkspace.page.tsx:75-76
   'cte-batch': ['cte.manage', 'cte.submit'],
   // canReadTrip (trip.constant.ts:25), usado em useTripWorkspace.hook.ts:243

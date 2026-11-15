@@ -109,6 +109,7 @@ function resolveOpenGroups(
     fiscal: [
       'nfe',
       'freight',
+      'freight-quote',
       'cte-batch',
       'trip',
       'mdfe-manifest',
@@ -164,6 +165,7 @@ function resolveWorkspaceFromPath(): WorkspaceNavigationItem['key'] | undefined 
   /** Spec 237: a lista, o registro, o detalhe e a tela do celular são telas do recebimento. */
   if (parseCargoReceivingRoute(window.location.pathname) !== null) return 'cargo-receiving'
   if (window.location.pathname === '/freight') return 'freight'
+  if (window.location.pathname === '/orcamento') return 'freight-quote'
   if (window.location.pathname === '/usuarios') return 'users'
   if (window.location.pathname === '/papeis') return 'access-profiles'
 
@@ -198,6 +200,7 @@ function resolveCurrentWorkspaceWithSource(): Readonly<{
     storedWorkspace === 'pendencias' ||
     storedWorkspace === 'trip-occurrences' ||
     storedWorkspace === 'freight' ||
+    storedWorkspace === 'freight-quote' ||
     storedWorkspace === 'trip' ||
     storedWorkspace === 'users' ||
     storedWorkspace === 'access-profiles'
@@ -274,6 +277,9 @@ const FinancialResultsWorkspacePage = lazy(async () => ({
 }))
 const FleetWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/fleet/pages/FleetWorkspace.page')).FleetWorkspacePage,
+}))
+const FreightQuotePage = lazy(async () => ({
+  default: (await import('@/modules/freight-quote/pages/FreightQuote.page')).FreightQuotePage,
 }))
 const FreightWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/freight/pages/FreightWorkspace.page')).FreightWorkspacePage,
@@ -394,6 +400,8 @@ function resolvePage(
     }
     case 'freight':
       return <FreightWorkspacePage />
+    case 'freight-quote':
+      return <FreightQuotePage />
     case 'users':
       return <UserAdministrationPage />
     case 'access-profiles':
