@@ -181,6 +181,12 @@ export type PickupRequestAddress = Readonly<{
 }>
 
 export type PickupRequest = Readonly<{
+  accessNotes: string | null
+  cargoValue: string | null
+  destinationContactName: string | null
+  destinationContactPhone: string | null
+  originContactName: string | null
+  originContactPhone: string | null
   acceptedWindowEnd: string | null
   acceptedWindowStart: string | null
   cargoDescription: string
@@ -200,6 +206,12 @@ export type PickupRequest = Readonly<{
 }>
 
 export type PickupRequestInput = Readonly<{
+  accessNotes: string | null
+  cargoValue: string | null
+  destinationContactName: string | null
+  destinationContactPhone: string | null
+  originContactName: string | null
+  originContactPhone: string | null
   cargoDescription: string
   destination: PickupRequestAddress
   idempotencyKey: string

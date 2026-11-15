@@ -48,6 +48,12 @@ export function toPickupRequestView(value: unknown): PickupRequestView | null {
   const id = str(value, 'id')
   if (id === '' || !PICKUP_REQUEST_STATUSES.includes(status)) return null
   return {
+    accessNotes: nullable(value, 'accessNotes'),
+    cargoValue: nullable(value, 'cargoValue'),
+    destinationContactName: nullable(value, 'destinationContactName'),
+    destinationContactPhone: nullable(value, 'destinationContactPhone'),
+    originContactName: nullable(value, 'originContactName'),
+    originContactPhone: nullable(value, 'originContactPhone'),
     acceptedTotalAmount: nullable(value, 'acceptedTotalAmount'),
     acceptedWindowEnd: nullable(value, 'acceptedWindowEnd'),
     acceptedWindowStart: nullable(value, 'acceptedWindowStart'),

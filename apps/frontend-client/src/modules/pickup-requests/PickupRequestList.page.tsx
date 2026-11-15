@@ -72,6 +72,8 @@ function PickupRequestCard({ client, item }: PickupRequestCardProps): ReactNode 
         </span>
       </div>
       <p className="panel__label">{item.cargoDescription}</p>
+      {item.cargoValue !== null && <p className="panel__label">Valor: R$ {item.cargoValue}</p>}
+      {item.accessNotes !== null && <p className="panel__label">Acesso: {item.accessNotes}</p>}
       {item.decisionNote !== null && <p className="panel__label">Motivo: {item.decisionNote}</p>}
       {canCancelPickup(item.status) && (
         <button

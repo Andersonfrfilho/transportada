@@ -16,6 +16,7 @@ import {
   isPickupWindowAcceptable,
 } from '../../pickup-requests/domain/pickup-request.policy.js'
 import type {
+  PickupRequestExtras,
   PickupRequestRecord,
   PickupRequestRepositoryPort,
 } from '../../pickup-requests/application/pickup-request.port.js'
@@ -32,7 +33,7 @@ export function computeQuoteValidUntil(now: Date): string {
   return formatFiscalDay(limit)
 }
 
-export type IntegrationPickupInput = {
+export type IntegrationPickupInput = Partial<PickupRequestExtras> & {
   readonly caller: IntegrationCaller
   readonly cargoDescription: string
   readonly correlationId: string
@@ -79,7 +80,13 @@ export function createCreateIntegrationPickupUseCase(
       throw new PickupRequestWindowInvalidError()
     }
     const result = await dependencies.repository.insert({
+      accessNotes: input.accessNotes ?? null,
       cargoDescription: input.cargoDescription,
+      cargoValue: input.cargoValue ?? null,
+      destinationContactName: input.destinationContactName ?? null,
+      destinationContactPhone: input.destinationContactPhone ?? null,
+      originContactName: input.originContactName ?? null,
+      originContactPhone: input.originContactPhone ?? null,
       companyId: input.caller.companyId,
       contractorId: null,
       destination: input.destination,

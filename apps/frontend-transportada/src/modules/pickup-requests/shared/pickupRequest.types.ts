@@ -30,6 +30,12 @@ export type PickupAddress = Readonly<{
 }>
 
 export type PickupRequestView = Readonly<{
+  accessNotes: string | null
+  cargoValue: string | null
+  destinationContactName: string | null
+  destinationContactPhone: string | null
+  originContactName: string | null
+  originContactPhone: string | null
   acceptedTotalAmount: string | null
   acceptedWindowEnd: string | null
   acceptedWindowStart: string | null

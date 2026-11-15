@@ -21,6 +21,7 @@ import {
   PICKUP_REQUEST_STALE_ALERT_HOURS,
 } from '../domain/pickup-request.policy.js'
 import type {
+  PickupRequestExtras,
   PickupRequestRecord,
   PickupRequestRepositoryPort,
   SuggestedTrip,
@@ -36,7 +37,7 @@ export type PortalScope = {
   readonly taxIds: readonly string[]
 }
 
-export type CreatePickupRequestInput = {
+export type CreatePickupRequestInput = Partial<PickupRequestExtras> & {
   readonly cargoDescription: string
   readonly context: CompanyContext
   readonly correlationId: string
@@ -98,7 +99,13 @@ export function createCreatePickupRequestUseCase(dependencies: Dependencies): (
     const requesterTaxId = scope.taxIds[0] ?? ''
 
     const result = await dependencies.repository.insert({
+      accessNotes: input.accessNotes ?? null,
       cargoDescription: input.cargoDescription,
+      cargoValue: input.cargoValue ?? null,
+      destinationContactName: input.destinationContactName ?? null,
+      destinationContactPhone: input.destinationContactPhone ?? null,
+      originContactName: input.originContactName ?? null,
+      originContactPhone: input.originContactPhone ?? null,
       companyId: input.context.companyId,
       contractorId,
       destination: input.destination,

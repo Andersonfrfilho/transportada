@@ -57,19 +57,23 @@ Endereço completo: `POST /v1/integration/pickup-requests`.
 
 Cabeçalho `Idempotency-Key` obrigatório. Corpo:
 
-| Campo                               | Tipo                          | Obrigatório | Observação                                |
-| ----------------------------------- | ----------------------------- | ----------- | ----------------------------------------- |
-| `kind`                              | `pickup` \| `delivery`        | sim         | coleta ou entrega                         |
-| `requesterName`                     | string ≤ 120                  | sim         |                                           |
-| `requesterTaxId`                    | string (CPF/CNPJ, só dígitos) | sim         | liga o pedido ao cadastro                 |
-| `requesterEmail` / `requesterPhone` | string / `+5516999999999`     | um dos dois | a transportadora avisa a decisão por aqui |
-| `origin`, `destination`             | endereço (abaixo)             | sim         |                                           |
-| `windowStart`, `windowEnd`          | data                          | sim         | janela desejada, a partir de hoje         |
-| `cargoDescription`                  | string ≤ 500                  | sim         |                                           |
-| `volumes`                           | inteiro > 0                   | sim         |                                           |
-| `weightKg`                          | string decimal > 0            | sim         | até 3 casas                               |
-| `note`                              | string ≤ 1000                 | não         |                                           |
-| `quote`                             | `{ total, validUntil }`       | não         | cotação que o cliente aceitou             |
+| Campo                                           | Tipo                          | Obrigatório | Observação                                |
+| ----------------------------------------------- | ----------------------------- | ----------- | ----------------------------------------- |
+| `kind`                                          | `pickup` \| `delivery`        | sim         | coleta ou entrega                         |
+| `requesterName`                                 | string ≤ 120                  | sim         |                                           |
+| `requesterTaxId`                                | string (CPF/CNPJ, só dígitos) | sim         | liga o pedido ao cadastro                 |
+| `requesterEmail` / `requesterPhone`             | string / `+5516999999999`     | um dos dois | a transportadora avisa a decisão por aqui |
+| `origin`, `destination`                         | endereço (abaixo)             | sim         |                                           |
+| `windowStart`, `windowEnd`                      | data                          | sim         | janela desejada, a partir de hoje         |
+| `cargoDescription`                              | string ≤ 500                  | sim         |                                           |
+| `volumes`                                       | inteiro > 0                   | sim         |                                           |
+| `weightKg`                                      | string decimal > 0            | sim         | até 3 casas                               |
+| `note`                                          | string ≤ 1000                 | não         |                                           |
+| `originContactName`, `destinationContactName`   | string ≤ 120                  | não         | quem atende na retirada / na entrega      |
+| `originContactPhone`, `destinationContactPhone` | string (10–15 dígitos)        | não         | telefone do contato                       |
+| `accessNotes`                                   | string ≤ 500                  | não         | horário e restrições de acesso            |
+| `cargoValue`                                    | string decimal (`"1500.00"`)  | não         | valor da mercadoria, em reais             |
+| `quote`                                         | `{ total, validUntil }`       | não         | cotação que o cliente aceitou             |
 
 Endereço: `street`, `number`, `complement?`, `district`, `city`, `cityIbgeCode?` (7 dígitos; opcional, o escritório completa), `state` (UF), `postalCode` (8 dígitos, só números). `requesterTaxId` é CPF (11) ou CNPJ (14) só com dígitos. Campo desconhecido é recusado.
 

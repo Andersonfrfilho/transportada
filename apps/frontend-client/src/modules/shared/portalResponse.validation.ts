@@ -300,16 +300,22 @@ export function toPickupRequest(row: unknown): PickupRequest | null {
   const id = readString(row, 'id')
   if (id === '' || !PICKUP_STATUSES.has(status)) return null
   return {
+    accessNotes: readNullableString(row, 'accessNotes'),
     acceptedWindowEnd: readNullableString(row, 'acceptedWindowEnd'),
     acceptedWindowStart: readNullableString(row, 'acceptedWindowStart'),
     cargoDescription: readString(row, 'cargoDescription'),
+    cargoValue: readNullableString(row, 'cargoValue'),
     createdAt: readString(row, 'createdAt'),
     decisionNote: readNullableString(row, 'decisionNote'),
     destination: toPickupAddress(row.destination),
+    destinationContactName: readNullableString(row, 'destinationContactName'),
+    destinationContactPhone: readNullableString(row, 'destinationContactPhone'),
     expiresAt: readString(row, 'expiresAt'),
     id,
     kind: row.kind === 'delivery' ? 'delivery' : 'pickup',
     origin: toPickupAddress(row.origin),
+    originContactName: readNullableString(row, 'originContactName'),
+    originContactPhone: readNullableString(row, 'originContactPhone'),
     scheduled: row.scheduled === true,
     status: status as PickupRequestStatus,
     volumes: typeof row.volumes === 'number' ? row.volumes : 0,

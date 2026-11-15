@@ -44,6 +44,33 @@ describe('pedido de coleta no portal (spec 339)', () => {
     expect(result.input?.requesterPhone).toBeNull()
   })
 
+  test('os dados extras são opcionais, normalizados e validados', () => {
+    const bare = buildPickupRequestInput(VALID, CONTEXT)
+    expect(bare.input?.cargoValue).toBeNull()
+    expect(bare.input?.originContactPhone).toBeNull()
+    const full = buildPickupRequestInput(
+      {
+        ...VALID,
+        accessNotes: 'Doca 2, só até 16h',
+        cargoValue: '1.500,50',
+        destinationContactName: 'Maria',
+        destinationContactPhone: '(16) 99999-0000',
+        originContactName: 'João',
+        originContactPhone: '16 3333-0000',
+      },
+      CONTEXT,
+    )
+    expect(full.input?.cargoValue).toBe('1500.50')
+    expect(full.input?.destinationContactPhone).toBe('16999990000')
+    expect(full.input?.originContactName).toBe('João')
+    const bad = buildPickupRequestInput(
+      { ...VALID, cargoValue: 'abc', originContactPhone: '123' },
+      CONTEXT,
+    )
+    expect(bad.errors?.cargoValue).toBeDefined()
+    expect(bad.errors?.originContactPhone).toBeDefined()
+  })
+
   test('recusa janela no passado, depois dos 180 dias e sem contato de retorno', () => {
     const past = buildPickupRequestInput({ ...VALID, windowStart: '2026-11-10' }, CONTEXT)
     expect(past.errors?.windowStart).toBeDefined()

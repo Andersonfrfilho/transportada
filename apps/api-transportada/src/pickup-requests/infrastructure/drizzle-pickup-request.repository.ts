@@ -47,7 +47,13 @@ export class DrizzlePickupRequestRepository implements PickupRequestRepositoryPo
     const [inserted] = await database
       .insert(pickupRequests)
       .values({
+        accessNotes: input.accessNotes ?? null,
         cargoDescription: input.cargoDescription,
+        cargoValue: input.cargoValue ?? null,
+        destinationContactName: input.destinationContactName ?? null,
+        destinationContactPhone: input.destinationContactPhone ?? null,
+        originContactName: input.originContactName ?? null,
+        originContactPhone: input.originContactPhone ?? null,
         companyId: input.companyId,
         contractorId: input.contractorId,
         destination: input.destination,
@@ -312,6 +318,12 @@ export class DrizzlePickupRequestRepository implements PickupRequestRepositoryPo
 
 function toRecord(row: Row): PickupRequestRecord {
   return {
+    accessNotes: row.accessNotes,
+    cargoValue: row.cargoValue,
+    destinationContactName: row.destinationContactName,
+    destinationContactPhone: row.destinationContactPhone,
+    originContactName: row.originContactName,
+    originContactPhone: row.originContactPhone,
     acceptedTotalAmount: row.acceptedTotalAmount,
     acceptedWindowEnd: row.acceptedWindowEnd,
     acceptedWindowStart: row.acceptedWindowStart,

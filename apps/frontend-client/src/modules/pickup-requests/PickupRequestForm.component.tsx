@@ -153,12 +153,48 @@ export function PickupRequestFormComponent({
         title="Onde retirar"
         value={form.origin}
       />
+      <Field
+        error={errors.originContactName}
+        label="Contato na retirada (opcional)"
+        onChange={update('originContactName')}
+        value={form.originContactName}
+      />
+      <Field
+        error={errors.originContactPhone}
+        label="Telefone do contato na retirada (opcional)"
+        onChange={update('originContactPhone')}
+        value={form.originContactPhone}
+      />
       <AddressFields
         errors={errors}
         onChange={update('destination')}
         prefix="destination"
         title="Onde entregar"
         value={form.destination}
+      />
+      <Field
+        error={errors.destinationContactName}
+        label="Contato na entrega (opcional)"
+        onChange={update('destinationContactName')}
+        value={form.destinationContactName}
+      />
+      <Field
+        error={errors.destinationContactPhone}
+        label="Telefone do contato na entrega (opcional)"
+        onChange={update('destinationContactPhone')}
+        value={form.destinationContactPhone}
+      />
+      <Field
+        error={errors.accessNotes}
+        label="Horário e restrições de acesso (opcional)"
+        onChange={update('accessNotes')}
+        value={form.accessNotes}
+      />
+      <Field
+        error={errors.cargoValue}
+        label="Valor da mercadoria em R$ (opcional)"
+        onChange={update('cargoValue')}
+        value={form.cargoValue}
       />
       <Field
         error={errors.cargoDescription}
