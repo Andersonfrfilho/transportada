@@ -27,6 +27,8 @@ import { generateOccurrencesForExpense } from './expense-occurrence.use-case.js'
 export type CreateExpenseInput = {
   /** Spec 326: por onde a conta foi lançada; vai à trilha de auditoria. Sem ele, o painel. */
   readonly channel?: 'panel' | 'whatsapp'
+  /** Spec 328: quem causou a conta (opcional; qualquer ficha da frota da empresa, inclusive ajudante). */
+  readonly causedByDriverId?: string
   readonly categoryId: string
   readonly companyId: string
   readonly correlationId?: string
@@ -105,6 +107,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
       })
       if (category === null || !category.active) throw new ExpenseCategoryNotFoundError()
       await assertDriverRule(ports, input, category)
+      await assertCausedByDriver(ports, input.companyId, input.causedByDriverId)
       const schedule = resolveSchedule(input)
       const installmentsTotal = resolveInstallmentsTotal(input)
       const expectedAmount = assertAmount(input.expectedAmount)
@@ -113,6 +116,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
 
       const expense = await ports.expenses.create({
         anchorCompetence: competenceOfDate(input.today),
+        causedByDriverId: input.causedByDriverId ?? null,
         categoryId: input.categoryId,
         companyId: input.companyId,
         dueDay: schedule.dueDay,
@@ -145,6 +149,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
         entityType: 'company_expense',
         metadata: {
           categoryId: expense.categoryId,
+          causedByDriverId: expense.causedByDriverId ?? null,
           channel: input.channel ?? 'panel',
           expectedAmount: expense.expectedAmount,
           installmentsTotal: expense.installmentsTotal ?? null,
@@ -156,6 +161,17 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
       return expense
     },
   }
+}
+
+/** Spec 328: quem causou a conta é qualquer ficha da frota da empresa; de outra empresa ou inexistente, recusa. */
+async function assertCausedByDriver(
+  ports: ExpensesPorts,
+  companyId: string,
+  driverId: string | null | undefined,
+): Promise<void> {
+  if (driverId === undefined || driverId === null) return
+  const driver = await ports.drivers.findById({ companyId, driverId })
+  if (driver === null) throw new ExpenseDriverNotFoundError()
 }
 
 async function assertDriverRule(
@@ -177,6 +193,8 @@ async function assertDriverRule(
 
 export type UpdateExpenseInput = {
   readonly active?: boolean
+  /** Spec 328: `null` limpa. */
+  readonly causedByDriverId?: string | null
   readonly companyId: string
   readonly correlationId?: string
   readonly dueDay?: number
@@ -206,10 +224,14 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
       }
       const name = input.name?.trim()
       if (name === '') throw new ExpenseInvalidScheduleError('name is required.')
+      await assertCausedByDriver(ports, input.companyId, input.causedByDriverId)
       const updated = await ports.expenses.update({
         companyId: input.companyId,
         expenseId: input.expenseId,
         ...(input.active === undefined ? {} : { active: input.active }),
+        ...(input.causedByDriverId === undefined
+          ? {}
+          : { causedByDriverId: input.causedByDriverId }),
         ...(input.dueDay === undefined ? {} : { dueDay: input.dueDay }),
         ...(input.expectedAmount === undefined
           ? {}
@@ -238,6 +260,7 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
 function snapshot(expense: CompanyExpense): Record<string, unknown> {
   return {
     active: expense.active,
+    causedByDriverId: expense.causedByDriverId ?? null,
     dueDay: expense.dueDay,
     expectedAmount: expense.expectedAmount,
     name: expense.name,

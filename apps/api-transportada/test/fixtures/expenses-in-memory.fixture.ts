@@ -141,14 +141,23 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
           .filter((o) => o.companyId === companyId)
           .filter((o) => filters.status === undefined || o.status === filters.status)
           .filter((o) => filters.competence === undefined || o.competence === filters.competence)
+          .filter(
+            (o) =>
+              filters.causedByDriverId === undefined ||
+              expenseRows.find((e) => e.id === o.expenseId)?.causedByDriverId ===
+                filters.causedByDriverId,
+          )
           .map((o) => {
             const expense = expenseRows.find((e) => e.id === o.expenseId)
+            const causedBy = drivers.find((d) => d.id === expense?.causedByDriverId)
             const category = categories.find((c) => c.id === expense?.categoryId)
             const driver = drivers.find((d) => d.id === expense?.payeeDriverId)
             return {
               ...o,
               categoryId: expense?.categoryId ?? '',
               categoryName: category?.name ?? '',
+              causedByDriverId: expense?.causedByDriverId ?? null,
+              causedByDriverName: causedBy === undefined ? null : 'Quem causou',
               expenseKind: expense?.kind ?? 'fixed',
               expenseName: expense?.name ?? '',
               payeeDriverId: expense?.payeeDriverId ?? null,

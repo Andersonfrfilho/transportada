@@ -147,6 +147,8 @@ export function formatInstallment(
 
 export type CreateFormFields = Readonly<{
   amount: string
+  /** Spec 328: opcional; vazio = ninguém. */
+  causedByDriverId: string
   categoryId: string
   dueDate: string
   dueDay: string
@@ -161,6 +163,7 @@ export type CreateFormFields = Readonly<{
 
 export const EMPTY_CREATE_FORM: CreateFormFields = {
   amount: '',
+  causedByDriverId: '',
   categoryId: '',
   dueDate: '',
   dueDay: '',

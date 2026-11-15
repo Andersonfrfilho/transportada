@@ -6,6 +6,7 @@
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import {
   COMPANY_EXPENSE_DRIVER_CATEGORY_NAME,
@@ -25,6 +26,9 @@ import type {
   ExpensesPorts,
 } from '../application/expense.port.js'
 import { resolveExpensePayeeProfile } from '../domain/expense-payee.policy.js'
+
+/** Spec 328: a ficha de quem causou a conta, ao lado da do favorecido (`fleetDrivers`). */
+const causedByDriver = alias(fleetDrivers, 'expense_caused_by_driver')
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -62,6 +66,7 @@ function toExpense(row: ExpenseRow): CompanyExpense {
   return {
     active: row.active,
     anchorCompetence: formatFiscalDay(row.createdAt).slice(0, 7),
+    causedByDriverId: row.causedByDriverId,
     categoryId: row.categoryId,
     companyId: row.companyId,
     dueDay: row.dueDay,
@@ -218,6 +223,7 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
         const [created] = await database
           .insert(companyExpenses)
           .values({
+            causedByDriverId: input.causedByDriverId ?? null,
             categoryId: input.categoryId,
             companyId: input.companyId,
             dueDay: input.dueDay,
@@ -323,6 +329,8 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
       list: async ({ companyId, filters }) => {
         const rows = await database
           .select({
+            causedByDriverId: companyExpenses.causedByDriverId,
+            causedByDriverName: causedByDriver.name,
             categoryId: companyExpenses.categoryId,
             categoryName: companyExpenseCategories.name,
             driverCanDrive: fleetDrivers.canDrive,
@@ -356,9 +364,19 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
               eq(fleetDrivers.id, companyExpenses.payeeDriverId),
             ),
           )
+          .leftJoin(
+            causedByDriver,
+            and(
+              eq(causedByDriver.companyId, companyExpenses.companyId),
+              eq(causedByDriver.id, companyExpenses.causedByDriverId),
+            ),
+          )
           .where(
             and(
               eq(companyExpenseOccurrences.companyId, companyId),
+              filters.causedByDriverId === undefined
+                ? undefined
+                : eq(companyExpenses.causedByDriverId, filters.causedByDriverId),
               filters.competence === undefined
                 ? undefined
                 : eq(companyExpenseOccurrences.competence, filters.competence),
@@ -378,6 +396,8 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
         return rows.map(
           (row): ExpenseOccurrenceListItem => ({
             ...toOccurrence(row.occurrence),
+            causedByDriverId: row.causedByDriverId,
+            causedByDriverName: row.causedByDriverName,
             categoryId: row.categoryId,
             categoryName: row.categoryName,
             expenseKind: row.expenseKind,

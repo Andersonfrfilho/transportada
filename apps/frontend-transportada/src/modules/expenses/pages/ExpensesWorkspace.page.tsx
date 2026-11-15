@@ -77,6 +77,15 @@ export function ExpensesWorkspacePage() {
     )
   }
 
+  function renderCausedBy(row: ExpenseOccurrenceListItem) {
+    if (row.causedByDriverName === undefined || row.causedByDriverName === null) return null
+    return (
+      <span className={styles.rowDetail}>
+        {t('list.causedBy', { name: row.causedByDriverName })}
+      </span>
+    )
+  }
+
   function renderInstallment(row: ExpenseOccurrenceListItem) {
     const installment = formatInstallment(row)
     if (installment === null) return null
@@ -163,6 +172,17 @@ export function ExpensesWorkspacePage() {
             value={filters.driverId}
           />
         </div>
+        <div className={styles.field}>
+          <span>{t('filters.causedBy')}</span>
+          <Select
+            ariaLabel={t('filters.causedBy')}
+            clearable
+            onChange={(value) => workspace.setFilter('causedByDriverId', value)}
+            options={driverOptions}
+            placeholder={t('filters.all')}
+            value={filters.causedByDriverId}
+          />
+        </div>
       </section>
 
       {workspace.loadError === null ? null : (
@@ -238,6 +258,7 @@ export function ExpensesWorkspacePage() {
                         {row.expenseName}
                         {renderInstallment(row)}
                         {renderPayee(row)}
+                        {renderCausedBy(row)}
                       </div>
                     </td>
                     <td data-column={t('list.kind')}>{t(`kind.${row.expenseKind}`)}</td>

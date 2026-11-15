@@ -33,6 +33,8 @@ export type ExpenseDriverRef = {
 
 export type CompanyExpense = {
   readonly active: boolean
+  /** Spec 328: quem causou a conta (ficha da frota: motorista, agregado ou ajudante); só informativo, nunca recebe aviso. */
+  readonly causedByDriverId?: string | null
   readonly categoryId: string
   readonly companyId: string
   readonly dueDay: number | null
@@ -73,6 +75,9 @@ export type CompanyExpenseOccurrence = {
 /** Linha da lista de ocorrências: a ocorrência com o que a tela precisa da conta (nome, categoria, motorista). */
 export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
   readonly categoryId: string
+  /** Spec 328: quem causou a conta, lido da ficha na hora (nunca copiado). */
+  readonly causedByDriverId?: string | null
+  readonly causedByDriverName?: string | null
   readonly categoryName: string
   readonly expenseKind: ExpenseKind
   readonly expenseName: string
@@ -87,6 +92,8 @@ export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
 }
 
 export type ExpenseOccurrenceFilters = {
+  /** Spec 328: só as contas que esta pessoa causou. */
+  readonly causedByDriverId?: string
   readonly categoryId?: string
   /** `yyyy-mm`. */
   readonly competence?: string
@@ -145,6 +152,7 @@ export type ExpensesPorts = {
     /** RF5: vale dali para frente; ocorrência já gerada não é reescrita. */
     update(input: {
       active?: boolean
+      causedByDriverId?: string | null
       companyId: string
       dueDay?: number | null
       expectedAmount?: string

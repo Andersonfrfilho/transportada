@@ -72,6 +72,22 @@ describe('expenses response guard', () => {
     expect(page.totals.paidByDriver[0]?.paidAmount).toBe('10.50')
   })
 
+  it('lê quem causou a conta, e tolera a API anterior sem o campo (spec 328)', () => {
+    const withCause = toOccurrencePage({
+      data: [{ ...LIST_ITEM, causedByDriverId: 'driver-9', causedByDriverName: 'Rui Alves' }],
+      totals: { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] },
+    })
+    expect(withCause.items[0]?.causedByDriverId).toBe('driver-9')
+    expect(withCause.items[0]?.causedByDriverName).toBe('Rui Alves')
+
+    const withoutCause = toOccurrencePage({
+      data: [LIST_ITEM],
+      totals: { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] },
+    })
+    expect(withoutCause.items[0]?.causedByDriverId).toBeNull()
+    expect(withoutCause.items[0]?.causedByDriverName).toBeNull()
+  })
+
   it('lê o perfil do favorecido quando vem e tolera a API sem ele', () => {
     const totals = { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] }
     const withProfile = toOccurrencePage({

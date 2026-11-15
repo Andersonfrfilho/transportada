@@ -198,6 +198,11 @@ export const companyExpenses = pgTable(
      * Nulo = sem fim. A rotina para de gerar depois da última.
      */
     installmentsTotal: smallint('installments_total'),
+    /**
+     * Spec 328: quem causou a conta (a multa do motorista, o dano do ajudante) — opcional e só informativo. Qualquer
+     * ficha da frota (motorista, agregado ou ajudante); não é quem recebe os avisos (`responsible_user_id`).
+     */
+    causedByDriverId: uuid('caused_by_driver_id'),
     /** RF24 (T7.2): quem recebe os lembretes de vencimento; nulo → os administradores da empresa. */
     responsibleUserId: uuid('responsible_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -233,6 +238,13 @@ export const companyExpenses = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
     foreignKey({
+      columns: [table.companyId, table.causedByDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'company_expenses_caused_by_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
       columns: [table.companyId, table.vehicleId],
       foreignColumns: [fleetVehicles.companyId, fleetVehicles.id],
       name: 'company_expenses_vehicle_fk',
@@ -241,6 +253,9 @@ export const companyExpenses = pgTable(
       .onUpdate('cascade'),
     unique('company_expenses_company_id_id_unique').on(table.companyId, table.id),
     index('company_expenses_company_idx').on(table.companyId, table.active, table.kind),
+    index('company_expenses_caused_by_driver_idx')
+      .on(table.companyId, table.causedByDriverId)
+      .where(sql`${table.causedByDriverId} is not null`),
     index('company_expenses_payee_driver_idx')
       .on(table.companyId, table.payeeDriverId)
       .where(sql`${table.payeeDriverId} is not null`),

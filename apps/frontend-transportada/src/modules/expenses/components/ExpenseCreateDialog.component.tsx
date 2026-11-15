@@ -40,6 +40,7 @@ function buildInput(fields: typeof EMPTY_CREATE_FORM): CreateExpenseInput | null
   if (expectedAmount === null) return null
   return {
     categoryId: fields.categoryId,
+    ...(fields.causedByDriverId === '' ? {} : { causedByDriverId: fields.causedByDriverId }),
     expectedAmount,
     kind: fields.kind,
     name: fields.name.trim(),
@@ -214,6 +215,18 @@ export function ExpenseCreateDialog({
             />
           </div>
         )}
+        <div className={styles.field}>
+          <span>{t('create.causedBy')}</span>
+          <Select
+            ariaLabel={t('create.causedBy')}
+            clearable
+            onChange={(value) => patch({ causedByDriverId: value })}
+            options={driverOptions}
+            placeholder={t('create.causedByPlaceholder')}
+            value={fields.causedByDriverId}
+          />
+        </div>
+        <p className={styles.hint}>{t('create.causedByHint')}</p>
         <div className={styles.field}>
           <span>{t('create.vehicle')}</span>
           <Select

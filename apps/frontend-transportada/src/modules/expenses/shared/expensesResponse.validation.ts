@@ -119,6 +119,7 @@ function toExpense(value: unknown): Expense {
   const row = readRecord(value)
   return {
     active: readBoolean(row.active),
+    causedByDriverId: readNullableString(row.causedByDriverId),
     categoryId: readString(row.categoryId),
     dueDay: readNullableInteger(row.dueDay),
     expectedAmount: readMoney(row.expectedAmount),
@@ -165,6 +166,8 @@ function toListItem(value: unknown): ExpenseOccurrenceListItem {
   const row = readRecord(value)
   return {
     ...toOccurrence(row),
+    causedByDriverId: readNullableString(row.causedByDriverId),
+    causedByDriverName: readNullableString(row.causedByDriverName),
     categoryId: readString(row.categoryId),
     categoryName: readString(row.categoryName),
     expenseKind: readOneOf<ExpenseKind>(row.expenseKind, EXPENSE_KINDS),

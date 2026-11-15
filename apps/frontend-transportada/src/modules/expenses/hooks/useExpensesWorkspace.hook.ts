@@ -26,6 +26,7 @@ import { useExpenseCategories, useExpenseOccurrences } from './useExpenses.hook'
 const VEHICLE_OPTIONS_PAGE_SIZE = 100
 
 export type ExpensesFilterState = Readonly<{
+  causedByDriverId: string
   categoryId: string
   competence: string
   driverId: string
@@ -43,6 +44,7 @@ function toApiFilters(filters: ExpensesFilterState): ExpenseOccurrenceFilters {
   return {
     competence: filters.competence,
     ...(filters.categoryId === '' ? {} : { categoryId: filters.categoryId }),
+    ...(filters.causedByDriverId === '' ? {} : { causedByDriverId: filters.causedByDriverId }),
     ...(filters.driverId === '' ? {} : { driverId: filters.driverId }),
     ...(filters.kind === '' ? {} : { kind: filters.kind }),
     ...(filters.status === '' ? {} : { status: filters.status }),
@@ -56,6 +58,7 @@ export function useExpensesWorkspace() {
   const canRead = permissions.includes(EXPENSES_READ_PERMISSION)
   const canManage = permissions.includes(EXPENSES_MANAGE_PERMISSION)
   const [filters, setFilters] = useState<ExpensesFilterState>({
+    causedByDriverId: '',
     categoryId: '',
     competence: currentCompetence(),
     driverId: '',

@@ -32,6 +32,8 @@ export const EXPENSE_OCCURRENCES_PATH = '/expense-occurrences'
 /** Dinheiro é **texto** do começo ao fim (`"1234.50"`): converter para número perderia centavo. */
 export type Expense = Readonly<{
   active: boolean
+  /** Spec 328: quem causou a conta (ficha da frota); `null` sem causador (e API anterior à 328). */
+  causedByDriverId: string | null
   categoryId: string
   dueDay: number | null
   expectedAmount: string
@@ -79,6 +81,9 @@ export type ExpensePayeeProfile = (typeof EXPENSE_PAYEE_PROFILES)[number]
 
 export type ExpenseOccurrenceListItem = ExpenseOccurrence &
   Readonly<{
+    /** Spec 328: ausente em API anterior; nunca é quem recebe os avisos. */
+    causedByDriverId?: string | null
+    causedByDriverName?: string | null
     categoryId: string
     categoryName: string
     expenseKind: ExpenseKind
@@ -108,6 +113,7 @@ export type ExpenseOccurrencePage = Readonly<{
 }>
 
 export type ExpenseOccurrenceFilters = Readonly<{
+  causedByDriverId?: string
   categoryId?: string
   competence?: string
   driverId?: string
@@ -116,6 +122,7 @@ export type ExpenseOccurrenceFilters = Readonly<{
 }>
 
 export type CreateExpenseInput = Readonly<{
+  causedByDriverId?: string
   categoryId: string
   dueDate?: string
   dueDay?: number
@@ -130,6 +137,7 @@ export type CreateExpenseInput = Readonly<{
 
 export type UpdateExpenseInput = Readonly<{
   active?: boolean
+  causedByDriverId?: string | null
   dueDay?: number
   expectedAmount?: string
   name?: string

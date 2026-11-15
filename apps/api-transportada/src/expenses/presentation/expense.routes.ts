@@ -407,6 +407,7 @@ function serializeExpense(expense: CompanyExpense): Record<string, unknown> {
   return {
     active: expense.active,
     categoryId: expense.categoryId,
+    causedByDriverId: expense.causedByDriverId ?? null,
     dueDay: expense.dueDay,
     expectedAmount: expense.expectedAmount,
     id: expense.id,
@@ -451,6 +452,8 @@ function serializeOccurrence(item: ExpenseOccurrenceListItem): Record<string, un
     ...serializeBareOccurrence(item),
     categoryId: item.categoryId,
     categoryName: item.categoryName,
+    causedByDriverId: item.causedByDriverId ?? null,
+    causedByDriverName: item.causedByDriverName ?? null,
     expenseKind: item.expenseKind,
     expenseName: item.expenseName,
     installmentsTotal: item.installmentsTotal ?? null,

@@ -70,7 +70,7 @@ const CATEGORIES = [
   { id: 'CATD', name: 'Pagamento de motorista/agregado', requiresDriver: true },
 ]
 
-function setup(roles: readonly string[] = ['company-admin']) {
+function setup(roles: readonly string[] = ['company-admin'], withPeople = false) {
   const texts: string[] = []
   const lists: { body: string; rows: { id: string; title: string }[] }[] = []
   const created: Record<string, unknown>[] = []
@@ -80,6 +80,14 @@ function setup(roles: readonly string[] = ['company-admin']) {
       if (failures.create) throw new Error('boom')
       created.push(input as unknown as Record<string, unknown>)
     },
+    ...(withPeople
+      ? {
+          listPeople: async () => [
+            { id: 'P1', name: 'João Motorista' },
+            { id: 'P2', name: 'Ana Ajudante' },
+          ],
+        }
+      : {}),
     listCategories: async () => CATEGORIES.map((c) => ({ ...c, active: true })),
     today: () => '2026-11-15',
   }
@@ -249,5 +257,38 @@ describe('regras de segurança e de conversa', () => {
     const out = await t.say('confirm')
     expect(out?.next).toBe('menu')
     expect(t.texts.at(-1)).toContain('painel')
+  })
+})
+
+describe('quem causou a conta (opcional)', () => {
+  test('pergunta com Pular, mostra no resumo e grava a ficha escolhida', async () => {
+    const t = setup(['company-admin'], true)
+    await t.start()
+    await t.say('variable')
+    await t.say('Multa de trânsito')
+    await t.say('CAT1')
+    await t.say('195,23')
+    await t.say('20/11')
+    expect(t.lists.at(-1)?.rows.map((r) => r.id)).toEqual(['skip', 'P1', 'P2'])
+    await t.say('P1')
+    expect(t.lists.at(-1)?.body).toContain('Quem causou: João Motorista')
+    await t.say('confirm')
+    expect(t.created[0]).toMatchObject({ causedByDriverId: 'P1' })
+  })
+
+  test('Pular segue sem ficha, e pessoa fora da lista pergunta de novo', async () => {
+    const t = setup(['company-admin'], true)
+    await t.start()
+    await t.say('variable')
+    await t.say('Multa')
+    await t.say('CAT1')
+    await t.say('100')
+    await t.say('hoje')
+    await t.say('XX')
+    expect(t.texts.at(-1)).toContain('Pular')
+    await t.say('pular')
+    expect(t.lists.at(-1)?.body).not.toContain('Quem causou')
+    await t.say('confirm')
+    expect(t.created[0]).not.toHaveProperty('causedByDriverId')
   })
 })

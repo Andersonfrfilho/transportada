@@ -301,6 +301,8 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
 export function serializeFilters(filters: ExpenseOccurrenceFilters): string {
   const search = new URLSearchParams()
   if (filters.categoryId !== undefined) search.set('categoryId', filters.categoryId)
+  if (filters.causedByDriverId !== undefined)
+    search.set('causedByDriverId', filters.causedByDriverId)
   if (filters.competence !== undefined) search.set('competence', filters.competence)
   if (filters.driverId !== undefined) search.set('driverId', filters.driverId)
   if (filters.kind !== undefined) search.set('kind', filters.kind)
