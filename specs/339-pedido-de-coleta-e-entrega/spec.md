@@ -29,8 +29,9 @@ viagem. Aceitar **gera uma sugestão** (entrar numa viagem existente ou criar um
   contexto, nunca do payload), `contractor_id`, `kind` (`pickup` | `delivery`), endereço de origem e de destino
   (estruturados como em `nfe_addresses`), janela desejada (data inicial e final), descrição da carga, volumes, peso
   estimado, observação, `quote_id` opcional (326/338), `status` e o ator que decidiu. Estados: `requested` →
-  `accepted` | `refused` | `canceled` (pelo cliente, só antes de aceito) → `scheduled` (entrou numa viagem) → `done`.
-- **D2 — Quem pede é o ator externo do portal.** Rotas `/client/me/pickup-requests` (padrão ADR-0050 §4, 063 D3): sem id
+  `accepted` | `refused` | `canceled` (pelo cliente, só antes de aceito) | `expired` → `scheduled` (entrou numa viagem) → `done`.
+- **D2 — Qualquer pessoa pode pedir no portal** (decidido pelo Anderson em 15/11/2026): contratante, destinatário das notas
+  ou qualquer documento que entre pelo código de uso único da 063. Quem pede é o ator externo do portal. Rotas `/client/me/pickup-requests` (padrão ADR-0050 §4, 063 D3): sem id
   de cliente no payload; o servidor resolve o contratante pela sessão. O cliente só vê os pedidos dele. Recusa de
   campos fora do contrato (`.strict()`).
 - **D3 — O escritório decide, com motivo.** Fila "Pedidos de coleta" no painel (permissão nova `pickup.manage`, no
@@ -48,13 +49,19 @@ viagem. Aceitar **gera uma sugestão** (entrar numa viagem existente ou criar um
   pedido for cancelado. A mecânica de parada de coleta reaproveita `trip_stops` — a T0 confirma se há `kind` de coleta ou
   se precisa de uma coluna.
 - **D6 — O aviso ao cliente.** Dois momentos: **decisão** (aceito/recusado, com motivo na recusa) e **agendamento**
-  (entrou na viagem, com a data prevista). Canal: portal (sempre) + e-mail pelo modelo do módulo de notificação (272:
-  nenhum layout de e-mail em código; chave de modelo própria, publicada pelo script de modelos). WhatsApp só se a
-  contratante já tem o canal configurado (fase 2). A aceitação **não** promete data de coleta, só a janela.
+  (entrou na viagem, com a data prevista). Canais, decidido pelo Anderson em 15/11/2026: **portal, e-mail e WhatsApp**.
+  O e-mail sai do modelo do módulo de notificação (272: nenhum layout de e-mail em código; chave de modelo própria,
+  publicada pelo script de modelos). O WhatsApp usa o módulo `whatsapp` existente, com modelo aprovado e só para o
+  contato que consentiu; falha em um canal não derruba os outros. A aceitação **não** promete data de coleta, só a
+  janela.
 - **D7 — Pedido anônimo (338) exige a mesma prova.** Captcha (Turnstile) + limite por IP (já existentes) e, antes de
   qualquer aviso, confirmação do contato por código. Sem isso o pedido não entra na fila do escritório.
 - **D8 — Preço.** Se há orçamento, o pedido guarda a referência e o total que o cliente viu (e a validade); a decisão do
   escritório pode divergir, e a divergência fica registrada. O cliente nunca vê custo nem margem (decisão da 338).
+
+- **D9 — Prazo de resposta (recomendação aceita pelo Anderson).** O escritório recebe alerta se o pedido ficar um dia útil
+  sem resposta. Sem decisão em 7 dias corridos (igual à validade do orçamento), o pedido **expira**: vira `expired`, o
+  cliente é avisado e pode pedir de novo. A rotina de expiração é do cron, idempotente.
 
 ## Histórias
 
@@ -96,9 +103,6 @@ viagem. Aceitar **gera uma sugestão** (entrar numa viagem existente ou criar um
 - **CA04** — Aceitar cria só a sugestão (viagem existente ou nova), sem viagem; ao confirmar, a parada é criada e o cliente é avisado com a data prevista.
 - **CA05** — E-mail sai do modelo do módulo de notificação; sem modelo utilizável não sai (padrão 271).
 
-## Dúvidas (precisam do Anderson)
+## Dúvidas
 
-1. **Quem pode pedir no portal:** só contratantes cadastrados, ou também destinatários (clientes finais) das notas?
-2. **Prazo de resposta:** queremos um prazo (ex.: pedido some/expira se ninguém responder em N dias) e um alerta ao
-   escritório?
-3. **Canal de aviso:** e-mail + portal basta na primeira fase, ou WhatsApp já entra?
+Nenhuma aberta: as três foram respondidas pelo Anderson em 15/11/2026 (quem pede, prazo e canal).
