@@ -103,14 +103,9 @@ for (const trip of trips) {
       from trip_stops s left join geocoded_addresses g on g.address_key = s.address_key
       where s.trip_id = ${tripId} order by s.sequence asc`),
   )
-  const [first, second] = stops
-  if (
-    first === undefined ||
-    second === undefined ||
-    first.latitude == null ||
-    second.latitude == null
-  ) {
-    console.log(`__RESULT__ viagem=${label} pulada=sem_coordenada_guardada`)
+  const located = stops.filter((stop) => stop.latitude != null)
+  if (located.length < 2) {
+    console.log(`__RESULT__ viagem=${label} pulada=sem_coordenada_guardada paradas=${stops.length}`)
     continue
   }
   const toll = (trip.planned_toll ?? {}) as {
@@ -119,16 +114,58 @@ for (const trip of trips) {
     total?: string
   }
   const axles = toll.axles?.count ?? 5
-  const origin: QuoteLocation = {
-    latitude: String(first.latitude),
-    longitude: String(first.longitude),
-    precision: first.precision as QuoteLocation['precision'],
+  const toLocation = (stop: Row): QuoteLocation => ({
+    latitude: String(stop.latitude),
+    longitude: String(stop.longitude),
+    precision: stop.precision as QuoteLocation['precision'],
+  })
+  /** Soma das pernas entre paradas consecutivas: o que a cotação mediria perna a perna, contra o que a viagem congelou. */
+  let sumMeters = 0
+  let sumToll = 0
+  let tollKnown = true
+  const legKm: string[] = []
+  let broken = false
+  for (let index = 0; index < located.length - 1; index += 1) {
+    const leg = await road.read({
+      axles,
+      companyId: String(trip.company_id),
+      destination: toLocation(located[index + 1] as Row),
+      origin: toLocation(located[index] as Row),
+      vehicleType: 'truck',
+    })
+    if (leg === null) {
+      broken = true
+      break
+    }
+    sumMeters += leg.distanceMeters
+    legKm.push((leg.distanceMeters / 1000).toFixed(1))
+    if (
+      leg.toll === null ||
+      leg.toll.boothsWithoutCharge > 0 ||
+      leg.toll.catalogStatus !== 'current'
+    ) {
+      tollKnown = false
+    } else {
+      sumToll += Number(leg.toll.total)
+    }
   }
-  const destination: QuoteLocation = {
-    latitude: String(second.latitude),
-    longitude: String(second.longitude),
-    precision: second.precision as QuoteLocation['precision'],
+  if (broken) {
+    console.log(`__RESULT__ viagem=${label} erro=estrada_indisponivel`)
+    continue
   }
+  compared += 1
+  const plannedMeters = Number(trip.planned_distance_meters)
+  const returnMeters = Number(trip.planned_return_distance_meters ?? 0)
+  const deltaPercent =
+    plannedMeters > 0 ? (((sumMeters - plannedMeters) / plannedMeters) * 100).toFixed(1) : '?'
+  console.log(
+    `__RESULT__ viagem=${label} eixos=${axles} paradas=${stops.length} com_coordenada=${located.length}` +
+      ` km_viagem=${(plannedMeters / 1000).toFixed(1)} km_volta_viagem=${(returnMeters / 1000).toFixed(1)} km_soma_pernas=${(sumMeters / 1000).toFixed(1)} delta_km_pct=${deltaPercent}` +
+      ` pedagio_viagem=${toll.total ?? '?'} pedagio_soma_pernas=${tollKnown ? sumToll.toFixed(4) : 'desconhecido'} pernas_km=${legKm.join('/')}`,
+  )
+
+  const origin = toLocation(located[0] as Row)
+  const destination = toLocation(located[located.length - 1] as Row)
   const reading = await road.read({
     axles,
     companyId: String(trip.company_id),
@@ -136,24 +173,7 @@ for (const trip of trips) {
     origin,
     vehicleType: 'truck',
   })
-  if (reading === null) {
-    console.log(`__RESULT__ viagem=${label} erro=estrada_indisponivel`)
-    continue
-  }
-  compared += 1
-  const plannedMeters = Number(trip.planned_distance_meters)
-  const legMeters = Number(second.distance_from_previous_meters ?? 0)
-  const onlyLeg = legMeters > 0 && Math.abs(plannedMeters - legMeters) / legMeters <= 0.01
-  const ours = reading.distanceMeters
-  const deltaPercent = (((ours - legMeters) / (legMeters || 1)) * 100).toFixed(2)
-  const tollComparable =
-    trip.planned_toll != null && onlyLeg && Number(trip.planned_return_distance_meters ?? 0) === 0
-  console.log(
-    `__RESULT__ viagem=${label} eixos=${axles} km_perna_viagem=${(legMeters / 1000).toFixed(3)} km_cotacao=${(ours / 1000).toFixed(3)} delta_km_pct=${deltaPercent}` +
-      ` pedagio_viagem=${toll.total ?? '?'} pedagio_cotacao=${reading.toll?.total ?? 'desconhecido'} pedagio_comparavel=${tollComparable}` +
-      ` catalogo=${reading.toll?.catalogStatus ?? '?'} sem_tarifa=${reading.toll?.boothsWithoutCharge ?? '?'}`,
-  )
-
+  if (reading === null) continue
   const locator = {
     locate: async ({ address }: { readonly address: QuoteAddress }) =>
       address.street === 'origem' ? origin : destination,
@@ -189,7 +209,7 @@ for (const trip of trips) {
       vehicleType: 'truck',
     })
     console.log(
-      `__RESULT__ viagem=${label} cotacao_total=${quote.totalAmount} cotacao_km=${quote.distanceKm} cotacao_pedagio=${quote.tollAmount}`,
+      `__RESULT__ viagem=${label} extremos_cotacao_total=${quote.totalAmount} km=${quote.distanceKm} pedagio=${quote.tollAmount}`,
     )
   } catch (error) {
     console.log(
