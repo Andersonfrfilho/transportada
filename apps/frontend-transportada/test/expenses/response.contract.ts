@@ -89,6 +89,23 @@ describe('expenses response guard', () => {
     expect(withoutCause.items[0]?.causedByDriverName).toBeNull()
   })
 
+  it('lê o funcionário e o vínculo da conta, e ignora vínculo desconhecido (spec 330)', () => {
+    const totals = { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] }
+    const page = toOccurrencePage({
+      data: [
+        { ...LIST_ITEM, employeeUserId: 'user-3', employeeUserName: 'Ana', employmentType: 'clt' },
+        { ...LIST_ITEM, employeeName: 'Maria', employmentType: 'estagio' },
+        LIST_ITEM,
+      ],
+      totals,
+    })
+    expect(page.items[0]?.employeeUserName).toBe('Ana')
+    expect(page.items[0]?.employmentType).toBe('clt')
+    expect(page.items[1]?.employeeName).toBe('Maria')
+    expect(page.items[1]?.employmentType).toBeNull()
+    expect(page.items[2]?.employeeUserId).toBeNull()
+  })
+
   it('lê o perfil do favorecido quando vem e tolera a API sem ele', () => {
     const totals = { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] }
     const withProfile = toOccurrencePage({

@@ -20,10 +20,12 @@ import type {
   CompanyExpense,
   CompanyExpenseCategory,
   ExpenseAmountChange,
+  ExpenseEmploymentType,
   ExpensePerson,
   ExpenseRecurrence,
   ExpensesPorts,
 } from './expense.port.js'
+import { EXPENSE_EMPLOYMENT_TYPES } from './expense.port.js'
 import { generateOccurrencesForExpense } from './expense-occurrence.use-case.js'
 
 export type CreateExpenseInput = {
@@ -36,6 +38,10 @@ export type CreateExpenseInput = {
   readonly causedByDriverId?: string
   readonly causedByName?: string
   readonly causedByUserId?: string
+  readonly employeeDriverId?: string
+  readonly employeeName?: string
+  readonly employeeUserId?: string
+  readonly employmentType?: string
   readonly categoryId: string
   readonly companyId: string
   readonly correlationId?: string
@@ -115,6 +121,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
       if (category === null || !category.active) throw new ExpenseCategoryNotFoundError()
       await assertDriverRule(ports, input, category)
       await assertCause(ports, input)
+      await assertEmployee(ports, input)
       const schedule = resolveSchedule(input)
       const installmentsTotal = resolveInstallmentsTotal(input)
       const expectedAmount = assertAmount(input.expectedAmount)
@@ -128,6 +135,10 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
         causedByDriverId: input.causedByDriverId ?? null,
         causedByName: normalizeName(input.causedByName),
         causedByUserId: input.causedByUserId ?? null,
+        employeeDriverId: input.employeeDriverId ?? null,
+        employeeName: normalizeName(input.employeeName),
+        employeeUserId: input.employeeUserId ?? null,
+        employmentType: toEmploymentType(input.employmentType),
         categoryId: input.categoryId,
         companyId: input.companyId,
         dueDay: schedule.dueDay,
@@ -165,6 +176,10 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
           causedByDriverId: expense.causedByDriverId ?? null,
           causedByName: expense.causedByName ?? null,
           causedByUserId: expense.causedByUserId ?? null,
+          employeeDriverId: expense.employeeDriverId ?? null,
+          employeeName: expense.employeeName ?? null,
+          employeeUserId: expense.employeeUserId ?? null,
+          employmentType: expense.employmentType ?? null,
           channel: input.channel ?? 'panel',
           expectedAmount: expense.expectedAmount,
           installmentsTotal: expense.installmentsTotal ?? null,
@@ -253,6 +268,67 @@ async function assertCause(
   }
 }
 
+function toEmploymentType(value: string | null | undefined): ExpenseEmploymentType | null {
+  if (value === undefined || value === null) return null
+  const found = EXPENSE_EMPLOYMENT_TYPES.find((type) => type === value)
+  if (found === undefined) throw new ExpenseInvalidScheduleError('employmentType is not valid.')
+  return found
+}
+
+/** Spec 330: o funcionário muda como o causador — informar uma forma de apontá-lo limpa as outras. */
+function employeeChanges(input: {
+  readonly employeeDriverId?: string | null
+  readonly employeeName?: string | null
+  readonly employeeUserId?: string | null
+  readonly employmentType?: string | null
+}): {
+  employeeDriverId?: string | null
+  employeeName?: string | null
+  employeeUserId?: string | null
+  employmentType?: ExpenseEmploymentType | null
+} {
+  const driver = input.employeeDriverId
+  const user = input.employeeUserId
+  const name = input.employeeName === undefined ? undefined : normalizeName(input.employeeName)
+  const chosen = [driver, user, name].some((value) => typeof value === 'string')
+  return {
+    ...(driver === undefined && !chosen ? {} : { employeeDriverId: driver ?? null }),
+    ...(user === undefined && !chosen ? {} : { employeeUserId: user ?? null }),
+    ...(name === undefined && !chosen ? {} : { employeeName: name ?? null }),
+    ...(input.employmentType === undefined
+      ? {}
+      : { employmentType: toEmploymentType(input.employmentType) }),
+  }
+}
+
+/** Spec 330: ficha da frota da empresa ou usuário com vínculo ativo (com ou sem papel); só uma forma por conta. */
+async function assertEmployee(
+  ports: ExpensesPorts,
+  input: {
+    readonly companyId: string
+    readonly employeeDriverId?: string | null
+    readonly employeeName?: string | null
+    readonly employeeUserId?: string | null
+    readonly employmentType?: string | null
+  },
+): Promise<void> {
+  const { employeeDriverId: driverId, employeeUserId: userId, companyId } = input
+  const named = normalizeName(input.employeeName) !== null
+  if (
+    [typeof driverId === 'string', typeof userId === 'string', named].filter(Boolean).length > 1
+  ) {
+    throw new ExpenseInvalidScheduleError('employee is a driver, a user or a typed name: only one.')
+  }
+  toEmploymentType(input.employmentType)
+  if (typeof driverId === 'string') {
+    const driver = await ports.drivers.findById({ companyId, driverId })
+    if (driver === null) throw new ExpenseDriverNotFoundError()
+  }
+  if (typeof userId === 'string' && !(await ports.people.isActiveMember({ companyId, userId }))) {
+    throw new ExpenseDriverNotFoundError()
+  }
+}
+
 async function assertDriverRule(
   ports: ExpensesPorts,
   input: CreateExpenseInput,
@@ -278,6 +354,10 @@ export type UpdateExpenseInput = {
   readonly billUrl?: string | null
   readonly causedByDriverId?: string | null
   readonly causedByUserId?: string | null
+  readonly employeeDriverId?: string | null
+  readonly employeeName?: string | null
+  readonly employeeUserId?: string | null
+  readonly employmentType?: string | null
   readonly companyId: string
   readonly correlationId?: string
   readonly dueDay?: number
@@ -318,6 +398,7 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
       const name = input.name?.trim()
       if (name === '') throw new ExpenseInvalidScheduleError('name is required.')
       await assertCause(ports, input)
+      await assertEmployee(ports, input)
       const amountChange = await resolveAmountChange(ports, current, input)
       const updated = await ports.expenses.update({
         companyId: input.companyId,
@@ -328,6 +409,7 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
           : { billLocation: normalizeBillLocation(input.billLocation) }),
         ...(input.billUrl === undefined ? {} : { billUrl: normalizeBillUrl(input.billUrl) }),
         ...causeChanges(input),
+        ...employeeChanges(input),
         ...(input.dueDay === undefined ? {} : { dueDay: input.dueDay }),
         ...(name === undefined ? {} : { name }),
         ...(input.vehicleId === undefined ? {} : { vehicleId: input.vehicleId }),
@@ -495,6 +577,10 @@ function snapshot(expense: CompanyExpense): Record<string, unknown> {
     causedByDriverId: expense.causedByDriverId ?? null,
     causedByName: expense.causedByName ?? null,
     causedByUserId: expense.causedByUserId ?? null,
+    employeeDriverId: expense.employeeDriverId ?? null,
+    employeeName: expense.employeeName ?? null,
+    employeeUserId: expense.employeeUserId ?? null,
+    employmentType: expense.employmentType ?? null,
     dueDay: expense.dueDay,
     expectedAmount: expense.expectedAmount,
     name: expense.name,

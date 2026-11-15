@@ -8,10 +8,15 @@ import { Select, type SelectOption } from '@/components/ui/select'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
 import { useExpenseAmountHistory, useExpenseMutations } from '../hooks/useExpenses.hook'
-import type { ExpenseOccurrenceListItem, UpdateExpenseInput } from '../shared/expenses.types'
+import {
+  EXPENSE_EMPLOYMENT_TYPES,
+  type ExpenseOccurrenceListItem,
+  type UpdateExpenseInput,
+} from '../shared/expenses.types'
 import {
   causedByKeys,
   currentCompetence,
+  employeeKeys,
   isValidBillUrl,
   listCompetenceOptions,
   maskMoney,
@@ -20,12 +25,19 @@ import {
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
+import { ExpenseEmployeeFields } from './ExpenseEmployeeFields.component'
 
 type ExpenseEditDialogProps = Readonly<{
   occurrence: ExpenseOccurrenceListItem
   onClose: () => void
   peopleOptions: readonly SelectOption[]
 }>
+
+function initialEmployee(occurrence: ExpenseOccurrenceListItem): string {
+  if (occurrence.employeeDriverId) return `driver:${occurrence.employeeDriverId}`
+  if (occurrence.employeeUserId) return `user:${occurrence.employeeUserId}`
+  return ''
+}
 
 function initialCausedBy(occurrence: ExpenseOccurrenceListItem): string {
   if (occurrence.causedByDriverId) return `driver:${occurrence.causedByDriverId}`
@@ -40,6 +52,9 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
   const [name, setName] = useState(occurrence.expenseName)
   const [causedBy, setCausedBy] = useState(initialCausedBy(occurrence))
   const [causedByName, setCausedByName] = useState(occurrence.causedByName ?? '')
+  const [employee, setEmployee] = useState(initialEmployee(occurrence))
+  const [employeeName, setEmployeeName] = useState(occurrence.employeeName ?? '')
+  const [employmentType, setEmploymentType] = useState(occurrence.employmentType ?? '')
   const [billLocation, setBillLocation] = useState(occurrence.billLocation ?? '')
   const [billUrl, setBillUrl] = useState(occurrence.billUrl ?? '')
   const [newAmount, setNewAmount] = useState(toTypedMoney(occurrence.expectedAmount))
@@ -58,6 +73,9 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
     if (name.trim() === '' || !isValidBillUrl(billUrl) || amountInvalid) return
     const keys = causedByKeys(causedBy)
     const typed = causedBy === '' ? causedByName.trim() : ''
+    const employeeKey = employeeKeys(employee)
+    const employeeTyped = employee === '' ? employeeName.trim() : ''
+    const type = EXPENSE_EMPLOYMENT_TYPES.find((item) => item === employmentType) ?? null
     const changes: UpdateExpenseInput = {
       name: name.trim(),
       billLocation: billLocation.trim() === '' ? null : billLocation.trim(),
@@ -74,6 +92,10 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
       causedByDriverId: keys.causedByDriverId ?? null,
       causedByUserId: keys.causedByUserId ?? null,
       causedByName: typed === '' ? null : typed,
+      employeeDriverId: employeeKey.employeeDriverId ?? null,
+      employeeUserId: employeeKey.employeeUserId ?? null,
+      employeeName: employeeTyped === '' ? null : employeeTyped,
+      employmentType: type,
     }
     try {
       await updateExpense.mutateAsync({ changes, id: occurrence.expenseId })
@@ -110,6 +132,17 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
             value={name}
           />
         </label>
+        <ExpenseEmployeeFields
+          employee={employee}
+          employeeName={employeeName}
+          employmentType={employmentType}
+          onChange={(changes) => {
+            if (changes.employee !== undefined) setEmployee(changes.employee)
+            if (changes.employeeName !== undefined) setEmployeeName(changes.employeeName)
+            if (changes.employmentType !== undefined) setEmploymentType(changes.employmentType)
+          }}
+          peopleOptions={peopleOptions}
+        />
         <div className={styles.field}>
           <span>{t('create.causedBy')}</span>
           <Select

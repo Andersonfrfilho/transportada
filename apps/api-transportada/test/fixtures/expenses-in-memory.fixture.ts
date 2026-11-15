@@ -238,6 +238,10 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
                 expense?.causedByUserId === undefined || expense.causedByUserId === null
                   ? null
                   : 'Ana do escritório',
+              employeeDriverId: expense?.employeeDriverId ?? null,
+              employeeName: expense?.employeeName ?? null,
+              employeeUserId: expense?.employeeUserId ?? null,
+              employmentType: expense?.employmentType ?? null,
               billLocation: expense?.billLocation ?? null,
               expenseKind: expense?.kind ?? 'fixed',
               expenseName: expense?.name ?? '',

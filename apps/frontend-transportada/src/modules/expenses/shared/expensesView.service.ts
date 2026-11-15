@@ -158,6 +158,10 @@ export type CreateFormFields = Readonly<{
   categoryId: string
   dueDate: string
   dueDay: string
+  /** Spec 330: funcionário opcional; `driver:<id>` | `user:<id>`, vazio = ninguém (ou o nome digitado). */
+  employee: string
+  employeeName: string
+  employmentType: string
   /** Texto digitado; vazio = conta sem fim. */
   installments: string
   kind: ExpenseKind
@@ -176,6 +180,9 @@ export const EMPTY_CREATE_FORM: CreateFormFields = {
   categoryId: '',
   dueDate: '',
   dueDay: '',
+  employee: '',
+  employeeName: '',
+  employmentType: '',
   installments: '',
   kind: 'fixed',
   name: '',
@@ -226,6 +233,16 @@ export function isValidBillUrl(value: string): boolean {
   } catch {
     return false
   }
+}
+
+/** Spec 330: o funcionário escolhido vira a chave certa da API (mesma convenção do causador). */
+export function employeeKeys(choice: string): {
+  employeeDriverId?: string
+  employeeUserId?: string
+} {
+  if (choice.startsWith('driver:')) return { employeeDriverId: choice.slice('driver:'.length) }
+  if (choice.startsWith('user:')) return { employeeUserId: choice.slice('user:'.length) }
+  return {}
 }
 
 /** Spec 328: a escolha do select (`driver:<id>` | `user:<id>`) vira a chave certa da API. */

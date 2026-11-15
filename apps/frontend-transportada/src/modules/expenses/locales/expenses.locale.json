@@ -87,7 +87,10 @@
     "settle": "Dar baixa",
     "edit": "Editar",
     "billLocation": "Onde está: {{place}}",
-    "billLink": "Abrir o boleto"
+    "billLink": "Abrir o boleto",
+    "employee": "Funcionário: {{name}}",
+    "employeeWithType": "Funcionário: {{name}} · {{type}}",
+    "employmentOnly": "Vínculo: {{type}}"
   },
   "calendar": {
     "chooseYear": "Escolher o ano",
@@ -163,7 +166,14 @@
     "billLocationPlaceholder": "Ex.: fatura do cartão da empresa",
     "billLocationHint": "Texto livre: com quem está o boleto ou em que fatura a cobrança aparece.",
     "billUrl": "Link do boleto",
-    "billUrlPlaceholder": "https://… (portal do fornecedor)"
+    "billUrlPlaceholder": "https://… (portal do fornecedor)",
+    "employee": "Funcionário (opcional)",
+    "employeePlaceholder": "Ninguém",
+    "employeeName": "Ou digite um nome",
+    "employeeNamePlaceholder": "Quem não está no cadastro",
+    "employmentType": "Tipo de vínculo",
+    "employmentTypePlaceholder": "Sem tipo",
+    "employeeHint": "Para salário e pagamento de funcionário. Vale qualquer pessoa do cadastro (motorista, agregado, ajudante ou quem só tem acessos no escritório) ou um nome digitado. Para pagar duas vezes ao mês, escolha a recorrência Quinzenal."
   },
   "settle": {
     "title": "Dar baixa",
@@ -401,5 +411,11 @@
         "vehicle_cost_per_km": "Custo por km do veículo"
       }
     }
+  },
+  "employmentType": {
+    "clt": "CLT",
+    "daily": "Diarista",
+    "autonomous": "Autônomo",
+    "other": "Outro"
   }
 }

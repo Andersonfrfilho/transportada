@@ -9,6 +9,7 @@ import { describe, expect, it } from 'bun:test'
 import type { ExpenseOccurrenceListItem } from '@/modules/expenses/shared/expenses.types'
 import {
   EMPTY_CREATE_FORM,
+  employeeKeys,
   formatCivilDate,
   isOverdue,
   isValidBillUrl,
@@ -181,5 +182,13 @@ describe('contas — link do boleto (spec 329)', () => {
         { requiresDriver: false },
       ),
     ).toContain('billUrl')
+  })
+})
+
+describe('funcionário da conta (spec 330)', () => {
+  it('a escolha do select vira a chave certa da API', () => {
+    expect(employeeKeys('driver:d1')).toEqual({ employeeDriverId: 'd1' })
+    expect(employeeKeys('user:u1')).toEqual({ employeeUserId: 'u1' })
+    expect(employeeKeys('')).toEqual({})
   })
 })

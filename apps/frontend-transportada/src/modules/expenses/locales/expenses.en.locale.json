@@ -87,7 +87,10 @@
     "settle": "Settle",
     "edit": "Edit",
     "billLocation": "Where it is: {{place}}",
-    "billLink": "Open the bill"
+    "billLink": "Open the bill",
+    "employee": "Employee: {{name}}",
+    "employeeWithType": "Employee: {{name}} · {{type}}",
+    "employmentOnly": "Employment: {{type}}"
   },
   "calendar": {
     "chooseYear": "Choose the year",
@@ -163,7 +166,14 @@
     "billLocationPlaceholder": "E.g. company credit card statement",
     "billLocationHint": "Free text: who holds the bill or which statement the charge shows up on.",
     "billUrl": "Bill link",
-    "billUrlPlaceholder": "https://… (supplier portal)"
+    "billUrlPlaceholder": "https://… (supplier portal)",
+    "employee": "Employee (optional)",
+    "employeePlaceholder": "Nobody",
+    "employeeName": "Or type a name",
+    "employeeNamePlaceholder": "Someone not registered",
+    "employmentType": "Employment type",
+    "employmentTypePlaceholder": "No type",
+    "employeeHint": "For salaries and employee pay. Any registered person (driver, aggregate, helper or office user who only has access) or a typed name. To pay twice a month, pick the Fortnightly recurrence."
   },
   "settle": {
     "title": "Settle",
@@ -401,5 +411,11 @@
         "vehicle_cost_per_km": "Vehicle cost per km"
       }
     }
+  },
+  "employmentType": {
+    "clt": "CLT (formal)",
+    "daily": "Day laborer",
+    "autonomous": "Self-employed",
+    "other": "Other"
   }
 }

@@ -7,6 +7,15 @@
 import type { ExpenseTripRoute } from '../domain/expense-trip-route.policy.js'
 
 export type ExpenseKind = 'fixed' | 'variable'
+/** Spec 330. */
+export type ExpenseEmploymentType = 'clt' | 'daily' | 'autonomous' | 'other'
+export const EXPENSE_EMPLOYMENT_TYPES: readonly ExpenseEmploymentType[] = [
+  'clt',
+  'daily',
+  'autonomous',
+  'other',
+]
+
 export type ExpenseRecurrence = 'monthly' | 'bimonthly' | 'quarterly' | 'yearly' | 'fortnightly'
 export type ExpenseOccurrenceStatus = 'open' | 'paid' | 'canceled'
 
@@ -50,6 +59,11 @@ export type CompanyExpense = {
   readonly causedByUserId?: string | null
   /** Spec 328: o causador quando é alguém fora do cadastro (nome digitado). */
   readonly causedByName?: string | null
+  /** Spec 330: funcionário pago pela conta (ficha da frota, usuário ou nome digitado; só um) e o vínculo. */
+  readonly employeeDriverId?: string | null
+  readonly employeeName?: string | null
+  readonly employeeUserId?: string | null
+  readonly employmentType?: ExpenseEmploymentType | null
   readonly categoryId: string
   readonly companyId: string
   readonly dueDay: number | null
@@ -96,6 +110,12 @@ export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
   readonly causedByUserId?: string | null
   readonly causedByUserName?: string | null
   readonly causedByName?: string | null
+  readonly employeeDriverId?: string | null
+  readonly employeeDriverName?: string | null
+  readonly employeeName?: string | null
+  readonly employeeUserId?: string | null
+  readonly employeeUserName?: string | null
+  readonly employmentType?: ExpenseEmploymentType | null
   readonly billLocation?: string | null
   readonly billUrl?: string | null
   readonly categoryName: string
@@ -215,6 +235,10 @@ export type ExpensesPorts = {
       billUrl?: string | null
       causedByUserId?: string | null
       causedByName?: string | null
+      employeeDriverId?: string | null
+      employeeName?: string | null
+      employeeUserId?: string | null
+      employmentType?: ExpenseEmploymentType | null
       companyId: string
       dueDay?: number | null
       expectedAmount?: string
