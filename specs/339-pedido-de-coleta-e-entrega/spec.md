@@ -13,7 +13,7 @@ ou acrescenta numa existente.
 
 Resultado: o cliente (contratante com portal, ou quem veio do orçamento público da 338) **solicita** a coleta/entrega;
 o escritório **aceita ou recusa com motivo**; o cliente é **avisado** da decisão e, depois, de quando a coleta entra numa
-viagem. Aceitar **não cria viagem sozinho**.
+viagem. Aceitar **gera uma sugestão** (entrar numa viagem existente ou criar uma nova) que o escritório confirma; a viagem não nasce sozinha.
 
 ## Fora do escopo
 
@@ -40,10 +40,13 @@ viagem. Aceitar **não cria viagem sozinho**.
   vindo do orçamento público (338) só tem CNPJ/CPF e contato: ao **aceitar**, o servidor procura o documento dentro da
   `companyId`; se existe, reaproveita; se não, cria o contratante marcado "novo, a conferir" (aparece em `/pendencias`).
   Nunca cria cliente antes de aceitar, para o formulário público não virar porta de spam no cadastro.
-- **D5 — Aceitar não cria viagem.** O pedido aceito vira item da fila "Coletas aceitas". O escritório então
-  **acrescenta a uma viagem aberta** (o painel sugere viagens com rota e ocupação compatíveis, usando a ocupação da 326) ou **cria viagem nova** com a coleta como parada. Veículo, motorista e data continuam decisão do despachante. A
-  mecânica de parada de coleta reaproveita `trip_stops` — a T0 confirma se há `kind` de coleta ou se precisa de uma
-  coluna.
+- **D5 — Aceitar gera uma sugestão de viagem, nunca a viagem.** Decidido pelo Anderson em 15/11/2026: ao aceitar, o
+  sistema cria uma **sugestão** com duas saídas — **entrar numa viagem existente** (as viagens abertas com rota e
+  ocupação compatíveis, ordenadas, usando a ocupação da 326) ou **criar viagem nova** com a coleta como parada. A
+  sugestão aparece na fila "Coletas aceitas" e **só vira viagem quando o escritório confirma**: veículo, motorista e
+  data continuam decisão do despachante. A sugestão é recalculada se a viagem escolhida mudar ou fechar, e some se o
+  pedido for cancelado. A mecânica de parada de coleta reaproveita `trip_stops` — a T0 confirma se há `kind` de coleta ou
+  se precisa de uma coluna.
 - **D6 — O aviso ao cliente.** Dois momentos: **decisão** (aceito/recusado, com motivo na recusa) e **agendamento**
   (entrou na viagem, com a data prevista). Canal: portal (sempre) + e-mail pelo modelo do módulo de notificação (272:
   nenhum layout de e-mail em código; chave de modelo própria, publicada pelo script de modelos). WhatsApp só se a
@@ -90,7 +93,7 @@ viagem. Aceitar **não cria viagem sozinho**.
 - **CA02** — Aceitar de pedido anônimo cria o contratante "a conferir" uma única vez (segunda aceitação do mesmo documento
   reaproveita).
 - **CA03** — Recusar sem motivo é recusado; com motivo, o cliente recebe e-mail e vê o motivo no portal.
-- **CA04** — Aceitar não cria viagem; "acrescentar à viagem" cria a parada e avisa o cliente com a data prevista.
+- **CA04** — Aceitar cria só a sugestão (viagem existente ou nova), sem viagem; ao confirmar, a parada é criada e o cliente é avisado com a data prevista.
 - **CA05** — E-mail sai do modelo do módulo de notificação; sem modelo utilizável não sai (padrão 271).
 
 ## Dúvidas (precisam do Anderson)
