@@ -1444,3 +1444,9 @@ rotas do parceiro em `/integration/freight-quotes` e `/integration/pickup-reques
 Cotação devolve só `total`/`currency`/`validUntil`; o pedido (`source = 'integration'`, sem contratante) leva `integration_key_id`
 e só a chave que o fez o lê ou cancela (outra → 404). Webhook e tela de chaves ainda não existem. Detalhe: `specs/340-*` e o
 documento do parceiro em `docs/integracao/api-de-integracao.md`.
+
+**A cotação é por endereço, nunca por km do parceiro** (spec 342). `createCalculateFreightQuoteByAddressUseCase` localiza origem e destino
+(`geocoded_addresses`, depois Google; `city` é recusado), mede a estrada pelo `readRouteGeometry` da viagem e entrega a distância e o pedágio
+por eixo ao cálculo de sempre. Recusas: `FREIGHT_QUOTE_ADDRESS_NOT_LOCATED` 422, `_ROUTE_UNAVAILABLE` 503, `_TOLL_UNKNOWN` 422 (catálogo
+vazio/velho ou praça sem tarifa). `distanceKm` e `tollAmount` no corpo são 400. Rotas: `/integration/freight-quotes` (parceiro) e
+`POST /freight-quotes/by-address` (`freight.simulate`). Detalhe: `specs/342-cotacao-por-endereco/`.

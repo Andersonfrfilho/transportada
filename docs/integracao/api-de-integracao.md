@@ -26,15 +26,29 @@ Endereço completo: `POST /v1/integration/freight-quotes`.
 
 Corpo:
 
-| Campo                   | Tipo           | Obrigatório | Observação                                               |
-| ----------------------- | -------------- | ----------- | -------------------------------------------------------- |
-| `distanceKm`            | string decimal | sim         | distância da coleta ao destino                           |
-| `axles`                 | inteiro 2–9    | sim         | eixos do conjunto                                        |
-| `cargoType`             | inteiro        | sim         | código do tipo de carga da ANTT (tabela no §5)           |
-| `cargoValue`            | string decimal | não         | valor da mercadoria; base do ad valorem e do GRIS        |
-| `tollAmount`            | string decimal | não         | pedágio estimado; padrão `"0"`                           |
-| `shareOfVehiclePercent` | string decimal | não         | fração do veículo ocupada, `0 < x ≤ 100`; padrão `"100"` |
-| `highPerformance`       | booleano       | não         | carga de alto desempenho (piso ANTT); padrão `false`     |
+| Campo                   | Tipo           | Obrigatório | Observação                                                        |
+| ----------------------- | -------------- | ----------- | ----------------------------------------------------------------- |
+| `origin`                | endereço       | sim         | onde a carga é retirada (formato do §2.2; `postalCode` e `state`) |
+| `destination`           | endereço       | sim         | onde a carga é entregue                                           |
+| `axles`                 | inteiro 2–9    | sim         | eixos do conjunto (define o pedágio)                              |
+| `vehicleType`           | texto          | não         | `truck` (padrão), `toco`, `three_quarter`, `vuc`, `tractor_unit`… |
+| `cargoType`             | inteiro        | sim         | código do tipo de carga da ANTT (tabela no §5)                    |
+| `cargoValue`            | string decimal | não         | valor da mercadoria; base do ad valorem e do GRIS                 |
+| `shareOfVehiclePercent` | string decimal | não         | fração do veículo ocupada, `0 < x ≤ 100`; padrão `"100"`          |
+| `highPerformance`       | booleano       | não         | carga de alto desempenho (piso ANTT); padrão `false`              |
+
+**A distância e o pedágio não são informados por você.** A transportadora localiza os dois endereços, mede a estrada de
+verdade e soma o pedágio de cada praça do caminho, pelo número de eixos, com o diesel do dia, o piso da ANTT, o ad valorem,
+o GRIS e a margem. Mandar `distanceKm` ou `tollAmount` é recusado (`400`).
+
+A cotação **nunca é estimada**. Se não der para calcular com certeza, a resposta é um erro, e não um preço aproximado:
+
+| Situação                                              | Resposta                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------ |
+| Endereço não localizado com precisão de rua ou de CEP | `422 FREIGHT_QUOTE_ADDRESS_NOT_LOCATED` (`details` diz qual)       |
+| Estrada não pôde ser medida agora                     | `503 FREIGHT_QUOTE_ROUTE_UNAVAILABLE` (tente de novo)              |
+| Pedágio da rota não é totalmente conhecido            | `422 FREIGHT_QUOTE_TOLL_UNKNOWN` (peça a cotação à transportadora) |
+| Sem preço de diesel disponível                        | `422 FREIGHT_QUOTE_FUEL_PRICE_MISSING`                             |
 
 Resposta `200`:
 

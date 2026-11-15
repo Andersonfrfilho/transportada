@@ -10,7 +10,11 @@ import type { GeocodingPrecision } from '../../database/geocoding.schema.js'
  * Rua, telhado e CEP localizam o ponto a centenas de metros; `city` é o centroide do município e
  * erra quilômetros — o suficiente para trocar de praça de pedágio.
  */
-const PRECISE_ENOUGH: ReadonlySet<GeocodingPrecision> = new Set(['rooftop', 'street', 'postal_code'])
+const PRECISE_ENOUGH: ReadonlySet<GeocodingPrecision> = new Set([
+  'rooftop',
+  'street',
+  'postal_code',
+])
 
 export function isPreciseEnoughToQuote(precision: GeocodingPrecision): boolean {
   return PRECISE_ENOUGH.has(precision)

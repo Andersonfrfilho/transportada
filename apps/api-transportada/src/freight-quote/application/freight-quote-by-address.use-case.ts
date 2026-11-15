@@ -72,9 +72,7 @@ export function createCalculateFreightQuoteByAddressUseCase(dependencies: {
   readonly locator: QuoteAddressLocatorPort
   readonly road: QuoteRoadPort
 }): {
-  readonly execute: (
-    input: FreightQuoteByAddressRequest,
-  ) => Promise<FreightQuoteByAddressResponse>
+  readonly execute: (input: FreightQuoteByAddressRequest) => Promise<FreightQuoteByAddressResponse>
 } {
   return {
     execute: async (input) => {
