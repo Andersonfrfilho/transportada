@@ -38,6 +38,7 @@ export type ExpensesFilterState = Readonly<{
 
 export type ExpensesDialog =
   | Readonly<{ kind: 'create' }>
+  | Readonly<{ kind: 'edit'; occurrence: ExpenseOccurrenceListItem }>
   | Readonly<{ kind: 'settle'; occurrence: ExpenseOccurrenceListItem }>
   | Readonly<{ kind: 'trips'; occurrence: ExpenseOccurrenceListItem }>
   | null
@@ -103,6 +104,17 @@ export function useExpensesWorkspace() {
     isLoading: occurrences.isPending && canRead,
     loadError: occurrences.error,
     openDialog: setDialog,
+    /** Spec 329: depois de criar, a lista passa a mostrar a conta nova (mês do vencimento, sem filtro que a esconda). */
+    revealCreated: (input: Readonly<{ dueDate?: string }>) =>
+      setFilters((current) => ({
+        ...current,
+        causedBy: '',
+        categoryId: '',
+        competence: input.dueDate === undefined ? current.competence : input.dueDate.slice(0, 7),
+        driverId: '',
+        kind: '',
+        status: '',
+      })),
     page,
     setFilter: <TKey extends keyof ExpensesFilterState>(
       key: TKey,

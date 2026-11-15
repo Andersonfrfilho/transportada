@@ -15,6 +15,7 @@ import {
   createCreateExpenseCategoryUseCase,
   createCreateExpenseUseCase,
   createListExpenseCategoriesUseCase,
+  createListExpenseAmountHistoryUseCase,
   createUpdateExpenseUseCase,
 } from '../../src/expenses/application/expense.use-case.js'
 import {
@@ -134,7 +135,7 @@ describe('recorrências e slot (spec 325 RF1b, RF4)', () => {
 })
 
 describe('editar a conta (spec 325 RF5, CA02)', () => {
-  it('o novo valor vale dali para frente: a ocorrência já gerada fica como estava', async () => {
+  it('o novo valor nunca sobrescreve o antigo: vira histórico e vale da competência em diante', async () => {
     const ports = buildInMemoryExpenses()
     const expense = await createCreateExpenseUseCase(ports).execute({
       ...base,
@@ -143,16 +144,156 @@ describe('editar a conta (spec 325 RF5, CA02)', () => {
       name: 'Aluguel',
       recurrence: 'monthly',
     })
+    const competences = ports.occurrenceRows.map((o) => o.competence).sort()
+    const from = competences[2] as string
 
-    const updated = await createUpdateExpenseUseCase(ports).execute({
+    await createUpdateExpenseUseCase(ports).execute({
       companyId: COMPANY_A,
+      effectiveFrom: from,
       expectedAmount: '1800.00',
       expenseId: expense.id,
+      today: '2000-01-01',
       updatedBy: USER_ID,
     })
 
-    expect(updated.expectedAmount).toBe('1800.00')
-    expect(ports.occurrenceRows.every((o) => o.expectedAmount === '1500.00')).toBe(true)
+    expect(ports.expenseRows[0]?.expectedAmount).toBe('1500.00')
+    expect(ports.amountChangeRows).toHaveLength(1)
+    expect(ports.amountChangeRows[0]).toMatchObject({
+      effectiveCompetence: from,
+      newAmount: '1800.00',
+      previousAmount: '1500.00',
+    })
+    for (const row of ports.occurrenceRows) {
+      expect(row.expectedAmount).toBe(row.competence >= from ? '1800.00' : '1500.00')
+    }
+    expect(ports.auditRows.some((a) => a.action === 'expense.amount.changed')).toBe(true)
+  })
+
+  it('ocorrência paga ou já vencida nunca é reescrita', async () => {
+    const ports = buildInMemoryExpenses()
+    const expense = await createCreateExpenseUseCase(ports).execute({
+      ...base,
+      dueDay: 5,
+      kind: 'fixed',
+      name: 'Aluguel',
+      recurrence: 'monthly',
+    })
+    const [first, second] = [...ports.occurrenceRows].sort((a, b) =>
+      a.competence.localeCompare(b.competence),
+    )
+    Object.assign(first as object, { status: 'paid' })
+    Object.assign(second as object, { dueDate: '1999-01-05' })
+
+    await createUpdateExpenseUseCase(ports).execute({
+      companyId: COMPANY_A,
+      effectiveFrom: first?.competence as string,
+      expectedAmount: '2000.00',
+      expenseId: expense.id,
+      today: '2000-01-01',
+      updatedBy: USER_ID,
+    })
+
+    expect(first?.expectedAmount).toBe('1500.00')
+    expect(second?.expectedAmount).toBe('1500.00')
+  })
+
+  it('a competência futura gerada depois já nasce com o valor novo', async () => {
+    const ports = buildInMemoryExpenses()
+    const expense = await createCreateExpenseUseCase(ports).execute({
+      ...base,
+      dueDay: 5,
+      kind: 'fixed',
+      name: 'Aluguel',
+      recurrence: 'monthly',
+    })
+    await createUpdateExpenseUseCase(ports).execute({
+      companyId: COMPANY_A,
+      effectiveFrom: '2099-01',
+      expectedAmount: '2500.00',
+      expenseId: expense.id,
+      today: '2000-01-01',
+      updatedBy: USER_ID,
+    })
+    await ports.occurrences.insertIfAbsent({
+      companyId: COMPANY_A,
+      competence: '2099-02',
+      dueDate: '2099-02-05',
+      expectedAmount: '1500.00',
+      expenseId: expense.id,
+      slot: 1,
+    })
+
+    expect(ports.occurrenceRows.find((o) => o.competence === '2099-02')?.expectedAmount).toBe(
+      '2500.00',
+    )
+  })
+
+  it('o mesmo valor em vigor não gera linha de histórico; competência inválida é recusada', async () => {
+    const ports = buildInMemoryExpenses()
+    const expense = await createCreateExpenseUseCase(ports).execute({
+      ...base,
+      dueDay: 5,
+      kind: 'fixed',
+      name: 'Aluguel',
+      recurrence: 'monthly',
+    })
+    const update = createUpdateExpenseUseCase(ports)
+    await update.execute({
+      companyId: COMPANY_A,
+      expectedAmount: '1500.00',
+      expenseId: expense.id,
+      today: '2026-11-15',
+      updatedBy: USER_ID,
+    })
+    expect(ports.amountChangeRows).toHaveLength(0)
+    await expect(
+      update.execute({
+        companyId: COMPANY_A,
+        effectiveFrom: '2026-13',
+        expectedAmount: '1600.00',
+        expenseId: expense.id,
+        updatedBy: USER_ID,
+      }),
+    ).rejects.toBeInstanceOf(ExpenseInvalidScheduleError)
+  })
+
+  it('o histórico lista o valor de abertura e cada mudança, em ordem', async () => {
+    const ports = buildInMemoryExpenses()
+    const expense = await createCreateExpenseUseCase(ports).execute({
+      ...base,
+      dueDay: 5,
+      kind: 'fixed',
+      name: 'Aluguel',
+      recurrence: 'monthly',
+    })
+    const update = createUpdateExpenseUseCase(ports)
+    await update.execute({
+      companyId: COMPANY_A,
+      effectiveFrom: '2027-03',
+      expectedAmount: '1700.00',
+      expenseId: expense.id,
+      today: '2026-11-15',
+      updatedBy: USER_ID,
+    })
+    await update.execute({
+      companyId: COMPANY_A,
+      effectiveFrom: '2027-09',
+      expectedAmount: '1900.00',
+      expenseId: expense.id,
+      today: '2026-11-15',
+      updatedBy: USER_ID,
+    })
+    const history = await createListExpenseAmountHistoryUseCase(ports).execute({
+      companyId: COMPANY_A,
+      expenseId: expense.id,
+    })
+    expect(history.baseAmount).toBe('1500.00')
+    expect(
+      history.changes.map((c) => [c.effectiveCompetence, c.previousAmount, c.newAmount]),
+    ).toEqual([
+      ['2027-03', '1500.00', '1700.00'],
+      ['2027-09', '1700.00', '1900.00'],
+    ])
   })
 
   it('conta de outra empresa → ExpenseNotFoundError (404)', async () => {

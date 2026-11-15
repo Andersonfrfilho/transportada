@@ -149,6 +149,8 @@ export type CreateFormFields = Readonly<{
   amount: string
   /** Onde a conta está (texto livre, opcional). */
   billLocation: string
+  /** Spec 329: link de onde se pega o boleto (opcional). */
+  billUrl: string
   /** Spec 328: opcional; `driver:<id>` | `user:<id>`, vazio = ninguém. */
   causedBy: string
   /** Causador digitado (fora do cadastro); só vale sem `causedBy`. */
@@ -168,6 +170,7 @@ export type CreateFormFields = Readonly<{
 export const EMPTY_CREATE_FORM: CreateFormFields = {
   amount: '',
   billLocation: '',
+  billUrl: '',
   causedBy: '',
   causedByName: '',
   categoryId: '',
@@ -183,6 +186,7 @@ export const EMPTY_CREATE_FORM: CreateFormFields = {
 
 export type CreateFormIssue =
   | 'amount'
+  | 'billUrl'
   | 'category'
   | 'dueDate'
   | 'dueDay'
@@ -197,6 +201,7 @@ export function validateCreateForm(
 ): readonly CreateFormIssue[] {
   const issues: CreateFormIssue[] = []
   if (fields.name.trim() === '') issues.push('name')
+  if (!isValidBillUrl(fields.billUrl)) issues.push('billUrl')
   if (fields.categoryId === '') issues.push('category')
   if (parseMoney(fields.amount) === null) issues.push('amount')
   if (input.requiresDriver && fields.payeeDriverId === '') issues.push('payee')
@@ -209,6 +214,18 @@ export function validateCreateForm(
     }
   }
   return issues
+}
+
+/** Spec 329: o link do boleto é http(s) ou vazio; o servidor recobra. */
+export function isValidBillUrl(value: string): boolean {
+  const text = value.trim()
+  if (text === '') return true
+  try {
+    const parsed = new URL(text)
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:'
+  } catch {
+    return false
+  }
 }
 
 /** Spec 328: a escolha do select (`driver:<id>` | `user:<id>`) vira a chave certa da API. */

@@ -19,6 +19,7 @@ const civilDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const createExpenseSchema = z
   .object({
     billLocation: z.string().trim().max(120).optional(),
+    billUrl: z.string().trim().max(500).optional(),
     causedByDriverId: z.uuid().optional(),
     causedByName: z.string().trim().max(120).optional(),
     causedByUserId: z.uuid().optional(),
@@ -39,10 +40,15 @@ const updateExpenseSchema = z
   .object({
     active: z.boolean().optional(),
     billLocation: z.string().trim().max(120).nullable().optional(),
+    billUrl: z.string().trim().max(500).nullable().optional(),
     causedByDriverId: z.uuid().nullable().optional(),
     causedByName: z.string().trim().max(120).nullable().optional(),
     causedByUserId: z.uuid().nullable().optional(),
     dueDay: z.number().int().min(1).max(31).optional(),
+    effectiveFrom: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+      .optional(),
     expectedAmount: money.optional(),
     name: z.string().trim().min(1).max(120).optional(),
     vehicleId: z.uuid().nullable().optional(),
@@ -77,10 +83,12 @@ export function parseCreateExpenseRequest(request: Request): Promise<CreateExpen
 export function parseUpdateExpenseRequest(request: Request): Promise<{
   readonly active?: boolean
   readonly billLocation?: string | null
+  readonly billUrl?: string | null
   readonly causedByDriverId?: string | null
   readonly causedByName?: string | null
   readonly causedByUserId?: string | null
   readonly dueDay?: number
+  readonly effectiveFrom?: string
   readonly expectedAmount?: string
   readonly name?: string
   readonly vehicleId?: string | null

@@ -30,6 +30,24 @@ export const EXPENSE_CATEGORIES_PATH = '/expense-categories'
 export const EXPENSE_OCCURRENCES_PATH = '/expense-occurrences'
 export const EXPENSE_PEOPLE_PATH = '/expense-people'
 
+/** Spec 329: `/expenses/:id/amount-history`. */
+export function expenseAmountHistoryPath(expenseId: string): string {
+  return `/expenses/${expenseId}/amount-history`
+}
+
+export type ExpenseAmountChange = Readonly<{
+  createdAt: string
+  effectiveCompetence: string
+  id: string
+  newAmount: string
+  previousAmount: string
+}>
+
+export type ExpenseAmountHistory = Readonly<{
+  baseAmount: string
+  changes: readonly ExpenseAmountChange[]
+}>
+
 /** Spec 328: opção de "quem causou" — ficha da frota ativa ou usuário do escritório. */
 export type ExpensePerson = Readonly<{ id: string; kind: 'driver' | 'user'; name: string }>
 
@@ -42,6 +60,8 @@ export type Expense = Readonly<{
   causedByName: string | null
   causedByUserId: string | null
   billLocation: string | null
+  /** Spec 329: link de onde se pega o boleto; ausente em API anterior. */
+  billUrl?: string | null
   categoryId: string
   dueDay: number | null
   expectedAmount: string
@@ -96,6 +116,7 @@ export type ExpenseOccurrenceListItem = ExpenseOccurrence &
     causedByUserId?: string | null
     causedByUserName?: string | null
     billLocation?: string | null
+    billUrl?: string | null
     categoryId: string
     categoryName: string
     expenseKind: ExpenseKind
@@ -136,6 +157,7 @@ export type ExpenseOccurrenceFilters = Readonly<{
 
 export type CreateExpenseInput = Readonly<{
   billLocation?: string
+  billUrl?: string
   causedByDriverId?: string
   causedByName?: string
   causedByUserId?: string
@@ -154,10 +176,13 @@ export type CreateExpenseInput = Readonly<{
 export type UpdateExpenseInput = Readonly<{
   active?: boolean
   billLocation?: string | null
+  billUrl?: string | null
   causedByDriverId?: string | null
   causedByName?: string | null
   causedByUserId?: string | null
   dueDay?: number
+  /** Spec 329: `yyyy-mm` da primeira competência com o `expectedAmount` novo (sem ele, a do mês). */
+  effectiveFrom?: string
   expectedAmount?: string
   name?: string
   vehicleId?: string | null

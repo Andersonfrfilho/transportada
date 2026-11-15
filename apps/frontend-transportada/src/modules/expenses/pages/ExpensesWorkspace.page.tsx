@@ -9,6 +9,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
 import { ExpenseCreateDialog } from '../components/ExpenseCreateDialog.component'
+import { ExpenseEditDialog } from '../components/ExpenseEditDialog.component'
 import { ExpenseSettleDialog } from '../components/ExpenseSettleDialog.component'
 import { ExpenseTripsDialog } from '../components/ExpenseTripsDialog.component'
 import { useExpensesWorkspace } from '../hooks/useExpensesWorkspace.hook'
@@ -20,6 +21,7 @@ import {
 import {
   formatCivilDate,
   formatInstallment,
+  isValidBillUrl,
   isOverdue,
   listCompetenceOptions,
   resolveOccurrencePayeeKey,
@@ -84,7 +86,8 @@ export function ExpensesWorkspacePage() {
 
   function renderCausedBy(row: ExpenseOccurrenceListItem) {
     const name = row.causedByDriverName ?? row.causedByUserName ?? row.causedByName ?? null
-    if (name === null && (row.billLocation ?? null) === null) return null
+    const billUrl = (row.billUrl ?? '').trim()
+    if (name === null && (row.billLocation ?? null) === null && billUrl === '') return null
     return (
       <>
         {name === null ? null : (
@@ -94,6 +97,11 @@ export function ExpensesWorkspacePage() {
           <span className={styles.rowDetail}>
             {t('list.billLocation', { place: row.billLocation })}
           </span>
+        )}
+        {billUrl === '' || !isValidBillUrl(billUrl) ? null : (
+          <a className={styles.rowDetail} href={billUrl} rel="noopener noreferrer" target="_blank">
+            {t('list.billLink')}
+          </a>
         )}
       </>
     )
@@ -294,6 +302,16 @@ export function ExpensesWorkspacePage() {
                             {t('list.trips')}
                           </Button>
                         )}
+                        {canManage ? (
+                          <Button
+                            onClick={() => workspace.openDialog({ kind: 'edit', occurrence: row })}
+                            size="sm"
+                            type="button"
+                            variant="secondary"
+                          >
+                            {t('list.edit')}
+                          </Button>
+                        ) : null}
                         {canManage && row.status === 'open' ? (
                           <Button
                             onClick={() =>
@@ -334,8 +352,18 @@ export function ExpensesWorkspacePage() {
           categories={workspace.categories}
           driverOptions={driverOptions}
           onClose={workspace.closeDialog}
+          onCreated={(input) =>
+            workspace.revealCreated(input.dueDate === undefined ? {} : { dueDate: input.dueDate })
+          }
           peopleOptions={peopleOptions}
           vehicleOptions={workspace.vehicleOptions}
+        />
+      ) : null}
+      {workspace.dialog?.kind === 'edit' ? (
+        <ExpenseEditDialog
+          occurrence={workspace.dialog.occurrence}
+          onClose={workspace.closeDialog}
+          peopleOptions={peopleOptions}
         />
       ) : null}
       {workspace.dialog?.kind === 'settle' ? (

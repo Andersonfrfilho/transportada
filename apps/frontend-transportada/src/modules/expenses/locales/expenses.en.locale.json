@@ -85,7 +85,9 @@
     "actions": "Actions",
     "trips": "Trips",
     "settle": "Settle",
-    "billLocation": "Where it is: {{place}}"
+    "edit": "Edit",
+    "billLocation": "Where it is: {{place}}",
+    "billLink": "Open the bill"
   },
   "calendar": {
     "chooseYear": "Choose the year",
@@ -98,6 +100,18 @@
   "dialog": {
     "close": "Close",
     "cancel": "Cancel"
+  },
+  "edit": {
+    "title": "Edit bill",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "hint": "This edit applies to the whole bill, not just this installment. Amount and due date are not changed here.",
+    "newAmount": "New amount (optional)",
+    "effectiveFrom": "Effective from",
+    "amountHint": "The old amount stays in the history. Only open bills still to fall due change, from the chosen competence on; paid, canceled or overdue ones never change.",
+    "history": "Amount history",
+    "historyBase": "Opening amount: {{amount}}",
+    "historyChange": "From {{competence}}: {{from}} → {{to}} (recorded {{when}})"
   },
   "create": {
     "title": "New bill",
@@ -135,13 +149,16 @@
       "payee": "driver, contractor or helper",
       "dueDate": "due date",
       "dueDay": "due day (1 to 31)",
-      "installments": "installments (2 to 600)"
+      "installments": "installments (2 to 600)",
+      "billUrl": "bill link"
     },
     "causedByName": "Or type a name",
     "causedByNamePlaceholder": "Someone not in the registry",
     "billLocation": "Where the bill is (optional)",
     "billLocationPlaceholder": "E.g. company credit card statement",
-    "billLocationHint": "Free text: who holds the bill or which statement the charge shows up on."
+    "billLocationHint": "Free text: who holds the bill or which statement the charge shows up on.",
+    "billUrl": "Bill link",
+    "billUrlPlaceholder": "https://… (supplier portal)"
   },
   "settle": {
     "title": "Settle",

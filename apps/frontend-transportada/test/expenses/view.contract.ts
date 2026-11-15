@@ -11,6 +11,7 @@ import {
   EMPTY_CREATE_FORM,
   formatCivilDate,
   isOverdue,
+  isValidBillUrl,
   listCompetenceOptions,
   parseMoney,
   formatInstallment,
@@ -157,5 +158,28 @@ describe('contas — viagens do pagamento', () => {
     expect(formatTripRoute({ destination: 'CAMPINAS', origin: null })).toBe('CAMPINAS')
     expect(formatTripRoute(null)).toBeNull()
     expect(formatTripRoute(undefined)).toBeNull()
+  })
+})
+
+describe('contas — link do boleto (spec 329)', () => {
+  it('só http(s) ou vazio vale, e um link inválido barra o formulário', () => {
+    expect(isValidBillUrl('')).toBe(true)
+    expect(isValidBillUrl('  ')).toBe(true)
+    expect(isValidBillUrl('https://portal.exemplo.com/boleto?id=1')).toBe(true)
+    expect(isValidBillUrl('http://portal.exemplo.com')).toBe(true)
+    expect(isValidBillUrl('javascript:alert(1)')).toBe(false)
+    expect(isValidBillUrl('portal.exemplo.com')).toBe(false)
+    expect(
+      validateCreateForm(
+        {
+          ...EMPTY_CREATE_FORM,
+          amount: '10,00',
+          billUrl: 'nao-e-link',
+          categoryId: 'c',
+          name: 'x',
+        },
+        { requiresDriver: false },
+      ),
+    ).toContain('billUrl')
   })
 })
