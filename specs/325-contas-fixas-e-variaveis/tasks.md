@@ -136,6 +136,7 @@ evidência em `evidence.md`. Telas: componentes padrão do design system, prints
 - [ ] **T7.4b** Resposta "paguei": ler a resposta do WhatsApp (spec 281) e o link assinado do e-mail, validar o responsável e dar a baixa por resposta, com desfazer em 24 h (RF29 a RF31, CA15).
   > 🤖 Modelo: `opus` (baixa de dinheiro por mensagem; identidade do remetente)
 - [ ] **T7.5** Painel: campo Responsável e avisos na conta, botão de desfazer baixa e painel "Lembretes de vencimento" em Configurações; prints claro/escuro × desktop/celular; evidência.
+      ⚠️ RF24 (2026-11-15): o campo Responsável **não oferece motorista** (papel `driver`/`aggregate`, direto ou por grupo, ou ficha da frota que dirige; regra `isBarredFromExpenseReminders`) e a API recusa gravar motorista como responsável (422). Os leitores de destinatários da API e do worker já o tiram (`evidence.md` § "Motorista nunca recebe").
   > 🤖 Modelo: `sonnet`
 
 ## Trabalho futuro (sem task)

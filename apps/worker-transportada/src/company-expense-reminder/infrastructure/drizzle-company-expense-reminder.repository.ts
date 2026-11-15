@@ -11,17 +11,22 @@ import {
   type ReminderChannel,
   type ReminderPerson,
 } from '../application/company-expense-reminder.port.js'
-import { personalReminderChannels } from '../domain/expense-reminder.policy.js'
+import {
+  isBarredFromExpenseReminders,
+  personalReminderChannels,
+} from '../domain/expense-reminder.policy.js'
 
 export type CompanyExpenseReminderDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
 const TEMPLATE_LOCALE = 'pt-BR'
 
 type PersonRow = {
+  readonly drives_in_fleet: boolean
   readonly email_address: string | null
   readonly has_verified_whatsapp: boolean
   readonly name: string | null
   readonly push_opt_in: boolean
+  readonly roles: readonly string[]
   readonly user_id: string
   readonly whatsapp_opt_in: boolean
 }
@@ -45,7 +50,8 @@ function toPerson(row: PersonRow): ReminderPerson {
 /**
  * ⚠️ Espelha as leituras da API (`drizzle-expense-reminders.repository.ts` e `drizzle-expense-reminder-recipients.repository.ts`):
  * SQL por valor, sem schema copiado. Toda leitura de pessoa passa pelo vínculo ativo da empresa e pela conta ativa; o e-mail é o
- * do perfil, senão o contato do convite quando o canal foi e-mail. A paridade é cobrada por
+ * do perfil, senão o contato do convite quando o canal foi e-mail. Motorista (papel `driver`/`aggregate`, direto ou por grupo, ou
+ * ficha da frota que dirige) nunca volta daqui. A paridade é cobrada por
  * `test/company-expense-reminder/parity.contract.ts`.
  */
 export function createDrizzleCompanyExpenseReminderPorts(input: {
@@ -66,7 +72,18 @@ export function createDrizzleCompanyExpenseReminderPorts(input: {
                   else null end as email_address,
              (w.user_id is not null) as has_verified_whatsapp,
              coalesce(pref.push_enabled, false) as push_opt_in,
-             coalesce(pref.whatsapp_enabled, false) as whatsapp_opt_in
+             coalesce(pref.whatsapp_enabled, false) as whatsapp_opt_in,
+             array(
+               select r.role from membership_roles r where r.membership_id = m.id
+               union
+               select gr.role from membership_groups mg
+                 join company_group_roles gr on gr.group_id = mg.group_id
+                where mg.membership_id = m.id
+             ) as roles,
+             exists(
+               select 1 from fleet_drivers fd
+                where fd.company_id = m.company_id and fd.membership_id = m.id and fd.can_drive
+             ) as drives_in_fleet
       from user_company_memberships m
       join identity_users u on u.id = m.user_id and u.status = 'active'
       left join identity_user_profiles p on p.user_id = m.user_id
@@ -76,7 +93,13 @@ export function createDrizzleCompanyExpenseReminderPorts(input: {
       where m.company_id = ${companyId}::uuid and m.status = 'active' and ${filter}
       order by m.user_id
     `)) as unknown as readonly PersonRow[]
-    return rows.map(toPerson)
+    // Motorista nunca recebe aviso de conta (RF24): fora como responsável e como administrador.
+    return rows
+      .filter(
+        (row) =>
+          !isBarredFromExpenseReminders({ drivesInFleet: row.drives_in_fleet, roles: row.roles }),
+      )
+      .map(toPerson)
   }
 
   return {
