@@ -41,8 +41,7 @@ viagem. Aceitar **não cria viagem sozinho**.
   `companyId`; se existe, reaproveita; se não, cria o contratante marcado "novo, a conferir" (aparece em `/pendencias`).
   Nunca cria cliente antes de aceitar, para o formulário público não virar porta de spam no cadastro.
 - **D5 — Aceitar não cria viagem.** O pedido aceito vira item da fila "Coletas aceitas". O escritório então
-  **acrescenta a uma viagem aberta** (o painel sugere viagens com rota e ocupação compatíveis, usando a ocupação da
-  326) ou **cria viagem nova** com a coleta como parada. Veículo, motorista e data continuam decisão do despachante. A
+  **acrescenta a uma viagem aberta** (o painel sugere viagens com rota e ocupação compatíveis, usando a ocupação da 326) ou **cria viagem nova** com a coleta como parada. Veículo, motorista e data continuam decisão do despachante. A
   mecânica de parada de coleta reaproveita `trip_stops` — a T0 confirma se há `kind` de coleta ou se precisa de uma
   coluna.
 - **D6 — O aviso ao cliente.** Dois momentos: **decisão** (aceito/recusado, com motivo na recusa) e **agendamento**
