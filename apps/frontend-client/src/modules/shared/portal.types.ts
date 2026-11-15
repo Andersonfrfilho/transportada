@@ -19,6 +19,21 @@ export type DeliveryLocation = Readonly<{
   recordedAt: string
 }>
 
+export type DeliveryEventKind =
+  | 'arrived'
+  | 'delivered'
+  | 'en_route'
+  | 'loaded'
+  | 'received'
+  | 'returned'
+  | 'separated'
+
+/** Spec 340 D4: marco da entrega (tipo e hora) e a coordenada da parada de destino — nunca de quem dirige. */
+export type DeliveryEvents = Readonly<{
+  destination: Readonly<{ latitude: string; longitude: string }> | null
+  events: readonly Readonly<{ kind: DeliveryEventKind; occurredAt: string }>[]
+}>
+
 export type DeliverySchedule = Readonly<{
   divergedAt: string | null
   notes: string

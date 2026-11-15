@@ -1154,6 +1154,7 @@ import { findActiveAddressCorrectionMailTemplate } from './address-correction/in
 import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/public-inbound-email.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
+import { createReadContractorDeliveryEventsUseCase } from './contractor-portal/application/read-contractor-delivery-events.use-case.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
 import { createMeClientDiagnosticsRoutes } from './trips/presentation/me-client-diagnostics.routes.js'
 import { createMeLocationRoutes } from './trips/presentation/me-location.routes.js'
@@ -3546,6 +3547,9 @@ function createApplicationRoutes({
    * O agendamento do portal escreve pela mesma máquina da 060 — a `tripStopSchedules` acima, não uma
    * cópia. É a ADR-0050 §6: nenhuma regra de agendamento mora no portal.
    */
+  const readContractorDeliveryEvents = createReadContractorDeliveryEventsUseCase({
+    repository: contractorPortalRepository,
+  })
   const readContractorDeliveryLocation = createReadContractorDeliveryLocationUseCase({
     locations: tripLocationRepository,
     repository: contractorPortalRepository,
@@ -5723,6 +5727,7 @@ function createApplicationRoutes({
     ...createOccurrenceWatchersRoutes({ useCase: occurrenceWatchers }),
     ...createContractorDeliveryRoutes({
       listDeliveries: { execute: (input) => readContractorDeliveries(input) },
+      readDeliveryEvents: { execute: (input) => readContractorDeliveryEvents(input) },
       readDeliveryLocation: { execute: (input) => readContractorDeliveryLocation(input) },
       scheduleDelivery: { execute: (input) => scheduleContractorDelivery(input) },
     }),
