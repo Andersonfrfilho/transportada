@@ -26,6 +26,8 @@ export type ResolveExpenseDueDateParams = {
 
 export type ExpenseScheduleSlot = {
   readonly dueDate: string
+  /** Número da parcela (1..total) só quando a conta é parcelada; nulo nas demais. */
+  readonly installmentNumber: number | null
   readonly slot: 1 | 2
 }
 
@@ -87,27 +89,42 @@ export function resolveExpenseSlots(params: {
   readonly anchorCompetence: string
   readonly competence: string
   readonly dueDay: number | null
+  /** Total de parcelas da conta; nulo = sem fim. A parcela além do total não é gerada. */
+  readonly installmentsTotal?: number | null
   readonly recurrence: ExpenseRecurrence
 }): readonly ExpenseScheduleSlot[] {
   const distance = monthIndex(params.competence) - monthIndex(params.anchorCompetence)
-  if (distance < 0 || distance % MONTHS_BETWEEN[params.recurrence] !== 0) return []
+  const step = MONTHS_BETWEEN[params.recurrence]
+  if (distance < 0 || distance % step !== 0) return []
+  const total = params.installmentsTotal ?? null
+  const perPeriod = params.recurrence === 'fortnightly' ? 2 : 1
+  const base = (distance / step) * perPeriod
+  const numberOf = (slot: 1 | 2): number | null => (total === null ? null : base + slot)
+  const slots: ExpenseScheduleSlot[] = []
   if (params.recurrence === 'fortnightly') {
-    return [
+    slots.push(
       {
         dueDate: resolveExpenseDueDate({
           competence: params.competence,
           dueDay: FORTNIGHT_FIRST_DAY,
         }),
+        installmentNumber: numberOf(1),
         slot: 1,
       },
-      { dueDate: resolveExpenseDueDate({ competence: params.competence, dueDay: 31 }), slot: 2 },
-    ]
-  }
-  if (params.dueDay === null) throw new Error('dueDay is required for a non-fortnightly recurrence')
-  return [
-    {
+      {
+        dueDate: resolveExpenseDueDate({ competence: params.competence, dueDay: 31 }),
+        installmentNumber: numberOf(2),
+        slot: 2,
+      },
+    )
+  } else {
+    if (params.dueDay === null)
+      throw new Error('dueDay is required for a non-fortnightly recurrence')
+    slots.push({
       dueDate: resolveExpenseDueDate({ competence: params.competence, dueDay: params.dueDay }),
+      installmentNumber: numberOf(1),
       slot: 1,
-    },
-  ]
+    })
+  }
+  return total === null ? slots : slots.filter((item) => (item.installmentNumber ?? 0) <= total)
 }

@@ -707,3 +707,13 @@ da API (cópia por valor de `expense-reminder.policy.ts`, `expense-reminder-mail
 - Tema escuro com contraste e bordas iguais aos do restante do painel; sem rolagem horizontal no celular.
 
 **Fora desta task.** O cartão "Previsão" e a lista "Fora do padrão" da página de resultado são da T6.4 (PR 771, ainda aberto); os prints da página com esses blocos saem lá. Sem mudança de código, de API nem em produção: o runbook não muda.
+
+## Extensão — parcelas da conta (2026-11-15)
+
+Pedido do Anderson: informar o número de parcelas de uma conta e ver "parcela 3 de 10".
+
+- Decisão de produto (leitura mais provável, a confirmar): o **valor previsto é o de cada parcela** (não o total dividido). A conta fixa ganha `installments_total` (2 a 600, opcional; nulo = sem fim) e a ocorrência ganha `installment_number`. A rotina `company-expense.occurrence.generate` e o cadastro param de gerar depois da última parcela (bimestral/trimestral/anual contam uma parcela por período; quinzenal, duas por mês). Só se informa o total **ao cadastrar** (conta existente não vira parcelada, porque as ocorrências já geradas ficariam sem número).
+- Migration aditiva `20261115034548_company_expense_installments` + rollback que recusa com conta parcelada; contrato estático `company-expense-installments.static.contract.ts`.
+- API: `installmentsTotal` no `POST /expenses`, devolvido na conta e na lista de ocorrências com `installmentNumber`. Contratos em `test/expenses/installments.contract.ts` (numeração, parada na última, rotina rodando depois, bimestral/quinzenal, total inválido, variável).
+- Painel: campo "Parcelas (opcional)" na nova conta fixa, "Parcela n/total" abaixo do nome na lista e no resumo da baixa. Só componentes do design system. Prints (claro/escuro × desktop 1440/celular 390) por `test/spec-325-prints.smoke.spec.ts`.
+- Provas: `bun test ./test/expenses.contract.test.ts ./test/database-migration.contract.test.ts` (API) 511 pass; painel `bun run test`, `tsc` e `eslint` limpos.

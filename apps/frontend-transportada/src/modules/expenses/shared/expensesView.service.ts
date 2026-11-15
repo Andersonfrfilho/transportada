@@ -130,11 +130,28 @@ export function recurrenceNeedsDueDay(recurrence: ExpenseRecurrence): boolean {
   return recurrence !== 'fortnightly'
 }
 
+/** Total de parcelas digitado: inteiro de 2 a 600; `null` quando vazio ou inválido. */
+export function parseInstallmentsTotal(value: string): number | null {
+  if (!/^\d{1,3}$/.test(value)) return null
+  const total = Number(value)
+  return total >= 2 && total <= 600 ? total : null
+}
+
+/** "3/10" na lista e na baixa; `null` quando a conta não é parcelada. */
+export function formatInstallment(
+  input: Readonly<{ installmentNumber: number | null; installmentsTotal: number | null }>,
+): string | null {
+  if (input.installmentNumber === null || input.installmentsTotal === null) return null
+  return `${input.installmentNumber}/${input.installmentsTotal}`
+}
+
 export type CreateFormFields = Readonly<{
   amount: string
   categoryId: string
   dueDate: string
   dueDay: string
+  /** Texto digitado; vazio = conta sem fim. */
+  installments: string
   kind: ExpenseKind
   name: string
   payeeDriverId: string
@@ -147,6 +164,7 @@ export const EMPTY_CREATE_FORM: CreateFormFields = {
   categoryId: '',
   dueDate: '',
   dueDay: '',
+  installments: '',
   kind: 'fixed',
   name: '',
   payeeDriverId: '',
@@ -154,7 +172,14 @@ export const EMPTY_CREATE_FORM: CreateFormFields = {
   vehicleId: '',
 }
 
-export type CreateFormIssue = 'amount' | 'category' | 'dueDate' | 'dueDay' | 'name' | 'payee'
+export type CreateFormIssue =
+  | 'amount'
+  | 'category'
+  | 'dueDate'
+  | 'dueDay'
+  | 'installments'
+  | 'name'
+  | 'payee'
 
 /** Tudo o que falta para o botão "Salvar conta" abrir; o servidor ainda recobra cada regra. */
 export function validateCreateForm(
@@ -170,6 +195,9 @@ export function validateCreateForm(
   if (fields.kind === 'fixed' && recurrenceNeedsDueDay(fields.recurrence)) {
     const day = Number(fields.dueDay)
     if (!Number.isInteger(day) || day < 1 || day > 31) issues.push('dueDay')
+    if (fields.installments !== '' && parseInstallmentsTotal(fields.installments) === null) {
+      issues.push('installments')
+    }
   }
   return issues
 }

@@ -20,6 +20,7 @@ import {
   EMPTY_CREATE_FORM,
   maskMoney,
   parseMoney,
+  parseInstallmentsTotal,
   recurrenceNeedsDueDay,
   validateCreateForm,
 } from '../shared/expensesView.service'
@@ -48,6 +49,9 @@ function buildInput(fields: typeof EMPTY_CREATE_FORM): CreateExpenseInput | null
       ? { dueDate: fields.dueDate }
       : {
           recurrence: fields.recurrence,
+          ...(parseInstallmentsTotal(fields.installments) === null
+            ? {}
+            : { installmentsTotal: Number(fields.installments) }),
           ...(recurrenceNeedsDueDay(fields.recurrence) ? { dueDay: Number(fields.dueDay) } : {}),
         }),
   }
@@ -186,6 +190,18 @@ export function ExpenseCreateDialog({
             ) : (
               <p className={styles.hint}>{t('create.fortnightlyHint')}</p>
             )}
+            <label className={styles.field}>
+              <span>{t('create.installments')}</span>
+              <input
+                aria-invalid={showIssues && issues.includes('installments')}
+                inputMode="numeric"
+                maxLength={3}
+                onChange={(event) => patch({ installments: event.target.value.replace(/\D/g, '') })}
+                placeholder={t('create.installmentsPlaceholder')}
+                value={fields.installments}
+              />
+            </label>
+            <p className={styles.hint}>{t('create.installmentsHint')}</p>
           </>
         ) : (
           <div className={styles.field}>

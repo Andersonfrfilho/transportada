@@ -69,6 +69,7 @@
     "allFeminine": "Todas"
   },
   "list": {
+    "installment": "Parcela {{installment}}",
     "title": "Contas do mês",
     "new": "Nova conta",
     "empty": "Nenhuma conta neste mês com esses filtros.",
@@ -112,6 +113,9 @@
     "recurrence": "Recorrência",
     "dueDay": "Dia do vencimento",
     "fortnightlyHint": "Quinzenal vence no dia 15 e no último dia do mês.",
+    "installments": "Parcelas (opcional)",
+    "installmentsPlaceholder": "Ex.: 10 (vazio = sem fim)",
+    "installmentsHint": "Valor previsto é o de cada parcela. A rotina para de gerar depois da última.",
     "dueDate": "Vencimento",
     "vehicle": "Veículo (opcional)",
     "vehiclePlaceholder": "Nenhum",
@@ -124,7 +128,8 @@
       "amount": "valor previsto",
       "payee": "motorista, agregado ou ajudante",
       "dueDate": "vencimento",
-      "dueDay": "dia do vencimento (1 a 31)"
+      "dueDay": "dia do vencimento (1 a 31)",
+      "installments": "parcelas (2 a 600)"
     }
   },
   "settle": {

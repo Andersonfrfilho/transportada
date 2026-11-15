@@ -36,6 +36,8 @@ export type Expense = Readonly<{
   dueDay: number | null
   expectedAmount: string
   id: string
+  /** Total de parcelas da conta fixa; `null` = sem fim (e API anterior às parcelas). */
+  installmentsTotal: number | null
   kind: ExpenseKind
   name: string
   payeeDriverId: string | null
@@ -62,6 +64,8 @@ export type ExpenseOccurrence = Readonly<{
   expectedAmount: string
   expenseId: string
   id: string
+  /** Número da parcela (1..total) quando a conta é parcelada. */
+  installmentNumber: number | null
   paidAmount: string | null
   paidAt: string | null
   paidBy: string | null
@@ -79,6 +83,7 @@ export type ExpenseOccurrenceListItem = ExpenseOccurrence &
     categoryName: string
     expenseKind: ExpenseKind
     expenseName: string
+    installmentsTotal: number | null
     payeeDriverId: string | null
     payeeDriverName: string | null
     payeeDriverPaymentModel: ExpenseDriverPaymentModel | null
@@ -115,6 +120,7 @@ export type CreateExpenseInput = Readonly<{
   dueDate?: string
   dueDay?: number
   expectedAmount: string
+  installmentsTotal?: number
   kind: ExpenseKind
   name: string
   payeeDriverId?: string

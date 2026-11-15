@@ -19,6 +19,7 @@ import {
 } from '../shared/expenses.types'
 import {
   formatCivilDate,
+  formatInstallment,
   isOverdue,
   listCompetenceOptions,
   resolveOccurrencePayeeKey,
@@ -74,6 +75,12 @@ export function ExpensesWorkspacePage() {
         {row.payeeDriverName} · {t(`payee.${key}`)}
       </span>
     )
+  }
+
+  function renderInstallment(row: ExpenseOccurrenceListItem) {
+    const installment = formatInstallment(row)
+    if (installment === null) return null
+    return <span className={styles.rowDetail}>{t('list.installment', { installment })}</span>
   }
 
   return (
@@ -229,6 +236,7 @@ export function ExpensesWorkspacePage() {
                     <td data-column={t('list.account')}>
                       <div>
                         {row.expenseName}
+                        {renderInstallment(row)}
                         {renderPayee(row)}
                       </div>
                     </td>

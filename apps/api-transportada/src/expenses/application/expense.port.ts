@@ -38,6 +38,8 @@ export type CompanyExpense = {
   readonly dueDay: number | null
   readonly expectedAmount: string
   readonly id: string
+  /** Extensão "parcelas": total de parcelas da conta fixa (valor por parcela = `expectedAmount`); `null`/ausente = sem fim. */
+  readonly installmentsTotal?: number | null
   readonly kind: ExpenseKind
   readonly name: string
   readonly payeeDriverId: string | null
@@ -57,6 +59,8 @@ export type CompanyExpenseOccurrence = {
   readonly expectedAmount: string
   readonly expenseId: string
   readonly id: string
+  /** Número da parcela (1..total) quando a conta é parcelada; `null`/ausente nas demais. */
+  readonly installmentNumber?: number | null
   readonly paidAmount: string | null
   readonly paidAt: string | null
   readonly paidBy: string | null
@@ -72,6 +76,8 @@ export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
   readonly categoryName: string
   readonly expenseKind: ExpenseKind
   readonly expenseName: string
+  /** Total de parcelas da conta (com `installmentNumber`, "parcela n de total"); `null` sem parcelamento. */
+  readonly installmentsTotal?: number | null
   readonly payeeDriverId: string | null
   /** Derivado do cadastro na leitura, nunca copiado (RF1b). */
   readonly payeeDriverName: string | null
@@ -143,6 +149,7 @@ export type ExpensesPorts = {
       dueDay?: number | null
       expectedAmount?: string
       expenseId: string
+      installmentsTotal?: number | null
       name?: string
       vehicleId?: string | null
     }): Promise<CompanyExpense | null>
@@ -164,7 +171,7 @@ export type ExpensesPorts = {
       input: Pick<
         CompanyExpenseOccurrence,
         'companyId' | 'competence' | 'dueDate' | 'expectedAmount' | 'expenseId'
-      > & { readonly slot: 1 | 2 },
+      > & { readonly installmentNumber?: number | null; readonly slot: 1 | 2 },
     ): Promise<boolean>
     list(input: {
       companyId: string
