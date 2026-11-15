@@ -27,6 +27,7 @@ const createExpenseSchema = z
     employeeName: z.string().trim().max(120).optional(),
     employeeUserId: z.uuid().optional(),
     employmentType: z.enum(['clt', 'daily', 'autonomous', 'other']).optional(),
+    subtypeId: z.uuid().optional(),
     categoryId: z.uuid(),
     dueDate: civilDate.optional(),
     dueDay: z.number().int().min(1).max(31).optional(),
@@ -52,6 +53,7 @@ const updateExpenseSchema = z
     employeeName: z.string().trim().max(120).nullable().optional(),
     employeeUserId: z.uuid().nullable().optional(),
     employmentType: z.enum(['clt', 'daily', 'autonomous', 'other']).nullable().optional(),
+    subtypeId: z.uuid().nullable().optional(),
     amountKind: z.enum(['adjustment', 'correction']).optional(),
     correctionCompetence: z
       .string()
@@ -79,6 +81,9 @@ const settleSchema = z
 const includeTripSchema = z.object({ tripId: z.uuid() }).strict()
 
 const cancelSchema = z.object({ reason: z.string().trim().min(1).max(500) }).strict()
+const createSubtypeSchema = z
+  .object({ categoryId: z.uuid(), name: z.string().trim().min(1).max(120) })
+  .strict()
 const createCategorySchema = z.object({ name: z.string().trim().min(1).max(80) }).strict()
 const setCategoryCostGroupSchema = z
   .object({ costGroup: z.enum(['administrative', 'in_trip', 'per_km', 'vehicle_fixed']) })
@@ -104,6 +109,7 @@ export function parseUpdateExpenseRequest(request: Request): Promise<{
   readonly employeeName?: string | null
   readonly employeeUserId?: string | null
   readonly employmentType?: string | null
+  readonly subtypeId?: string | null
   readonly amountKind?: 'adjustment' | 'correction'
   readonly correctionCompetence?: string
   readonly dueDay?: number
@@ -138,6 +144,12 @@ export function parseCreateCategoryRequest(request: Request): Promise<{ readonly
   return parseBody(createCategorySchema, request)
 }
 
+export function parseCreateSubtypeRequest(
+  request: Request,
+): Promise<{ readonly categoryId: string; readonly name: string }> {
+  return parseBody(createSubtypeSchema, request)
+}
+
 export function parseSetCategoryActiveRequest(
   request: Request,
 ): Promise<{ readonly active: boolean }> {
@@ -146,6 +158,7 @@ export function parseSetCategoryActiveRequest(
 
 const OCCURRENCE_QUERY_KEYS = new Set([
   'categoryId',
+  'subtypeId',
   'causedByDriverId',
   'causedByName',
   'causedByUserId',
@@ -170,6 +183,7 @@ export function parseOccurrenceFilters(url: URL): ExpenseOccurrenceFilters {
   if (status !== null && statusOption === undefined) throw invalidRequest()
   const categoryId = parseUuidFilter(url.searchParams.get('categoryId'))
   const driverId = parseUuidFilter(url.searchParams.get('driverId'))
+  const subtypeId = parseUuidFilter(url.searchParams.get('subtypeId'))
   const causedByDriverId = parseUuidFilter(url.searchParams.get('causedByDriverId'))
   const causedByUserId = parseUuidFilter(url.searchParams.get('causedByUserId'))
   const causedByName = url.searchParams.get('causedByName')?.trim()
@@ -181,6 +195,7 @@ export function parseOccurrenceFilters(url: URL): ExpenseOccurrenceFilters {
     ...(causedByName === undefined ? {} : { causedByName }),
     ...(causedByDriverId === undefined ? {} : { causedByDriverId }),
     ...(categoryId === undefined ? {} : { categoryId }),
+    ...(subtypeId === undefined ? {} : { subtypeId }),
     ...(competence === null ? {} : { competence }),
     ...(driverId === undefined ? {} : { driverId }),
     ...(kindOption === undefined ? {} : { kind: kindOption }),

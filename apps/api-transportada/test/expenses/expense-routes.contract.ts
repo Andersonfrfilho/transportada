@@ -13,6 +13,8 @@ import {
 } from '../../src/expenses/application/expense-occurrence.use-case.js'
 import {
   createCreateExpenseCategoryUseCase,
+  createCreateExpenseSubtypeUseCase,
+  createListExpenseSubtypesUseCase,
   createCreateExpenseUseCase,
   createListExpenseCategoriesUseCase,
   createListExpenseAmountHistoryUseCase,
@@ -45,6 +47,8 @@ function buildRoutes(ports = buildInMemoryExpenses()) {
     routes: createExpenseRoutes({
       cancelOccurrence: createCancelExpenseOccurrenceUseCase(ports),
       createCategory: createCreateExpenseCategoryUseCase(ports),
+      createSubtype: createCreateExpenseSubtypeUseCase(ports),
+      listSubtypes: createListExpenseSubtypesUseCase(ports),
       createExpense: createCreateExpenseUseCase(ports),
       // T1.4b: as viagens do pagamento têm a própria suíte (`occurrence-trips.contract.ts`).
       includeOccurrenceTrip: unused,
@@ -124,6 +128,8 @@ describe('rotas de contas (spec 325 CA03)', () => {
       ['DELETE', '/expense-occurrences/:id/trips/:tripId', 'expenses.manage'],
       ['GET', '/expenses/:id/amount-history', 'expenses.read'],
       ['GET', '/expense-people', 'expenses.read'],
+      ['GET', '/expense-subtypes', 'expenses.read'],
+      ['POST', '/expense-subtypes', 'expenses.manage'],
       ['GET', '/expense-categories', 'expenses.read'],
       ['POST', '/expense-categories', 'expenses.manage'],
       ['PATCH', '/expense-categories/:id', 'expenses.manage'],

@@ -11,6 +11,7 @@ import type {
   CompanyExpenseCategory,
   CompanyExpenseOccurrence,
   ExpenseDriverRef,
+  ExpenseSubtype,
   ExpensesPorts,
 } from '../../src/expenses/application/expense.port.js'
 import { resolveExpensePayeeProfile } from '../../src/expenses/domain/expense-payee.policy.js'
@@ -34,6 +35,7 @@ export type InMemoryExpenses = ExpensesPorts & {
   readonly categoryRows: (CompanyExpenseCategory & { readonly companyId: string })[]
   /** Quantas vezes a semente foi pedida, por empresa (a empresa nova não a recebe pela migration). */
   readonly seedCalls: string[]
+  readonly subtypeRows: (ExpenseSubtype & { readonly companyId: string })[]
   readonly expenseRows: CompanyExpense[]
   readonly occurrenceRows: CompanyExpenseOccurrence[]
 }
@@ -44,6 +46,7 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
   const auditRows: ExpenseAuditEntry[] = []
   const amountChangeRows: ExpenseAmountChange[] = []
   const seedCalls: string[] = []
+  const subtypeRows: (ExpenseSubtype & { readonly companyId: string })[] = []
   const categories: (CompanyExpenseCategory & { readonly companyId: string })[] = [
     {
       active: true,
@@ -147,6 +150,24 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
     },
     expenseRows,
     seedCalls,
+    subtypeRows,
+    subtypes: {
+      findById: async ({ companyId, subtypeId }) =>
+        subtypeRows.find((row) => row.id === subtypeId && row.companyId === companyId) ?? null,
+      findOrCreate: async ({ categoryId, companyId, name }) => {
+        const found = subtypeRows.find(
+          (row) =>
+            row.companyId === companyId &&
+            row.categoryId === categoryId &&
+            row.name.toLowerCase() === name.toLowerCase(),
+        )
+        if (found !== undefined) return { created: false, subtype: found }
+        const subtype = { active: true, categoryId, companyId, id: crypto.randomUUID(), name }
+        subtypeRows.push(subtype)
+        return { created: true, subtype }
+      },
+      list: async ({ companyId }) => subtypeRows.filter((row) => row.companyId === companyId),
+    },
     expenses: {
       create: async (input) => {
         const row: CompanyExpense = { active: true, id: crypto.randomUUID(), ...input }
@@ -205,6 +226,11 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
           .filter((o) => filters.competence === undefined || o.competence === filters.competence)
           .filter(
             (o) =>
+              filters.subtypeId === undefined ||
+              expenseRows.find((e) => e.id === o.expenseId)?.subtypeId === filters.subtypeId,
+          )
+          .filter(
+            (o) =>
               filters.causedByDriverId === undefined ||
               expenseRows.find((e) => e.id === o.expenseId)?.causedByDriverId ===
                 filters.causedByDriverId,
@@ -238,6 +264,8 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
                 expense?.causedByUserId === undefined || expense.causedByUserId === null
                   ? null
                   : 'Ana do escritório',
+              subtypeId: expense?.subtypeId ?? null,
+              subtypeName: subtypeRows.find((row) => row.id === expense?.subtypeId)?.name ?? null,
               employeeDriverId: expense?.employeeDriverId ?? null,
               employeeName: expense?.employeeName ?? null,
               employeeUserId: expense?.employeeUserId ?? null,
