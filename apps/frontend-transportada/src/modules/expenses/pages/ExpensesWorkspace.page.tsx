@@ -3,15 +3,19 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
+import { ExpenseBulkDialog } from '../components/ExpenseBulkDialog.component'
 import { ExpenseCreateDialog } from '../components/ExpenseCreateDialog.component'
 import { ExpenseEditDialog } from '../components/ExpenseEditDialog.component'
 import { ExpenseSettleDialog } from '../components/ExpenseSettleDialog.component'
 import { ExpenseTripsDialog } from '../components/ExpenseTripsDialog.component'
+import { useCalendarLabels } from '../components/useCalendarLabels.hook'
 import { useExpensesWorkspace } from '../hooks/useExpensesWorkspace.hook'
 import {
   EXPENSE_KINDS,
@@ -32,6 +36,7 @@ import styles from '../styles/expenses.module.css'
 export function ExpensesWorkspacePage() {
   const { t } = useTranslation('expenses')
   const workspace = useExpensesWorkspace()
+  const calendar = useCalendarLabels()
   const { canManage, filters, page, summary, today } = workspace
 
   if (workspace.isAuthLoading) {
@@ -243,6 +248,33 @@ export function ExpensesWorkspacePage() {
             value={filters.causedBy}
           />
         </div>
+        <label className={styles.field}>
+          <span>{t('filters.search')}</span>
+          <input
+            onChange={(event) => workspace.setSearch({ text: event.target.value })}
+            placeholder={t('filters.searchPlaceholder')}
+            type="search"
+            value={workspace.search.text}
+          />
+        </label>
+        <div className={styles.field}>
+          <span>{t('filters.dueFrom')}</span>
+          <DatePicker
+            {...calendar}
+            ariaLabel={t('filters.dueFrom')}
+            onChange={(value) => workspace.setSearch({ dueFrom: value })}
+            value={workspace.search.dueFrom}
+          />
+        </div>
+        <div className={styles.field}>
+          <span>{t('filters.dueTo')}</span>
+          <DatePicker
+            {...calendar}
+            ariaLabel={t('filters.dueTo')}
+            onChange={(value) => workspace.setSearch({ dueTo: value })}
+            value={workspace.search.dueTo}
+          />
+        </div>
       </section>
 
       {workspace.loadError === null ? null : (
@@ -285,19 +317,64 @@ export function ExpensesWorkspacePage() {
           ) : null}
         </div>
 
+        {canManage && workspace.selection.count > 0 ? (
+          <div className={styles.bulkBar} role="region" aria-label={t('bulk.bar')}>
+            <p>
+              {t('bulk.selected', {
+                amount: formatAmount(workspace.selection.expected),
+                count: workspace.selection.count,
+              })}
+            </p>
+            <div className={styles.rowActions}>
+              <Button
+                onClick={() => workspace.openDialog({ action: 'settle', kind: 'bulk' })}
+                size="sm"
+                type="button"
+              >
+                <Icon name="save" />
+                {t('bulk.settle')}
+              </Button>
+              <Button
+                onClick={() => workspace.openDialog({ action: 'cancel', kind: 'bulk' })}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                {t('bulk.cancel')}
+              </Button>
+              <Button onClick={workspace.clearSelection} size="sm" type="button" variant="ghost">
+                {t('bulk.clear')}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {workspace.isLoading ? (
           <SkeletonGroup label={t('loading')}>
             <Skeleton height="2.5rem" />
             <Skeleton height="2.5rem" />
             <Skeleton height="2.5rem" />
           </SkeletonGroup>
-        ) : page === undefined || page.items.length === 0 ? (
+        ) : page === undefined || workspace.visibleItems.length === 0 ? (
           <p className={styles.hint}>{t('list.empty')}</p>
         ) : (
           <div className={styles.tableScroll}>
             <table className={styles.table}>
               <thead>
                 <tr>
+                  <th scope="col">
+                    {canManage ? (
+                      <Checkbox
+                        ariaLabel={t('bulk.selectAll')}
+                        checked={workspace.isAllSelected}
+                        disabled={workspace.openItems.length === 0}
+                        indeterminate={workspace.selectedIds.size > 0}
+                        onChange={workspace.toggleAll}
+                      />
+                    ) : (
+                      <span className={styles.srOnly}>{t('bulk.selectAll')}</span>
+                    )}
+                  </th>
                   <th scope="col">{t('list.account')}</th>
                   <th scope="col">{t('list.kind')}</th>
                   <th scope="col">{t('list.category')}</th>
@@ -311,8 +388,17 @@ export function ExpensesWorkspacePage() {
                 </tr>
               </thead>
               <tbody>
-                {page.items.map((row) => (
+                {workspace.visibleItems.map((row) => (
                   <tr key={row.id}>
+                    <td>
+                      {canManage && row.status === 'open' ? (
+                        <Checkbox
+                          ariaLabel={t('bulk.selectOne', { name: row.expenseName })}
+                          checked={workspace.selectedIds.has(row.id)}
+                          onChange={() => workspace.toggleOne(row.id)}
+                        />
+                      ) : null}
+                    </td>
                     <td data-column={t('list.account')}>
                       <div>
                         {row.expenseName}
@@ -393,6 +479,15 @@ export function ExpensesWorkspacePage() {
           </div>
         )}
       </section>
+
+      {workspace.dialog?.kind === 'bulk' ? (
+        <ExpenseBulkDialog
+          action={workspace.dialog.action}
+          expected={workspace.selection.expected}
+          items={workspace.openItems.filter((item) => workspace.selectedIds.has(item.id))}
+          onClose={workspace.closeDialog}
+        />
+      ) : null}
 
       {workspace.dialog?.kind === 'create' ? (
         <ExpenseCreateDialog

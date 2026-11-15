@@ -68,7 +68,11 @@
     "payee": "Motorista, agregado ou ajudante",
     "all": "Todos",
     "allFeminine": "Todas",
-    "subtype": "Tipo da categoria"
+    "subtype": "Tipo da categoria",
+    "search": "Buscar conta",
+    "searchPlaceholder": "Nome, categoria, tipo ou pessoa",
+    "dueFrom": "Vencimento a partir de",
+    "dueTo": "Vencimento até"
   },
   "list": {
     "installment": "Parcela {{installment}}",
@@ -439,5 +443,26 @@
     "create": "Adicionar «{{name}}»",
     "empty": "Digite o nome e aperte Enter",
     "search": "Buscar ou digitar um nome"
+  },
+  "bulk": {
+    "bar": "Ações rápidas",
+    "selected": "{{count}} selecionada(s) · previsto {{amount}}",
+    "settle": "Dar baixa",
+    "cancel": "Cancelar contas",
+    "clear": "Limpar seleção",
+    "selectAll": "Selecionar todas as contas em aberto listadas",
+    "selectOne": "Selecionar {{name}}",
+    "titleSettle": "Dar baixa nas selecionadas",
+    "titleCancel": "Cancelar as selecionadas",
+    "summary": "{{count}} conta(s) · previsto {{amount}}",
+    "settleHint": "Cada conta é paga pelo valor previsto, na data escolhida. Conta com valor diferente se baixa uma a uma.",
+    "cancelHint": "A conta cancelada sai do que está em aberto, e o motivo fica registrado em cada uma.",
+    "reason": "Motivo do cancelamento",
+    "reasonPlaceholder": "Ex.: lançada em duplicidade",
+    "confirmSettle": "Dar baixa em {{count}}",
+    "confirmCancel": "Cancelar {{count}}",
+    "running": "Registrando…",
+    "close": "Fechar",
+    "partial": "{{succeeded}} registrada(s) e {{failed}} com erro. As que falharam continuam selecionadas; tente de novo ou abra uma a uma."
   }
 }

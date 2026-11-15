@@ -26,6 +26,13 @@ import {
   summarizeOccurrences,
   validateCreateForm,
 } from '@/modules/expenses/shared/expensesView.service'
+import {
+  EMPTY_LIST_SEARCH,
+  filterListItems,
+  runBulk,
+  selectableItems,
+  summarizeSelection,
+} from '@/modules/expenses/shared/expensesSelection.service'
 import { WORKSPACE_PERMISSIONS } from '@/modules/shared/workspaceAccess.service'
 
 function row(
@@ -217,5 +224,56 @@ describe('spec 332 — o bloco Funcionário é só da folha', () => {
     expect(isEmployeeCategoryName('FUNCIONARIOS')).toBe(true)
     expect(isEmployeeCategoryName('Aluguel')).toBe(false)
     expect(isEmployeeCategoryName('Cartão de crédito')).toBe(false)
+  })
+})
+
+describe('spec 333 — busca, faixa de vencimento e seleção em lote', () => {
+  const items = [
+    {
+      ...row({ dueDate: '2026-11-05', expectedAmount: '100.10' }),
+      id: 'a',
+      expenseName: 'Aluguel Barracão',
+    },
+    {
+      ...row({ dueDate: '2026-11-20', expectedAmount: '50.20' }),
+      id: 'b',
+      expenseName: 'Cartão Santander',
+      subtypeName: 'Santander',
+    },
+    { ...row({ dueDate: '2026-11-25', status: 'paid' }), id: 'c', expenseName: 'Internet' },
+  ]
+
+  it('busca por nome sem depender de acento ou caixa, e filtra a faixa de vencimento', () => {
+    expect(
+      filterListItems(items, { ...EMPTY_LIST_SEARCH, text: 'BARRACÃO' }).map((i) => i.id),
+    ).toEqual(['a'])
+    expect(
+      filterListItems(items, { ...EMPTY_LIST_SEARCH, text: 'santander' }).map((i) => i.id),
+    ).toEqual(['b'])
+    expect(
+      filterListItems(items, { dueFrom: '2026-11-10', dueTo: '2026-11-25', text: '' }).map(
+        (i) => i.id,
+      ),
+    ).toEqual(['b', 'c'])
+    expect(filterListItems(items, EMPTY_LIST_SEARCH)).toHaveLength(3)
+  })
+
+  it('só conta em aberto é selecionável e a soma é exata', () => {
+    expect(selectableItems(items).map((i) => i.id)).toEqual(['a', 'b'])
+    expect(summarizeSelection(items, new Set(['a', 'b', 'c']))).toEqual({
+      count: 2,
+      expected: '150.30',
+    })
+    expect(summarizeSelection(items, new Set()).count).toBe(0)
+  })
+
+  it('uma falha não derruba as outras e fica anotada', async () => {
+    const seen: string[] = []
+    const result = await runBulk(['a', 'b', 'c'], (id) => {
+      seen.push(id)
+      return id === 'b' ? Promise.reject(new Error('x')) : Promise.resolve(id)
+    })
+    expect(seen).toEqual(['a', 'b', 'c'])
+    expect(result).toEqual({ failed: ['b'], succeeded: 2 })
   })
 })

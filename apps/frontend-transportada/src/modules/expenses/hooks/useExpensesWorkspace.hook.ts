@@ -23,6 +23,13 @@ import {
   todayCivilDate,
 } from '../shared/expensesView.service'
 import {
+  EMPTY_LIST_SEARCH,
+  filterListItems,
+  selectableItems,
+  summarizeSelection,
+  type ExpenseListSearch,
+} from '../shared/expensesSelection.service'
+import {
   useExpenseCategories,
   useExpenseOccurrences,
   useExpensePeople,
@@ -48,6 +55,7 @@ export type ExpensesDialog =
   | Readonly<{ kind: 'edit'; occurrence: ExpenseOccurrenceListItem }>
   | Readonly<{ kind: 'settle'; occurrence: ExpenseOccurrenceListItem }>
   | Readonly<{ kind: 'trips'; occurrence: ExpenseOccurrenceListItem }>
+  | Readonly<{ action: 'cancel' | 'settle'; kind: 'bulk' }>
   | null
 
 function toApiFilters(filters: ExpensesFilterState): ExpenseOccurrenceFilters {
@@ -78,6 +86,8 @@ export function useExpensesWorkspace() {
     status: '',
   })
   const [dialog, setDialog] = useState<ExpensesDialog>(null)
+  const [search, setSearch] = useState<ExpenseListSearch>(EMPTY_LIST_SEARCH)
+  const [pickedIds, setPickedIds] = useState<ReadonlySet<string>>(new Set())
 
   const occurrences = useExpenseOccurrences({ enabled: canRead, filters: toApiFilters(filters) })
   const categories = useExpenseCategories({ enabled: canRead })
@@ -96,6 +106,13 @@ export function useExpensesWorkspace() {
 
   const today = todayCivilDate()
   const page = occurrences.data
+  const visibleItems = filterListItems(page?.items ?? [], search)
+  const openItems = selectableItems(visibleItems)
+  // A seleção só vale para o que está à vista e em aberto: mudar o filtro nunca age em conta escondida.
+  const selectedIds: ReadonlySet<string> = new Set(
+    openItems.filter((item) => pickedIds.has(item.id)).map((item) => item.id),
+  )
+  const selection = summarizeSelection(openItems, selectedIds)
   const summary =
     page === undefined
       ? undefined
@@ -104,6 +121,26 @@ export function useExpensesWorkspace() {
   return {
     canManage,
     canRead,
+    clearSelection: () => setPickedIds(new Set()),
+    isAllSelected: openItems.length > 0 && selectedIds.size === openItems.length,
+    openItems,
+    search,
+    selectedIds,
+    selection,
+    setSearch: (changes: Partial<ExpenseListSearch>) =>
+      setSearch((current) => ({ ...current, ...changes })),
+    toggleAll: () =>
+      setPickedIds(
+        selectedIds.size === openItems.length ? new Set() : new Set(openItems.map((i) => i.id)),
+      ),
+    toggleOne: (id: string) =>
+      setPickedIds((current) => {
+        const next = new Set(current)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      }),
+    visibleItems,
     categories: categories.data ?? [],
     closeDialog: () => setDialog(null),
     dialog,
