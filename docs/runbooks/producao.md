@@ -1421,3 +1421,9 @@ O formulário público (cotação da 338 e pedido de coleta anônimo da 339) val
 - **Como ler:** `delta_km_pct` perto de zero é o esperado (mesma estrada). `pedagio_comparavel=false` quer dizer que a viagem tem trecho a mais (saída da base ou volta), então o pedágio dela não é o da perna: vale só o km. Diferença de pedágio com `pedagio_comparavel=true` ou `catalogo` diferente de `current` é achado a investigar.
 - **O que NÃO mede:** a geocodificação do endereço digitado (o script usa a coordenada já guardada da parada e não chama o Google). Isso se confere na tela `/orcamento`, com o endereço de uma viagem.
 - Nunca foi rodado numa sessão com `railway` logado: o primeiro uso confirma a subida em pedaços.
+
+### 5.40.1 O que os conectores não fazem (15/11/2026)
+
+- **Rodar a conferência da §5.40 pelo conector do Railway não é possível.** O agente do Railway (`railway-agent`) não executa comando no container do `api` nem consulta o banco (sem `railway ssh`, sem SQL); lê arquivos e logs. O agente de nuvem (`run-cloud-agent-task`) roda numa VM própria, sem acesso ao banco de staging. A conferência continua sendo o script, rodado por quem tem o `railway` logado.
+- **O script precisa do checkout inteiro da `staging`** (`git pull`), não só dos três arquivos: a entrada importa `src/freight-quote/**`. Com a cópia local atrasada ele falha com `Could not resolve ../src/freight-quote/...` (visto em 15/11/2026).
+- **Nenhum conector cria o widget do Turnstile.** O da Cloudflare disponível aqui cobre Workers, KV, D1, R2 e Hyperdrive; Turnstile só pelo painel da Cloudflare ou pelo script da §5.39.
