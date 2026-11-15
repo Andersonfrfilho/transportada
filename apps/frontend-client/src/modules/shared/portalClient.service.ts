@@ -8,6 +8,8 @@ import type {
   Occurrence,
   OccurrenceDecisionInput,
   OccurrenceDecisionResult,
+  PickupRequest,
+  PickupRequestInput,
   PortalConversation,
   PortalConversationMessageInput,
   ScheduleInput,
@@ -20,11 +22,14 @@ import {
   toDeliverySchedule,
   toOccurrenceDecisionResult,
   toOccurrences,
+  toPickupRequests,
+  toSinglePickupRequest,
   toSingleChargeBatch,
 } from './portalResponse.validation'
 
 const DELIVERIES_PATH = '/client/me/deliveries'
 const BATCHES_PATH = '/client/me/extra-charge-batches'
+const PICKUP_REQUESTS_PATH = '/client/me/pickup-requests'
 const OCCURRENCES_PATH = '/client/me/occurrences'
 /** Spec 183 T653: a conversa é nomeada pela referência opaca que a listagem devolveu. */
 const CONVERSATIONS_PATH = '/client/me/occurrence-conversations'
@@ -36,6 +41,9 @@ type ClientDependencies = Readonly<{
 }>
 
 export type PortalClient = Readonly<{
+  cancelPickupRequest: (id: string) => Promise<PickupRequest | null>
+  createPickupRequest: (input: PickupRequestInput) => Promise<PickupRequest | null>
+  listPickupRequests: () => Promise<readonly PickupRequest[]>
   decideBatch: (input: {
     readonly batchId: string
     readonly decisions: readonly ChargeDecision[]
@@ -101,6 +109,22 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
   }
 
   return {
+    async cancelPickupRequest(id) {
+      return toSinglePickupRequest(
+        await request({
+          method: 'POST',
+          path: `${PICKUP_REQUESTS_PATH}/${encodeURIComponent(id)}/cancel`,
+        }),
+      )
+    },
+    async createPickupRequest({ idempotencyKey, ...body }) {
+      return toSinglePickupRequest(
+        await request({ body, idempotencyKey, method: 'POST', path: PICKUP_REQUESTS_PATH }),
+      )
+    },
+    async listPickupRequests() {
+      return toPickupRequests(await request({ method: 'GET', path: PICKUP_REQUESTS_PATH }))
+    },
     async decideOccurrence({ kind, note, occurrenceId }) {
       return toOccurrenceDecisionResult(
         await request({

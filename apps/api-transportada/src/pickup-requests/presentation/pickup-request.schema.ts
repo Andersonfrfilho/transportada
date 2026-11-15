@@ -19,7 +19,11 @@ const text = (max: number) => z.string().trim().min(1).max(max)
 const addressSchema = z
   .object({
     city: text(120),
-    cityIbgeCode: z.string().regex(/^\d{7}$/),
+    cityIbgeCode: z
+      .string()
+      .regex(/^\d{7}$/)
+      .nullable()
+      .optional(),
     complement: z.string().trim().max(120).nullable().optional(),
     district: text(120),
     number: text(20),
@@ -31,7 +35,11 @@ const addressSchema = z
     street: text(160),
   })
   .strict()
-  .transform((value) => ({ ...value, complement: value.complement ?? null }))
+  .transform((value) => ({
+    ...value,
+    cityIbgeCode: value.cityIbgeCode ?? null,
+    complement: value.complement ?? null,
+  }))
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 

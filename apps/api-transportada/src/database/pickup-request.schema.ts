@@ -44,7 +44,8 @@ export type PickupRequestAddress = {
   readonly complement: string | null
   readonly district: string
   readonly city: string
-  readonly cityIbgeCode: string
+  /** Opcional: o portal não consulta CEP de terceiro (ADR-0050); o escritório completa na aceitação. */
+  readonly cityIbgeCode: string | null
   readonly state: string
   readonly postalCode: string
 }
