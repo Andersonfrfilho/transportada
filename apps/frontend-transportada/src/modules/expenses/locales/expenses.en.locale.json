@@ -67,7 +67,8 @@
     "causedBy": "Caused by",
     "payee": "Driver, contractor or helper",
     "all": "All",
-    "allFeminine": "All"
+    "allFeminine": "All",
+    "subtype": "Type"
   },
   "list": {
     "installment": "Installment {{installment}}",
@@ -90,7 +91,8 @@
     "billLink": "Open the bill",
     "employee": "Employee: {{name}}",
     "employeeWithType": "Employee: {{name}} · {{type}}",
-    "employmentOnly": "Employment: {{type}}"
+    "employmentOnly": "Employment: {{type}}",
+    "subtype": "Type: {{name}}"
   },
   "calendar": {
     "chooseYear": "Choose the year",
@@ -173,7 +175,10 @@
     "employeeNamePlaceholder": "Someone not registered",
     "employmentType": "Employment type",
     "employmentTypePlaceholder": "No type",
-    "employeeHint": "For salaries and employee pay. Any registered person (driver, aggregate, helper or office user who only has access) or a typed name. To pay twice a month, pick the Fortnightly recurrence."
+    "employeeHint": "For salaries and employee pay. Any registered person (driver, aggregate, helper or office user who only has access) or a typed name. To pay twice a month, pick the Fortnightly recurrence.",
+    "categoryCreate": "Add «{{name}}»",
+    "categoryEmpty": "Type a name and press Enter to add the category",
+    "categorySearch": "Search or type the category"
   },
   "settle": {
     "title": "Settle",
@@ -417,5 +422,14 @@
     "daily": "Day laborer",
     "autonomous": "Self-employed",
     "other": "Other"
+  },
+  "subtype": {
+    "label": "Type (optional)",
+    "none": "No type",
+    "create": "Add «{{name}}»",
+    "empty": "Type a name and press Enter to add it",
+    "placeholder": "Which card, which loan…",
+    "search": "Search or type the type",
+    "hint": "Type a name and press Enter: the type is created in this category and selected right away. Bills with the same type add up in the filter, installments or paid in full."
   }
 }

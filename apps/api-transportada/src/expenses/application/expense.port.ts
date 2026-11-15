@@ -7,6 +7,14 @@
 import type { ExpenseTripRoute } from '../domain/expense-trip-route.policy.js'
 
 export type ExpenseKind = 'fixed' | 'variable'
+/** Spec 331: tipo dentro da categoria (qual cartão, qual financiamento). */
+export type ExpenseSubtype = {
+  readonly active: boolean
+  readonly categoryId: string
+  readonly id: string
+  readonly name: string
+}
+
 /** Spec 330. */
 export type ExpenseEmploymentType = 'clt' | 'daily' | 'autonomous' | 'other'
 export const EXPENSE_EMPLOYMENT_TYPES: readonly ExpenseEmploymentType[] = [
@@ -64,6 +72,8 @@ export type CompanyExpense = {
   readonly employeeName?: string | null
   readonly employeeUserId?: string | null
   readonly employmentType?: ExpenseEmploymentType | null
+  /** Spec 331: tipo da categoria (qual cartão); só vale da própria categoria. */
+  readonly subtypeId?: string | null
   readonly categoryId: string
   readonly companyId: string
   readonly dueDay: number | null
@@ -116,6 +126,8 @@ export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
   readonly employeeUserId?: string | null
   readonly employeeUserName?: string | null
   readonly employmentType?: ExpenseEmploymentType | null
+  readonly subtypeId?: string | null
+  readonly subtypeName?: string | null
   readonly billLocation?: string | null
   readonly billUrl?: string | null
   readonly categoryName: string
@@ -132,6 +144,8 @@ export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
 }
 
 export type ExpenseOccurrenceFilters = {
+  /** Spec 331: só as contas deste tipo (a fatura toda, parcelada e à vista). */
+  readonly subtypeId?: string
   /** Spec 328: só as contas que esta pessoa causou. */
   readonly causedByDriverId?: string
   readonly causedByUserId?: string
@@ -150,7 +164,11 @@ export type ExpenseAuditEntry = {
   readonly companyId: string
   readonly correlationId: string
   readonly entityId: string
-  readonly entityType: 'company_expense' | 'company_expense_category' | 'company_expense_occurrence'
+  readonly entityType:
+    | 'company_expense'
+    | 'company_expense_category'
+    | 'company_expense_occurrence'
+    | 'company_expense_subtype'
   readonly metadata: Record<string, unknown>
 }
 
@@ -189,6 +207,17 @@ export type ExpensesPorts = {
   /** RF9: a trilha grava a permissão `expenses.manage` (toda escrita do módulo exige ela). */
   readonly audit: {
     append(entry: ExpenseAuditEntry): Promise<void>
+  }
+  /** Spec 331. */
+  readonly subtypes: {
+    /** Devolve o tipo da categoria que já tem o nome (sem diferenciar caixa) ou grava um novo. */
+    findOrCreate(input: {
+      categoryId: string
+      companyId: string
+      name: string
+    }): Promise<{ readonly created: boolean; readonly subtype: ExpenseSubtype }>
+    findById(input: { companyId: string; subtypeId: string }): Promise<ExpenseSubtype | null>
+    list(input: { companyId: string }): Promise<readonly ExpenseSubtype[]>
   }
   readonly categories: {
     create(input: {
@@ -239,6 +268,7 @@ export type ExpensesPorts = {
       employeeName?: string | null
       employeeUserId?: string | null
       employmentType?: ExpenseEmploymentType | null
+      subtypeId?: string | null
       companyId: string
       dueDay?: number | null
       expectedAmount?: string

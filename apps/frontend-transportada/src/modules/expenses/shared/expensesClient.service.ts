@@ -4,6 +4,7 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 
 import {
   EXPENSE_CATEGORIES_PATH,
+  EXPENSE_SUBTYPES_PATH,
   EXPENSE_PEOPLE_PATH,
   expenseAmountHistoryPath,
   type ExpenseAmountHistory,
@@ -13,6 +14,7 @@ import {
   type CreateExpenseInput,
   type Expense,
   type ExpenseCategory,
+  type ExpenseSubtype,
   type ExpensePerson,
   type ExpenseCostGroup,
   type ExpenseOccurrence,
@@ -48,6 +50,8 @@ import {
   toAmountHistory,
   toAvailableTrips,
   toCategories,
+  toSubtypeResponse,
+  toSubtypes,
   toExpensePeople,
   toCategoryResponse,
   toExpenseResponse,
@@ -69,6 +73,8 @@ export type ExpensesClient = Readonly<{
   ) => Promise<AvailableExpenseTrips>
   cancelOccurrence: (input: Readonly<{ id: string; reason: string }>) => Promise<ExpenseOccurrence>
   createCategory: (name: string) => Promise<ExpenseCategory>
+  createSubtype: (input: Readonly<{ categoryId: string; name: string }>) => Promise<ExpenseSubtype>
+  listSubtypes: () => Promise<readonly ExpenseSubtype[]>
   createExpense: (input: CreateExpenseInput) => Promise<Expense>
   exportResult: (
     input: ExpenseResultQuery & Readonly<{ format: ExpenseExportFormat }>,
@@ -136,6 +142,19 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
           path: EXPENSE_CATEGORIES_PATH,
         }),
       )
+    },
+    async createSubtype(input) {
+      return toSubtypeResponse(
+        await request({
+          body: JSON.stringify(input),
+          dependencies,
+          method: 'POST',
+          path: EXPENSE_SUBTYPES_PATH,
+        }),
+      )
+    },
+    async listSubtypes() {
+      return toSubtypes(await request({ dependencies, method: 'GET', path: EXPENSE_SUBTYPES_PATH }))
     },
     async createExpense(input) {
       return toExpenseResponse(
@@ -319,6 +338,7 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
 export function serializeFilters(filters: ExpenseOccurrenceFilters): string {
   const search = new URLSearchParams()
   if (filters.categoryId !== undefined) search.set('categoryId', filters.categoryId)
+  if (filters.subtypeId !== undefined) search.set('subtypeId', filters.subtypeId)
   if (filters.causedByDriverId !== undefined)
     search.set('causedByDriverId', filters.causedByDriverId)
   if (filters.causedByUserId !== undefined) search.set('causedByUserId', filters.causedByUserId)

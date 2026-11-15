@@ -95,6 +95,8 @@ import {
 } from './expenses/application/expense-occurrence.use-case.js'
 import {
   createCreateExpenseCategoryUseCase,
+  createCreateExpenseSubtypeUseCase,
+  createListExpenseSubtypesUseCase,
   createCreateExpenseUseCase,
   createListExpenseCategoriesUseCase,
   createListExpenseAmountHistoryUseCase,
@@ -4784,6 +4786,8 @@ function createApplicationRoutes({
     ...createExpenseRoutes({
       cancelOccurrence: createCancelExpenseOccurrenceUseCase(expensesPorts),
       createCategory: createCreateExpenseCategoryUseCase(expensesPorts),
+      createSubtype: createCreateExpenseSubtypeUseCase(expensesPorts),
+      listSubtypes: createListExpenseSubtypesUseCase(expensesPorts),
       createExpense: createCreateExpenseUseCase(expensesPorts),
       includeOccurrenceTrip: createIncludeExpenseOccurrenceTripUseCase(expenseOccurrenceTripPorts),
       listAvailableTrips: createListAvailableExpenseTripsUseCase(expenseOccurrenceTripPorts),

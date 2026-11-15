@@ -25,6 +25,7 @@ import {
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
+import { ExpenseSubtypeField } from './ExpenseSubtypeField.component'
 import { ExpenseEmployeeFields } from './ExpenseEmployeeFields.component'
 
 type ExpenseEditDialogProps = Readonly<{
@@ -55,6 +56,7 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
   const [employee, setEmployee] = useState(initialEmployee(occurrence))
   const [employeeName, setEmployeeName] = useState(occurrence.employeeName ?? '')
   const [employmentType, setEmploymentType] = useState(occurrence.employmentType ?? '')
+  const [subtypeId, setSubtypeId] = useState(occurrence.subtypeId ?? '')
   const [billLocation, setBillLocation] = useState(occurrence.billLocation ?? '')
   const [billUrl, setBillUrl] = useState(occurrence.billUrl ?? '')
   const [newAmount, setNewAmount] = useState(toTypedMoney(occurrence.expectedAmount))
@@ -96,6 +98,7 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
       employeeUserId: employeeKey.employeeUserId ?? null,
       employeeName: employeeTyped === '' ? null : employeeTyped,
       employmentType: type,
+      subtypeId: subtypeId === '' ? null : subtypeId,
     }
     try {
       await updateExpense.mutateAsync({ changes, id: occurrence.expenseId })
@@ -132,6 +135,11 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
             value={name}
           />
         </label>
+        <ExpenseSubtypeField
+          categoryId={occurrence.categoryId}
+          onChange={setSubtypeId}
+          value={subtypeId}
+        />
         <ExpenseEmployeeFields
           employee={employee}
           employeeName={employeeName}

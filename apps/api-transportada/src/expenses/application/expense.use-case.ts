@@ -15,6 +15,7 @@ import {
   ExpenseInvalidAmountError,
   ExpenseInvalidScheduleError,
   ExpenseNotFoundError,
+  ExpenseSubtypeNotFoundError,
 } from '../domain/expense.error.js'
 import type {
   CompanyExpense,
@@ -24,6 +25,7 @@ import type {
   ExpensePerson,
   ExpenseRecurrence,
   ExpensesPorts,
+  ExpenseSubtype,
 } from './expense.port.js'
 import { EXPENSE_EMPLOYMENT_TYPES } from './expense.port.js'
 import { generateOccurrencesForExpense } from './expense-occurrence.use-case.js'
@@ -42,6 +44,8 @@ export type CreateExpenseInput = {
   readonly employeeName?: string
   readonly employeeUserId?: string
   readonly employmentType?: string
+  /** Spec 331. */
+  readonly subtypeId?: string
   readonly categoryId: string
   readonly companyId: string
   readonly correlationId?: string
@@ -122,6 +126,11 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
       await assertDriverRule(ports, input, category)
       await assertCause(ports, input)
       await assertEmployee(ports, input)
+      await assertSubtype(ports, {
+        categoryId: input.categoryId,
+        companyId: input.companyId,
+        subtypeId: input.subtypeId,
+      })
       const schedule = resolveSchedule(input)
       const installmentsTotal = resolveInstallmentsTotal(input)
       const expectedAmount = assertAmount(input.expectedAmount)
@@ -139,6 +148,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
         employeeName: normalizeName(input.employeeName),
         employeeUserId: input.employeeUserId ?? null,
         employmentType: toEmploymentType(input.employmentType),
+        subtypeId: input.subtypeId ?? null,
         categoryId: input.categoryId,
         companyId: input.companyId,
         dueDay: schedule.dueDay,
@@ -180,6 +190,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
           employeeName: expense.employeeName ?? null,
           employeeUserId: expense.employeeUserId ?? null,
           employmentType: expense.employmentType ?? null,
+          subtypeId: expense.subtypeId ?? null,
           channel: input.channel ?? 'panel',
           expectedAmount: expense.expectedAmount,
           installmentsTotal: expense.installmentsTotal ?? null,
@@ -329,6 +340,23 @@ async function assertEmployee(
   }
 }
 
+/** Spec 331: o tipo é da empresa e da categoria da própria conta; de outra categoria ou inexistente, recusa. */
+async function assertSubtype(
+  ports: ExpensesPorts,
+  input: {
+    readonly categoryId: string
+    readonly companyId: string
+    readonly subtypeId: string | null | undefined
+  },
+): Promise<void> {
+  if (typeof input.subtypeId !== 'string') return
+  const subtype = await ports.subtypes.findById({
+    companyId: input.companyId,
+    subtypeId: input.subtypeId,
+  })
+  if (subtype?.categoryId !== input.categoryId) throw new ExpenseSubtypeNotFoundError()
+}
+
 async function assertDriverRule(
   ports: ExpensesPorts,
   input: CreateExpenseInput,
@@ -358,6 +386,7 @@ export type UpdateExpenseInput = {
   readonly employeeName?: string | null
   readonly employeeUserId?: string | null
   readonly employmentType?: string | null
+  readonly subtypeId?: string | null
   readonly companyId: string
   readonly correlationId?: string
   readonly dueDay?: number
@@ -399,6 +428,11 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
       if (name === '') throw new ExpenseInvalidScheduleError('name is required.')
       await assertCause(ports, input)
       await assertEmployee(ports, input)
+      await assertSubtype(ports, {
+        categoryId: current.categoryId,
+        companyId: input.companyId,
+        subtypeId: input.subtypeId,
+      })
       const amountChange = await resolveAmountChange(ports, current, input)
       const updated = await ports.expenses.update({
         companyId: input.companyId,
@@ -410,6 +444,7 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
         ...(input.billUrl === undefined ? {} : { billUrl: normalizeBillUrl(input.billUrl) }),
         ...causeChanges(input),
         ...employeeChanges(input),
+        ...(input.subtypeId === undefined ? {} : { subtypeId: input.subtypeId }),
         ...(input.dueDay === undefined ? {} : { dueDay: input.dueDay }),
         ...(name === undefined ? {} : { name }),
         ...(input.vehicleId === undefined ? {} : { vehicleId: input.vehicleId }),
@@ -581,6 +616,7 @@ function snapshot(expense: CompanyExpense): Record<string, unknown> {
     employeeName: expense.employeeName ?? null,
     employeeUserId: expense.employeeUserId ?? null,
     employmentType: expense.employmentType ?? null,
+    subtypeId: expense.subtypeId ?? null,
     dueDay: expense.dueDay,
     expectedAmount: expense.expectedAmount,
     name: expense.name,
@@ -631,6 +667,53 @@ export function createCreateExpenseCategoryUseCase(ports: ExpensesPorts): {
         metadata: { name },
       })
       return created
+    },
+  }
+}
+
+/** Spec 331: lista os tipos da empresa (todas as categorias de uma vez; o painel agrupa). */
+export function createListExpenseSubtypesUseCase(ports: ExpensesPorts): {
+  execute(input: { readonly companyId: string }): Promise<readonly ExpenseSubtype[]>
+} {
+  return { execute: ({ companyId }) => ports.subtypes.list({ companyId }) }
+}
+
+/** Spec 331: digitar e Enter. Nome que já existe na categoria devolve o mesmo tipo, sem erro e sem duplicar. */
+export function createCreateExpenseSubtypeUseCase(ports: ExpensesPorts): {
+  execute(input: {
+    readonly categoryId: string
+    readonly companyId: string
+    readonly correlationId?: string
+    readonly createdBy: string
+    readonly name: string
+  }): Promise<ExpenseSubtype>
+} {
+  return {
+    execute: async (input) => {
+      const name = input.name.trim()
+      if (name === '') throw new ExpenseInvalidScheduleError('name is required.')
+      const category = await ports.categories.findById({
+        categoryId: input.categoryId,
+        companyId: input.companyId,
+      })
+      if (category === null) throw new ExpenseCategoryNotFoundError()
+      const { created, subtype } = await ports.subtypes.findOrCreate({
+        categoryId: input.categoryId,
+        companyId: input.companyId,
+        name,
+      })
+      if (created) {
+        await ports.audit.append({
+          action: 'expense.subtype.created',
+          actorUserId: input.createdBy,
+          companyId: input.companyId,
+          correlationId: input.correlationId ?? crypto.randomUUID(),
+          entityId: subtype.id,
+          entityType: 'company_expense_subtype',
+          metadata: { categoryId: input.categoryId, name },
+        })
+      }
+      return subtype
     },
   }
 }

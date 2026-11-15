@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Icon } from '@/components/ui/icon'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Select, type SelectOption } from '@/components/ui/select'
 
 import { useExpenseMutations } from '../hooks/useExpenses.hook'
@@ -30,6 +31,7 @@ import {
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
+import { ExpenseSubtypeField } from './ExpenseSubtypeField.component'
 import { ExpenseEmployeeFields } from './ExpenseEmployeeFields.component'
 import { useCalendarLabels } from './useCalendarLabels.hook'
 
@@ -58,6 +60,7 @@ function buildInput(fields: typeof EMPTY_CREATE_FORM): CreateExpenseInput | null
     ...(fields.causedBy === '' && fields.causedByName.trim() !== ''
       ? { causedByName: fields.causedByName.trim() }
       : {}),
+    ...(fields.subtypeId === '' ? {} : { subtypeId: fields.subtypeId }),
     ...employeeKeys(fields.employee),
     ...(fields.employee === '' && fields.employeeName.trim() !== ''
       ? { employeeName: fields.employeeName.trim() }
@@ -91,7 +94,7 @@ export function ExpenseCreateDialog({
 }: ExpenseCreateDialogProps) {
   const { t } = useTranslation('expenses')
   const calendar = useCalendarLabels()
-  const { createExpense } = useExpenseMutations()
+  const { createCategory, createExpense } = useExpenseMutations()
   const [fields, setFields] = useState(EMPTY_CREATE_FORM)
   const [showIssues, setShowIssues] = useState(false)
   const category = categories.find((candidate) => candidate.id === fields.categoryId)
@@ -156,16 +159,36 @@ export function ExpenseCreateDialog({
         </div>
         <div className={styles.field}>
           <span>{t('create.category')}</span>
-          <Select
+          <SearchableSelect
             ariaLabel={t('create.category')}
-            onChange={(value) => patch({ categoryId: value, payeeDriverId: '' })}
+            creatable={{
+              createLabel: (name) => t('create.categoryCreate', { name }),
+              onCreate: async (name: string) => {
+                try {
+                  const created = await createCategory.mutateAsync(name)
+                  patch({ categoryId: created.id, payeeDriverId: '', subtypeId: '' })
+                } catch {
+                  /* o erro de nome repetido aparece abaixo */
+                }
+              },
+            }}
+            emptyLabel={t('create.categoryEmpty')}
+            onChange={(value) => patch({ categoryId: value, payeeDriverId: '', subtypeId: '' })}
             options={categories
               .filter((candidate) => candidate.active)
               .map((candidate) => ({ label: candidate.name, value: candidate.id }))}
             placeholder={t('create.categoryPlaceholder')}
+            searchPlaceholder={t('create.categorySearch')}
             value={fields.categoryId}
           />
         </div>
+        {fields.categoryId === '' ? null : (
+          <ExpenseSubtypeField
+            categoryId={fields.categoryId}
+            onChange={(subtypeId) => patch({ subtypeId })}
+            value={fields.subtypeId}
+          />
+        )}
         <label className={styles.field}>
           <span>{t('create.amount')}</span>
           <input

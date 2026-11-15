@@ -131,6 +131,16 @@ export class ExpenseOccurrenceNotCancelableError extends ApiError {
   }
 }
 
+export class ExpenseSubtypeNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'EXPENSE_SUBTYPE_NOT_FOUND',
+      message: 'The type is not registered in this category of the company.',
+      status: 404,
+    })
+  }
+}
+
 export class ExpenseCategoryNameTakenError extends ApiError {
   public constructor() {
     super({

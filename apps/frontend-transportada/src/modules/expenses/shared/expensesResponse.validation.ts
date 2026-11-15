@@ -25,6 +25,7 @@ import {
   type ExpenseOccurrenceTrips,
   type ExpenseOccurrenceTotals,
   type ExpenseEmploymentType,
+  type ExpenseSubtype,
   type ExpenseRecurrence,
   type ExpenseTripParcelKind,
   type PendingExpenseTrip,
@@ -134,6 +135,7 @@ function toExpense(value: unknown): Expense {
     employeeName: readNullableString(row.employeeName),
     employeeUserId: readNullableString(row.employeeUserId),
     employmentType: readEmploymentType(row.employmentType),
+    subtypeId: readNullableString(row.subtypeId),
     billLocation: readNullableString(row.billLocation),
     billUrl: readNullableString(row.billUrl),
     categoryId: readString(row.categoryId),
@@ -158,6 +160,24 @@ function toCategory(value: unknown): ExpenseCategory {
     name: readString(row.name),
     requiresDriver: readBoolean(row.requiresDriver),
   }
+}
+
+function toSubtype(value: unknown): ExpenseSubtype {
+  const row = readRecord(value)
+  return {
+    active: readBoolean(row.active),
+    categoryId: readString(row.categoryId),
+    id: readString(row.id),
+    name: readString(row.name),
+  }
+}
+
+export function toSubtypes(payload: unknown): readonly ExpenseSubtype[] {
+  return readArray(readData(payload)).map(toSubtype)
+}
+
+export function toSubtypeResponse(payload: unknown): ExpenseSubtype {
+  return toSubtype(readData(payload))
 }
 
 function toOccurrence(value: unknown): ExpenseOccurrence {
@@ -193,6 +213,8 @@ function toListItem(value: unknown): ExpenseOccurrenceListItem {
     employeeUserId: readNullableString(row.employeeUserId),
     employeeUserName: readNullableString(row.employeeUserName),
     employmentType: readEmploymentType(row.employmentType),
+    subtypeId: readNullableString(row.subtypeId),
+    subtypeName: readNullableString(row.subtypeName),
     billLocation: readNullableString(row.billLocation),
     billUrl: readNullableString(row.billUrl),
     categoryId: readString(row.categoryId),

@@ -3,6 +3,8 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   filterSearchableOptions,
+  readCreatableName,
+  resolveCreatableOption,
   normalizeSearchText,
   resolveSearchableSelectLabel,
   type SearchableSelectOption,
@@ -119,5 +121,41 @@ describe('design system searchable select contract', () => {
     expect(component).toContain('filterSearchableOptions({ options, query, resolveCustomOption })')
     expect(component).toContain('resolveSearchableSelectLabel({ options, value })')
     expect(component).not.toContain('options.filter(')
+  })
+})
+
+describe('design system searchable select — digitar e Enter cadastra', () => {
+  const createLabel = (name: string): string => `Adicionar «${name}»`
+
+  test('texto sem opção igual oferece o cadastro, com o nome sem espaço nas pontas', () => {
+    const option = resolveCreatableOption({ createLabel, options: OPTIONS, query: '  Nubank ' })
+
+    expect(option?.label).toBe('Adicionar «Nubank»')
+    expect(readCreatableName(option?.value ?? '')).toBe('Nubank')
+  })
+
+  test('texto que já é uma opção não oferece cadastro, sem diferenciar caixa e acento', () => {
+    expect(
+      resolveCreatableOption({ createLabel, options: OPTIONS, query: '341 — ITAÚ unibanco' }),
+    ).toBeUndefined()
+    expect(
+      resolveCreatableOption({ createLabel, options: OPTIONS, query: '341 — itau unibanco' }),
+    ).toBeUndefined()
+  })
+
+  test('texto vazio nunca oferece cadastro, e valor comum não é cadastro', () => {
+    expect(resolveCreatableOption({ createLabel, options: OPTIONS, query: '   ' })).toBeUndefined()
+    expect(readCreatableName('033')).toBeUndefined()
+  })
+
+  test('na lista filtrada o cadastro vem depois dos que casam', () => {
+    const filtered = filterSearchableOptions({
+      options: OPTIONS,
+      query: 'sic',
+      resolveCustomOption: (query) =>
+        resolveCreatableOption({ createLabel, options: OPTIONS, query }),
+    })
+
+    expect(filtered.map((option) => option.label)).toEqual(['756 — Sicoob', 'Adicionar «sic»'])
   })
 })

@@ -8,6 +8,7 @@ import {
   date,
   foreignKey,
   index,
+  uniqueIndex,
   integer,
   numeric,
   pgTable,
@@ -114,6 +115,42 @@ export const companyExpenseCategories = pgTable(
       'company_expense_categories_cost_group_check',
       sql.raw(`"cost_group" in (${inList(COMPANY_EXPENSE_COST_GROUPS)})`),
     ),
+  ],
+)
+
+/**
+ * Spec 331: o tipo dentro da categoria (Cartão de crédito → Mercado Pago). Nasce digitando; é da empresa e da categoria,
+ * e o nome não repete na categoria sem diferenciar caixa.
+ */
+export const companyExpenseSubtypes = pgTable(
+  'company_expense_subtypes',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    categoryId: uuid('category_id').notNull(),
+    name: varchar({ length: 120 }).notNull(),
+    active: boolean().notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId, table.categoryId],
+      foreignColumns: [companyExpenseCategories.companyId, companyExpenseCategories.id],
+      name: 'company_expense_subtypes_category_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('company_expense_subtypes_company_category_id_unique').on(
+      table.companyId,
+      table.categoryId,
+      table.id,
+    ),
+    uniqueIndex('company_expense_subtypes_name_unique').on(
+      table.companyId,
+      table.categoryId,
+      sql`lower(${table.name})`,
+    ),
+    check('company_expense_subtypes_name_check', sql`length(btrim(${table.name})) > 0`),
   ],
 )
 
@@ -225,6 +262,8 @@ export const companyExpenses = pgTable(
     employmentType: varchar('employment_type', {
       length: 16,
     }).$type<CompanyExpenseEmploymentType>(),
+    /** Spec 331: o tipo da categoria (qual cartão, qual financiamento); só vale da categoria da própria conta. */
+    subtypeId: uuid('subtype_id'),
     /** RF24 (T7.2): quem recebe os lembretes de vencimento; nulo → os administradores da empresa. */
     responsibleUserId: uuid('responsible_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -266,6 +305,20 @@ export const companyExpenses = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.categoryId, table.subtypeId],
+      foreignColumns: [
+        companyExpenseSubtypes.companyId,
+        companyExpenseSubtypes.categoryId,
+        companyExpenseSubtypes.id,
+      ],
+      name: 'company_expenses_subtype_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    index('company_expenses_subtype_idx')
+      .on(table.companyId, table.subtypeId)
+      .where(sql`${table.subtypeId} is not null`),
     foreignKey({
       columns: [table.companyId, table.employeeDriverId],
       foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],

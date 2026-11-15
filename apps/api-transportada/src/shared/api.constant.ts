@@ -67,6 +67,7 @@ export const API_EXPENSES_PATH = '/expenses'
 export const API_EXPENSE_CATEGORIES_PATH = '/expense-categories'
 /** Spec 328: pessoas oferecidas em "quem causou a conta" (frota ativa e usuários do escritório). */
 export const API_EXPENSE_PEOPLE_PATH = '/expense-people'
+export const API_EXPENSE_SUBTYPES_PATH = '/expense-subtypes'
 export const API_EXPENSE_OCCURRENCES_PATH = '/expense-occurrences'
 export const API_EXPENSE_RESULT_PATH = '/expense-result'
 export const API_EXPENSE_RESULT_EXPORT_PATH = '/expense-result/export'

@@ -15,6 +15,7 @@ import {
   companyExpenseOccurrences,
   companyExpenseOccurrenceTrips,
   companyExpenses,
+  companyExpenseSubtypes,
 } from '../../database/company-expense.schema.js'
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import { identityUserProfiles } from '../../database/identity-user-profile.schema.js'
@@ -31,6 +32,7 @@ import type {
   ExpenseOccurrenceListItem,
   ExpensePerson,
   ExpensesPorts,
+  ExpenseSubtype,
 } from '../application/expense.port.js'
 import { EXPENSE_EMPLOYMENT_TYPES } from '../application/expense.port.js'
 import { resolveExpensePayeeProfile } from '../domain/expense-payee.policy.js'
@@ -80,6 +82,12 @@ function toCategory(row: CategoryRow): CompanyExpenseCategory {
   }
 }
 
+type SubtypeRow = typeof companyExpenseSubtypes.$inferSelect
+
+function toSubtype(row: SubtypeRow): ExpenseSubtype {
+  return { active: row.active, categoryId: row.categoryId, id: row.id, name: row.name }
+}
+
 function toEmploymentTypeOrNull(value: string | null): ExpenseEmploymentType | null {
   return EXPENSE_EMPLOYMENT_TYPES.find((type) => type === value) ?? null
 }
@@ -97,6 +105,7 @@ function toExpense(row: ExpenseRow): CompanyExpense {
     employeeName: row.employeeName,
     employeeUserId: row.employeeUserId,
     employmentType: row.employmentType,
+    subtypeId: row.subtypeId,
     categoryId: row.categoryId,
     companyId: row.companyId,
     dueDay: row.dueDay,
@@ -193,6 +202,51 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
           targetId: entry.entityId,
           targetType: entry.entityType,
         })
+      },
+    },
+    subtypes: {
+      findById: async ({ companyId, subtypeId }) => {
+        const [row] = await database
+          .select()
+          .from(companyExpenseSubtypes)
+          .where(
+            and(
+              eq(companyExpenseSubtypes.companyId, companyId),
+              eq(companyExpenseSubtypes.id, subtypeId),
+            ),
+          )
+        return row === undefined ? null : toSubtype(row)
+      },
+      // Digitar e Enter: o nome que já existe na categoria (sem diferenciar caixa) devolve o mesmo tipo; duas
+      // gravações ao mesmo tempo não duplicam porque o índice único decide e quem perdeu relê.
+      findOrCreate: async ({ categoryId, companyId, name }) => {
+        const [created] = await database
+          .insert(companyExpenseSubtypes)
+          .values({ categoryId, companyId, name })
+          .onConflictDoNothing()
+          .returning()
+        if (created !== undefined) return { created: true, subtype: toSubtype(created) }
+        const [existing] = await database
+          .select()
+          .from(companyExpenseSubtypes)
+          .where(
+            and(
+              eq(companyExpenseSubtypes.companyId, companyId),
+              eq(companyExpenseSubtypes.categoryId, categoryId),
+              sql`lower(${companyExpenseSubtypes.name}) = lower(${name})`,
+            ),
+          )
+        if (existing === undefined)
+          throw new Error('company_expense_subtypes: conflict without a row')
+        return { created: false, subtype: toSubtype(existing) }
+      },
+      list: async ({ companyId }) => {
+        const rows = await database
+          .select()
+          .from(companyExpenseSubtypes)
+          .where(eq(companyExpenseSubtypes.companyId, companyId))
+          .orderBy(asc(companyExpenseSubtypes.name))
+        return rows.map(toSubtype)
       },
     },
     categories: {
@@ -349,6 +403,7 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             employeeName: input.employeeName ?? null,
             employeeUserId: input.employeeUserId ?? null,
             employmentType: input.employmentType ?? null,
+            subtypeId: input.subtypeId ?? null,
             categoryId: input.categoryId,
             companyId: input.companyId,
             dueDay: input.dueDay,
@@ -503,6 +558,8 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             employeeUserId: companyExpenses.employeeUserId,
             employeeUserName: employeeUserProfile.name,
             employmentType: companyExpenses.employmentType,
+            subtypeId: companyExpenses.subtypeId,
+            subtypeName: companyExpenseSubtypes.name,
             billLocation: companyExpenses.billLocation,
             billUrl: companyExpenses.billUrl,
             categoryId: companyExpenses.categoryId,
@@ -550,6 +607,13 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             eq(causedByUserProfile.userId, companyExpenses.causedByUserId),
           )
           .leftJoin(
+            companyExpenseSubtypes,
+            and(
+              eq(companyExpenseSubtypes.companyId, companyExpenses.companyId),
+              eq(companyExpenseSubtypes.id, companyExpenses.subtypeId),
+            ),
+          )
+          .leftJoin(
             employeeDriver,
             and(
               eq(employeeDriver.companyId, companyExpenses.companyId),
@@ -563,6 +627,9 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
           .where(
             and(
               eq(companyExpenseOccurrences.companyId, companyId),
+              filters.subtypeId === undefined
+                ? undefined
+                : eq(companyExpenses.subtypeId, filters.subtypeId),
               filters.causedByUserId === undefined
                 ? undefined
                 : eq(companyExpenses.causedByUserId, filters.causedByUserId),
@@ -602,6 +669,8 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             employeeUserId: row.employeeUserId,
             employeeUserName: row.employeeUserName,
             employmentType: toEmploymentTypeOrNull(row.employmentType),
+            subtypeId: row.subtypeId,
+            subtypeName: row.subtypeName,
             billLocation: row.billLocation,
             billUrl: row.billUrl,
             categoryId: row.categoryId,

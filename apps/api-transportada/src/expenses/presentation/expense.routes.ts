@@ -9,6 +9,7 @@ import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import {
   API_EXPENSE_CATEGORIES_PATH,
   API_EXPENSE_PEOPLE_PATH,
+  API_EXPENSE_SUBTYPES_PATH,
   API_EXPENSE_OCCURRENCES_PATH,
   API_EXPENSES_PATH,
   JSON_CONTENT_TYPE,
@@ -21,6 +22,7 @@ import type {
   ExpenseOccurrenceFilters,
   ExpenseOccurrenceListItem,
   ExpensePerson,
+  ExpenseSubtype,
   ExpenseAmountChange,
 } from '../application/expense.port.js'
 import type {
@@ -42,6 +44,7 @@ import {
   parseIncludeTripRequest,
   type CreateExpenseBody,
   parseCreateCategoryRequest,
+  parseCreateSubtypeRequest,
   parseCreateExpenseRequest,
   parseOccurrenceFilters,
   parseSetCategoryActiveRequest,
@@ -103,6 +106,18 @@ type Dependencies = {
       readonly baseAmount: string
       readonly changes: readonly ExpenseAmountChange[]
     }>
+  }
+  readonly createSubtype: {
+    execute(input: {
+      readonly categoryId: string
+      readonly companyId: string
+      readonly correlationId: string
+      readonly createdBy: string
+      readonly name: string
+    }): Promise<ExpenseSubtype>
+  }
+  readonly listSubtypes: {
+    execute(input: { readonly companyId: string }): Promise<readonly ExpenseSubtype[]>
   }
   readonly listPeople: {
     execute(input: { readonly companyId: string }): Promise<readonly ExpensePerson[]>
@@ -379,6 +394,37 @@ export function createExpenseRoutes(
     }),
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {
+        const subtypes = await dependencies.listSubtypes.execute({
+          companyId: context.scope.companyId,
+        })
+        return jsonResponse({ data: subtypes.map(serializeSubtype) })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: API_EXPENSE_SUBTYPES_PATH,
+      policy: READ_POLICY,
+    }),
+    defineRoute<WithCorrelation<{ readonly categoryId: string; readonly name: string }>>({
+      async handle({ context, input }): Promise<Response> {
+        const subtype = await dependencies.createSubtype.execute({
+          categoryId: input.categoryId,
+          companyId: context.scope.companyId,
+          correlationId: input.correlationId,
+          createdBy: context.scope.userId,
+          name: input.name,
+        })
+        return jsonResponse({ data: serializeSubtype(subtype) }, 201)
+      },
+      method: 'POST',
+      parse: async ({ correlationId, request }) => ({
+        ...(await parseCreateSubtypeRequest(request)),
+        correlationId,
+      }),
+      pathname: API_EXPENSE_SUBTYPES_PATH,
+      policy: MANAGE_POLICY,
+    }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
         const categories = await dependencies.listCategories.execute({
           companyId: context.scope.companyId,
         })
@@ -469,6 +515,7 @@ function serializeExpense(expense: CompanyExpense): Record<string, unknown> {
     employeeName: expense.employeeName ?? null,
     employeeUserId: expense.employeeUserId ?? null,
     employmentType: expense.employmentType ?? null,
+    subtypeId: expense.subtypeId ?? null,
     dueDay: expense.dueDay,
     expectedAmount: expense.expectedAmount,
     id: expense.id,
@@ -524,6 +571,8 @@ function serializeOccurrence(item: ExpenseOccurrenceListItem): Record<string, un
     employeeUserId: item.employeeUserId ?? null,
     employeeUserName: item.employeeUserName ?? null,
     employmentType: item.employmentType ?? null,
+    subtypeId: item.subtypeId ?? null,
+    subtypeName: item.subtypeName ?? null,
     billLocation: item.billLocation ?? null,
     billUrl: item.billUrl ?? null,
     expenseKind: item.expenseKind,
@@ -550,6 +599,15 @@ function serializeOccurrenceTrips(result: ExpenseOccurrenceTripsResult): Record<
     })),
     occurrence: serializeBareOccurrence(result.occurrence),
     tripsTotal: result.tripsTotal,
+  }
+}
+
+function serializeSubtype(subtype: ExpenseSubtype): Record<string, unknown> {
+  return {
+    active: subtype.active,
+    categoryId: subtype.categoryId,
+    id: subtype.id,
+    name: subtype.name,
   }
 }
 
