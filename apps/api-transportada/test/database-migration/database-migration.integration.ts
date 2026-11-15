@@ -102,6 +102,7 @@ import {
   WHATSAPP_FLOW_GRAPH_TABLES,
   WHATSAPP_COMMAND_TABLES,
   CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
+  PICKUP_REQUEST_TABLES,
   TRIP_FINANCIAL_TABLES,
   OCCURRENCE_CONTRACTOR_REPLY_TABLES,
   TRIP_TABLES,
@@ -156,6 +157,7 @@ describe('Drizzle migration integration', () => {
             ...WHATSAPP_FLOW_GRAPH_TABLES,
             ...WHATSAPP_COMMAND_TABLES,
             ...CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
+            ...PICKUP_REQUEST_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
@@ -666,6 +668,7 @@ describe('Drizzle migration integration', () => {
             ...WHATSAPP_FLOW_GRAPH_TABLES,
             ...WHATSAPP_COMMAND_TABLES,
             ...CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
+            ...PICKUP_REQUEST_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
