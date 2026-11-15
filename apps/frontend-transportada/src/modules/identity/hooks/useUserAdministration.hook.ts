@@ -63,8 +63,12 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     ...(companyId === undefined ? {} : { companyId }),
   })
 
+  const userPermissions = useUserPermissions()
+
+  /** O diálogo de permissões avulsas oferece o catálogo: sem a matriz aberta ele ficava vazio ("Nenhuma permissão encontrada"). */
   const rolePermissions = useRolePermissionMatrix({
-    enabled: isMatrixOpen,
+    enabled: isMatrixOpen || userPermissions.target !== null,
+    ...(input.client === undefined ? {} : { client: input.client }),
     permissions: authQuery.data?.data.permissions ?? [],
   })
 
@@ -72,7 +76,6 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     permissions: authQuery.data?.data.permissions ?? [],
     ...(companyId === undefined ? {} : { companyId }),
   })
-  const userPermissions = useUserPermissions()
 
   const selection = useCompanyUserSelection(users.viewModel.users)
 

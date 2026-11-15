@@ -63,6 +63,8 @@ function createClient(behavior: Behavior): CompanyUsersClient {
     assignRoles: () => respond({ roles: ['operator'], userIds: [] }),
     inviteUser: () => respond({ fleetLink: 'not-applicable', user: TARGET }),
     listUsers: () => Promise.resolve({ nextCursor: null, users: [] }),
+    listUserPermissions: () => Promise.resolve([]),
+    readRolePermissions: () => Promise.resolve({ permissions: ['expenses.manage'], roles: [] }),
     removeUser: () => respond(undefined),
     replaceRoles: () => respond(TARGET),
     resendInvitation: () => respond({ sent: true }),
@@ -209,5 +211,14 @@ describe('useUserAdministration — salvar não rejeita a promise (A3)', () => {
     await run(() => mounted.result().assignGroups(['group-1']))
     expect(mounted.result().groups.assignMutation.isError).toBe(true)
     expect(mounted.result().bulkAssignErrorCode).toBeDefined()
+  })
+
+  test('permissões avulsas: abrir o diálogo carrega o catálogo, sem a matriz de papéis aberta', async () => {
+    const mounted = await mountHook(false)
+    expect(mounted.result().rolePermissions.data).toBeUndefined()
+    await run(() => mounted.result().userPermissions.open(TARGET))
+    await waitFor(() =>
+      expect(mounted.result().rolePermissions.data?.permissions).toEqual(['expenses.manage']),
+    )
   })
 })
