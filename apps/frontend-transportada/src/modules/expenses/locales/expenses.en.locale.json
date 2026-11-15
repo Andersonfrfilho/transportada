@@ -68,7 +68,11 @@
     "payee": "Driver, contractor or helper",
     "all": "All",
     "allFeminine": "All",
-    "subtype": "Type"
+    "subtype": "Type",
+    "search": "Search bill",
+    "searchPlaceholder": "Name, category, type or person",
+    "dueFrom": "Due from",
+    "dueTo": "Due until"
   },
   "list": {
     "installment": "Installment {{installment}}",
@@ -439,5 +443,28 @@
     "create": "Add «{{name}}»",
     "empty": "Type a name and press Enter",
     "search": "Search or type a name"
+  },
+  "bulk": {
+    "bar": "Quick actions",
+    "selected": "{{count}} selected · expected {{amount}}",
+    "settle": "Mark as paid",
+    "cancel": "Cancel bills",
+    "clear": "Clear selection",
+    "selectAll": "Select all open bills listed",
+    "selectOne": "Select {{name}}",
+    "titleSettle": "Mark selected as paid",
+    "titleCancel": "Cancel selected",
+    "summary": "{{count}} bill(s) · expected {{amount}}",
+    "settleHint": "Each bill is paid at its expected amount on the chosen date. Bills with a different amount are settled one by one.",
+    "cancelHint": "A cancelled bill leaves the open list and the reason is kept on each one.",
+    "reason": "Cancellation reason",
+    "reasonPlaceholder": "E.g. entered twice",
+    "confirmSettle": "Mark {{count}} as paid",
+    "confirmCancel": "Cancel {{count}}",
+    "running": "Saving…",
+    "close": "Close",
+    "partial": "{{succeeded}} saved and {{failed}} failed. The failed ones stay selected; retry or open them one by one.",
+    "select": "Select",
+    "selectAllLabel": "Select the {{count}} open bills listed"
   }
 }

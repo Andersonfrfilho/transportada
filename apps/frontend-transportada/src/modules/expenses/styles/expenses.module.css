@@ -413,3 +413,20 @@
 .tripCode {
   font-family: var(--font-utility);
 }
+
+/* Spec 333: barra de ação rápida da seleção; canto reto como o resto do painel. */
+.bulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+}
+
+.bulkBar p {
+  margin: 0;
+}
