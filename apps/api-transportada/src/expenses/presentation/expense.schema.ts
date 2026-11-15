@@ -18,7 +18,10 @@ const civilDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 const createExpenseSchema = z
   .object({
+    billLocation: z.string().trim().max(120).optional(),
     causedByDriverId: z.uuid().optional(),
+    causedByName: z.string().trim().max(120).optional(),
+    causedByUserId: z.uuid().optional(),
     categoryId: z.uuid(),
     dueDate: civilDate.optional(),
     dueDay: z.number().int().min(1).max(31).optional(),
@@ -35,7 +38,10 @@ const createExpenseSchema = z
 const updateExpenseSchema = z
   .object({
     active: z.boolean().optional(),
+    billLocation: z.string().trim().max(120).nullable().optional(),
     causedByDriverId: z.uuid().nullable().optional(),
+    causedByName: z.string().trim().max(120).nullable().optional(),
+    causedByUserId: z.uuid().nullable().optional(),
     dueDay: z.number().int().min(1).max(31).optional(),
     expectedAmount: money.optional(),
     name: z.string().trim().min(1).max(120).optional(),
@@ -70,7 +76,10 @@ export function parseCreateExpenseRequest(request: Request): Promise<CreateExpen
 
 export function parseUpdateExpenseRequest(request: Request): Promise<{
   readonly active?: boolean
+  readonly billLocation?: string | null
   readonly causedByDriverId?: string | null
+  readonly causedByName?: string | null
+  readonly causedByUserId?: string | null
   readonly dueDay?: number
   readonly expectedAmount?: string
   readonly name?: string
@@ -111,6 +120,8 @@ export function parseSetCategoryActiveRequest(
 const OCCURRENCE_QUERY_KEYS = new Set([
   'categoryId',
   'causedByDriverId',
+  'causedByName',
+  'causedByUserId',
   'competence',
   'driverId',
   'kind',
@@ -133,7 +144,14 @@ export function parseOccurrenceFilters(url: URL): ExpenseOccurrenceFilters {
   const categoryId = parseUuidFilter(url.searchParams.get('categoryId'))
   const driverId = parseUuidFilter(url.searchParams.get('driverId'))
   const causedByDriverId = parseUuidFilter(url.searchParams.get('causedByDriverId'))
+  const causedByUserId = parseUuidFilter(url.searchParams.get('causedByUserId'))
+  const causedByName = url.searchParams.get('causedByName')?.trim()
+  if (causedByName !== undefined && (causedByName === '' || causedByName.length > 120)) {
+    throw invalidRequest()
+  }
   return {
+    ...(causedByUserId === undefined ? {} : { causedByUserId }),
+    ...(causedByName === undefined ? {} : { causedByName }),
     ...(causedByDriverId === undefined ? {} : { causedByDriverId }),
     ...(categoryId === undefined ? {} : { categoryId }),
     ...(competence === null ? {} : { competence }),

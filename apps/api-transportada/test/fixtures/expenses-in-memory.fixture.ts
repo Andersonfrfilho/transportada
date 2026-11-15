@@ -23,6 +23,8 @@ export const CATEGORY_DRIVER_ID = '00000000-0000-4000-8000-00000000c002'
 export const DRIVER_A_ID = '00000000-0000-4000-8000-00000000d001'
 export const DRIVER_B_ID = '00000000-0000-4000-8000-00000000d002'
 /** Spec 325 RF1e: ajudante-puro (`can_drive = false`) da empresa A. */
+/** Spec 328: usuário do escritório com vínculo ativo na COMPANY_A (pode ser o causador). */
+export const OFFICE_USER_A_ID = '00000000-0000-4000-8000-0000000000e1'
 export const HELPER_A_ID = '00000000-0000-4000-8000-00000000d004'
 
 export type InMemoryExpenses = ExpensesPorts & {
@@ -104,6 +106,17 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
       },
     },
     categoryRows: categories,
+    people: {
+      isActiveMember: async ({ companyId, userId }) =>
+        companyId === COMPANY_A && [USER_ID, OFFICE_USER_A_ID].includes(userId),
+      list: async ({ companyId }) =>
+        companyId === COMPANY_A
+          ? [
+              { id: OFFICE_USER_A_ID, kind: 'user' as const, name: 'Ana do escritório' },
+              { id: DRIVER_A_ID, kind: 'driver' as const, name: 'Motorista A' },
+            ]
+          : [],
+    },
     drivers: {
       findById: async ({ companyId, driverId }) =>
         drivers.find((d) => d.id === driverId && d.companyId === companyId) ?? null,
@@ -147,6 +160,19 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
               expenseRows.find((e) => e.id === o.expenseId)?.causedByDriverId ===
                 filters.causedByDriverId,
           )
+          .filter(
+            (o) =>
+              filters.causedByUserId === undefined ||
+              expenseRows.find((e) => e.id === o.expenseId)?.causedByUserId ===
+                filters.causedByUserId,
+          )
+          .filter(
+            (o) =>
+              filters.causedByName === undefined ||
+              expenseRows
+                .find((e) => e.id === o.expenseId)
+                ?.causedByName?.toLowerCase() === filters.causedByName.toLowerCase(),
+          )
           .map((o) => {
             const expense = expenseRows.find((e) => e.id === o.expenseId)
             const causedBy = drivers.find((d) => d.id === expense?.causedByDriverId)
@@ -158,6 +184,10 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
               categoryName: category?.name ?? '',
               causedByDriverId: expense?.causedByDriverId ?? null,
               causedByDriverName: causedBy === undefined ? null : 'Quem causou',
+              causedByName: expense?.causedByName ?? null,
+              causedByUserId: expense?.causedByUserId ?? null,
+              causedByUserName: expense?.causedByUserId === undefined || expense.causedByUserId === null ? null : 'Ana do escritório',
+              billLocation: expense?.billLocation ?? null,
               expenseKind: expense?.kind ?? 'fixed',
               expenseName: expense?.name ?? '',
               payeeDriverId: expense?.payeeDriverId ?? null,

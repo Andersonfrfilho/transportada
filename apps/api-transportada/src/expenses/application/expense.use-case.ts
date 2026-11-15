@@ -19,6 +19,7 @@ import {
 import type {
   CompanyExpense,
   CompanyExpenseCategory,
+  ExpensePerson,
   ExpenseRecurrence,
   ExpensesPorts,
 } from './expense.port.js'
@@ -28,7 +29,10 @@ export type CreateExpenseInput = {
   /** Spec 326: por onde a conta foi lançada; vai à trilha de auditoria. Sem ele, o painel. */
   readonly channel?: 'panel' | 'whatsapp'
   /** Spec 328: quem causou a conta (opcional; qualquer ficha da frota da empresa, inclusive ajudante). */
+  readonly billLocation?: string
   readonly causedByDriverId?: string
+  readonly causedByName?: string
+  readonly causedByUserId?: string
   readonly categoryId: string
   readonly companyId: string
   readonly correlationId?: string
@@ -107,7 +111,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
       })
       if (category === null || !category.active) throw new ExpenseCategoryNotFoundError()
       await assertDriverRule(ports, input, category)
-      await assertCausedByDriver(ports, input.companyId, input.causedByDriverId)
+      await assertCause(ports, input)
       const schedule = resolveSchedule(input)
       const installmentsTotal = resolveInstallmentsTotal(input)
       const expectedAmount = assertAmount(input.expectedAmount)
@@ -116,7 +120,10 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
 
       const expense = await ports.expenses.create({
         anchorCompetence: competenceOfDate(input.today),
+        billLocation: normalizeBillLocation(input.billLocation),
         causedByDriverId: input.causedByDriverId ?? null,
+        causedByName: normalizeName(input.causedByName),
+        causedByUserId: input.causedByUserId ?? null,
         categoryId: input.categoryId,
         companyId: input.companyId,
         dueDay: schedule.dueDay,
@@ -149,7 +156,10 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
         entityType: 'company_expense',
         metadata: {
           categoryId: expense.categoryId,
+          billLocation: expense.billLocation ?? null,
           causedByDriverId: expense.causedByDriverId ?? null,
+          causedByName: expense.causedByName ?? null,
+          causedByUserId: expense.causedByUserId ?? null,
           channel: input.channel ?? 'panel',
           expectedAmount: expense.expectedAmount,
           installmentsTotal: expense.installmentsTotal ?? null,
@@ -163,15 +173,59 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
   }
 }
 
-/** Spec 328: quem causou a conta é qualquer ficha da frota da empresa; de outra empresa ou inexistente, recusa. */
-async function assertCausedByDriver(
+/** Spec 328: "onde a conta está" é texto livre; vazio é "não informado". */
+function normalizeName(value: string | null | undefined): string | null {
+  return normalizeBillLocation(value)
+}
+
+function normalizeBillLocation(value: string | null | undefined): string | null {
+  const text = value?.trim() ?? ''
+  return text === '' ? null : text
+}
+
+/**
+ * Spec 328: quem causou é uma ficha da frota **ou** um usuário do escritório, nunca os dois. Na troca, informar um lado
+ * limpa o outro (só informar o mesmo lado com `null` limpa a escolha).
+ */
+function causeChanges(input: {
+  readonly causedByDriverId?: string | null
+  readonly causedByName?: string | null
+  readonly causedByUserId?: string | null
+}): { causedByDriverId?: string | null; causedByName?: string | null; causedByUserId?: string | null } {
+  const driver = input.causedByDriverId
+  const user = input.causedByUserId
+  const name = input.causedByName === undefined ? undefined : normalizeName(input.causedByName)
+  const chosen = [driver, user, name].some((value) => typeof value === 'string')
+  return {
+    ...(driver === undefined && !chosen ? {} : { causedByDriverId: driver ?? null }),
+    ...(user === undefined && !chosen ? {} : { causedByUserId: user ?? null }),
+    ...(name === undefined && !chosen ? {} : { causedByName: name ?? null }),
+  }
+}
+
+/** Spec 328: ficha da frota da empresa ou usuário com vínculo ativo; de outra empresa ou inexistente, recusa. */
+async function assertCause(
   ports: ExpensesPorts,
-  companyId: string,
-  driverId: string | null | undefined,
+  input: {
+    readonly causedByDriverId?: string | null
+    readonly causedByName?: string | null
+    readonly causedByUserId?: string | null
+    readonly companyId: string
+  },
 ): Promise<void> {
-  if (driverId === undefined || driverId === null) return
-  const driver = await ports.drivers.findById({ companyId, driverId })
-  if (driver === null) throw new ExpenseDriverNotFoundError()
+  const { causedByDriverId: driverId, causedByUserId: userId, companyId } = input
+  const named = normalizeName(input.causedByName) !== null
+  const chosen = [typeof driverId === 'string', typeof userId === 'string', named]
+  if (chosen.filter(Boolean).length > 1) {
+    throw new ExpenseInvalidScheduleError('caused by a driver, a user or a typed name: only one.')
+  }
+  if (typeof driverId === 'string') {
+    const driver = await ports.drivers.findById({ companyId, driverId })
+    if (driver === null) throw new ExpenseDriverNotFoundError()
+  }
+  if (typeof userId === 'string' && !(await ports.people.isActiveMember({ companyId, userId }))) {
+    throw new ExpenseDriverNotFoundError()
+  }
 }
 
 async function assertDriverRule(
@@ -194,7 +248,9 @@ async function assertDriverRule(
 export type UpdateExpenseInput = {
   readonly active?: boolean
   /** Spec 328: `null` limpa. */
+  readonly billLocation?: string | null
   readonly causedByDriverId?: string | null
+  readonly causedByUserId?: string | null
   readonly companyId: string
   readonly correlationId?: string
   readonly dueDay?: number
@@ -224,14 +280,15 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
       }
       const name = input.name?.trim()
       if (name === '') throw new ExpenseInvalidScheduleError('name is required.')
-      await assertCausedByDriver(ports, input.companyId, input.causedByDriverId)
+      await assertCause(ports, input)
       const updated = await ports.expenses.update({
         companyId: input.companyId,
         expenseId: input.expenseId,
         ...(input.active === undefined ? {} : { active: input.active }),
-        ...(input.causedByDriverId === undefined
+        ...(input.billLocation === undefined
           ? {}
-          : { causedByDriverId: input.causedByDriverId }),
+          : { billLocation: normalizeBillLocation(input.billLocation) }),
+        ...causeChanges(input),
         ...(input.dueDay === undefined ? {} : { dueDay: input.dueDay }),
         ...(input.expectedAmount === undefined
           ? {}
@@ -260,7 +317,10 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
 function snapshot(expense: CompanyExpense): Record<string, unknown> {
   return {
     active: expense.active,
+    billLocation: expense.billLocation ?? null,
     causedByDriverId: expense.causedByDriverId ?? null,
+    causedByName: expense.causedByName ?? null,
+    causedByUserId: expense.causedByUserId ?? null,
     dueDay: expense.dueDay,
     expectedAmount: expense.expectedAmount,
     name: expense.name,
@@ -390,4 +450,11 @@ export function createSetExpenseCategoryCostGroupUseCase(ports: ExpensesPorts): 
       return updated
     },
   }
+}
+
+/** Spec 328: as pessoas que a tela oferece em "quem causou" (frota ativa + usuários do escritório). */
+export function createListExpensePeopleUseCase(ports: ExpensesPorts): {
+  execute(input: { readonly companyId: string }): Promise<readonly ExpensePerson[]>
+} {
+  return { execute: ({ companyId }) => ports.people.list({ companyId }) }
 }

@@ -31,10 +31,23 @@ export type ExpenseDriverRef = {
   readonly paymentModel: 'fixed' | 'route_table'
 }
 
+/** Spec 328: opção da lista "quem causou" — ficha da frota ativa ou usuário do escritório. */
+export type ExpensePerson = {
+  readonly id: string
+  readonly kind: 'driver' | 'user'
+  readonly name: string
+}
+
 export type CompanyExpense = {
   readonly active: boolean
   /** Spec 328: quem causou a conta (ficha da frota: motorista, agregado ou ajudante); só informativo, nunca recebe aviso. */
   readonly causedByDriverId?: string | null
+  /** Spec 328: onde a conta está agora (texto livre). */
+  readonly billLocation?: string | null
+  /** Spec 328: o causador quando é usuário do escritório (no máximo um entre este e `causedByDriverId`). */
+  readonly causedByUserId?: string | null
+  /** Spec 328: o causador quando é alguém fora do cadastro (nome digitado). */
+  readonly causedByName?: string | null
   readonly categoryId: string
   readonly companyId: string
   readonly dueDay: number | null
@@ -78,6 +91,10 @@ export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
   /** Spec 328: quem causou a conta, lido da ficha na hora (nunca copiado). */
   readonly causedByDriverId?: string | null
   readonly causedByDriverName?: string | null
+  readonly causedByUserId?: string | null
+  readonly causedByUserName?: string | null
+  readonly causedByName?: string | null
+  readonly billLocation?: string | null
   readonly categoryName: string
   readonly expenseKind: ExpenseKind
   readonly expenseName: string
@@ -94,6 +111,8 @@ export type ExpenseOccurrenceListItem = CompanyExpenseOccurrence & {
 export type ExpenseOccurrenceFilters = {
   /** Spec 328: só as contas que esta pessoa causou. */
   readonly causedByDriverId?: string
+  readonly causedByUserId?: string
+  readonly causedByName?: string
   readonly categoryId?: string
   /** `yyyy-mm`. */
   readonly competence?: string
@@ -144,6 +163,11 @@ export type ExpensesPorts = {
   readonly drivers: {
     findById(input: { companyId: string; driverId: string }): Promise<ExpenseDriverRef | null>
   }
+  /** Spec 328: pessoas que podem ser o causador — usuários com vínculo ativo na empresa. */
+  readonly people: {
+    isActiveMember(input: { companyId: string; userId: string }): Promise<boolean>
+    list(input: { companyId: string }): Promise<readonly ExpensePerson[]>
+  }
   readonly expenses: {
     create(input: Omit<CompanyExpense, 'active' | 'id'>): Promise<CompanyExpense>
     findById(input: { companyId: string; expenseId: string }): Promise<CompanyExpense | null>
@@ -153,6 +177,9 @@ export type ExpensesPorts = {
     update(input: {
       active?: boolean
       causedByDriverId?: string | null
+      billLocation?: string | null
+      causedByUserId?: string | null
+      causedByName?: string | null
       companyId: string
       dueDay?: number | null
       expectedAmount?: string

@@ -65,6 +65,8 @@ export const API_COMPANY_SETTINGS_DRIVER_OCCURRENCE_EMAIL_PATH =
 /** Spec 325: contas fixas e variáveis da empresa (`expenses.read` lê, `expenses.manage` escreve). */
 export const API_EXPENSES_PATH = '/expenses'
 export const API_EXPENSE_CATEGORIES_PATH = '/expense-categories'
+/** Spec 328: pessoas oferecidas em "quem causou a conta" (frota ativa e usuários do escritório). */
+export const API_EXPENSE_PEOPLE_PATH = '/expense-people'
 export const API_EXPENSE_OCCURRENCES_PATH = '/expense-occurrences'
 export const API_EXPENSE_RESULT_PATH = '/expense-result'
 export const API_EXPENSE_RESULT_EXPORT_PATH = '/expense-result/export'

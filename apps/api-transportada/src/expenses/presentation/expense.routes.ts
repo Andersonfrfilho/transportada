@@ -8,6 +8,7 @@ import { defineRoute } from '../../http/router.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import {
   API_EXPENSE_CATEGORIES_PATH,
+  API_EXPENSE_PEOPLE_PATH,
   API_EXPENSE_OCCURRENCES_PATH,
   API_EXPENSES_PATH,
   JSON_CONTENT_TYPE,
@@ -19,6 +20,7 @@ import type {
   CompanyExpenseOccurrence,
   ExpenseOccurrenceFilters,
   ExpenseOccurrenceListItem,
+  ExpensePerson,
 } from '../application/expense.port.js'
 import type {
   CancelExpenseOccurrenceInput,
@@ -94,6 +96,9 @@ type Dependencies = {
   }
   readonly listCategories: {
     execute(input: { readonly companyId: string }): Promise<readonly CompanyExpenseCategory[]>
+  }
+  readonly listPeople: {
+    execute(input: { readonly companyId: string }): Promise<readonly ExpensePerson[]>
   }
   readonly listExpenses: {
     execute(input: { readonly companyId: string }): Promise<readonly CompanyExpense[]>
@@ -324,6 +329,19 @@ export function createExpenseRoutes(
       pathname: OCCURRENCE_TRIP_PATH,
       policy: MANAGE_POLICY,
     }),
+    /** Spec 328: as pessoas que a tela oferece em "quem causou" (frota ativa + usuários do escritório). */
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const people = await dependencies.listPeople.execute({
+          companyId: context.scope.companyId,
+        })
+        return jsonResponse({ data: people.map((p) => ({ id: p.id, kind: p.kind, name: p.name })) })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: API_EXPENSE_PEOPLE_PATH,
+      policy: MANAGE_POLICY,
+    }),
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {
         const categories = await dependencies.listCategories.execute({
@@ -407,7 +425,10 @@ function serializeExpense(expense: CompanyExpense): Record<string, unknown> {
   return {
     active: expense.active,
     categoryId: expense.categoryId,
+    billLocation: expense.billLocation ?? null,
     causedByDriverId: expense.causedByDriverId ?? null,
+    causedByName: expense.causedByName ?? null,
+    causedByUserId: expense.causedByUserId ?? null,
     dueDay: expense.dueDay,
     expectedAmount: expense.expectedAmount,
     id: expense.id,
@@ -454,6 +475,10 @@ function serializeOccurrence(item: ExpenseOccurrenceListItem): Record<string, un
     categoryName: item.categoryName,
     causedByDriverId: item.causedByDriverId ?? null,
     causedByDriverName: item.causedByDriverName ?? null,
+    causedByName: item.causedByName ?? null,
+    causedByUserId: item.causedByUserId ?? null,
+    causedByUserName: item.causedByUserName ?? null,
+    billLocation: item.billLocation ?? null,
     expenseKind: item.expenseKind,
     expenseName: item.expenseName,
     installmentsTotal: item.installmentsTotal ?? null,
