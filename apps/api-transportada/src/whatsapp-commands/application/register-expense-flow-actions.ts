@@ -241,9 +241,16 @@ export function createExpenseFlowActions(
   }
 
   const start: WhatsAppAuthorizedActionHandler = async (input) => {
-    const blocked = input.actor.scope.roles.some((role) =>
-      (EXPENSE_FLOW_BLOCKED_ROLES as readonly string[]).includes(role),
+    // Quem recebeu `expenses.manage` (papel ou grupo) lança conta mesmo sendo motorista, agregado ou
+    // ajudante: o perfil de campo só bloqueia quem NÃO tem a permissão (decisão do dono, 15/11/2026).
+    const holdsPermission = (input.actor.scope.permissions as ReadonlySet<string> | undefined)?.has(
+      EXPENSE_FLOW_PERMISSION,
     )
+    const blocked =
+      holdsPermission !== true &&
+      input.actor.scope.roles.some((role) =>
+        (EXPENSE_FLOW_BLOCKED_ROLES as readonly string[]).includes(role),
+      )
     if (blocked) {
       await input.channel.sendText(input.session.whatsappNumber, EXPENSE_TEXT.blocked)
       return END

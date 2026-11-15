@@ -70,7 +70,11 @@ const CATEGORIES = [
   { id: 'CATD', name: 'Pagamento de motorista/agregado', requiresDriver: true },
 ]
 
-function setup(roles: readonly string[] = ['company-admin'], withPeople = false) {
+function setup(
+  roles: readonly string[] = ['company-admin'],
+  withPeople = false,
+  permissions?: ReadonlySet<string>,
+) {
   const texts: string[] = []
   const lists: { body: string; rows: { id: string; title: string }[] }[] = []
   const created: Record<string, unknown>[] = []
@@ -96,7 +100,14 @@ function setup(roles: readonly string[] = ['company-admin'], withPeople = false)
     const definition = actions.find((action) => action.kind === kind)
     if (definition === undefined) throw new Error(`sem ação ${kind}`)
     return definition.handler({
-      actor: { scope: { companyId: 'C1', roles, userId: 'U9' } },
+      actor: {
+        scope: {
+          companyId: 'C1',
+          roles,
+          userId: 'U9',
+          ...(permissions === undefined ? {} : { permissions }),
+        },
+      },
       channel: {
         sendInteractiveList: async (message: {
           body: string
@@ -214,6 +225,15 @@ describe('regras de segurança e de conversa', () => {
       expect(result?.next).toBe('menu')
       expect(t.lists).toEqual([])
       expect(t.texts).toHaveLength(1)
+    }
+  })
+
+  test('quem recebeu expenses.manage lança conta mesmo com papel de motorista ou agregado', async () => {
+    for (const role of ['driver', 'aggregate', 'helper']) {
+      const t = setup(['finance', role], false, new Set(['expenses.manage']))
+      await t.start()
+      expect(t.lists.length + t.texts.length).toBeGreaterThan(0)
+      expect(t.texts.some((text) => text.includes('não está disponível'))).toBe(false)
     }
   })
 
