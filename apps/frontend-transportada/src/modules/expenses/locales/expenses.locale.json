@@ -431,5 +431,12 @@
     "placeholder": "Qual cartão, qual financiamento…",
     "search": "Buscar ou digitar o tipo",
     "hint": "Digite o nome e aperte Enter: o tipo é cadastrado nesta categoria e já fica selecionado. Quem usa o mesmo tipo soma junto no filtro, parcelado ou à vista."
+  },
+  "person": {
+    "none": "Ninguém",
+    "company": "A própria empresa",
+    "create": "Adicionar «{{name}}»",
+    "empty": "Digite o nome e aperte Enter",
+    "search": "Buscar ou digitar um nome"
   }
 }

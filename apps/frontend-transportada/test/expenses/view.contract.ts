@@ -10,6 +10,8 @@ import type { ExpenseOccurrenceListItem } from '@/modules/expenses/shared/expens
 import {
   EMPTY_CREATE_FORM,
   employeeKeys,
+  fromPersonFieldValue,
+  toPersonFieldValue,
   formatCivilDate,
   isOverdue,
   isValidBillUrl,
@@ -190,5 +192,19 @@ describe('funcionário da conta (spec 330)', () => {
     expect(employeeKeys('driver:d1')).toEqual({ employeeDriverId: 'd1' })
     expect(employeeKeys('user:u1')).toEqual({ employeeUserId: 'u1' })
     expect(employeeKeys('')).toEqual({})
+  })
+})
+
+describe('campo único de pessoa (spec 332)', () => {
+  it('a escolha do cadastro e o nome digitado cabem no mesmo valor e voltam iguais', () => {
+    expect(toPersonFieldValue({ choice: 'driver:d1', name: '' })).toBe('driver:d1')
+    expect(toPersonFieldValue({ choice: '', name: '  Maria  ' })).toBe('name:Maria')
+    expect(toPersonFieldValue({ choice: '', name: ' ' })).toBe('')
+    expect(fromPersonFieldValue('user:u1')).toEqual({ choice: 'user:u1', name: '' })
+    expect(fromPersonFieldValue('name:A própria empresa')).toEqual({
+      choice: '',
+      name: 'A própria empresa',
+    })
+    expect(fromPersonFieldValue('')).toEqual({ choice: '', name: '' })
   })
 })

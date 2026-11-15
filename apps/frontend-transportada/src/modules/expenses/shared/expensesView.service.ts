@@ -238,6 +238,23 @@ export function isValidBillUrl(value: string): boolean {
   }
 }
 
+/** Spec 332: a conta da própria empresa (sem pessoa) é o nome digitado fixo, filtrável como qualquer outro nome. */
+export const COMPANY_OWN_PERSON_NAME = 'A própria empresa'
+
+/** Spec 332: o valor do campo único de pessoa — escolha do cadastro (`driver:`/`user:`) ou nome digitado (`name:`). */
+export const PERSON_NAME_VALUE_PREFIX = 'name:'
+
+export function toPersonFieldValue(input: Readonly<{ choice: string; name: string }>): string {
+  if (input.choice !== '') return input.choice
+  return input.name.trim() === '' ? '' : `${PERSON_NAME_VALUE_PREFIX}${input.name.trim()}`
+}
+
+export function fromPersonFieldValue(value: string): { choice: string; name: string } {
+  return value.startsWith(PERSON_NAME_VALUE_PREFIX)
+    ? { choice: '', name: value.slice(PERSON_NAME_VALUE_PREFIX.length) }
+    : { choice: value, name: '' }
+}
+
 /** Spec 330: o funcionário escolhido vira a chave certa da API (mesma convenção do causador). */
 export function employeeKeys(choice: string): {
   employeeDriverId?: string

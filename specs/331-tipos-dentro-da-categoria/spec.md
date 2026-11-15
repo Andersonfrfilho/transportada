@@ -13,3 +13,7 @@ Anderson (15/11/2026): a categoria é "Cartão de crédito", mas é preciso dize
 ## Fora desta spec
 
 "Quem causou" e funcionário com o mesmo campo único; "a própria empresa" como causadora; multa e juros do boleto; correção pelo bot do WhatsApp.
+
+## Campo único de pessoa e "a própria empresa" (spec 332)
+
+"Quem causou" e "Funcionário" são **um campo só**: escolhe do cadastro (ficha da frota ou usuário) ou digita um nome e aperta Enter. A opção "A própria empresa" (só em quem causou) grava o nome fixo `A própria empresa` no campo de nome digitado, então já filtra e aparece na lista como qualquer outro nome, sem coluna nova nem migration. Só painel.

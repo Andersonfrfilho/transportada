@@ -31,6 +31,7 @@ import {
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
+import { ExpensePersonField } from './ExpensePersonField.component'
 import { ExpenseSubtypeField } from './ExpenseSubtypeField.component'
 import { ExpenseEmployeeFields } from './ExpenseEmployeeFields.component'
 import { useCalendarLabels } from './useCalendarLabels.hook'
@@ -270,29 +271,16 @@ export function ExpenseCreateDialog({
           onChange={patch}
           peopleOptions={peopleOptions}
         />
-        <div className={styles.field}>
-          <span>{t('create.causedBy')}</span>
-          <Select
-            ariaLabel={t('create.causedBy')}
-            clearable
-            onChange={(value) => patch({ causedBy: value, causedByName: '' })}
-            options={peopleOptions}
-            placeholder={t('create.causedByPlaceholder')}
-            value={fields.causedBy}
-          />
-        </div>
-        {fields.causedBy === '' ? (
-          <label className={styles.field}>
-            <span>{t('create.causedByName')}</span>
-            <input
-              maxLength={120}
-              onChange={(event) => patch({ causedByName: event.target.value })}
-              placeholder={t('create.causedByNamePlaceholder')}
-              value={fields.causedByName}
-            />
-          </label>
-        ) : null}
-        <p className={styles.hint}>{t('create.causedByHint')}</p>
+        <ExpensePersonField
+          choice={fields.causedBy}
+          hint={t('create.causedByHint')}
+          includeCompany
+          label={t('create.causedBy')}
+          name={fields.causedByName}
+          onChange={(person) => patch({ causedBy: person.choice, causedByName: person.name })}
+          options={peopleOptions}
+          placeholder={t('create.causedByPlaceholder')}
+        />
         <label className={styles.field}>
           <span>{t('create.billLocation')}</span>
           <input
