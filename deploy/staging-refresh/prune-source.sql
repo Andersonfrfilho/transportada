@@ -67,6 +67,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('company_delivery_proof_settings', 'keep', null),
   ('company_distribution_settings', 'keep', null),
   ('company_driver_allowance_settings', 'keep', null),
+  ('company_freight_quote_settings', 'keep', null),
   ('company_driver_reminder_settings', 'keep', null),
   ('company_driver_occurrence_email_settings', 'keep', null),
   ('company_energy_settings', 'keep', null),
