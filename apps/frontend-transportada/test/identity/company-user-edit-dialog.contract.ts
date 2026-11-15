@@ -675,8 +675,9 @@ describe('e-mails e telefones se acrescentam no diálogo', () => {
     expect(dialog).toContain('CompanyUserIdentifierFields')
   })
 
-  test('telefone entra com a marca de WhatsApp', () => {
-    expect(source).toContain("onAdd({ isWhatsapp, kind: 'phone'")
+  test('telefone não carrega marca de WhatsApp: o número verificado é o único lugar', () => {
+    expect(source).toContain("onAdd({ isWhatsapp: false, kind: 'phone'")
+    expect(source).not.toContain('identifiers.whatsapp')
   })
 
   /** A marca só existe em telefone: num e-mail ela seria recusada pelo CHECK do banco. */

@@ -158,9 +158,6 @@
         "addPhone": "Add phone",
         "add": "Add",
         "remove": "Remove",
-        "whatsapp": "Receives WhatsApp",
-        "whatsappTag": "WhatsApp",
-        "whatsappHint": "The WhatsApp mark is recorded for when notifications choose a channel — it does not change delivery yet.",
         "fromProfile": "comes from the record above"
       },
       "whatsapp": {
