@@ -71,7 +71,13 @@ describe('saudação pelo nome do cadastro', () => {
 
   test('só avisa o perfil quando a pessoa tem mais de um', () => {
     expect(botProfileLine({ isDriver: true, isOffice: false })).toBeNull()
-    expect(botProfileLine({ isDriver: true, isOffice: true })).toContain('*motorista*')
+    const dual = botProfileLine({ isDriver: true, isOffice: true })
+    expect(dual).toContain('*motorista*')
+    // O escritório é oferecido no privado (o grupo é da viagem e todos o leem), nunca "use o painel".
+    expect(dual).toContain('privado')
+    expect(dual).toContain('*menu*')
+    expect(dual).not.toContain('painel')
+    expect(botProfileLine({ isDriver: false, isOffice: true })).toBeNull()
   })
 })
 

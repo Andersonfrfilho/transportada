@@ -63,7 +63,7 @@ export function botProfileLine(profiles: {
   readonly isOffice: boolean
 }): null | string {
   if (!(profiles.isDriver && profiles.isOffice)) return null
-  return '_Vi que você é motorista e também do escritório. Por aqui eu atendo como *motorista*; para o escritório, use o painel._'
+  return '_Vi que você é motorista e também do escritório. Aqui no grupo eu atendo como *motorista*; para o escritório (contas, boletos), me chame no privado e digite *menu*._'
 }
 
 export function botFarewell(now: Date): string {
