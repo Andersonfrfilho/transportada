@@ -49,12 +49,35 @@ function rowsOf(result: unknown): readonly Row[] {
   return Array.isArray(rows) ? (rows as Row[]) : []
 }
 
+const exec = (query: unknown) =>
+  (database as { execute: (query: unknown) => Promise<unknown> }).execute(query)
+const [counts] = rowsOf(
+  await exec(sql`
+    select count(*) as total,
+      count(*) filter (where planned_distance_meters is not null) as com_distancia,
+      count(*) filter (where planned_toll is not null) as com_pedagio,
+      count(*) filter (where planned_distance_meters is not null and (select count(*) from trip_stops s where s.trip_id = t.id) >= 2) as com_distancia_e_duas_paradas
+    from trips t`),
+)
+console.log(
+  `__RESULT__ diagnostico viagens=${String(counts?.total)} com_distancia=${String(counts?.com_distancia)} com_pedagio=${String(counts?.com_pedagio)} com_distancia_e_2mais_paradas=${String(counts?.com_distancia_e_duas_paradas)}`,
+)
+const [geo] = rowsOf(
+  await exec(sql`
+    select count(*) filter (where g.address_key is not null) as paradas_com_coordenada, count(*) as paradas
+    from trip_stops s left join geocoded_addresses g on g.address_key = s.address_key`),
+)
+console.log(
+  `__RESULT__ diagnostico paradas=${String(geo?.paradas)} com_coordenada=${String(geo?.paradas_com_coordenada)}`,
+)
+
+/** Viagem com distância planejada e ao menos duas paradas; o km da primeira perna vale sempre, o pedágio só quando a viagem tem exatamente a perna. */
 const trips = rowsOf(
-  await (database as { execute: (query: unknown) => Promise<unknown> }).execute(sql`
+  await exec(sql`
     select t.id, t.company_id, t.planned_distance_meters, t.planned_return_distance_meters, t.planned_toll
     from trips t
-    where t.planned_distance_meters is not null and t.planned_toll is not null
-      and (select count(*) from trip_stops s where s.trip_id = t.id) = 2
+    where t.planned_distance_meters is not null
+      and (select count(*) from trip_stops s where s.trip_id = t.id) >= 2
     order by t.planned_route_frozen_at desc nulls last
     limit ${LIMIT}`),
 )
@@ -90,12 +113,12 @@ for (const trip of trips) {
     console.log(`__RESULT__ viagem=${label} pulada=sem_coordenada_guardada`)
     continue
   }
-  const toll = trip.planned_toll as {
+  const toll = (trip.planned_toll ?? {}) as {
     axles?: { count?: number }
     multiplier?: unknown
     total?: string
   }
-  const axles = toll.axles?.count ?? 0
+  const axles = toll.axles?.count ?? 5
   const origin: QuoteLocation = {
     latitude: String(first.latitude),
     longitude: String(first.longitude),
@@ -123,7 +146,8 @@ for (const trip of trips) {
   const onlyLeg = legMeters > 0 && Math.abs(plannedMeters - legMeters) / legMeters <= 0.01
   const ours = reading.distanceMeters
   const deltaPercent = (((ours - legMeters) / (legMeters || 1)) * 100).toFixed(2)
-  const tollComparable = onlyLeg && Number(trip.planned_return_distance_meters ?? 0) === 0
+  const tollComparable =
+    trip.planned_toll != null && onlyLeg && Number(trip.planned_return_distance_meters ?? 0) === 0
   console.log(
     `__RESULT__ viagem=${label} eixos=${axles} km_perna_viagem=${(legMeters / 1000).toFixed(3)} km_cotacao=${(ours / 1000).toFixed(3)} delta_km_pct=${deltaPercent}` +
       ` pedagio_viagem=${toll.total ?? '?'} pedagio_cotacao=${reading.toll?.total ?? 'desconhecido'} pedagio_comparavel=${tollComparable}` +
