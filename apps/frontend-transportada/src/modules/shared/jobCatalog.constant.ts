@@ -366,6 +366,16 @@ export const JOB_CATALOG = [
     job: 'company-expense.reminder.send',
     minimumIntervalSeconds: 3_600,
   },
+  {
+    /**
+     * Spec 339 T4 (e 340): entrega os avisos do pedido de coleta (e-mail e WhatsApp) a partir da caixa de saída
+     * `pickup_request_notifications`, expira o pedido sem decisão e marca o alerta de "sem resposta". Em lote, com
+     * tentativas, para que uma rajada de pedidos não prenda a API. Nasce **pausada** (a migration a semeia desligada).
+     */
+    failureOutcomes: [],
+    job: 'pickup-request.notify',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

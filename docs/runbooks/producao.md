@@ -1363,6 +1363,14 @@ Sintoma: o bot reenviava a cada ~30 min o lembrete `idle` ("Vamos iniciar a rota
 - **Conferir (somente leitura):** `select job, enabled, paused_origin, interval_seconds from job_schedules where job = 'company-expense.reminder.send'`; as últimas linhas de `job_executions` da rotina (contadores `sent`, `skipped`, `failed`, `templateMissing`, `unsupportedChannel`); e `select count(*) from company_expense_reminders_sent where day = current_date`.
 - **Falha:** uma empresa que erra não segura as outras; o ciclo termina e fecha `unexpected_error` (log `company_expense_reminder_company_failed` com `companyId` e a mensagem). Rollback: `rollback.sql` da migration (apaga a linha do relógio e as execuções; só com o worker também revertido).
 
+## 5.37 Rotina `pickup-request.notify` e pedido de coleta/entrega (spec 339 T4, 15/11/2026) — nasce pausada, nada alterado em produção
+
+- **O que faz:** a cada 5 minutos (`interval_seconds = 300`) o worker (1) expira o pedido `requested` com `expires_at` vencido (7 dias), (2) marca uma vez o pedido parado há mais de 24 h (`stale_alerted_at`) e (3) entrega, em lotes de 100, os avisos pendentes da caixa de saída `pickup_request_notifications` (e-mail pelo Resend da transportadora no modelo padrão de e-mail; WhatsApp pelo Evolution da empresa). A API só grava a linha, na mesma transação da mudança de estado.
+- **Tentativas:** até 5, com espera de 2, 10, 30, 120 e 480 minutos; depois vira `failed` com `last_error`. Sem contato ou sem canal vira `skipped`. O aviso reservado fica invisível por 10 minutos (`available_at` à frente), então um ciclo que morre no meio não perde nada.
+- **Estado inicial:** a migration `20261115140000_pickup_request_notifications` semeia a linha em `job_schedules` com `enabled = false`, `paused_origin = 'system'`. Ligar pede a autorização do dono. Com a rotina pausada o pedido funciona, mas ninguém é avisado e nada expira.
+- **Conferir (somente leitura):** `select job, enabled, paused_origin from job_schedules where job = 'pickup-request.notify'`; `select status, count(*) from pickup_request_notifications group by 1`; `select event, audience, channel, last_error from pickup_request_notifications where status in ('failed','skipped') order by created_at desc limit 20`.
+- **Rollback:** `rollback.sql` recusa se a caixa de saída tem linhas (apagar perderia aviso não entregue).
+
 ## 5.34 Bot do grupo ignorou a resposta do motorista: telefone errado no cadastro (13/11/2026)
 
 - **Sintoma:** no grupo "Thiago Suporte Transportadora" o lembrete marcou o motorista Thiago Fabris e ele respondeu "sim" e "1", mas o bot não registrou nada e encerrou com "Pedido encerrado sem resposta".

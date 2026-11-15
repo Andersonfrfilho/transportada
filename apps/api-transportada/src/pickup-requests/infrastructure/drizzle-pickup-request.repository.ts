@@ -3,10 +3,16 @@
  */
 import { and, desc, eq, inArray, lt, lte, sql } from 'drizzle-orm'
 
-import type { CompanySettingsDatabase } from '../../companies/infrastructure/drizzle-company-settings.types.js'
+import type {
+  CompanySettingsDatabase,
+  CompanySettingsQueryable,
+} from '../../companies/infrastructure/drizzle-company-settings.types.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
-import { pickupRequests } from '../../database/pickup-request.schema.js'
-import type { PickupRequestStatus } from '../../database/pickup-request.schema.js'
+import { pickupRequestNotifications, pickupRequests } from '../../database/pickup-request.schema.js'
+import type {
+  PickupNotificationEvent,
+  PickupRequestStatus,
+} from '../../database/pickup-request.schema.js'
 import { tripStops, trips } from '../../database/trip.schema.js'
 import { TRIP_STATUSES_BEFORE_DISPATCH } from '../../trips/domain/trip-state.policy.js'
 import type {
@@ -30,7 +36,14 @@ export class DrizzlePickupRequestRepository implements PickupRequestRepositoryPo
     readonly created: boolean
     readonly record: PickupRequestRecord
   }> {
-    const [inserted] = await this.database
+    return this.database.transaction(async (tx) => this.insertIn(tx, input))
+  }
+
+  private async insertIn(
+    database: CompanySettingsQueryable,
+    input: NewPickupRequest,
+  ): Promise<{ readonly created: boolean; readonly record: PickupRequestRecord }> {
+    const [inserted] = await database
       .insert(pickupRequests)
       .values({
         cargoDescription: input.cargoDescription,
@@ -58,9 +71,12 @@ export class DrizzlePickupRequestRepository implements PickupRequestRepositoryPo
         target: [pickupRequests.companyId, pickupRequests.source, pickupRequests.idempotencyKey],
       })
       .returning()
-    if (inserted !== undefined) return { created: true, record: toRecord(inserted) }
+    if (inserted !== undefined) {
+      await enqueueNotifications(database, toRecord(inserted), 'requested')
+      return { created: true, record: toRecord(inserted) }
+    }
 
-    const [existing] = await this.database
+    const [existing] = await database
       .select()
       .from(pickupRequests)
       .where(
@@ -135,26 +151,31 @@ export class DrizzlePickupRequestRepository implements PickupRequestRepositoryPo
     readonly to: PickupRequestStatus
   }): Promise<PickupRequestRecord | null> {
     const now = new Date()
-    const [row] = await this.database
-      .update(pickupRequests)
-      .set({
-        ...input.patch,
-        ...(input.patch.decidedByUserId === undefined ? {} : { decidedAt: now }),
-        status: input.to,
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(pickupRequests.companyId, input.companyId),
-          eq(pickupRequests.id, input.id),
-          eq(pickupRequests.status, input.from),
-          input.contractorIds === undefined
-            ? undefined
-            : inArray(pickupRequests.contractorId, [...input.contractorIds]),
-        ),
-      )
-      .returning()
-    return row === undefined ? null : toRecord(row)
+    return this.database.transaction(async (tx) => {
+      const [row] = await tx
+        .update(pickupRequests)
+        .set({
+          ...input.patch,
+          ...(input.patch.decidedByUserId === undefined ? {} : { decidedAt: now }),
+          status: input.to,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(pickupRequests.companyId, input.companyId),
+            eq(pickupRequests.id, input.id),
+            eq(pickupRequests.status, input.from),
+            input.contractorIds === undefined
+              ? undefined
+              : inArray(pickupRequests.contractorId, [...input.contractorIds]),
+          ),
+        )
+        .returning()
+      if (row === undefined) return null
+      const record = toRecord(row)
+      await enqueueNotifications(tx, record, eventForStatus(input.to))
+      return record
+    })
   }
 
   public async listOpenTrips(input: {
@@ -284,4 +305,42 @@ function toRecord(row: Row): PickupRequestRecord {
     windowEnd: row.windowEnd,
     windowStart: row.windowStart,
   }
+}
+
+function eventForStatus(status: PickupRequestStatus): PickupNotificationEvent | null {
+  switch (status) {
+    case 'accepted':
+    case 'refused':
+    case 'scheduled':
+    case 'canceled':
+    case 'expired':
+      return status
+    default:
+      return null
+  }
+}
+
+/**
+ * Spec 339 T4: grava os avisos na caixa de saída, na mesma transação da mudança de estado. O cliente é avisado do que o
+ * escritório decidiu (e-mail e WhatsApp, só onde há contato); o escritório, de pedido novo e de cancelamento (e-mail).
+ * `on conflict do nothing`: o mesmo aviso nunca entra duas vezes.
+ */
+async function enqueueNotifications(
+  database: CompanySettingsQueryable,
+  record: PickupRequestRecord,
+  event: PickupNotificationEvent | null,
+): Promise<void> {
+  if (event === null) return
+  const rows: (typeof pickupRequestNotifications.$inferInsert)[] = []
+  const base = { companyId: record.companyId, event, pickupRequestId: record.id }
+  const toOffice = event === 'requested' || event === 'canceled'
+  if (toOffice) rows.push({ ...base, audience: 'office', channel: 'email' })
+  else {
+    if (record.requesterEmail !== null) rows.push({ ...base, audience: 'client', channel: 'email' })
+    if (record.requesterPhone !== null) {
+      rows.push({ ...base, audience: 'client', channel: 'whatsapp' })
+    }
+  }
+  if (rows.length === 0) return
+  await database.insert(pickupRequestNotifications).values(rows).onConflictDoNothing()
 }

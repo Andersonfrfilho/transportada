@@ -9,6 +9,7 @@ import {
   integer,
   jsonb,
   numeric,
+  foreignKey,
   pgTable,
   text,
   timestamp,
@@ -133,6 +134,83 @@ export const pickupRequests = pgTable(
     check(
       'pickup_requests_contractor_required_check',
       sql`${table.source} <> 'portal' or ${table.contractorId} is not null`,
+    ),
+  ],
+)
+
+export const PICKUP_NOTIFICATION_EVENTS = [
+  'requested',
+  'accepted',
+  'refused',
+  'scheduled',
+  'canceled',
+  'expired',
+  'stale',
+] as const
+export type PickupNotificationEvent = (typeof PICKUP_NOTIFICATION_EVENTS)[number]
+export const PICKUP_NOTIFICATION_AUDIENCES = ['client', 'office'] as const
+export type PickupNotificationAudience = (typeof PICKUP_NOTIFICATION_AUDIENCES)[number]
+export const PICKUP_NOTIFICATION_CHANNELS = ['email', 'whatsapp'] as const
+export type PickupNotificationChannel = (typeof PICKUP_NOTIFICATION_CHANNELS)[number]
+export const PICKUP_NOTIFICATION_STATUSES = ['pending', 'sent', 'failed', 'skipped'] as const
+export type PickupNotificationStatus = (typeof PICKUP_NOTIFICATION_STATUSES)[number]
+
+/**
+ * Spec 339 T4 (e 340): caixa de saída dos avisos do pedido. A API só grava a linha, na mesma transação da mudança de
+ * estado; quem entrega (e-mail e WhatsApp) é o worker, em lote, com tentativas. Assim uma rajada de pedidos nunca
+ * faz a requisição esperar um provedor externo. A chave única impede o mesmo aviso duas vezes.
+ */
+export const pickupRequestNotifications = pgTable(
+  'pickup_request_notifications',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    pickupRequestId: uuid('pickup_request_id').notNull(),
+    event: text().notNull().$type<PickupNotificationEvent>(),
+    audience: text().notNull().$type<PickupNotificationAudience>(),
+    channel: text().notNull().$type<PickupNotificationChannel>(),
+    status: text().notNull().$type<PickupNotificationStatus>().default('pending'),
+    attempts: integer().notNull().default(0),
+    lastError: text('last_error'),
+    availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    /** Nome explícito: o gerado passa de 63 caracteres e o Postgres o truncaria. */
+    foreignKey({
+      columns: [table.pickupRequestId],
+      foreignColumns: [pickupRequests.id],
+      name: 'pickup_request_notifications_request_id_fkey',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    uniqueIndex('pickup_request_notifications_unique').on(
+      table.pickupRequestId,
+      table.event,
+      table.audience,
+      table.channel,
+    ),
+    index('pickup_request_notifications_pending_idx')
+      .on(table.availableAt)
+      .where(sql`${table.status} = 'pending'`),
+    check(
+      'pickup_request_notifications_event_check',
+      sql`${table.event} in ('requested', 'accepted', 'refused', 'scheduled', 'canceled', 'expired', 'stale')`,
+    ),
+    check(
+      'pickup_request_notifications_audience_check',
+      sql`${table.audience} in ('client', 'office')`,
+    ),
+    check(
+      'pickup_request_notifications_channel_check',
+      sql`${table.channel} in ('email', 'whatsapp')`,
+    ),
+    check(
+      'pickup_request_notifications_status_check',
+      sql`${table.status} in ('pending', 'sent', 'failed', 'skipped')`,
     ),
   ],
 )
