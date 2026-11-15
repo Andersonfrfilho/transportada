@@ -1421,3 +1421,17 @@ O formulário público (cotação da 338 e pedido de coleta anônimo da 339) val
 - **Como ler:** `delta_km_pct` perto de zero é o esperado (mesma estrada). `pedagio_comparavel=false` quer dizer que a viagem tem trecho a mais (saída da base ou volta), então o pedágio dela não é o da perna: vale só o km. Diferença de pedágio com `pedagio_comparavel=true` ou `catalogo` diferente de `current` é achado a investigar.
 - **O que NÃO mede:** a geocodificação do endereço digitado (o script usa a coordenada já guardada da parada e não chama o Google). Isso se confere na tela `/orcamento`, com o endereço de uma viagem.
 - Nunca foi rodado numa sessão com `railway` logado: o primeiro uso confirma a subida em pedaços.
+
+## 5.41 Painel em branco de vez em quando em staging (15/11/2026)
+
+**Sintoma:** o painel de staging fica em branco por alguns minutos e volta sozinho.
+
+**O que foi conferido (somente leitura, Railway de staging, conector):** `environment-status` sem serviço caído; nenhum deploy `FAILED` ou `CRASHED` em `api`, `transportada-frontend`, `worker`, `driver`; memória do `api` em ~0,35 GB (pico 0,38); nenhum 404 nem 5xx no painel. Staging recebe um deploy a cada ~25–60 min (todo merge reconstrói `api`, `transportada-frontend`, `driver`), e o container antigo sai ~2 min depois do novo subir.
+
+**Causa provável:** a aba aberta antes do deploy aponta para `/assets/<hash>.js` do build antigo. Ao abrir uma tela carregada sob demanda, o arquivo já não existe (`server.ts` devolve 404 de propósito para `/assets/`), o `import()` falha e a tela fica em branco até alguém dar F5. Não havia tratamento de `vite:preloadError`.
+
+**Correção:** `chunkReload.service.ts` recarrega a aba **uma vez** (trava de 30 s em `sessionStorage`) quando o Vite avisa que o chunk não carregou.
+
+**Fora do escopo / observação:** o console mostrou uma fonte `data:` bloqueada pela CSP (`font-src 'self'`). É aviso de fonte (cai na fonte do aparelho), não causa tela em branco; não foi liberado `data:` na CSP.
+
+**Se voltar a acontecer:** olhar `list-deployments` do `transportada-frontend` na hora do relato (deploy em andamento?) e o console do navegador (erro de chunk ou de API).
