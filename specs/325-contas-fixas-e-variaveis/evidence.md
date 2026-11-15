@@ -739,3 +739,11 @@ Pedido do Anderson: informar o número de parcelas de uma conta e ver "parcela 3
 - API: `installmentsTotal` no `POST /expenses`, devolvido na conta e na lista de ocorrências com `installmentNumber`. Contratos em `test/expenses/installments.contract.ts` (numeração, parada na última, rotina rodando depois, bimestral/quinzenal, total inválido, variável).
 - Painel: campo "Parcelas (opcional)" na nova conta fixa, "Parcela n/total" abaixo do nome na lista e no resumo da baixa. Só componentes do design system. Prints (claro/escuro × desktop 1440/celular 390) por `test/spec-325-prints.smoke.spec.ts`.
 - Provas: `bun test ./test/expenses.contract.test.ts ./test/database-migration.contract.test.ts` (API) 511 pass; painel `bun run test`, `tsc` e `eslint` limpos.
+
+## Correção — a rotina do worker não conhecia as parcelas (2026-11-15)
+
+O PR 777 (parcelas) mudou a política de calendário da API, mas a cópia do worker ficou para trás: a rotina `company-expense-occurrence.generate` gerava as ocorrências de uma conta parcelada **sem número de parcela e sem parar no total**, e `test/company-expense-occurrence/parity.contract.ts` falhava em `staging` desde então.
+
+- Política do worker igual à da API (`installmentsTotal`, `installmentNumber`, corte no total); a porta, a rotina e o SQL (`installments_total` na leitura e `installment_number` na escrita) passam a levar a parcela.
+- Contratos: parada no total e numeração (`routine.contract.ts`), paridade com as linhas novas, e integração contra Postgres (`company-expense-occurrence.integration.test.ts`: parcelas 1 e 2, sem número nas contas sem parcelamento).
+- Provas: `bun test ./test/company-expense-occurrence.contract.test.ts` (worker) 19 pass; `tsc` e `eslint` limpos nos arquivos tocados. A integração roda no CI (`integration-worker`).
