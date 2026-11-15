@@ -265,6 +265,7 @@ export function toAmountHistory(payload: unknown): ExpenseAmountHistory {
         createdAt: readString(row.createdAt),
         effectiveCompetence: readString(row.effectiveCompetence),
         id: readString(row.id),
+        kind: row.kind === 'correction' ? ('correction' as const) : ('adjustment' as const),
         newAmount: readMoney(row.newAmount),
         previousAmount: readMoney(row.previousAmount),
       }

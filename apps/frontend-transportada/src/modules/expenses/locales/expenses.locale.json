@@ -106,12 +106,17 @@
     "save": "Salvar alterações",
     "saving": "Salvando…",
     "hint": "Esta edição vale para a conta inteira, não só para esta parcela. O valor e o vencimento não mudam aqui.",
-    "newAmount": "Novo valor (opcional)",
+    "newAmount": "Valor",
     "effectiveFrom": "Vale a partir de",
     "amountHint": "O valor antigo fica guardado no histórico. Só mudam as contas em aberto ainda a vencer, da competência escolhida em diante; paga, cancelada ou vencida não muda.",
     "history": "Histórico de valores",
     "historyBase": "Valor de abertura: {{amount}}",
-    "historyChange": "A partir de {{competence}}: {{from}} → {{to}} (registrado em {{when}})"
+    "historyChange": "A partir de {{competence}}: {{from}} → {{to}} (registrado em {{when}})",
+    "amountMode": "O que é esta mudança?",
+    "modeCorrection": "Corrigir valor digitado errado",
+    "modeAdjustment": "Reajuste a partir de um mês",
+    "correctionHint": "A correção vale para este trecho da conta, inclusive parcela vencida e não paga; a paga não muda. O valor errado fica no histórico como correção.",
+    "historyCorrection": "Correção: {{from}} → {{to}} (registrada em {{when}})"
   },
   "create": {
     "title": "Nova conta",

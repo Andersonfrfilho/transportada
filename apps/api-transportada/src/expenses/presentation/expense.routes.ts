@@ -352,6 +352,7 @@ export function createExpenseRoutes(
               createdAt: change.createdAt,
               effectiveCompetence: change.effectiveCompetence,
               id: change.id,
+              kind: change.kind,
               newAmount: change.newAmount,
               previousAmount: change.previousAmount,
             })),

@@ -197,6 +197,86 @@ describe('editar a conta (spec 325 RF5, CA02)', () => {
     expect(second?.expectedAmount).toBe('1500.00')
   })
 
+  it('corrigir um valor digitado errado vale também para a conta vencida e não paga, e fica no histórico como correção', async () => {
+    const ports = buildInMemoryExpenses()
+    const expense = await createCreateExpenseUseCase(ports).execute({
+      ...base,
+      dueDay: 5,
+      kind: 'fixed',
+      name: 'Aluguel',
+      recurrence: 'monthly',
+    })
+    const rows = [...ports.occurrenceRows].sort((a, b) => a.competence.localeCompare(b.competence))
+    const [overdue, paid, future] = [rows[0], rows[1], rows[2]]
+    Object.assign(overdue as object, { dueDate: '1999-01-05' })
+    Object.assign(paid as object, { status: 'paid' })
+
+    await createUpdateExpenseUseCase(ports).execute({
+      amountKind: 'correction',
+      companyId: COMPANY_A,
+      correctionCompetence: overdue?.competence as string,
+      expectedAmount: '1200.00',
+      expenseId: expense.id,
+      today: '2000-01-01',
+      updatedBy: USER_ID,
+    })
+
+    expect(overdue?.expectedAmount).toBe('1200.00')
+    expect(future?.expectedAmount).toBe('1200.00')
+    expect(paid?.expectedAmount).toBe('1500.00')
+    expect(ports.expenseRows[0]?.expectedAmount).toBe('1500.00')
+    expect(ports.amountChangeRows[0]).toMatchObject({
+      kind: 'correction',
+      newAmount: '1200.00',
+      previousAmount: '1500.00',
+    })
+  })
+
+  it('a correção troca só o trecho de valor da competência e não passa por cima do reajuste seguinte', async () => {
+    const ports = buildInMemoryExpenses()
+    const expense = await createCreateExpenseUseCase(ports).execute({
+      ...base,
+      dueDay: 5,
+      kind: 'fixed',
+      name: 'Aluguel',
+      recurrence: 'monthly',
+    })
+    const update = createUpdateExpenseUseCase(ports)
+    const competences = ports.occurrenceRows.map((o) => o.competence).sort()
+    const raise = competences[2] as string
+    await update.execute({
+      companyId: COMPANY_A,
+      effectiveFrom: raise,
+      expectedAmount: '1800.00',
+      expenseId: expense.id,
+      today: '2000-01-01',
+      updatedBy: USER_ID,
+    })
+    await update.execute({
+      amountKind: 'correction',
+      companyId: COMPANY_A,
+      correctionCompetence: competences[0] as string,
+      expectedAmount: '1400.00',
+      expenseId: expense.id,
+      today: '2000-01-01',
+      updatedBy: USER_ID,
+    })
+
+    for (const row of ports.occurrenceRows) {
+      expect(row.expectedAmount).toBe(row.competence >= raise ? '1800.00' : '1400.00')
+    }
+    expect(ports.amountChangeRows.map((c) => c.kind)).toEqual(['adjustment', 'correction'])
+    await expect(
+      update.execute({
+        amountKind: 'correction',
+        companyId: COMPANY_A,
+        expectedAmount: '1.00',
+        expenseId: expense.id,
+        updatedBy: USER_ID,
+      }),
+    ).rejects.toBeInstanceOf(ExpenseInvalidScheduleError)
+  })
+
   it('a competência futura gerada depois já nasce com o valor novo', async () => {
     const ports = buildInMemoryExpenses()
     const expense = await createCreateExpenseUseCase(ports).execute({
