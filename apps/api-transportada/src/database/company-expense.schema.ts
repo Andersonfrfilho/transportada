@@ -193,6 +193,11 @@ export const companyExpenses = pgTable(
     payeeDriverId: uuid('payee_driver_id'),
     /** Dúvida 2: veículo opcional (seguro, IPVA, pneu), sem rateio. */
     vehicleId: uuid('vehicle_id'),
+    /**
+     * Parcelas da conta fixa (spec 325, extensão "parcelas"): total de ocorrências que ela gera (valor por parcela = `expected_amount`).
+     * Nulo = sem fim. A rotina para de gerar depois da última.
+     */
+    installmentsTotal: smallint('installments_total'),
     /** RF24 (T7.2): quem recebe os lembretes de vencimento; nulo → os administradores da empresa. */
     responsibleUserId: uuid('responsible_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -247,6 +252,10 @@ export const companyExpenses = pgTable(
       'company_expenses_recurrence_check',
       sql`${table.recurrence} is null or ${table.recurrence} in (${sql.raw(inList(COMPANY_EXPENSE_RECURRENCES))})`,
     ),
+    check(
+      'company_expenses_installments_check',
+      sql`${table.installmentsTotal} is null or (${table.kind} = 'fixed' and ${table.installmentsTotal} between 2 and 600)`,
+    ),
     check('company_expenses_amount_check', sql`${table.expectedAmount} >= 0`),
     check(
       'company_expenses_due_day_check',
@@ -274,6 +283,8 @@ export const companyExpenseOccurrences = pgTable(
     /** `yyyy-mm`. */
     competence: varchar({ length: 7 }).notNull(),
     slot: smallint().notNull().default(1),
+    /** Número da parcela (1..`installments_total`) quando a conta é parcelada; nulo nas demais. */
+    installmentNumber: smallint('installment_number'),
     /** Data civil de America/Sao_Paulo, sem hora. */
     dueDate: date('due_date', { mode: 'string' }).notNull(),
     expectedAmount: numeric('expected_amount', { precision: 14, scale: 2 }).notNull(),

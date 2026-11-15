@@ -32,6 +32,8 @@ export type CreateExpenseInput = {
   readonly dueDate?: string
   readonly dueDay?: number
   readonly expectedAmount: string
+  /** Extensão "parcelas": total de parcelas da conta fixa (2 a 600); o valor informado é o de cada parcela. */
+  readonly installmentsTotal?: number
   readonly kind: 'fixed' | 'variable'
   readonly name: string
   readonly payeeDriverId?: string
@@ -78,6 +80,18 @@ function resolveSchedule(input: CreateExpenseInput): {
   return { dueDay: assertDueDay(input.dueDay), recurrence: input.recurrence }
 }
 
+/** Parcela é da conta fixa (a variável é um vencimento só): total inteiro de 2 a 600, ou nenhum. */
+function resolveInstallmentsTotal(input: CreateExpenseInput): number | null {
+  if (input.installmentsTotal === undefined) return null
+  const total = input.installmentsTotal
+  if (input.kind !== 'fixed' || !Number.isInteger(total) || total < 2 || total > 600) {
+    throw new ExpenseInvalidScheduleError(
+      'installmentsTotal must be an integer from 2 to 600 and only applies to a fixed expense.',
+    )
+  }
+  return total
+}
+
 export function createCreateExpenseUseCase(ports: ExpensesPorts): {
   execute(input: CreateExpenseInput): Promise<CompanyExpense>
 } {
@@ -90,6 +104,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
       if (category === null || !category.active) throw new ExpenseCategoryNotFoundError()
       await assertDriverRule(ports, input, category)
       const schedule = resolveSchedule(input)
+      const installmentsTotal = resolveInstallmentsTotal(input)
       const expectedAmount = assertAmount(input.expectedAmount)
       const name = input.name.trim()
       if (name === '') throw new ExpenseInvalidScheduleError('name is required.')
@@ -100,6 +115,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
         companyId: input.companyId,
         dueDay: schedule.dueDay,
         expectedAmount,
+        installmentsTotal,
         kind: input.kind,
         name,
         payeeDriverId: input.payeeDriverId ?? null,
@@ -128,6 +144,7 @@ export function createCreateExpenseUseCase(ports: ExpensesPorts): {
         metadata: {
           categoryId: expense.categoryId,
           expectedAmount: expense.expectedAmount,
+          installmentsTotal: expense.installmentsTotal ?? null,
           kind: expense.kind,
           payeeDriverId: expense.payeeDriverId,
           recurrence: expense.recurrence,

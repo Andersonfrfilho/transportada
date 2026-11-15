@@ -106,6 +106,11 @@ function readSlot(value: unknown): 1 | 2 {
   throw new ExpenseResponseError()
 }
 
+/** Parcelas chegam `null` (sem parcelamento) ou ausentes (API anterior): nos dois casos, sem parcela. */
+function readOptionalInteger(value: unknown): number | null {
+  return value === undefined || value === null ? null : readNullableInteger(value)
+}
+
 function readData(payload: unknown): unknown {
   return readRecord(payload).data
 }
@@ -118,6 +123,7 @@ function toExpense(value: unknown): Expense {
     dueDay: readNullableInteger(row.dueDay),
     expectedAmount: readMoney(row.expectedAmount),
     id: readString(row.id),
+    installmentsTotal: readOptionalInteger(row.installmentsTotal),
     kind: readOneOf<ExpenseKind>(row.kind, EXPENSE_KINDS),
     name: readString(row.name),
     payeeDriverId: readNullableString(row.payeeDriverId),
@@ -145,6 +151,7 @@ function toOccurrence(value: unknown): ExpenseOccurrence {
     expectedAmount: readMoney(row.expectedAmount),
     expenseId: readString(row.expenseId),
     id: readString(row.id),
+    installmentNumber: readOptionalInteger(row.installmentNumber),
     paidAmount: readNullableMoney(row.paidAmount),
     paidAt: readNullableString(row.paidAt),
     paidBy: readNullableString(row.paidBy),
@@ -162,6 +169,7 @@ function toListItem(value: unknown): ExpenseOccurrenceListItem {
     categoryName: readString(row.categoryName),
     expenseKind: readOneOf<ExpenseKind>(row.expenseKind, EXPENSE_KINDS),
     expenseName: readString(row.expenseName),
+    installmentsTotal: readOptionalInteger(row.installmentsTotal),
     payeeDriverId: readNullableString(row.payeeDriverId),
     payeeDriverName: readNullableString(row.payeeDriverName),
     payeeDriverPaymentModel: readNullableOneOf<ExpenseDriverPaymentModel>(

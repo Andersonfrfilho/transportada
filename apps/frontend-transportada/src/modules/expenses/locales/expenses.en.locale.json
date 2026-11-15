@@ -69,6 +69,7 @@
     "allFeminine": "All"
   },
   "list": {
+    "installment": "Installment {{installment}}",
     "title": "Bills of the month",
     "new": "New bill",
     "empty": "No bills this month with these filters.",
@@ -112,6 +113,9 @@
     "recurrence": "Recurrence",
     "dueDay": "Due day",
     "fortnightlyHint": "Fortnightly is due on the 15th and on the last day of the month.",
+    "installments": "Installments (optional)",
+    "installmentsPlaceholder": "E.g. 10 (empty = no end)",
+    "installmentsHint": "Expected amount is per installment. Generation stops after the last one.",
     "dueDate": "Due date",
     "vehicle": "Vehicle (optional)",
     "vehiclePlaceholder": "None",
@@ -124,7 +128,8 @@
       "amount": "expected amount",
       "payee": "driver, contractor or helper",
       "dueDate": "due date",
-      "dueDay": "due day (1 to 31)"
+      "dueDay": "due day (1 to 31)",
+      "installments": "installments (2 to 600)"
     }
   },
   "settle": {

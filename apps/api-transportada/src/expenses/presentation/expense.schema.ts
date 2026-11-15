@@ -22,6 +22,7 @@ const createExpenseSchema = z
     dueDate: civilDate.optional(),
     dueDay: z.number().int().min(1).max(31).optional(),
     expectedAmount: money,
+    installmentsTotal: z.number().int().min(2).max(600).optional(),
     kind: z.enum(COMPANY_EXPENSE_KINDS),
     name: z.string().trim().min(1).max(120),
     payeeDriverId: z.uuid().optional(),

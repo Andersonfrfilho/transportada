@@ -13,7 +13,9 @@ import {
   isOverdue,
   listCompetenceOptions,
   parseMoney,
+  formatInstallment,
   formatTripRoute,
+  parseInstallmentsTotal,
   resolveOccurrencePayeeKey,
   resolvePayeeLabelKey,
   summarizeOccurrences,
@@ -34,6 +36,8 @@ function row(
     expenseKind: 'fixed',
     expenseName: 'x',
     id: 'o',
+    installmentNumber: null,
+    installmentsTotal: null,
     paidAmount: null,
     paidAt: null,
     paidBy: null,
@@ -46,6 +50,18 @@ function row(
     ...changes,
   }
 }
+
+describe('contas — parcelas', () => {
+  it('mostra n/total só quando a conta é parcelada', () => {
+    expect(formatInstallment({ installmentNumber: 3, installmentsTotal: 10 })).toBe('3/10')
+    expect(formatInstallment({ installmentNumber: null, installmentsTotal: null })).toBeNull()
+  })
+
+  it('o total digitado vai de 2 a 600', () => {
+    expect(parseInstallmentsTotal('10')).toBe(10)
+    for (const bad of ['', '1', '601', '1a']) expect(parseInstallmentsTotal(bad)).toBeNull()
+  })
+})
 
 describe('contas — leitura da lista', () => {
   it('vencida é só a aberta com vencimento anterior a hoje', () => {

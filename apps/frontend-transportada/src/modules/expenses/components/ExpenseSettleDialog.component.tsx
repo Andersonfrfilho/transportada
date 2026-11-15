@@ -11,6 +11,7 @@ import { useExpenseMutations } from '../hooks/useExpenses.hook'
 import type { ExpenseOccurrenceListItem } from '../shared/expenses.types'
 import {
   formatCivilDate,
+  formatInstallment,
   maskMoney,
   parseMoney,
   resolveOccurrencePayeeKey,
@@ -36,6 +37,9 @@ export function ExpenseSettleDialog({ occurrence, onClose }: ExpenseSettleDialog
   const [note, setNote] = useState('')
   const parsedAmount = parseMoney(amount)
   const isReady = parsedAmount !== null && paidAt !== ''
+  const installment = formatInstallment(occurrence)
+  const installmentLabel =
+    installment === null ? '' : ` · ${t('list.installment', { installment })}`
   const payeeKey = resolveOccurrencePayeeKey(occurrence)
   const payee =
     occurrence.payeeDriverName === null || payeeKey === null
@@ -77,7 +81,7 @@ export function ExpenseSettleDialog({ occurrence, onClose }: ExpenseSettleDialog
       hint={t('settle.summary', {
         amount: formatAmount(occurrence.expectedAmount),
         due: formatCivilDate(occurrence.dueDate),
-        name: `${occurrence.expenseName}${payee}`,
+        name: `${occurrence.expenseName}${installmentLabel}${payee}`,
       })}
       onClose={onClose}
       title={t('settle.title')}

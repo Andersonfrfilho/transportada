@@ -50,6 +50,7 @@ function occurrence(input: {
   amount: string
   day: string
   id: string
+  installment?: readonly [number, number]
   kind: 'fixed' | 'variable'
   name: string
   paid?: string
@@ -67,6 +68,8 @@ function occurrence(input: {
     expenseKind: input.kind,
     expenseName: input.name,
     id: input.id,
+    installmentNumber: input.installment?.[0] ?? null,
+    installmentsTotal: input.installment?.[1] ?? null,
     paidAmount: input.paid ?? null,
     paidAt: input.paid === undefined ? null : `${competence()}-${input.day}`,
     paidBy: null,
@@ -106,6 +109,7 @@ const ITEMS = [
     category: 'Seguro',
     day: '01',
     id: 'o3',
+    installment: [3, 10],
     kind: 'fixed',
     name: 'Seguro da frota',
     status: 'open',
@@ -125,6 +129,7 @@ const ITEMS = [
     category: 'Outros',
     day: '28',
     id: 'o5',
+    installment: [10, 10],
     kind: 'fixed',
     name: 'Internet',
     status: 'open',
@@ -238,6 +243,7 @@ for (const theme of THEMES) {
 
       await page.getByRole('button', { name: 'Nova conta' }).click()
       await expect(page.getByRole('dialog', { name: 'Nova conta' })).toBeVisible()
+      await page.getByLabel('Parcelas (opcional)').fill('10')
       await page.screenshot({
         path: resolve(PRINTS_DIRECTORY, `contas-nova-${theme}-${viewport}.png`),
       })
