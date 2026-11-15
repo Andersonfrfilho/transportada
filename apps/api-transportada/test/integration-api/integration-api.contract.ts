@@ -366,7 +366,7 @@ describe('pedido de coleta por integração', () => {
 })
 
 describe('rotas de integração', () => {
-  async function routes() {
+  async function buildRoutes() {
     const context = await setup()
     const routes = createIntegrationRoutes({
       authenticate: context.authenticate,
@@ -400,7 +400,7 @@ describe('rotas de integração', () => {
   }
 
   test('toda rota de integração declara o balde por IP e por chave no Postgres', async () => {
-    const { routes: registered } = await routes()
+    const { routes: registered } = await buildRoutes()
     expect(registered).toHaveLength(4)
     for (const route of registered) {
       expect(route.rateLimit).toMatchObject({ store: 'postgres' })
@@ -411,7 +411,7 @@ describe('rotas de integração', () => {
   })
 
   test('cotar sem chave é 401; com chave devolve só total, moeda e validade de 7 dias', async () => {
-    const { created, routes: registered } = await routes()
+    const { created, routes: registered } = await buildRoutes()
     const quote = find(registered, 'POST', '/integration/freight-quotes')
     const body = JSON.stringify({ axles: 5, cargoType: 5, distanceKm: '100' })
     const call = (authorization: string | null) =>
@@ -437,7 +437,7 @@ describe('rotas de integração', () => {
   })
 
   test('o pedido devolvido ao parceiro não leva contratante, viagem, documento nem nota de aceite', async () => {
-    const { created, routes: registered } = await routes()
+    const { created, routes: registered } = await buildRoutes()
     const send = (method: string, pathname: string, id: string | undefined, body?: unknown) =>
       find(registered, method, pathname).execute({
         correlationId: 'c',
