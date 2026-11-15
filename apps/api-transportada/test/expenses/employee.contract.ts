@@ -64,7 +64,15 @@ describe('modalidade funcionário (spec 330)', () => {
 
   it('pode ser quinzenal: vence nos dias 15 e último', async () => {
     const ports = buildInMemoryExpenses()
-    const { dueDay: _dueDay, ...withoutDay } = base
+    const withoutDay = {
+      categoryId: base.categoryId,
+      companyId: base.companyId,
+      createdBy: base.createdBy,
+      expectedAmount: base.expectedAmount,
+      kind: base.kind,
+      name: base.name,
+      today: base.today,
+    }
     const expense = await createCreateExpenseUseCase(ports).execute({
       ...withoutDay,
       employeeDriverId: DRIVER_A_ID,
