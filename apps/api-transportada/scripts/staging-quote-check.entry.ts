@@ -104,16 +104,38 @@ for (const trip of trips) {
       where s.trip_id = ${tripId} order by s.sequence asc`),
   )
   /**
-   * Reprodução exata: a rota congelada guarda os pontos (barracão incluso) e o km de cada trecho. Mede cada trecho com o
-   * gateway da cotação e compara trecho a trecho e no pedágio total (que na viagem cobre a rota inteira, volta inclusa).
+   * Reprodução da rota congelada: `planned_route.points` é o TRAÇADO (centenas de pontos), não os waypoints. O primeiro e o
+   * último ponto são o barracão; as paradas vêm de `trip_stops`. Com saída e retorno há uma perna a mais de cada lado
+   * (`legs = paradas + 1`); sem barracão, `legs = paradas - 1`. Qualquer outra conta é dita, nunca adivinhada.
    */
   const frozen = trip.planned_route as {
     legs?: { distanceMetres?: number }[]
     points?: { latitude: string; longitude: string }[]
   } | null
-  const frozenPoints = frozen?.points ?? []
   const frozenLegs = frozen?.legs ?? []
-  if (frozenPoints.length === frozenLegs.length + 1 && frozenLegs.length > 0) {
+  const frozenPoints = frozen?.points ?? []
+  const stopPoints = stops.filter((stop) => stop.latitude != null)
+  const fromStops = stopPoints.map((stop) => ({
+    latitude: String(stop.latitude),
+    longitude: String(stop.longitude),
+  }))
+  let waypoints: { latitude: string; longitude: string }[] | null = null
+  if (stopPoints.length === stops.length && frozenPoints.length >= 2) {
+    if (frozenLegs.length === stops.length + 1) {
+      waypoints = [
+        frozenPoints[0] as never,
+        ...fromStops,
+        frozenPoints[frozenPoints.length - 1] as never,
+      ]
+    } else if (frozenLegs.length === stops.length - 1) {
+      waypoints = fromStops
+    }
+  }
+  if (waypoints === null) {
+    console.log(
+      `__RESULT__ viagem=${label} rota_congelada=nao_reproduzivel paradas=${stops.length} com_coordenada=${stopPoints.length} trechos=${frozenLegs.length}`,
+    )
+  } else {
     const planned = trip.planned_toll as { axles?: { count?: number }; total?: string } | null
     const routeAxles = planned?.axles?.count ?? 5
     let oursTotal = 0
@@ -122,8 +144,8 @@ for (const trip of trips) {
     let tollKnownAll = true
     const perLeg: string[] = []
     for (let index = 0; index < frozenLegs.length; index += 1) {
-      const from = frozenPoints[index] as { latitude: string; longitude: string }
-      const to = frozenPoints[index + 1] as { latitude: string; longitude: string }
+      const from = waypoints[index] as { latitude: string; longitude: string }
+      const to = waypoints[index + 1] as { latitude: string; longitude: string }
       const leg = await road.read({
         axles: routeAxles,
         companyId: String(trip.company_id),
@@ -160,10 +182,6 @@ for (const trip of trips) {
     console.log(
       `__RESULT__ viagem=${label} rota_congelada trechos=${frozenLegs.length} km_cotacao=${(oursTotal / 1000).toFixed(1)} km_congelado=${(frozenTotal / 1000).toFixed(1)} delta_km_pct=${kmDelta}` +
         ` pedagio_cotacao=${tollKnownAll ? tollTotal.toFixed(4) : 'desconhecido'} pedagio_congelado=${planned?.total ?? '?'} eixos=${routeAxles} trechos_km_cotacao/congelado=${perLeg.join(' ')}`,
-    )
-  } else {
-    console.log(
-      `__RESULT__ viagem=${label} rota_congelada=ausente_ou_incompleta pontos=${frozenPoints.length} trechos=${frozenLegs.length}`,
     )
   }
 
