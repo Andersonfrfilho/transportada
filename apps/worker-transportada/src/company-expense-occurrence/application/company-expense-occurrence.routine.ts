@@ -54,15 +54,17 @@ async function runCycle(input: {
             anchorCompetence: expense.anchorCompetence,
             competence,
             dueDay: expense.dueDay,
+            installmentsTotal: expense.installmentsTotal,
             recurrence: expense.recurrence,
           })
-          for (const { dueDate, slot } of slots) {
+          for (const { dueDate, installmentNumber, slot } of slots) {
             const inserted = await dependencies.ports.insertIfAbsent({
               companyId: expense.companyId,
               competence,
               dueDate,
               expectedAmount: expense.expectedAmount,
               expenseId: expense.id,
+              installmentNumber,
               slot,
             })
             if (inserted) created += 1

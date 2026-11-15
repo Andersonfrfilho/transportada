@@ -34,6 +34,7 @@ function expense(overrides: Partial<ActiveFixedExpense> & { id: string }): Activ
     companyId: 'company-a',
     dueDay: 5,
     expectedAmount: '1500.00',
+    installmentsTotal: null,
     recurrence: 'monthly',
     ...overrides,
   }
@@ -118,6 +119,24 @@ describe('geração das ocorrências das contas fixas (spec 325 T1.5)', () => {
     await buildRoutine(ports).run(buildContext())
     // Âncora em outubro: novembro não é da conta; dezembro e fevereiro são.
     expect(inserted.map((row) => row.competence)).toEqual(['2026-12', '2027-02'])
+  })
+
+  test('conta parcelada numera a parcela e para no total (a mesma regra da API)', async () => {
+    const { inserted, ports } = buildPorts([
+      expense({ anchorCompetence: '2026-10', id: 'p', installmentsTotal: 3 }),
+    ])
+    await buildRoutine(ports).run(buildContext())
+    // Âncora em outubro, hoje em novembro: a janela é nov..fev, parcelas 2, 3 e nada além do total.
+    expect(inserted.map((row) => [row.competence, row.installmentNumber])).toEqual([
+      ['2026-11', 2],
+      ['2026-12', 3],
+    ])
+  })
+
+  test('conta sem parcelamento não grava número de parcela', async () => {
+    const { inserted, ports } = buildPorts([expense({ id: 'm' })])
+    await buildRoutine(ports).run(buildContext())
+    expect(inserted.every((row) => row.installmentNumber === null)).toBe(true)
   })
 
   test('uma empresa que falha não segura as outras, e o ciclo acusa o erro no fim', async () => {
