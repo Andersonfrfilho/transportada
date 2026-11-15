@@ -347,6 +347,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...WHATSAPP_COMMAND_TABLES,
     ...OCCURRENCE_CONTRACTOR_REPLY_TABLES,
     ...CONVERSATION_AUDIO_TRANSCRIPTION_TABLES,
+    ...PICKUP_REQUEST_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name
@@ -448,4 +449,11 @@ export const SNAPSHOT_FILE = 'snapshot.json'
 export const CONVERSATION_AUDIO_TRANSCRIPTION_TABLES = [
   'company_audio_transcription_settings',
   'occurrence_conversation_audio_transcriptions',
+] as const
+
+/** Spec 339/341: o pedido de coleta, a caixa de saída dos avisos e as chaves da API de integração. */
+export const PICKUP_REQUEST_TABLES = [
+  'integration_api_keys',
+  'pickup_request_notifications',
+  'pickup_requests',
 ] as const
