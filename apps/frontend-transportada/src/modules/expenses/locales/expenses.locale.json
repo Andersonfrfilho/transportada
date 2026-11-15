@@ -430,6 +430,7 @@
     "empty": "Digite o nome e aperte Enter para cadastrar",
     "placeholder": "Qual cartão, qual financiamento…",
     "search": "Buscar ou digitar o tipo",
+    "needCategory": "Escolha a categoria primeiro: o tipo é cadastrado dentro dela (qual cartão, qual financiamento).",
     "hint": "Digite o nome e aperte Enter: o tipo é cadastrado nesta categoria e já fica selecionado. Quem usa o mesmo tipo soma junto no filtro, parcelado ou à vista."
   },
   "person": {

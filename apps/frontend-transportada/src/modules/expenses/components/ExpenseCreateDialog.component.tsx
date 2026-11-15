@@ -183,13 +183,12 @@ export function ExpenseCreateDialog({
             value={fields.categoryId}
           />
         </div>
-        {fields.categoryId === '' ? null : (
-          <ExpenseSubtypeField
-            categoryId={fields.categoryId}
-            onChange={(subtypeId) => patch({ subtypeId })}
-            value={fields.subtypeId}
-          />
-        )}
+        <ExpenseSubtypeField
+          categoryId={fields.categoryId}
+          disabled={fields.categoryId === ''}
+          onChange={(subtypeId) => patch({ subtypeId })}
+          value={fields.subtypeId}
+        />
         <label className={styles.field}>
           <span>{t('create.amount')}</span>
           <input
