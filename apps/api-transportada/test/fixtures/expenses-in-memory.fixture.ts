@@ -77,6 +77,7 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
           effectiveCompetence: input.effectiveCompetence,
           expenseId: input.expenseId,
           id: crypto.randomUUID(),
+          kind: input.kind,
           newAmount: input.newAmount,
           previousAmount: input.previousAmount,
         }
@@ -166,7 +167,15 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
     },
     occurrenceRows,
     occurrences: {
-      applyAmountFrom: async ({ amount, companyId, expenseId, fromCompetence, today }) => {
+      applyAmountFrom: async ({
+        amount,
+        companyId,
+        expenseId,
+        fromCompetence,
+        onlyNotDue,
+        today,
+        untilCompetence,
+      }) => {
         let changed = 0
         for (const row of occurrenceRows) {
           if (
@@ -174,7 +183,8 @@ export function buildInMemoryExpenses(): InMemoryExpenses {
             row.expenseId === expenseId &&
             row.status === 'open' &&
             row.competence >= fromCompetence &&
-            row.dueDate >= today
+            (untilCompetence === null || row.competence < untilCompetence) &&
+            (!onlyNotDue || row.dueDate >= today)
           ) {
             Object.assign(row, { expectedAmount: amount })
             changed += 1

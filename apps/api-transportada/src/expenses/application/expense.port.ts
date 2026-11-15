@@ -142,6 +142,8 @@ export type ExpenseAmountChange = {
   readonly effectiveCompetence: string
   readonly expenseId: string
   readonly id: string
+  /** `adjustment` = reajuste com vigência; `correction` = valor digitado errado que foi corrigido. */
+  readonly kind: 'adjustment' | 'correction'
   readonly newAmount: string
   readonly previousAmount: string
 }
@@ -154,6 +156,7 @@ export type ExpensesPorts = {
       readonly companyId: string
       readonly effectiveCompetence: string
       readonly expenseId: string
+      readonly kind: 'adjustment' | 'correction'
       readonly newAmount: string
       readonly previousAmount: string
     }): Promise<ExpenseAmountChange>
@@ -223,15 +226,18 @@ export type ExpensesPorts = {
   }
   readonly occurrences: {
     /**
-     * Spec 329: aplica o valor novo às ocorrências **abertas**, da competência em diante, ainda a vencer (`dueDate >= today`).
-     * Paga, cancelada ou já vencida nunca é reescrita. Devolve quantas mudaram.
+     * Spec 329: aplica o valor novo às ocorrências **abertas** de `fromCompetence` até antes de `untilCompetence` (sem fim se
+     * nulo). Com `onlyNotDue` (reajuste) só as ainda a vencer (`dueDate >= today`); sem ele (correção de valor digitado errado)
+     * também a vencida e não paga. Paga e cancelada nunca são reescritas. Devolve quantas mudaram.
      */
     applyAmountFrom(input: {
       readonly amount: string
       readonly companyId: string
       readonly expenseId: string
       readonly fromCompetence: string
+      readonly onlyNotDue: boolean
       readonly today: string
+      readonly untilCompetence: string | null
     }): Promise<number>
     /** `open` → `canceled` numa instrução só; `null` quando não existe ou já não está aberta. */
     cancel(input: {

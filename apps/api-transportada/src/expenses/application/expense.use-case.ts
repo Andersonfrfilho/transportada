@@ -283,6 +283,10 @@ export type UpdateExpenseInput = {
   readonly dueDay?: number
   /** Spec 329: `yyyy-mm` da primeira competência com o `expectedAmount` novo; sem ele, a do mês de `today`. */
   readonly effectiveFrom?: string
+  /** Spec 329: `correction` troca um valor digitado errado (vale também para a conta vencida e não paga); padrão `adjustment`. */
+  readonly amountKind?: 'adjustment' | 'correction'
+  /** Competência da conta que está sendo corrigida (obrigatória com `amountKind: 'correction'`). */
+  readonly correctionCompetence?: string
   readonly expectedAmount?: string
   readonly expenseId: string
   readonly name?: string
@@ -335,6 +339,7 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
           companyId: input.companyId,
           effectiveCompetence: amountChange.effectiveCompetence,
           expenseId: input.expenseId,
+          kind: amountChange.kind,
           newAmount: amountChange.newAmount,
           previousAmount: amountChange.previousAmount,
         })
@@ -343,7 +348,9 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
           companyId: input.companyId,
           expenseId: input.expenseId,
           fromCompetence: amountChange.effectiveCompetence,
+          onlyNotDue: amountChange.onlyNotDue,
           today: amountChange.today,
+          untilCompetence: amountChange.untilCompetence,
         })
         await ports.audit.append({
           action: 'expense.amount.changed',
@@ -356,6 +363,7 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
             appliedToOccurrences: applied,
             changeId: change.id,
             effectiveCompetence: change.effectiveCompetence,
+            kind: change.kind,
             newAmount: change.newAmount,
             previousAmount: change.previousAmount,
           },
@@ -380,6 +388,9 @@ export function createUpdateExpenseUseCase(ports: ExpensesPorts): {
 
 type ResolvedAmountChange = {
   readonly effectiveCompetence: string
+  readonly kind: 'adjustment' | 'correction'
+  readonly onlyNotDue: boolean
+  readonly untilCompetence: string | null
   readonly newAmount: string
   readonly previousAmount: string
   readonly today: string
@@ -398,6 +409,12 @@ export function amountInEffect(
   return amount
 }
 
+function assertCompetence(value: string, field: string): void {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/u.test(value)) {
+    throw new ExpenseInvalidScheduleError(`${field} must be yyyy-mm.`)
+  }
+}
+
 async function resolveAmountChange(
   ports: ExpensesPorts,
   current: CompanyExpense,
@@ -406,17 +423,50 @@ async function resolveAmountChange(
   if (input.expectedAmount === undefined) return null
   const newAmount = assertAmount(input.expectedAmount)
   const today = input.today ?? new Date().toISOString().slice(0, 10)
-  const effectiveCompetence = input.effectiveFrom ?? competenceOfDate(today)
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/u.test(effectiveCompetence)) {
-    throw new ExpenseInvalidScheduleError('effectiveFrom must be yyyy-mm.')
-  }
   const changes = await ports.amountChanges.list({
     companyId: input.companyId,
     expenseId: input.expenseId,
   })
+  if (input.amountKind === 'correction') {
+    // Valor digitado errado: troca o trecho de valor em que a competência está (do começo dele até a próxima mudança).
+    const competence = input.correctionCompetence ?? ''
+    assertCompetence(competence, 'correctionCompetence')
+    const starts = changes.map((c) => c.effectiveCompetence)
+    const segmentStart =
+      starts
+        .filter((s) => s <= competence)
+        .sort()
+        .at(-1) ?? '0000-01'
+    const segmentEnd =
+      starts
+        .filter((s) => s > competence)
+        .sort()
+        .at(0) ?? null
+    const previousAmount = amountInEffect(current, changes, competence)
+    if (previousAmount === newAmount) return null
+    return {
+      effectiveCompetence: segmentStart,
+      kind: 'correction',
+      newAmount,
+      onlyNotDue: false,
+      previousAmount,
+      today,
+      untilCompetence: segmentEnd,
+    }
+  }
+  const effectiveCompetence = input.effectiveFrom ?? competenceOfDate(today)
+  assertCompetence(effectiveCompetence, 'effectiveFrom')
   const previousAmount = amountInEffect(current, changes, effectiveCompetence)
   if (previousAmount === newAmount) return null
-  return { effectiveCompetence, newAmount, previousAmount, today }
+  return {
+    effectiveCompetence,
+    kind: 'adjustment',
+    newAmount,
+    onlyNotDue: true,
+    previousAmount,
+    today,
+    untilCompetence: null,
+  }
 }
 
 export function createListExpenseAmountHistoryUseCase(ports: ExpensesPorts): {
