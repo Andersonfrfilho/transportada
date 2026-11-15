@@ -102,16 +102,16 @@ export function ExpensesWorkspacePage() {
   function renderCausedBy(row: ExpenseOccurrenceListItem) {
     const name = row.causedByDriverName ?? row.causedByUserName ?? row.causedByName ?? null
     const billUrl = (row.billUrl ?? '').trim()
-    if (name === null && (row.billLocation ?? null) === null && billUrl === '') return null
+    // Spec 332: o tipo da categoria substitui o texto "Onde está"; ele só aparece em conta antiga sem tipo.
+    const place = row.subtypeName ? null : (row.billLocation ?? null)
+    if (name === null && place === null && billUrl === '') return null
     return (
       <>
         {name === null ? null : (
           <span className={styles.rowDetail}>{t('list.causedBy', { name })}</span>
         )}
-        {row.billLocation === undefined || row.billLocation === null ? null : (
-          <span className={styles.rowDetail}>
-            {t('list.billLocation', { place: row.billLocation })}
-          </span>
+        {place === null ? null : (
+          <span className={styles.rowDetail}>{t('list.billLocation', { place })}</span>
         )}
         {billUrl === '' || !isValidBillUrl(billUrl) ? null : (
           <a className={styles.rowDetail} href={billUrl} rel="noopener noreferrer" target="_blank">
