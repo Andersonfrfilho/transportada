@@ -2,3 +2,4 @@
 import './freight/client-and-queries.contract.js'
 import './freight/permissions-and-states.contract.js'
 import './freight/presentation-boundaries.contract.js'
+import './freight/freight-quote-by-address.contract.js'

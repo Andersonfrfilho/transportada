@@ -30,19 +30,31 @@ export type FreightQuoteSettings = Readonly<{
   values: FreightQuoteSettingsValues
 }>
 
+export type FreightQuoteAddress = Readonly<{
+  city: string
+  district: string
+  number: string
+  postalCode: string
+  state: string
+  street: string
+}>
+
+/** Spec 342: a distância e o pedágio saem da estrada medida pela API; a tela só manda os endereços. */
 export type FreightQuoteInput = Readonly<{
   axles: number
   cargoType: number
   cargoValue: string
-  distanceKm: string
+  destination: FreightQuoteAddress
   fuelPricePerLitre: string | null
   highPerformance: boolean
+  origin: FreightQuoteAddress
   shareOfVehiclePercent: string
-  tollAmount: string
 }>
 
 export type FreightQuoteResult = Readonly<{
   adValoremAmount: string
+  distanceKm: string
+  tollAmount: string
   anttFloor: Readonly<{
     applied: boolean
     axlesUsed: number
