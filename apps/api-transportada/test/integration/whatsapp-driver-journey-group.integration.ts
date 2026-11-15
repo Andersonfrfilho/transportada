@@ -497,7 +497,7 @@ function resumeJourneySteps(input: { readonly at: string; readonly greeting: str
       // Nada em andamento: a lista da viagem inteira, como antes.
       expected: {
         answered: [
-          `${greeting}\n\n✅ *Qual nota você entregou?*\n\n*1* - 🧾 NF \`17234\` · *PADARIA SOL NASCENTE* · Ribeirao Preto\n*2* - 🧾 NF \`17235\` · *MERCADO LUA CHEIA* · Ribeirao Preto\n*3* - 🧾 NF \`17236\` · *ACOUGUE ESTRELA* · Ribeirao Preto\n\n_Responda com o número da opção ou da nota._`,
+          `${greeting}\n\n✅ *Qual nota você entregou?*\n\n🚚 3 notas em aberto em 3 paradas\n\n➡️ *Parada 1 de 3 · Ribeirao Preto* — a próxima\n*1* · NF \`17234\` · *PADARIA SOL NASCENTE* · Ribeirao Preto\n\n⏭️ *Parada 2 de 3 · Ribeirao Preto* — mais adiante\n*2* · NF \`17235\` · *MERCADO LUA CHEIA* · Ribeirao Preto\n\n⏭️ *Parada 3 de 3 · Ribeirao Preto* — mais adiante\n*3* · NF \`17236\` · *ACOUGUE ESTRELA* · Ribeirao Preto\n\n_Responda com o número da opção ou da nota._`,
         ],
         shown: '@bot entreguei',
       },
