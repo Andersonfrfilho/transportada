@@ -35,7 +35,7 @@ describe('paridade dos lembretes com a API (spec 325 T7.4)', () => {
       'return facts.whatsappOptIn && facts.hasVerifiedWhatsapp',
       "reason: input.responsible === null ? 'no_responsible' : 'responsible_unreachable'",
       "const CHANNEL_ORDER: readonly ReminderChannel[] = ['email', 'whatsapp', 'push']",
-      "export const EXPENSE_REMINDER_DRIVING_ROLES = ['driver', 'aggregate'] as const",
+      "export const EXPENSE_REMINDER_DRIVING_ROLES = ['driver', 'aggregate', 'helper'] as const",
       'facts.drivesInFleet ||',
     ]) {
       expect(api).toContain(marker)

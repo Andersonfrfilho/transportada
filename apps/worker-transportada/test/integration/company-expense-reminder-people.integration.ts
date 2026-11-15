@@ -4,7 +4,7 @@
  * Spec 325 RF24 (decisão do Anderson, 2026-11-15): motorista nunca recebe aviso de conta. O leitor de pessoas da rotina
  * (`drizzle-company-expense-reminder.repository.ts`) é SQL por valor, espelho do leitor da API; só o banco prova que o papel
  * de quem dirige (direto ou por grupo) e a ficha da frota que dirige tiram a pessoa, como responsável e como administrador,
- * e que o ajudante continua recebendo. Banco descartável com só as colunas que a consulta lê.
+ * e que o ajudante também não recebe (decisão de 2026-11-15). Banco descartável com só as colunas que a consulta lê.
  */
 import { SQL } from 'bun'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
@@ -28,11 +28,13 @@ describeIntegration(
       driver: crypto.randomUUID(),
       fleetDriver: crypto.randomUUID(),
       groupAggregate: crypto.randomUUID(),
+      fleetHelper: crypto.randomUUID(),
       helper: crypto.randomUUID(),
     }
 
     async function addPerson(input: {
       readonly drives?: boolean
+      readonly helps?: boolean
       readonly groupRole?: string
       readonly roles: readonly string[]
       readonly userId: string
@@ -60,8 +62,8 @@ describeIntegration(
       }
       if (input.drives !== undefined) {
         await database.db.execute(`
-        insert into fleet_drivers (id, company_id, membership_id, can_drive)
-          values ('${crypto.randomUUID()}', '${companyId}', '${membershipId}', ${input.drives});
+        insert into fleet_drivers (id, company_id, membership_id, can_drive, can_act_as_helper)
+          values ('${crypto.randomUUID()}', '${companyId}', '${membershipId}', ${input.drives}, ${input.helps ?? false});
       `)
       }
     }
@@ -81,7 +83,7 @@ describeIntegration(
       create table membership_roles (membership_id uuid not null, role text not null);
       create table membership_groups (membership_id uuid not null, group_id uuid not null);
       create table company_group_roles (group_id uuid not null, role text not null);
-      create table fleet_drivers (id uuid primary key, company_id uuid not null, membership_id uuid, can_drive boolean not null default true);
+      create table fleet_drivers (id uuid primary key, company_id uuid not null, membership_id uuid, can_drive boolean not null default true, can_act_as_helper boolean not null default false);
       create table company_expense_reminder_preferences (company_id uuid not null, user_id uuid not null, whatsapp_enabled boolean not null default false, push_enabled boolean not null default false);
       create table user_whatsapp_phones (user_id uuid not null, verified_at timestamptz);
     `)
@@ -91,6 +93,12 @@ describeIntegration(
       await addPerson({ groupRole: 'aggregate', roles: ['finance'], userId: people.groupAggregate })
       await addPerson({ drives: true, roles: ['operator'], userId: people.fleetDriver })
       await addPerson({ drives: false, roles: ['helper'], userId: people.helper })
+      await addPerson({
+        drives: false,
+        helps: true,
+        roles: ['operator'],
+        userId: people.fleetHelper,
+      })
     }, 60_000)
 
     afterAll(async () => {
@@ -132,10 +140,13 @@ describeIntegration(
       }
     })
 
-    test('o ajudante (ficha que não dirige) recebe por e-mail', async () => {
-      const person = await ports().people.findById({ companyId, userId: people.helper })
-      expect(person?.channels).toEqual(['email'])
-      expect(person?.emailAddress).toBe(`${people.helper}@exemplo.com.br`)
+    test('o ajudante nunca recebe: nem pelo papel, nem pela ficha que ajuda (decisão de 2026-11-15)', async () => {
+      for (const userId of [people.helper, people.fleetHelper]) {
+        expect({ person: await ports().people.findById({ companyId, userId }), userId }).toEqual({
+          person: null,
+          userId,
+        })
+      }
     })
   },
 )
