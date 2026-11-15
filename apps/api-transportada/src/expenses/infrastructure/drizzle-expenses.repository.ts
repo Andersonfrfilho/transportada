@@ -22,6 +22,7 @@ import { userCompanyMemberships } from '../../database/identity.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { formatFiscalDay } from '../../shared/fiscal-day.service.js'
 import type {
+  ExpenseEmploymentType,
   CompanyExpense,
   CompanyExpenseCategory,
   CompanyExpenseOccurrence,
@@ -31,15 +32,18 @@ import type {
   ExpensePerson,
   ExpensesPorts,
 } from '../application/expense.port.js'
+import { EXPENSE_EMPLOYMENT_TYPES } from '../application/expense.port.js'
 import { resolveExpensePayeeProfile } from '../domain/expense-payee.policy.js'
 
 /** Spec 328: a ficha de quem causou a conta, ao lado da do favorecido (`fleetDrivers`). */
 const causedByDriver = alias(fleetDrivers, 'expense_caused_by_driver')
 const causedByUserProfile = alias(identityUserProfiles, 'expense_caused_by_user')
+const employeeDriver = alias(fleetDrivers, 'expense_employee_driver')
+const employeeUserProfile = alias(identityUserProfiles, 'expense_employee_user')
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
-/** RF2 + spec 329: as 14 categorias da semente (8 da migration inicial + consumo, internet/telefone, financiamentos e funcionários). */
+/** RF2 + spec 329: as 15 categorias da semente (8 da migration inicial + consumo, internet/telefone, financiamentos, funcionários e cartão de crédito). */
 const SEED_CATEGORIES = [
   ['Aluguel', false, 'administrative'],
   ['Folha', false, 'administrative'],
@@ -55,6 +59,7 @@ const SEED_CATEGORIES = [
   ['Internet e telefone', false, 'administrative'],
   ['Financiamentos', false, 'administrative'],
   ['Funcionários', false, 'administrative'],
+  ['Cartão de crédito', false, 'administrative'],
 ] as const
 
 const AUDIT_PERMISSION = 'expenses.manage'
@@ -75,6 +80,10 @@ function toCategory(row: CategoryRow): CompanyExpenseCategory {
   }
 }
 
+function toEmploymentTypeOrNull(value: string | null): ExpenseEmploymentType | null {
+  return EXPENSE_EMPLOYMENT_TYPES.find((type) => type === value) ?? null
+}
+
 function toExpense(row: ExpenseRow): CompanyExpense {
   return {
     active: row.active,
@@ -84,6 +93,10 @@ function toExpense(row: ExpenseRow): CompanyExpense {
     causedByDriverId: row.causedByDriverId,
     causedByName: row.causedByName,
     causedByUserId: row.causedByUserId,
+    employeeDriverId: row.employeeDriverId,
+    employeeName: row.employeeName,
+    employeeUserId: row.employeeUserId,
+    employmentType: row.employmentType,
     categoryId: row.categoryId,
     companyId: row.companyId,
     dueDay: row.dueDay,
@@ -332,6 +345,10 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             causedByDriverId: input.causedByDriverId ?? null,
             causedByName: input.causedByName ?? null,
             causedByUserId: input.causedByUserId ?? null,
+            employeeDriverId: input.employeeDriverId ?? null,
+            employeeName: input.employeeName ?? null,
+            employeeUserId: input.employeeUserId ?? null,
+            employmentType: input.employmentType ?? null,
             categoryId: input.categoryId,
             companyId: input.companyId,
             dueDay: input.dueDay,
@@ -480,6 +497,12 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             causedByName: companyExpenses.causedByName,
             causedByUserId: companyExpenses.causedByUserId,
             causedByUserName: causedByUserProfile.name,
+            employeeDriverId: companyExpenses.employeeDriverId,
+            employeeDriverName: employeeDriver.name,
+            employeeName: companyExpenses.employeeName,
+            employeeUserId: companyExpenses.employeeUserId,
+            employeeUserName: employeeUserProfile.name,
+            employmentType: companyExpenses.employmentType,
             billLocation: companyExpenses.billLocation,
             billUrl: companyExpenses.billUrl,
             categoryId: companyExpenses.categoryId,
@@ -526,6 +549,17 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             causedByUserProfile,
             eq(causedByUserProfile.userId, companyExpenses.causedByUserId),
           )
+          .leftJoin(
+            employeeDriver,
+            and(
+              eq(employeeDriver.companyId, companyExpenses.companyId),
+              eq(employeeDriver.id, companyExpenses.employeeDriverId),
+            ),
+          )
+          .leftJoin(
+            employeeUserProfile,
+            eq(employeeUserProfile.userId, companyExpenses.employeeUserId),
+          )
           .where(
             and(
               eq(companyExpenseOccurrences.companyId, companyId),
@@ -562,6 +596,12 @@ export function createDrizzleExpensesPorts(database: Database): ExpensesPorts {
             causedByName: row.causedByName,
             causedByUserId: row.causedByUserId,
             causedByUserName: row.causedByUserName,
+            employeeDriverId: row.employeeDriverId,
+            employeeDriverName: row.employeeDriverName,
+            employeeName: row.employeeName,
+            employeeUserId: row.employeeUserId,
+            employeeUserName: row.employeeUserName,
+            employmentType: toEmploymentTypeOrNull(row.employmentType),
             billLocation: row.billLocation,
             billUrl: row.billUrl,
             categoryId: row.categoryId,

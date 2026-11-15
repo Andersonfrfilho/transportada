@@ -60,6 +60,11 @@ export type Expense = Readonly<{
   /** Spec 328: causador digitado (fora do cadastro) e onde a conta está; `null` quando não informados. */
   causedByName: string | null
   causedByUserId: string | null
+  /** Spec 330: funcionário pago pela conta; ausente em API anterior. */
+  employeeDriverId?: string | null
+  employeeName?: string | null
+  employeeUserId?: string | null
+  employmentType?: ExpenseEmploymentType | null
   billLocation: string | null
   /** Spec 329: link de onde se pega o boleto; ausente em API anterior. */
   billUrl?: string | null
@@ -105,6 +110,10 @@ export type ExpenseOccurrence = Readonly<{
   status: ExpenseOccurrenceStatus
 }>
 
+/** Spec 330: vínculo do funcionário (cópia por valor da API). */
+export const EXPENSE_EMPLOYMENT_TYPES = ['clt', 'daily', 'autonomous', 'other'] as const
+export type ExpenseEmploymentType = (typeof EXPENSE_EMPLOYMENT_TYPES)[number]
+
 export const EXPENSE_PAYEE_PROFILES = ['aggregate', 'driver', 'helper'] as const
 export type ExpensePayeeProfile = (typeof EXPENSE_PAYEE_PROFILES)[number]
 
@@ -116,6 +125,12 @@ export type ExpenseOccurrenceListItem = ExpenseOccurrence &
     causedByName?: string | null
     causedByUserId?: string | null
     causedByUserName?: string | null
+    employeeDriverId?: string | null
+    employeeDriverName?: string | null
+    employeeName?: string | null
+    employeeUserId?: string | null
+    employeeUserName?: string | null
+    employmentType?: ExpenseEmploymentType | null
     billLocation?: string | null
     billUrl?: string | null
     categoryId: string
@@ -162,6 +177,10 @@ export type CreateExpenseInput = Readonly<{
   causedByDriverId?: string
   causedByName?: string
   causedByUserId?: string
+  employeeDriverId?: string
+  employeeName?: string
+  employeeUserId?: string
+  employmentType?: ExpenseEmploymentType
   categoryId: string
   dueDate?: string
   dueDay?: number
@@ -181,6 +200,10 @@ export type UpdateExpenseInput = Readonly<{
   causedByDriverId?: string | null
   causedByName?: string | null
   causedByUserId?: string | null
+  employeeDriverId?: string | null
+  employeeName?: string | null
+  employeeUserId?: string | null
+  employmentType?: ExpenseEmploymentType | null
   dueDay?: number
   /** Spec 329: `yyyy-mm` da primeira competência com o `expectedAmount` novo (sem ele, a do mês). */
   effectiveFrom?: string

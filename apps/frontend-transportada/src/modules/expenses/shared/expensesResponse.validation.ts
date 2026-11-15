@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   EXPENSE_COST_GROUPS,
+  EXPENSE_EMPLOYMENT_TYPES,
   EXPENSE_DRIVER_PAYMENT_MODELS,
   EXPENSE_PAYEE_PROFILES,
   EXPENSE_KINDS,
@@ -23,6 +24,7 @@ import {
   type ExpenseTripRoute,
   type ExpenseOccurrenceTrips,
   type ExpenseOccurrenceTotals,
+  type ExpenseEmploymentType,
   type ExpenseRecurrence,
   type ExpenseTripParcelKind,
   type PendingExpenseTrip,
@@ -117,6 +119,10 @@ function readData(payload: unknown): unknown {
   return readRecord(payload).data
 }
 
+function readEmploymentType(value: unknown): ExpenseEmploymentType | null {
+  return EXPENSE_EMPLOYMENT_TYPES.find((type) => type === value) ?? null
+}
+
 function toExpense(value: unknown): Expense {
   const row = readRecord(value)
   return {
@@ -124,6 +130,10 @@ function toExpense(value: unknown): Expense {
     causedByDriverId: readNullableString(row.causedByDriverId),
     causedByName: readNullableString(row.causedByName),
     causedByUserId: readNullableString(row.causedByUserId),
+    employeeDriverId: readNullableString(row.employeeDriverId),
+    employeeName: readNullableString(row.employeeName),
+    employeeUserId: readNullableString(row.employeeUserId),
+    employmentType: readEmploymentType(row.employmentType),
     billLocation: readNullableString(row.billLocation),
     billUrl: readNullableString(row.billUrl),
     categoryId: readString(row.categoryId),
@@ -177,6 +187,12 @@ function toListItem(value: unknown): ExpenseOccurrenceListItem {
     causedByName: readNullableString(row.causedByName),
     causedByUserId: readNullableString(row.causedByUserId),
     causedByUserName: readNullableString(row.causedByUserName),
+    employeeDriverId: readNullableString(row.employeeDriverId),
+    employeeDriverName: readNullableString(row.employeeDriverName),
+    employeeName: readNullableString(row.employeeName),
+    employeeUserId: readNullableString(row.employeeUserId),
+    employeeUserName: readNullableString(row.employeeUserName),
+    employmentType: readEmploymentType(row.employmentType),
     billLocation: readNullableString(row.billLocation),
     billUrl: readNullableString(row.billUrl),
     categoryId: readString(row.categoryId),

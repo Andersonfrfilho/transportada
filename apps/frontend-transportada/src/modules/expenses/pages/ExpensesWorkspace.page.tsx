@@ -84,6 +84,21 @@ export function ExpensesWorkspacePage() {
     )
   }
 
+  function renderEmployee(row: ExpenseOccurrenceListItem) {
+    const person = row.employeeDriverName ?? row.employeeUserName ?? row.employeeName ?? null
+    if (person === null && !row.employmentType) return null
+    const type = row.employmentType ? t(`employmentType.${row.employmentType}`) : null
+    return (
+      <span className={styles.rowDetail}>
+        {person === null
+          ? t('list.employmentOnly', { type })
+          : type === null
+            ? t('list.employee', { name: person })
+            : t('list.employeeWithType', { name: person, type })}
+      </span>
+    )
+  }
+
   function renderCausedBy(row: ExpenseOccurrenceListItem) {
     const name = row.causedByDriverName ?? row.causedByUserName ?? row.causedByName ?? null
     const billUrl = (row.billUrl ?? '').trim()
@@ -279,6 +294,7 @@ export function ExpensesWorkspacePage() {
                         {row.expenseName}
                         {renderInstallment(row)}
                         {renderPayee(row)}
+                        {renderEmployee(row)}
                         {renderCausedBy(row)}
                       </div>
                     </td>

@@ -23,6 +23,10 @@ const createExpenseSchema = z
     causedByDriverId: z.uuid().optional(),
     causedByName: z.string().trim().max(120).optional(),
     causedByUserId: z.uuid().optional(),
+    employeeDriverId: z.uuid().optional(),
+    employeeName: z.string().trim().max(120).optional(),
+    employeeUserId: z.uuid().optional(),
+    employmentType: z.enum(['clt', 'daily', 'autonomous', 'other']).optional(),
     categoryId: z.uuid(),
     dueDate: civilDate.optional(),
     dueDay: z.number().int().min(1).max(31).optional(),
@@ -44,6 +48,10 @@ const updateExpenseSchema = z
     causedByDriverId: z.uuid().nullable().optional(),
     causedByName: z.string().trim().max(120).nullable().optional(),
     causedByUserId: z.uuid().nullable().optional(),
+    employeeDriverId: z.uuid().nullable().optional(),
+    employeeName: z.string().trim().max(120).nullable().optional(),
+    employeeUserId: z.uuid().nullable().optional(),
+    employmentType: z.enum(['clt', 'daily', 'autonomous', 'other']).nullable().optional(),
     amountKind: z.enum(['adjustment', 'correction']).optional(),
     correctionCompetence: z
       .string()
@@ -92,6 +100,10 @@ export function parseUpdateExpenseRequest(request: Request): Promise<{
   readonly causedByDriverId?: string | null
   readonly causedByName?: string | null
   readonly causedByUserId?: string | null
+  readonly employeeDriverId?: string | null
+  readonly employeeName?: string | null
+  readonly employeeUserId?: string | null
+  readonly employmentType?: string | null
   readonly amountKind?: 'adjustment' | 'correction'
   readonly correctionCompetence?: string
   readonly dueDay?: number

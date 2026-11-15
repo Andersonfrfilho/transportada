@@ -13,11 +13,14 @@ import {
   EXPENSE_RECURRENCES,
   type CreateExpenseInput,
   type ExpenseCategory,
+  type ExpenseEmploymentType,
+  EXPENSE_EMPLOYMENT_TYPES,
   type ExpenseKind,
   type ExpenseRecurrence,
 } from '../shared/expenses.types'
 import {
   causedByKeys,
+  employeeKeys,
   EMPTY_CREATE_FORM,
   maskMoney,
   parseMoney,
@@ -27,6 +30,7 @@ import {
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
+import { ExpenseEmployeeFields } from './ExpenseEmployeeFields.component'
 import { useCalendarLabels } from './useCalendarLabels.hook'
 
 type ExpenseCreateDialogProps = Readonly<{
@@ -37,6 +41,11 @@ type ExpenseCreateDialogProps = Readonly<{
   onCreated: (input: CreateExpenseInput) => void
   vehicleOptions: readonly SelectOption[]
 }>
+
+function employmentTypeOf(value: string): { employmentType?: ExpenseEmploymentType } {
+  const found = EXPENSE_EMPLOYMENT_TYPES.find((type) => type === value)
+  return found === undefined ? {} : { employmentType: found }
+}
 
 function buildInput(fields: typeof EMPTY_CREATE_FORM): CreateExpenseInput | null {
   const expectedAmount = parseMoney(fields.amount)
@@ -49,6 +58,11 @@ function buildInput(fields: typeof EMPTY_CREATE_FORM): CreateExpenseInput | null
     ...(fields.causedBy === '' && fields.causedByName.trim() !== ''
       ? { causedByName: fields.causedByName.trim() }
       : {}),
+    ...employeeKeys(fields.employee),
+    ...(fields.employee === '' && fields.employeeName.trim() !== ''
+      ? { employeeName: fields.employeeName.trim() }
+      : {}),
+    ...employmentTypeOf(fields.employmentType),
     expectedAmount,
     kind: fields.kind,
     name: fields.name.trim(),
@@ -226,6 +240,13 @@ export function ExpenseCreateDialog({
             />
           </div>
         )}
+        <ExpenseEmployeeFields
+          employee={fields.employee}
+          employeeName={fields.employeeName}
+          employmentType={fields.employmentType}
+          onChange={patch}
+          peopleOptions={peopleOptions}
+        />
         <div className={styles.field}>
           <span>{t('create.causedBy')}</span>
           <Select

@@ -469,6 +469,7 @@ describe('Drizzle migrations', () => {
       '20261115163620_company_expense_caused_by_and_bill_location',
       '20261115180059_company_expense_amount_changes_bill_url_categories',
       '20261115184500_company_expense_amount_changes_kind',
+      '20261115185401_company_expense_employee',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

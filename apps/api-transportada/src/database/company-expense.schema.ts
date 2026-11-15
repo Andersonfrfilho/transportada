@@ -36,6 +36,10 @@ export const COMPANY_EXPENSE_RECURRENCES = [
 ] as const
 export type CompanyExpenseRecurrence = (typeof COMPANY_EXPENSE_RECURRENCES)[number]
 
+/** Spec 330: o vínculo de quem recebe a conta de funcionário. */
+export const COMPANY_EXPENSE_EMPLOYMENT_TYPES = ['clt', 'daily', 'autonomous', 'other'] as const
+export type CompanyExpenseEmploymentType = (typeof COMPANY_EXPENSE_EMPLOYMENT_TYPES)[number]
+
 export const COMPANY_EXPENSE_OCCURRENCE_STATUSES = ['open', 'paid', 'canceled'] as const
 export type CompanyExpenseOccurrenceStatus = (typeof COMPANY_EXPENSE_OCCURRENCE_STATUSES)[number]
 
@@ -211,6 +215,16 @@ export const companyExpenses = pgTable(
     causedByUserId: uuid('caused_by_user_id'),
     /** Spec 328: quem causou, quando é alguém fora do cadastro (nome digitado); no máximo um dos três causadores. */
     causedByName: varchar('caused_by_name', { length: 120 }),
+    /** Spec 330: o funcionário pago pela conta, quando é uma ficha da frota (no máximo uma das três formas de apontá-lo). */
+    employeeDriverId: uuid('employee_driver_id'),
+    /** Spec 330: o funcionário quando é usuário do escritório (inclusive quem só tem acessos, sem papel). */
+    employeeUserId: uuid('employee_user_id'),
+    /** Spec 330: o funcionário quando está fora do cadastro (nome digitado). */
+    employeeName: varchar('employee_name', { length: 120 }),
+    /** Spec 330: CLT, diarista, autônomo ou outro. */
+    employmentType: varchar('employment_type', {
+      length: 16,
+    }).$type<CompanyExpenseEmploymentType>(),
     /** RF24 (T7.2): quem recebe os lembretes de vencimento; nulo → os administradores da empresa. */
     responsibleUserId: uuid('responsible_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -253,6 +267,20 @@ export const companyExpenses = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
     foreignKey({
+      columns: [table.companyId, table.employeeDriverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'company_expenses_employee_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.employeeUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'company_expenses_employee_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
       columns: [table.companyId, table.vehicleId],
       foreignColumns: [fleetVehicles.companyId, fleetVehicles.id],
       name: 'company_expenses_vehicle_fk',
@@ -263,6 +291,14 @@ export const companyExpenses = pgTable(
     check(
       'company_expenses_single_cause_check',
       sql`num_nonnulls(${table.causedByDriverId}, ${table.causedByUserId}, ${table.causedByName}) <= 1`,
+    ),
+    check(
+      'company_expenses_single_employee_check',
+      sql`num_nonnulls(${table.employeeDriverId}, ${table.employeeUserId}, ${table.employeeName}) <= 1`,
+    ),
+    check(
+      'company_expenses_employment_type_check',
+      sql`${table.employmentType} is null or ${table.employmentType} in (${sql.raw(inList(COMPANY_EXPENSE_EMPLOYMENT_TYPES))})`,
     ),
     index('company_expenses_company_idx').on(table.companyId, table.active, table.kind),
     index('company_expenses_caused_by_driver_idx')
