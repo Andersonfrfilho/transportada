@@ -20,7 +20,7 @@ const run = async (t, q) => { console.log("== " + t + " =="); try { console.tabl
 await run("tabelas novas (esperado: 7 linhas)", sql`
   select table_name as tabela from information_schema.tables
   where table_schema = ${"public"} and table_name in (
-    ${"company_field_report_hold_settings"}, ${"trip_field_report_holds"}, ${"salespeople"}, ${"trip_canhoto_pickups"},
+    ${"company_field_report_hold_settings"}, ${"trip_field_report_holds"}, ${"contractor_salespeople"}, ${"trip_canhoto_pickups"},
     ${"whatsapp_chats"}, ${"whatsapp_chat_messages"}, ${"company_driver_occurrence_email_settings"})
   order by 1`)
 await run("rotina de vencimento do chat (esperado: enabled=false, paused_origin=system)", sql`
