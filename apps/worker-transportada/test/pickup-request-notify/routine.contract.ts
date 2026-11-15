@@ -35,7 +35,9 @@ const request = {
 }
 
 function notification(
-  overrides: Partial<PendingPickupNotification> & { request?: Partial<typeof request> } = {},
+  overrides: Omit<Partial<PendingPickupNotification>, 'request'> & {
+    request?: Partial<typeof request>
+  } = {},
 ): PendingPickupNotification {
   return {
     attempts: 1,
