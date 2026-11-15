@@ -856,6 +856,7 @@ por `railway ssh`. Script: `tmp/ops/staging-publica-grafo-whatsapp.sh <previa|ad
    histórico tiver edição `source=panel`). Depois, `publicar`.
 3. `sobrescrever fala_a,fala_b` leva o texto do código a chaves `fala_*` editadas no painel (spec 299).
 4. Feito em 2026-11-07 em staging: versão 3 → 4 (21 falas regravadas, 2 nós novos da 299).
+5. Spec 326 (lançar conta pelo WhatsApp) acrescenta o nó `expense_start`, `expense_entry` e `expense_router` e a opção `lancar_conta` no menu: depois de ir a staging, rode `previa` e `publicar`.
 
 ## 5.27 Quem pode confirmar como atendente no grupo do WhatsApp (10/11/2026) — somente leitura
 
