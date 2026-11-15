@@ -740,6 +740,16 @@ Pedido do Anderson: informar o número de parcelas de uma conta e ver "parcela 3
 - Painel: campo "Parcelas (opcional)" na nova conta fixa, "Parcela n/total" abaixo do nome na lista e no resumo da baixa. Só componentes do design system. Prints (claro/escuro × desktop 1440/celular 390) por `test/spec-325-prints.smoke.spec.ts`.
 - Provas: `bun test ./test/expenses.contract.test.ts ./test/database-migration.contract.test.ts` (API) 511 pass; painel `bun run test`, `tsc` e `eslint` limpos.
 
+## Extensão — ajudante também não recebe aviso de conta (2026-11-15)
+
+Decisão do Anderson: "nem motorista nem ajudante deve receber nada relacionado a contas; isso é controle financeiro da empresa". O RF24 (motorista nunca recebe) passa a valer para a tripulação inteira.
+
+- `EXPENSE_REMINDER_DRIVING_ROLES` ganha `helper`; a ficha da frota que ajuda (`can_act_as_helper`) conta como a que dirige. Mesma regra na API (`drizzle-expense-reminder-recipients.repository.ts`) e no worker (`drizzle-company-expense-reminder.repository.ts`), com a paridade preservada.
+- Contratos: `reminder-policy.contract.ts` (ajudante barrado), paridade do worker, e os dois testes de integração de destinatários (ajudante pelo papel e pela ficha agora "não existe").
+- A opção "Lançar conta" do WhatsApp (spec 326) já recusa `helper`.
+- Não mudou: a permissão `expenses.*` por papel. Quem a tem por grupo continua tendo (ver a pergunta ao Anderson no PR).
+- Provas: `bun test ./test/expenses.contract.test.ts` (API) 273 pass; paridade do worker 4 pass; `company-expense-occurrence/parity` já falhava em `staging` antes desta mudança (linha de `resolveExpenseSlots`, vinda do PR 777), fora do escopo.
+
 ## Correção — a rotina do worker não conhecia as parcelas (2026-11-15)
 
 O PR 777 (parcelas) mudou a política de calendário da API, mas a cópia do worker ficou para trás: a rotina `company-expense-occurrence.generate` gerava as ocorrências de uma conta parcelada **sem número de parcela e sem parar no total**, e `test/company-expense-occurrence/parity.contract.ts` falhava em `staging` desde então.
