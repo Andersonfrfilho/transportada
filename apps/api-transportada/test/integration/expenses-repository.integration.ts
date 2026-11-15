@@ -126,10 +126,16 @@ describeDatabase('contas da empresa no banco (spec 325 T1.4)', () => {
     `)
     const groups = Object.fromEntries((rows ?? []).map((row) => [row.name, row.cost_group]))
     expect(groups).toEqual({
+      'Água e esgoto': 'administrative',
       Aluguel: 'administrative',
       Combustível: 'per_km',
+      'Energia elétrica': 'administrative',
+      Financiamentos: 'administrative',
       Folha: 'administrative',
+      Funcionários: 'administrative',
+      Gás: 'administrative',
       Impostos: 'administrative',
+      'Internet e telefone': 'administrative',
       Manutenção: 'per_km',
       Outros: 'administrative',
       'Pagamento de motorista/agregado': 'in_trip',
