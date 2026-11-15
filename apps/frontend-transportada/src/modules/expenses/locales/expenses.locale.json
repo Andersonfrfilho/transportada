@@ -68,7 +68,7 @@
     "payee": "Motorista, agregado ou ajudante",
     "all": "Todos",
     "allFeminine": "Todas",
-    "subtype": "Type"
+    "subtype": "Tipo da categoria"
   },
   "list": {
     "installment": "Parcela {{installment}}",
@@ -92,7 +92,7 @@
     "employee": "Funcionário: {{name}}",
     "employeeWithType": "Funcionário: {{name}} · {{type}}",
     "employmentOnly": "Vínculo: {{type}}",
-    "subtype": "Type: {{name}}"
+    "subtype": "Tipo: {{name}}"
   },
   "calendar": {
     "chooseYear": "Escolher o ano",
