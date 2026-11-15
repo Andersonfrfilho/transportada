@@ -82,7 +82,7 @@ export function createDrizzleCompanyExpenseReminderPorts(input: {
              ) as roles,
              exists(
                select 1 from fleet_drivers fd
-                where fd.company_id = m.company_id and fd.membership_id = m.id and fd.can_drive
+                where fd.company_id = m.company_id and fd.membership_id = m.id and (fd.can_drive or fd.can_act_as_helper)
              ) as drives_in_fleet
       from user_company_memberships m
       join identity_users u on u.id = m.user_id and u.status = 'active'

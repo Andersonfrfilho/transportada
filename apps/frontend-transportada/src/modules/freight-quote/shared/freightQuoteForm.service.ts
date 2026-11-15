@@ -1,5 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { FreightQuoteInput, FreightQuoteSettingsValues } from './freightQuote.types'
+import type {
+  FreightQuoteAddress,
+  FreightQuoteInput,
+  FreightQuoteSettingsValues,
+} from './freightQuote.types'
 
 const DECIMAL = /^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,4})?$/
 
@@ -81,39 +85,70 @@ export function buildSettingsSubmission(draft: SettingsDraft): FreightQuoteSetti
   }
 }
 
+export type AddressDraft = Readonly<{
+  city: string
+  district: string
+  number: string
+  postalCode: string
+  state: string
+  street: string
+}>
+
 export type QuoteDraft = Readonly<{
   axles: string
   cargoType: string
   cargoValue: string
-  distanceKm: string
+  destination: AddressDraft
   fuelPricePerLitre: string
   highPerformance: boolean
+  origin: AddressDraft
   shareOfVehiclePercent: string
-  tollAmount: string
 }>
+
+export const EMPTY_ADDRESS_DRAFT: AddressDraft = {
+  city: '',
+  district: '',
+  number: '',
+  postalCode: '',
+  state: '',
+  street: '',
+}
 
 export const EMPTY_QUOTE_DRAFT: QuoteDraft = {
   axles: '5',
   cargoType: '5',
   cargoValue: '',
-  distanceKm: '',
+  destination: EMPTY_ADDRESS_DRAFT,
   fuelPricePerLitre: '',
   highPerformance: false,
+  origin: EMPTY_ADDRESS_DRAFT,
   shareOfVehiclePercent: '100',
-  tollAmount: '',
 }
 
-/** `null` até o mínimo fechar: distância positiva, e os opcionais em branco ou válidos. */
+/** `null` enquanto o endereço não fecha: CEP de 8 dígitos, UF de 2 letras e os demais campos preenchidos. */
+export function buildAddressSubmission(draft: AddressDraft): FreightQuoteAddress | null {
+  const postalCode = draft.postalCode.replace(/\D/gu, '')
+  const state = draft.state.trim().toUpperCase()
+  const street = draft.street.trim()
+  const number = draft.number.trim()
+  const district = draft.district.trim()
+  const city = draft.city.trim()
+  if (!/^\d{8}$/u.test(postalCode) || !/^[A-Z]{2}$/u.test(state)) return null
+  if (street === '' || number === '' || district === '' || city === '') return null
+  return { city, district, number, postalCode, state, street }
+}
+
+/** `null` até o mínimo fechar: dois endereços completos, e os opcionais em branco ou válidos. */
 export function buildQuoteSubmission(draft: QuoteDraft): FreightQuoteInput | null {
-  const distance = parseDecimalField(draft.distanceKm)
+  const origin = buildAddressSubmission(draft.origin)
+  const destination = buildAddressSubmission(draft.destination)
   const share = parseDecimalField(draft.shareOfVehiclePercent)
   const cargoValue = draft.cargoValue.trim() === '' ? '0' : parseDecimalField(draft.cargoValue)
-  const toll = draft.tollAmount.trim() === '' ? '0' : parseDecimalField(draft.tollAmount)
   const fuel =
     draft.fuelPricePerLitre.trim() === '' ? null : parseDecimalField(draft.fuelPricePerLitre)
-  if (distance === null || Number.parseFloat(distance) <= 0) return null
+  if (origin === null || destination === null) return null
   if (share === null || Number.parseFloat(share) <= 0 || Number.parseFloat(share) > 100) return null
-  if (cargoValue === null || toll === null) return null
+  if (cargoValue === null) return null
   if (draft.fuelPricePerLitre.trim() !== '' && (fuel === null || Number.parseFloat(fuel) <= 0)) {
     return null
   }
@@ -121,11 +156,11 @@ export function buildQuoteSubmission(draft: QuoteDraft): FreightQuoteInput | nul
     axles: Number(draft.axles),
     cargoType: Number(draft.cargoType),
     cargoValue,
-    distanceKm: distance,
+    destination,
     fuelPricePerLitre: fuel,
     highPerformance: draft.highPerformance,
+    origin,
     shareOfVehiclePercent: share,
-    tollAmount: toll,
   }
 }
 

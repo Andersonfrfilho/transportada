@@ -13,9 +13,9 @@ import { defineAnonymousRoute, defineRoute } from '../../http/router.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import type { RegisteredAnonymousRoute } from '../../http/router.service.js'
 import type {
-  FreightQuoteRequest,
-  FreightQuoteResponse,
-} from '../../freight-quote/application/freight-quote.use-case.js'
+  FreightQuoteByAddressRequest,
+  FreightQuoteByAddressResponse,
+} from '../../freight-quote/application/freight-quote-by-address.use-case.js'
 import { FreightQuoteFuelPriceMissingError } from '../../freight-quote/application/freight-quote.use-case.js'
 import {
   freightQuoteFuelPriceMissing,
@@ -23,8 +23,8 @@ import {
 } from '../../freight-quote/domain/freight-quote.error.js'
 import { FreightQuoteInputError } from '../../freight-quote/domain/freight-quote.policy.js'
 import {
-  parseFreightQuoteBody,
-  type FreightQuoteBody,
+  parseFreightQuoteByAddressBody,
+  type FreightQuoteByAddressBody,
 } from '../../freight-quote/presentation/freight-quote.schema.js'
 import {
   parseIntegrationPickupRequest,
@@ -74,7 +74,9 @@ type Authenticate = ReturnType<typeof createAuthenticateIntegrationKeyUseCase>
 
 type Dependencies = {
   readonly authenticate: Authenticate
-  readonly calculate: { execute(input: FreightQuoteRequest): Promise<FreightQuoteResponse> }
+  readonly calculate: {
+    execute(input: FreightQuoteByAddressRequest): Promise<FreightQuoteByAddressResponse>
+  }
   readonly cancelPickup: (input: {
     readonly caller: IntegrationCaller
     readonly correlationId: string
@@ -207,7 +209,7 @@ export function createIntegrationRoutes(
   })
 
   return [
-    defineAnonymousRoute<WithCaller<{ readonly body: FreightQuoteBody }>>({
+    defineAnonymousRoute<WithCaller<{ readonly body: FreightQuoteByAddressBody }>>({
       async handle({ input }): Promise<Response> {
         try {
           const quote = await dependencies.calculate.execute({
@@ -238,7 +240,7 @@ export function createIntegrationRoutes(
           authorization: request.headers.get('authorization'),
           scope: 'quote',
         })
-        return { body: await parseFreightQuoteBody(request), caller, correlationId }
+        return { body: await parseFreightQuoteByAddressBody(request), caller, correlationId }
       },
       pathname: API_INTEGRATION_QUOTES_PATH,
       rateLimit: limit(QUOTE_LIMIT),

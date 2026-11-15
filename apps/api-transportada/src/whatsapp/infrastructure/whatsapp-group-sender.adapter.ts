@@ -159,3 +159,52 @@ export async function findActiveDriverByPhone(
   const driverId = decideDriverPhoneMatch(rows, exact)
   return driverId === null ? null : { driverId }
 }
+
+/** Quem o telefone é no cadastro: o nome registrado e os perfis (motorista, escritório). */
+export type RegisteredPerson = {
+  readonly isDriver: boolean
+  readonly isOffice: boolean
+  readonly name: string
+}
+
+/**
+ * O nome do cadastro, nunca o do perfil do WhatsApp ("Minha", "😎"…): a ficha de motorista ativa com este telefone e/ou o
+ * usuário com vínculo ativo cujo WhatsApp verificado é este. `null` quando o número não é de ninguém cadastrado.
+ */
+export async function findRegisteredPerson(
+  database: Database,
+  input: { readonly companyId: string; readonly phone: string },
+): Promise<null | RegisteredPerson> {
+  const { alternate, exact } = brazilianPhoneCandidates(input.phone)
+  if (exact.length < 10) return null
+  const phones = alternate === null ? [exact] : [exact, alternate]
+  const drivers = await database
+    .select({ name: fleetDrivers.name, phone: fleetDrivers.phone })
+    .from(fleetDrivers)
+    .where(
+      and(
+        eq(fleetDrivers.companyId, input.companyId),
+        eq(fleetDrivers.status, 'active'),
+        inArray(fleetDrivers.phone, phones),
+      ),
+    )
+  const exactDrivers = drivers.filter((row) => row.phone === exact)
+  const driverRows = exactDrivers.length > 0 ? exactDrivers : drivers
+  const driver = driverRows.length === 1 ? driverRows[0] : undefined
+  const digits = input.phone.replace(/\D/gu, '')
+  const canonical = digits.startsWith('55') ? digits : `55${digits}`
+  const key = `${canonical.slice(0, 4)}${canonical.slice(-8)}`
+  const users = (await database.execute(sql`
+    select profile.name as name
+      from user_whatsapp_phones phone
+      join user_company_memberships membership
+        on membership.user_id = phone.user_id and membership.company_id = ${input.companyId}::uuid
+       and membership.status = 'active'
+      join identity_user_profiles profile on profile.user_id = phone.user_id
+     where phone.phone_key = ${key} and phone.verified_at is not null
+     limit 1`)) as unknown as readonly { name?: unknown }[]
+  const officeName = typeof users[0]?.name === 'string' ? users[0].name.trim() : ''
+  const name = officeName !== '' ? officeName : (driver?.name ?? '')
+  if (driver === undefined && officeName === '') return null
+  return { isDriver: driver !== undefined, isOffice: officeName !== '', name }
+}

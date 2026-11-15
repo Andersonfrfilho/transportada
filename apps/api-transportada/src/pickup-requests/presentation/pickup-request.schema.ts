@@ -7,6 +7,7 @@ import {
   PICKUP_REQUEST_KINDS,
   PICKUP_REQUEST_STATUSES,
 } from '../../database/pickup-request.schema.js'
+import type { PickupRequestExtras } from '../application/pickup-request.port.js'
 import { invalidRequest, parseBody } from '../../http/request-parsing.service.js'
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{16,256}$/
@@ -43,7 +44,37 @@ const addressSchema = z
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((value) => (value === '' ? null : value))
+    .nullable()
+    .optional()
+
+const optionalPhone = z
+  .string()
+  .regex(/^\+?\d{10,15}$/)
+  .nullable()
+  .optional()
+
+/** Spec 341: dados opcionais que o cliente pode somar ao pedido. */
+const extrasShape = {
+  accessNotes: optionalText(500),
+  cargoValue: z
+    .string()
+    .regex(/^\d{1,15}(\.\d{1,4})?$/)
+    .nullable()
+    .optional(),
+  destinationContactName: optionalText(120),
+  destinationContactPhone: optionalPhone,
+  originContactName: optionalText(120),
+  originContactPhone: optionalPhone,
+}
+
 const createShape = {
+  ...extrasShape,
   cargoDescription: text(500),
   destination: addressSchema,
   kind: z.enum(PICKUP_REQUEST_KINDS),
@@ -108,6 +139,7 @@ export async function parseIntegrationPickupRequest(
 ): Promise<IntegrationPickupBody> {
   const body = await parseBody(integrationSchema, request)
   return {
+    ...toPickupExtras(body),
     cargoDescription: body.cargoDescription,
     destination: body.destination,
     kind: body.kind,
@@ -125,7 +157,7 @@ export async function parseIntegrationPickupRequest(
   }
 }
 
-export type CreatePickupRequestBody = {
+export type CreatePickupRequestBody = PickupRequestExtras & {
   readonly cargoDescription: string
   readonly destination: z.output<typeof addressSchema>
   readonly kind: (typeof PICKUP_REQUEST_KINDS)[number]
@@ -140,9 +172,21 @@ export type CreatePickupRequestBody = {
   readonly windowStart: string
 }
 
+export function toPickupExtras(body: z.output<typeof createSchema>): PickupRequestExtras {
+  return {
+    accessNotes: body.accessNotes ?? null,
+    cargoValue: body.cargoValue ?? null,
+    destinationContactName: body.destinationContactName ?? null,
+    destinationContactPhone: body.destinationContactPhone ?? null,
+    originContactName: body.originContactName ?? null,
+    originContactPhone: body.originContactPhone ?? null,
+  }
+}
+
 export async function parseCreatePickupRequest(request: Request): Promise<CreatePickupRequestBody> {
   const body = await parseBody(createSchema, request)
   return {
+    ...toPickupExtras(body),
     cargoDescription: body.cargoDescription,
     destination: body.destination,
     kind: body.kind,

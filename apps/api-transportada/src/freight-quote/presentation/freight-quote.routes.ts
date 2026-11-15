@@ -7,6 +7,7 @@
 import { defineRoute } from '../../http/router.service.js'
 import {
   API_FREIGHT_QUOTE_SETTINGS_PATH,
+  API_FREIGHT_QUOTES_BY_ADDRESS_PATH,
   API_FREIGHT_QUOTES_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
@@ -15,6 +16,10 @@ import type {
   FreightQuoteResponse,
   FreightQuoteSettingsView,
 } from '../application/freight-quote.use-case.js'
+import type {
+  FreightQuoteByAddressRequest,
+  FreightQuoteByAddressResponse,
+} from '../application/freight-quote-by-address.use-case.js'
 import { FreightQuoteFuelPriceMissingError } from '../application/freight-quote.use-case.js'
 import {
   ANTT_CARGO_TYPES,
@@ -32,8 +37,10 @@ import {
 } from '../domain/freight-quote.policy.js'
 import {
   parseFreightQuoteBody,
+  parseFreightQuoteByAddressBody,
   parseFreightQuoteSettingsBody,
   type FreightQuoteBody,
+  type FreightQuoteByAddressBody,
 } from './freight-quote.schema.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
@@ -47,6 +54,10 @@ type Actor = {
 }
 
 type Dependencies = {
+  /** Spec 342: ausente, a cotação por endereço não é publicada (sem roteirizador não há o que medir). */
+  readonly calculateByAddress?: {
+    execute(input: FreightQuoteByAddressRequest): Promise<FreightQuoteByAddressResponse>
+  }
   readonly calculate: { execute(input: FreightQuoteRequest): Promise<FreightQuoteResponse> }
   readonly clear: { execute(input: Actor): Promise<void> }
   readonly get: {
@@ -129,6 +140,36 @@ export function createFreightQuoteRoutes(
       pathname: API_FREIGHT_QUOTES_PATH,
       policy: FREIGHT_SIMULATE_POLICY,
     }),
+    ...(dependencies.calculateByAddress === undefined
+      ? []
+      : [
+          defineRoute<FreightQuoteByAddressBody>({
+            async handle({ context, input }): Promise<Response> {
+              const calculateByAddress = dependencies.calculateByAddress
+              if (calculateByAddress === undefined) throw new Error('unreachable')
+              try {
+                const data = await calculateByAddress.execute({
+                  ...input,
+                  companyId: context.scope.companyId,
+                })
+                return new Response(JSON.stringify({ data }), {
+                  headers: NO_STORE_HEADERS,
+                  status: 200,
+                })
+              } catch (error) {
+                if (error instanceof FreightQuoteFuelPriceMissingError)
+                  throw freightQuoteFuelPriceMissing()
+                if (error instanceof FreightQuoteInputError)
+                  throw freightQuoteInputInvalid(error.code)
+                throw error
+              }
+            },
+            method: 'POST' as const,
+            parse: ({ request }) => parseFreightQuoteByAddressBody(request),
+            pathname: API_FREIGHT_QUOTES_BY_ADDRESS_PATH,
+            policy: FREIGHT_SIMULATE_POLICY,
+          }),
+        ]),
   ]
 }
 

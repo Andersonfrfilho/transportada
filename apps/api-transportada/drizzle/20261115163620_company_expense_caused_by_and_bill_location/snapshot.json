@@ -1,9 +1,9 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "265da521-3a76-4708-8489-6ce23d927a79",
+  "id": "7d861d7d-f842-4478-83f4-85339728c51d",
   "prevIds": [
-    "f855f0a7-ade9-4506-b2fe-4b868b9eaca9"
+    "328a08bc-f2a8-4bf9-bd80-762d457f7129"
   ],
   "ddl": [
     {
@@ -17388,6 +17388,84 @@
       "generated": null,
       "identity": null,
       "name": "note",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pickup_requests"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "origin_contact_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pickup_requests"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "origin_contact_phone",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pickup_requests"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "destination_contact_name",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pickup_requests"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "destination_contact_phone",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pickup_requests"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "access_notes",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pickup_requests"
+    },
+    {
+      "type": "numeric(19,4)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cargo_value",
       "entityType": "columns",
       "schema": "public",
       "table": "pickup_requests"

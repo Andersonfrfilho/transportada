@@ -18,20 +18,28 @@
   },
   "quote": {
     "title": "Calcular orçamento",
-    "hint": "Informe a distância e o veículo. Pedágio e preço do diesel são opcionais: sem o diesel, vale o preço da empresa ou da ANP.",
-    "distanceKm": "Distância (km)",
+    "hint": "Informe os endereços de coleta e de entrega e o veículo. A distância e o pedágio saem da estrada medida, nunca de estimativa. O diesel é opcional: sem ele, vale o preço da empresa ou da ANP.",
     "axles": "Eixos do veículo",
     "axlesOption": "{{count}} eixos",
     "cargoType": "Tipo de carga (ANTT)",
     "cargoValue": "Valor da carga (R$)",
-    "tollAmount": "Pedágio da viagem (R$)",
     "share": "Parte do veículo ocupada (%)",
     "fuelPrice": "Preço do diesel (R$/litro)",
     "fuelPricePlaceholder": "Preço da empresa ou da ANP",
     "highPerformance": "Veículo de alto desempenho (tabela C da ANTT)",
     "eightAxles": "A norma não tem coluna de 8 eixos: o piso usa o de 7 eixos, como manda o Art. 5 §5.",
     "calculate": "Calcular",
-    "calculating": "Calculando…"
+    "calculating": "Calculando…",
+    "origin": "Origem (coleta)",
+    "destination": "Destino (entrega)",
+    "address": {
+      "postalCode": "CEP",
+      "street": "Rua",
+      "number": "Número",
+      "district": "Bairro",
+      "city": "Cidade",
+      "state": "UF"
+    }
   },
   "result": {
     "title": "Resultado",
@@ -45,7 +53,8 @@
     "total": "Total do orçamento",
     "floorApplied": "O custo mais a margem ficou abaixo do piso da ANTT, então o frete usa o piso.",
     "floorFormula": "Piso = km × {{ccd}} + {{cc}} (coeficientes para {{axles}} eixos).",
-    "fuel": "Combustível: {{price}} por litro, {{consumption}} km/l ({{origin}})."
+    "fuel": "Combustível: {{price}} por litro, {{consumption}} km/l ({{origin}}).",
+    "road": "Estrada medida: {{distance}} km, pedágio {{toll}}."
   },
   "settings": {
     "title": "Parâmetros do orçamento",
@@ -91,6 +100,9 @@
     "FREIGHT_QUOTE_SHARE_INVALID": "A parte do veículo precisa ficar entre 0 e 100%.",
     "FREIGHT_QUOTE_DISTANCE_INVALID": "A distância precisa ser maior que zero.",
     "FREIGHT_QUOTE_FUEL_PRICE_INVALID": "O preço do diesel precisa ser maior que zero.",
-    "FREIGHT_QUOTE_CONSUMPTION_INVALID": "O consumo precisa ser maior que zero."
+    "FREIGHT_QUOTE_CONSUMPTION_INVALID": "O consumo precisa ser maior que zero.",
+    "FREIGHT_QUOTE_ADDRESS_NOT_LOCATED": "Não achamos um dos endereços com precisão suficiente. Confira rua, número e CEP.",
+    "FREIGHT_QUOTE_ROUTE_UNAVAILABLE": "Não foi possível medir a estrada agora. Tente de novo em instantes.",
+    "FREIGHT_QUOTE_TOLL_UNKNOWN": "O pedágio desta rota não está completo no catálogo; por isso não calculamos um preço incerto."
   }
 }

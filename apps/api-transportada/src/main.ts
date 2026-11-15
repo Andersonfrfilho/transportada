@@ -384,6 +384,7 @@ import { createWhatsAppOfficeDelivery } from './whatsapp-commands/infrastructure
 import {
   createAttendantFinder,
   findActiveDriverByPhone,
+  findRegisteredPerson,
   isCrewPhone,
 } from './whatsapp/infrastructure/whatsapp-group-sender.adapter.js'
 import { createWhatsAppSenderRoleResolver } from './whatsapp/application/whatsapp-sender-role.service.js'
@@ -564,6 +565,9 @@ import {
   createDriverStopReminderRuntime,
   type DriverStopReminderRuntime,
 } from './driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
+import { createCalculateFreightQuoteByAddressUseCase } from './freight-quote/application/freight-quote-by-address.use-case.js'
+import { createQuoteAddressLocator } from './freight-quote/infrastructure/quote-address-locator.gateway.js'
+import { createQuoteRoadGateway } from './freight-quote/infrastructure/quote-road.gateway.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
 import { createRouteDepotQuery } from './trips/infrastructure/route-depot.query.js'
 import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/route-geometry-vehicle-axles.query.js'
@@ -2861,6 +2865,7 @@ function createEvolutionWebhook(input: {
       ? undefined
       : createWhatsAppGroupRequestSessions({
           clock: () => new Date(),
+          resolvePerson: (lookup) => findRegisteredPerson(database, lookup),
           flow:
             input.groupStop === undefined
               ? createGroupOccurrenceFlow(input.groupOccurrence)
@@ -3015,6 +3020,44 @@ function whatsappBotAudioTranscriber(): BotAudioTranscriberPort | undefined {
     }
   }
   return botAudioTranscriber.value
+}
+
+/**
+ * Spec 342: a cotação por endereço. A estrada é a da viagem (OSRM + praças por nó + tarifa por eixo, com o ajuste da
+ * empresa). Sem `ROUTING_MATRIX_URL` a leitura devolve `null` e a cotação recusa com 503 — nunca uma reta.
+ */
+function buildFreightQuoteByAddress(input: {
+  readonly database: CompanySettingsDatabase
+  readonly googleMapsApiKey: string | undefined
+  readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
+}) {
+  const tollBoothRepository = createDrizzleTollBoothRepository(input.database)
+  const tollBoothChargeRepository = new DrizzleTollBoothChargeRepository(input.database)
+  return createCalculateFreightQuoteByAddressUseCase({
+    calculate: createCalculateFreightQuoteUseCase({
+      fuelPrices: new DrizzleFuelPriceRepository(input.database),
+      settings: new DrizzleFreightQuoteSettingsRepository(input.database),
+    }),
+    locator: createQuoteAddressLocator({
+      geocoded: createDrizzleGeocodedAddressRepository(input.database),
+      geocoding:
+        input.googleMapsApiKey === undefined
+          ? undefined
+          : createGoogleGeocodingGateway({ apiKey: input.googleMapsApiKey }),
+    }),
+    road: createQuoteRoadGateway({
+      geometry:
+        input.routingMatrixUrl === undefined
+          ? { readRouteGeometry: async () => null }
+          : createOsrmRouteGeometryGateway({ baseUrl: input.routingMatrixUrl }),
+      tollBoothsFor: (companyId) =>
+        createCompanyScopedTollBoothGateway({
+          catalog: tollBoothRepository,
+          charges: tollBoothChargeRepository,
+          companyId,
+        }),
+    }),
+  })
 }
 
 function createAnonymousRoutes({
@@ -3219,9 +3262,10 @@ function createAnonymousRoutes({
   const integrationPickupRepository = new DrizzlePickupRequestRepository(database)
   const integrationRoutes = createIntegrationRoutes({
     authenticate: createAuthenticateIntegrationKeyUseCase({ repository: integrationKeyRepository }),
-    calculate: createCalculateFreightQuoteUseCase({
-      fuelPrices: new DrizzleFuelPriceRepository(database),
-      settings: new DrizzleFreightQuoteSettingsRepository(database),
+    calculate: buildFreightQuoteByAddress({
+      database,
+      googleMapsApiKey: config.googleMapsApiKey,
+      routingMatrixUrl: config.routingMatrixUrl,
     }),
     cancelPickup: createCancelIntegrationPickupUseCase({ repository: integrationPickupRepository }),
     createPickup: createCreateIntegrationPickupUseCase({ repository: integrationPickupRepository }),
@@ -4795,6 +4839,11 @@ function createApplicationRoutes({
       revokeKey: createRevokeIntegrationKeyUseCase({ repository: integrationKeyAdminRepository }),
     }),
     ...createFreightQuoteRoutes({
+      calculateByAddress: buildFreightQuoteByAddress({
+        database,
+        googleMapsApiKey,
+        routingMatrixUrl,
+      }),
       calculate: createCalculateFreightQuoteUseCase({
         fuelPrices: fuelPriceRepository,
         settings: freightQuoteSettingsRepository,

@@ -10,7 +10,7 @@ import type {
 } from './freightQuote.types'
 
 const SETTINGS_PATH = '/freight-quote/settings'
-const QUOTES_PATH = '/freight-quotes'
+const QUOTES_PATH = '/freight-quotes/by-address'
 const REQUEST_FAILED = 'REQUEST_FAILED'
 const NETWORK_ERROR = 'NETWORK_ERROR'
 const RESPONSE_INVALID = 'RESPONSE_INVALID'
@@ -55,6 +55,8 @@ export function isFreightQuoteResult(value: unknown): value is FreightQuoteResul
     isRecord(value) &&
     typeof value.totalAmount === 'string' &&
     typeof value.freightAmount === 'string' &&
+    typeof value.distanceKm === 'string' &&
+    typeof value.tollAmount === 'string' &&
     Array.isArray(value.lines)
   )
 }

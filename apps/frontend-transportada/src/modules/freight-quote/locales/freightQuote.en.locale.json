@@ -18,20 +18,28 @@
   },
   "quote": {
     "title": "Calculate a quote",
-    "hint": "Enter the distance and the vehicle. Tolls and the diesel price are optional: without a diesel price the company or ANP price is used.",
-    "distanceKm": "Distance (km)",
+    "hint": "Enter the pickup and delivery addresses and the vehicle. Distance and toll come from the measured road, never an estimate. Diesel is optional: without it the company or ANP price applies.",
     "axles": "Vehicle axles",
     "axlesOption": "{{count}} axles",
     "cargoType": "Cargo type (ANTT)",
     "cargoValue": "Cargo value (R$)",
-    "tollAmount": "Trip tolls (R$)",
     "share": "Share of the vehicle used (%)",
     "fuelPrice": "Diesel price (R$/litre)",
     "fuelPricePlaceholder": "Company or ANP price",
     "highPerformance": "High-performance vehicle (ANTT table C)",
     "eightAxles": "The norm has no 8-axle column: the floor uses the 7-axle one, per Art. 5 §5.",
     "calculate": "Calculate",
-    "calculating": "Calculating…"
+    "calculating": "Calculating…",
+    "origin": "Origin (pickup)",
+    "destination": "Destination (delivery)",
+    "address": {
+      "postalCode": "Postal code",
+      "street": "Street",
+      "number": "Number",
+      "district": "District",
+      "city": "City",
+      "state": "State"
+    }
   },
   "result": {
     "title": "Result",
@@ -45,7 +53,8 @@
     "total": "Quote total",
     "floorApplied": "Cost plus margin came out below the ANTT floor, so the freight uses the floor.",
     "floorFormula": "Floor = km × {{ccd}} + {{cc}} (coefficients for {{axles}} axles).",
-    "fuel": "Fuel: {{price}} per litre, {{consumption}} km/l ({{origin}})."
+    "fuel": "Fuel: {{price}} per litre, {{consumption}} km/l ({{origin}}).",
+    "road": "Measured road: {{distance}} km, toll {{toll}}."
   },
   "settings": {
     "title": "Quote parameters",
@@ -91,6 +100,9 @@
     "FREIGHT_QUOTE_SHARE_INVALID": "The vehicle share must be between 0 and 100%.",
     "FREIGHT_QUOTE_DISTANCE_INVALID": "The distance must be greater than zero.",
     "FREIGHT_QUOTE_FUEL_PRICE_INVALID": "The diesel price must be greater than zero.",
-    "FREIGHT_QUOTE_CONSUMPTION_INVALID": "The consumption must be greater than zero."
+    "FREIGHT_QUOTE_CONSUMPTION_INVALID": "The consumption must be greater than zero.",
+    "FREIGHT_QUOTE_ADDRESS_NOT_LOCATED": "We could not locate one of the addresses precisely enough. Check street, number and postal code.",
+    "FREIGHT_QUOTE_ROUTE_UNAVAILABLE": "The road could not be measured right now. Try again shortly.",
+    "FREIGHT_QUOTE_TOLL_UNKNOWN": "The toll for this route is incomplete in the catalog, so we do not compute an uncertain price."
   }
 }
