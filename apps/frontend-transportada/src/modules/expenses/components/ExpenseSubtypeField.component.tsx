@@ -8,12 +8,18 @@ import styles from '../styles/expenses.module.css'
 
 type ExpenseSubtypeFieldProps = Readonly<{
   categoryId: string
+  disabled?: boolean
   onChange: (subtypeId: string) => void
   value: string
 }>
 
 /** Spec 331: o tipo da categoria (qual cartão); digitar e Enter cadastra e já seleciona. */
-export function ExpenseSubtypeField({ categoryId, onChange, value }: ExpenseSubtypeFieldProps) {
+export function ExpenseSubtypeField({
+  categoryId,
+  disabled = false,
+  onChange,
+  value,
+}: ExpenseSubtypeFieldProps) {
   const { t } = useTranslation('expenses')
   const { createSubtype } = useExpenseMutations()
   const subtypes = useExpenseSubtypes()
@@ -38,6 +44,7 @@ export function ExpenseSubtypeField({ categoryId, onChange, value }: ExpenseSubt
       <span>{t('subtype.label')}</span>
       <SearchableSelect
         ariaLabel={t('subtype.label')}
+        disabled={disabled}
         creatable={{ createLabel: (name) => t('subtype.create', { name }), onCreate: create }}
         emptyLabel={t('subtype.empty')}
         onChange={onChange}
@@ -46,7 +53,7 @@ export function ExpenseSubtypeField({ categoryId, onChange, value }: ExpenseSubt
         searchPlaceholder={t('subtype.search')}
         value={value}
       />
-      <p className={styles.hint}>{t('subtype.hint')}</p>
+      <p className={styles.hint}>{t(disabled ? 'subtype.needCategory' : 'subtype.hint')}</p>
       {createSubtype.error === null ? null : (
         <p className={styles.error} role="alert">
           {t(`errors.${createSubtype.error.message}`, { defaultValue: t('errors.REQUEST_FAILED') })}

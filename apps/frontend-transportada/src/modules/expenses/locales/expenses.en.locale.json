@@ -430,6 +430,14 @@
     "empty": "Type a name and press Enter to add it",
     "placeholder": "Which card, which loan…",
     "search": "Search or type the type",
+    "needCategory": "Pick the category first: the type is created inside it (which card, which loan).",
     "hint": "Type a name and press Enter: the type is created in this category and selected right away. Bills with the same type add up in the filter, installments or paid in full."
+  },
+  "person": {
+    "none": "Nobody",
+    "company": "The company itself",
+    "create": "Add «{{name}}»",
+    "empty": "Type a name and press Enter",
+    "search": "Search or type a name"
   }
 }

@@ -17,6 +17,7 @@ import {
   causedByKeys,
   currentCompetence,
   employeeKeys,
+  isEmployeeCategoryName,
   isValidBillUrl,
   listCompetenceOptions,
   maskMoney,
@@ -25,6 +26,7 @@ import {
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
+import { ExpensePersonField } from './ExpensePersonField.component'
 import { ExpenseSubtypeField } from './ExpenseSubtypeField.component'
 import { ExpenseEmployeeFields } from './ExpenseEmployeeFields.component'
 
@@ -53,6 +55,11 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
   const [name, setName] = useState(occurrence.expenseName)
   const [causedBy, setCausedBy] = useState(initialCausedBy(occurrence))
   const [causedByName, setCausedByName] = useState(occurrence.causedByName ?? '')
+  const showEmployee =
+    isEmployeeCategoryName(occurrence.categoryName) ||
+    initialEmployee(occurrence) !== '' ||
+    (occurrence.employeeName ?? '') !== '' ||
+    (occurrence.employmentType ?? null) !== null
   const [employee, setEmployee] = useState(initialEmployee(occurrence))
   const [employeeName, setEmployeeName] = useState(occurrence.employeeName ?? '')
   const [employmentType, setEmploymentType] = useState(occurrence.employmentType ?? '')
@@ -140,51 +147,43 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
           onChange={setSubtypeId}
           value={subtypeId}
         />
-        <ExpenseEmployeeFields
-          employee={employee}
-          employeeName={employeeName}
-          employmentType={employmentType}
-          onChange={(changes) => {
-            if (changes.employee !== undefined) setEmployee(changes.employee)
-            if (changes.employeeName !== undefined) setEmployeeName(changes.employeeName)
-            if (changes.employmentType !== undefined) setEmploymentType(changes.employmentType)
-          }}
-          peopleOptions={peopleOptions}
-        />
-        <div className={styles.field}>
-          <span>{t('create.causedBy')}</span>
-          <Select
-            ariaLabel={t('create.causedBy')}
-            clearable
-            onChange={(value) => {
-              setCausedBy(value)
-              setCausedByName('')
+        {showEmployee ? (
+          <ExpenseEmployeeFields
+            employee={employee}
+            employeeName={employeeName}
+            employmentType={employmentType}
+            onChange={(changes) => {
+              if (changes.employee !== undefined) setEmployee(changes.employee)
+              if (changes.employeeName !== undefined) setEmployeeName(changes.employeeName)
+              if (changes.employmentType !== undefined) setEmploymentType(changes.employmentType)
             }}
-            options={peopleOptions}
-            placeholder={t('create.causedByPlaceholder')}
-            value={causedBy}
+            peopleOptions={peopleOptions}
           />
-        </div>
-        {causedBy === '' ? (
+        ) : null}
+        <ExpensePersonField
+          choice={causedBy}
+          hint={t('create.causedByHint')}
+          includeCompany
+          label={t('create.causedBy')}
+          name={causedByName}
+          onChange={(person) => {
+            setCausedBy(person.choice)
+            setCausedByName(person.name)
+          }}
+          options={peopleOptions}
+          placeholder={t('create.causedByPlaceholder')}
+        />
+        {(occurrence.billLocation ?? '') === '' ? null : (
           <label className={styles.field}>
-            <span>{t('create.causedByName')}</span>
+            <span>{t('create.billLocation')}</span>
             <input
               maxLength={120}
-              onChange={(event) => setCausedByName(event.target.value)}
-              placeholder={t('create.causedByNamePlaceholder')}
-              value={causedByName}
+              onChange={(event) => setBillLocation(event.target.value)}
+              placeholder={t('create.billLocationPlaceholder')}
+              value={billLocation}
             />
           </label>
-        ) : null}
-        <label className={styles.field}>
-          <span>{t('create.billLocation')}</span>
-          <input
-            maxLength={120}
-            onChange={(event) => setBillLocation(event.target.value)}
-            placeholder={t('create.billLocationPlaceholder')}
-            value={billLocation}
-          />
-        </label>
+        )}
         <label className={styles.field}>
           <span>{t('create.billUrl')}</span>
           <input

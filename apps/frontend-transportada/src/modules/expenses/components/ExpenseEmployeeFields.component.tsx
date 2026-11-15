@@ -5,6 +5,7 @@ import { Select, type SelectOption } from '@/components/ui/select'
 
 import { EXPENSE_EMPLOYMENT_TYPES } from '../shared/expenses.types'
 import styles from '../styles/expenses.module.css'
+import { ExpensePersonField } from './ExpensePersonField.component'
 
 type ExpenseEmployeeFieldsProps = Readonly<{
   employee: string
@@ -25,28 +26,14 @@ export function ExpenseEmployeeFields({
   const { t } = useTranslation('expenses')
   return (
     <>
-      <div className={styles.field}>
-        <span>{t('create.employee')}</span>
-        <Select
-          ariaLabel={t('create.employee')}
-          clearable
-          onChange={(value) => onChange({ employee: value, employeeName: '' })}
-          options={peopleOptions}
-          placeholder={t('create.employeePlaceholder')}
-          value={employee}
-        />
-      </div>
-      {employee === '' ? (
-        <label className={styles.field}>
-          <span>{t('create.employeeName')}</span>
-          <input
-            maxLength={120}
-            onChange={(event) => onChange({ employeeName: event.target.value })}
-            placeholder={t('create.employeeNamePlaceholder')}
-            value={employeeName}
-          />
-        </label>
-      ) : null}
+      <ExpensePersonField
+        choice={employee}
+        label={t('create.employee')}
+        name={employeeName}
+        onChange={(person) => onChange({ employee: person.choice, employeeName: person.name })}
+        options={peopleOptions}
+        placeholder={t('create.employeePlaceholder')}
+      />
       <div className={styles.field}>
         <span>{t('create.employmentType')}</span>
         <Select

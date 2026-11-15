@@ -22,6 +22,7 @@ import {
 import {
   causedByKeys,
   employeeKeys,
+  isEmployeeCategoryName,
   EMPTY_CREATE_FORM,
   maskMoney,
   parseMoney,
@@ -31,6 +32,7 @@ import {
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
+import { ExpensePersonField } from './ExpensePersonField.component'
 import { ExpenseSubtypeField } from './ExpenseSubtypeField.component'
 import { ExpenseEmployeeFields } from './ExpenseEmployeeFields.component'
 import { useCalendarLabels } from './useCalendarLabels.hook'
@@ -99,6 +101,7 @@ export function ExpenseCreateDialog({
   const [showIssues, setShowIssues] = useState(false)
   const category = categories.find((candidate) => candidate.id === fields.categoryId)
   const requiresDriver = category?.requiresDriver ?? false
+  const showEmployee = category !== undefined && isEmployeeCategoryName(category.name)
   const issues = validateCreateForm(fields, { requiresDriver })
 
   function patch(changes: Partial<typeof EMPTY_CREATE_FORM>): void {
@@ -107,7 +110,9 @@ export function ExpenseCreateDialog({
 
   async function save(): Promise<void> {
     setShowIssues(true)
-    const input = buildInput(fields)
+    const input = buildInput(
+      showEmployee ? fields : { ...fields, employee: '', employeeName: '', employmentType: '' },
+    )
     if (issues.length > 0 || input === null) return
     try {
       await createExpense.mutateAsync(input)
@@ -182,13 +187,12 @@ export function ExpenseCreateDialog({
             value={fields.categoryId}
           />
         </div>
-        {fields.categoryId === '' ? null : (
-          <ExpenseSubtypeField
-            categoryId={fields.categoryId}
-            onChange={(subtypeId) => patch({ subtypeId })}
-            value={fields.subtypeId}
-          />
-        )}
+        <ExpenseSubtypeField
+          categoryId={fields.categoryId}
+          disabled={fields.categoryId === ''}
+          onChange={(subtypeId) => patch({ subtypeId })}
+          value={fields.subtypeId}
+        />
         <label className={styles.field}>
           <span>{t('create.amount')}</span>
           <input
@@ -263,46 +267,25 @@ export function ExpenseCreateDialog({
             />
           </div>
         )}
-        <ExpenseEmployeeFields
-          employee={fields.employee}
-          employeeName={fields.employeeName}
-          employmentType={fields.employmentType}
-          onChange={patch}
-          peopleOptions={peopleOptions}
-        />
-        <div className={styles.field}>
-          <span>{t('create.causedBy')}</span>
-          <Select
-            ariaLabel={t('create.causedBy')}
-            clearable
-            onChange={(value) => patch({ causedBy: value, causedByName: '' })}
-            options={peopleOptions}
-            placeholder={t('create.causedByPlaceholder')}
-            value={fields.causedBy}
+        {showEmployee ? (
+          <ExpenseEmployeeFields
+            employee={fields.employee}
+            employeeName={fields.employeeName}
+            employmentType={fields.employmentType}
+            onChange={patch}
+            peopleOptions={peopleOptions}
           />
-        </div>
-        {fields.causedBy === '' ? (
-          <label className={styles.field}>
-            <span>{t('create.causedByName')}</span>
-            <input
-              maxLength={120}
-              onChange={(event) => patch({ causedByName: event.target.value })}
-              placeholder={t('create.causedByNamePlaceholder')}
-              value={fields.causedByName}
-            />
-          </label>
         ) : null}
-        <p className={styles.hint}>{t('create.causedByHint')}</p>
-        <label className={styles.field}>
-          <span>{t('create.billLocation')}</span>
-          <input
-            maxLength={120}
-            onChange={(event) => patch({ billLocation: event.target.value })}
-            placeholder={t('create.billLocationPlaceholder')}
-            value={fields.billLocation}
-          />
-        </label>
-        <p className={styles.hint}>{t('create.billLocationHint')}</p>
+        <ExpensePersonField
+          choice={fields.causedBy}
+          hint={t('create.causedByHint')}
+          includeCompany
+          label={t('create.causedBy')}
+          name={fields.causedByName}
+          onChange={(person) => patch({ causedBy: person.choice, causedByName: person.name })}
+          options={peopleOptions}
+          placeholder={t('create.causedByPlaceholder')}
+        />
         <label className={styles.field}>
           <span>{t('create.billUrl')}</span>
           <input
