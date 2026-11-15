@@ -8,6 +8,7 @@
 import type { SQL } from 'bun'
 import { join } from 'node:path'
 
+import { rollbackPickupRequestNotificationsIfApplied } from './pickup-request-notifications-rollback.assertion.js'
 import { migrationsDirectory, readMigrationNames } from './support.js'
 
 const MIGRATION_SUFFIX = '_company_expense_reminder_job'
@@ -16,6 +17,7 @@ export async function rollbackCompanyExpenseReminderJobIfApplied(
   database: SQL,
   directories: readonly string[],
 ): Promise<void> {
+  await rollbackPickupRequestNotificationsIfApplied(database, directories)
   const directory = directories.find((name) => name.endsWith(MIGRATION_SUFFIX))
   if (directory === undefined) return
   if (!(await readMigrationNames(database)).includes(directory)) return
