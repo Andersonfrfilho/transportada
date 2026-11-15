@@ -285,6 +285,16 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         const canImportXml =
           (await groupInbound.findDirectImporter?.({ companyId, phone: event.from })) === true
         if (driver === null && (!canImportXml || event.text === null)) return null
+        // Motorista que também lança conta (`expenses.manage`): "conta" vai ao assistente do escritório, não ao fluxo do motorista.
+        if (
+          driver !== null &&
+          event.text !== null &&
+          /\bcontas?\b/i.test(event.text) &&
+          (await groupInbound.findDirectExpenseLauncher?.({ companyId, phone: event.from })) ===
+            true
+        ) {
+          return null
+        }
         const message = {
           from: event.from,
           providerMessageId: event.externalMessageId,

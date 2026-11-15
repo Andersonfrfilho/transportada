@@ -2804,6 +2804,7 @@ function createEvolutionWebhook(input: {
   /** Spec 299: o turno do grupo, criado na composição; ausente, a instância cria o próprio. */
   readonly groupTurns?: WhatsAppTurnReplies
   readonly logger: ApiLogger
+  readonly resolveActor?: ReturnType<typeof createResolveWhatsAppActorUseCase>
 }) {
   const { database, envelopeProvider, logger } = input
   const gateway = createEvolutionConnectionGateway()
@@ -2951,6 +2952,27 @@ function createEvolutionWebhook(input: {
             },
           }),
       findGroupDriver: (lookup) => driverGroups.findDriverByGroup(lookup),
+      ...(input.resolveActor === undefined
+        ? {}
+        : {
+            findDirectExpenseLauncher: async ({
+              companyId,
+              phone,
+            }: {
+              readonly companyId: string
+              readonly phone: string
+            }) => {
+              const resolved = await input.resolveActor?.({
+                companyId,
+                fromPhone: phone,
+                now: new Date(),
+              })
+              return (
+                resolved?.status === 'authorized' &&
+                resolved.context.scope.permissions.has('expenses.manage')
+              )
+            },
+          }),
       // Spec 308 D2.4: quem tem envio de XML liberado (a mesma regra do recebimento) vê a opção no 1:1.
       findDirectImporter: async ({ companyId, phone }) =>
         (await xmlReceiptRepository.findImportSender({ companyId, now: new Date(), phone })) !==
@@ -4361,6 +4383,13 @@ function createApplicationRoutes({
     database,
     envelopeProvider,
     logger,
+    resolveActor: createResolveWhatsAppActorUseCase({
+      memberships: new DrizzleMembershipRepository(database),
+      phones: new DrizzleWhatsAppPhoneRepository(database),
+      tenantContext: new TenantContextService({
+        repository: new DrizzleMembershipRepository(database),
+      }),
+    }),
   })
   /** Variável vazia (`.env.example`) ou endereço recusado desliga o "Criar e conectar"; nunca derruba a subida. */
   const evolutionProvisioner = buildEvolutionProvisioner({
