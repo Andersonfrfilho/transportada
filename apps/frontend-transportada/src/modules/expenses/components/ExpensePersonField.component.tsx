@@ -11,10 +11,11 @@ import {
   toPersonFieldValue,
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
+import { ExpenseFieldLabel } from './ExpenseFieldLabel.component'
 
 type ExpensePersonFieldProps = Readonly<{
   choice: string
-  hint?: string
+  hint?: string | undefined
   includeCompany?: boolean
   label: string
   name: string
@@ -55,7 +56,7 @@ export function ExpensePersonField({
   ]
   return (
     <div className={styles.field}>
-      <span>{label}</span>
+      <ExpenseFieldLabel hint={hint} text={label} />
       <SearchableSelect
         ariaLabel={label}
         creatable={{
@@ -69,7 +70,6 @@ export function ExpensePersonField({
         searchPlaceholder={t('person.search')}
         value={value}
       />
-      {hint === undefined ? null : <p className={styles.hint}>{hint}</p>}
     </div>
   )
 }

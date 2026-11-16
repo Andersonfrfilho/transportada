@@ -31,6 +31,7 @@ import {
   validateCreateForm,
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
+import { ExpenseFieldLabel } from './ExpenseFieldLabel.component'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
 import { ExpensePersonField } from './ExpensePersonField.component'
 import { ExpenseSubtypeField } from './ExpenseSubtypeField.component'
@@ -218,7 +219,12 @@ export function ExpenseCreateDialog({
         {fields.kind === 'fixed' ? (
           <>
             <div className={styles.field}>
-              <span>{t('create.recurrence')}</span>
+              <ExpenseFieldLabel
+                hint={
+                  recurrenceNeedsDueDay(fields.recurrence) ? undefined : t('create.fortnightlyHint')
+                }
+                text={t('create.recurrence')}
+              />
               <Select
                 ariaLabel={t('create.recurrence')}
                 onChange={(value) => patch({ recurrence: value as ExpenseRecurrence })}
@@ -240,11 +246,12 @@ export function ExpenseCreateDialog({
                   value={fields.dueDay}
                 />
               </label>
-            ) : (
-              <p className={styles.hint}>{t('create.fortnightlyHint')}</p>
-            )}
+            ) : null}
             <label className={styles.field}>
-              <span>{t('create.installments')}</span>
+              <ExpenseFieldLabel
+                hint={t('create.installmentsHint')}
+                text={t('create.installments')}
+              />
               <input
                 aria-invalid={showIssues && issues.includes('installments')}
                 inputMode="numeric"
@@ -254,7 +261,6 @@ export function ExpenseCreateDialog({
                 value={fields.installments}
               />
             </label>
-            <p className={styles.hint}>{t('create.installmentsHint')}</p>
           </>
         ) : (
           <div className={styles.field}>

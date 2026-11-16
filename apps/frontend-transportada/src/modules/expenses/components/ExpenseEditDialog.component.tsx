@@ -25,6 +25,7 @@ import {
   toTypedMoney,
 } from '../shared/expensesView.service'
 import styles from '../styles/expenses.module.css'
+import { ExpenseFieldLabel } from './ExpenseFieldLabel.component'
 import { ExpenseDialogShell } from './ExpenseDialogShell.component'
 import { ExpensePersonField } from './ExpensePersonField.component'
 import { ExpenseSubtypeField } from './ExpenseSubtypeField.component'
@@ -196,7 +197,10 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
           />
         </label>
         <label className={styles.field}>
-          <span>{t('edit.newAmount')}</span>
+          <ExpenseFieldLabel
+            hint={t(amountMode === 'correction' ? 'edit.correctionHint' : 'edit.amountHint')}
+            text={t('edit.newAmount')}
+          />
           <input
             aria-invalid={showIssue && amountInvalid}
             inputMode="decimal"
@@ -206,7 +210,7 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
           />
         </label>
         <div className={styles.field}>
-          <span>{t('edit.amountMode')}</span>
+          <ExpenseFieldLabel hint={t('edit.hint')} text={t('edit.amountMode')} />
           <Select
             ariaLabel={t('edit.amountMode')}
             onChange={(value) =>
@@ -230,10 +234,6 @@ export function ExpenseEditDialog({ occurrence, onClose, peopleOptions }: Expens
             />
           </div>
         )}
-        <p className={styles.hint}>
-          {t(amountMode === 'correction' ? 'edit.correctionHint' : 'edit.amountHint')}
-        </p>
-        <p className={styles.hint}>{t('edit.hint')}</p>
         {history.data === undefined ? null : (
           <div className={styles.field}>
             <span>{t('edit.history')}</span>
