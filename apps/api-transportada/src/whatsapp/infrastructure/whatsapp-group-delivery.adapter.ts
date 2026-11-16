@@ -43,6 +43,12 @@ export type GroupDeliveryWiring = {
     readonly driverId: string
     readonly sender: string
   }) => Promise<boolean>
+  /** Só o telefone da ficha do motorista do grupo, sem tripulação nem atendente. */
+  readonly isGroupOwnDriver: (input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly sender: string
+  }) => Promise<boolean>
 }
 
 /**
@@ -150,6 +156,14 @@ export function createGroupDeliveryWiring(dependencies: {
       rememberLocation: dependencies.rememberLocation,
       resolveSenderRole: dependencies.resolveSenderRole,
       withoutAccessText,
+    },
+    async isGroupOwnDriver({ companyId, driverId, sender }) {
+      const [row] = await database
+        .select({ phone: fleetDrivers.phone })
+        .from(fleetDrivers)
+        .where(and(eq(fleetDrivers.companyId, companyId), eq(fleetDrivers.id, driverId)))
+        .limit(1)
+      return row !== undefined && sameBrazilianPhone(row.phone, sender)
     },
     async isGroupDriver({ companyId, driverId, sender }) {
       const [row] = await database

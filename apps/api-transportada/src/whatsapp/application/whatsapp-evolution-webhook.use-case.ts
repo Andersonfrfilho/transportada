@@ -44,6 +44,7 @@ import {
   type EvolutionGroupInboundOutcome,
   type EvolutionMessageEvent,
   readGroupAudio,
+  readGroupQuotedParticipants,
   readGroupMedia,
   readGroupSenderLids,
 } from './evolution-group-inbound.service.js'
@@ -474,6 +475,8 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
             connection,
             event,
             media: groupMedia.get(event.externalMessageId) ?? null,
+            quotedParticipant:
+              readGroupQuotedParticipants(payload).get(event.externalMessageId) ?? null,
             senderLid: senderLids.get(event.externalMessageId) ?? null,
           })
           // Por mensagem, para achar o porquê de um "3" marcado que não andou: só o desfecho e o formato,

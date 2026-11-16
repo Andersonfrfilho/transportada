@@ -3087,6 +3087,7 @@ function createEvolutionWebhook(input: {
         : {
             handleMedia: (media) => groupProofIntake.handle(media),
             isGroupDriver: input.groupDelivery.isGroupDriver,
+            isGroupOwnDriver: input.groupDelivery.isGroupOwnDriver,
           }),
       ...(groupSessions === undefined
         ? {}
