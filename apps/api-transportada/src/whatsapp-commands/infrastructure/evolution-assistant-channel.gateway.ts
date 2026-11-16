@@ -27,7 +27,7 @@ export type EvolutionAssistantTransport = {
 /**
  * Spec 308 + assistente de contas: o canal do assistente (escrito para a Meta) falando pelo número Evolution da
  * empresa. Texto sai como texto; lista e botões saem numerados e as linhas ficam lembradas para o número digitado
- * voltar a ser o id da opção. Um texto livre depois de uma escolha apaga as linhas — "1" como valor não é opção.
+ * voltar a ser o id da opção. As linhas valem até a próxima resposta da pessoa.
  */
 export function createEvolutionAssistantTransport(input: {
   readonly clock: () => Date
@@ -51,8 +51,9 @@ export function createEvolutionAssistantTransport(input: {
     offers.set(phone, { expiresAt: input.clock().getTime() + OFFER_TTL_MS, rows: [...rows] })
     await deliver(phone, renderEvolutionChoice({ body, options: rows }))
   }
+  // O texto NÃO apaga as linhas: o interpretador diz "Responda à pergunta acima." logo depois da lista, no mesmo turno.
+  // As linhas morrem quando a resposta chega (`forget`) ou vencem em 30 minutos.
   const sendText = async (phone: string, body: string) => {
-    offers.delete(phone)
     await deliver(phone, body)
   }
   const unsupported = (what: string) => () =>
