@@ -335,6 +335,17 @@ export function createEvolutionGroupInbound(
     return until > now()
   }
 
+  /** Caso do Thiago (16/11/2026): quem escreve um pedido sem marcar o bot ouve "me marque" uma vez por intervalo. */
+  const tagHintUntil = new Map<string, number>()
+  const takeTagHint = (companyId: string, groupJid: string, sender: string): boolean => {
+    const key = retryKey(companyId, groupJid, sender)
+    const current = now()
+    const until = tagHintUntil.get(key)
+    if (until !== undefined && until > current) return false
+    tagHintUntil.set(key, current + TAG_HINT_INTERVAL_MS)
+    return true
+  }
+
   /**
    * Spec 292 T9: áudio que ninguém endereçou ao bot. Com a frase de chamada configurada e até 1 minuto,
    * é transcrito calado; sem a frase no texto, é descartado sem resposta e sem guardar nada. Com ela, o
@@ -926,6 +937,23 @@ export function createEvolutionGroupInbound(
           })
           return 'admitted'
         }
+        if (
+          decision.reason === 'not_addressed' &&
+          requestOwner === null &&
+          sender !== '' &&
+          !event.fromMe &&
+          looksLikeUnaddressedRequest(event.text) &&
+          (await isGroupDriver?.({ companyId, driverId: owner.driverId, sender })) === true &&
+          audioPorts !== undefined &&
+          takeTagHint(companyId, groupJid, sender)
+        ) {
+          audioPorts.reply({
+            companyId,
+            groupJid,
+            mentionNumber: sender,
+            texts: [GROUP_TAG_HINT_TEXT],
+          })
+        }
         return decision.reason
       }
 
@@ -1085,6 +1113,19 @@ export function createGroupQuestionAskedHandler(
 }
 
 const ROUTE_COMMAND_MAX_WORDS = 6
+
+const TAG_HINT_INTERVAL_MS = 10 * 60 * 1000
+
+export const GROUP_TAG_HINT_TEXT =
+  '👋 Não registrei sua mensagem porque você não me marcou. Para eu registrar, escreva de novo marcando o bot (@) ou mande só "cheguei", "saí" ou "entreguei" com o número da nota.'
+
+const REQUEST_LOOKING_PATTERN =
+  /\b(entreguei|entregue|cheguei|sai|descarreg\w*|aguardando|aguardo|esperando|recusou|recusaram|devolv\w*|nota|nf|canhoto)\b|\d{5,}/u
+
+/** Texto que parece pedido de registro (nota, entrega, chegada), mas sem marcar o bot. Conversa comum fica calada. */
+export function looksLikeUnaddressedRequest(text: string): boolean {
+  return REQUEST_LOOKING_PATTERN.test(normalizeDriverCommandText(text))
+}
 
 /** "cheguei", "saí", "entreguei 17234", "não entreguei 17234": curto, para conversa comum não chamar o bot. */
 function isShortRouteCommand(text: string): boolean {
