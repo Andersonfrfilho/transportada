@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 
+import { CardBrandLogo } from '../components/CardBrandLogo.component'
 import { ExpenseBulkDialog } from '../components/ExpenseBulkDialog.component'
 import { ExpenseCreateDialog } from '../components/ExpenseCreateDialog.component'
 import { ExpenseEditDialog } from '../components/ExpenseEditDialog.component'
@@ -17,6 +18,7 @@ import { ExpenseSettleDialog } from '../components/ExpenseSettleDialog.component
 import { ExpenseTripsDialog } from '../components/ExpenseTripsDialog.component'
 import { useCalendarLabels } from '../components/useCalendarLabels.hook'
 import { useExpensesWorkspace } from '../hooks/useExpensesWorkspace.hook'
+import { resolveCardBrandLogo } from '../shared/cardBrandLogo.service'
 import {
   EXPENSE_KINDS,
   EXPENSE_OCCURRENCE_STATUSES,
@@ -201,13 +203,16 @@ export function ExpensesWorkspacePage() {
               .filter(
                 (subtype) => filters.categoryId === '' || subtype.categoryId === filters.categoryId,
               )
-              .map((subtype) => ({
-                label:
+              .map((subtype) => {
+                const logo = resolveCardBrandLogo(subtype.name)
+                const label =
                   filters.categoryId === ''
                     ? `${workspace.categories.find((category) => category.id === subtype.categoryId)?.name ?? ''} · ${subtype.name}`
-                    : subtype.name,
-                value: subtype.id,
-              }))}
+                    : subtype.name
+                return logo === undefined
+                  ? { label, value: subtype.id }
+                  : { label, logo, value: subtype.id }
+              })}
             placeholder={t('filters.all')}
             value={filters.subtypeId}
           />
@@ -413,6 +418,7 @@ export function ExpensesWorkspacePage() {
                       {row.categoryName}
                       {row.subtypeName === undefined || row.subtypeName === null ? null : (
                         <span className={styles.rowDetail}>
+                          <CardBrandLogo name={row.subtypeName} />
                           {t('list.subtype', { name: row.subtypeName })}
                         </span>
                       )}

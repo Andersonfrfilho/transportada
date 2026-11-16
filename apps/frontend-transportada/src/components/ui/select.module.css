@@ -74,6 +74,13 @@
   background: var(--select-swatch);
 }
 
+.logo {
+  flex: 0 0 auto;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  object-fit: contain;
+}
+
 /* O rótulo escolhido quebra linha: com reticências ele sumia no toque, onde `title` não existe. O gatilho cresce só quando o texto não cabe. */
 .value,
 .placeholder {

@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
-export type SearchableSelectOption = Readonly<{ label: string; value: string }>
+export type SearchableSelectOption = Readonly<{ label: string; value: string; logo?: string }>
 
 export type ResolveCustomSearchableOption = (query: string) => SearchableSelectOption | undefined
 

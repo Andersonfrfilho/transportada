@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SearchableSelect } from '@/components/ui/searchable-select'
 
+import { resolveCardBrandLogo } from '../shared/cardBrandLogo.service'
 import { useExpenseMutations, useExpenseSubtypes } from '../hooks/useExpenses.hook'
 import styles from '../styles/expenses.module.css'
 
@@ -27,7 +28,12 @@ export function ExpenseSubtypeField({
     { label: t('subtype.none'), value: '' },
     ...(subtypes.data ?? [])
       .filter((subtype) => subtype.categoryId === categoryId && subtype.active)
-      .map((subtype) => ({ label: subtype.name, value: subtype.id })),
+      .map((subtype) => {
+        const logo = resolveCardBrandLogo(subtype.name)
+        return logo === undefined
+          ? { label: subtype.name, value: subtype.id }
+          : { label: subtype.name, logo, value: subtype.id }
+      }),
   ]
 
   async function create(name: string): Promise<void> {

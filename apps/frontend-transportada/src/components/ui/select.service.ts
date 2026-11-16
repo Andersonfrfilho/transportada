@@ -13,6 +13,8 @@ export type SelectOption = Readonly<{
   /** Símbolo do que a opção é (o tipo do veículo, por exemplo) — nunca decoração solta. */
   icon?: IconName
   swatch?: string
+  /** Logo da marca do que a opção é (o cartão, por exemplo): URL de imagem, sempre decorativa ao lado do rótulo. */
+  logo?: string
   value: string
 }>
 

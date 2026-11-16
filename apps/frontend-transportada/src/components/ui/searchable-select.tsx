@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 
 import { Icon } from '@/components/ui/icon'
 
-import { SELECT_TRIGGER_CLASS_NAMES } from './select'
+import { OptionLogo, SELECT_TRIGGER_CLASS_NAMES } from './select'
 import { resolveSelectSearchKey } from './select.service'
 import {
   filterSearchableOptions,
@@ -71,6 +71,8 @@ export function SearchableSelect({
   } = useFloatingLayer<HTMLDivElement>({ isOpen, onDismiss: () => setIsOpen(false) })
 
   const selectedLabel = resolveSearchableSelectLabel({ options, value })
+  const selectedLogo =
+    value === '' ? undefined : options.find((option) => option.value === value)?.logo
   const resolveCustomOption =
     creatable === undefined
       ? resolveCustomOptionProp
@@ -153,14 +155,19 @@ export function SearchableSelect({
         ref={triggerRef}
         type="button"
       >
-        <span
-          className={
-            selectedLabel === undefined
-              ? SELECT_TRIGGER_CLASS_NAMES.placeholder
-              : SELECT_TRIGGER_CLASS_NAMES.value
-          }
-        >
-          {selectedLabel ?? placeholder}
+        <span className={listStyles.selection}>
+          {selectedLogo === undefined ? null : (
+            <OptionLogo className={listStyles.logo ?? ''} logo={selectedLogo} />
+          )}
+          <span
+            className={
+              selectedLabel === undefined
+                ? SELECT_TRIGGER_CLASS_NAMES.placeholder
+                : SELECT_TRIGGER_CLASS_NAMES.value
+            }
+          >
+            {selectedLabel ?? placeholder}
+          </span>
         </span>
         <Icon className={SELECT_TRIGGER_CLASS_NAMES.chevron ?? ''} name="chevron-down" />
       </button>
@@ -210,6 +217,9 @@ export function SearchableSelect({
                       onMouseEnter={() => setActiveIndex(index)}
                       role="option"
                     >
+                      {option.logo === undefined ? null : (
+                        <OptionLogo className={listStyles.logo ?? ''} logo={option.logo} />
+                      )}
                       {option.label}
                     </li>
                   ))}

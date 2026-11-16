@@ -68,6 +68,24 @@ function Swatch({ swatch }: Readonly<{ swatch: string }>): JSX.Element {
   )
 }
 
+/** A imagem é decoração ao lado do rótulo; se o arquivo faltar, some em vez de mostrar o ícone quebrado. */
+export function OptionLogo({
+  className,
+  logo,
+}: Readonly<{ className: string; logo: string }>): JSX.Element {
+  return (
+    <img
+      alt=""
+      aria-hidden="true"
+      className={className}
+      onError={(event) => {
+        event.currentTarget.style.display = 'none'
+      }}
+      src={logo}
+    />
+  )
+}
+
 export function Select({
   align,
   ariaLabel,
@@ -222,6 +240,9 @@ export function Select({
       >
         <span className={styles.selection}>
           {selected?.swatch === undefined ? null : <Swatch swatch={selected.swatch} />}
+          {selected?.logo === undefined ? null : (
+            <OptionLogo className={styles.logo ?? ''} logo={selected.logo} />
+          )}
           <span
             className={selected === undefined ? styles.placeholder : styles.value}
             title={selected?.label}
@@ -289,6 +310,9 @@ export function Select({
                       role="option"
                     >
                       {entry.swatch === undefined ? null : <Swatch swatch={entry.swatch} />}
+                      {entry.logo === undefined ? null : (
+                        <OptionLogo className={styles.logo ?? ''} logo={entry.logo} />
+                      )}
                       <span className={styles.optionText}>
                         <span>{entry.label}</span>
                         {entry.description === undefined ? null : (
