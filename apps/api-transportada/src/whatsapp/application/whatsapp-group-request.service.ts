@@ -55,6 +55,8 @@ export const GROUP_REQUEST_TEXT = {
   cancelled: `↩️ *Pedido cancelado.* Nada foi registrado.\n${formatNextStep('quando quiser, marque o bot de novo.')}`,
   gaveUp:
     '🙋 *Não consegui entender depois de 3 tentativas* e encerrei o pedido.\nO escritório vai acompanhar por aqui.',
+  /** "Sair" no privado sem pedido aberto: avisa e não abre pedido novo (o grupo segue como antes). */
+  nothingToCancel: `↩️ *Não há nada em andamento.*\n${formatNextStep('quando quiser, é só mandar *oi*.')}`,
   notUnderstood: (reason: string, prompt: string) =>
     [
       formatNotUnderstood({ reason: toReasonSentence(reason) }),
@@ -348,6 +350,10 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
       if (open === null) {
         // Resposta do dono a um pedido que venceu entre a T3 ler e chegar aqui: nada a fazer.
         if (message.via !== 'mention') return
+        // Só no privado: "sair"/"cancelar" sem nada aberto não pode abrir o menu da ocorrência.
+        if (message.groupJid.endsWith('@s.whatsapp.net') && isCancelText(message.text)) {
+          return say(message, [GROUP_REQUEST_TEXT.nothingToCancel])
+        }
         const request = await repository.open({
           companyId,
           driverId: message.driverId,

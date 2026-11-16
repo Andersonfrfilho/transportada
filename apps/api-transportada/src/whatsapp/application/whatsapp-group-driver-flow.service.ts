@@ -548,6 +548,16 @@ export function createGroupDriverFlow(flows: {
           }
         }
       }
+      // No privado, o motorista também dá baixa e fala de outras coisas: a primeira frase sem comando nem nota
+      // abre o menu com todas as opções, não a pergunta da ocorrência. O grupo segue como sempre.
+      if (turn.request.groupJid.endsWith('@s.whatsapp.net') && !/\d/u.test(turn.text)) {
+        return {
+          kind: 'continue',
+          replies: [turn.canImportXml === true ? menuOf(menuFor(turn)) : menuText],
+          state: {},
+          step: GROUP_DRIVER_STEP.menu,
+        }
+      }
       return flows.occurrence.start(turn)
     },
   }

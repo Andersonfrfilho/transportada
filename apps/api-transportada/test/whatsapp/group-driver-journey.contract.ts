@@ -53,7 +53,10 @@ const ROUTE = [
 
 function setup(
   stops: readonly GroupStopCandidate[] = ROUTE,
-  options: { readonly readStopCard?: GroupStopFlowPorts['readStopCard'] } = {},
+  options: {
+    readonly groupJid?: string
+    readonly readStopCard?: GroupStopFlowPorts['readStopCard']
+  } = {},
 ) {
   const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
   const returned: unknown[] = []
@@ -92,7 +95,7 @@ function setup(
     companyId: 'C',
     driverId: 'D',
     expiresAt: new Date(),
-    groupJid: '1@g.us',
+    groupJid: options.groupJid ?? '1@g.us',
     id: 'R1',
     ownerNumber: '5516',
     state: {},
@@ -327,5 +330,28 @@ describe('grupo: "não entreguei" sem a nota guardada (revisão do #552)', () =>
       text: '1',
     })
     expect(outcome.kind).toBe('done')
+  })
+})
+
+describe('privado: a primeira frase abre o menu, não a ocorrência', () => {
+  const DIRECT = '5516988887777@s.whatsapp.net'
+
+  test('frase solta sem nota no privado mostra o menu; no grupo segue para a ocorrência', async () => {
+    const direct = setup(ROUTE, { groupJid: DIRECT })
+    const outcome = await direct.start('Sair')
+    expect(outcome).toMatchObject({ kind: 'continue', step: 'menu' })
+    expect(outcome.kind === 'continue' ? outcome.replies[0] : '').not.toContain('ocorrência Sair')
+
+    const group = setup()
+    expect(await group.start('Sair')).toEqual({ kind: 'done', replies: ['ocorrência Sair'] })
+  })
+
+  test('no privado, comando e nota digitada seguem o caminho de sempre', async () => {
+    const direct = setup(ROUTE, { groupJid: DIRECT })
+    expect(await direct.start('cheguei')).toMatchObject({ step: 'journey.actions' })
+    expect(await direct.start('problema na nota 899840')).toEqual({
+      kind: 'done',
+      replies: ['ocorrência problema na nota 899840'],
+    })
   })
 })
