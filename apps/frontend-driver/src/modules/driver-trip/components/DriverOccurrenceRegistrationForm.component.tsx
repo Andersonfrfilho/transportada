@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useBackButtonClose } from '../../shared/useBackButtonClose.hook'
 import { useId, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -54,6 +55,7 @@ export function DriverOccurrenceRegistrationForm({
   stop,
 }: DriverOccurrenceRegistrationFormProps) {
   const { t } = useTranslation('driverTrip')
+  useBackButtonClose(onClose)
   const form = useOccurrenceRegistrationForm({ document, handlers, occurrenceTypes, stop })
   const panelRef = useRef<HTMLDivElement>(null)
   const titleId = useId()

@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useBackButtonClose } from '../../shared/useBackButtonClose.hook'
 import { useId, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -54,6 +55,7 @@ export function ClientWhatsAppSendSheet({
   const titleId = useId()
   const numberId = useId()
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
+  useBackButtonClose(onClose)
   const { reset, resend, send, status } = useClientBoletoWhatsAppSend({ isOnline, occurrenceId })
   const pending = useClientBoletoWhatsAppPending(occurrenceId)
   const [step, setStep] = useState<Step>('choose')
