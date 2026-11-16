@@ -55,6 +55,7 @@ export type ExpensesDialog =
   | Readonly<{ kind: 'edit'; occurrence: ExpenseOccurrenceListItem }>
   | Readonly<{ kind: 'settle'; occurrence: ExpenseOccurrenceListItem }>
   | Readonly<{ kind: 'trips'; occurrence: ExpenseOccurrenceListItem }>
+  | Readonly<{ kind: 'cancel'; occurrence: ExpenseOccurrenceListItem }>
   | Readonly<{ action: 'cancel' | 'settle'; kind: 'bulk' }>
   | null
 
