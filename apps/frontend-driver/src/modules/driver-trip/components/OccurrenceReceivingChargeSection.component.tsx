@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 
+import { pixKeyMaskLength } from '../../shared/pixKey.service'
 import type { ReceivingChargeForm } from '../hooks/useReceivingChargeForm.hook'
 import {
   DRIVER_PIX_KEY_TYPES,
@@ -171,7 +172,11 @@ export function OccurrenceReceivingChargeSection({
             hint={t('occurrenceRegistration.receivingCharge.pixKeyHint')}
             inputMode="text"
             label={t('occurrenceRegistration.receivingCharge.pixKey')}
-            maxLength={PIX_KEY_MAX_LENGTH}
+            maxLength={
+              draft.pixKeyType === undefined
+                ? PIX_KEY_MAX_LENGTH
+                : (pixKeyMaskLength(draft.pixKeyType) ?? PIX_KEY_MAX_LENGTH)
+            }
             onChange={form.handlePixKeyChange}
             value={draft.pixKey}
           />
