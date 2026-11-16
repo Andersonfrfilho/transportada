@@ -1449,3 +1449,9 @@ O formulário público (cotação da 338 e pedido de coleta anônimo da 339) val
 - **Correção:** #818 (staging) e #821 (main): a dica diz "É a opção da lista, não o número da parada", as outras paradas entram como opções 3, 4… e "saí" para outra parada com uma a caminho pergunta se quer cancelar a saída da atual e sair para a nova. O chat direto (1:1) não ganhou a troca nem as opções extras.
 - **Conferir (somente leitura):** `scripts/ops/producao-rogerio-escolha-parada.sh` (pedidos e mensagens aceitas do grupo) e `scripts/ops/producao-rogerio-respostas-enviadas.sh` (o que o bot enviou, por `whatsapp_chat_messages`). Saída em `tmp/ops/saidas/`.
 - **Pendente (decisão do Anderson):** a saída da parada 1 registrada por engano em produção não foi desfeita (é escrita em produção).
+
+## 5.43 Preencher o cartão (tipo) das contas de Cartão de crédito a partir de `bill_location` (16/11/2026)
+
+- **Por quê:** o filtro por tipo e o total (previsto e pago) já existem na lista de Contas (spec 331, em staging e em `main`), mas as 36 contas importadas ficaram sem tipo: o cartão estava só no texto livre `bill_location`.
+- **Script:** `ops-scripts/contas-cartao-preenche-tipo.sh staging|production [--confirm]`. Sem `--confirm` simula e desfaz; com `--confirm` grava numa transação. Cria os tipos Santander, Mercado Pago e Caixa se faltarem, só toca conta da categoria "Cartão de crédito" sem tipo, e lista as que não casam (não altera). Não apaga `bill_location`. Saída em `tmp/ops/saidas/contas-cartao-tipo-*.json`.
+- **Ordem:** staging simulação, staging `--confirm`, conferir na tela, produção simulação, produção `--confirm`. Escrita em produção; rodar só depois da simulação sem "sem casamento" inesperado.
