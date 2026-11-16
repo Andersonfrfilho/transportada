@@ -23,7 +23,10 @@ import {
 
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type { EvolutionConversationInbound } from '../../occurrence-conversation/application/evolution-conversation-inbound.service.js'
-import { isDirectExpenseIntent } from '../domain/direct-expense-intent.policy.js'
+import {
+  isDirectExpenseIntent,
+  isDriverFinanceIntent,
+} from '../domain/direct-expense-intent.policy.js'
 import { API_PUBLIC_WHATSAPP_EVOLUTION_WEBHOOK_PATH } from '../../shared/api.constant.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import {
@@ -98,6 +101,19 @@ export type WhatsAppEvolutionWebhookUseCase = {
   }): Promise<{ readonly registeredAt: string }>
 }
 
+/** O que o desvio do 1:1 precisa do assistente de contas; a montagem (despachante, canal) é da composição. */
+export type WhatsAppDirectAssistantPort = {
+  forCompany(companyId: string): {
+    handle(input: {
+      readonly phone: string
+      readonly providerMessageId: string
+      readonly text: string
+    }): Promise<'handled' | 'released'>
+    isActive(input: { readonly phone: string }): Promise<boolean>
+    start(input: { readonly phone: string; readonly providerMessageId: string }): Promise<void>
+  }
+}
+
 export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
   /** `API_PUBLIC_URL`; ausente, receber continua funcionando, mas apontar o webhook é recusado. */
   readonly apiPublicUrl: string | undefined
@@ -108,11 +124,10 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
    */
   readonly chatTakeover?: WhatsAppChatTakeoverGuard
   /**
-   * Existe um assistente do escritório (contas) para quem escreve pelo Evolution? Hoje não: o assistente é do canal
-   * da Meta (`whatsappCommandHook`), e o 1:1 do Evolution nunca chega a ele. Sem isto ligado, a mensagem de contas de
-   * um motorista segue no fluxo do motorista em vez de ir a `receiveMessage` (que a engole sem resposta).
+   * O assistente do escritório (contas) falando pelo número do Evolution. Quem tem `expenses.manage` e pede conta (ou
+   * está no meio de uma) é atendido por ele; o resto do 1:1 segue o fluxo do motorista. Ausente, o desvio não existe.
    */
-  readonly directExpenseAssistant?: boolean
+  readonly directAssistant?: WhatsAppDirectAssistantPort
   readonly gateway: WhatsAppEvolutionWebhookGatewayPort
   /** Spec 292 T3: a mensagem de grupo (lista de permissão, marcação do bot, dono do pedido). */
   readonly groupInbound: EvolutionGroupInbound
@@ -291,18 +306,46 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         // Spec 308 D2.4: quem tem envio de XML liberado vê a opção no menu (e, sem ser motorista, é orientado).
         const canImportXml =
           (await groupInbound.findDirectImporter?.({ companyId, phone: event.from })) === true
-        if (driver === null && (!canImportXml || event.text === null)) return null
-        // Motorista que também lança conta (`expenses.manage`): "conta" vai ao assistente do escritório, não ao fluxo do motorista.
-        if (
-          dependencies.directExpenseAssistant === true &&
-          driver !== null &&
-          event.text !== null &&
-          isDirectExpenseIntent(event.text) &&
-          (await groupInbound.findDirectExpenseLauncher?.({ companyId, phone: event.from })) ===
+        // Quem tem `expenses.manage` fala com o assistente de contas: o menu do motorista ganha "Lançar conta", a frase
+        // que fala de conta abre o assistente e, com uma conta aberta, o texto solto ("1", um valor) é dele.
+        let canLaunchExpenses = false
+        const assistant = dependencies.directAssistant?.forCompany(companyId)
+        if (assistant !== undefined && event.text !== null) {
+          canLaunchExpenses =
+            (await groupInbound.findDirectExpenseLauncher?.({ companyId, phone: event.from })) ===
             true
-        ) {
-          return null
+          if (canLaunchExpenses) {
+            const wantsAccounts =
+              driver === null
+                ? isDirectExpenseIntent(event.text)
+                : isDriverFinanceIntent(event.text)
+            const active = await assistant.isActive({ phone: event.from })
+            if (active || wantsAccounts) {
+              const answered = active
+                ? await assistant.handle({
+                    phone: event.from,
+                    providerMessageId: event.externalMessageId,
+                    text: event.text,
+                  })
+                : await assistant
+                    .start({ phone: event.from, providerMessageId: event.externalMessageId })
+                    .then(() => 'handled' as const)
+              if (answered === 'handled') {
+                logger.info('whatsapp_evolution.direct_message', {
+                  companyId,
+                  correlationId,
+                  hasText: true,
+                  isReply: event.replyToExternalMessageId !== null,
+                  outcome: 'assistant',
+                  providerMessageId: event.externalMessageId,
+                })
+                counts.direct += 1
+                return 'assistant'
+              }
+            }
+          }
         }
+        if (driver === null && (!canImportXml || event.text === null)) return null
         const message = {
           from: event.from,
           providerMessageId: event.externalMessageId,
@@ -351,6 +394,7 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
           outcome = await groupInbound.receiveDirect({
             audio: groupAudio.get(event.externalMessageId) ?? null,
             ...(canImportXml ? { canImportXml: true } : {}),
+            ...(canLaunchExpenses ? { canLaunchExpenses: true } : {}),
             companyId,
             connection,
             driverId: driver.driverId,

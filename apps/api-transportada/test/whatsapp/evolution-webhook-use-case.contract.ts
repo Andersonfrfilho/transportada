@@ -94,8 +94,11 @@ async function setup(
     directLimited?: boolean
     /** Os telefones com `expenses.manage` (`findDirectExpenseLauncher`); ausente, o webhook não tem o desvio. */
     expenseLaunchers?: readonly string[]
-    /** Existe um assistente do escritório para o Evolution (hoje não existe: só o canal da Meta tem). */
-    directExpenseAssistant?: boolean
+    /** O assistente de contas do Evolution: quem está no meio de uma conta e como ele responde ao texto. */
+    directAssistant?: {
+      readonly active?: readonly string[]
+      readonly answer?: 'handled' | 'released'
+    }
     /** Spec 308: a citação casa numa conversa do painel. */
     quotesPanel?: boolean
     gatewayFails?: boolean
@@ -128,6 +131,7 @@ async function setup(
     held: [] as { chatJid: string; message: WhatsAppChatHeldMessage }[],
     observed: [] as { chatJid: string; message: WhatsAppChatHeldMessage }[],
     limitCalls: 0,
+    assistant: [] as { kind: 'handle' | 'start'; phone: string; text: null | string }[],
     direct: [] as Parameters<NonNullable<EvolutionGroupInbound['receiveDirect']>>[0][],
     importerReplies: [] as string[],
     findCalls: 0,
@@ -203,7 +207,24 @@ async function setup(
     apiKeySecrets,
     apiPublicUrl: 'apiPublicUrl' in options ? options.apiPublicUrl : API_PUBLIC_URL,
     ...(options.takenOver === undefined ? {} : { chatTakeover }),
-    ...(options.directExpenseAssistant === true ? { directExpenseAssistant: true } : {}),
+    ...(options.directAssistant === undefined
+      ? {}
+      : {
+          directAssistant: {
+            forCompany: () => ({
+              async handle(input: { readonly phone: string; readonly text: string }) {
+                state.assistant.push({ kind: 'handle', phone: input.phone, text: input.text })
+                return options.directAssistant?.answer ?? 'handled'
+              },
+              async isActive({ phone }: { readonly phone: string }) {
+                return options.directAssistant?.active?.includes(phone) === true
+              },
+              async start(input: { readonly phone: string }) {
+                state.assistant.push({ kind: 'start', phone: input.phone, text: null })
+              },
+            }),
+          },
+        }),
     gateway: {
       async setWebhook(input) {
         state.gatewayCalls.push(input)
@@ -971,7 +992,7 @@ describe('spec 319 T3: o privado do motorista assumido por um atendente', () => 
   })
 })
 
-describe('o desvio de contas no 1:1 só existe com assistente para o Evolution', () => {
+describe('o assistente de contas no 1:1 do Evolution', () => {
   const directBodyOf = (text: string, id = 'D1') =>
     upsert({
       key: { fromMe: false, id, remoteJid: `${PHONE}@s.whatsapp.net` },
@@ -985,20 +1006,92 @@ describe('o desvio de contas no 1:1 só existe com assistente para o Evolution',
     await useCase.receive(receiveWith({ rawBody: directBodyOf('contas', 'D2') }))
 
     expect(state.direct.map(({ event }) => event.text)).toEqual(['oi', 'contas'])
+    expect(state.direct.map(({ canLaunchExpenses }) => canLaunchExpenses)).toEqual([
+      undefined,
+      undefined,
+    ])
     expect(state.messages).toEqual([])
   })
 
-  test('com assistente, a conversa de contas sai do fluxo do motorista; o resto do 1:1 não muda', async () => {
+  test('o motorista que lança conta: "oi" é do motorista (com a opção Lançar conta no menu), "lançar conta" é do assistente', async () => {
     const { state, useCase } = await setup({
+      directAssistant: {},
       directDrivers: [PHONE],
-      directExpenseAssistant: true,
+      expenseLaunchers: [PHONE],
+    })
+
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('oi') }))
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('quero lançar conta', 'D2') }))
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('cheguei', 'D3') }))
+
+    expect(state.direct.map(({ event }) => event.text)).toEqual(['oi', 'cheguei'])
+    expect(state.direct.map(({ canLaunchExpenses }) => canLaunchExpenses)).toEqual([true, true])
+    expect(state.assistant).toEqual([{ kind: 'start', phone: PHONE, text: null }])
+    expect(state.messages).toEqual([])
+  })
+
+  test('boleto sozinho é a ocorrência do motorista, não a conta', async () => {
+    const { state, useCase } = await setup({
+      directAssistant: {},
+      directDrivers: [PHONE],
+      expenseLaunchers: [PHONE],
+    })
+
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('preciso do boleto da nota 123') }))
+
+    expect(state.assistant).toEqual([])
+    expect(state.direct).toHaveLength(1)
+  })
+
+  test('com uma conta aberta, o texto solto ("1", um valor) é do assistente', async () => {
+    const { state, useCase } = await setup({
+      directAssistant: { active: [PHONE] },
+      directDrivers: [PHONE],
+      expenseLaunchers: [PHONE],
+    })
+
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('1') }))
+
+    expect(state.assistant).toEqual([{ kind: 'handle', phone: PHONE, text: '1' }])
+    expect(state.direct).toEqual([])
+  })
+
+  test('"menu" com a conta aberta devolve a conversa ao fluxo do motorista', async () => {
+    const { state, useCase } = await setup({
+      directAssistant: { active: [PHONE], answer: 'released' },
+      directDrivers: [PHONE],
       expenseLaunchers: [PHONE],
     })
 
     await useCase.receive(receiveWith({ rawBody: directBodyOf('menu') }))
-    await useCase.receive(receiveWith({ rawBody: directBodyOf('cheguei', 'D2') }))
 
-    expect(state.direct.map(({ event }) => event.text)).toEqual(['cheguei'])
-    expect(state.messages).toHaveLength(1)
+    expect(state.assistant).toHaveLength(1)
+    expect(state.direct.map(({ event }) => event.text)).toEqual(['menu'])
+  })
+
+  test('quem lança conta e não é motorista fala com o assistente já no "oi"', async () => {
+    const { state, useCase } = await setup({
+      directAssistant: {},
+      directDrivers: [],
+      expenseLaunchers: [PHONE],
+    })
+
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('oi') }))
+
+    expect(state.assistant).toEqual([{ kind: 'start', phone: PHONE, text: null }])
+    expect(state.messages).toEqual([])
+  })
+
+  test('sem `expenses.manage` o assistente nunca é chamado e o menu não oferece contas', async () => {
+    const { state, useCase } = await setup({
+      directAssistant: { active: [PHONE] },
+      directDrivers: [PHONE],
+      expenseLaunchers: [],
+    })
+
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('lançar conta') }))
+
+    expect(state.assistant).toEqual([])
+    expect(state.direct.map(({ canLaunchExpenses }) => canLaunchExpenses)).toEqual([undefined])
   })
 })

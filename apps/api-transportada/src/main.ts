@@ -295,7 +295,16 @@ import {
 } from './nfe-xml-receipts/presentation/nfe-xml-allowed-domains.routes.js'
 import { createWhatsAppXmlInbound } from './nfe-xml-receipts/application/receive-whatsapp-xml-document.service.js'
 import { createDrizzleWhatsAppXmlReceiptRepository } from './nfe-xml-receipts/infrastructure/drizzle-whatsapp-xml-receipt.repository.js'
-import { createWhatsAppEvolutionWebhookUseCase } from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
+import {
+  createWhatsAppEvolutionWebhookUseCase,
+  type WhatsAppDirectAssistantPort,
+} from './whatsapp/application/whatsapp-evolution-webhook.use-case.js'
+import {
+  createEvolutionAssistantGraphProvider,
+  createDirectAssistantPort,
+  createEvolutionAssistantRegistry,
+  type EvolutionAssistantFactory,
+} from './whatsapp-commands/infrastructure/evolution-assistant.factory.js'
 import { createWhatsAppChatTakeoverGuard } from './whatsapp-inbox/application/whatsapp-chat-takeover-guard.service.js'
 import { createEvolutionGroupIdentity } from './whatsapp/application/evolution-group-identity.service.js'
 import {
@@ -488,6 +497,7 @@ import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-wh
 import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
 import { type ClientIpResolver, createClientIpResolver } from './http/client-ip.service.js'
 import { createRateLimiter } from './http/rate-limiter.service.js'
+import { directWhatsAppChatJid } from './whatsapp-inbox/domain/whatsapp-chat-jid.policy.js'
 import { createRateLimitSubjectService } from './http/rate-limit-subject.service.js'
 import { DrizzleRateLimiterRepository } from './http/drizzle-rate-limiter.repository.js'
 import { FlowGraphRepository, SessionRepository } from '@adatechnology/meta-whatsapp-module'
@@ -525,7 +535,10 @@ import {
   renderBotSpeechLine,
 } from './whatsapp-commands/application/whatsapp-bot-speech.service.js'
 import { createModuleWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
-import { WHATSAPP_ROOT_FLOW_GRAPH_KEY } from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
+import {
+  WHATSAPP_ROOT_FLOW_GRAPH,
+  WHATSAPP_ROOT_FLOW_GRAPH_KEY,
+} from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
 import { DrizzleWhatsAppPhoneRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-phone.repository.js'
 import {
   createWhatsAppCommandHookFactory,
@@ -2482,6 +2495,30 @@ export function bootstrap(): Bun.Server<undefined> {
       repository: new DrizzleWhatsAppPhoneRepository(database.db),
     }),
   })
+  // Spec 308 + contas: o mesmo despachante da Meta, falando pelo número Evolution (sem módulo Meta por empresa).
+  // O envio é do webhook (`groupReplies`), por isso a fábrica recebe `send`.
+  const evolutionAssistantFactory: EvolutionAssistantFactory = (send) =>
+    createEvolutionAssistantRegistry({
+      authorization: new AuthorizationService(),
+      clock: () => new Date(),
+      flowActions: [...expenseWhatsAppFlowActions],
+      graphs: createEvolutionAssistantGraphProvider({
+        published: createModuleWhatsAppFlowGraphProvider({
+          repository: new FlowGraphRepository(database.db as never),
+          rootFlowKey: WHATSAPP_ROOT_FLOW_GRAPH_KEY,
+        }),
+        rootGraph: WHATSAPP_ROOT_FLOW_GRAPH,
+      }),
+      logger,
+      rateLimiter: createRateLimiter(),
+      resolveActor: createResolveWhatsAppActorUseCase({
+        memberships: new DrizzleMembershipRepository(database.db),
+        phones: new DrizzleWhatsAppPhoneRepository(database.db),
+        tenantContext,
+      }),
+      send,
+      sessions: new SessionRepository(database.db as never),
+    })
   // Ausente qualquer um dos dois, a conta do agregado não é montada: `tenancy.mode: 'single'` exige
   // a empresa raiz, e sem segredo não há com o que assinar o access token do módulo (064/T1).
   const userModule =
@@ -2564,6 +2601,7 @@ export function bootstrap(): Bun.Server<undefined> {
       logger,
       resolveClientIp,
       userModule,
+      evolutionAssistantFactory,
       whatsappCommandHook,
       whatsappGroupAudio,
       whatsappGroupBoletoResend,
@@ -2752,6 +2790,7 @@ type CreateAnonymousRoutesParams = {
   readonly resolveClientIp: ClientIpResolver
   /** Ausente, a rota de cadastro de conta de agregado não é publicada — mesma regra do módulo. */
   readonly userModule: UserModule | undefined
+  readonly evolutionAssistantFactory: EvolutionAssistantFactory
   readonly whatsappCommandHook: WhatsAppCommandHookFactory
   /** Spec 292 T5: o fluxo do pedido no grupo do motorista (só a entrega anônima do Evolution o usa). */
   readonly whatsappGroupOccurrence: GroupOccurrenceFlowPorts
@@ -2787,6 +2826,8 @@ function createEvolutionWebhook(input: {
   readonly apiPublicUrl: string | undefined
   readonly database: Parameters<typeof applyProviderMessageStatus>[0]
   readonly envelopeProvider: ReturnType<typeof createSecretEnvelopeProvider>
+  /** O assistente de contas no 1:1; ausente (a rota do dono), o desvio e a opção "Lançar conta" não existem. */
+  readonly directAssistant?: EvolutionAssistantFactory
   /** Spec 292 T5: ausente (a instância da rota do dono, que só aponta o webhook), o grupo não abre pedido. */
   readonly groupOccurrence?: GroupOccurrenceFlowPorts
   /** Spec 293 T12: o "saí"/"cheguei" do grupo; ausente, só a ocorrência atende. */
@@ -2862,6 +2903,16 @@ function createEvolutionWebhook(input: {
       replies: groupReplies,
     })
   }
+  const directAssistant: WhatsAppDirectAssistantPort | undefined =
+    input.directAssistant === undefined
+      ? undefined
+      : createDirectAssistantPort({
+          registry: input.directAssistant(({ companyId, phone, text }) => {
+            const groupJid = directWhatsAppChatJid(phone)
+            if (groupJid !== null) groupReplies.send({ companyId, groupJid, texts: [text] })
+          }),
+          turns: groupTurns,
+        })
   // O áudio do grupo nasce depois da sessão; a pergunta nova do pedido só o consulta quando já existe.
   let groupQuestionAsked: GroupQuestionAsked | undefined
   const groupSessions =
@@ -2880,6 +2931,16 @@ function createEvolutionWebhook(input: {
                   ...(input.groupDelivery === undefined
                     ? {}
                     : { delivery: createGroupDeliveryFlow(input.groupDelivery.flow) }),
+                  ...(directAssistant === undefined
+                    ? {}
+                    : {
+                        expenses: {
+                          start: ({ companyId, phone }) =>
+                            directAssistant
+                              .forCompany(companyId)
+                              .start({ phone, providerMessageId: crypto.randomUUID() }),
+                        },
+                      }),
                   occurrence: createGroupOccurrenceFlow(input.groupOccurrence),
                   ...(input.groupReminder === undefined ? {} : { reminder: input.groupReminder }),
                   ...(input.groupReturn === undefined
@@ -2926,6 +2987,7 @@ function createEvolutionWebhook(input: {
     apiKeySecrets,
     apiPublicUrl: input.apiPublicUrl,
     chatTakeover,
+    ...(directAssistant === undefined ? {} : { directAssistant }),
     gateway,
     // Spec 292 T3: o grupo do motorista chega ao bot; T4/T5: a sessão do pedido e o fluxo.
     groupInbound: createEvolutionGroupInbound({
@@ -3104,6 +3166,7 @@ function createAnonymousRoutes({
   logger,
   resolveClientIp,
   userModule,
+  evolutionAssistantFactory,
   whatsappCommandHook,
   whatsappGroupBoletoResend,
   whatsappGroupDelivery,
@@ -3209,6 +3272,7 @@ function createAnonymousRoutes({
       groupReturn: whatsappGroupReturn,
       groupStop: whatsappGroupStop,
       groupTripClose: whatsappGroupTripClose,
+      directAssistant: evolutionAssistantFactory,
       groupAudio: whatsappGroupAudio,
       groupTurns: whatsappGroupTurns,
       logger,

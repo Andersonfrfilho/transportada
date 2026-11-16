@@ -67,7 +67,7 @@ export function botProfileLine(
 ): null | string {
   if (!(profiles.isDriver && profiles.isOffice)) return null
   if (options.isDirect === true) {
-    return '_Vi que você é motorista e também do escritório. Contas e boletos ainda não atendo por aqui; para a viagem, siga por aqui._'
+    return '_Vi que você é motorista e também do escritório. Para contas e boletos, escolha *Lançar conta* no menu; para a viagem, siga por aqui._'
   }
   return '_Vi que você é motorista e também do escritório. Aqui no grupo eu atendo como *motorista*; para o escritório (contas, boletos), me chame no privado e digite *menu*._'
 }

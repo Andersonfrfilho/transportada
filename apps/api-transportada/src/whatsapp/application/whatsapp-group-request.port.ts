@@ -88,6 +88,8 @@ export const GROUP_XML_ORIENTATION =
 export type GroupFlowTurn = {
   /** Spec 308 D2.4: quem escreveu tem envio de XML liberado (`findImportSender`); só o chat direto informa. */
   readonly canImportXml?: boolean
+  /** O chat direto de quem tem `expenses.manage`: o menu mostra "Lançar conta" (entrega ao assistente de contas). */
+  readonly canLaunchExpenses?: boolean
   readonly request: GroupRequest
   /** Quem escreveu (só dígitos); pode não ser o dono quando marcou o bot para responder por ele. */
   readonly sender: string
