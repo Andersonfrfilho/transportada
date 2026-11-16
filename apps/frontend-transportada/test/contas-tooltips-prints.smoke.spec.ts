@@ -141,40 +141,6 @@ const CATEGORIES = [
   { active: true, id: 'cat-pay', name: 'Pagamento de motorista/agregado', requiresDriver: true },
 ]
 
-const TRIPS = {
-  items: [
-    {
-      amount: '400.00',
-      completedOn: `${competence()}-03`,
-      dailyAmount: '200.0000',
-      days: 2,
-      parcelKind: 'driver',
-      route: { destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' },
-      tripId: '1f2a3b4c-0000-4000-8000-000000000001',
-    },
-    {
-      amount: '200.00',
-      completedOn: `${competence()}-06`,
-      dailyAmount: '200.0000',
-      days: 1,
-      parcelKind: 'driver',
-      route: { destination: 'SAO CARLOS', origin: 'RIBEIRAO PRETO' },
-      tripId: '1f2a3b4c-0000-4000-8000-000000000002',
-    },
-    {
-      amount: '750.00',
-      completedOn: `${competence()}-10`,
-      dailyAmount: '250.0000',
-      days: 3,
-      parcelKind: 'driver',
-      route: { destination: 'CAMPINAS', origin: null },
-      tripId: '1f2a3b4c-0000-4000-8000-000000000003',
-    },
-  ],
-  occurrence: ITEMS[1],
-  tripsTotal: '1350.00',
-}
-
 async function openContas(page: Page): Promise<void> {
   await page.waitForTimeout(600)
   const close = page.getByRole('button', { name: 'Fechar menu' })
