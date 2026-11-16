@@ -78,11 +78,13 @@ describe('o canal do assistente no Evolution', () => {
     expect(sent).toHaveLength(2)
   })
 
-  test('um texto livre depois da escolha apaga as linhas: "1" como valor não é opção', async () => {
+  test('o texto que o interpretador manda depois da lista não apaga as linhas (a resposta "1" ainda é a opção)', async () => {
     const { made } = transport()
     await made.sender.sendList({ body: 'Qual?', buttonLabel: 'Ver', rows: ROWS, to: PHONE })
-    await made.sender.sendText({ body: 'Quanto foi?', to: PHONE })
+    await made.sender.sendText({ body: 'Responda à pergunta acima.', to: PHONE })
 
+    expect(made.offered({ companyId: COMPANY_ID, phone: PHONE })).toEqual(ROWS)
+    made.forget({ companyId: COMPANY_ID, phone: PHONE })
     expect(made.offered({ companyId: COMPANY_ID, phone: PHONE })).toEqual([])
   })
 
