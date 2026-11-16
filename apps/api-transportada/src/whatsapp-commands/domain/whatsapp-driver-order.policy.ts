@@ -98,12 +98,21 @@ export const OUT_OF_ORDER_TEXT = {
         '',
         describeOrderBlock(input.next, `👉 *PRÓXIMA DA ROTA · PARADA ${input.next.sequence}*`),
         '',
+        ...((input.others ?? []).length === 0
+          ? []
+          : [
+              '*Outras paradas*',
+              ...(input.others ?? []).flatMap((other) => [
+                describeOrderBlock(other, `🔀 *PARADA ${other.sequence}*`),
+                '',
+              ]),
+            ]),
         '*Para onde você vai?*',
         formatOptions([
           { action: `Seguir para a *parada ${input.requested.sequence}*`, icon: '✅' },
           { action: `Ir para a *parada ${input.next.sequence}*`, icon: '👉' },
           ...(input.others ?? []).map((other) => ({
-            action: `Ir para a *parada ${other.sequence}*${other.number === '' ? '' : ` · NF \`${other.number}\``}${other.client === '' ? '' : ` · ${other.client}`}`,
+            action: `Ir para a *parada ${other.sequence}*`,
             icon: '🔀',
           })),
         ]),
