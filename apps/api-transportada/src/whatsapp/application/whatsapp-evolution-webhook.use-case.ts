@@ -107,6 +107,12 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
    * avança o pedido. O grupo tem a mesma guarda dentro do `groupInbound`. Ausente, tudo como antes.
    */
   readonly chatTakeover?: WhatsAppChatTakeoverGuard
+  /**
+   * Existe um assistente do escritório (contas) para quem escreve pelo Evolution? Hoje não: o assistente é do canal
+   * da Meta (`whatsappCommandHook`), e o 1:1 do Evolution nunca chega a ele. Sem isto ligado, a mensagem de contas de
+   * um motorista segue no fluxo do motorista em vez de ir a `receiveMessage` (que a engole sem resposta).
+   */
+  readonly directExpenseAssistant?: boolean
   readonly gateway: WhatsAppEvolutionWebhookGatewayPort
   /** Spec 292 T3: a mensagem de grupo (lista de permissão, marcação do bot, dono do pedido). */
   readonly groupInbound: EvolutionGroupInbound
@@ -288,6 +294,7 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
         if (driver === null && (!canImportXml || event.text === null)) return null
         // Motorista que também lança conta (`expenses.manage`): "conta" vai ao assistente do escritório, não ao fluxo do motorista.
         if (
+          dependencies.directExpenseAssistant === true &&
           driver !== null &&
           event.text !== null &&
           isDirectExpenseIntent(event.text) &&

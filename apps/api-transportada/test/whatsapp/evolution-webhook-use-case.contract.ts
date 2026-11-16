@@ -92,6 +92,10 @@ async function setup(
     directImporters?: readonly string[]
     /** Spec 308: o teto por número já estourou. */
     directLimited?: boolean
+    /** Os telefones com `expenses.manage` (`findDirectExpenseLauncher`); ausente, o webhook não tem o desvio. */
+    expenseLaunchers?: readonly string[]
+    /** Existe um assistente do escritório para o Evolution (hoje não existe: só o canal da Meta tem). */
+    directExpenseAssistant?: boolean
     /** Spec 308: a citação casa numa conversa do painel. */
     quotesPanel?: boolean
     gatewayFails?: boolean
@@ -199,6 +203,7 @@ async function setup(
     apiKeySecrets,
     apiPublicUrl: 'apiPublicUrl' in options ? options.apiPublicUrl : API_PUBLIC_URL,
     ...(options.takenOver === undefined ? {} : { chatTakeover }),
+    ...(options.directExpenseAssistant === true ? { directExpenseAssistant: true } : {}),
     gateway: {
       async setWebhook(input) {
         state.gatewayCalls.push(input)
@@ -228,6 +233,13 @@ async function setup(
             async findDirectImporter({ phone }: { readonly phone: string }) {
               return options.directImporters?.includes(phone) === true
             },
+            ...(options.expenseLaunchers === undefined
+              ? {}
+              : {
+                  async findDirectExpenseLauncher({ phone }: { readonly phone: string }) {
+                    return options.expenseLaunchers?.includes(phone) === true
+                  },
+                }),
             receiveDirectImporter({ event }: { readonly event: { readonly text: null | string } }) {
               state.importerReplies.push(event.text ?? '')
               return 'admitted' as const
@@ -956,5 +968,37 @@ describe('spec 319 T3: o privado do motorista assumido por um atendente', () => 
 
     expect(state.held).toEqual([])
     expect(state.messages.map(({ message }) => message.from)).toEqual([PHONE])
+  })
+})
+
+describe('o desvio de contas no 1:1 só existe com assistente para o Evolution', () => {
+  const directBodyOf = (text: string, id = 'D1') =>
+    upsert({
+      key: { fromMe: false, id, remoteJid: `${PHONE}@s.whatsapp.net` },
+      message: { conversation: text },
+    })
+
+  test('sem assistente, quem lança conta e é motorista segue no fluxo do motorista e nunca fica sem resposta', async () => {
+    const { state, useCase } = await setup({ directDrivers: [PHONE], expenseLaunchers: [PHONE] })
+
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('oi') }))
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('contas', 'D2') }))
+
+    expect(state.direct.map(({ event }) => event.text)).toEqual(['oi', 'contas'])
+    expect(state.messages).toEqual([])
+  })
+
+  test('com assistente, a conversa de contas sai do fluxo do motorista; o resto do 1:1 não muda', async () => {
+    const { state, useCase } = await setup({
+      directDrivers: [PHONE],
+      directExpenseAssistant: true,
+      expenseLaunchers: [PHONE],
+    })
+
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('menu') }))
+    await useCase.receive(receiveWith({ rawBody: directBodyOf('cheguei', 'D2') }))
+
+    expect(state.direct.map(({ event }) => event.text)).toEqual(['cheguei'])
+    expect(state.messages).toHaveLength(1)
   })
 })
