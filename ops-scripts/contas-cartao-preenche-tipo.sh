@@ -21,7 +21,7 @@ JS=$(cat <<'JSEOF'
 const sql = new Bun.SQL(process.env.DATABASE_URL)
 const CONFIRM = process.env.CONFIRM === "1"
 const CARD = "Cartão de crédito"
-const norm = (s) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+const norm = (s) => (s ?? "").replace(/[-_]+/g, " ").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
 // [trecho do texto, nome antigo do tipo, nome com a bandeira (nome do tipo = o que aparece no filtro e na lista)]
 const CARDS = [
   ["santander", "Santander", "Santander Unique · Visa final 8738"],
