@@ -78,7 +78,7 @@ export function buildContentSecurityPolicy({
     `default-src ${SELF}`,
     `base-uri ${SELF}`,
     `connect-src ${connectSource}`,
-    `font-src ${SELF}`,
+    `font-src ${SELF} data:`,
     `form-action ${SELF}`,
     `frame-ancestors ${NONE}`,
     `frame-src ${NONE}`,
