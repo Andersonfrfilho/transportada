@@ -60,6 +60,7 @@ function setup(
     failEvolution?: boolean
     groupDrivers?: readonly string[]
     openRequestOwner?: null | string
+    tagHints?: boolean
     ownerNumber?: null | string
     participants?: readonly EvolutionGroupParticipant[]
   } = {},
@@ -67,6 +68,7 @@ function setup(
   const state = {
     connections: 0,
     handled: [] as AdmittedGroupMessage[],
+    replies: [] as string[][],
     ownerCalls: 0,
     participantCalls: 0,
   }
@@ -100,6 +102,19 @@ function setup(
       state.handled.push(admitted)
     },
     identity: createEvolutionGroupIdentity({ gateway }),
+    ...(options.tagHints === true
+      ? {
+          audio: {
+            bot: { hasPending: () => false } as never,
+            async download() {
+              throw new Error('sem download')
+            },
+            reply: ({ texts }: { readonly texts: readonly string[] }) => {
+              state.replies.push([...texts])
+            },
+          },
+        }
+      : {}),
     ...(options.groupDrivers === undefined
       ? {}
       : {
@@ -474,5 +489,30 @@ describe('grupo do motorista: comando da rota sem marcar o bot', () => {
 
     expect(await receive(message({ text: 'cheguei' }))).toBe('not_addressed')
     expect(state.handled).toEqual([])
+  })
+})
+
+describe('grupo do motorista: "me marque" (caso do Thiago)', () => {
+  const ask = (text: string, id = 'm1') => message({ externalMessageId: id, text })
+
+  test('motorista que escreve um pedido sem marcar ouve o aviso uma vez só por intervalo', async () => {
+    const { receive, state } = setup({ groupDrivers: [DRIVER], tagHints: true })
+
+    expect(await receive(ask('aguardando no Maria hedit desde 8:30'))).toBe('not_addressed')
+    expect(await receive(ask('motorista parado na doca com a nota 929311 desde cedo', 'm2'))).toBe(
+      'not_addressed',
+    )
+    expect(state.replies).toHaveLength(1)
+    expect(state.handled).toEqual([])
+  })
+
+  test('conversa comum e quem não é motorista do grupo ficam calados', async () => {
+    const driver = setup({ groupDrivers: [DRIVER], tagHints: true })
+    expect(await driver.receive(ask('bom dia pessoal, tudo bem?'))).toBe('not_addressed')
+    expect(driver.state.replies).toEqual([])
+
+    const stranger = setup({ groupDrivers: [], tagHints: true })
+    expect(await stranger.receive(ask('entreguei a nota 929311'))).toBe('not_addressed')
+    expect(stranger.state.replies).toEqual([])
   })
 })
