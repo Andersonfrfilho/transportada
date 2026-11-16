@@ -234,7 +234,7 @@ describe('fluxo 2 · Saí', () => {
           '*1* - ✅ Seguir para a *parada 7*',
           '*2* - 👉 Ir para a *parada 3*',
           '',
-          '_Responda 1 ou 2._',
+          '_Responda 1 ou 2. É a opção da lista, não o número da parada._',
         ].join('\n'),
       )
     })

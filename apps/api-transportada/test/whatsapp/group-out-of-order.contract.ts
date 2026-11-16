@@ -8,6 +8,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type { DriverTrip } from '../../src/trips/application/find-current-driver-trip.use-case.js'
 import { TripStopOutOfOrderError } from '../../src/trips/domain/stop-order.error.js'
+import { TripHasStopEnRouteError } from '../../src/trips/domain/trip.error.js'
 import { OUT_OF_ORDER_TEXT } from '../../src/whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { createGroupDriverFlow } from '../../src/whatsapp/application/whatsapp-group-driver-flow.service.js'
 import type {
@@ -151,6 +152,174 @@ describe('grupo: a pergunta do fora de ordem (RF25)', () => {
   })
 })
 
+describe('grupo: a saída para outra parada com uma a caminho oferece a troca', () => {
+  function setupSwitch(options: { cancelFails?: boolean } = {}) {
+    const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
+    const cancelled: string[] = []
+    const flow = createGroupDriverFlow({
+      occurrence: {
+        answer: async () => ({ kind: 'done', replies: ['occ'] }),
+        initialStep: 'document',
+        start: async () => ({ kind: 'done', replies: ['occ'] }),
+      },
+      stop: createGroupStopFlow({
+        cancelDeparture: async (input) => {
+          if (options.cancelFails === true) throw new Error('boom')
+          cancelled.push(input.stopId)
+        },
+        enRouteMessage: async () => 'a caminho',
+        listStops: async () => [
+          {
+            arrivedAt: null,
+            completedAt: null,
+            documents: [{ number: '174000', separationStatus: 'loaded' }],
+            enRouteSince: null,
+            id: 's1',
+            sequence: 1,
+          },
+          {
+            arrivedAt: null,
+            completedAt: null,
+            documents: [{ number: '174010', separationStatus: 'loaded' }],
+            enRouteSince: null,
+            id: 's2',
+            sequence: 2,
+          },
+        ],
+        record: async (input) => {
+          recorded.push(input)
+          if (input.event === 'depart' && input.stopId === 's2' && cancelled.length === 0) {
+            return { message: 'TROCA 1/2', switchFrom: { stopId: 's1' } }
+          }
+          return { message: 'Saída registrada.' }
+        },
+      }),
+    })
+    let current = request(flow.initialStep)
+    const turn = (text: string) => ({ request: current, sender: OWNER, senderName: null, text })
+    const follow = (outcome: GroupFlowOutcome) => {
+      if (outcome.kind === 'continue') current = request(outcome.step, { ...outcome.state })
+      return outcome
+    }
+    return {
+      answer: async (text: string) => follow(await flow.answer(turn(text))),
+      cancelled,
+      recorded,
+      start: async (text: string) => follow(await flow.start(turn(text))),
+    }
+  }
+
+  test('a recusa "a caminho" vira a pergunta da troca, sem gravar', async () => {
+    const t = setupSwitch()
+    const outcome = await t.start('saí 174010')
+    expect(outcome).toMatchObject({ kind: 'continue', replies: ['TROCA 1/2'] })
+    expect(t.cancelled).toEqual([])
+  })
+
+  test('"1" cancela a saída da parada atual e sai para a nova', async () => {
+    const t = setupSwitch()
+    await t.start('saí 174010')
+    const outcome = await t.answer('1')
+    expect(t.cancelled).toEqual(['s1'])
+    expect(outcome).toMatchObject({ kind: 'done', replies: ['Saída registrada.'] })
+    expect(t.recorded.at(-1)).toMatchObject({ event: 'depart', stopId: 's2' })
+  })
+
+  test('"2" mantém a parada atual e não grava nada', async () => {
+    const t = setupSwitch()
+    await t.start('saí 174010')
+    const before = t.recorded.length
+    const outcome = await t.answer('2')
+    expect(outcome).toMatchObject({
+      kind: 'done',
+      replies: [OUT_OF_ORDER_TEXT.keepCurrent(1)],
+    })
+    expect(t.cancelled).toEqual([])
+    expect(t.recorded).toHaveLength(before)
+  })
+
+  test('outra resposta repete a pergunta sem cancelar', async () => {
+    const t = setupSwitch()
+    await t.start('saí 174010')
+    expect(await t.answer('talvez')).toMatchObject({ kind: 'not_understood' })
+    expect(t.cancelled).toEqual([])
+  })
+
+  test('falha ao cancelar avisa e não sai para a nova', async () => {
+    const t = setupSwitch({ cancelFails: true })
+    await t.start('saí 174010')
+    const before = t.recorded.length
+    const outcome = await t.answer('1')
+    expect(outcome).toMatchObject({ kind: 'done', replies: [OUT_OF_ORDER_TEXT.switchFailed(1)] })
+    expect(t.recorded).toHaveLength(before)
+  })
+})
+
+describe('grupo: as outras paradas são opções 3, 4… do fora de ordem', () => {
+  function setupExtra() {
+    const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
+    const flow = createGroupDriverFlow({
+      occurrence: {
+        answer: async () => ({ kind: 'done', replies: ['occ'] }),
+        initialStep: 'document',
+        start: async () => ({ kind: 'done', replies: ['occ'] }),
+      },
+      stop: createGroupStopFlow({
+        enRouteMessage: async () => 'a caminho',
+        listStops: async () => [
+          {
+            arrivedAt: null,
+            completedAt: null,
+            documents: [{ number: '17400', separationStatus: 'loaded' }],
+            enRouteSince: null,
+            id: 's6',
+            sequence: 6,
+          },
+        ],
+        record: async (input) => {
+          recorded.push(input)
+          if (input.confirmOutOfOrder !== true) {
+            return {
+              message: QUESTION,
+              outOfOrder: { extraStopIds: ['s7', 's8'], nextStopId: 's4', stopId: 's6' },
+            }
+          }
+          return { message: 'Saída registrada.' }
+        },
+      }),
+    })
+    let current = request(flow.initialStep)
+    const turn = (text: string) => ({ request: current, sender: OWNER, senderName: null, text })
+    const follow = (outcome: GroupFlowOutcome) => {
+      if (outcome.kind === 'continue') current = request(outcome.step, { ...outcome.state })
+      return outcome
+    }
+    return {
+      answer: async (text: string) => follow(await flow.answer(turn(text))),
+      recorded,
+      start: async (text: string) => follow(await flow.start(turn(text))),
+    }
+  }
+
+  test.each([
+    ['3', 's7'],
+    ['4', 's8'],
+  ])('"%s" sai para a parada extra %s confirmando a ordem', async (answer, stopId) => {
+    const t = setupExtra()
+    await t.start('saí')
+    expect(await t.answer(answer)).toMatchObject({ kind: 'done', replies: ['Saída registrada.'] })
+    expect(t.recorded.at(-1)).toMatchObject({ confirmOutOfOrder: true, event: 'depart', stopId })
+  })
+
+  test('"5" sem parada extra correspondente repete a pergunta', async () => {
+    const t = setupExtra()
+    await t.start('saí')
+    const before = t.recorded.length
+    expect(await t.answer('5')).toMatchObject({ kind: 'not_understood' })
+    expect(t.recorded).toHaveLength(before)
+  })
+})
+
 describe('grupo: o registro devolve a pergunta quando a API recusa (adaptador)', () => {
   const trip = {
     id: 'T1',
@@ -226,5 +395,28 @@ describe('grupo: o registro devolve a pergunta quando a API recusa (adaptador)',
     expect(received[0]?.confirmOutOfOrder).toBe(true)
     expect(result.message).toBe('📍 *Chegada registrada* · 09:00')
     expect(result.outOfOrder).toBeUndefined()
+  })
+
+  test('"saí" para outra parada com uma a caminho vira a pergunta da troca (e cancelar usa a porta)', async () => {
+    const cancelled: Record<string, unknown>[] = []
+    const ports = createGroupStopPorts({
+      cancelDeparture: async (input) => {
+        cancelled.push(input as unknown as Record<string, unknown>)
+      },
+      clock: () => new Date('2026-11-05T12:00:00.000Z'),
+      database,
+      listActiveTrips: async () => [trip],
+      ports: {
+        reportArrival: async () => ({ id: 'e' }),
+        reportDeparture: async () => {
+          throw new TripHasStopEnRouteError({ enRouteStopId: 's3', enRouteStopSequence: '3' })
+        },
+      },
+    })
+    const result = await ports.record({ ...input, event: 'depart' })
+    expect(result.switchFrom).toEqual({ stopId: 's3' })
+    expect(result.message).toContain('parada 3')
+    expect(result.message).toContain('parada 5')
+    expect(cancelled).toEqual([])
   })
 })

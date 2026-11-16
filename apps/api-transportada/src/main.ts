@@ -2041,6 +2041,13 @@ export function bootstrap(): Bun.Server<undefined> {
   })
   /** Spec 293 T12: "saí" e "cheguei" no grupo, pelas mesmas portas do app. */
   const whatsappGroupStop = createGroupStopPorts({
+    cancelDeparture: (input) =>
+      cancelStopDeparture({
+        ...input,
+        channel: TRIP_FIELD_CHANNELS.whatsapp,
+        now: new Date(),
+        unitOfWork: whatsappDriverFieldReports,
+      }),
     consumeLocation: (input) => whatsappGroupLocations.consume(groupLocationKey(input)),
     database: database.db,
     hasLocation: (input) => whatsappGroupLocations.has(groupLocationKey(input)),
