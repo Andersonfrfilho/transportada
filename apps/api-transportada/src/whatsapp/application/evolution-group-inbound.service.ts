@@ -240,6 +240,15 @@ export type EvolutionGroupInboundPorts = {
     readonly location?: { readonly latitude: number; readonly longitude: number }
     readonly sender: string
   }) => Promise<boolean>
+  /**
+   * Caso do Thiago: só o motorista dono do grupo ouve o aviso "me marque" (atendente e tripulação não). Ausente,
+   * vale `isGroupDriver`.
+   */
+  isGroupOwnDriver?: (input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly sender: string
+  }) => Promise<boolean>
   /** Spec 293 T15: quem escreveu (só dígitos) é o motorista dono do grupo? Spec 294: ou um atendente. */
   isGroupDriver?: (input: {
     readonly companyId: string
@@ -310,6 +319,8 @@ export type EvolutionGroupInbound = {
     readonly event: EvolutionMessageEvent
     /** Spec 293 T15: a foto/localização da mensagem, lida do corpo cru; `null` sem mídia. */
     readonly media?: GroupMedia | null
+    /** Quem escreveu a mensagem que este texto cita (jid cru), lido do corpo cru; `null` sem citação. */
+    readonly quotedParticipant?: null | string
     /** Os dígitos do `@lid` de quem escreveu, lidos do corpo cru (o SDK 0.3.0 não os devolve). */
     readonly senderLid: null | string
   }): Promise<EvolutionGroupInboundOutcome>
@@ -344,6 +355,27 @@ export function createEvolutionGroupInbound(
     if (until !== undefined && until > current) return false
     tagHintUntil.set(key, current + TAG_HINT_INTERVAL_MS)
     return true
+  }
+
+  /** O aviso "me marque" só vale para quem responde (cita) uma mensagem do bot: o resto é conversa entre pessoas. */
+  async function quotesTheBot(input: {
+    readonly botNumber: null | string
+    readonly companyId: string
+    readonly connection: LazyEvolutionConnection
+    readonly groupJid: string
+    readonly quotedParticipant: null | string
+  }): Promise<boolean> {
+    const { botNumber, companyId, connection, groupJid, quotedParticipant } = input
+    const quoted = parseJid(quotedParticipant)
+    if (quoted === null || botNumber === null) return false
+    if (quoted.server !== 'lid') return quoted.digits === botNumber
+    const directory = await identity.lidDirectory({
+      companyId,
+      connection,
+      groupJid,
+      lids: [quoted.digits],
+    })
+    return directory.get(quoted.digits) === botNumber
   }
 
   /**
@@ -707,7 +739,15 @@ export function createEvolutionGroupInbound(
     ...(findDirectDriver === undefined ? {} : { findDirectDriver }),
     ...(findDirectExpenseLauncher === undefined ? {} : { findDirectExpenseLauncher }),
     ...(findDirectImporter === undefined ? {} : { findDirectImporter }),
-    async receive({ audio = null, companyId, connection, event, media = null, senderLid }) {
+    async receive({
+      audio = null,
+      companyId,
+      connection,
+      event,
+      media = null,
+      quotedParticipant = null,
+      senderLid,
+    }) {
       if (event.fromMe) return 'from_me'
       const groupJid = event.groupJid
       if (groupJid === null) return 'unknown_group'
@@ -943,7 +983,13 @@ export function createEvolutionGroupInbound(
           sender !== '' &&
           !event.fromMe &&
           looksLikeUnaddressedRequest(event.text) &&
-          (await isGroupDriver?.({ companyId, driverId: owner.driverId, sender })) === true &&
+          !isDirectedAtSomeoneElse(event) &&
+          (await quotesTheBot({ botNumber, companyId, connection, groupJid, quotedParticipant })) &&
+          (await (dependencies.isGroupOwnDriver ?? isGroupDriver)?.({
+            companyId,
+            driverId: owner.driverId,
+            sender,
+          })) === true &&
           audioPorts !== undefined &&
           takeTagHint(companyId, groupJid, sender)
         ) {
@@ -1114,6 +1160,14 @@ export function createGroupQuestionAskedHandler(
 
 const ROUTE_COMMAND_MAX_WORDS = 6
 
+/** Mensagem que marca outra pessoa ou responde a alguém fala com essa pessoa, não com o bot. */
+function isDirectedAtSomeoneElse(event: {
+  readonly mentionedJids: readonly string[]
+  readonly text: null | string
+}): boolean {
+  return event.mentionedJids.length > 0 || /@\S/u.test(event.text ?? '')
+}
+
 const TAG_HINT_INTERVAL_MS = 10 * 60 * 1000
 
 export const GROUP_TAG_HINT_TEXT =
@@ -1239,6 +1293,28 @@ export function readGroupAudio(payload: unknown): ReadonlyMap<string, GroupAudio
       rawMessage: { key: item.key, message: item.message },
       seconds: Number.isFinite(seconds) ? seconds : null,
     })
+  }
+  return result
+}
+
+/** Quem escreveu a mensagem citada pelo texto, por id da mensagem, lido do corpo cru de `messages.upsert`. */
+export function readGroupQuotedParticipants(payload: unknown): ReadonlyMap<string, string> {
+  const result = new Map<string, string>()
+  if (!isRecord(payload)) return result
+  const items: unknown[] = Array.isArray(payload.data) ? payload.data : [payload.data]
+  for (const item of items) {
+    if (!isRecord(item) || !isRecord(item.key) || !isRecord(item.message)) continue
+    const id = item.key.id
+    if (typeof id !== 'string') continue
+    const extended = item.message.extendedTextMessage
+    const context = isRecord(extended)
+      ? extended.contextInfo
+      : isRecord(item.contextInfo)
+        ? item.contextInfo
+        : null
+    if (isRecord(context) && typeof context.participant === 'string') {
+      result.set(id, context.participant)
+    }
   }
   return result
 }
