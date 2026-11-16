@@ -80,9 +80,9 @@ describe('saudação pelo nome do cadastro', () => {
     expect(botProfileLine({ isDriver: false, isOffice: true })).toBeNull()
     // No 1:1 não existe "grupo": a frase não pode citá-lo.
     const direct = botProfileLine({ isDriver: true, isOffice: true }, { isDirect: true })
-    // O Evolution não tem assistente de contas: a frase não promete um "menu" que não existe.
-    expect(direct).not.toContain('*menu*')
-    expect(direct).toContain('Contas e boletos ainda não atendo por aqui')
+    // No 1:1 as contas estão no menu do motorista ("Lançar conta"), não em um segundo menu.
+    expect(direct).not.toContain('digite *menu*')
+    expect(direct).toContain('escolha *Lançar conta* no menu')
     expect(direct).not.toContain('grupo')
   })
 })

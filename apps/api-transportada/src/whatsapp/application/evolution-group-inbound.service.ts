@@ -55,6 +55,8 @@ export type EvolutionMessageEvent = Extract<EvolutionWebhookEvent, { type: 'mess
 export type AdmittedGroupMessage = {
   /** Spec 308 D2.4: o chat direto de quem tem envio de XML liberado; o menu mostra "Enviar XML das notas". */
   readonly canImportXml?: boolean
+  /** O chat direto de quem tem `expenses.manage`: o menu mostra "Lançar conta". */
+  readonly canLaunchExpenses?: boolean
   readonly companyId: string
   /** O motorista dono do grupo: toda mensagem do grupo é dele (regra 1). */
   readonly driverId: string
@@ -262,6 +264,8 @@ export type EvolutionDirectMessage = {
   readonly audio?: GroupAudio | null
   /** Spec 308 D2.4: o motorista também tem envio de XML liberado. */
   readonly canImportXml?: boolean
+  /** O motorista também tem `expenses.manage`: o menu mostra "Lançar conta". */
+  readonly canLaunchExpenses?: boolean
   readonly companyId: string
   readonly connection: LazyEvolutionConnection
   /** O motorista achado pelo telefone (`findDirectDriver`). */
@@ -957,6 +961,7 @@ export function createEvolutionGroupInbound(
     async receiveDirect({
       audio = null,
       canImportXml = false,
+      canLaunchExpenses = false,
       companyId,
       connection,
       driverId,
@@ -1035,6 +1040,7 @@ export function createEvolutionGroupInbound(
       const requestOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
       await dependencies.handle({
         ...(canImportXml ? { canImportXml: true } : {}),
+        ...(canLaunchExpenses ? { canLaunchExpenses: true } : {}),
         companyId,
         driverId,
         groupJid,

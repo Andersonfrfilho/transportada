@@ -24,6 +24,17 @@ function normalize(text: string): string {
     .trim()
 }
 
+/**
+ * O motorista que também lança conta: só a frase que fala de conta desvia, e mais estreita que acima — "boleto" sozinho
+ * é a ocorrência de prorrogação, e "lançar" sozinho é o menu do motorista ("lançar a entrega").
+ */
+const DRIVER_FINANCE_WORDS =
+  /\b(contas?|despesas?|financeiro)\b|\b(lancar|pagar|cadastrar)\s+(um\s+|uma\s+)?boletos?\b/u
+
+export function isDriverFinanceIntent(text: string): boolean {
+  return DRIVER_FINANCE_WORDS.test(normalize(text))
+}
+
 export function isDirectExpenseIntent(text: string): boolean {
   const normalized = normalize(text)
   if (normalized === '') return false

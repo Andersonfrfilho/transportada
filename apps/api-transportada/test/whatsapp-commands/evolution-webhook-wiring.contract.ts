@@ -39,4 +39,10 @@ describe('composição do webhook do Evolution', () => {
     expect(bodies.length).toBeGreaterThanOrEqual(2)
     for (const body of bodies) expect(body).toContain('resolveActor')
   })
+
+  test('a entrega pública (a que atende o 1:1 real) liga o assistente de contas; a rota do dono não', () => {
+    const [publicDelivery, ownerRoute] = callBodies()
+    expect(publicDelivery).toContain('directAssistant: evolutionAssistantFactory')
+    expect(ownerRoute).not.toContain('directAssistant')
+  })
 })
