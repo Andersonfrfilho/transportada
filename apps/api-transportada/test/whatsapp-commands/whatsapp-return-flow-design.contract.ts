@@ -34,7 +34,7 @@ describe('spec 300 T4.5 — fluxo 6 Não entreguei', () => {
         '*4* - 📦 Carga avariada',
         '*5* - 🔒 Local fechado',
         '',
-        '_Responda com o número do motivo._',
+        '_Responda com o número do motivo. Se ainda está aguardando para descarregar, responda *aguardando*._',
       ].join('\n'),
     )
   })
