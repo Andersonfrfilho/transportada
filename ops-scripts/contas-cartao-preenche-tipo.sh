@@ -40,6 +40,7 @@ const BY_VALUE = {
   "mra auto pecas|311.47": SAN, "mra auto pecas|128.68": SAN, "mra auto pecas|119.67": SAN,
   "opcao moveis|115.41": SAN, "revise car|109.37": SAN, "saldao liquida max|198.33": SAN,
 }
+const BY_VALUE_N = Object.fromEntries(Object.entries(BY_VALUE).map(([k, v]) => [norm(k.split("|")[0]).replace(/\s+/g, " ").trim() + "|" + k.split("|")[1], v]))
 class Rollback extends Error {}
 const out = { modo: CONFIRM ? "GRAVOU" : "SIMULACAO (desfeita no fim)" }
 try {
@@ -63,7 +64,7 @@ try {
     }
     for (const r of rows) {
       if (r.subtype_id) { out.jaTinhamTipo++; continue }
-      const byValue = BY_VALUE[norm(r.name).trim() + "|" + r.valor]
+      const byValue = BY_VALUE_N[norm(r.name).replace(/\s+/g, " ").trim() + "|" + r.valor]
       const hit = cardOf(r.bill_location) ?? cardOf(r.name) ?? (byValue ? cardOf(byValue) : null)
       const card = hit?.[2]
       if (!card) { out.semCasamento.push({ conta: r.name, local: r.bill_location, valor: r.valor }); continue }
