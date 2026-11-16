@@ -30,6 +30,16 @@ const CARDS = [
   ["caixa", "Caixa", "Caixa"],
 ]
 const cardOf = (loc) => CARDS.find(([k]) => norm(loc).includes(k)) ?? null
+// Contas sem texto de local: o cartao vem da conferencia com as faturas de 11/2026 (nome + valor previsto).
+// MP = Mercado Pago (compras listadas na fatura dele); o resto bateu com a fatura do Santander Unique.
+const MP = "mercado pago", SAN = "santander"
+const BY_VALUE = {
+  "gigantao bateria|38.00": MP, "havan - utensilhos|88.27": MP, "vinicius trouvo - cirurgia|570.77": MP,
+  "auto mart|700.00": SAN, "auto mart|450.00": SAN, "auto mart|1214.00": SAN,
+  "liquida max|644.70": SAN, "liquida max moveis|235.00": SAN,
+  "mra auto pecas|311.47": SAN, "mra auto pecas|128.68": SAN, "mra auto pecas|119.67": SAN,
+  "opcao moveis|115.41": SAN, "revise car|109.37": SAN, "saldao liquida max|198.33": SAN,
+}
 class Rollback extends Error {}
 const out = { modo: CONFIRM ? "GRAVOU" : "SIMULACAO (desfeita no fim)" }
 try {
@@ -53,7 +63,8 @@ try {
     }
     for (const r of rows) {
       if (r.subtype_id) { out.jaTinhamTipo++; continue }
-      const hit = cardOf(r.bill_location) ?? cardOf(r.name)
+      const byValue = BY_VALUE[norm(r.name).trim() + "|" + r.valor]
+      const hit = cardOf(r.bill_location) ?? cardOf(r.name) ?? (byValue ? cardOf(byValue) : null)
       const card = hit?.[2]
       if (!card) { out.semCasamento.push({ conta: r.name, local: r.bill_location, valor: r.valor }); continue }
       let sid = subs[card.toLowerCase()]
