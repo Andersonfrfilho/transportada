@@ -124,7 +124,11 @@ function setup(
   })
   const receive = (
     event: EvolutionMessageEvent,
-    extra: { companyId?: string; senderLid?: null | string } = {},
+    extra: {
+      companyId?: string
+      quotedParticipant?: null | string
+      senderLid?: null | string
+    } = {},
   ) =>
     inbound.receive({
       companyId: extra.companyId ?? COMPANY_ID,
@@ -133,6 +137,7 @@ function setup(
         return CONNECTION
       },
       event,
+      quotedParticipant: extra.quotedParticipant ?? null,
       senderLid: extra.senderLid ?? null,
     })
   return { receive, state }
@@ -493,26 +498,58 @@ describe('grupo do motorista: comando da rota sem marcar o bot', () => {
 })
 
 describe('grupo do motorista: "me marque" (caso do Thiago)', () => {
-  const ask = (text: string, id = 'm1') => message({ externalMessageId: id, text })
+  const ask = (text: string, id = 'm1') =>
+    message({ externalMessageId: id, replyToExternalMessageId: 'BOT1', text })
+  const toBot = { quotedParticipant: BOT }
 
-  test('motorista que escreve um pedido sem marcar ouve o aviso uma vez só por intervalo', async () => {
+  test('motorista que responde ao bot com um pedido sem marcar ouve o aviso uma vez só por intervalo', async () => {
     const { receive, state } = setup({ groupDrivers: [DRIVER], tagHints: true })
 
-    expect(await receive(ask('aguardando no Maria hedit desde 8:30'))).toBe('not_addressed')
-    expect(await receive(ask('motorista parado na doca com a nota 929311 desde cedo', 'm2'))).toBe(
-      'not_addressed',
-    )
+    expect(await receive(ask('aguardando no Maria hedit desde 8:30'), toBot)).toBe('not_addressed')
+    expect(
+      await receive(ask('motorista parado na doca com a nota 929311 desde cedo', 'm2'), toBot),
+    ).toBe('not_addressed')
     expect(state.replies).toHaveLength(1)
     expect(state.handled).toEqual([])
   })
 
+  test('conversa entre pessoas (sem citar o bot) ou que marca outra pessoa não ganha o aviso (caso da Deisy)', async () => {
+    const { receive, state } = setup({ groupDrivers: [DRIVER], tagHints: true })
+
+    expect(
+      await receive(message({ text: 'aguardando no Maria hedit desde 8:30 nota 929311' })),
+    ).toBe('not_addressed')
+    expect(
+      await receive(
+        message({
+          externalMessageId: 'r1',
+          replyToExternalMessageId: 'X1',
+          text: 'a nota 929311 já foi entregue',
+        }),
+        { quotedParticipant: SUPPORT },
+      ),
+    ).toBe('not_addressed')
+    expect(
+      await receive(
+        message({
+          externalMessageId: 'r2',
+          mentionedJids: ['5516911112222@s.whatsapp.net'],
+          replyToExternalMessageId: 'BOT1',
+          text: '@Rafa deu certo de fazer entrega hoje? nota 929311',
+        }),
+        toBot,
+      ),
+    ).toBe('not_addressed')
+    expect(state.replies).toEqual([])
+  })
+
   test('conversa comum e quem não é motorista do grupo ficam calados', async () => {
     const driver = setup({ groupDrivers: [DRIVER], tagHints: true })
-    expect(await driver.receive(ask('bom dia pessoal, tudo bem?'))).toBe('not_addressed')
+    expect(await driver.receive(ask('bom dia pessoal, tudo bem?'), toBot)).toBe('not_addressed')
     expect(driver.state.replies).toEqual([])
 
     const stranger = setup({ groupDrivers: [], tagHints: true })
-    expect(await stranger.receive(ask('entreguei a nota 929311'))).toBe('not_addressed')
+    expect(await stranger.receive(ask('entreguei a nota 929311'), toBot)).toBe('not_addressed')
     expect(stranger.state.replies).toEqual([])
   })
 })
