@@ -110,6 +110,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
     expect(result).toEqual({
       isRegisteredDriver: true,
       pendingProofs: [],
+      registeredPix: null,
       score: null,
       trips: [],
     })
@@ -134,6 +135,7 @@ describe('a viagem do motorista é resolvida pelo servidor', () => {
     expect(result).toEqual({
       isRegisteredDriver: false,
       pendingProofs: [],
+      registeredPix: null,
       score: null,
       trips: [],
     })
