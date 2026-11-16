@@ -303,6 +303,27 @@ describe('pedido no grupo: cancelar e tentativas', () => {
     expect(memory.requests[1]?.status).toBe('cancelled')
   })
 
+  test('no privado, "sair" sem pedido aberto não abre outro; no grupo, nada muda', async () => {
+    const { memory, message, said, sessions } = setup()
+    const direct = '5516988887777@s.whatsapp.net'
+
+    await sessions.handle(message({ groupJid: direct, text: 'Sair' }))
+    expect(memory.requests).toHaveLength(0)
+    expect(await said()).toEqual([GROUP_REQUEST_TEXT.nothingToCancel])
+
+    // Com pedido aberto no privado, "sair" ainda cancela como sempre.
+    await sessions.handle(message({ groupJid: direct, text: 'oi' }))
+    expect(memory.requests).toHaveLength(1)
+    await said()
+    await sessions.handle(message({ groupJid: direct, text: 'sair', via: 'owner_reply' }))
+    expect(memory.requests[0]?.status).toBe('cancelled')
+
+    // O grupo segue como antes: marcar o bot com "cancelar" sem pedido aberto abre o pedido.
+    await sessions.handle(message({ text: 'sair' }))
+    expect(memory.requests).toHaveLength(2)
+    expect(memory.requests[1]?.groupJid).toBe(GROUP)
+  })
+
   test('"cancelar" vai ao fluxo dono do passo, que encerra do jeito dele', async () => {
     const seen: string[] = []
     const { memory, message, said, sessions } = setup({
