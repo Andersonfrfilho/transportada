@@ -27,6 +27,7 @@ type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 const KEYS = [
   'ocorrencia.avaria',
+  'ocorrencia.contratante-aviso-manual',
   'ocorrencia.devolucao',
   'ocorrencia.devolucao-total',
   'ocorrencia.entrega-nao-realizada',

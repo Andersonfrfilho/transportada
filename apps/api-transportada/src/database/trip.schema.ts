@@ -40,6 +40,12 @@ import {
   type ClientEmailSendMode,
   type ClientEmailType,
 } from '../shared/delivery-client-email.constant.js'
+import {
+  STOP_ORDER_ERROR_CODES,
+  STOP_ORDER_SOURCES,
+  type StopOrderErrorCode,
+  type StopOrderSource,
+} from '../shared/trip-stop-order.constant.js'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -347,6 +353,16 @@ export const trips = pgTable(
     plannedDurationSeconds: bigint('planned_duration_seconds', { mode: 'number' }),
     plannedRouteFrozenAt: timestamp('planned_route_frozen_at', { withTimezone: true }),
     /**
+     * Spec 323 D4: de onde veio a ordem das paradas. `unordered` é a viagem antiga e a que o ordenador não conseguiu
+     * ordenar; `suggested` é a ordem do ordenador (ou do aceite da 058); `manual` é a que o despachante arrastou.
+     * `stop_order_error_code` é o porquê da última falha do ordenador e fica nulo quando ele ordenou.
+     */
+    stopOrderSource: text('stop_order_source')
+      .$type<StopOrderSource>()
+      .notNull()
+      .default('unordered'),
+    stopOrderErrorCode: text('stop_order_error_code').$type<StopOrderErrorCode>(),
+    /**
      * Spec 107 D3: quando o ETA das paradas foi calculado. ⚠️ **A hora envelhece, e esta coluna
      * existe para dizer isso** — o ETA congela no planejamento, e às 14h ainda diz o que achava às
      * 7h. Sem o carimbo, a tela mostraria uma hora que parece previsão de agora.
@@ -432,6 +448,14 @@ export const trips = pgTable(
     unique('trips_company_id_id_unique').on(table.companyId, table.id),
     index('trips_company_status_created_at_idx').on(table.companyId, table.status, table.createdAt),
     index('trips_company_vehicle_idx').on(table.companyId, table.vehicleId),
+    check(
+      'trips_stop_order_source_check',
+      sql`${table.stopOrderSource} in (${raw(inList(STOP_ORDER_SOURCES))})`,
+    ),
+    check(
+      'trips_stop_order_error_code_check',
+      sql`${table.stopOrderErrorCode} is null or ${table.stopOrderErrorCode} in (${raw(inList(STOP_ORDER_ERROR_CODES))})`,
+    ),
     check('trips_status_check', sql`${table.status} in (${raw(inList(TRIP_STATUSES))})`),
     /** A carreta não pode ser o próprio veículo tracionado. */
     check(

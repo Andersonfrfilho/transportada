@@ -1,0 +1,305 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 325 T2.1: a resposta de `/expenses*` é entrada não confiável e vira dinheiro pago; o guard recusa forma
+ * inesperada em vez de deixar `undefined` vazar para a tela, e o vocabulário daqui bate com o da API.
+ */
+import { describe, expect, it } from 'bun:test'
+
+import {
+  EXPENSE_KINDS,
+  EXPENSE_OCCURRENCE_STATUSES,
+  EXPENSE_RECURRENCES,
+} from '@/modules/expenses/shared/expenses.types'
+import {
+  ExpenseResponseError,
+  toAmountHistory,
+  toAvailableTrips,
+  toCategories,
+  toExpenses,
+  toOccurrencePage,
+  toSubtypes,
+  toOccurrenceTrips,
+} from '@/modules/expenses/shared/expensesResponse.validation'
+
+import expensesEnLocale from '@/modules/expenses/locales/expenses.en.locale.json'
+import expensesLocale from '@/modules/expenses/locales/expenses.locale.json'
+
+const OCCURRENCE = {
+  competence: '2026-11',
+  dueDate: '2026-11-05',
+  expectedAmount: '1500.00',
+  expenseId: 'expense-1',
+  id: 'occurrence-1',
+  paidAmount: null,
+  paidAt: null,
+  paidBy: null,
+  settlementNote: null,
+  slot: 1,
+  status: 'open',
+}
+
+const LIST_ITEM = {
+  ...OCCURRENCE,
+  categoryId: 'category-1',
+  categoryName: 'Aluguel',
+  expenseKind: 'fixed',
+  expenseName: 'Aluguel do galpão',
+  payeeDriverId: null,
+  payeeDriverName: null,
+  payeeDriverPaymentModel: null,
+}
+
+const TRIP = {
+  amount: '600.00',
+  completedOn: '2026-11-03',
+  dailyAmount: '200.0000',
+  days: 3,
+  parcelKind: 'driver',
+  tripId: 'trip-1',
+}
+
+describe('expenses response guard', () => {
+  it('lê a lista de ocorrências com os totais, sempre como texto', () => {
+    const page = toOccurrencePage({
+      data: [LIST_ITEM],
+      totals: {
+        count: 1,
+        expectedAmount: '1500.00',
+        paidAmount: '0.00',
+        paidByDriver: [{ driverId: 'driver-1', driverName: null, paidAmount: '10.50' }],
+      },
+    })
+    expect(page.items[0]?.expectedAmount).toBe('1500.00')
+    expect(page.totals.paidByDriver[0]?.paidAmount).toBe('10.50')
+  })
+
+  it('lê quem causou a conta, e tolera a API anterior sem o campo (spec 328)', () => {
+    const withCause = toOccurrencePage({
+      data: [{ ...LIST_ITEM, causedByDriverId: 'driver-9', causedByDriverName: 'Rui Alves' }],
+      totals: { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] },
+    })
+    expect(withCause.items[0]?.causedByDriverId).toBe('driver-9')
+    expect(withCause.items[0]?.causedByDriverName).toBe('Rui Alves')
+
+    const withoutCause = toOccurrencePage({
+      data: [LIST_ITEM],
+      totals: { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] },
+    })
+    expect(withoutCause.items[0]?.causedByDriverId).toBeNull()
+    expect(withoutCause.items[0]?.causedByDriverName).toBeNull()
+  })
+
+  it('lê o tipo da conta e tolera a API anterior sem ele (spec 331)', () => {
+    const totals = { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] }
+    const page = toOccurrencePage({
+      data: [{ ...LIST_ITEM, subtypeId: 'sub-1', subtypeName: 'Mercado Pago' }, LIST_ITEM],
+      totals,
+    })
+    expect(page.items[0]?.subtypeName).toBe('Mercado Pago')
+    expect(page.items[1]?.subtypeId).toBeNull()
+    expect(
+      toSubtypes({ data: [{ active: true, categoryId: 'c1', id: 's1', name: 'Nubank' }] }),
+    ).toEqual([{ active: true, categoryId: 'c1', id: 's1', name: 'Nubank' }])
+  })
+
+  it('lê o funcionário e o vínculo da conta, e ignora vínculo desconhecido (spec 330)', () => {
+    const totals = { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] }
+    const page = toOccurrencePage({
+      data: [
+        { ...LIST_ITEM, employeeUserId: 'user-3', employeeUserName: 'Ana', employmentType: 'clt' },
+        { ...LIST_ITEM, employeeName: 'Maria', employmentType: 'estagio' },
+        LIST_ITEM,
+      ],
+      totals,
+    })
+    expect(page.items[0]?.employeeUserName).toBe('Ana')
+    expect(page.items[0]?.employmentType).toBe('clt')
+    expect(page.items[1]?.employeeName).toBe('Maria')
+    expect(page.items[1]?.employmentType).toBeNull()
+    expect(page.items[2]?.employeeUserId).toBeNull()
+  })
+
+  it('lê o perfil do favorecido quando vem e tolera a API sem ele', () => {
+    const totals = { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] }
+    const withProfile = toOccurrencePage({
+      data: [{ ...LIST_ITEM, payeeProfile: 'helper' }],
+      totals,
+    })
+    expect(withProfile.items[0]?.payeeProfile).toBe('helper')
+    expect(toOccurrencePage({ data: [LIST_ITEM], totals }).items[0]?.payeeProfile).toBeUndefined()
+    expect(() =>
+      toOccurrencePage({ data: [{ ...LIST_ITEM, payeeProfile: 'boss' }], totals }),
+    ).toThrow(ExpenseResponseError)
+  })
+
+  it('recusa valor numérico no lugar do texto de dinheiro', () => {
+    expect(() =>
+      toOccurrencePage({
+        data: [{ ...LIST_ITEM, expectedAmount: 1500 }],
+        totals: { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] },
+      }),
+    ).toThrow(ExpenseResponseError)
+  })
+
+  it('recusa estado, tipo ou recorrência fora do vocabulário', () => {
+    const totals = { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] }
+    expect(() => toOccurrencePage({ data: [{ ...LIST_ITEM, status: 'late' }], totals })).toThrow(
+      ExpenseResponseError,
+    )
+    expect(() =>
+      toOccurrencePage({ data: [{ ...LIST_ITEM, expenseKind: 'once' }], totals }),
+    ).toThrow(ExpenseResponseError)
+    expect(() =>
+      toExpenses({
+        data: [
+          {
+            active: true,
+            categoryId: 'c',
+            dueDay: 5,
+            expectedAmount: '1.00',
+            id: 'e',
+            kind: 'fixed',
+            name: 'x',
+            payeeDriverId: null,
+            recurrence: 'weekly',
+            vehicleId: null,
+          },
+        ],
+      }),
+    ).toThrow(ExpenseResponseError)
+  })
+
+  it('recusa resposta sem `data` e ocorrência sem `slot` válido', () => {
+    expect(() => toCategories({})).toThrow(ExpenseResponseError)
+    expect(() =>
+      toOccurrencePage({
+        data: [{ ...LIST_ITEM, slot: 3 }],
+        totals: { count: 1, expectedAmount: '1.00', paidAmount: '0.00', paidByDriver: [] },
+      }),
+    ).toThrow(ExpenseResponseError)
+  })
+
+  it('lê as viagens do pagamento e as disponíveis', () => {
+    const trips = toOccurrenceTrips({
+      data: { items: [TRIP], occurrence: OCCURRENCE, tripsTotal: '600.00' },
+    })
+    expect(trips.items[0]?.days).toBe(3)
+    expect(trips.tripsTotal).toBe('600.00')
+
+    const available = toAvailableTrips({
+      data: {
+        available: [TRIP],
+        pending: [
+          {
+            completedOn: '2026-11-04',
+            gap: 'NO_PLANNED_DURATION',
+            parcelKind: 'helper',
+            tripId: 'trip-2',
+          },
+        ],
+        period: { from: '2026-11-01', to: '2026-11-30' },
+      },
+    })
+    expect(available.pending[0]?.parcelKind).toBe('helper')
+  })
+
+  it('lê o trajeto da viagem quando vem e tolera a API sem ele', () => {
+    const route = { destination: 'CAMPINAS', origin: 'RIBEIRAO PRETO' }
+    const trips = toOccurrenceTrips({
+      data: {
+        items: [{ ...TRIP, route }, { ...TRIP, route: null, tripId: 'trip-2' }, TRIP],
+        occurrence: OCCURRENCE,
+        tripsTotal: '600.00',
+      },
+    })
+    expect(trips.items[0]?.route).toEqual(route)
+    expect(trips.items[1]?.route).toBeNull()
+    expect(trips.items[2]?.route).toBeUndefined()
+
+    const available = toAvailableTrips({
+      data: {
+        available: [{ ...TRIP, route: { destination: 'CAMPINAS', origin: null } }],
+        pending: [
+          {
+            completedOn: '2026-11-04',
+            gap: 'NO_PLANNED_DURATION',
+            parcelKind: 'helper',
+            route,
+            tripId: 'trip-2',
+          },
+        ],
+        period: { from: '2026-11-01', to: '2026-11-30' },
+      },
+    })
+    expect(available.available[0]?.route).toEqual({ destination: 'CAMPINAS', origin: null })
+    expect(available.pending[0]?.route).toEqual(route)
+    expect(() =>
+      toOccurrenceTrips({
+        data: {
+          items: [{ ...TRIP, route: { destination: 7, origin: null } }],
+          occurrence: OCCURRENCE,
+          tripsTotal: '1.00',
+        },
+      }),
+    ).toThrow(ExpenseResponseError)
+  })
+
+  it('o vocabulário daqui é o da API', async () => {
+    const schema = await Bun.file(
+      new URL('../../../api-transportada/src/database/company-expense.schema.ts', import.meta.url),
+    ).text()
+    for (const value of [
+      ...EXPENSE_KINDS,
+      ...EXPENSE_RECURRENCES,
+      ...EXPENSE_OCCURRENCE_STATUSES,
+    ]) {
+      expect(schema).toContain(`'${value}'`)
+    }
+  })
+
+  it('pt e en têm as mesmas chaves, com todo estado, tipo e recorrência traduzido', () => {
+    function keys(value: unknown, prefix = ''): string[] {
+      if (typeof value !== 'object' || value === null) return [prefix]
+      return Object.entries(value).flatMap(([key, child]) =>
+        keys(child, prefix === '' ? key : `${prefix}.${key}`),
+      )
+    }
+    expect(keys(expensesEnLocale).sort()).toEqual(keys(expensesLocale).sort())
+    for (const kind of EXPENSE_KINDS) expect(expensesLocale.kind[kind]).toBeString()
+    for (const recurrence of EXPENSE_RECURRENCES) {
+      expect(expensesLocale.recurrence[recurrence]).toBeString()
+    }
+    for (const status of EXPENSE_OCCURRENCE_STATUSES) {
+      expect(expensesLocale.status[status]).toBeString()
+    }
+  })
+})
+
+describe('histórico de valores da conta (spec 329)', () => {
+  it('lê o valor de abertura e as mudanças, e recusa forma inesperada', () => {
+    const history = toAmountHistory({
+      data: {
+        baseAmount: '12000.00',
+        changes: [
+          {
+            changedByUserId: 'u',
+            createdAt: '2026-11-15T18:00:00.000Z',
+            effectiveCompetence: '2027-02',
+            id: 'c1',
+            newAmount: '13000.00',
+            previousAmount: '12000.00',
+          },
+        ],
+      },
+    })
+    expect(history.baseAmount).toBe('12000.00')
+    expect(history.changes[0]).toMatchObject({
+      effectiveCompetence: '2027-02',
+      newAmount: '13000.00',
+    })
+    expect(() => toAmountHistory({ data: { baseAmount: 12000, changes: [] } })).toThrow(
+      ExpenseResponseError,
+    )
+  })
+})

@@ -12,6 +12,9 @@
  * - O texto lê só o que a lista fechada do aviso usa (RF4, emenda de 11/11/2026): número da nota, tipo, data, etapa,
  *   observação, contratante, cliente (razão social do destinatário), endereço de entrega, valor da nota e, no tipo
  *   que pede, a nova data de vencimento. Nunca CPF, CNPJ nem telefone.
+ * - Spec 324 (D3): o botão "Avisar a contratante" reserva e grava na mesma operação com a chave dele
+ *   (`occurrence-manual-notice:<id>`, via `keyPrefix`), então nunca disputa a reserva do automático nem entra no filtro
+ *   da varredura do worker (que lê só `occurrence-auto-mail:`).
  */
 import { sql } from 'drizzle-orm'
 
@@ -78,14 +81,24 @@ export async function findContractorOccurrenceGroupChannel(
 
 /**
  * O modelo do aviso no grupo: a versão WhatsApp da chave do tipo vence o modelo geral; de cada chave, a versão ativa
- * mais alta com corpo. `null` sem nenhum dos dois.
+ * mais alta com corpo. `null` sem nenhum dos dois. Spec 324 (D10): o botão manual passa `fallbackKey`
+ * (`ocorrencia.contratante-aviso-manual`), a última opção da fila; o automático nunca passa.
  */
 export async function findContractorOccurrenceGroupTemplate(
   queryable: TripQueryable,
-  params: { readonly companyId: string; readonly typeKey: null | string },
+  params: {
+    readonly companyId: string
+    readonly fallbackKey?: string
+    readonly typeKey: null | string
+  },
 ): Promise<null | string> {
   const typeKey = (params.typeKey ?? '').trim()
-  const keys = [...(typeKey === '' ? [] : [typeKey]), CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY]
+  const fallbackKey = (params.fallbackKey ?? '').trim()
+  const keys = [
+    ...(typeKey === '' ? [] : [typeKey]),
+    CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY,
+    ...(fallbackKey === '' || fallbackKey === typeKey ? [] : [fallbackKey]),
+  ]
   const [template] = await rowsOf(
     queryable,
     sql`select body from notification.templates
@@ -98,7 +111,10 @@ export async function findContractorOccurrenceGroupTemplate(
           and locale = ${TEMPLATE_LOCALE}
           and active
           and btrim(coalesce(body, '')) <> ''
-        order by (key = ${CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY}), version desc
+        order by array_position(array[${sql.join(
+          keys.map((key) => sql`${key}`),
+          sql`, `,
+        )}]::text[], key::text), version desc
         limit 1`,
   )
   return template === undefined ? null : text(template, 'body')
@@ -110,13 +126,13 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
 }): ContractorOccurrenceGroupPort {
   const { database } = dependencies
   return {
-    async claim({ companyId, occurrenceId }) {
+    async claim({ companyId, keyPrefix, occurrenceId }) {
       const rows = await rowsOf(
         database,
         sql`insert into idempotency_records
               (company_id, operation, idempotency_key, request_fingerprint, status, response)
             values (${companyId}::uuid, ${CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION},
-                    ${KEY_PREFIX + occurrenceId}, ${CLAIM_FINGERPRINT}, 'processing', '{}'::jsonb)
+                    ${(keyPrefix ?? KEY_PREFIX) + occurrenceId}, ${CLAIM_FINGERPRINT}, 'processing', '{}'::jsonb)
             on conflict (company_id, operation, idempotency_key) do update
               set status = 'processing', updated_at = now()
               where idempotency_records.status = 'failed'
@@ -128,7 +144,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       return rows.length > 0
     },
 
-    async readMessage({ companyId, occurrenceId }) {
+    async readMessage({ companyId, fallbackTemplateKey, occurrenceId }) {
       const [occurrence] = await rowsOf(
         database,
         sql`select occurrence.note, occurrence.stage, occurrence.created_at,
@@ -152,6 +168,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       if (occurrence === undefined) return null
       const template = await findContractorOccurrenceGroupTemplate(database, {
         companyId,
+        ...(fallbackTemplateKey === undefined ? {} : { fallbackKey: fallbackTemplateKey }),
         typeKey: text(occurrence, 'type_key'),
       })
       if (template === null) return null
@@ -190,7 +207,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       }
     },
 
-    async record({ attempts, companyId, failure, occurrenceId, status }) {
+    async record({ attempts, companyId, failure, keyPrefix, occurrenceId, status }) {
       await database.execute(
         sql`update idempotency_records
             set status = ${status === 'failed' ? 'failed' : 'completed'},
@@ -198,7 +215,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
                 updated_at = now()
             where company_id = ${companyId}::uuid
               and operation = ${CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION}
-              and idempotency_key = ${KEY_PREFIX + occurrenceId}`,
+              and idempotency_key = ${(keyPrefix ?? KEY_PREFIX) + occurrenceId}`,
       )
     },
 

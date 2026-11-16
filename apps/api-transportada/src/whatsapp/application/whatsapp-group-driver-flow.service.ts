@@ -172,6 +172,8 @@ type MenuItem =
   | { readonly kind: 'occurrence'; readonly icon: string; readonly action: string }
   /** Spec 308 D2.4: só no chat direto de quem tem envio de XML liberado; apenas orienta. */
   | { readonly kind: 'xml'; readonly icon: string; readonly action: string }
+  /** Só no chat direto de quem tem `expenses.manage`: entrega a conversa ao assistente de contas. */
+  | { readonly kind: 'expenses'; readonly icon: string; readonly action: string }
 
 /** A ordem do menu (spec 300 RF8: "Não entreguei" é a 4). O ícone só enfeita: a escolha é pelo número ou pelo nome. */
 export const GROUP_DRIVER_MENU: readonly MenuItem[] = [
@@ -188,6 +190,7 @@ export const GROUP_DRIVER_MENU: readonly MenuItem[] = [
 ]
 
 const XML_MENU_ITEM: MenuItem = { action: 'Enviar XML das notas', icon: '📄', kind: 'xml' }
+const EXPENSES_MENU_ITEM: MenuItem = { action: 'Lançar conta', icon: '💰', kind: 'expenses' }
 
 const MENU_TITLE = '*O que você quer lançar?*'
 const MENU_REPLY_HINT = formatReplyHint('Responda com o número.')
@@ -207,6 +210,10 @@ export function createGroupDriverFlow(flows: {
   readonly boletoResend?: GroupBoletoResend
   /** Spec 293 T15: ausente, "entreguei" segue para o fluxo de ocorrência como antes. */
   readonly delivery?: ReturnType<typeof createGroupDeliveryFlow>
+  /** "Lançar conta" do menu do 1:1: entrega a conversa ao assistente de contas; ausente, a opção não existe. */
+  readonly expenses?: {
+    start(input: { readonly companyId: string; readonly phone: string }): Promise<void>
+  }
   readonly occurrence: GroupRequestFlow
   /** Spec 299 RF14: o passo do lembrete da parada; ausente, a resposta a ele não é atendida. */
   readonly reminder?: GroupReminderFlow
@@ -390,14 +397,36 @@ export function createGroupDriverFlow(flows: {
       (item.kind !== 'deliver' || delivery !== undefined) &&
       (item.kind !== 'return' || returnFlow !== undefined),
   )
-  const menuText = menuOf(menu)
   /** Spec 308 D2.4: quem tem envio de XML liberado ganha a última opção; os demais veem o menu de sempre. */
-  const menuFor = (turn: Pick<GroupFlowTurn, 'canImportXml'>): readonly MenuItem[] =>
-    turn.canImportXml === true ? [...menu, XML_MENU_ITEM] : menu
+  const menuFor = (
+    turn: Pick<GroupFlowTurn, 'canImportXml' | 'canLaunchExpenses'> & {
+      readonly request?: Pick<GroupFlowTurn['request'], 'groupJid'>
+    },
+  ): readonly MenuItem[] => [
+    ...menu,
+    ...(turn.canImportXml === true ? [XML_MENU_ITEM] : []),
+    ...(offersExpenses(turn) ? [EXPENSES_MENU_ITEM] : []),
+  ]
+  /** Contas é do chat direto (a conversa do grupo é da viagem e todos a leem), mesmo que a bandeira venha ligada. */
+  function offersExpenses(turn: {
+    readonly canLaunchExpenses?: boolean
+    readonly request?: Pick<GroupFlowTurn['request'], 'groupJid'>
+  }): boolean {
+    return (
+      turn.canLaunchExpenses === true &&
+      flows.expenses !== undefined &&
+      turn.request?.groupJid.endsWith('@s.whatsapp.net') === true
+    )
+  }
 
   async function choose(turn: GroupFlowTurn, item: MenuItem): Promise<GroupFlowOutcome> {
     if (item.kind === 'xml') {
       return { kind: 'done', replies: [GROUP_XML_ORIENTATION], withoutFarewell: true }
+    }
+    if (item.kind === 'expenses') {
+      // O assistente responde sozinho (a conversa de contas não é um pedido do grupo): este pedido só se fecha.
+      await flows.expenses?.start({ companyId: turn.request.companyId, phone: turn.sender })
+      return { kind: 'done', replies: [], withoutFarewell: true }
     }
     if (item.kind === 'occurrence') return flows.occurrence.start({ ...turn, text: '' })
     if (item.kind === 'return' && returnFlow !== undefined) {
@@ -416,7 +445,7 @@ export function createGroupDriverFlow(flows: {
     ...turn,
     request: { ...turn.request, step: turn.request.step.slice(prefix.length) },
   })
-  const notUnderstoodMenu = (turn?: Pick<GroupFlowTurn, 'canImportXml'>): GroupFlowOutcome => ({
+  const notUnderstoodMenu = (turn?: GroupFlowTurn): GroupFlowOutcome => ({
     kind: 'not_understood',
     prompt: formatOptions(turn === undefined ? menu : menuFor(turn)),
     reason: GROUP_DRIVER_TEXT.notUnderstoodReason,
@@ -445,6 +474,9 @@ export function createGroupDriverFlow(flows: {
           // Spec 308 D2.4: "xml"/"enviar xml" pelo nome; sem a permissão a opção não existe.
           if (turn.canImportXml === true && isXmlOption(turn.text)) {
             return choose(turn, XML_MENU_ITEM)
+          }
+          if (offersExpenses(turn) && isExpensesOption(turn.text)) {
+            return choose(turn, EXPENSES_MENU_ITEM)
           }
           // Spec 292 T9: a frase inteira no lugar da opção ("ocorrência, prorrogação do boleto da nota
           // 899877", por texto ou pelo áudio confirmado) vale como o pedido direto, com nota e tipo.
@@ -507,7 +539,7 @@ export function createGroupDriverFlow(flows: {
       if (turn.text === '') {
         return {
           kind: 'continue',
-          replies: [turn.canImportXml === true ? menuOf(menuFor(turn)) : menuText],
+          replies: [menuOf(menuFor(turn))],
           state: {},
           step: GROUP_DRIVER_STEP.menu,
         }
@@ -548,6 +580,16 @@ export function createGroupDriverFlow(flows: {
           }
         }
       }
+      // No privado, o motorista também dá baixa e fala de outras coisas: a primeira frase sem comando nem nota
+      // abre o menu com todas as opções, não a pergunta da ocorrência. O grupo segue como sempre.
+      if (turn.request.groupJid.endsWith('@s.whatsapp.net') && !/\d/u.test(turn.text)) {
+        return {
+          kind: 'continue',
+          replies: [menuOf(menuFor(turn))],
+          state: {},
+          step: GROUP_DRIVER_STEP.menu,
+        }
+      }
       return flows.occurrence.start(turn)
     },
   }
@@ -560,6 +602,14 @@ function isDriverCommand(text: string): boolean {
     interpretDriverStopCommand(text) !== null ||
     interpretWhatsAppDriverEventCommand(text) !== undefined
   )
+}
+
+/** "conta", "lançar conta", "contas": o nome da opção de contas do chat direto. */
+function isExpensesOption(text: string): boolean {
+  const words = normalizeDriverCommandText(text)
+    .split(' ')
+    .filter((word) => word !== '')
+  return (words.includes('conta') || words.includes('contas')) && words.length <= 3
 }
 
 /** "xml", "enviar xml", "enviar xml das notas": o nome da opção de XML do chat direto. */

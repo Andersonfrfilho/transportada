@@ -3,6 +3,8 @@ import type {
   ChargeBatch,
   ChargeBatchItem,
   Delivery,
+  DeliveryEventKind,
+  DeliveryEvents,
   DeliveryLocation,
   DeliverySchedule,
   Occurrence,
@@ -12,6 +14,9 @@ import type {
   PortalConversation,
   PortalConversationAttachment,
   PortalConversationChannel,
+  PickupRequest,
+  PickupRequestAddress,
+  PickupRequestStatus,
   PortalConversationMessage,
 } from './portal.types'
 
@@ -58,6 +63,37 @@ export function toDeliveryLocation(payload: unknown): DeliveryLocation | null {
   if (latitude === '' || longitude === '') return null
 
   return { latitude, longitude, recordedAt: readString(row, 'recordedAt') }
+}
+
+const EVENT_KINDS: readonly DeliveryEventKind[] = [
+  'received',
+  'separated',
+  'loaded',
+  'en_route',
+  'arrived',
+  'delivered',
+  'returned',
+]
+
+export function toDeliveryEvents(payload: unknown): DeliveryEvents {
+  const empty: DeliveryEvents = { destination: null, events: [] }
+  if (!isRecord(payload) || !isRecord(payload.data)) return empty
+  const row = payload.data
+  const rawEvents: unknown[] = Array.isArray(row.events) ? row.events : []
+  const events = rawEvents.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const kind = EVENT_KINDS.find((candidate) => candidate === item.kind)
+    const occurredAt = readString(item, 'occurredAt')
+    return kind === undefined || occurredAt === '' ? [] : [{ kind, occurredAt }]
+  })
+  const destination = isRecord(row.destination) ? row.destination : null
+  const latitude = destination === null ? '' : readString(destination, 'latitude')
+  const longitude = destination === null ? '' : readString(destination, 'longitude')
+
+  return {
+    destination: latitude === '' || longitude === '' ? null : { latitude, longitude },
+    events,
+  }
 }
 
 export function toDeliverySchedule(payload: unknown): DeliverySchedule | null {
@@ -231,4 +267,72 @@ export function toConversation(payload: unknown): PortalConversation {
     ? row.messages.filter(isRecord).flatMap((item) => toConversationMessage(item) ?? [])
     : []
   return { messages, unreadCount: readNumber(row, 'unreadCount') }
+}
+
+const PICKUP_STATUSES: ReadonlySet<string> = new Set([
+  'accepted',
+  'canceled',
+  'done',
+  'expired',
+  'refused',
+  'requested',
+  'scheduled',
+])
+
+function toPickupAddress(value: unknown): PickupRequestAddress {
+  const row = isRecord(value) ? value : {}
+  return {
+    city: readString(row, 'city'),
+    cityIbgeCode: readNullableString(row, 'cityIbgeCode'),
+    complement: readNullableString(row, 'complement'),
+    district: readString(row, 'district'),
+    number: readString(row, 'number'),
+    postalCode: readString(row, 'postalCode'),
+    state: readString(row, 'state'),
+    street: readString(row, 'street'),
+  }
+}
+
+/** Spec 339: linha que não tem id ou estado conhecido é descartada, não adivinhada. */
+export function toPickupRequest(row: unknown): PickupRequest | null {
+  if (!isRecord(row)) return null
+  const status = readString(row, 'status')
+  const id = readString(row, 'id')
+  if (id === '' || !PICKUP_STATUSES.has(status)) return null
+  return {
+    accessNotes: readNullableString(row, 'accessNotes'),
+    acceptedWindowEnd: readNullableString(row, 'acceptedWindowEnd'),
+    acceptedWindowStart: readNullableString(row, 'acceptedWindowStart'),
+    cargoDescription: readString(row, 'cargoDescription'),
+    cargoValue: readNullableString(row, 'cargoValue'),
+    createdAt: readString(row, 'createdAt'),
+    decisionNote: readNullableString(row, 'decisionNote'),
+    destination: toPickupAddress(row.destination),
+    destinationContactName: readNullableString(row, 'destinationContactName'),
+    destinationContactPhone: readNullableString(row, 'destinationContactPhone'),
+    expiresAt: readString(row, 'expiresAt'),
+    id,
+    kind: row.kind === 'delivery' ? 'delivery' : 'pickup',
+    origin: toPickupAddress(row.origin),
+    originContactName: readNullableString(row, 'originContactName'),
+    originContactPhone: readNullableString(row, 'originContactPhone'),
+    scheduled: row.scheduled === true,
+    status: status as PickupRequestStatus,
+    volumes: typeof row.volumes === 'number' ? row.volumes : 0,
+    weightKg: readString(row, 'weightKg'),
+    windowEnd: readString(row, 'windowEnd'),
+    windowStart: readString(row, 'windowStart'),
+  }
+}
+
+export function toPickupRequests(payload: unknown): readonly PickupRequest[] {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) return []
+  return payload.data.flatMap((row) => {
+    const parsed = toPickupRequest(row)
+    return parsed === null ? [] : [parsed]
+  })
+}
+
+export function toSinglePickupRequest(payload: unknown): PickupRequest | null {
+  return isRecord(payload) ? toPickupRequest(payload.data) : null
 }

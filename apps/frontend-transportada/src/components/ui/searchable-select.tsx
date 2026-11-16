@@ -8,6 +8,8 @@ import { SELECT_TRIGGER_CLASS_NAMES } from './select'
 import { resolveSelectSearchKey } from './select.service'
 import {
   filterSearchableOptions,
+  readCreatableName,
+  resolveCreatableOption,
   resolveSearchableSelectLabel,
   type ResolveCustomSearchableOption,
   type SearchableSelectOption,
@@ -29,6 +31,11 @@ type SearchableSelectProps = Readonly<{
   value: string
   disabled?: boolean
   resolveCustomOption?: ResolveCustomSearchableOption
+  /** Digitar e Enter cadastra: sem opção igual ao texto, aparece "Adicionar «texto»" e Enter chama `onCreate`. */
+  creatable?: Readonly<{
+    createLabel: (name: string) => string
+    onCreate: (name: string) => unknown
+  }>
 }>
 
 function joinClassNames(...names: readonly (string | undefined | false)[]): string {
@@ -40,12 +47,13 @@ function joinClassNames(...names: readonly (string | undefined | false)[]): stri
 // Pickers que abrem um painel com busca, em vez de listbox puro, ainda vestem a pele do select.
 export function SearchableSelect({
   ariaLabel,
+  creatable,
   disabled = false,
   emptyLabel,
   onChange,
   options,
   placeholder,
-  resolveCustomOption,
+  resolveCustomOption: resolveCustomOptionProp,
   searchPlaceholder,
   value,
 }: SearchableSelectProps): JSX.Element {
@@ -63,6 +71,11 @@ export function SearchableSelect({
   } = useFloatingLayer<HTMLDivElement>({ isOpen, onDismiss: () => setIsOpen(false) })
 
   const selectedLabel = resolveSearchableSelectLabel({ options, value })
+  const resolveCustomOption =
+    creatable === undefined
+      ? resolveCustomOptionProp
+      : (text: string) =>
+          resolveCreatableOption({ createLabel: creatable.createLabel, options, query: text })
   const filtered = filterSearchableOptions({ options, query, resolveCustomOption })
 
   useEffect(() => {
@@ -90,6 +103,13 @@ export function SearchableSelect({
   function commit(index: number): void {
     const option = filtered[index]
     if (option === undefined) return
+    const creatingName = readCreatableName(option.value)
+    if (creatingName !== undefined) {
+      // Cadastra e já fecha: quem chamou seleciona o que nasceu (a lista relê sozinha na próxima abertura).
+      void Promise.resolve(creatable?.onCreate(creatingName))
+      close()
+      return
+    }
     onChange(option.value)
     close()
   }

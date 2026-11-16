@@ -88,9 +88,12 @@ export type IconName =
   | 'workspace-driver-trip'
   | 'workspace-extra-charges'
   | 'workspace-reimbursements'
+  | 'workspace-expenses'
   | 'workspace-trip-financials'
   | 'workspace-fleet'
   | 'workspace-freight'
+  | 'workspace-freight-quote'
+  | 'workspace-pickup-requests'
   | 'workspace-mdfe-manifest'
   | 'workspace-nfe'
   | 'workspace-nfse-invoice'
@@ -359,6 +362,8 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   /** Spec 061: a conta da viagem — colunas de barra, que é como a margem se lê. */
   'workspace-trip-financials': ['M4 20h16', 'M7 20V11', 'M12 20V5', 'M17 20v-6'],
+  /** Spec 325: as contas que a empresa paga — carteira com a aba de fechamento. */
+  'workspace-expenses': ['M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4z', 'M4 7l12-3v3', 'M16 13.5h.01'],
   /** Spec 164: o demonstrativo que volta para o contratante — recibo com o cifrão de devolução. */
   'workspace-reimbursements': [
     'M6 3h12v18H6z',
@@ -377,6 +382,21 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M14 10h4l3 3v4h-7z',
     'M7 20a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
     'M17 20a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
+  ],
+  /* Caixa com seta para cima: o pedido de coleta chega do cliente e espera o encaixe. */
+  'workspace-pickup-requests': [
+    'M4 9h16v11H4z',
+    'M9 9V5h6v4',
+    'M12 17v-5',
+    'M9.5 14.5 12 12l2.5 2.5',
+  ],
+  /* Prancheta com cifrão: o orçamento é o preço antes de haver viagem, não o veículo do frete. */
+  'workspace-freight-quote': [
+    'M6 3h12v18H6z',
+    'M9 7h6',
+    'M9 11h6',
+    'M12 14v5',
+    'M14 15h-3a1 1 0 0 0 0 2h2a1 1 0 0 1 0 2h-3',
   ],
   'workspace-mdfe-manifest': [
     'M4 6h11v9H4z',

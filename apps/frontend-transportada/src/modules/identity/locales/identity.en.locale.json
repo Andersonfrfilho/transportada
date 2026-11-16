@@ -148,7 +148,7 @@
       "edit": "Change",
       "cancelEdit": "Keep",
       "identifiers": {
-        "title": "Emails and phones",
+        "title": "Emails, phones and WhatsApp",
         "intro": "Any of them lets the person sign in, and any of them reaches them.",
         "emails": "Emails",
         "phones": "Phones",
@@ -158,9 +158,6 @@
         "addPhone": "Add phone",
         "add": "Add",
         "remove": "Remove",
-        "whatsapp": "Receives WhatsApp",
-        "whatsappTag": "WhatsApp",
-        "whatsappHint": "The WhatsApp mark is recorded for when notifications choose a channel — it does not change delivery yet.",
         "fromProfile": "comes from the record above"
       },
       "whatsapp": {
@@ -488,6 +485,14 @@
         "label": "Configure the key and budget of the holiday import",
         "where": "The access key to the holiday provider and the monthly request ceiling, for the whole installation."
       },
+      "expenses.read": {
+        "label": "View company bills",
+        "where": "List of fixed and variable bills, due dates and paid and open totals."
+      },
+      "expenses.manage": {
+        "label": "Record and settle bills",
+        "where": "Create fixed or variable bills and categories, settle and cancel them."
+      },
       "addresses.read": {
         "label": "Consultar CEP",
         "where": "O preenchimento de endereço nos formulários de motorista, empresa e manifesto."
@@ -507,6 +512,14 @@
       "deliveries.track": {
         "label": "Acompanhar entrega (portal)",
         "where": "Portal do contratante: seguir a carga das notas da conta dele."
+      },
+      "pickup.request": {
+        "label": "Request pickup or delivery (portal)",
+        "where": "Contractor portal: ask the carrier for a pickup or delivery."
+      },
+      "pickup.manage": {
+        "label": "Decide pickup and delivery requests",
+        "where": "Accept or refuse the client's request and fit it into a trip."
       },
       "charges.decide": {
         "label": "Decidir repasse (portal)",
@@ -551,8 +564,10 @@
         "settings": "Settings",
         "operations": "Operations and audit",
         "portal": "Contractor portal",
+        "pickup": "Pickup and delivery requests",
         "other": "Other",
-        "occurrences": "Occurrences"
+        "occurrences": "Occurrences",
+        "expenses": "Bills"
       }
     },
     "fleet": {

@@ -1,0 +1,72 @@
+{
+  "title": "Pickup and delivery requests",
+  "subtitle": "Requests made by clients. Accepting creates a trip suggestion; nothing becomes a trip until you confirm the fit.",
+  "forbidden": "You do not have permission to see pickup requests.",
+  "filter": { "label": "Status", "all": "All" },
+  "list": { "title": "Requests", "empty": "No requests in this status." },
+  "kind": { "pickup": "Pickup", "delivery": "Delivery" },
+  "status": {
+    "requested": "Awaiting reply",
+    "accepted": "Accepted",
+    "scheduled": "Confirmed",
+    "refused": "Declined",
+    "canceled": "Canceled",
+    "expired": "No reply",
+    "done": "Done"
+  },
+  "detail": {
+    "title": "Request detail",
+    "origin": "Pick up at",
+    "destination": "Deliver to",
+    "window": "Requested window",
+    "cargo": "Cargo",
+    "volumes": "volumes",
+    "originContact": "Pickup contact",
+    "destinationContact": "Delivery contact",
+    "accessNotes": "Hours and access",
+    "cargoValue": "Goods value",
+    "contact": "Contact",
+    "quoted": "Quoted amount",
+    "note": "Client note",
+    "decisionNote": "Reply to the client",
+    "linkedTrip": "This request is fitted into a trip."
+  },
+  "actions": { "accept": "Accept", "refuse": "Decline" },
+  "accept": {
+    "start": "Accepted window: from",
+    "end": "Accepted window: until",
+    "amount": "Agreed amount (optional)",
+    "note": "Note to the client (optional)",
+    "confirm": "Confirm acceptance"
+  },
+  "refuse": { "note": "Reason for the client", "confirm": "Confirm decline" },
+  "suggestion": {
+    "title": "Where to fit it",
+    "hint": "The client was told it was accepted. The date is only confirmed when you fit it into a trip.",
+    "none": "There is no open trip to fit it into.",
+    "trip": "Open trip with {{stops}} stops",
+    "tripStatus": {
+      "draft": "draft",
+      "route_planned": "route planned",
+      "separating": "separating",
+      "loading": "loading"
+    },
+    "join": "Fit into this trip",
+    "createTrip": "Create a new trip"
+  },
+  "calendar": {
+    "chooseYear": "Choose the year",
+    "clear": "Clear",
+    "nextMonth": "Next month",
+    "open": "Open calendar",
+    "placeholder": "dd/mm/yyyy",
+    "previousMonth": "Previous month"
+  },
+  "errors": {
+    "REQUEST_FAILED": "Could not finish. Try again.",
+    "NETWORK_ERROR": "No connection to the server.",
+    "PICKUP_REQUEST_INVALID_TRANSITION": "Someone else already decided this request. Refresh the list.",
+    "PICKUP_REQUEST_TRIP_NOT_AVAILABLE": "That trip is no longer open.",
+    "PICKUP_REQUEST_NOT_FOUND": "Request not found."
+  }
+}

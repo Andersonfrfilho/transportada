@@ -1423,3 +1423,30 @@ Valor exato em `bigint`, `0` é valor; "quem pagou" obrigatório e `driver` exig
 - **Filtro por id do tipo.** `GET /trip-occurrences?typeIdIn=<uuid>,<uuid>` filtra a ocorrência de nota por `occurrence_type_id` (o `typeIn` segue sendo por nome/`kind`). Valor que não é UUID é `400`, nunca lista vazia; ocorrência de parada não tem tipo cadastrado e fica fora quando o filtro vem.
 - **`canhotoRetained` no detalhe do documento.** `GET /trips/:id` leva `documents[].canhotoRetained` (derivado, nunca gravado): a nota de origem tem coleta de canhoto aberta (`pending | scheduled`, D6) de ocorrência não cancelada. Uma leitura fixa para a viagem (`loadCanhotoRetainedDocumentIds`, `canhoto-pickup.query.ts`). O painel já o lê como opcional.
 - Contratos: `test/trip-occurrence/feed.contract.ts` (`typeIdIn`) e `test/integration/canhoto-pickup-registration.integration.ts` (marcador).
+
+## A ordem das paradas nasce no rascunho (spec 323, ADR-0044 §1)
+
+- **Ordenador por estrada, nunca linha reta.** `orderStopsByRoad` (`trips/domain/draft-stop-order.policy.ts`) é puro: vizinho mais próximo a partir do barracão e 2-opt com realocação, sobre a matriz N×N do OSRM (`RoadMatrixPort`, `osrm-road-matrix.gateway.ts`, `GET /table/v1/driving`, timeout 5 s, falha = `null`). `haversine` é proibido no módulo (`test/trip-domain/draft-stop-order-no-straight-line.contract.ts`).
+- **Quem roda.** `orderDraftTripStops` (`order-draft-trip-stops.use-case.ts`) é chamado por `linkDocument` e `linkDocumentsBatch` depois do vínculo, por `order-draft-trip-stops-gracefully.ts` (nunca derruba o vínculo). Só em viagem `draft`/não despachada: a porta de não-retorno é `checkTripAcceptsLinkage`. O aceite multiveículo vincula com `orderStops: false` e ordena uma vez no fim.
+- **Origem e falha.** `trips.stop_order_source` ∈ `unordered | suggested | manual` e `trips.stop_order_error_code` (`ROUTING_MATRIX_UNAVAILABLE`, `ROUTING_DEPOT_NOT_GEOCODED`, `ROUTING_TOO_MANY_STOPS`, nulo sem falha). Quem grava: o ordenador (`suggested`), o reordenar manual `PUT .../stops/order` (`manual`), o aceite da 058 (`suggested`). **Numa falha a origem `manual` continua `manual`** (só o código é gravado).
+- **Nota nova.** Origem `manual` não é desfeita: `insert_new` encaixa a parada na melhor posição de inserção e mantém a ordem relativa das demais (`resolveDraftStopOrderMode`). Origem `suggested` ou `unordered` reordena tudo.
+- **Sem coordenada vai para o fim** (RF3), em ordem relativa atual. Geocodificação que termina depois **não** reordena sozinha: vale o botão.
+- **Botão Ordenar paradas.** `POST /trips/:id/stops/auto-order` (`trip.manage`, 409 em viagem despachada): refaz também a ordem manual e recongela a rota. Escrita sempre por `reorderTripStops` (`source` padrão `manual`), nunca pelo repositório.
+- **Viagem antiga não é reordenada.** A migration `trip_stop_order_source` deixa tudo `unordered`; só viagem tocada depois entra no ordenador.
+- **Testes:** contratos `test/trip-domain/draft-stop-order.contract.ts` (propriedades com semente fixa) e `test/trip-stops/order-draft-trip-stops.contract.ts`; integração com Postgres `test/integration/draft-stop-order.integration.ts` (CA1–CA4, na lista do `test:integration`). Detalhe e evidência: `specs/323-paradas-ordenadas-no-rascunho/evidence.md`.
+
+## A API de integração (spec 341)
+
+`integration-api/`: chave por empresa (`integration_api_keys`, só o hash SHA-256; a chave `tms_…` aparece uma vez na criação) com
+capacidades `quote`/`pickup`. Administração em `/integration-keys` (`settings.manage`, auditada **sem** a chave nem o hash);
+rotas do parceiro em `/integration/freight-quotes` e `/integration/pickup-requests[/:id[/cancel]]`, **anônimas para o roteador**
+(a credencial é a chave, resolvida no `parse`; a empresa vem dela, nunca do corpo), com balde por IP e por chave no Postgres.
+Cotação devolve só `total`/`currency`/`validUntil`; o pedido (`source = 'integration'`, sem contratante) leva `integration_key_id`
+e só a chave que o fez o lê ou cancela (outra → 404). Webhook e tela de chaves ainda não existem. Detalhe: `specs/340-*` e o
+documento do parceiro em `docs/integracao/api-de-integracao.md`.
+
+**A cotação é por endereço, nunca por km do parceiro** (spec 342). `createCalculateFreightQuoteByAddressUseCase` localiza origem e destino
+(`geocoded_addresses`, depois Google; `city` é recusado), mede a estrada pelo `readRouteGeometry` da viagem e entrega a distância e o pedágio
+por eixo ao cálculo de sempre. Recusas: `FREIGHT_QUOTE_ADDRESS_NOT_LOCATED` 422, `_ROUTE_UNAVAILABLE` 503, `_TOLL_UNKNOWN` 422 (catálogo
+vazio/velho ou praça sem tarifa). `distanceKm` e `tollAmount` no corpo são 400. Rotas: `/integration/freight-quotes` (parceiro) e
+`POST /freight-quotes/by-address` (`freight.simulate`). Detalhe: `specs/342-cotacao-por-endereco/`.

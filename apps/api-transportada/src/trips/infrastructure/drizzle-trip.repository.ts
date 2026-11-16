@@ -2024,6 +2024,8 @@ async function readTripDetail(
     ),
     occupancy: cargo.occupancy,
     trailer,
+    stopOrderErrorCode: record.stopOrderErrorCode,
+    stopOrderSource: record.stopOrderSource,
     stops: stopRecords.map((row) => ({
       ...mapTripStop(row.stop),
       documents: documentsByStopId.get(row.stop.id) ?? [],

@@ -1,0 +1,326 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/ui/button'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Icon } from '@/components/ui/icon'
+import { SearchableSelect } from '@/components/ui/searchable-select'
+import { Select, type SelectOption } from '@/components/ui/select'
+
+import { useExpenseMutations } from '../hooks/useExpenses.hook'
+import {
+  EXPENSE_KINDS,
+  EXPENSE_RECURRENCES,
+  type CreateExpenseInput,
+  type ExpenseCategory,
+  type ExpenseEmploymentType,
+  EXPENSE_EMPLOYMENT_TYPES,
+  type ExpenseKind,
+  type ExpenseRecurrence,
+} from '../shared/expenses.types'
+import {
+  causedByKeys,
+  employeeKeys,
+  isEmployeeCategoryName,
+  EMPTY_CREATE_FORM,
+  maskMoney,
+  parseMoney,
+  parseInstallmentsTotal,
+  recurrenceNeedsDueDay,
+  validateCreateForm,
+} from '../shared/expensesView.service'
+import styles from '../styles/expenses.module.css'
+import { ExpenseDialogShell } from './ExpenseDialogShell.component'
+import { ExpensePersonField } from './ExpensePersonField.component'
+import { ExpenseSubtypeField } from './ExpenseSubtypeField.component'
+import { ExpenseEmployeeFields } from './ExpenseEmployeeFields.component'
+import { useCalendarLabels } from './useCalendarLabels.hook'
+
+type ExpenseCreateDialogProps = Readonly<{
+  categories: readonly ExpenseCategory[]
+  driverOptions: readonly SelectOption[]
+  peopleOptions: readonly SelectOption[]
+  onClose: () => void
+  onCreated: (input: CreateExpenseInput) => void
+  vehicleOptions: readonly SelectOption[]
+}>
+
+function employmentTypeOf(value: string): { employmentType?: ExpenseEmploymentType } {
+  const found = EXPENSE_EMPLOYMENT_TYPES.find((type) => type === value)
+  return found === undefined ? {} : { employmentType: found }
+}
+
+function buildInput(fields: typeof EMPTY_CREATE_FORM): CreateExpenseInput | null {
+  const expectedAmount = parseMoney(fields.amount)
+  if (expectedAmount === null) return null
+  return {
+    categoryId: fields.categoryId,
+    ...(fields.billLocation.trim() === '' ? {} : { billLocation: fields.billLocation.trim() }),
+    ...(fields.billUrl.trim() === '' ? {} : { billUrl: fields.billUrl.trim() }),
+    ...causedByKeys(fields.causedBy),
+    ...(fields.causedBy === '' && fields.causedByName.trim() !== ''
+      ? { causedByName: fields.causedByName.trim() }
+      : {}),
+    ...(fields.subtypeId === '' ? {} : { subtypeId: fields.subtypeId }),
+    ...employeeKeys(fields.employee),
+    ...(fields.employee === '' && fields.employeeName.trim() !== ''
+      ? { employeeName: fields.employeeName.trim() }
+      : {}),
+    ...employmentTypeOf(fields.employmentType),
+    expectedAmount,
+    kind: fields.kind,
+    name: fields.name.trim(),
+    ...(fields.payeeDriverId === '' ? {} : { payeeDriverId: fields.payeeDriverId }),
+    ...(fields.vehicleId === '' ? {} : { vehicleId: fields.vehicleId }),
+    ...(fields.kind === 'variable'
+      ? { dueDate: fields.dueDate }
+      : {
+          recurrence: fields.recurrence,
+          ...(parseInstallmentsTotal(fields.installments) === null
+            ? {}
+            : { installmentsTotal: Number(fields.installments) }),
+          ...(recurrenceNeedsDueDay(fields.recurrence) ? { dueDay: Number(fields.dueDay) } : {}),
+        }),
+  }
+}
+
+/** "Nova conta" (RF8): fixa (recorrente) ou variável, com motorista só na categoria que o exige. */
+export function ExpenseCreateDialog({
+  categories,
+  driverOptions,
+  onClose,
+  onCreated,
+  peopleOptions,
+  vehicleOptions,
+}: ExpenseCreateDialogProps) {
+  const { t } = useTranslation('expenses')
+  const calendar = useCalendarLabels()
+  const { createCategory, createExpense } = useExpenseMutations()
+  const [fields, setFields] = useState(EMPTY_CREATE_FORM)
+  const [showIssues, setShowIssues] = useState(false)
+  const category = categories.find((candidate) => candidate.id === fields.categoryId)
+  const requiresDriver = category?.requiresDriver ?? false
+  const showEmployee = category !== undefined && isEmployeeCategoryName(category.name)
+  const issues = validateCreateForm(fields, { requiresDriver })
+
+  function patch(changes: Partial<typeof EMPTY_CREATE_FORM>): void {
+    setFields((current) => ({ ...current, ...changes }))
+  }
+
+  async function save(): Promise<void> {
+    setShowIssues(true)
+    const input = buildInput(
+      showEmployee ? fields : { ...fields, employee: '', employeeName: '', employmentType: '' },
+    )
+    if (issues.length > 0 || input === null) return
+    try {
+      await createExpense.mutateAsync(input)
+      onCreated(input)
+      onClose()
+    } catch {
+      /* o erro fica em `createExpense.error` e aparece abaixo */
+    }
+  }
+
+  return (
+    <ExpenseDialogShell
+      footer={
+        <>
+          <Button onClick={onClose} type="button" variant="secondary">
+            {t('dialog.cancel')}
+          </Button>
+          <Button disabled={createExpense.isPending} onClick={() => void save()} type="button">
+            <Icon name="save" />
+            {createExpense.isPending ? t('create.saving') : t('create.save')}
+          </Button>
+        </>
+      }
+      onClose={onClose}
+      title={t('create.title')}
+      titleId="expense-create-title"
+    >
+      <div className={styles.form}>
+        <label className={styles.field}>
+          <span>{t('create.name')}</span>
+          <input
+            aria-invalid={showIssues && issues.includes('name')}
+            maxLength={120}
+            onChange={(event) => patch({ name: event.target.value })}
+            value={fields.name}
+          />
+        </label>
+        <div className={styles.field}>
+          <span>{t('create.kind')}</span>
+          <Select
+            ariaLabel={t('create.kind')}
+            onChange={(value) => patch({ kind: value as ExpenseKind })}
+            options={EXPENSE_KINDS.map((kind) => ({
+              label: t(`create.kindOption.${kind}`),
+              value: kind,
+            }))}
+            value={fields.kind}
+          />
+        </div>
+        <div className={styles.field}>
+          <span>{t('create.category')}</span>
+          <SearchableSelect
+            ariaLabel={t('create.category')}
+            creatable={{
+              createLabel: (name) => t('create.categoryCreate', { name }),
+              onCreate: async (name: string) => {
+                try {
+                  const created = await createCategory.mutateAsync(name)
+                  patch({ categoryId: created.id, payeeDriverId: '', subtypeId: '' })
+                } catch {
+                  /* o erro de nome repetido aparece abaixo */
+                }
+              },
+            }}
+            emptyLabel={t('create.categoryEmpty')}
+            onChange={(value) => patch({ categoryId: value, payeeDriverId: '', subtypeId: '' })}
+            options={categories
+              .filter((candidate) => candidate.active)
+              .map((candidate) => ({ label: candidate.name, value: candidate.id }))}
+            placeholder={t('create.categoryPlaceholder')}
+            searchPlaceholder={t('create.categorySearch')}
+            value={fields.categoryId}
+          />
+        </div>
+        <ExpenseSubtypeField
+          categoryId={fields.categoryId}
+          disabled={fields.categoryId === ''}
+          onChange={(subtypeId) => patch({ subtypeId })}
+          value={fields.subtypeId}
+        />
+        <label className={styles.field}>
+          <span>{t('create.amount')}</span>
+          <input
+            aria-invalid={showIssues && issues.includes('amount')}
+            inputMode="decimal"
+            onChange={(event) => patch({ amount: maskMoney(event.target.value) })}
+            placeholder={t('create.amountPlaceholder')}
+            value={fields.amount}
+          />
+        </label>
+        {requiresDriver ? (
+          <div className={styles.field}>
+            <span>{t('create.payee')}</span>
+            <Select
+              ariaLabel={t('create.payee')}
+              onChange={(value) => patch({ payeeDriverId: value })}
+              options={driverOptions}
+              placeholder={t('create.payeePlaceholder')}
+              value={fields.payeeDriverId}
+            />
+          </div>
+        ) : null}
+        {fields.kind === 'fixed' ? (
+          <>
+            <div className={styles.field}>
+              <span>{t('create.recurrence')}</span>
+              <Select
+                ariaLabel={t('create.recurrence')}
+                onChange={(value) => patch({ recurrence: value as ExpenseRecurrence })}
+                options={EXPENSE_RECURRENCES.map((recurrence) => ({
+                  label: t(`recurrence.${recurrence}`),
+                  value: recurrence,
+                }))}
+                value={fields.recurrence}
+              />
+            </div>
+            {recurrenceNeedsDueDay(fields.recurrence) ? (
+              <label className={styles.field}>
+                <span>{t('create.dueDay')}</span>
+                <input
+                  aria-invalid={showIssues && issues.includes('dueDay')}
+                  inputMode="numeric"
+                  maxLength={2}
+                  onChange={(event) => patch({ dueDay: event.target.value.replace(/\D/g, '') })}
+                  value={fields.dueDay}
+                />
+              </label>
+            ) : (
+              <p className={styles.hint}>{t('create.fortnightlyHint')}</p>
+            )}
+            <label className={styles.field}>
+              <span>{t('create.installments')}</span>
+              <input
+                aria-invalid={showIssues && issues.includes('installments')}
+                inputMode="numeric"
+                maxLength={3}
+                onChange={(event) => patch({ installments: event.target.value.replace(/\D/g, '') })}
+                placeholder={t('create.installmentsPlaceholder')}
+                value={fields.installments}
+              />
+            </label>
+            <p className={styles.hint}>{t('create.installmentsHint')}</p>
+          </>
+        ) : (
+          <div className={styles.field}>
+            <span>{t('create.dueDate')}</span>
+            <DatePicker
+              {...calendar}
+              ariaLabel={t('create.dueDate')}
+              onChange={(value) => patch({ dueDate: value })}
+              value={fields.dueDate}
+            />
+          </div>
+        )}
+        {showEmployee ? (
+          <ExpenseEmployeeFields
+            employee={fields.employee}
+            employeeName={fields.employeeName}
+            employmentType={fields.employmentType}
+            onChange={patch}
+            peopleOptions={peopleOptions}
+          />
+        ) : null}
+        <ExpensePersonField
+          choice={fields.causedBy}
+          hint={t('create.causedByHint')}
+          includeCompany
+          label={t('create.causedBy')}
+          name={fields.causedByName}
+          onChange={(person) => patch({ causedBy: person.choice, causedByName: person.name })}
+          options={peopleOptions}
+          placeholder={t('create.causedByPlaceholder')}
+        />
+        <label className={styles.field}>
+          <span>{t('create.billUrl')}</span>
+          <input
+            aria-invalid={showIssues && issues.includes('billUrl')}
+            inputMode="url"
+            maxLength={500}
+            onChange={(event) => patch({ billUrl: event.target.value })}
+            placeholder={t('create.billUrlPlaceholder')}
+            value={fields.billUrl}
+          />
+        </label>
+        <div className={styles.field}>
+          <span>{t('create.vehicle')}</span>
+          <Select
+            ariaLabel={t('create.vehicle')}
+            clearable
+            onChange={(value) => patch({ vehicleId: value })}
+            options={vehicleOptions}
+            placeholder={t('create.vehiclePlaceholder')}
+            value={fields.vehicleId}
+          />
+        </div>
+      </div>
+      {showIssues && issues.length > 0 ? (
+        <p className={styles.error} role="alert">
+          {t('create.issues', {
+            fields: issues.map((issue) => t(`create.issue.${issue}`)).join(', '),
+          })}
+        </p>
+      ) : null}
+      {createExpense.error === null ? null : (
+        <p className={styles.error} role="alert">
+          {t(`errors.${createExpense.error.message}`, { defaultValue: t('errors.REQUEST_FAILED') })}
+        </p>
+      )}
+    </ExpenseDialogShell>
+  )
+}

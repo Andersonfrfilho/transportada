@@ -1,0 +1,319 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Spec 325 T1.1: portas em memória do módulo Contas, para os contratos dos casos de uso
+ * (padrão da 169). O contrato fixa a forma das portas que a T1.4 implementa com Drizzle.
+ */
+import type {
+  CompanyExpense,
+  ExpenseAmountChange,
+  ExpenseAuditEntry,
+  CompanyExpenseCategory,
+  CompanyExpenseOccurrence,
+  ExpenseDriverRef,
+  ExpenseSubtype,
+  ExpensesPorts,
+} from '../../src/expenses/application/expense.port.js'
+import { resolveExpensePayeeProfile } from '../../src/expenses/domain/expense-payee.policy.js'
+
+export const COMPANY_A = '00000000-0000-4000-8000-0000000000a1'
+export const COMPANY_B = '00000000-0000-4000-8000-0000000000b1'
+export const USER_ID = '00000000-0000-4000-8000-000000000001'
+
+export const CATEGORY_RENT_ID = '00000000-0000-4000-8000-00000000c001'
+export const CATEGORY_DRIVER_ID = '00000000-0000-4000-8000-00000000c002'
+export const DRIVER_A_ID = '00000000-0000-4000-8000-00000000d001'
+export const DRIVER_B_ID = '00000000-0000-4000-8000-00000000d002'
+/** Spec 325 RF1e: ajudante-puro (`can_drive = false`) da empresa A. */
+/** Spec 328: usuário do escritório com vínculo ativo na COMPANY_A (pode ser o causador). */
+export const OFFICE_USER_A_ID = '00000000-0000-4000-8000-0000000000e1'
+export const HELPER_A_ID = '00000000-0000-4000-8000-00000000d004'
+
+export type InMemoryExpenses = ExpensesPorts & {
+  readonly amountChangeRows: ExpenseAmountChange[]
+  readonly auditRows: ExpenseAuditEntry[]
+  readonly categoryRows: (CompanyExpenseCategory & { readonly companyId: string })[]
+  /** Quantas vezes a semente foi pedida, por empresa (a empresa nova não a recebe pela migration). */
+  readonly seedCalls: string[]
+  readonly subtypeRows: (ExpenseSubtype & { readonly companyId: string })[]
+  readonly expenseRows: CompanyExpense[]
+  readonly occurrenceRows: CompanyExpenseOccurrence[]
+}
+
+export function buildInMemoryExpenses(): InMemoryExpenses {
+  const expenseRows: CompanyExpense[] = []
+  const occurrenceRows: CompanyExpenseOccurrence[] = []
+  const auditRows: ExpenseAuditEntry[] = []
+  const amountChangeRows: ExpenseAmountChange[] = []
+  const seedCalls: string[] = []
+  const subtypeRows: (ExpenseSubtype & { readonly companyId: string })[] = []
+  const categories: (CompanyExpenseCategory & { readonly companyId: string })[] = [
+    {
+      active: true,
+      companyId: COMPANY_A,
+      id: CATEGORY_RENT_ID,
+      name: 'Aluguel',
+      requiresDriver: false,
+    },
+    {
+      active: true,
+      companyId: COMPANY_A,
+      id: CATEGORY_DRIVER_ID,
+      name: 'Pagamento de motorista/agregado',
+      requiresDriver: true,
+    },
+  ]
+  const drivers: (ExpenseDriverRef & { readonly canDrive: boolean; readonly companyId: string })[] =
+    [
+      { canDrive: true, companyId: COMPANY_A, id: DRIVER_A_ID, paymentModel: 'route_table' },
+      { canDrive: true, companyId: COMPANY_B, id: DRIVER_B_ID, paymentModel: 'fixed' },
+      { canDrive: false, companyId: COMPANY_A, id: HELPER_A_ID, paymentModel: 'fixed' },
+    ]
+
+  return {
+    amountChangeRows,
+    amountChanges: {
+      append: async (input) => {
+        const row: ExpenseAmountChange = {
+          changedByUserId: input.changedByUserId,
+          createdAt: new Date().toISOString(),
+          effectiveCompetence: input.effectiveCompetence,
+          expenseId: input.expenseId,
+          id: crypto.randomUUID(),
+          kind: input.kind,
+          newAmount: input.newAmount,
+          previousAmount: input.previousAmount,
+        }
+        amountChangeRows.push(row)
+        return row
+      },
+      list: async ({ expenseId }) =>
+        amountChangeRows
+          .filter((row) => row.expenseId === expenseId)
+          .sort((a, b) => a.effectiveCompetence.localeCompare(b.effectiveCompetence)),
+    },
+    audit: {
+      append: async (entry) => {
+        auditRows.push(entry)
+      },
+    },
+    auditRows,
+    categories: {
+      create: async ({ companyId, name }) => {
+        if (categories.some((c) => c.companyId === companyId && c.name === name)) {
+          return 'name_taken'
+        }
+        const row = {
+          active: true,
+          companyId,
+          id: crypto.randomUUID(),
+          name,
+          requiresDriver: false,
+        }
+        categories.push(row)
+        return row
+      },
+      ensureSeeded: async ({ companyId }) => {
+        seedCalls.push(companyId)
+      },
+      findById: async ({ categoryId, companyId }) =>
+        categories.find((c) => c.id === categoryId && c.companyId === companyId) ?? null,
+      list: async ({ companyId }) => categories.filter((c) => c.companyId === companyId),
+      setActive: async ({ active, categoryId, companyId }) => {
+        const row = categories.find((c) => c.id === categoryId && c.companyId === companyId)
+        if (row === undefined) return null
+        Object.assign(row, { active })
+        return row
+      },
+      setCostGroup: async ({ categoryId, companyId, costGroup }) => {
+        const row = categories.find((c) => c.id === categoryId && c.companyId === companyId)
+        if (row === undefined) return null
+        Object.assign(row, { costGroup })
+        return row
+      },
+    },
+    categoryRows: categories,
+    people: {
+      isActiveMember: async ({ companyId, userId }) =>
+        companyId === COMPANY_A && [USER_ID, OFFICE_USER_A_ID].includes(userId),
+      list: async ({ companyId }) =>
+        companyId === COMPANY_A
+          ? [
+              { id: OFFICE_USER_A_ID, kind: 'user' as const, name: 'Ana do escritório' },
+              { id: DRIVER_A_ID, kind: 'driver' as const, name: 'Motorista A' },
+            ]
+          : [],
+    },
+    drivers: {
+      findById: async ({ companyId, driverId }) =>
+        drivers.find((d) => d.id === driverId && d.companyId === companyId) ?? null,
+    },
+    expenseRows,
+    seedCalls,
+    subtypeRows,
+    subtypes: {
+      findById: async ({ companyId, subtypeId }) =>
+        subtypeRows.find((row) => row.id === subtypeId && row.companyId === companyId) ?? null,
+      findOrCreate: async ({ categoryId, companyId, name }) => {
+        const found = subtypeRows.find(
+          (row) =>
+            row.companyId === companyId &&
+            row.categoryId === categoryId &&
+            row.name.toLowerCase() === name.toLowerCase(),
+        )
+        if (found !== undefined) return { created: false, subtype: found }
+        const subtype = { active: true, categoryId, companyId, id: crypto.randomUUID(), name }
+        subtypeRows.push(subtype)
+        return { created: true, subtype }
+      },
+      list: async ({ companyId }) => subtypeRows.filter((row) => row.companyId === companyId),
+    },
+    expenses: {
+      create: async (input) => {
+        const row: CompanyExpense = { active: true, id: crypto.randomUUID(), ...input }
+        expenseRows.push(row)
+        return row
+      },
+      findById: async ({ companyId, expenseId }) =>
+        expenseRows.find((e) => e.id === expenseId && e.companyId === companyId) ?? null,
+      list: async ({ companyId }) => expenseRows.filter((e) => e.companyId === companyId),
+      update: async ({ companyId, expenseId, ...changes }) => {
+        const row = expenseRows.find((e) => e.id === expenseId && e.companyId === companyId)
+        if (row === undefined) return null
+        Object.assign(row, changes)
+        return row
+      },
+      listActiveFixed: async ({ companyId }) =>
+        expenseRows.filter((e) => e.companyId === companyId && e.active && e.kind === 'fixed'),
+    },
+    occurrenceRows,
+    occurrences: {
+      applyAmountFrom: async ({
+        amount,
+        companyId,
+        expenseId,
+        fromCompetence,
+        onlyNotDue,
+        today,
+        untilCompetence,
+      }) => {
+        let changed = 0
+        for (const row of occurrenceRows) {
+          if (
+            row.companyId === companyId &&
+            row.expenseId === expenseId &&
+            row.status === 'open' &&
+            row.competence >= fromCompetence &&
+            (untilCompetence === null || row.competence < untilCompetence) &&
+            (!onlyNotDue || row.dueDate >= today)
+          ) {
+            Object.assign(row, { expectedAmount: amount })
+            changed += 1
+          }
+        }
+        return changed
+      },
+      cancel: async ({ canceledBy, companyId, occurrenceId, reason }) => {
+        const row = occurrenceRows.find((o) => o.id === occurrenceId && o.companyId === companyId)
+        if (row?.status !== 'open') return null
+        Object.assign(row, { canceledBy, cancelReason: reason, status: 'canceled' })
+        return row
+      },
+      list: async ({ companyId, filters }) =>
+        occurrenceRows
+          .filter((o) => o.companyId === companyId)
+          .filter((o) => filters.status === undefined || o.status === filters.status)
+          .filter((o) => filters.competence === undefined || o.competence === filters.competence)
+          .filter(
+            (o) =>
+              filters.subtypeId === undefined ||
+              expenseRows.find((e) => e.id === o.expenseId)?.subtypeId === filters.subtypeId,
+          )
+          .filter(
+            (o) =>
+              filters.causedByDriverId === undefined ||
+              expenseRows.find((e) => e.id === o.expenseId)?.causedByDriverId ===
+                filters.causedByDriverId,
+          )
+          .filter(
+            (o) =>
+              filters.causedByUserId === undefined ||
+              expenseRows.find((e) => e.id === o.expenseId)?.causedByUserId ===
+                filters.causedByUserId,
+          )
+          .filter(
+            (o) =>
+              filters.causedByName === undefined ||
+              expenseRows.find((e) => e.id === o.expenseId)?.causedByName?.toLowerCase() ===
+                filters.causedByName.toLowerCase(),
+          )
+          .map((o) => {
+            const expense = expenseRows.find((e) => e.id === o.expenseId)
+            const causedBy = drivers.find((d) => d.id === expense?.causedByDriverId)
+            const category = categories.find((c) => c.id === expense?.categoryId)
+            const driver = drivers.find((d) => d.id === expense?.payeeDriverId)
+            return {
+              ...o,
+              categoryId: expense?.categoryId ?? '',
+              categoryName: category?.name ?? '',
+              causedByDriverId: expense?.causedByDriverId ?? null,
+              causedByDriverName: causedBy === undefined ? null : 'Quem causou',
+              causedByName: expense?.causedByName ?? null,
+              causedByUserId: expense?.causedByUserId ?? null,
+              causedByUserName:
+                expense?.causedByUserId === undefined || expense.causedByUserId === null
+                  ? null
+                  : 'Ana do escritório',
+              subtypeId: expense?.subtypeId ?? null,
+              subtypeName: subtypeRows.find((row) => row.id === expense?.subtypeId)?.name ?? null,
+              employeeDriverId: expense?.employeeDriverId ?? null,
+              employeeName: expense?.employeeName ?? null,
+              employeeUserId: expense?.employeeUserId ?? null,
+              employmentType: expense?.employmentType ?? null,
+              billLocation: expense?.billLocation ?? null,
+              expenseKind: expense?.kind ?? 'fixed',
+              expenseName: expense?.name ?? '',
+              payeeDriverId: expense?.payeeDriverId ?? null,
+              payeeDriverName: driver === undefined ? null : 'Motorista',
+              payeeDriverPaymentModel: driver?.paymentModel ?? null,
+              payeeProfile: driver === undefined ? null : resolveExpensePayeeProfile(driver),
+            }
+          }),
+      // unique (conta, competência, slot): ON CONFLICT DO NOTHING devolve false
+      insertIfAbsent: async (input) => {
+        const exists = occurrenceRows.some(
+          (o) =>
+            o.expenseId === input.expenseId &&
+            o.competence === input.competence &&
+            (o.slot ?? 1) === input.slot,
+        )
+        if (exists) return false
+        const effective = amountChangeRows
+          .filter(
+            (c) => c.expenseId === input.expenseId && c.effectiveCompetence <= input.competence,
+          )
+          .sort((a, b) => a.effectiveCompetence.localeCompare(b.effectiveCompetence))
+          .at(-1)
+        occurrenceRows.push({
+          id: crypto.randomUUID(),
+          paidAmount: null,
+          paidAt: null,
+          paidBy: null,
+          settlementNote: null,
+          status: 'open',
+          ...input,
+          expectedAmount: effective?.newAmount ?? input.expectedAmount,
+        })
+        return true
+      },
+      findById: async ({ companyId, occurrenceId }) =>
+        occurrenceRows.find((o) => o.id === occurrenceId && o.companyId === companyId) ?? null,
+      markPaid: async ({ occurrenceId, ...paid }) => {
+        const row = occurrenceRows.find((o) => o.id === occurrenceId)
+        if (row?.status !== 'open') return null
+        Object.assign(row, { status: 'paid', ...paid })
+        return row
+      },
+    },
+  }
+}

@@ -29,6 +29,11 @@ import {
   freezeTripRouteGracefully,
   type TripRouteFreezeLogger,
 } from './freeze-trip-route-gracefully.js'
+import {
+  orderDraftTripStopsGracefully,
+  snapshotStopIdsGracefully,
+} from './order-draft-trip-stops-gracefully.js'
+import type { OrderDraftTripStops } from './order-draft-trip-stops.use-case.js'
 import type { PlanTripRouteTollFreezer } from './plan-trip-route.use-case.js'
 import type {
   LinkTripDocumentsAfterDispatchInput,
@@ -96,6 +101,11 @@ export type LinkTripDocumentInput = {
   readonly context: TripCompanyContext
   readonly freightCalculationId: string | null
   readonly nfeDocumentId: string | null
+  /**
+   * Spec 323: `false` quando quem chama vincula várias notas em seguida e ordena uma vez no fim (o aceite da sugestão
+   * multiveículo). Ausente é `true`: a nota avulsa reordena as paradas.
+   */
+  readonly orderStops?: boolean
   readonly tripId: string
 }
 
@@ -183,6 +193,8 @@ export function createTripUseCase(dependencies: {
   readonly logger?: TripRouteFreezeLogger
   /** Spec 153 D6: viagem ainda não despachada recalcula com `cheapest`. Ausente, comportamento igual a antes. */
   readonly routeFreezer?: PlanTripRouteTollFreezer
+  /** Spec 323: ordena as paradas pela estrada depois de vincular uma nota. Ausente, a ordem é a de chegada. */
+  readonly stopOrderer?: OrderDraftTripStops
 }): TripUseCase {
   const { logger, repository, routeFreezer } = dependencies
 
@@ -268,16 +280,24 @@ export function createTripUseCase(dependencies: {
       return findTripOrThrow({ companyId: context.companyId, repository, tripId })
     },
 
-    async linkDocument({ context, freightCalculationId, nfeDocumentId, tripId }) {
+    async linkDocument({ context, freightCalculationId, nfeDocumentId, orderStops, tripId }) {
       assertTripDocumentReference({ freightCalculationId, nfeDocumentId })
       const companyId = context.companyId
       await assertTripOpen({ companyId, repository, tripId })
+      const stopOrderScope = {
+        companyId,
+        ...(logger === undefined ? {} : { logger }),
+        orderer: orderStops === false ? undefined : dependencies.stopOrderer,
+        tripId,
+      }
+      const knownStopIds = await snapshotStopIdsGracefully(stopOrderScope)
       const linked = await repository.linkDocument({
         companyId,
         freightCalculationId,
         nfeDocumentId,
         tripId,
       })
+      await orderDraftTripStopsGracefully({ ...stopOrderScope, knownStopIds })
       await freezeRouteGracefully({ companyId, logger, routeFreezer, tripId })
       return linked
     },

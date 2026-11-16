@@ -192,6 +192,24 @@ const CATALOG = [
     job: 'whatsapp-inbox.chat.expire',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 325 T1.5: gera as ocorrências das contas fixas; toca só o próprio banco. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'company-expense.occurrence.generate',
+    minimumIntervalSeconds: 86_400,
+  },
+  {
+    /** Spec 325 T7.4: avisa as contas a vencer; idempotente pelo registro de enviado. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'company-expense.reminder.send',
+    minimumIntervalSeconds: 3_600,
+  },
+  {
+    /** Spec 339 T4: entrega os avisos do pedido de coleta, expira e alerta pedido parado. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'pickup-request.notify',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -221,6 +239,11 @@ const SEED_MIGRATIONS = [
   '20261013010226_occurrence_contractor_reply_alert_job',
   '20261106232509_driver_stop_reminders',
   '20261111003528_whatsapp_inbox_chat_expire_job',
+  '20261113201500_company_expense_occurrence_job',
+  '20261114160259_company_expense_reminder_job',
+  '20261115140000_pickup_request_notifications',
+  '20261115150000_integration_api_keys',
+  '20261115160000_pickup_request_extras',
 ] as const
 
 describe('job catalog', () => {

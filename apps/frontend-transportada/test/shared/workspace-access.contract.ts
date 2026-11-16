@@ -22,6 +22,7 @@ const EXPECTED_WORKSPACE_PERMISSIONS: Readonly<Record<string, readonly string[]>
   nfe: ['invoices.read', 'invoices.import'],
   // freightViewModel.service.ts:42-46 — a parede só cai quando faltam as duas
   freight: ['settings.manage', 'freight.simulate'],
+  'freight-quote': ['freight.simulate'],
   // CteBatchWorkspace.page.tsx:75-76
   'cte-batch': ['cte.manage', 'cte.submit'],
   // canReadTrip (trip.constant.ts:25), usado em useTripWorkspace.hook.ts:243
@@ -58,11 +59,15 @@ const EXPECTED_WORKSPACE_PERMISSIONS: Readonly<Record<string, readonly string[]>
   reimbursements: ['trip.financials'],
   // FinancialResultsWorkspace.page.tsx:27
   'trip-financials': ['trip.financials'],
+  // useExpensesWorkspace.hook.ts (spec 325): a API lê com expenses.read; só o administrador a tem
+  expenses: ['expenses.read'],
   // me-trip.routes.ts:109 (API) — a página do motorista não tem parede; spec 221 RF-E6
   'driver-trip': ['trip.report'],
   // cargo-arrival-http.support.ts (API): leitura é fleet.read (o separador tem), escrita é trip.manage
   // e fica dentro da tela (`canManage`); spec 237 T2.4
   'cargo-receiving': ['fleet.read'],
+  // pickup-request.routes.ts (API, spec 339): o escritório lê e decide com pickup.manage
+  'pickup-requests': ['pickup.manage'],
 }
 
 describe('mapa de permissão por workspace — cobertura', () => {

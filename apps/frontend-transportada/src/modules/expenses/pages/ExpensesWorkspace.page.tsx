@@ -1,0 +1,526 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useTranslation } from 'react-i18next'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Icon } from '@/components/ui/icon'
+import { Select } from '@/components/ui/select'
+import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { formatAmount } from '@/modules/shared/decimalAmount.service'
+
+import { ExpenseBulkDialog } from '../components/ExpenseBulkDialog.component'
+import { ExpenseCreateDialog } from '../components/ExpenseCreateDialog.component'
+import { ExpenseEditDialog } from '../components/ExpenseEditDialog.component'
+import { ExpenseSettleDialog } from '../components/ExpenseSettleDialog.component'
+import { ExpenseTripsDialog } from '../components/ExpenseTripsDialog.component'
+import { useCalendarLabels } from '../components/useCalendarLabels.hook'
+import { useExpensesWorkspace } from '../hooks/useExpensesWorkspace.hook'
+import {
+  EXPENSE_KINDS,
+  EXPENSE_OCCURRENCE_STATUSES,
+  type ExpenseOccurrenceListItem,
+} from '../shared/expenses.types'
+import {
+  formatCivilDate,
+  formatInstallment,
+  isValidBillUrl,
+  isOverdue,
+  listCompetenceOptions,
+  resolveOccurrencePayeeKey,
+} from '../shared/expensesView.service'
+import styles from '../styles/expenses.module.css'
+
+/** Spec 325 T2.2 (RF8): "Contas" — o que a empresa paga, com filtros, totais, baixa e viagens. */
+export function ExpensesWorkspacePage() {
+  const { t } = useTranslation('expenses')
+  const workspace = useExpensesWorkspace()
+  const calendar = useCalendarLabels()
+  const { canManage, filters, page, summary, today } = workspace
+
+  if (workspace.isAuthLoading) {
+    return (
+      <main className={styles.shell}>
+        <SkeletonGroup label={t('loading')}>
+          <Skeleton height="2.5rem" />
+        </SkeletonGroup>
+      </main>
+    )
+  }
+
+  if (!workspace.canRead) {
+    return (
+      <main className={styles.shell}>
+        <header className={styles.header}>
+          <h1>{t('title')}</h1>
+        </header>
+        <p className={styles.error} role="alert">
+          {t('forbidden')}
+        </p>
+      </main>
+    )
+  }
+
+  const driverOptions = workspace.driverOptions.drivers.map((driver) => ({
+    label: driver.name,
+    value: driver.id,
+  }))
+
+  const peopleOptions = workspace.people.map((person) => ({
+    label: person.name,
+    value: `${person.kind}:${person.id}`,
+  }))
+
+  function renderStatus(row: ExpenseOccurrenceListItem) {
+    if (isOverdue(row, today)) return <Badge variant="warning">{t('status.overdue')}</Badge>
+    const variant =
+      row.status === 'paid' ? 'success' : row.status === 'canceled' ? 'info' : 'secondary'
+    return <Badge variant={variant}>{t(`status.${row.status}`)}</Badge>
+  }
+
+  function renderPayee(row: ExpenseOccurrenceListItem) {
+    const key = resolveOccurrencePayeeKey(row)
+    if (row.payeeDriverName === null || key === null) return null
+    return (
+      <span className={styles.rowDetail}>
+        {row.payeeDriverName} · {t(`payee.${key}`)}
+      </span>
+    )
+  }
+
+  function renderEmployee(row: ExpenseOccurrenceListItem) {
+    const person = row.employeeDriverName ?? row.employeeUserName ?? row.employeeName ?? null
+    if (person === null && !row.employmentType) return null
+    const type = row.employmentType ? t(`employmentType.${row.employmentType}`) : null
+    return (
+      <span className={styles.rowDetail}>
+        {person === null
+          ? t('list.employmentOnly', { type })
+          : type === null
+            ? t('list.employee', { name: person })
+            : t('list.employeeWithType', { name: person, type })}
+      </span>
+    )
+  }
+
+  function renderCausedBy(row: ExpenseOccurrenceListItem) {
+    const name = row.causedByDriverName ?? row.causedByUserName ?? row.causedByName ?? null
+    const billUrl = (row.billUrl ?? '').trim()
+    // Spec 332: o tipo da categoria substitui o texto "Onde está"; ele só aparece em conta antiga sem tipo.
+    const place = row.subtypeName ? null : (row.billLocation ?? null)
+    if (name === null && place === null && billUrl === '') return null
+    return (
+      <>
+        {name === null ? null : (
+          <span className={styles.rowDetail}>{t('list.causedBy', { name })}</span>
+        )}
+        {place === null ? null : (
+          <span className={styles.rowDetail}>{t('list.billLocation', { place })}</span>
+        )}
+        {billUrl === '' || !isValidBillUrl(billUrl) ? null : (
+          <a className={styles.rowDetail} href={billUrl} rel="noopener noreferrer" target="_blank">
+            {t('list.billLink')}
+          </a>
+        )}
+      </>
+    )
+  }
+
+  function renderInstallment(row: ExpenseOccurrenceListItem) {
+    const installment = formatInstallment(row)
+    if (installment === null) return null
+    return <span className={styles.rowDetail}>{t('list.installment', { installment })}</span>
+  }
+
+  return (
+    <main className={styles.shell}>
+      <header className={styles.header}>
+        <div className={styles.panelHead}>
+          <h1>{t('title')}</h1>
+          <Button
+            onClick={() => {
+              window.history.pushState({}, '', '/contas/resultado')
+              window.dispatchEvent(new PopStateEvent('popstate'))
+            }}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            {t('resultPage.open')}
+          </Button>
+        </div>
+        <p className={styles.hint}>{t('subtitle')}</p>
+      </header>
+
+      <section aria-label={t('filters.title')} className={styles.filters}>
+        <div className={styles.field}>
+          <span>{t('filters.month')}</span>
+          <Select
+            ariaLabel={t('filters.month')}
+            onChange={(value) => workspace.setFilter('competence', value)}
+            options={listCompetenceOptions()}
+            value={filters.competence}
+          />
+        </div>
+        <div className={styles.field}>
+          <span>{t('filters.kind')}</span>
+          <Select
+            ariaLabel={t('filters.kind')}
+            clearable
+            onChange={(value) => workspace.setFilter('kind', value as typeof filters.kind)}
+            options={EXPENSE_KINDS.map((kind) => ({ label: t(`kind.${kind}`), value: kind }))}
+            placeholder={t('filters.all')}
+            value={filters.kind}
+          />
+        </div>
+        <div className={styles.field}>
+          <span>{t('filters.category')}</span>
+          <Select
+            ariaLabel={t('filters.category')}
+            clearable
+            onChange={(value) => {
+              workspace.setFilter('categoryId', value)
+              workspace.setFilter('subtypeId', '')
+            }}
+            options={workspace.categories.map((category) => ({
+              label: category.name,
+              value: category.id,
+            }))}
+            placeholder={t('filters.allFeminine')}
+            value={filters.categoryId}
+          />
+        </div>
+        <div className={styles.field}>
+          <span>{t('filters.subtype')}</span>
+          <Select
+            ariaLabel={t('filters.subtype')}
+            clearable
+            onChange={(value) => workspace.setFilter('subtypeId', value)}
+            options={workspace.subtypes
+              .filter(
+                (subtype) => filters.categoryId === '' || subtype.categoryId === filters.categoryId,
+              )
+              .map((subtype) => ({
+                label:
+                  filters.categoryId === ''
+                    ? `${workspace.categories.find((category) => category.id === subtype.categoryId)?.name ?? ''} · ${subtype.name}`
+                    : subtype.name,
+                value: subtype.id,
+              }))}
+            placeholder={t('filters.all')}
+            value={filters.subtypeId}
+          />
+        </div>
+        <div className={styles.field}>
+          <span>{t('filters.status')}</span>
+          <Select
+            ariaLabel={t('filters.status')}
+            clearable
+            onChange={(value) => workspace.setFilter('status', value as typeof filters.status)}
+            options={EXPENSE_OCCURRENCE_STATUSES.map((status) => ({
+              label: t(`status.${status}`),
+              value: status,
+            }))}
+            placeholder={t('filters.all')}
+            value={filters.status}
+          />
+        </div>
+        <div className={styles.field}>
+          <span>{t('filters.payee')}</span>
+          <Select
+            ariaLabel={t('filters.payee')}
+            clearable
+            onChange={(value) => workspace.setFilter('driverId', value)}
+            options={driverOptions}
+            placeholder={t('filters.all')}
+            value={filters.driverId}
+          />
+        </div>
+        <div className={styles.field}>
+          <span>{t('filters.causedBy')}</span>
+          <Select
+            ariaLabel={t('filters.causedBy')}
+            clearable
+            onChange={(value) => workspace.setFilter('causedBy', value)}
+            options={peopleOptions}
+            placeholder={t('filters.all')}
+            value={filters.causedBy}
+          />
+        </div>
+        <label className={styles.field}>
+          <span>{t('filters.search')}</span>
+          <input
+            onChange={(event) => workspace.setSearch({ text: event.target.value })}
+            placeholder={t('filters.searchPlaceholder')}
+            type="search"
+            value={workspace.search.text}
+          />
+        </label>
+        <div className={styles.field}>
+          <span>{t('filters.dueFrom')}</span>
+          <DatePicker
+            {...calendar}
+            ariaLabel={t('filters.dueFrom')}
+            onChange={(value) => workspace.setSearch({ dueFrom: value })}
+            value={workspace.search.dueFrom}
+          />
+        </div>
+        <div className={styles.field}>
+          <span>{t('filters.dueTo')}</span>
+          <DatePicker
+            {...calendar}
+            ariaLabel={t('filters.dueTo')}
+            onChange={(value) => workspace.setSearch({ dueTo: value })}
+            value={workspace.search.dueTo}
+          />
+        </div>
+      </section>
+
+      {workspace.loadError === null ? null : (
+        <p className={styles.error} role="alert">
+          {t(`errors.${workspace.loadError.message}`, { defaultValue: t('errors.REQUEST_FAILED') })}
+        </p>
+      )}
+
+      {summary === undefined ? null : (
+        <dl className={styles.totals}>
+          <div>
+            <dt>{t('totals.expected')}</dt>
+            <dd>{formatAmount(summary.expected)}</dd>
+          </div>
+          <div>
+            <dt>{t('totals.paid')}</dt>
+            <dd className={styles.amountIn}>{formatAmount(summary.paid)}</dd>
+          </div>
+          <div>
+            <dt>{t('totals.open')}</dt>
+            <dd>{formatAmount(summary.open)}</dd>
+          </div>
+          <div>
+            <dt>{t('totals.overdue')}</dt>
+            <dd className={summary.overdueCount > 0 ? styles.amountOut : undefined}>
+              {summary.overdueCount} · {formatAmount(summary.overdueAmount)}
+            </dd>
+          </div>
+        </dl>
+      )}
+
+      <section className={styles.panel}>
+        <div className={styles.panelHead}>
+          <h2>{t('list.title')}</h2>
+          {canManage ? (
+            <Button onClick={() => workspace.openDialog({ kind: 'create' })} type="button">
+              <Icon name="money" />
+              {t('list.new')}
+            </Button>
+          ) : null}
+        </div>
+
+        {canManage && workspace.openItems.length > 0 ? (
+          <div aria-label={t('bulk.bar')} className={styles.bulkBar} role="region">
+            <Checkbox
+              ariaLabel={t('bulk.selectAll')}
+              checked={workspace.isAllSelected}
+              indeterminate={workspace.selectedIds.size > 0}
+              label={
+                workspace.selection.count > 0
+                  ? t('bulk.selected', {
+                      amount: formatAmount(workspace.selection.expected),
+                      count: workspace.selection.count,
+                    })
+                  : t('bulk.selectAllLabel', { count: workspace.openItems.length })
+              }
+              onChange={workspace.toggleAll}
+            />
+            {workspace.selection.count > 0 ? (
+              <div className={styles.rowActions}>
+                <Button
+                  onClick={() => workspace.openDialog({ action: 'settle', kind: 'bulk' })}
+                  size="sm"
+                  type="button"
+                >
+                  <Icon name="save" />
+                  {t('bulk.settle')}
+                </Button>
+                <Button
+                  onClick={() => workspace.openDialog({ action: 'cancel', kind: 'bulk' })}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  {t('bulk.cancel')}
+                </Button>
+                <Button onClick={workspace.clearSelection} size="sm" type="button" variant="ghost">
+                  {t('bulk.clear')}
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {workspace.isLoading ? (
+          <SkeletonGroup label={t('loading')}>
+            <Skeleton height="2.5rem" />
+            <Skeleton height="2.5rem" />
+            <Skeleton height="2.5rem" />
+          </SkeletonGroup>
+        ) : page === undefined || workspace.visibleItems.length === 0 ? (
+          <p className={styles.hint}>{t('list.empty')}</p>
+        ) : (
+          <div className={styles.tableScroll}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope="col">
+                    <span className={styles.srOnly}>{t('bulk.select')}</span>
+                  </th>
+                  <th scope="col">{t('list.account')}</th>
+                  <th scope="col">{t('list.kind')}</th>
+                  <th scope="col">{t('list.category')}</th>
+                  <th scope="col">{t('list.due')}</th>
+                  <th scope="col">{t('list.expected')}</th>
+                  <th scope="col">{t('list.paid')}</th>
+                  <th scope="col">{t('list.status')}</th>
+                  <th scope="col">
+                    <span className={styles.srOnly}>{t('list.actions')}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {workspace.visibleItems.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      {canManage && row.status === 'open' ? (
+                        <Checkbox
+                          ariaLabel={t('bulk.selectOne', { name: row.expenseName })}
+                          checked={workspace.selectedIds.has(row.id)}
+                          onChange={() => workspace.toggleOne(row.id)}
+                        />
+                      ) : null}
+                    </td>
+                    <td data-column={t('list.account')}>
+                      <div>
+                        {row.expenseName}
+                        {renderInstallment(row)}
+                        {renderPayee(row)}
+                        {renderEmployee(row)}
+                        {renderCausedBy(row)}
+                      </div>
+                    </td>
+                    <td data-column={t('list.kind')}>{t(`kind.${row.expenseKind}`)}</td>
+                    <td data-column={t('list.category')}>
+                      {row.categoryName}
+                      {row.subtypeName === undefined || row.subtypeName === null ? null : (
+                        <span className={styles.rowDetail}>
+                          {t('list.subtype', { name: row.subtypeName })}
+                        </span>
+                      )}
+                    </td>
+                    <td data-column={t('list.due')}>{formatCivilDate(row.dueDate)}</td>
+                    <td data-column={t('list.expected')}>{formatAmount(row.expectedAmount)}</td>
+                    <td data-column={t('list.paid')}>
+                      {row.paidAmount === null ? '—' : formatAmount(row.paidAmount)}
+                    </td>
+                    <td data-column={t('list.status')}>{renderStatus(row)}</td>
+                    <td>
+                      <div className={styles.rowActions}>
+                        {row.payeeDriverId === null ? null : (
+                          <Button
+                            onClick={() => workspace.openDialog({ kind: 'trips', occurrence: row })}
+                            size="sm"
+                            type="button"
+                            variant="secondary"
+                          >
+                            {t('list.trips')}
+                          </Button>
+                        )}
+                        {canManage ? (
+                          <Button
+                            onClick={() => workspace.openDialog({ kind: 'edit', occurrence: row })}
+                            size="sm"
+                            type="button"
+                            variant="secondary"
+                          >
+                            {t('list.edit')}
+                          </Button>
+                        ) : null}
+                        {canManage && row.status === 'open' ? (
+                          <Button
+                            onClick={() =>
+                              workspace.openDialog({ kind: 'settle', occurrence: row })
+                            }
+                            size="sm"
+                            type="button"
+                            variant="secondary"
+                          >
+                            {t('list.settle')}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {page === undefined || page.totals.paidByDriver.length === 0 ? null : (
+          <div className={styles.paidByDriver}>
+            <h3>{t('totals.paidByDriver')}</h3>
+            <ul>
+              {page.totals.paidByDriver.map((entry) => (
+                <li key={entry.driverId}>
+                  {entry.driverName ?? entry.driverId} · {formatAmount(entry.paidAmount)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      {workspace.dialog?.kind === 'bulk' ? (
+        <ExpenseBulkDialog
+          action={workspace.dialog.action}
+          expected={workspace.selection.expected}
+          items={workspace.openItems.filter((item) => workspace.selectedIds.has(item.id))}
+          onClose={workspace.closeDialog}
+        />
+      ) : null}
+
+      {workspace.dialog?.kind === 'create' ? (
+        <ExpenseCreateDialog
+          categories={workspace.categories}
+          driverOptions={driverOptions}
+          onClose={workspace.closeDialog}
+          onCreated={(input) =>
+            workspace.revealCreated(input.dueDate === undefined ? {} : { dueDate: input.dueDate })
+          }
+          peopleOptions={peopleOptions}
+          vehicleOptions={workspace.vehicleOptions}
+        />
+      ) : null}
+      {workspace.dialog?.kind === 'edit' ? (
+        <ExpenseEditDialog
+          occurrence={workspace.dialog.occurrence}
+          onClose={workspace.closeDialog}
+          peopleOptions={peopleOptions}
+        />
+      ) : null}
+      {workspace.dialog?.kind === 'settle' ? (
+        <ExpenseSettleDialog
+          occurrence={workspace.dialog.occurrence}
+          onClose={workspace.closeDialog}
+        />
+      ) : null}
+      {workspace.dialog?.kind === 'trips' ? (
+        <ExpenseTripsDialog
+          canManage={canManage}
+          occurrence={workspace.dialog.occurrence}
+          onClose={workspace.closeDialog}
+        />
+      ) : null}
+    </main>
+  )
+}

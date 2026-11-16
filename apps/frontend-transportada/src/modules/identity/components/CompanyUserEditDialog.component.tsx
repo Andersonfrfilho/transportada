@@ -314,6 +314,7 @@ export function CompanyUserEditDialog({
           isPending={identifiers.addMutation.isPending || identifiers.removeMutation.isPending}
           onAdd={(entry) => identifiers.addMutation.mutate(entry)}
           onRemove={(identifierId) => identifiers.removeMutation.mutate(identifierId)}
+          whatsapp={<CompanyUserWhatsAppPanel disabled={isPending} userId={user.id} />}
         />
 
         <CompanyUserRoleField
@@ -334,8 +335,6 @@ export function CompanyUserEditDialog({
           userId={user.id}
           username={user.username}
         />
-
-        <CompanyUserWhatsAppPanel disabled={isPending} userId={user.id} />
 
         <DialogError code={footerErrorCode} />
 

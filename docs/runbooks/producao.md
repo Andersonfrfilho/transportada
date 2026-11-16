@@ -111,6 +111,7 @@ Regras que já custaram tempo:
 | `ops/producao-soltar-notas-devolvidas.sh [--confirm]`                   | solta (`released_at`) NFs devolvidas pelo escritório para entrarem em outra viagem; sem `--confirm` só simula                                                                                                                                                                                                                                                                                                                                   | escrita                         |
 | `ops/producao-parada-cheguei-rafa.sh`                                   | viagens ativas do motorista Rafa (paradas e sequências) e últimos pedidos do grupo do WhatsApp (09/11/2026, bug da lista de paradas do "cheguei")                                                                                                                                                                                                                                                                                               | leitura                         |
 | `scripts/ops/producao-lembrete-viagens-despachadas.sh`                  | viagens `dispatched`/`in_transit` sem "Iniciar rota" que passam a receber o lembrete "sem evento" (spec 299, emenda D10 de 10/11/2026), interruptor da empresa e `DRIVER_REMINDERS_ENABLED` (só true/false); rodar antes de promover a emenda à `main`                                                                                                                                                                                          | leitura                         |
+| `scripts/ops/producao-tipos-ocorrencia.sh`                              | tipos de ocorrência de produção com os modos da promoção #678 e a contagem de ocorrências (§ 5.29)                                                                                                                                                                                                                                                                                                                                              | leitura                         |
 | `scripts/ops/producao-pos-promocao-678.sh`                              | conferência pós-deploy da promoção #678 de 11/11/2026: tabelas novas, rotina `whatsapp-inbox.chat.expire` pausada, trava e coleta de canhoto desligadas, lembrete do motorista (§ 5.29)                                                                                                                                                                                                                                                         | leitura                         |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
@@ -856,6 +857,7 @@ por `railway ssh`. Script: `tmp/ops/staging-publica-grafo-whatsapp.sh <previa|ad
    histórico tiver edição `source=panel`). Depois, `publicar`.
 3. `sobrescrever fala_a,fala_b` leva o texto do código a chaves `fala_*` editadas no painel (spec 299).
 4. Feito em 2026-11-07 em staging: versão 3 → 4 (21 falas regravadas, 2 nós novos da 299).
+5. Spec 326 (lançar conta pelo WhatsApp) acrescenta o nó `expense_start`, `expense_entry` e `expense_router` e a opção `lancar_conta` no menu: depois de ir a staging, rode `previa` e `publicar`.
 
 ## 5.27 Quem pode confirmar como atendente no grupo do WhatsApp (10/11/2026) — somente leitura
 
@@ -901,6 +903,60 @@ endereços, produtos, volumes e os pais por chave estrangeira).
 - O XML das notas não é copiado (o balde de produção não é lido): a linha existe, o download do XML não.
 - Saída completa em `tmp/ops/saidas/staging-copia-unica-<data>.txt` (e o JSON exportado ao lado); o script imprime só o caminho.
 - Depois: configurar o canal WhatsApp na ficha da Única em staging (grupo e número) e criar uma viagem com essas notas para registrar a ocorrência.
+
+## 5.31 Ordem das paradas no rascunho (spec 323, 11/11/2026)
+
+O rascunho da viagem nasce com as paradas na ordem da estrada (OSRM, a partir do barracão), sem clique. Fases B e C
+estão em staging (#720 e #721). **Produção não mudou nada nesta fase:** a promoção staging → main ainda não aconteceu.
+
+- **Migration aditiva:** `trips.stop_order_source` (`unordered` por padrão) e `trips.stop_order_error_code` (nulo sem
+  falha). A viagem que já existe fica `unordered` e **não é reordenada retroativamente**. Rollback no `rollback.sql` da pasta da migration.
+- **Dependência:** `ROUTING_MATRIX_URL` do `api` apontando para o OSRM. Sem ela o ordenador não é montado e tudo segue
+  como antes (linha de chegada, sem aviso). Falha do OSRM vira `ROUTING_MATRIX_UNAVAILABLE` gravado na viagem, nunca linha reta.
+- **Conferir a origem da ordem (somente leitura).** Use o `railway ssh` do serviço `api` e rode o `psql` do `DATABASE_URL`
+  (nunca cole o valor na tela):
+
+  ```sql
+  SELECT stop_order_source, stop_order_error_code, count(*)
+  FROM trips
+  GROUP BY 1, 2
+  ORDER BY 3 DESC;
+  ```
+
+  Depois de promover, o esperado é ver `suggested` nas viagens criadas depois do deploy. `ROUTING_MATRIX_UNAVAILABLE` em
+  muita viagem quer dizer OSRM fora do ar: confira `osrm` antes de mexer em qualquer coisa.
+
+- **Reordenar uma viagem específica** pelo painel (botão **Ordenar paradas**, `trip.manage`), não por SQL. Viagem despachada
+  responde 409 e não muda.
+- **Validação em staging (T11 da spec 323, pendente):** reproduzir pela tela o lote com Matão, Monte Alto e Jaboticabal
+  intercalados, conferir a ordem e o selo de origem. Anotar o resultado em `specs/323-paradas-ordenadas-no-rascunho/evidence.md`.
+
+## 5.32 Modelo geral do aviso manual à contratante (spec 324 T1b, 13/11/2026) — só staging
+
+O botão "Avisar a contratante" (spec 324) nunca fica sem texto: sem modelo no tipo, ele usa o modelo geral
+`ocorrencia.contratante-aviso-manual` de Notificações (e-mail com assunto + HTML e WhatsApp em texto, `pt-BR`). O aviso
+automático **não** o lê. No grupo, a ordem é a versão WhatsApp da chave do tipo, depois `ocorrencia.contratante-grupo`,
+depois o geral. Os arquivos versionados são `apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates/contratante-aviso-manual.html`
+e `.../occurrence-whatsapp-templates/contratante-aviso-manual.txt`.
+
+- **Publicar em staging:** script em `/home/miyazaki/Documents/personal/transportada/tmp/ops/staging-324-publica-modelo-aviso-manual.sh`
+  (cópia em `324-avisar-contratante-manual/` dos arquivos do projeto). Sem argumento é **simulação** (create/same/differs por
+  canal, nada gravado); `--confirm` grava a versão 1 de cada canal; `differs` (texto editado na tela) só vira versão nova com
+  `--overwrite`. Nunca muda o texto de uma versão: desativa a anterior e insere a próxima, na mesma transação. Saída em
+  `tmp/ops/saidas/staging-324-publica-modelo-aviso-manual-<modo>-<data>.txt`.
+- **Alternativa pelo publicador do repositório** (dentro do container da `api`):
+  `bun run scripts/occurrence-mail-templates-publish.ts --company <uuid>` lista também o modelo geral nos dois canais
+  (coluna de canal no plano). Cuidado: com `--confirm` ele também cria os outros modelos de ocorrência que faltarem.
+- **Conferir (somente leitura):**
+
+  ```sql
+  SELECT key, channel, version, active
+  FROM notification.templates
+  WHERE key = 'ocorrencia.contratante-aviso-manual'
+  ORDER BY channel, version;
+  ```
+
+- **Produção:** nada publicado. Vai junto com a promoção da spec 324, com aprovação.
 
 ## 6. Erros que não devem se repetir
 
@@ -1255,6 +1311,23 @@ sozinhas no `preDeployCommand` da API; a CI confere com `assert-migrations api`.
   (#701) e a constante de consultas fixas do snapshot do motorista subiu de 26 para 27 com a T6 (#703). O teste do SIGTERM do worker
   (`sigterm.integration.ts`) estourou o prazo uma vez e passou na repetição.
 
+### O que configurar em produção depois da promoção #678 (igual ao que foi feito em staging)
+
+Conferido contra o diff do #678: **nenhuma variável de ambiente nova** (nada a pôr no Railway) e **o grafo do bot não mudou**
+(`whatsapp-flow-graph.constant.ts` igual; não republicar). O que sobra é dado, feito por script ou pelo painel, cada um com aprovação.
+
+| Item                                                 | Como                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Estado                                 |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Tipo "Canhoto retido pelo cliente" (321)             | **Pelo painel**, aba Tipos de `/ocorrencias`: etapa entrega, momentos documento e escritório, observação obrigatória, anexo opcional, marcas "Não avisa a contratante" e "Cria coleta de canhoto", sem somar a carga na viagem de coleta, repetição até resolver. ⚠️ O `canhoto-retido-type-publish.ts` **não roda em produção**: o Dockerfile da API copia só alguns scripts e este importa código que a imagem não leva (medido em 11/11/2026: "script ausente na api de produção") | Fazer pelo painel, com aval            |
+| Modelo WhatsApp `ocorrencia.contratante-grupo` (318) | O script existente é só de staging e o texto mudou na emenda de 11/11 (#706/#707, ainda fora da `main`). Publicar em produção na próxima promoção, com um script de produção                                                                                                                                                                                                                                                                                                          | **Aguardar** a próxima promoção        |
+| Canal de grupo da contratante (318)                  | Painel, ficha da contratante: escolher o grupo e o número marcado; testar com o grupo de teste antes de ligar                                                                                                                                                                                                                                                                                                                                                                         | Depende do modelo acima                |
+| Tipos de parada com localização e chegada (315)      | Em staging foi o `staging-configura-tipos-ocorrencia.sh` (4 tipos, ativa e liga obrigatoriedade; cria "Endereço incorreto"). ⚠️ Em produção a migration 317 renomeou "Cobrança inesperada" para "Cobrança no recebimento": o script acharia o nome antigo "NÃO ENCONTRADO". Antes de qualquer escrita, rodar `bash <repositório>/scripts/ops/producao-tipos-ocorrencia.sh` (leitura) e decidir                                                                                        | Decisão do Anderson, depois da leitura |
+| Tipo de cobrança no recebimento (317)                | A migration já renomeou e exigiu valor pago; conferir o interruptor "Mostrar ao motorista o aviso de possível cobrança" na aba Tipos                                                                                                                                                                                                                                                                                                                                                  | Conferir                               |
+| E-mail do aviso do motorista (322)                   | Sem linha vale ligado; desligar em Responsáveis por ocorrências, se for a decisão                                                                                                                                                                                                                                                                                                                                                                                                     | Decisão do Anderson                    |
+| Vendedores da contratante (316)                      | Ativação por script com aprovação (tarefa aberta da spec)                                                                                                                                                                                                                                                                                                                                                                                                                             | Fora desta promoção                    |
+| Trava de eventos atrasados (320)                     | `PUT /company-settings/field-report-hold`; fica **desligada**                                                                                                                                                                                                                                                                                                                                                                                                                         | Não ligar sem aprovação                |
+| Rotina `whatsapp-inbox.chat.expire` (319)            | Fica pausada; ligar só com a autorização do dono                                                                                                                                                                                                                                                                                                                                                                                                                                      | Não ligar sem aprovação                |
+
 ## 5.27 Eventos velhos do app do motorista (spec 320, 10/11/2026) — leitura em produção, nada alterado
 
 O motorista 87 reenviou pelo app, em 10/11/2026 às 17:34 UTC, uma fila velha de toques. Duas leituras **somente de consulta** no banco de produção (`railway ssh -s api -e production`, `bun` com `DATABASE_URL` do próprio serviço), scripts em `tmp/ops/producao-motorista-eventos-atrasados.sh` e `producao-motorista-paradas-atrasadas.sh`:
@@ -1273,3 +1346,106 @@ Sintoma: o bot reenviava a cada ~30 min o lembrete `idle` ("Vamos iniciar a rota
 - **Causa 2:** o portão só fechava o lembrete com a parada baixada; viagem `completed`/cancelada com parada em aberto continuava cobrando. Correção: `readStop` considera fechada a parada de viagem fora de `TRIP_ON_ROAD_STATUSES`.
 - **Freio em produção (11/11/2026, 16:02 BRT):** `DRIVER_REMINDERS_ENABLED=false` no serviço `api` (script `tmp/ops/producao-lembrete-rota-freio-variavel.sh pausar`; `religar` volta). Religar só depois da correção em produção. O script `producao-lembrete-rota-freio.sh` (ssh + `UPDATE` em `company_driver_reminder_settings`) travou no `railway ssh`; prefira o da variável.
 - **Diagnóstico (somente leitura):** `tmp/ops/producao-lembrete-rota-diagnostico.sh` lista os lembretes pendentes/recentes com o status da viagem e das paradas.
+
+## 5.31 Conferir o envio de push (12/11/2026) — somente leitura
+
+- **Script:** `tmp/ops/producao-push-confere.sh` confere, para `api` e `worker`, a presença (sem valor) de `RABBITMQ_URL`, `QUEUE_PREFIX` e `VAPID_*`, lista os logs de 7 dias de fila/push e consulta as entregas de push no banco. Saída em `tmp/ops/saidas/push-confere-*.txt`. Os nomes das tabelas do módulo de notificação variam: as consultas ao banco podem falhar sem prejuízo.
+- **Medido em 12/11/2026:** produção tem `RABBITMQ_URL` no `api` e no `worker`, e **não tem `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` em nenhum dos dois**: o push está desligado (sem driver, sem aparelho entregável). O aviso `notification.queue.not_configured` não aparece.
+- **Quem entrega é o worker.** A fila é consumida por ele, então o driver de push (`createWebPushProvider`) precisa existir **nele** com as mesmas chaves da API. Antes desta correção só a API o criava e todo push cairia em `channel_not_configured`. Para ligar: pôr as três variáveis (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`) no `api` **e** no `worker` (mesmo par), e só depois oferecer o canal `push` no catálogo (`NOTIFICATION_PRODUCT_CHANNELS`), que hoje é inbox + e-mail.
+- **Rotas do módulo:** `POST /v1/notifications` (disparo) e `PUT /v1/notification-category-policies` exigem `settings.manage`, como a escrita de modelos. Antes, qualquer usuário logado da empresa passava.
+- **Definir as chaves (12/11/2026):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-push-chaves-vapid.sh staging` gera o par VAPID (ou reaproveita o do `api`) e grava o **mesmo par** no `api` e no `worker`; `production` pede confirmação digitada, e `--force` troca o par (todo aparelho cadastrado precisa ativar de novo). Nunca imprime a privada. Gravar variável redeploya os dois serviços. Conferir depois: `GET /v1/push/vapid-public-key` devolve a pública (87 caracteres, começa com `B`).
+- **App do motorista:** a ativação é um botão em Notificações ("Ativar neste aparelho"), não mais um pedido de permissão no login. Estado e motivo da falha aparecem na tela; o aparelho cadastrado fica em `notification.devices` (driver `webpush`).
+
+## 5.32 Ativar os tipos de ocorrência de entrega em staging, sem aviso à contratante (13/11/2026)
+
+- **Estado medido em staging (13/11, 11:51, `staging-tipos-ocorrencia-estado.sh`, somente leitura):** só "Prorrogação do boleto" estava ativa. "Local fechado" e "Endereço incorreto" não existiam; "Espera longa" estava inativa, sem espera mínima e com `emails_contractor` ligado; "Cobrança inesperada" não existe (o tipo é "Cobrança no recebimento", inativo). O script antigo `staging-configura-tipos-ocorrencia.sh` não tinha sido aplicado.
+- **Regra do Anderson:** nenhum desses quatro tipos vai direto à contratante (`emails_contractor = false`). O aviso manual fica para o botão da spec 324.
+- **Ativar:** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/staging-ativa-tipos-ocorrencia.sh` (simulação: abre a transação, mostra antes/depois e desfaz) e, depois de conferir a saída, o mesmo comando com `--confirm`. Cria "Local fechado" e "Endereço incorreto", e configura "Espera longa" (espera mínima 30 min, observação obrigatória), "Cobrança no recebimento" (valor e observação obrigatórios) e os dois novos. Não mexe em outro tipo. A saída vai para `tmp/ops/saidas/`.
+- **Conferir o estado a qualquer hora (somente leitura):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/staging-tipos-ocorrencia-estado.sh`.
+- ⚠️ Há tipos inativos com `emails_contractor` ligado (Recusa, Avaria, Devolução, Destinatário ausente, Doca interditada, Exigiram agendamento, Item avariado): ao ativar qualquer um, conferir esse campo antes.
+
+## 5.33 Rotina `company-expense.occurrence.generate` (spec 325 T1.5, 13/11/2026) — nasce pausada, nada alterado em produção
+
+- **O que faz:** uma vez por dia (`interval_seconds = 86400`) o worker gera, por empresa, as ocorrências das contas fixas ativas (mês corrente + 3) em `company_expense_occurrences`. Idempotente pela chave `(expense_id, competence, slot)` (`ON CONFLICT DO NOTHING`); conta inativa e conta variável não geram. A data civil é a de America/Sao_Paulo. A âncora das recorrências bimestral/trimestral/anual é o mês de criação da conta em São Paulo, igual à API.
+- **Estado inicial:** a migration `20261113201500_company_expense_occurrence_job` semeia a linha em `job_schedules` com `enabled = false`, `paused_origin = 'system'`. Até ligar, as ocorrências só nascem no cadastro da conta (API). Ligar pede a autorização do dono; em staging liga-se pelo painel de rotinas (retomar) e a execução aparece com contadores `companies` e `created`.
+- **Conferir (somente leitura):** `select job, enabled, paused_origin, interval_seconds from job_schedules where job = 'company-expense.occurrence.generate'` e as últimas linhas de `job_executions` da rotina; `created = 0` no segundo ciclo é o esperado.
+- **Falha:** uma empresa que erra não segura as outras; o ciclo termina e fecha `unexpected_error` (o log `company_expense_occurrence_company_failed` traz `companyId` e a mensagem). Rollback: `rollback.sql` da migration (apaga a linha do relógio e as execuções da rotina; só com o worker também revertido).
+
+## 5.35 Rotina `company-expense.reminder.send` (spec 325 T7.4, 14/11/2026) — nasce pausada, nada alterado em produção
+
+- **O que faz:** de hora em hora (`interval_seconds = 3600`) o worker avisa **por e-mail** as contas abertas que vencem em N dias (padrão 3), hoje ou venceram há até 3 dias, por empresa. O aviso só sai a partir da hora configurada da empresa (`daily_summary_hour`, padrão 8h, São Paulo). Quem recebe: o responsável da conta; sem responsável (ou responsável que saiu da empresa ou sem canal) vai aos `company-admin` ativos.
+- **Idempotência:** o aviso é reservado em `company_expense_reminders_sent` (única por ocorrência, responsável, dia e tipo) **antes** de enviar; se o e-mail não saiu, a reserva é solta e a próxima rodada do dia tenta de novo. Rodar duas vezes no dia não duplica.
+- **Depende de:** o modelo `contas.aviso-vencimento` (e-mail, pt-BR) publicado em Notificações — sem ele o ciclo conta `templateMissing` e não envia; `EMAIL_*` do worker; `APP_BASE_URL` (o botão "Abrir Contas" some sem ele). Publicar os modelos em staging: `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/staging-325-publica-modelos-contas.sh` (simulação) e depois `--confirm`.
+- **Ainda não faz:** WhatsApp e push (contados em `unsupportedChannel`), resumo diário e o botão "Já paguei" (T7.4b).
+- **Estado inicial:** a migration `20261114160259_company_expense_reminder_job` semeia a linha em `job_schedules` com `enabled = false`, `paused_origin = 'system'`. Ligar pede a autorização do dono.
+- **Conferir (somente leitura):** `select job, enabled, paused_origin, interval_seconds from job_schedules where job = 'company-expense.reminder.send'`; as últimas linhas de `job_executions` da rotina (contadores `sent`, `skipped`, `failed`, `templateMissing`, `unsupportedChannel`); e `select count(*) from company_expense_reminders_sent where day = current_date`.
+- **Falha:** uma empresa que erra não segura as outras; o ciclo termina e fecha `unexpected_error` (log `company_expense_reminder_company_failed` com `companyId` e a mensagem). Rollback: `rollback.sql` da migration (apaga a linha do relógio e as execuções; só com o worker também revertido).
+
+## 5.37 Rotina `pickup-request.notify` e pedido de coleta/entrega (spec 339 T4, 15/11/2026) — nasce pausada, nada alterado em produção
+
+- **O que faz:** a cada 5 minutos (`interval_seconds = 300`) o worker (1) expira o pedido `requested` com `expires_at` vencido (7 dias), (2) marca uma vez o pedido parado há mais de 24 h (`stale_alerted_at`) e (3) entrega, em lotes de 100, os avisos pendentes da caixa de saída `pickup_request_notifications` (e-mail pelo Resend da transportadora no modelo padrão de e-mail; WhatsApp pelo Evolution da empresa). A API só grava a linha, na mesma transação da mudança de estado.
+- **Tentativas:** até 5, com espera de 2, 10, 30, 120 e 480 minutos; depois vira `failed` com `last_error`. Sem contato ou sem canal vira `skipped`. O aviso reservado fica invisível por 10 minutos (`available_at` à frente), então um ciclo que morre no meio não perde nada.
+- **Estado inicial:** a migration `20261115140000_pickup_request_notifications` semeia a linha em `job_schedules` com `enabled = false`, `paused_origin = 'system'`. Ligar pede a autorização do dono. Com a rotina pausada o pedido funciona, mas ninguém é avisado e nada expira.
+- **Conferir (somente leitura):** `select job, enabled, paused_origin from job_schedules where job = 'pickup-request.notify'`; `select status, count(*) from pickup_request_notifications group by 1`; `select event, audience, channel, last_error from pickup_request_notifications where status in ('failed','skipped') order by created_at desc limit 20`.
+- **Rollback:** `rollback.sql` recusa se a caixa de saída tem linhas (apagar perderia aviso não entregue).
+
+## 5.34 Bot do grupo ignorou a resposta do motorista: telefone errado no cadastro (13/11/2026)
+
+- **Sintoma:** no grupo "Thiago Suporte Transportadora" o lembrete marcou o motorista Thiago Fabris e ele respondeu "sim" e "1", mas o bot não registrou nada e encerrou com "Pedido encerrado sem resposta".
+- **Causa:** o pedido do grupo nasce com o telefone do cadastro (`fleet_drivers.phone`) como dono, e sem marcar o bot só o dono é ouvido (`decideGroupMessage`, `owner_reply`). O cadastro tinha `16988062774`; as respostas vieram de `16988092774` (um dígito: 06 no lugar de 09). A resposta de quem não é o dono, sem marcação, é descartada sem aviso (`not_addressed`).
+- **Conferir (somente leitura):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-motorista-numero-grupo.sh` (`scripts/ops/producao-motorista-numero-grupo.sh`): telefone cadastrado, grupo vinculado e quem tem cada número. As duas últimas consultas (pedidos e mensagens do dia) falharam com erro de SQL (`interval` parametrizado) e precisam de ajuste antes de serem usadas.
+- **Correção aplicada em produção (Anderson, 13/11/2026, 17:02):** `scripts/ops/producao-corrigir-telefone-thiago.sh` (simulação por padrão, `--confirm` grava; só altera a linha que ainda tem o número antigo). Resultado: `phone` de `16988062774` para `16988092774`, `version` 4 para 5, uma linha. Depois, o motorista marca o bot de novo no grupo.
+- **Cuidado:** simulação e `--confirm` no mesmo minuto gravam no mesmo arquivo de saída e o segundo sobrescreve o primeiro.
+
+## 5.36 Orçamento de frete (spec 326, 15/11/2026) — nada alterado em produção
+
+A spec 326 só vai a `staging`. Ela cria a tabela `company_freight_quote_settings` (migration `20261115050000_freight_quote_settings`) e a tela `/orcamento`; sem linha gravada a API devolve os valores iniciais do sistema. Ordem de publicação: migration, API, painel. Rollback manual em `apps/api-transportada/drizzle/20261115050000_freight_quote_settings/rollback.sql` (recusa rodar com parâmetro gravado). Nenhum passo em produção até a promoção de `staging`; a tabela do piso da ANTT é código (Res. 6.084/2026), não dado do banco.
+
+## 5.38 Chaves da API de integração (spec 341, 15/11/2026) — nada alterado em produção
+
+A spec 341 cria `integration_api_keys` e a coluna `pickup_requests.integration_key_id` (migration `20261115150000_integration_api_keys`; rollback manual ao lado, recusa rodar com chave cadastrada ou pedido feito por integração). Ordem: migration, API. **Criar uma chave** (empresa-admin, `settings.manage`): `POST /v1/integration-keys` com `{ "name": "Parceiro X", "scopes": ["quote","pickup"] }`; a resposta traz o campo `key` **uma única vez** — entregue ao parceiro por canal seguro e não a guarde. **Revogar:** `POST /v1/integration-keys/{id}/revoke`; vale na próxima chamada. Parceiro recebendo `401` com chave que funcionava: conferir `GET /v1/integration-keys` (`revokedAt`). `429` vem do balde por chave (120 cotações, 30 pedidos e 120 consultas por minuto) ou do teto por IP. A tabela é esvaziada no refresh de staging. Documento do parceiro: `docs/integracao/api-de-integracao.md`.
+
+## 5.39 Turnstile de staging e de produção são widgets diferentes (spec 338 e 339, 15/11/2026) — nada alterado em produção
+
+O formulário público (cotação da 338 e pedido de coleta anônimo da 339) valida o Cloudflare Turnstile: a API lê `TURNSTILE_SECRET_KEY` e a landing lê `VITE_TURNSTILE_SITE_KEY` (variável de build). **Cada ambiente tem o seu widget**, porque o widget é preso aos domínios: o de staging vale para `staging.fernandes-transportadora.com.br`, o de produção para `fernandes-transportadora.com.br` e `www.`. Chave de um no outro dá 403 no envio.
+
+- **Staging:** `tmp/ops/staging-turnstile-cria-widget.sh` cria o widget pela API da Cloudflare e grava as duas variáveis no Railway de staging. Precisa de `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID` no ambiente do terminal. O token é o mínimo: _My Profile → API Tokens → Create Token → Custom token → Account → Turnstile → Edit_. O script recusa se já houver Turnstile configurado (`FORCE=1` para trocar), recusa domínio de produção, pede confirmação, nunca imprime o segredo e deixa só ids e a Site Key em `tmp/ops/saidas/staging-turnstile-*.txt`. Gravar as variáveis redeploya a API e a landing de staging.
+- **Produção (na promoção `staging → main`):** **não** reaproveitar a chave de staging. Criar um segundo widget com os domínios de produção (o mesmo script serve com `RAILWAY_ENVIRONMENT=production`, `DOMAINS="fernandes-transportadora.com.br,www.fernandes-transportadora.com.br"` e a trava de produção removida por quem fizer, com aprovação humana: hoje o script recusa de propósito). Conferir depois que `TURNSTILE_SECRET_KEY` (api) e `VITE_TURNSTILE_SITE_KEY` (landing) de produção são do widget novo, e testar o formulário no domínio de produção. A landing precisa de novo build, porque a Site Key entra no bundle.
+
+## 5.40 Conferir a cotação por endereço contra viagens reais de staging (spec 342 T6, 15/11/2026) — somente leitura
+
+`bash tmp/ops/staging-orcamento-confere.sh` (cópia versionada da entrada: `apps/api-transportada/scripts/staging-quote-check.entry.ts`; `TRIP_LIMIT` opcional, padrão 5). Precisa do `railway` e do `bun` na máquina e do `railway` logado.
+
+- **O que faz:** gera um bundle da entrada, sobe para o container do `api` de staging (`railway ssh`, em pedaços, porque o base64 passa do limite de um argumento) e roda lá com o `DATABASE_URL` e o `ROUTING_MATRIX_URL` do próprio container. Para as viagens recentes com exatamente duas paradas, lê a estrada entre as coordenadas guardadas das paradas **pelo mesmo gateway da cotação** (OSRM, pedágio por eixo, ajuste da empresa) e compara com a perna e o pedágio que a viagem congelou. Também passa o resultado pelo caso de uso por endereço e mostra o total.
+- **Saída:** só o caminho de `tmp/ops/saidas/staging-orcamento-confere-<data>.txt`. O arquivo tem números e códigos; nunca endereço, coordenada, nome ou credencial.
+- **Como ler:** `delta_km_pct` perto de zero é o esperado (mesma estrada). `pedagio_comparavel=false` quer dizer que a viagem tem trecho a mais (saída da base ou volta), então o pedágio dela não é o da perna: vale só o km. Diferença de pedágio com `pedagio_comparavel=true` ou `catalogo` diferente de `current` é achado a investigar.
+- **O que NÃO mede:** a geocodificação do endereço digitado (o script usa a coordenada já guardada da parada e não chama o Google). Isso se confere na tela `/orcamento`, com o endereço de uma viagem.
+- Primeiro uso em 15/11/2026 (Anderson): a subida em pedaços funcionou; a primeira versão achou 0 viagens candidatas (filtro estrito demais), e a seguinte imprime contagens de diagnóstico.
+
+### 5.40.1 O que os conectores não fazem (15/11/2026)
+
+- **Rodar a conferência da §5.40 pelo conector do Railway não é possível.** O agente do Railway (`railway-agent`) não executa comando no container do `api` nem consulta o banco (sem `railway ssh`, sem SQL); lê arquivos e logs. O agente de nuvem (`run-cloud-agent-task`) roda numa VM própria, sem acesso ao banco de staging. A conferência continua sendo o script, rodado por quem tem o `railway` logado.
+- **O script precisa do checkout inteiro da `staging`** (`git pull`), não só dos três arquivos: a entrada importa `src/freight-quote/**`. Com a cópia local atrasada ele falha com `Could not resolve ../src/freight-quote/...` (visto em 15/11/2026).
+- **Nenhum conector cria o widget do Turnstile.** O da Cloudflare disponível aqui cobre Workers, KV, D1, R2 e Hyperdrive; Turnstile só pelo painel da Cloudflare ou pelo script da §5.39.
+
+## 5.41 Painel em branco de vez em quando em staging (15/11/2026)
+
+**Sintoma:** o painel de staging fica em branco por alguns minutos e volta sozinho.
+
+**O que foi conferido (somente leitura, Railway de staging, conector):** `environment-status` sem serviço caído; nenhum deploy `FAILED` ou `CRASHED` em `api`, `transportada-frontend`, `worker`, `driver`; memória do `api` em ~0,35 GB (pico 0,38); nenhum 404 nem 5xx no painel. Staging recebe um deploy a cada ~25–60 min (todo merge reconstrói `api`, `transportada-frontend`, `driver`), e o container antigo sai ~2 min depois do novo subir.
+
+**Causa provável:** a aba aberta antes do deploy aponta para `/assets/<hash>.js` do build antigo. Ao abrir uma tela carregada sob demanda, o arquivo já não existe (`server.ts` devolve 404 de propósito para `/assets/`), o `import()` falha e a tela fica em branco até alguém dar F5. Não havia tratamento de `vite:preloadError`.
+
+**Correção:** `chunkReload.service.ts` recarrega a aba **uma vez** (trava de 30 s em `sessionStorage`) quando o Vite avisa que o chunk não carregou.
+
+**Fora do escopo / observação:** o console mostrou uma fonte `data:` bloqueada pela CSP (`font-src 'self'`). É aviso de fonte (cai na fonte do aparelho), não causa tela em branco; não foi liberado `data:` na CSP.
+
+**Se voltar a acontecer:** olhar `list-deployments` do `transportada-frontend` na hora do relato (deploy em andamento?) e o console do navegador (erro de chunk ou de API).
+
+## 5.42 Motorista respondeu "2" no "Fora da rota" e o app só dizia que a parada 1 estava a caminho (16/11/2026)
+
+- **Sintoma:** no grupo do motorista Rogério Lima, o bot perguntou "Para onde você vai? 1 Seguir para a parada 2 / 2 Ir para a parada 1". Ele respondeu "2" e parecia que o bot não respondeu.
+- **Causa (nada quebrou):** o bot respondeu "Saída registrada" para a parada 1 às 07:50:00 (entrega confirmada em `whatsapp_chat_messages`). O número da opção coincidiu com o número da parada. Depois disso, "929311" e "2" sem marcar o bot foram ignorados por desenho (pedido já fechado), e o bot não tinha como trocar a parada a caminho (spec 206: uma por vez; só "Cancelar rota" no app).
+- **Correção:** #818 (staging) e #821 (main): a dica diz "É a opção da lista, não o número da parada", as outras paradas entram como opções 3, 4… e "saí" para outra parada com uma a caminho pergunta se quer cancelar a saída da atual e sair para a nova. O chat direto (1:1) não ganhou a troca nem as opções extras.
+- **Conferir (somente leitura):** `scripts/ops/producao-rogerio-escolha-parada.sh` (pedidos e mensagens aceitas do grupo) e `scripts/ops/producao-rogerio-respostas-enviadas.sh` (o que o bot enviou, por `whatsapp_chat_messages`). Saída em `tmp/ops/saidas/`.
+- **Pendente (decisão do Anderson):** a saída da parada 1 registrada por engano em produção não foi desfeita (é escrita em produção).

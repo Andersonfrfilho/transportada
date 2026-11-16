@@ -428,6 +428,9 @@ const environmentSchema = z.object({
   LOG_SINK_URL: optionalUrl('LOG_SINK_URL'),
   SENTRY_DSN: optionalUrl('SENTRY_DSN'),
   SENTRY_ENVIRONMENT: optionalText(),
+  VAPID_PUBLIC_KEY: optionalText(),
+  VAPID_PRIVATE_KEY: optionalText(),
+  VAPID_SUBJECT: optionalText(),
 })
 
 const validatedEnvironmentSchema = environmentSchema.superRefine((environment, context) => {
@@ -563,6 +566,14 @@ export function parseEnvironment(environment: Record<string, string | undefined>
             cacheHours: parsed.FLEET_VEHICLE_CATALOG_CACHE_HOURS,
             url: parsed.FLEET_VEHICLE_CATALOG_URL,
           },
+    vapid:
+      parsed.VAPID_PUBLIC_KEY && parsed.VAPID_PRIVATE_KEY
+        ? {
+            publicKey: parsed.VAPID_PUBLIC_KEY,
+            privateKey: parsed.VAPID_PRIVATE_KEY,
+            subject: parsed.VAPID_SUBJECT ?? 'mailto:admin@transportada.com.br',
+          }
+        : undefined,
   }
 }
 

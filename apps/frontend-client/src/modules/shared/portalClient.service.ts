@@ -3,11 +3,14 @@ import type {
   ChargeBatch,
   ChargeDecision,
   Delivery,
+  DeliveryEvents,
   DeliveryLocation,
   DeliverySchedule,
   Occurrence,
   OccurrenceDecisionInput,
   OccurrenceDecisionResult,
+  PickupRequest,
+  PickupRequestInput,
   PortalConversation,
   PortalConversationMessageInput,
   ScheduleInput,
@@ -16,15 +19,19 @@ import {
   toChargeBatches,
   toConversation,
   toDeliveries,
+  toDeliveryEvents,
   toDeliveryLocation,
   toDeliverySchedule,
   toOccurrenceDecisionResult,
   toOccurrences,
+  toPickupRequests,
+  toSinglePickupRequest,
   toSingleChargeBatch,
 } from './portalResponse.validation'
 
 const DELIVERIES_PATH = '/client/me/deliveries'
 const BATCHES_PATH = '/client/me/extra-charge-batches'
+const PICKUP_REQUESTS_PATH = '/client/me/pickup-requests'
 const OCCURRENCES_PATH = '/client/me/occurrences'
 /** Spec 183 T653: a conversa é nomeada pela referência opaca que a listagem devolveu. */
 const CONVERSATIONS_PATH = '/client/me/occurrence-conversations'
@@ -36,6 +43,9 @@ type ClientDependencies = Readonly<{
 }>
 
 export type PortalClient = Readonly<{
+  cancelPickupRequest: (id: string) => Promise<PickupRequest | null>
+  createPickupRequest: (input: PickupRequestInput) => Promise<PickupRequest | null>
+  listPickupRequests: () => Promise<readonly PickupRequest[]>
   decideBatch: (input: {
     readonly batchId: string
     readonly decisions: readonly ChargeDecision[]
@@ -48,6 +58,7 @@ export type PortalClient = Readonly<{
   /** Spec 183 T702b: o PUT direto ao bucket, sem o token — a URL assinada já é a autorização. */
   putConversationUpload: (input: { readonly file: File; readonly url: string }) => Promise<void>
   readConversation: (ref: string) => Promise<PortalConversation>
+  readEvents: (accessKey: string) => Promise<DeliveryEvents>
   readLocation: (accessKey: string) => Promise<DeliveryLocation | null>
   /** Spec 183 T702b: a URL de subida do anexo, pela referência da conversa. */
   requestConversationUpload: (input: {
@@ -101,6 +112,22 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
   }
 
   return {
+    async cancelPickupRequest(id) {
+      return toSinglePickupRequest(
+        await request({
+          method: 'POST',
+          path: `${PICKUP_REQUESTS_PATH}/${encodeURIComponent(id)}/cancel`,
+        }),
+      )
+    },
+    async createPickupRequest({ idempotencyKey, ...body }) {
+      return toSinglePickupRequest(
+        await request({ body, idempotencyKey, method: 'POST', path: PICKUP_REQUESTS_PATH }),
+      )
+    },
+    async listPickupRequests() {
+      return toPickupRequests(await request({ method: 'GET', path: PICKUP_REQUESTS_PATH }))
+    },
     async decideOccurrence({ kind, note, occurrenceId }) {
       return toOccurrenceDecisionResult(
         await request({
@@ -137,6 +164,14 @@ export function createPortalClient(dependencies: ClientDependencies): PortalClie
     async readConversation(ref) {
       return toConversation(
         await request({ method: 'GET', path: `${CONVERSATIONS_PATH}/${encodeURIComponent(ref)}` }),
+      )
+    },
+    async readEvents(accessKey) {
+      return toDeliveryEvents(
+        await request({
+          method: 'GET',
+          path: `${DELIVERIES_PATH}/${encodeURIComponent(accessKey)}/events`,
+        }),
       )
     },
     async readLocation(accessKey) {

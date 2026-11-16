@@ -4,4 +4,5 @@
 import './trip-stops/address-key.contract.js'
 import './trip-stops/delivery-address-override.contract.js'
 import './trip-stops/reconcile.contract.js'
+import './trip-stops/order-draft-trip-stops.contract.js'
 import './trip-stops/reorder.contract.js'

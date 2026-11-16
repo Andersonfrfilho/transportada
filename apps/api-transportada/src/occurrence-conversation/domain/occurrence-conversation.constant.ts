@@ -6,6 +6,12 @@ import type { ContractorMailThreadSubjectType } from '../../database/contractor-
 
 export const SEND_OCCURRENCE_MAIL_OPERATION = 'occurrence-conversation.mail.send'
 
+/**
+ * Spec 324 (D3): a reserva do botão "Avisar a contratante" em `idempotency_records`, uma por ocorrência
+ * (`occurrence-manual-notice:<id>`). `processing` enquanto sai; `completed` chegou à contratante; `failed` libera.
+ */
+export const CONTRACTOR_MANUAL_NOTICE_OPERATION = 'occurrence-contractor-manual-notice.send'
+
 /** Spec 274 (D11): o chat tem a operação própria — a mesma chave no diálogo e no chat nunca se confunde. */
 export const SEND_OCCURRENCE_CHAT_MAIL_OPERATION = 'occurrence-conversation.chat-mail.send'
 

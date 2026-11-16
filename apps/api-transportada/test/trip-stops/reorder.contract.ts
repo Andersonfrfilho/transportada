@@ -48,7 +48,12 @@ describe('trip stop reorder contract', () => {
 
     expect(result).toEqual({ tripStatus: 'draft' })
     expect(repository.reorderCalls).toEqual([
-      { companyId: COMPANY_ID, orderedStopIds: [STOP_C, STOP_A, STOP_B], tripId: TRIP_ID },
+      {
+        companyId: COMPANY_ID,
+        orderedStopIds: [STOP_C, STOP_A, STOP_B],
+        source: 'manual',
+        tripId: TRIP_ID,
+      },
     ])
   })
 
@@ -176,7 +181,12 @@ describe('trip stop reorder route recalculation (D6)', () => {
 
     expect(result).toEqual({ tripStatus: 'draft' })
     expect(repository.reorderCalls).toEqual([
-      { companyId: COMPANY_ID, orderedStopIds: [STOP_B, STOP_A], tripId: TRIP_ID },
+      {
+        companyId: COMPANY_ID,
+        orderedStopIds: [STOP_B, STOP_A],
+        source: 'manual',
+        tripId: TRIP_ID,
+      },
     ])
   })
 

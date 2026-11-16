@@ -4,6 +4,7 @@ import { DRIVER_TRIP_PATH } from '@/modules/driver-trip/shared/driverWorkspace.s
 const NAVIGATION_ENTRIES = [
   { href: '/', key: 'nfe', label: 'NF-e' },
   { href: '/freight', key: 'freight', label: 'Frete' },
+  { href: '/orcamento', key: 'freight-quote', label: 'Orçamento' },
   { href: '/cte-batches', key: 'cte-batch', label: 'CT-e' },
   { href: '/trips', key: 'trip', label: 'Viagens' },
   { href: '/mdfe-manifests', key: 'mdfe-manifest', label: 'MDF-e' },
@@ -12,6 +13,7 @@ const NAVIGATION_ENTRIES = [
   { href: '/operations', key: 'operations', label: 'Operações' },
   { href: '/ocorrencias', key: 'trip-occurrences', label: 'Ocorrências' },
   { href: '/recebimento', key: 'cargo-receiving', label: 'Recebimento' },
+  { href: '/coletas', key: 'pickup-requests', label: 'Coletas' },
   { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
   { href: '/usuarios', key: 'users', label: 'Acessos' },
   { href: '/papeis', key: 'access-profiles', label: 'Papéis e grupos' },
@@ -22,6 +24,7 @@ const NAVIGATION_ENTRIES = [
   { href: '/repasses', key: 'extra-charges', label: 'Repasses' },
   { href: '/ressarcimentos', key: 'reimbursements', label: 'Ressarcimentos' },
   { href: '/resultados', key: 'trip-financials', label: 'Resultados' },
+  { href: '/contas', key: 'expenses', label: 'Contas' },
   // Só aparece no menu para quem tem trip.report (workspaceAccess.service.ts): o separador puro não a vê.
   { href: DRIVER_TRIP_PATH, key: 'driver-trip', label: 'Minha viagem' },
   // Fora dos grupos do menu de propósito: a porta de entrada é o sino do cabeçalho, e a entrada
@@ -53,6 +56,7 @@ export const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
       [
         'nfe',
         'freight',
+        'freight-quote',
         'cte-batch',
         'trip',
         'mdfe-manifest',
@@ -60,6 +64,7 @@ export const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
         'extra-charges',
         'reimbursements',
         'trip-financials',
+        'expenses',
         'nfse-invoice',
       ].includes(key),
     ),
@@ -68,7 +73,13 @@ export const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
     key: 'operations',
     label: 'Operações',
     items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['operations', 'trip-occurrences', 'cargo-receiving', 'driver-trip'].includes(key),
+      [
+        'operations',
+        'trip-occurrences',
+        'cargo-receiving',
+        'pickup-requests',
+        'driver-trip',
+      ].includes(key),
     ),
   },
   {

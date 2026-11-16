@@ -53,11 +53,17 @@ const ROUTE = [
 
 function setup(
   stops: readonly GroupStopCandidate[] = ROUTE,
-  options: { readonly readStopCard?: GroupStopFlowPorts['readStopCard'] } = {},
+  options: {
+    readonly canLaunchExpenses?: boolean
+    readonly expenses?: Parameters<typeof createGroupDriverFlow>[0]['expenses']
+    readonly groupJid?: string
+    readonly readStopCard?: GroupStopFlowPorts['readStopCard']
+  } = {},
 ) {
   const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
   const returned: unknown[] = []
   const flow = createGroupDriverFlow({
+    ...(options.expenses === undefined ? {} : { expenses: options.expenses }),
     occurrence: {
       answer: async () => ({ kind: 'done', replies: ['occ'] }),
       initialStep: 'document',
@@ -92,14 +98,20 @@ function setup(
     companyId: 'C',
     driverId: 'D',
     expiresAt: new Date(),
-    groupJid: '1@g.us',
+    groupJid: options.groupJid ?? '1@g.us',
     id: 'R1',
     ownerNumber: '5516',
     state: {},
     step: flow.initialStep,
     version: 1n,
   }
-  const turn = (text: string) => ({ request, sender: '5516', senderName: null, text })
+  const turn = (text: string) => ({
+    ...(options.canLaunchExpenses === true ? { canLaunchExpenses: true } : {}),
+    request,
+    sender: '5516',
+    senderName: null,
+    text,
+  })
   const follow = (outcome: GroupFlowOutcome) => {
     if (outcome.kind === 'continue')
       request = { ...request, state: outcome.state, step: outcome.step }
@@ -327,5 +339,75 @@ describe('grupo: "não entreguei" sem a nota guardada (revisão do #552)', () =>
       text: '1',
     })
     expect(outcome.kind).toBe('done')
+  })
+})
+
+describe('privado: a primeira frase abre o menu, não a ocorrência', () => {
+  const DIRECT = '5516988887777@s.whatsapp.net'
+
+  test('frase solta sem nota no privado mostra o menu; no grupo segue para a ocorrência', async () => {
+    const direct = setup(ROUTE, { groupJid: DIRECT })
+    const outcome = await direct.start('Sair')
+    expect(outcome).toMatchObject({ kind: 'continue', step: 'menu' })
+    expect(outcome.kind === 'continue' ? outcome.replies[0] : '').not.toContain('ocorrência Sair')
+
+    const group = setup()
+    expect(await group.start('Sair')).toEqual({ kind: 'done', replies: ['ocorrência Sair'] })
+  })
+
+  test('no privado, comando e nota digitada seguem o caminho de sempre', async () => {
+    const direct = setup(ROUTE, { groupJid: DIRECT })
+    expect(await direct.start('cheguei')).toMatchObject({ step: 'journey.actions' })
+    expect(await direct.start('problema na nota 899840')).toEqual({
+      kind: 'done',
+      replies: ['ocorrência problema na nota 899840'],
+    })
+  })
+})
+
+describe('privado: "Lançar conta" no menu do motorista que também lança conta', () => {
+  const DIRECT = '5516988887777@s.whatsapp.net'
+  const started: { companyId: string; phone: string }[] = []
+  const expenses = {
+    start: async (input: { readonly companyId: string; readonly phone: string }) => {
+      started.push(input)
+    },
+  }
+
+  test('quem pode lançar conta vê a opção; quem não pode, o menu de sempre', async () => {
+    const can = setup(ROUTE, { canLaunchExpenses: true, expenses, groupJid: DIRECT })
+    const withOption = await can.start('oi')
+    const text = withOption.kind === 'continue' ? (withOption.replies[0] ?? '') : ''
+    expect(text).toContain('Lançar conta')
+    expect(text).toContain('Saí para a entrega')
+    expect(text).toContain('Ocorrência')
+
+    const cannot = setup(ROUTE, { expenses, groupJid: DIRECT })
+    const plain = await cannot.start('oi')
+    expect(plain.kind === 'continue' ? (plain.replies[0] ?? '') : '').not.toContain('Lançar conta')
+  })
+
+  test('a opção entrega a conversa ao assistente (pelo número ou pelo nome) e fecha o pedido sem resposta própria', async () => {
+    started.length = 0
+    const byNumber = setup(ROUTE, { canLaunchExpenses: true, expenses, groupJid: DIRECT })
+    await byNumber.start('oi')
+    expect(await byNumber.answer('5')).toEqual({ kind: 'done', replies: [], withoutFarewell: true })
+
+    const byName = setup(ROUTE, { canLaunchExpenses: true, expenses, groupJid: DIRECT })
+    await byName.start('menu')
+    expect(await byName.answer('lançar conta')).toMatchObject({ kind: 'done', replies: [] })
+
+    expect(started).toEqual([
+      { companyId: 'C', phone: '5516' },
+      { companyId: 'C', phone: '5516' },
+    ])
+  })
+
+  test('o grupo nunca oferece contas, mesmo com a bandeira', async () => {
+    const group = setup(ROUTE, { canLaunchExpenses: true, expenses })
+    const outcome = await group.start('')
+    expect(outcome.kind === 'continue' ? (outcome.replies[0] ?? '') : '').not.toContain(
+      'Lançar conta',
+    )
   })
 })

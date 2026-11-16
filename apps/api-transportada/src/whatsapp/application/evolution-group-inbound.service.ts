@@ -55,6 +55,8 @@ export type EvolutionMessageEvent = Extract<EvolutionWebhookEvent, { type: 'mess
 export type AdmittedGroupMessage = {
   /** Spec 308 D2.4: o chat direto de quem tem envio de XML liberado; o menu mostra "Enviar XML das notas". */
   readonly canImportXml?: boolean
+  /** O chat direto de quem tem `expenses.manage`: o menu mostra "Lançar conta". */
+  readonly canLaunchExpenses?: boolean
   readonly companyId: string
   /** O motorista dono do grupo: toda mensagem do grupo é dele (regra 1). */
   readonly driverId: string
@@ -195,6 +197,14 @@ export type EvolutionGroupInboundPorts = {
     readonly phone: string
   }) => Promise<null | { readonly driverId: string }>
   /**
+   * Quem tem `expenses.manage` e também é motorista continua podendo lançar conta pelo 1:1: a mensagem de conta
+   * passa ao assistente do escritório em vez de ficar presa ao fluxo do motorista. Ausente, nunca passa.
+   */
+  findDirectExpenseLauncher?: (input: {
+    readonly companyId: string
+    readonly phone: string
+  }) => Promise<boolean>
+  /**
    * Spec 308 D2.4: este telefone tem envio de XML liberado (a regra de `findImportSender`)? Ausente, o chat
    * direto não oferece a opção.
    */
@@ -254,6 +264,8 @@ export type EvolutionDirectMessage = {
   readonly audio?: GroupAudio | null
   /** Spec 308 D2.4: o motorista também tem envio de XML liberado. */
   readonly canImportXml?: boolean
+  /** O motorista também tem `expenses.manage`: o menu mostra "Lançar conta". */
+  readonly canLaunchExpenses?: boolean
   readonly companyId: string
   readonly connection: LazyEvolutionConnection
   /** O motorista achado pelo telefone (`findDirectDriver`). */
@@ -273,6 +285,10 @@ export type EvolutionGroupInbound = {
    * fluxo, sem marcação do bot, sem frase de chamada no áudio e sem perguntar ao Evolution quem escreveu.
    */
   receiveDirect?(input: EvolutionDirectMessage): Promise<EvolutionGroupInboundOutcome>
+  findDirectExpenseLauncher?(input: {
+    readonly companyId: string
+    readonly phone: string
+  }): Promise<boolean>
   /** Spec 308 D2.4: o telefone de envio de XML liberado (`findDirectImporter`); `false` (ou ausente), não. */
   findDirectImporter?(input: {
     readonly companyId: string
@@ -674,10 +690,11 @@ export function createEvolutionGroupInbound(
     }
   }
 
-  const { findDirectDriver, findDirectImporter } = dependencies
+  const { findDirectDriver, findDirectExpenseLauncher, findDirectImporter } = dependencies
   const inbound: EvolutionGroupInbound &
     Required<Pick<EvolutionGroupInbound, 'receiveDirect' | 'receiveDirectImporter'>> = {
     ...(findDirectDriver === undefined ? {} : { findDirectDriver }),
+    ...(findDirectExpenseLauncher === undefined ? {} : { findDirectExpenseLauncher }),
     ...(findDirectImporter === undefined ? {} : { findDirectImporter }),
     async receive({ audio = null, companyId, connection, event, media = null, senderLid }) {
       if (event.fromMe) return 'from_me'
@@ -944,6 +961,7 @@ export function createEvolutionGroupInbound(
     async receiveDirect({
       audio = null,
       canImportXml = false,
+      canLaunchExpenses = false,
       companyId,
       connection,
       driverId,
@@ -1022,6 +1040,7 @@ export function createEvolutionGroupInbound(
       const requestOwner = await dependencies.findOpenRequestOwner({ companyId, groupJid })
       await dependencies.handle({
         ...(canImportXml ? { canImportXml: true } : {}),
+        ...(canLaunchExpenses ? { canLaunchExpenses: true } : {}),
         companyId,
         driverId,
         groupJid,
@@ -1044,6 +1063,7 @@ export function createEvolutionGroupInbound(
     ? inbound
     : {
         ...(findDirectDriver === undefined ? {} : { findDirectDriver }),
+        ...(findDirectExpenseLauncher === undefined ? {} : { findDirectExpenseLauncher }),
         ...(findDirectImporter === undefined ? {} : { findDirectImporter }),
         receiveDirectImporter: (input) => inbound.receiveDirectImporter(input),
         receive: (input) =>

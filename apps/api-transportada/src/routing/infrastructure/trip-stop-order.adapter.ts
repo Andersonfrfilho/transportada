@@ -18,7 +18,7 @@ import type { StopOrderWriter } from '../application/route-suggestion.use-case.j
 export function createTripStopOrderWriter(repository: ReorderTripStopsPort): StopOrderWriter {
   return {
     async reorder({ companyId, orderedStopIds, tripId }) {
-      await reorderTripStops({ companyId, orderedStopIds, repository, tripId })
+      await reorderTripStops({ companyId, orderedStopIds, repository, source: 'suggested', tripId })
     },
   }
 }

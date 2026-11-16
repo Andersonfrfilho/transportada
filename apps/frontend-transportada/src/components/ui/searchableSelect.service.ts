@@ -10,6 +10,9 @@ type FilterSearchableOptionsInput<TOption extends SearchableSelectOption> = Read
   resolveCustomOption?: ((query: string) => TOption | undefined) | undefined
 }>
 
+/** Prefixo do valor da opção "Adicionar «nome»": nunca colide com um valor real (uuid, código). */
+export const SEARCHABLE_CREATE_VALUE_PREFIX = '__create__:'
+
 const DIACRITIC_PATTERN = /[\u0300-\u036f]/g
 
 export function normalizeSearchText(value: string): string {
@@ -41,4 +44,31 @@ export function resolveSearchableSelectLabel(
 ): string | undefined {
   if (input.value === '') return undefined
   return input.options.find((option) => option.value === input.value)?.label ?? input.value
+}
+
+/**
+ * Digitar e Enter cadastra: o texto que ainda não é nenhuma opção vira a opção "Adicionar «texto»". Texto que já é uma
+ * opção (sem diferenciar caixa e acento) não oferece cadastro: o cadastro duplicaria o que já existe.
+ */
+export function resolveCreatableOption(
+  input: Readonly<{
+    createLabel: (name: string) => string
+    options: readonly SearchableSelectOption[]
+    query: string
+  }>,
+): SearchableSelectOption | undefined {
+  const name = input.query.trim()
+  if (name === '') return undefined
+  const normalized = normalizeSearchText(name)
+  if (input.options.some((option) => normalizeSearchText(option.label) === normalized)) {
+    return undefined
+  }
+  return { label: input.createLabel(name), value: `${SEARCHABLE_CREATE_VALUE_PREFIX}${name}` }
+}
+
+/** O nome digitado dentro do valor da opção de cadastro; `undefined` para uma opção comum. */
+export function readCreatableName(value: string): string | undefined {
+  return value.startsWith(SEARCHABLE_CREATE_VALUE_PREFIX)
+    ? value.slice(SEARCHABLE_CREATE_VALUE_PREFIX.length)
+    : undefined
 }

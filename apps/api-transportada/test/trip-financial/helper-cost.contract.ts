@@ -36,6 +36,14 @@ describe('a diária do ajudante (spec 149 T6, critérios 4 e 5)', () => {
 
     expect(parcel).toEqual({
       amount: '540.0000',
+      basis: {
+        crew: [
+          { dailyAmount: '150.0000', driverId: 'a', rateOrigin: 'own', subtotal: '300.0000' },
+          { dailyAmount: '120.0000', driverId: 'b', rateOrigin: 'company', subtotal: '240.0000' },
+        ],
+        days: 2,
+        of: 'helper',
+      },
       detail: null,
       gap: null,
       kind: 'helper',
@@ -71,8 +79,14 @@ describe('a diária do ajudante (spec 149 T6, critérios 4 e 5)', () => {
       journeySeconds: 1 * HOUR,
     })
 
+    // Spec 325 RF1e: quem não tem diária não tem linha — o pagamento dele vira pendência, nunca zero.
     expect(parcel).toEqual({
       amount: '150.0000',
+      basis: {
+        crew: [{ dailyAmount: '150.0000', driverId: 'a', rateOrigin: 'own', subtotal: '150.0000' }],
+        days: 1,
+        of: 'helper',
+      },
       detail: '1/2',
       gap: 'HELPER_DAILY_RATE_MISSING',
       kind: 'helper',
@@ -107,11 +121,42 @@ describe('a diária do ajudante (spec 149 T6, critérios 4 e 5)', () => {
 
     expect(parcel).toEqual({
       amount: '120.0000',
+      basis: {
+        crew: [
+          { dailyAmount: '120.0000', driverId: 'a', rateOrigin: 'company', subtotal: '120.0000' },
+        ],
+        days: 1,
+        of: 'helper',
+      },
       detail: null,
       gap: 'HELPER_JOURNEY_WITHOUT_RETURN',
       kind: 'helper',
       source: 'estimated',
     })
+  })
+
+  test('spec 325 RF1e: a parcela é exatamente a soma das linhas por ajudante (o pagamento copia a linha, nunca soma de novo)', () => {
+    const parcel = buildTripHelperCost({
+      companyDailyRate: '99.9950',
+      helpers: [
+        { driverId: 'a', ownDailyRate: '133.3333' },
+        { driverId: 'b', ownDailyRate: null },
+        { driverId: 'c', ownDailyRate: '0.0000' },
+      ],
+      journeyIncludesReturn: true,
+      journeySeconds: 50 * HOUR,
+    })
+    if (parcel.basis?.of !== 'helper') throw new Error('helper basis expected')
+
+    const scaled = (value: string) => BigInt(value.replace('.', ''))
+    const sum = parcel.basis.crew.reduce((total, line) => total + scaled(line.subtotal), 0n)
+    expect(sum).toBe(scaled(parcel.amount))
+    expect(parcel.amount).toBe('699.9849')
+    expect(parcel.basis.crew.map((line) => [line.driverId, line.subtotal])).toEqual([
+      ['a', '399.9999'],
+      ['b', '299.9850'],
+      ['c', '0.0000'],
+    ])
   })
 
   describe('dias = max(1, ceil(jornada / 24h))', () => {

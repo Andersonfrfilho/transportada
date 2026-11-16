@@ -1,0 +1,72 @@
+{
+  "title": "Pedidos de coleta e entrega",
+  "subtitle": "Pedidos feitos pelos clientes. Aceitar gera uma sugestão de viagem; nada vira viagem até você confirmar o encaixe.",
+  "forbidden": "Você não tem permissão para ver os pedidos de coleta.",
+  "filter": { "label": "Situação", "all": "Todos" },
+  "list": { "title": "Pedidos", "empty": "Nenhum pedido nesta situação." },
+  "kind": { "pickup": "Coleta", "delivery": "Entrega" },
+  "status": {
+    "requested": "Aguardando resposta",
+    "accepted": "Aceito",
+    "scheduled": "Confirmado",
+    "refused": "Não aceito",
+    "canceled": "Cancelado",
+    "expired": "Sem resposta",
+    "done": "Concluído"
+  },
+  "detail": {
+    "title": "Detalhe do pedido",
+    "origin": "Retirar em",
+    "destination": "Entregar em",
+    "window": "Janela pedida",
+    "cargo": "Carga",
+    "volumes": "volumes",
+    "originContact": "Contato na retirada",
+    "destinationContact": "Contato na entrega",
+    "accessNotes": "Horário e acesso",
+    "cargoValue": "Valor da mercadoria",
+    "contact": "Contato",
+    "quoted": "Valor da cotação",
+    "note": "Observação do cliente",
+    "decisionNote": "Resposta ao cliente",
+    "linkedTrip": "Este pedido está encaixado numa viagem."
+  },
+  "actions": { "accept": "Aceitar", "refuse": "Recusar" },
+  "accept": {
+    "start": "Janela aceita: a partir de",
+    "end": "Janela aceita: até",
+    "amount": "Valor combinado (opcional)",
+    "note": "Observação ao cliente (opcional)",
+    "confirm": "Confirmar aceite"
+  },
+  "refuse": { "note": "Motivo para o cliente", "confirm": "Confirmar recusa" },
+  "suggestion": {
+    "title": "Onde encaixar",
+    "hint": "O cliente já foi avisado do aceite. A data só é confirmada quando você encaixa numa viagem.",
+    "none": "Não há viagem aberta para encaixar.",
+    "trip": "Viagem aberta com {{stops}} paradas",
+    "tripStatus": {
+      "draft": "rascunho",
+      "route_planned": "rota planejada",
+      "separating": "separando",
+      "loading": "carregando"
+    },
+    "join": "Encaixar nesta viagem",
+    "createTrip": "Criar nova viagem"
+  },
+  "calendar": {
+    "chooseYear": "Escolher o ano",
+    "clear": "Limpar",
+    "nextMonth": "Próximo mês",
+    "open": "Abrir calendário",
+    "placeholder": "dd/mm/aaaa",
+    "previousMonth": "Mês anterior"
+  },
+  "errors": {
+    "REQUEST_FAILED": "Não foi possível concluir. Tente de novo.",
+    "NETWORK_ERROR": "Sem conexão com o servidor.",
+    "PICKUP_REQUEST_INVALID_TRANSITION": "Outra pessoa já decidiu este pedido. Atualize a lista.",
+    "PICKUP_REQUEST_TRIP_NOT_AVAILABLE": "Essa viagem não está mais aberta para receber o pedido.",
+    "PICKUP_REQUEST_NOT_FOUND": "Pedido não encontrado."
+  }
+}

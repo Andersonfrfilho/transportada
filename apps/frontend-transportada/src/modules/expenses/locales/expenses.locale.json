@@ -1,0 +1,470 @@
+{
+  "title": "Contas",
+  "subtitle": "O que a empresa paga: contas fixas, contas variáveis e o pagamento de motoristas, agregados e ajudantes.",
+  "forbidden": "Você não tem permissão para ver as contas da empresa.",
+  "kind": {
+    "fixed": "Fixa",
+    "variable": "Variável"
+  },
+  "recurrence": {
+    "monthly": "Mensal",
+    "bimonthly": "Bimestral",
+    "quarterly": "Trimestral",
+    "yearly": "Anual",
+    "fortnightly": "Quinzenal"
+  },
+  "status": {
+    "open": "Em aberto",
+    "paid": "Paga",
+    "canceled": "Cancelada",
+    "overdue": "Vencida"
+  },
+  "payee": {
+    "driver": "Motorista",
+    "aggregate": "Agregado",
+    "helper": "Ajudante"
+  },
+  "parcelKind": {
+    "driver": "Motorista",
+    "helper": "Ajudante"
+  },
+  "totals": {
+    "expected": "Previsto",
+    "paid": "Pago",
+    "count": "Contas",
+    "paidByDriver": "Pago por motorista, agregado ou ajudante",
+    "open": "Em aberto",
+    "overdue": "Vencidas"
+  },
+  "gap": {
+    "NO_PLANNED_DURATION": "Sem duração prevista na viagem",
+    "NO_DRIVER": "Sem condutor na viagem",
+    "OTHER": "Parcela sem valor calculado"
+  },
+  "errors": {
+    "REQUEST_FAILED": "Não foi possível falar com o servidor. Tente de novo.",
+    "RESPONSE_INVALID": "O servidor respondeu algo que não foi possível ler.",
+    "EXPENSE_RESPONSE_INVALID": "O servidor respondeu algo que não foi possível ler.",
+    "EXPENSE_OCCURRENCE_NOT_DRIVER_PAYMENT": "Esta conta não é um pagamento de motorista, agregado ou ajudante.",
+    "EXPENSE_TRIP_NOT_FOUND": "Viagem não encontrada.",
+    "EXPENSE_TRIP_NOT_COMPLETED": "A viagem ainda não foi concluída.",
+    "EXPENSE_TRIP_NOT_PAYEE": "Essa pessoa não fez parte da tripulação da viagem.",
+    "EXPENSE_TRIP_PARCEL_MISSING": "A viagem não tem o valor da diária calculado.",
+    "EXPENSE_TRIP_ALREADY_INCLUDED": "Esta viagem já entrou em outro pagamento.",
+    "EXPENSE_OCCURRENCE_TRIP_NOT_FOUND": "Esta viagem não está neste pagamento.",
+    "EXPENSE_OCCURRENCE_ALREADY_PAID": "Esta conta já foi paga.",
+    "EXPENSE_OCCURRENCE_CANCELED": "Esta conta foi cancelada.",
+    "VALIDATION_ERROR": "Confira o período e os filtros e tente de novo.",
+    "INVALID_REQUEST": "Confira o período e os filtros e tente de novo."
+  },
+  "loading": "Carregando as contas…",
+  "filters": {
+    "title": "Filtros",
+    "month": "Mês",
+    "kind": "Tipo",
+    "category": "Categoria",
+    "status": "Estado",
+    "causedBy": "Causada por",
+    "payee": "Motorista, agregado ou ajudante",
+    "all": "Todos",
+    "allFeminine": "Todas",
+    "subtype": "Tipo da categoria",
+    "search": "Buscar conta",
+    "searchPlaceholder": "Nome, categoria, tipo ou pessoa",
+    "dueFrom": "Vencimento a partir de",
+    "dueTo": "Vencimento até"
+  },
+  "list": {
+    "installment": "Parcela {{installment}}",
+    "causedBy": "Causada por {{name}}",
+    "title": "Contas do mês",
+    "new": "Nova conta",
+    "empty": "Nenhuma conta neste mês com esses filtros.",
+    "account": "Conta",
+    "kind": "Tipo",
+    "category": "Categoria",
+    "due": "Vencimento",
+    "expected": "Previsto",
+    "paid": "Pago",
+    "status": "Estado",
+    "actions": "Ações",
+    "trips": "Viagens",
+    "settle": "Dar baixa",
+    "edit": "Editar",
+    "billLocation": "Onde está: {{place}}",
+    "billLink": "Abrir o boleto",
+    "employee": "Funcionário: {{name}}",
+    "employeeWithType": "Funcionário: {{name}} · {{type}}",
+    "employmentOnly": "Vínculo: {{type}}",
+    "subtype": "Tipo: {{name}}"
+  },
+  "calendar": {
+    "chooseYear": "Escolher o ano",
+    "clear": "Limpar",
+    "nextMonth": "Próximo mês",
+    "open": "Abrir o calendário",
+    "placeholder": "dd/mm/aaaa",
+    "previousMonth": "Mês anterior"
+  },
+  "dialog": {
+    "close": "Fechar",
+    "cancel": "Cancelar"
+  },
+  "edit": {
+    "title": "Editar conta",
+    "save": "Salvar alterações",
+    "saving": "Salvando…",
+    "hint": "Esta edição vale para a conta inteira, não só para esta parcela. O valor e o vencimento não mudam aqui.",
+    "newAmount": "Valor",
+    "effectiveFrom": "Vale a partir de",
+    "amountHint": "O valor antigo fica guardado no histórico. Só mudam as contas em aberto ainda a vencer, da competência escolhida em diante; paga, cancelada ou vencida não muda.",
+    "history": "Histórico de valores",
+    "historyBase": "Valor de abertura: {{amount}}",
+    "historyChange": "A partir de {{competence}}: {{from}} → {{to}} (registrado em {{when}})",
+    "amountMode": "O que é esta mudança?",
+    "modeCorrection": "Corrigir valor digitado errado",
+    "modeAdjustment": "Reajuste a partir de um mês",
+    "correctionHint": "A correção vale para este trecho da conta, inclusive parcela vencida e não paga; a paga não muda. O valor errado fica no histórico como correção.",
+    "historyCorrection": "Correção: {{from}} → {{to}} (registrada em {{when}})"
+  },
+  "create": {
+    "title": "Nova conta",
+    "name": "Nome",
+    "kind": "Tipo",
+    "kindOption": {
+      "fixed": "Fixa (recorrente)",
+      "variable": "Variável (avulsa)"
+    },
+    "category": "Categoria",
+    "categoryPlaceholder": "Escolha a categoria",
+    "amount": "Valor previsto",
+    "amountPlaceholder": "0,00",
+    "payee": "Motorista, agregado ou ajudante",
+    "payeePlaceholder": "Escolha a pessoa",
+    "recurrence": "Recorrência",
+    "dueDay": "Dia do vencimento",
+    "fortnightlyHint": "Quinzenal vence no dia 15 e no último dia do mês.",
+    "installments": "Parcelas (opcional)",
+    "installmentsPlaceholder": "Ex.: 10 (vazio = sem fim)",
+    "installmentsHint": "Valor previsto é o de cada parcela. A rotina para de gerar depois da última.",
+    "dueDate": "Vencimento",
+    "causedBy": "Quem causou a conta (opcional)",
+    "causedByPlaceholder": "Ninguém",
+    "causedByHint": "Só informa de quem foi a causa (a multa do motorista, o dano do ajudante). Pode ser uma ficha da frota, alguém do escritório ou um nome digitado. Quem aparece aqui não recebe aviso de conta.",
+    "vehicle": "Veículo (opcional)",
+    "vehiclePlaceholder": "Nenhum",
+    "save": "Salvar conta",
+    "saving": "Salvando…",
+    "issues": "Confira: {{fields}}.",
+    "issue": {
+      "name": "nome",
+      "category": "categoria",
+      "amount": "valor previsto",
+      "payee": "motorista, agregado ou ajudante",
+      "dueDate": "vencimento",
+      "dueDay": "dia do vencimento (1 a 31)",
+      "installments": "parcelas (2 a 600)",
+      "billUrl": "link do boleto"
+    },
+    "causedByName": "Ou digite um nome",
+    "causedByNamePlaceholder": "Quem não está no cadastro",
+    "billLocation": "Onde a conta está (opcional)",
+    "billLocationPlaceholder": "Ex.: fatura do cartão da empresa",
+    "billLocationHint": "Texto livre: com quem está o boleto ou em que fatura a cobrança aparece.",
+    "billUrl": "Link do boleto",
+    "billUrlPlaceholder": "https://… (portal do fornecedor)",
+    "employee": "Funcionário (opcional)",
+    "employeePlaceholder": "Ninguém",
+    "employeeName": "Ou digite um nome",
+    "employeeNamePlaceholder": "Quem não está no cadastro",
+    "employmentType": "Tipo de vínculo",
+    "employmentTypePlaceholder": "Sem tipo",
+    "employeeHint": "Para salário e pagamento de funcionário. Vale qualquer pessoa do cadastro (motorista, agregado, ajudante ou quem só tem acessos no escritório) ou um nome digitado. Para pagar duas vezes ao mês, escolha a recorrência Quinzenal.",
+    "categoryCreate": "Adicionar «{{name}}»",
+    "categoryEmpty": "Digite o nome e aperte Enter para cadastrar a categoria",
+    "categorySearch": "Buscar ou digitar a categoria"
+  },
+  "settle": {
+    "title": "Dar baixa",
+    "summary": "{{name}} · vencimento {{due}} · previsto {{amount}}",
+    "amount": "Valor pago",
+    "paidAt": "Data do pagamento",
+    "note": "Observação",
+    "notePlaceholder": "Opcional",
+    "confirm": "Confirmar baixa",
+    "sending": "Registrando…"
+  },
+  "trips": {
+    "title": "Viagens do pagamento",
+    "summary": "{{name}}{{payee}}. Só viagens concluídas ainda não pagas.",
+    "trip": "Viagem",
+    "tripNumber": "Viagem {{id}}",
+    "tripNumberRoute": "Viagem {{id}} · {{route}}",
+    "completedOn": "Concluída",
+    "dailyTimesDays": "Diária × dias",
+    "dailyTimesDaysValue_one": "{{daily}} × {{count}} dia",
+    "dailyTimesDaysValue_other": "{{daily}} × {{count}} dias",
+    "amount": "Valor",
+    "actions": "Ações",
+    "total": "Total do pagamento",
+    "empty": "Nenhuma viagem incluída neste pagamento. O valor previsto é o da conta.",
+    "add": "Adicionar viagens",
+    "hideAvailable": "Ocultar viagens disponíveis",
+    "availableTitle": "Viagens disponíveis",
+    "availableEmpty": "Nenhuma viagem concluída disponível no período.",
+    "include": "Incluir",
+    "remove": "Remover",
+    "pendingTrip": "Viagem {{id}} fica de fora: {{gap}}.",
+    "pendingTripRoute": "Viagem {{id}} ({{route}}) fica de fora: {{gap}}."
+  },
+  "result": {
+    "title": "Resultado",
+    "calculatedAt": "Calculado em {{value}}",
+    "period": {
+      "from": "De",
+      "to": "Até"
+    },
+    "totals": {
+      "revenue": "Faturamento",
+      "tripCost": "Custo das viagens",
+      "expenses": "Contas",
+      "profit": "Lucro",
+      "unallocated": "Não rateado"
+    },
+    "tabs": {
+      "trip": "Por viagem",
+      "vehicle": "Por veículo",
+      "customer": "Por cliente"
+    },
+    "columns": {
+      "name": "Nome",
+      "revenue": "Faturamento",
+      "cost": "Custo",
+      "vehicleShare": "Contas do veículo",
+      "generalShare": "Contas gerais",
+      "margin": "Margem"
+    },
+    "noVehicle": "Sem veículo",
+    "noCustomer": "Sem cliente",
+    "unallocated": {
+      "title": "Contas não rateadas",
+      "reason": {
+        "no_trip_weight": "Sem viagem com peso no período",
+        "vehicle_without_trips": "Veículo sem viagens no período"
+      }
+    },
+    "excesses": {
+      "title": "Pagamento acima das viagens incluídas"
+    },
+    "paymentsWithoutTrips": {
+      "title": "Pagamento sem viagens incluídas"
+    },
+    "filters": {
+      "title": "Filtros",
+      "vehicle": "Veículo",
+      "customer": "Cliente",
+      "category": "Categoria",
+      "payee": "Motorista, agregado ou ajudante",
+      "all": "Todos",
+      "clear": "Limpar filtros",
+      "note": "Os filtros escolhem o que aparece e soma; o rateio é sempre sobre o período inteiro."
+    },
+    "export": {
+      "pdf": "Exportar PDF",
+      "csv": "Exportar CSV",
+      "exporting": "Exportando…",
+      "failed": "Não foi possível exportar."
+    },
+    "unitCosts": {
+      "title": "Custo por quilômetro",
+      "general": "Geral",
+      "vehicle": "Veículo",
+      "kilometers": "Quilômetros",
+      "tripCost": "Custo das viagens",
+      "expensesShare": "Contas rateadas",
+      "totalCost": "Custo total",
+      "costPerKm": "Custo por km",
+      "noKilometers": "Sem quilômetro"
+    },
+    "empty": "Nenhuma viagem concluída neste período.",
+    "loading": "Calculando o resultado…"
+  },
+  "allocation": {
+    "title": "Rateio das contas",
+    "subtitle": "Como cada grupo de conta é dividido entre as viagens do período.",
+    "group": {
+      "vehicle_fixed": "Contas fixas do veículo",
+      "per_km": "Contas variáveis por quilômetro",
+      "administrative": "Contas administrativas"
+    },
+    "criterion": {
+      "per_km": "Por quilômetro",
+      "per_trip_day": "Por dia de viagem",
+      "per_revenue": "Pelo faturamento",
+      "equal": "Igual para cada viagem"
+    },
+    "save": "Salvar critérios",
+    "saved": "Critérios salvos.",
+    "loading": "Carregando os critérios…"
+  },
+  "resultPage": {
+    "title": "Resultado do mês",
+    "subtitle": "Quanto faturamos, quanto gastamos e o lucro que sobra, com as contas rateadas entre as viagens.",
+    "back": "Voltar às contas",
+    "open": "Ver resultado",
+    "filters": {
+      "period": "Período",
+      "vehicle": "Veículo",
+      "customer": "Cliente",
+      "category": "Categoria da conta",
+      "payee": "Motorista, agregado ou ajudante",
+      "all": "Todos",
+      "allFeminine": "Todas",
+      "noVehicle": "Sem veículo",
+      "noCustomer": "Sem cliente",
+      "placeholder": "dd/mm/aaaa a dd/mm/aaaa",
+      "clearDates": "Limpar",
+      "nextMonth": "Próximo mês",
+      "previousMonth": "Mês anterior",
+      "note": "Filtros valem para os indicadores, as tabelas e a exportação."
+    },
+    "export": {
+      "pdf": "Exportar PDF",
+      "csv": "Exportar planilha (CSV)",
+      "exporting": "Exportando…",
+      "failed": "Não foi possível exportar. Tente de novo."
+    },
+    "indicators": {
+      "revenue": "Faturamento de fretes",
+      "tripCost": "Custo das viagens",
+      "tripCostHint": "diárias e gastos lançados na viagem",
+      "expenses": "Contas da empresa",
+      "expensesHint": "fixas e variáveis, sem motorista",
+      "profit": "Lucro",
+      "margin": "Margem",
+      "costPerKm": "Custo por km",
+      "costPerKmHint": "{{km}} km em {{trips}} viagens",
+      "revenuePerKm": "Receita por km",
+      "profitPerKm": "Margem por km",
+      "variation": "{{value}} sobre o período anterior",
+      "previousMargin": "período anterior: {{value}}"
+    },
+    "notice": "Os números são recalculados toda vez que a tela abre, com as contas e o critério de hoje. O mês fechado não é congelado.",
+    "unallocated": "Contas sem viagem para ratear: {{amount}}. Elas entram no total das contas, mas não em nenhuma viagem.",
+    "trend": {
+      "title": "Últimos meses",
+      "month": "Mês",
+      "revenue": "Faturamento",
+      "cost": "Custo total",
+      "profit": "Lucro",
+      "margin": "Margem"
+    },
+    "tabs": {
+      "title": "Margem por {{kind}}",
+      "ariaLabel": "Agrupar a margem",
+      "trip": "Por viagem",
+      "vehicle": "Por veículo",
+      "customer": "Por cliente",
+      "kindTrip": "viagem",
+      "kindVehicle": "veículo",
+      "kindCustomer": "cliente"
+    },
+    "columns": {
+      "trip": "Viagem",
+      "vehicle": "Veículo",
+      "customer": "Cliente",
+      "revenue": "Frete",
+      "cost": "Custo da viagem",
+      "km": "Km",
+      "vehicleShare": "Rateio do veículo",
+      "generalShare": "Rateio geral",
+      "margin": "Margem",
+      "percent": "%"
+    },
+    "footnote": "Rateio do veículo: contas fixas do caminhão. Rateio geral: contas administrativas e as sem veículo.",
+    "empty": "Nenhuma viagem concluída neste período.",
+    "loading": "Calculando o resultado…",
+    "forbidden": "Você não tem permissão para ver o resultado.",
+    "errors": {
+      "REQUEST_FAILED": "Não foi possível calcular o resultado. Tente de novo."
+    },
+    "forecast": {
+      "title": "Previsão de {{month}}",
+      "estimate": "Estimativa",
+      "failed": "Não foi possível calcular a previsão. O resto da tela segue valendo.",
+      "unavailable": "Ainda não há meses fechados suficientes: a previsão precisa de 3 meses com viagens e tem {{months}}.",
+      "fewData": "Poucos meses de dados: a previsão usa {{months}} meses. Com 6 meses ela fica mais firme; por isso a faixa abaixo é larga.",
+      "revenue": "Faturamento previsto",
+      "cost": "Custo total previsto",
+      "profit": "Lucro previsto",
+      "recurring": "Contas já cadastradas",
+      "range": "faixa de {{min}} a {{max}}",
+      "margin": "margem de {{value}}",
+      "recurringHint": "recorrentes de {{month}}",
+      "how": "Como é calculado: contas recorrentes já cadastradas ({{recurring}}) + média diária de faturamento e de custo por km dos últimos {{months}} meses × dias úteis do mês previsto."
+    },
+    "outOfPattern": {
+      "title": "Fora do padrão",
+      "item": "Item",
+      "current": "Mês atual",
+      "average": "Média 3 meses",
+      "difference": "Diferença",
+      "state": "Estado",
+      "above": "Acima",
+      "below": "Abaixo",
+      "empty": "Nenhum item passou de {{limit}}% da média dos 3 últimos meses.",
+      "footnote": "Aparece o que passa de {{limit}}% da média dos 3 últimos meses fechados; item com menos de 3 meses de histórico não entra.",
+      "kind": {
+        "category": "Categoria",
+        "expense": "Conta",
+        "vehicle_cost_per_km": "Custo por km do veículo"
+      }
+    }
+  },
+  "employmentType": {
+    "clt": "CLT",
+    "daily": "Diarista",
+    "autonomous": "Autônomo",
+    "other": "Outro"
+  },
+  "subtype": {
+    "label": "Tipo (opcional)",
+    "none": "Sem tipo",
+    "create": "Adicionar «{{name}}»",
+    "empty": "Digite o nome e aperte Enter para cadastrar",
+    "placeholder": "Qual cartão, qual financiamento…",
+    "search": "Buscar ou digitar o tipo",
+    "needCategory": "Escolha a categoria primeiro: o tipo é cadastrado dentro dela (qual cartão, qual financiamento).",
+    "hint": "Digite o nome e aperte Enter: o tipo é cadastrado nesta categoria e já fica selecionado. Quem usa o mesmo tipo soma junto no filtro, parcelado ou à vista."
+  },
+  "person": {
+    "none": "Ninguém",
+    "company": "A própria empresa",
+    "create": "Adicionar «{{name}}»",
+    "empty": "Digite o nome e aperte Enter",
+    "search": "Buscar ou digitar um nome"
+  },
+  "bulk": {
+    "bar": "Ações rápidas",
+    "selected": "{{count}} selecionada(s) · previsto {{amount}}",
+    "settle": "Dar baixa",
+    "cancel": "Cancelar contas",
+    "clear": "Limpar seleção",
+    "selectAll": "Selecionar todas as contas em aberto listadas",
+    "selectOne": "Selecionar {{name}}",
+    "titleSettle": "Dar baixa nas selecionadas",
+    "titleCancel": "Cancelar as selecionadas",
+    "summary": "{{count}} conta(s) · previsto {{amount}}",
+    "settleHint": "Cada conta é paga pelo valor previsto, na data escolhida. Conta com valor diferente se baixa uma a uma.",
+    "cancelHint": "A conta cancelada sai do que está em aberto, e o motivo fica registrado em cada uma.",
+    "reason": "Motivo do cancelamento",
+    "reasonPlaceholder": "Ex.: lançada em duplicidade",
+    "confirmSettle": "Dar baixa em {{count}}",
+    "confirmCancel": "Cancelar {{count}}",
+    "running": "Registrando…",
+    "close": "Fechar",
+    "partial": "{{succeeded}} registrada(s) e {{failed}} com erro. As que falharam continuam selecionadas; tente de novo ou abra uma a uma.",
+    "select": "Selecionar",
+    "selectAllLabel": "Selecionar as {{count}} contas em aberto listadas"
+  }
+}

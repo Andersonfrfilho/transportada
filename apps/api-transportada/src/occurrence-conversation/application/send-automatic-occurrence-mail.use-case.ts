@@ -15,6 +15,10 @@
  * - Spec 318: a contratante com canal `whatsapp_group` recebe o aviso no grupo, marcando o número, e **nenhum
  *   e-mail**. Falhou (depois das tentativas na hora): com `email_fallback` ligado, sai o e-mail de sempre; o resultado
  *   fica gravado e a varredura do worker tenta o grupo de novo enquanto ele não sair por nenhum canal.
+ * - Spec 324 (T1): `sendManual` é o botão "Avisar a contratante". Mesmo plano, mesmo modelo e mesmo canal do
+ *   automático, ignorando só o corte `type_off` (D1); a marca da 321 continua vencendo primeiro (RF6). Quem clicou é o
+ *   autor do e-mail, e a chave é própria (`occurrence-manual-notice:<id>`, D3): o botão nunca disputa a reserva da
+ *   varredura. Um aviso manual por ocorrência; só a falha libera tentar de novo.
  */
 import {
   CONTRACTOR_OCCURRENCE_GROUP_ATTEMPTS,
@@ -25,6 +29,7 @@ import {
   type ContractorOccurrenceGroupValues,
 } from '../domain/contractor-occurrence-group.policy.js'
 import { occurrenceTypeNeverNotifiesContractor } from '../../trips/domain/occurrence-contractor-notice.policy.js'
+import { CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY } from '../domain/contractor-manual-notice-template.policy.js'
 import { resolveOccurrenceRecipients } from '../domain/occurrence-contractor-recipients.policy.js'
 import { ContractorReplyWhatsAppSendError } from './forward-contractor-reply-by-whatsapp.port.js'
 import type { SendOccurrenceMailUseCase } from './send-occurrence-mail.use-case.js'
@@ -68,11 +73,23 @@ export type ContractorOccurrenceGroupChannel = {
  * de notificação (RF4); o envio é o Evolution da empresa com a marca (RF2), que sobe `ContractorReplyWhatsAppSendError`.
  */
 export type ContractorOccurrenceGroupPort = {
-  /** Reserva o aviso desta ocorrência. `false`: já saiu (no grupo ou na reserva), ou está saindo agora. */
-  claim(input: { readonly companyId: string; readonly occurrenceId: string }): Promise<boolean>
+  /**
+   * Reserva o aviso desta ocorrência. `false`: já saiu (no grupo ou na reserva), ou está saindo agora. `keyPrefix`
+   * ausente é a chave do automático (`occurrence-auto-mail:`); o botão da 324 passa a dele.
+   */
+  claim(input: {
+    readonly companyId: string
+    readonly keyPrefix?: string
+    readonly occurrenceId: string
+  }): Promise<boolean>
   /** O modelo do grupo e os valores; `null` sem modelo cadastrado. */
   readMessage(input: {
     readonly companyId: string
+    /**
+     * Spec 324 (D10): só o botão manual passa `ocorrencia.contratante-aviso-manual`, a última opção depois da versão
+     * WhatsApp da chave do tipo e do `ocorrencia.contratante-grupo`.
+     */
+    readonly fallbackTemplateKey?: string
     readonly occurrenceId: string
   }): Promise<null | {
     readonly template: string
@@ -82,6 +99,7 @@ export type ContractorOccurrenceGroupPort = {
     readonly attempts: number
     readonly companyId: string
     readonly failure: ContractorOccurrenceGroupFailure | null
+    readonly keyPrefix?: string
     readonly occurrenceId: string
     readonly status: ContractorOccurrenceGroupRecordStatus
   }): Promise<void>
@@ -100,9 +118,106 @@ export type AutomaticOccurrenceMailReaderPort = {
   /** `null`: ocorrência inexistente nesta empresa, de parada ou sem contratante casada. */
   findPlan(input: {
     readonly companyId: string
+    /**
+     * Spec 324 (D1): lê contatos, modelo e grupo mesmo com o tipo desligado (`emails_contractor = false`). O plano
+     * continua dizendo o `emailsContractor` real; a marca da 321 continua devolvendo o plano bloqueado.
+     */
+    readonly ignoreTypeOff?: boolean
     readonly occurrenceId: string
   }): Promise<AutomaticOccurrenceMailPlan | null>
 }
+
+/**
+ * Spec 324 (D3, D8): a reserva do aviso manual, uma por ocorrência e por empresa, e a pergunta "o automático já
+ * avisou?". `claim` devolve `false` com um aviso manual já enviado ou saindo agora; `failed` libera de novo.
+ */
+export type ManualNoticeRecord = {
+  readonly automatic: null | { readonly at: string; readonly channel: 'email' | 'whatsapp_group' }
+  readonly manual: null | {
+    readonly actorName: null | string
+    readonly at: string
+    readonly channel: ManualNoticeChannel | null
+  }
+}
+
+/**
+ * Spec 324 T3 (RF1, RF4, D6): o que o painel mostra no botão. `available`: pode avisar (com o canal que o envio
+ * usaria); `notified`: já avisada, por quem e quando (RF4); `unavailable`: sem botão, com o motivo em texto claro.
+ */
+export type ManualNoticeState =
+  | {
+      readonly at: string
+      readonly by: 'automatic'
+      readonly channel: 'email' | 'whatsapp_group'
+      readonly status: 'notified'
+    }
+  | {
+      readonly actorName: null | string
+      readonly at: string
+      readonly by: 'manual'
+      readonly channel: ManualNoticeChannel | null
+      readonly status: 'notified'
+    }
+  | {
+      readonly channel: 'email'
+      /** Spec 324 T4 (RF2): o texto do modelo já preenchido, para a confirmação; `null` se não deu para montar. */
+      readonly preview: null | { readonly bodyText: string; readonly subject: string }
+      readonly recipientCount: number
+      readonly status: 'available'
+    }
+  | {
+      readonly channel: 'whatsapp_group'
+      readonly preview: null | { readonly bodyText: string; readonly subject: null }
+      readonly status: 'available'
+    }
+  | {
+      readonly reason: 'blocked' | 'no_recipient' | 'no_template'
+      readonly status: 'unavailable'
+    }
+
+export type ManualContractorNoticePort = {
+  claim(input: { readonly companyId: string; readonly occurrenceId: string }): Promise<boolean>
+  /** O aviso automático saiu por algum canal (e-mail, grupo, ou a reserva por e-mail do grupo). */
+  isAutomaticNoticeSent(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<boolean>
+  /**
+   * Spec 324 T3: quem avisou a contratante e quando, para a leitura do estado do botão. `manual` é o último clique que
+   * chegou (`sent`) com o nome de quem clicou; `automatic` é o aviso automático (e-mail ou grupo) já gravado.
+   */
+  readNoticeRecord(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<ManualNoticeRecord>
+  /** O aviso manual já chegou à contratante: o automático (a varredura do worker) não repete. */
+  isManualNoticeSent(input: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<boolean>
+  /**
+   * Fecha a reserva e, na mesma instrução, grava o registro do clique (T2: quem, quando, canal e desfecho) e a trilha
+   * de auditoria. `result` nulo: o envio lançou (`failed`) ou a chave do e-mail já tinha saído com outro texto (`sent`).
+   */
+  record(input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly correlationId: string
+    readonly occurrenceId: string
+    readonly result: AutomaticOccurrenceMailResult | null
+    readonly status: 'failed' | 'sent'
+  }): Promise<void>
+}
+
+/**
+ * Spec 324: o resultado do botão. `blocked` (321) e `already_notified` (o automático já avisou, ou o manual já saiu
+ * ou está saindo) viram 409 na rota; `not_document` 404; o resto é o resultado do envio, com o motivo quando não saiu.
+ */
+export type ManualOccurrenceNoticeResult =
+  | AutomaticOccurrenceMailResult
+  | { readonly outcome: 'already_notified'; readonly by: 'automatic' | 'manual' }
+  | { readonly outcome: 'blocked' }
+  | { readonly outcome: 'not_document' }
 
 export type AutomaticOccurrenceMailResult =
   | { readonly attempts: number; readonly outcome: 'sent_to_group' }
@@ -127,6 +242,7 @@ export type AutomaticOccurrenceMailEmailResult =
       readonly reason:
         | 'contractor_notice_blocked'
         | 'mail_not_ready'
+        | 'manual_notice_sent'
         | 'no_recipient'
         | 'no_template_selected'
         | 'not_document'
@@ -142,7 +258,47 @@ const MAIL_NOT_READY_CODES = new Set([
 
 const OCCURRENCE_MAIL_TEMPLATE_MISSING_CODE = 'OCCURRENCE_MAIL_TEMPLATE_MISSING'
 
+const IDEMPOTENCY_KEY_REUSED_CODE = 'OCCURRENCE_CONVERSATION_IDEMPOTENCY_KEY_REUSED'
+
 export const AUTOMATIC_OCCURRENCE_MAIL_KEY_PREFIX = 'occurrence-auto-mail:'
+
+/** Spec 324 (D3): a chave do aviso manual, no e-mail e no grupo; nunca a do automático. */
+export const MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX = 'occurrence-manual-notice:'
+
+/** O aviso manual chegou à contratante por algum canal: só aí a reserva fecha; o resto libera tentar de novo. */
+export function isManualNoticeDelivered(result: AutomaticOccurrenceMailResult): boolean {
+  if (result.outcome === 'sent' || result.outcome === 'sent_to_group') return true
+  if (result.outcome === 'group_failed') return result.fallback?.outcome === 'sent'
+  return false
+}
+
+/** Spec 324 T2: por onde o aviso manual foi (ou tentou ir); `null` quando nada chegou a ser tentado. */
+export type ManualNoticeChannel = 'email' | 'email_fallback' | 'whatsapp_group'
+
+/**
+ * Spec 324 T2: o canal e o motivo que o registro do aviso manual guarda. Sem resultado, o envio lançou antes de dizer
+ * por onde (`failed`) ou a chave do e-mail já tinha saído (`sent`, só o e-mail recusa chave reusada).
+ */
+export function describeManualNoticeAttempt(input: {
+  readonly result: AutomaticOccurrenceMailResult | null
+  readonly status: 'failed' | 'sent'
+}): { readonly channel: ManualNoticeChannel | null; readonly reason: null | string } {
+  const { result } = input
+  if (result === null) return { channel: input.status === 'sent' ? 'email' : null, reason: null }
+  switch (result.outcome) {
+    case 'sent':
+      return { channel: 'email', reason: null }
+    case 'sent_to_group':
+      return { channel: 'whatsapp_group', reason: null }
+    case 'group_failed':
+      return {
+        channel: result.fallback?.outcome === 'sent' ? 'email_fallback' : 'whatsapp_group',
+        reason: result.failure,
+      }
+    case 'skipped':
+      return { channel: null, reason: result.reason }
+  }
+}
 
 function errorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) return undefined
@@ -161,9 +317,27 @@ type SendInput = {
   readonly occurrenceId: string
 }
 
+/**
+ * Quem manda: o automático (sem autor, chave `occurrence-auto-mail:`) ou o botão da 324 (o operador, chave própria).
+ * O manual não olha o carimbo da escolha do modelo: o carimbo protege só o disparo sozinho.
+ */
+type Sender =
+  | { readonly kind: 'automatic' }
+  | { readonly actorUserId: string; readonly kind: 'manual' }
+
+const AUTOMATIC_SENDER: Sender = { kind: 'automatic' }
+
+function keyPrefixOf(sender: Sender): string {
+  return sender.kind === 'manual'
+    ? MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX
+    : AUTOMATIC_OCCURRENCE_MAIL_KEY_PREFIX
+}
+
 export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
   /** Spec 318: sem a porta, a contratante com grupo segue por e-mail (composição antiga, testes). */
   readonly group?: ContractorOccurrenceGroupPort
+  /** Spec 324: sem a porta, `sendManual` não existe para a composição (o botão responde 503). */
+  readonly manualNotice?: ManualContractorNoticePort
   readonly reader: AutomaticOccurrenceMailReaderPort
   readonly sendMail: Pick<SendOccurrenceMailUseCase, 'send'>
   /** Espera entre as tentativas no grupo; injetável para o teste não dormir. */
@@ -177,7 +351,7 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
   async function postToGroup(
     group: ContractorOccurrenceGroupPort,
     channel: ContractorOccurrenceGroupChannel,
-    input: SendInput,
+    input: SendInput & { readonly fallbackTemplateKey?: string },
   ): Promise<{
     readonly attempts: number
     readonly failure: ContractorOccurrenceGroupFailure | null
@@ -214,12 +388,25 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
     group: ContractorOccurrenceGroupPort,
     plan: AutomaticOccurrenceMailPlan,
     channel: ContractorOccurrenceGroupChannel,
-    input: SendInput,
+    sendInput: SendInput,
+    sender: Sender,
   ): Promise<AutomaticOccurrenceMailResult> {
+    /** Spec 324 (D3): o botão reserva e grava na chave dele; o automático segue sem `keyPrefix`, como sempre. */
+    const input =
+      sender.kind === 'manual'
+        ? { ...sendInput, keyPrefix: MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX }
+        : sendInput
     if (!(await group.claim(input))) return { outcome: 'skipped', reason: 'group_already_sent' }
     let posted: Awaited<ReturnType<typeof postToGroup>>
     try {
-      posted = await postToGroup(group, channel, input)
+      /** Spec 324 (D10): só o botão cai no texto geral do aviso manual, depois dos modelos do grupo. */
+      posted = await postToGroup(
+        group,
+        channel,
+        sender.kind === 'manual'
+          ? { ...input, fallbackTemplateKey: CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY }
+          : input,
+      )
     } catch (error) {
       // Falha inesperada antes do envio (leitura do modelo): solta a reserva para a varredura tentar de novo.
       await group.record({ ...input, attempts: 0, failure: 'failed', status: 'failed' })
@@ -240,7 +427,7 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
     }
     let fallback: AutomaticOccurrenceMailEmailResult
     try {
-      fallback = await sendByEmail(plan, input)
+      fallback = await sendByEmail(plan, sendInput, sender)
     } catch (error) {
       await group.record({
         ...input,
@@ -262,9 +449,10 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
   async function sendByEmail(
     plan: AutomaticOccurrenceMailPlan,
     input: SendInput,
+    sender: Sender,
   ): Promise<AutomaticOccurrenceMailEmailResult> {
     if (plan.suggested === null) return { outcome: 'skipped', reason: 'no_template_selected' }
-    if (plan.isRegisteredBeforeTemplate) {
+    if (sender.kind === 'automatic' && plan.isRegisteredBeforeTemplate) {
       return { outcome: 'skipped', reason: 'registered_before_template' }
     }
 
@@ -284,15 +472,19 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
 
     try {
       await dependencies.sendMail.send({
-        actorUserId: null,
-        automatic: true,
+        ...(sender.kind === 'manual'
+          ? { actorUserId: sender.actorUserId, automatic: false }
+          : { actorUserId: null, automatic: true }),
         bodyText: plan.suggested.bodyText,
         companyId: input.companyId,
         contactIds: byEmail.map((recipient) => recipient.contactId),
         correlationId: input.correlationId,
-        idempotencyKey: `${AUTOMATIC_OCCURRENCE_MAIL_KEY_PREFIX}${input.occurrenceId}`,
+        idempotencyKey: `${keyPrefixOf(sender)}${input.occurrenceId}`,
         occurrenceId: input.occurrenceId,
         subject: plan.suggested.subject,
+        ...(sender.kind === 'manual'
+          ? { templateFallbackKey: CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY }
+          : {}),
       })
     } catch (error) {
       if (MAIL_NOT_READY_CODES.has(errorCode(error) ?? '')) {
@@ -315,6 +507,67 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
   }
 
   return {
+    /**
+     * Spec 324 T3: o estado do botão, pelas mesmas perguntas do `sendManual` na mesma ordem (marca da 321 → já
+     * avisada → canal), sem reservar nem enviar nada. `null`: não é ocorrência de nota (404 na rota).
+     */
+    async readNoticeState(input: {
+      readonly companyId: string
+      readonly occurrenceId: string
+    }): Promise<ManualNoticeState | null> {
+      const manualNotice = dependencies.manualNotice
+      if (manualNotice === undefined) throw new Error('Manual contractor notice is not configured')
+      const plan = await dependencies.reader.findPlan({ ...input, ignoreTypeOff: true })
+      if (plan === null) return null
+      if (occurrenceTypeNeverNotifiesContractor(plan)) {
+        return { reason: 'blocked', status: 'unavailable' }
+      }
+      const record = await manualNotice.readNoticeRecord(input)
+      if (record.manual !== null) return { ...record.manual, by: 'manual', status: 'notified' }
+      if (plan.emailsContractor && record.automatic !== null) {
+        return { ...record.automatic, by: 'automatic', status: 'notified' }
+      }
+      if (plan.groupChannel !== null && plan.groupChannel !== undefined) {
+        const message = await dependencies.group?.readMessage(input)
+        return {
+          channel: 'whatsapp_group',
+          preview:
+            message === null || message === undefined
+              ? null
+              : {
+                  bodyText: buildContractorOccurrenceGroupMessage({
+                    mentionPhone: plan.groupChannel.mentionPhone,
+                    template: message.template,
+                    values: message.values,
+                  }),
+                  subject: null,
+                },
+          status: 'available',
+        }
+      }
+      const resolved = resolveOccurrenceRecipients({
+        chosenContactIds: plan.chosenContactIds,
+        contacts: plan.recipients.map((recipient) => ({
+          email: recipient.email,
+          id: recipient.contactId,
+          occurrenceStages: recipient.stages,
+        })),
+        stage: plan.stage,
+      })
+      const resolvedIds = new Set(resolved.contactIds)
+      const recipientCount = plan.recipients.filter(
+        (recipient) => resolvedIds.has(recipient.contactId) && recipient.email !== null,
+      ).length
+      if (recipientCount === 0) return { reason: 'no_recipient', status: 'unavailable' }
+      if (plan.suggested === null) return { reason: 'no_template', status: 'unavailable' }
+      return {
+        channel: 'email',
+        preview: { bodyText: plan.suggested.bodyText, subject: plan.suggested.subject },
+        recipientCount,
+        status: 'available',
+      }
+    },
+
     async send(input: SendInput): Promise<AutomaticOccurrenceMailResult> {
       const plan = await dependencies.reader.findPlan(input)
       if (plan === null) return { outcome: 'skipped', reason: 'not_document' }
@@ -323,11 +576,86 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
         return { outcome: 'skipped', reason: 'contractor_notice_blocked' }
       }
       if (!plan.emailsContractor) return { outcome: 'skipped', reason: 'type_off' }
+      /** Spec 324 (D8): o automático falhou, o escritório avisou pelo botão; a varredura não manda de novo. */
+      if (
+        dependencies.manualNotice !== undefined &&
+        (await dependencies.manualNotice.isManualNoticeSent(input))
+      ) {
+        return { outcome: 'skipped', reason: 'manual_notice_sent' }
+      }
       const channel = plan.groupChannel ?? null
       if (channel !== null && dependencies.group !== undefined) {
-        return sendThroughGroup(dependencies.group, plan, channel, input)
+        return sendThroughGroup(dependencies.group, plan, channel, input, AUTOMATIC_SENDER)
       }
-      return sendByEmail(plan, input)
+      return sendByEmail(plan, input, AUTOMATIC_SENDER)
+    },
+
+    /**
+     * Spec 324: o botão "Avisar a contratante". Ordem: plano (sem o corte `type_off`) → marca da 321 → o automático
+     * já avisou (D8) → reserva do manual (D3) → o mesmo canal do automático (D2). Qualquer saída que não chegou à
+     * contratante grava `failed` e libera o próximo clique; exceção também.
+     */
+    async sendManual(
+      input: SendInput & { readonly actorUserId: string },
+    ): Promise<ManualOccurrenceNoticeResult> {
+      const manualNotice = dependencies.manualNotice
+      if (manualNotice === undefined) throw new Error('Manual contractor notice is not configured')
+      const sendInput: SendInput = {
+        companyId: input.companyId,
+        correlationId: input.correlationId,
+        occurrenceId: input.occurrenceId,
+      }
+      const plan = await dependencies.reader.findPlan({
+        companyId: input.companyId,
+        ignoreTypeOff: true,
+        occurrenceId: input.occurrenceId,
+      })
+      if (plan === null) return { outcome: 'not_document' }
+      if (occurrenceTypeNeverNotifiesContractor(plan)) return { outcome: 'blocked' }
+      if (plan.emailsContractor && (await manualNotice.isAutomaticNoticeSent(sendInput))) {
+        return { by: 'automatic', outcome: 'already_notified' }
+      }
+      if (!(await manualNotice.claim(sendInput))) {
+        return { by: 'manual', outcome: 'already_notified' }
+      }
+      const sender: Sender = { actorUserId: input.actorUserId, kind: 'manual' }
+      const channel = plan.groupChannel ?? null
+      let result: AutomaticOccurrenceMailResult
+      try {
+        result =
+          channel !== null && dependencies.group !== undefined
+            ? await sendThroughGroup(dependencies.group, plan, channel, sendInput, sender)
+            : await sendByEmail(plan, sendInput, sender)
+      } catch (error) {
+        /**
+         * A chave manual já tem um e-mail com outro texto (o modelo mudou depois de um envio que a reserva não
+         * fechou, ex.: o processo caiu): o aviso já saiu. Fecha a reserva em vez de prometer um reenvio que a chave
+         * recusa para sempre.
+         */
+        if (errorCode(error) === IDEMPOTENCY_KEY_REUSED_CODE) {
+          await manualNotice.record({
+            ...sendInput,
+            actorUserId: input.actorUserId,
+            result: null,
+            status: 'sent',
+          })
+          return { by: 'manual', outcome: 'already_notified' }
+        }
+        await manualNotice.record({
+          ...sendInput,
+          actorUserId: input.actorUserId,
+          result: null,
+          status: 'failed',
+        })
+        throw error
+      }
+      await manualNotice.record({
+        ...sendInput,
+        actorUserId: input.actorUserId,
+        result,
+        status: isManualNoticeDelivered(result) ? 'sent' : 'failed',
+      })
+      return result
     },
   }
 }

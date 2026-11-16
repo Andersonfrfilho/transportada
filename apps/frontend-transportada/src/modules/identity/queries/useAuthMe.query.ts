@@ -89,6 +89,10 @@ export const COMPANY_PERMISSIONS = [
   'cargo.measure',
   /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
   'deliveries.track',
+  /** Spec 339: pedir coleta/entrega pelo portal (só o papel `contractor`). */
+  'pickup.request',
+  /** Spec 339: decidir o pedido de coleta/entrega e encaixá-lo numa viagem. */
+  'pickup.manage',
   /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */
   'charges.decide',
   /**
@@ -104,6 +108,9 @@ export const COMPANY_PERMISSIONS = [
   'occurrences.decide',
   /** Spec 262 D6: a chave e o orçamento da importação de feriados são da instalação, não de `settings.manage`. */
   'holiday-import.configure',
+  /** Spec 325 RF7: as contas da empresa são dinheiro da empresa inteira — só o `company-admin` recebe. */
+  'expenses.read',
+  'expenses.manage',
 ] as const
 
 const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const

@@ -111,6 +111,12 @@ export type WorkerEnvironment = {
   readonly databaseUrl: string
   /** Ausente desliga a entrega por e-mail: o convite é criado, mas o código não sai daqui. */
   readonly emailDelivery?: EmailDeliveryEnvironment
+  /** Chaves VAPID do Web Push; ausentes, o canal de push fica sem driver e a entrega falha alto. */
+  readonly vapid?: {
+    readonly privateKey: string
+    readonly publicKey: string
+    readonly subject: string
+  }
   /** `EMAIL_ALLOWED_RECIPIENTS` (nunca em produção), também para o e-mail da contratante. */
   readonly emailAllowedRecipients?: readonly string[]
   /** `EMAIL_RESEND_ENABLED=false` (nunca em produção): o e-mail da contratante sai pelo sandbox SMTP. */

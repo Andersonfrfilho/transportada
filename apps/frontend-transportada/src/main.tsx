@@ -18,6 +18,7 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tooltip } from '@/components/ui/tooltip'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
+import { installChunkReloadHandler } from '@/modules/shared/chunkReload.service'
 import { applyColorTheme, readStoredColorTheme } from '@/modules/shared/colorTheme.service'
 import { useColorTheme } from '@/modules/shared/useColorTheme.hook'
 import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service'
@@ -82,6 +83,8 @@ applyColorTheme({
   theme: readStoredColorTheme(typeof window === 'undefined' ? null : window.localStorage),
 })
 
+installChunkReloadHandler(window)
+
 if (!isSmokeAuthBypassEnabled()) {
   registerSW({ immediate: true })
 }
@@ -109,15 +112,21 @@ function resolveOpenGroups(
     fiscal: [
       'nfe',
       'freight',
+      'freight-quote',
       'cte-batch',
       'trip',
       'mdfe-manifest',
       'billing',
+      'expenses',
       'nfse-invoice',
     ].includes(workspace),
-    operations: ['operations', 'trip-occurrences', 'cargo-receiving', 'driver-trip'].includes(
-      workspace,
-    ),
+    operations: [
+      'operations',
+      'trip-occurrences',
+      'cargo-receiving',
+      'pickup-requests',
+      'driver-trip',
+    ].includes(workspace),
     registries: ['cte-profiles', 'fleet'].includes(workspace),
   }
 }
@@ -149,6 +158,8 @@ function resolveWorkspaceFromPath(): WorkspaceNavigationItem['key'] | undefined 
   if (window.location.pathname === '/repasses') return 'extra-charges'
   if (window.location.pathname === '/ressarcimentos') return 'reimbursements'
   if (window.location.pathname === '/resultados') return 'trip-financials'
+  if (window.location.pathname === '/contas') return 'expenses'
+  if (window.location.pathname === '/contas/resultado') return 'expenses'
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/pendencias') return 'pendencias'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
@@ -161,6 +172,8 @@ function resolveWorkspaceFromPath(): WorkspaceNavigationItem['key'] | undefined 
   /** Spec 237: a lista, o registro, o detalhe e a tela do celular são telas do recebimento. */
   if (parseCargoReceivingRoute(window.location.pathname) !== null) return 'cargo-receiving'
   if (window.location.pathname === '/freight') return 'freight'
+  if (window.location.pathname === '/orcamento') return 'freight-quote'
+  if (window.location.pathname === '/coletas') return 'pickup-requests'
   if (window.location.pathname === '/usuarios') return 'users'
   if (window.location.pathname === '/papeis') return 'access-profiles'
 
@@ -186,6 +199,7 @@ function resolveCurrentWorkspaceWithSource(): Readonly<{
     storedWorkspace === 'extra-charges' ||
     storedWorkspace === 'reimbursements' ||
     storedWorkspace === 'trip-financials' ||
+    storedWorkspace === 'expenses' ||
     storedWorkspace === 'fleet' ||
     storedWorkspace === 'mdfe-manifest' ||
     storedWorkspace === 'nfse-invoice' ||
@@ -194,6 +208,8 @@ function resolveCurrentWorkspaceWithSource(): Readonly<{
     storedWorkspace === 'pendencias' ||
     storedWorkspace === 'trip-occurrences' ||
     storedWorkspace === 'freight' ||
+    storedWorkspace === 'freight-quote' ||
+    storedWorkspace === 'pickup-requests' ||
     storedWorkspace === 'trip' ||
     storedWorkspace === 'users' ||
     storedWorkspace === 'access-profiles'
@@ -271,6 +287,12 @@ const FinancialResultsWorkspacePage = lazy(async () => ({
 const FleetWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/fleet/pages/FleetWorkspace.page')).FleetWorkspacePage,
 }))
+const PickupRequestsPage = lazy(async () => ({
+  default: (await import('@/modules/pickup-requests/pages/PickupRequests.page')).PickupRequestsPage,
+}))
+const FreightQuotePage = lazy(async () => ({
+  default: (await import('@/modules/freight-quote/pages/FreightQuote.page')).FreightQuotePage,
+}))
 const FreightWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/freight/pages/FreightWorkspace.page')).FreightWorkspacePage,
 }))
@@ -296,6 +318,12 @@ const NotificationWorkspacePage = lazy(async () => ({
 const OperationsDashboardPage = lazy(async () => ({
   default: (await import('@/modules/operations/pages/OperationsDashboard.page'))
     .OperationsDashboardPage,
+}))
+const ExpenseResultPage = lazy(async () => ({
+  default: (await import('@/modules/expenses/pages/ExpenseResult.page')).ExpenseResultPage,
+}))
+const ExpensesWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/expenses/pages/ExpensesWorkspace.page')).ExpensesWorkspacePage,
 }))
 const PendingItemsWorkspacePage = lazy(async () => ({
   default: (await import('@/modules/pending-items/pages/PendingItemsWorkspace.page'))
@@ -350,6 +378,8 @@ function resolvePage(
       return <OccurrenceReimbursementsWorkspacePage />
     case 'trip-financials':
       return <FinancialResultsWorkspacePage />
+    case 'expenses':
+      return input.path === '/contas/resultado' ? <ExpenseResultPage /> : <ExpensesWorkspacePage />
     case 'fleet':
       return <FleetWorkspacePage />
     case 'mdfe-manifest':
@@ -382,6 +412,10 @@ function resolvePage(
     }
     case 'freight':
       return <FreightWorkspacePage />
+    case 'freight-quote':
+      return <FreightQuotePage />
+    case 'pickup-requests':
+      return <PickupRequestsPage />
     case 'users':
       return <UserAdministrationPage />
     case 'access-profiles':

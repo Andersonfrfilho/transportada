@@ -16,6 +16,7 @@ import { createClientOccurrenceConversationRoutes } from '../src/occurrence-conv
 import { createMeClientBoletoEmailsRoutes } from '../src/occurrence-conversation/presentation/me-client-boleto-emails.routes.js'
 import { createMeClientBoletoWhatsAppRoutes } from '../src/occurrence-conversation/presentation/me-client-boleto-whatsapp.routes.js'
 import { createMeOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/me-occurrence-conversation.routes'
+import { createOccurrenceContractorNoticeRoutes } from '../src/occurrence-conversation/presentation/occurrence-contractor-notice.routes.js'
 import { createOccurrenceContractorReplyRoutes } from '../src/occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
 import { createOccurrenceConversationRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation.routes'
 import { createOfficeSubjectConversationWriteRoutes } from '../src/occurrence-conversation/presentation/office-subject-conversation-write.routes'
@@ -364,6 +365,30 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
           windowSeconds: 300,
         },
         signature: 'POST /trip-occurrences/:id/conversations/:participant/uploads',
+      },
+    ])
+  })
+
+  /** Spec 324 T1: o botão "Avisar a contratante" manda e-mail (ou grupo), no balde das mensagens da ocorrência. */
+  test('o aviso manual à contratante conta no Postgres, no balde das mensagens', () => {
+    const routes = createOccurrenceContractorNoticeRoutes(unusedDependencies() as never)
+
+    expect(
+      routes.map((route) => ({
+        rateLimit: route.rateLimit,
+        signature: `${route.method} ${route.pathname}`,
+      })),
+    ).toEqual([
+      /** Spec 324 T3: a leitura do estado do botão não envia nada, então não consome o balde. */
+      { rateLimit: undefined, signature: 'GET /trip-occurrences/:id/contractor-notice' },
+      {
+        rateLimit: {
+          maxRequests: 30,
+          scope: 'occurrence-conversation',
+          store: 'postgres',
+          windowSeconds: 300,
+        },
+        signature: 'POST /trip-occurrences/:id/contractor-notice',
       },
     ])
   })
@@ -802,6 +827,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'identity/presentation/login-hint.routes.ts',
       'identity/presentation/password-reset.routes.ts',
       'identity/presentation/user-activation.routes.ts',
+      'integration-api/presentation/integration-api.routes.ts',
       'occurrence-conversation/presentation/client-occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/contractor-occurrence-channel.routes.ts',
       'occurrence-conversation/presentation/me-client-boleto-emails.routes.ts',
@@ -809,6 +835,7 @@ describe('rotas com teto no Postgres (spec 150 T406)', () => {
       'occurrence-conversation/presentation/me-subject-conversation.routes.ts',
       'occurrence-conversation/presentation/occurrence-conversation.routes.ts',
       'occurrence-conversation/presentation/office-subject-conversation-write.routes.ts',
+      'pickup-requests/presentation/pickup-request.routes.ts',
       'trips/presentation/field-report-hold.routes.ts',
       'trips/presentation/me-client-diagnostics.routes.ts',
       'trips/presentation/me-location.routes.ts',

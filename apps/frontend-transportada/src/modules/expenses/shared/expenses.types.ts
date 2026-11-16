@@ -1,0 +1,273 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/** ⚠️ Cópia por valor do vocabulário da API (spec 325) — o bundle não carrega código de lá. */
+export const EXPENSE_KINDS = ['fixed', 'variable'] as const
+export type ExpenseKind = (typeof EXPENSE_KINDS)[number]
+
+export const EXPENSE_RECURRENCES = [
+  'monthly',
+  'bimonthly',
+  'quarterly',
+  'yearly',
+  'fortnightly',
+] as const
+export type ExpenseRecurrence = (typeof EXPENSE_RECURRENCES)[number]
+
+export const EXPENSE_OCCURRENCE_STATUSES = ['open', 'paid', 'canceled'] as const
+export type ExpenseOccurrenceStatus = (typeof EXPENSE_OCCURRENCE_STATUSES)[number]
+
+export const EXPENSE_DRIVER_PAYMENT_MODELS = ['route_table', 'fixed'] as const
+export type ExpenseDriverPaymentModel = (typeof EXPENSE_DRIVER_PAYMENT_MODELS)[number]
+
+export const EXPENSE_TRIP_PARCEL_KINDS = ['driver', 'helper'] as const
+export type ExpenseTripParcelKind = (typeof EXPENSE_TRIP_PARCEL_KINDS)[number]
+
+export const EXPENSES_READ_PERMISSION = 'expenses.read'
+export const EXPENSES_MANAGE_PERMISSION = 'expenses.manage'
+
+export const EXPENSES_PATH = '/expenses'
+export const EXPENSE_CATEGORIES_PATH = '/expense-categories'
+export const EXPENSE_SUBTYPES_PATH = '/expense-subtypes'
+export const EXPENSE_OCCURRENCES_PATH = '/expense-occurrences'
+export const EXPENSE_PEOPLE_PATH = '/expense-people'
+
+/** Spec 329: `/expenses/:id/amount-history`. */
+export function expenseAmountHistoryPath(expenseId: string): string {
+  return `/expenses/${expenseId}/amount-history`
+}
+
+export type ExpenseAmountChange = Readonly<{
+  createdAt: string
+  effectiveCompetence: string
+  id: string
+  kind?: 'adjustment' | 'correction'
+  newAmount: string
+  previousAmount: string
+}>
+
+export type ExpenseAmountHistory = Readonly<{
+  baseAmount: string
+  changes: readonly ExpenseAmountChange[]
+}>
+
+/** Spec 328: opção de "quem causou" — ficha da frota ativa ou usuário do escritório. */
+export type ExpensePerson = Readonly<{ id: string; kind: 'driver' | 'user'; name: string }>
+
+/** Dinheiro é **texto** do começo ao fim (`"1234.50"`): converter para número perderia centavo. */
+export type Expense = Readonly<{
+  active: boolean
+  /** Spec 328: quem causou a conta (ficha da frota); `null` sem causador (e API anterior à 328). */
+  causedByDriverId: string | null
+  /** Spec 328: causador digitado (fora do cadastro) e onde a conta está; `null` quando não informados. */
+  causedByName: string | null
+  causedByUserId: string | null
+  /** Spec 330: funcionário pago pela conta; ausente em API anterior. */
+  employeeDriverId?: string | null
+  employeeName?: string | null
+  employeeUserId?: string | null
+  employmentType?: ExpenseEmploymentType | null
+  subtypeId?: string | null
+  billLocation: string | null
+  /** Spec 329: link de onde se pega o boleto; ausente em API anterior. */
+  billUrl?: string | null
+  categoryId: string
+  dueDay: number | null
+  expectedAmount: string
+  id: string
+  /** Total de parcelas da conta fixa; `null` = sem fim (e API anterior às parcelas). */
+  installmentsTotal: number | null
+  kind: ExpenseKind
+  name: string
+  payeeDriverId: string | null
+  recurrence: ExpenseRecurrence | null
+  vehicleId: string | null
+}>
+
+/** ⚠️ Cópia por valor do vocabulário da API (ADR-0116 §1): o grupo de custo da categoria. */
+export const EXPENSE_COST_GROUPS = ['vehicle_fixed', 'per_km', 'administrative', 'in_trip'] as const
+export type ExpenseCostGroup = (typeof EXPENSE_COST_GROUPS)[number]
+
+export type ExpenseCategory = Readonly<{
+  active: boolean
+  /** API anterior à T4.3 não manda o grupo: sem ele a categoria é administrativa (o padrão do banco). */
+  costGroup: ExpenseCostGroup
+  id: string
+  name: string
+  requiresDriver: boolean
+}>
+
+export type ExpenseOccurrence = Readonly<{
+  competence: string
+  dueDate: string
+  expectedAmount: string
+  expenseId: string
+  id: string
+  /** Número da parcela (1..total) quando a conta é parcelada. */
+  installmentNumber: number | null
+  paidAmount: string | null
+  paidAt: string | null
+  paidBy: string | null
+  settlementNote: string | null
+  slot: 1 | 2
+  status: ExpenseOccurrenceStatus
+}>
+
+/** Spec 331: tipo dentro da categoria (qual cartão, qual financiamento). */
+export type ExpenseSubtype = Readonly<{
+  active: boolean
+  categoryId: string
+  id: string
+  name: string
+}>
+
+/** Spec 330: vínculo do funcionário (cópia por valor da API). */
+export const EXPENSE_EMPLOYMENT_TYPES = ['clt', 'daily', 'autonomous', 'other'] as const
+export type ExpenseEmploymentType = (typeof EXPENSE_EMPLOYMENT_TYPES)[number]
+
+export const EXPENSE_PAYEE_PROFILES = ['aggregate', 'driver', 'helper'] as const
+export type ExpensePayeeProfile = (typeof EXPENSE_PAYEE_PROFILES)[number]
+
+export type ExpenseOccurrenceListItem = ExpenseOccurrence &
+  Readonly<{
+    /** Spec 328: ausente em API anterior; nunca é quem recebe os avisos. */
+    causedByDriverId?: string | null
+    causedByDriverName?: string | null
+    causedByName?: string | null
+    causedByUserId?: string | null
+    causedByUserName?: string | null
+    employeeDriverId?: string | null
+    employeeDriverName?: string | null
+    employeeName?: string | null
+    employeeUserId?: string | null
+    employeeUserName?: string | null
+    employmentType?: ExpenseEmploymentType | null
+    subtypeId?: string | null
+    subtypeName?: string | null
+    billLocation?: string | null
+    billUrl?: string | null
+    categoryId: string
+    categoryName: string
+    expenseKind: ExpenseKind
+    expenseName: string
+    installmentsTotal: number | null
+    payeeDriverId: string | null
+    payeeDriverName: string | null
+    payeeDriverPaymentModel: ExpenseDriverPaymentModel | null
+    /** Perfil do favorecido (T1.4c); ausente em API anterior à T1.4c. */
+    payeeProfile?: ExpensePayeeProfile | null
+  }>
+
+export type ExpenseOccurrenceTotals = Readonly<{
+  count: number
+  expectedAmount: string
+  paidAmount: string
+  paidByDriver: readonly Readonly<{
+    driverId: string
+    driverName: string | null
+    paidAmount: string
+  }>[]
+}>
+
+export type ExpenseOccurrencePage = Readonly<{
+  items: readonly ExpenseOccurrenceListItem[]
+  totals: ExpenseOccurrenceTotals
+}>
+
+export type ExpenseOccurrenceFilters = Readonly<{
+  causedByDriverId?: string
+  causedByUserId?: string
+  categoryId?: string
+  subtypeId?: string
+  competence?: string
+  driverId?: string
+  kind?: ExpenseKind
+  status?: ExpenseOccurrenceStatus
+}>
+
+export type CreateExpenseInput = Readonly<{
+  billLocation?: string
+  billUrl?: string
+  causedByDriverId?: string
+  causedByName?: string
+  causedByUserId?: string
+  employeeDriverId?: string
+  employeeName?: string
+  employeeUserId?: string
+  employmentType?: ExpenseEmploymentType
+  subtypeId?: string
+  categoryId: string
+  dueDate?: string
+  dueDay?: number
+  expectedAmount: string
+  installmentsTotal?: number
+  kind: ExpenseKind
+  name: string
+  payeeDriverId?: string
+  recurrence?: ExpenseRecurrence
+  vehicleId?: string
+}>
+
+export type UpdateExpenseInput = Readonly<{
+  active?: boolean
+  billLocation?: string | null
+  billUrl?: string | null
+  causedByDriverId?: string | null
+  causedByName?: string | null
+  causedByUserId?: string | null
+  employeeDriverId?: string | null
+  employeeName?: string | null
+  employeeUserId?: string | null
+  employmentType?: ExpenseEmploymentType | null
+  subtypeId?: string | null
+  dueDay?: number
+  /** Spec 329: `yyyy-mm` da primeira competência com o `expectedAmount` novo (sem ele, a do mês). */
+  effectiveFrom?: string
+  /** Spec 329: `correction` troca um valor digitado errado (inclusive conta vencida e não paga); padrão `adjustment`. */
+  amountKind?: 'adjustment' | 'correction'
+  correctionCompetence?: string
+  expectedAmount?: string
+  name?: string
+  vehicleId?: string | null
+}>
+
+export type SettleOccurrenceInput = Readonly<{
+  id: string
+  paidAmount: string
+  paidAt: string
+  settlementNote?: string | null
+}>
+
+/** Trajeto lido das paradas da viagem; `origin` ausente quando a viagem tem uma parada só. */
+export type ExpenseTripRoute = Readonly<{ destination: string; origin: string | null }>
+
+/** RF1d: a linha da pessoa na parcela da viagem, copiada na inclusão (`diária × dias`). */
+export type ExpenseOccurrenceTrip = Readonly<{
+  amount: string
+  completedOn: string
+  dailyAmount: string
+  days: number
+  parcelKind: ExpenseTripParcelKind
+  /** Ausente em API anterior ao trajeto; `null` quando a viagem não tem parada. */
+  route?: ExpenseTripRoute | null
+  tripId: string
+}>
+
+export type ExpenseOccurrenceTrips = Readonly<{
+  items: readonly ExpenseOccurrenceTrip[]
+  occurrence: ExpenseOccurrence
+  tripsTotal: string
+}>
+
+export type PendingExpenseTrip = Readonly<{
+  completedOn: string
+  gap: string
+  parcelKind: ExpenseTripParcelKind
+  route?: ExpenseTripRoute | null
+  tripId: string
+}>
+
+export type AvailableExpenseTrips = Readonly<{
+  available: readonly ExpenseOccurrenceTrip[]
+  pending: readonly PendingExpenseTrip[]
+  period: Readonly<{ from: string; to: string }>
+}>

@@ -26,12 +26,14 @@ describe('o portal do contratante (spec 063 T002)', () => {
    * As permissões são separadas de propósito (§6): acompanhar entrega, decidir repasse e decidir a
    * tratativa da ocorrência (spec 164 T9) são atos diferentes — os dois últimos são decisão.
    */
-  test('o papel existe e concede só as três permissões do portal', () => {
+  test('o papel existe e concede só as quatro permissões do portal', () => {
     expect(COMPANY_ROLES).toContain('contractor')
     expect(ROLE_PERMISSIONS.contractor).toEqual([
       'deliveries.track',
       'charges.decide',
       'occurrences.decide',
+      // Spec 339: pedir coleta/entrega é permissão própria, e não vem de acompanhar a entrega
+      'pickup.request',
     ])
   })
 

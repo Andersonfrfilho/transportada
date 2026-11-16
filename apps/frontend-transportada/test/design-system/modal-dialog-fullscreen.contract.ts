@@ -34,6 +34,12 @@ const MODAL_DIALOG_SHAPES: readonly DialogShape[] = [
     filePath: 'src/modules/company-settings/styles/companyWizard.module.css',
     overlay: '.overlay',
   },
+  /** Spec 325 T2.2: nova conta, baixa e viagens do pagamento, os três na mesma moldura. */
+  {
+    dialog: '.dialog',
+    filePath: 'src/modules/expenses/styles/expenses.module.css',
+    overlay: '.overlay',
+  },
   {
     dialog: '.billingDialog',
     filePath: 'src/modules/cte-batch/styles/cteBatch.module.css',

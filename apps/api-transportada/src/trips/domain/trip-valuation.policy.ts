@@ -292,6 +292,18 @@ export type TripDriverCostCrewLine = Readonly<{
   subtotal: string
 }>
 
+/**
+ * Spec 325 RF1e (T1.4c): a linha de um ajudante na parcela `helper` (149 D7). `dailyAmount × days = subtotal`, e
+ * `rateOrigin` diz se a diária é a da ficha (`own`) ou a geral da empresa (`company`). O ajudante sem diária nenhuma
+ * não tem linha: ele é a lacuna `HELPER_DAILY_RATE_MISSING` da parcela.
+ */
+export type TripHelperCostCrewLine = Readonly<{
+  dailyAmount: string
+  driverId: string
+  rateOrigin: 'company' | 'own'
+  subtotal: string
+}>
+
 export type TripCostParcelBasis =
   | Readonly<{
       kilometersPerLiter: string
@@ -306,6 +318,12 @@ export type TripCostParcelBasis =
       days: number
       daysOrigin: DailyAllowanceDaysOrigin
       of: 'driver'
+    }>
+  | Readonly<{
+      /** Uma linha por ajudante com diária, na ordem da tripulação. `Σ crew[].subtotal === amount`, exato. */
+      crew: readonly TripHelperCostCrewLine[]
+      days: number
+      of: 'helper'
     }>
   /**
    * Spec 125: o ICMS **projetado** pelo perfil de emissão — o CST e as duas frações que o CT-e vai

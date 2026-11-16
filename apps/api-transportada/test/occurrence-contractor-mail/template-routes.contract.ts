@@ -122,6 +122,90 @@ describe('criar modelo de notificação exige settings.manage (spec 271 T2.10)',
   })
 })
 
+describe('disparo e política de canais por HTTP exigem settings.manage', () => {
+  const BASE = `http://localhost${NOTIFICATION_ROUTES_BASE_PATH}`
+  const SEND_BODY = {
+    category: 'trip',
+    recipientUserId: '00000000-0000-4000-8000-000000271999',
+    templateKey: 'trip.delivery-occurrence',
+  }
+
+  function build(scopes: readonly string[]) {
+    const sent: unknown[] = []
+    const policies: unknown[] = []
+    const router = createNotificationHttpRouter({
+      authResolver: {
+        resolve: async () => ({ companyId: COMPANY_ID, scopes: [...scopes], userId: USER_ID }),
+      },
+      module: {
+        useCases: {
+          sendNotification: {
+            execute: async (params: unknown) => {
+              sent.push(params)
+              return { deduplicated: false }
+            },
+          },
+          setCategoryPolicies: {
+            execute: async (params: unknown) => {
+              policies.push(params)
+              return []
+            },
+          },
+        },
+      } as unknown as NotificationModule,
+    })
+    return { policies, router, sent }
+  }
+
+  function request(method: string, path: string, body: unknown): Request {
+    return new Request(`${BASE}${path}`, {
+      body: JSON.stringify(body),
+      headers: { authorization: 'Bearer token', 'content-type': 'application/json' },
+      method,
+    })
+  }
+
+  test('POST /notifications sem a permissão: 403 e nada é enfileirado', async () => {
+    const { router, sent } = build(['trip.read'])
+
+    const response = await router.handle(request('POST', '/notifications', SEND_BODY))
+
+    expect(response.status).toBe(403)
+    expect(sent).toEqual([])
+  })
+
+  test('PUT /notification-category-policies sem a permissão: 403', async () => {
+    const { policies, router } = build([])
+
+    const response = await router.handle(
+      request('PUT', '/notification-category-policies', { policies: [] }),
+    )
+
+    expect(response.status).toBe(403)
+    expect(policies).toEqual([])
+  })
+
+  test('com settings.manage o disparo chega ao módulo', async () => {
+    const { router, sent } = build(['settings.manage'])
+
+    const response = await router.handle(request('POST', '/notifications', SEND_BODY))
+
+    expect(response.status).toBe(201)
+    expect(sent).toHaveLength(1)
+  })
+
+  test('a caixa de entrada continua aberta a quem só está logado', async () => {
+    const { router } = build([])
+    const response = await router.handle(
+      new Request(`${BASE}/notifications`, {
+        headers: { authorization: 'Bearer token' },
+        method: 'GET',
+      }),
+    )
+    expect(response.status).not.toBe(403)
+  })
+})
+
 function context(): AuthenticatedContext<CompanyContext> {
   return {
     identity: {} as AuthenticatedIdentity,

@@ -2,7 +2,8 @@
 import { useState } from 'react'
 
 import { DeliveryMap } from '@/components/DeliveryMap.component'
-import { useDeliveries, useDeliveryLocation } from './queries/portal.query'
+import { DeliveryTimeline } from './DeliveryTimeline.component'
+import { useDeliveries, useDeliveryEvents, useDeliveryLocation } from './queries/portal.query'
 import { isSchedulable, isTrackable, toDeliveryView } from './shared/deliveryStatus.service'
 import { ScheduleForm } from './ScheduleForm.component'
 import type { PortalClient } from '@/modules/shared/portalClient.service'
@@ -96,6 +97,8 @@ function DeliveryCard({ client, delivery, isOpen, onToggle }: DeliveryCardProps)
     enabled: isOpen && trackable,
   })
 
+  const events = useDeliveryEvents(client, { accessKey: delivery.accessKey, enabled: isOpen })
+
   return (
     <article className="panel">
       <div className="panel__row">
@@ -132,7 +135,10 @@ function DeliveryCard({ client, delivery, isOpen, onToggle }: DeliveryCardProps)
       </button>
       {isOpen && (
         <>
-          {trackable && location.data != null && <DeliveryMap location={location.data} />}
+          {events.data !== undefined && <DeliveryTimeline events={events.data} />}
+          {trackable && location.data != null && (
+            <DeliveryMap destination={events.data?.destination ?? null} location={location.data} />
+          )}
           {/* Sem posição não se explica por quê: o motorista pode não ter consentido, e dizer isso
               seria contar ao cliente algo que é do motorista. */}
           {trackable && location.data == null && !location.isLoading && (

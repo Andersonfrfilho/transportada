@@ -86,6 +86,9 @@ describe('authorization contract', () => {
       'cargo.measure',
       // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
       'deliveries.track',
+      // Spec 339: pedir coleta/entrega pelo portal e decidir o pedido no escritório
+      'pickup.request',
+      'pickup.manage',
       // ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega
       'charges.decide',
       // Spec 164 T6: tratar a tratativa da ocorrência é do escritório — nunca separador/driver/aggregate
@@ -94,6 +97,9 @@ describe('authorization contract', () => {
       'occurrences.decide',
       // Spec 262 / ADR-0102 D6: a chave e o orçamento da FeriadosAPI são da instalação — só o company-admin
       'holiday-import.configure',
+      // Spec 325 RF7: as contas da empresa são dinheiro da empresa inteira — só o company-admin
+      'expenses.read',
+      'expenses.manage',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -128,8 +134,11 @@ describe('authorization contract', () => {
         'trip.report-on-behalf',
         'trip.financials',
         'cargo.measure',
+        'pickup.manage',
         'occurrences.resolve',
         'holiday-import.configure',
+        'expenses.read',
+        'expenses.manage',
       ],
       finance: [
         'cte.read',
@@ -192,6 +201,7 @@ describe('authorization contract', () => {
         /** ADR-0049 §6, emendada: quem escolhe a carga vê o que ela custa. */
         'trip.financials',
         'cargo.measure',
+        'pickup.manage',
         'occurrences.resolve',
       ],
       viewer: [
@@ -208,7 +218,7 @@ describe('authorization contract', () => {
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage', 'cargo.measure'],
       helper: ['trip.read'],
-      contractor: ['deliveries.track', 'charges.decide', 'occurrences.decide'],
+      contractor: ['deliveries.track', 'charges.decide', 'occurrences.decide', 'pickup.request'],
       automation: [
         'mdfe.auto-issue',
         'whatsapp.settle',
@@ -266,6 +276,33 @@ describe('authorization contract', () => {
     expect(isCompanyPermission('holiday-import.configure')).toBe(true)
     expect(isGrantablePermission('holiday-import.configure')).toBe(true)
     expect(SERVICE_ONLY_PERMISSIONS).not.toContain('holiday-import.configure')
+  })
+
+  /**
+   * Spec 325 RF7 (dúvida 4): as contas da empresa (aluguel, salário, pagamento de motorista/agregado) ficam só com o
+   * `company-admin`. O `finance` tem `trip.financials` e `billing.*`, e nem por isso vê a folha. Concedível por grupo.
+   */
+  test('grants expenses.read and expenses.manage only to the company-admin, and keeps them grantable by group', () => {
+    for (const permission of ['expenses.read', 'expenses.manage'] as const) {
+      expect(resolveCompanyPermissions(['company-admin']).has(permission)).toBe(true)
+      for (const role of [
+        'finance',
+        'fiscal',
+        'operator',
+        'viewer',
+        'driver',
+        'aggregate',
+        'separator',
+        'helper',
+        'contractor',
+        'automation',
+      ] as const) {
+        expect(resolveCompanyPermissions([role]).has(permission)).toBe(false)
+      }
+      expect(isCompanyPermission(permission)).toBe(true)
+      expect(isGrantablePermission(permission)).toBe(true)
+      expect(SERVICE_ONLY_PERMISSIONS).not.toContain(permission)
+    }
   })
 
   // Os dois papéis de campo são o menor conjunto do sistema — nota, CT-e, faturamento e frota
@@ -466,6 +503,7 @@ describe('authorization contract', () => {
         permission !== 'occurrence.automatic-mail' &&
         permission !== 'driver.cnh-picture' &&
         permission !== 'deliveries.track' &&
+        permission !== 'pickup.request' &&
         permission !== 'charges.decide' &&
         permission !== 'occurrences.decide',
     )

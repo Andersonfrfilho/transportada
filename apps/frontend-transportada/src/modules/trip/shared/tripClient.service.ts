@@ -71,6 +71,8 @@ import type {
   OverrideDeliveryAddressInput,
   PlanTripRouteResult,
   ReadTripAllowedActionsInput,
+  AutoOrderTripStopsInput,
+  AutoOrderTripStopsResult,
   ReorderTripStopsInput,
   ReorderTripStopsResult,
   ReportFieldDeliveryInput,
@@ -401,6 +403,8 @@ export type TripClient = Readonly<{
     input: Readonly<{ routeChoice?: RouteChoice; tripId: string }>,
   ) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  /** Spec 323 RF4: "Ordenar paradas" — a API ordena pela estrada, inclusive refazendo a ordem manual. */
+  autoOrderTripStops: (input: AutoOrderTripStopsInput) => Promise<AutoOrderTripStopsResult>
   reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
   /** Spec 156 T7.2: rota própria, fora do detalhe (t7-design §2.4, ressalva M1). */
   readTripAllowedActions: (input: ReadTripAllowedActionsInput) => Promise<TripAllowedActions>
@@ -1747,6 +1751,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: documentPath(input),
       })
       return adapters.tripDocumentFromApi(readEnvelopeData(response))
+    },
+    async autoOrderTripStops(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/stops/auto-order`,
+      })
+      return adapters.autoOrderTripStopsResultFromApi(readEnvelopeData(response))
     },
     async reorderTripStops(input) {
       const response = await authorizedRequest({

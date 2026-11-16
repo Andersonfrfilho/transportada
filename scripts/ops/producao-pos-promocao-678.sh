@@ -10,7 +10,8 @@ cd "$REPO"
 DIR="/home/miyazaki/Documents/personal/transportada/tmp/ops/saidas"
 mkdir -p "$DIR"
 OUT="$DIR/producao-pos-promocao-678-$(date +%Y-%m-%d-%H%M).txt"
-railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -s api -e production -- bun -e '
+echo "conectando ao api de produção (pode levar até 1 minuto)..." >&2
+timeout 180 railway ssh -p 62de4c69-216a-4335-93a0-4942c6a95c54 -s api -e production -- bun -e '
 console.log("== DRIVER_REMINDERS_ENABLED no api (esperado: true) ==")
 console.log(process.env.DRIVER_REMINDERS_ENABLED === "true" ? "true" : "false (ausente ou outro valor)")
 const sql = new Bun.SQL(process.env.DATABASE_URL)
@@ -19,7 +20,7 @@ const run = async (t, q) => { console.log("== " + t + " =="); try { console.tabl
 await run("tabelas novas (esperado: 7 linhas)", sql`
   select table_name as tabela from information_schema.tables
   where table_schema = ${"public"} and table_name in (
-    ${"company_field_report_hold_settings"}, ${"trip_field_report_holds"}, ${"salespeople"}, ${"trip_canhoto_pickups"},
+    ${"company_field_report_hold_settings"}, ${"trip_field_report_holds"}, ${"contractor_salespeople"}, ${"trip_canhoto_pickups"},
     ${"whatsapp_chats"}, ${"whatsapp_chat_messages"}, ${"company_driver_occurrence_email_settings"})
   order by 1`)
 await run("rotina de vencimento do chat (esperado: enabled=false, paused_origin=system)", sql`
@@ -35,5 +36,6 @@ await run("interruptor do lembrete por empresa", sql`
 await run("chats do WhatsApp em modo atendente (esperado: 0 até alguém assumir)", sql`
   select count(*)::int as chats from whatsapp_chats where state = ${"operator"}`)
 await sql.close()
-' 2>&1 | grep -v -i "warning" > "$OUT" || true
+process.exit(0)
+' 2>&1 | grep --line-buffered -v -i "warning" | tee "$OUT" || true
 echo "$OUT"

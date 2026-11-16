@@ -445,6 +445,11 @@ describe('no portal da contratante, nunca (spec 232 D7, CA07)', () => {
     const leaky: ContractorDelivery = { ...DELIVERY, ...LEAKED_FIGURES }
     const [list] = createContractorDeliveryRoutes({
       listDeliveries: { execute: () => Promise.resolve([leaky]) },
+      readDeliveryEvents: {
+        async execute() {
+          return { destination: null, events: [] }
+        },
+      },
       readDeliveryLocation: { execute: () => Promise.resolve(null) },
       scheduleDelivery: { execute: () => Promise.reject(new Error('não usado')) },
     })

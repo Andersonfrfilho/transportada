@@ -184,6 +184,24 @@ const CATALOG = [
     job: 'whatsapp-inbox.chat.expire',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 325 T1.5: gera as ocorrências das contas fixas; toca só o próprio banco. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'company-expense.occurrence.generate',
+    minimumIntervalSeconds: 86_400,
+  },
+  {
+    /** Spec 325 T7.4: avisa as contas a vencer; idempotente pelo registro de enviado. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'company-expense.reminder.send',
+    minimumIntervalSeconds: 3_600,
+  },
+  {
+    /** Spec 339 T4: entrega os avisos do pedido de coleta, expira e alerta pedido parado. Nasce pausada. */
+    failureOutcomes: [],
+    job: 'pickup-request.notify',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 describe('cron job catalog', () => {
