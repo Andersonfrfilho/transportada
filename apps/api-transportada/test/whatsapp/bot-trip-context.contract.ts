@@ -78,6 +78,10 @@ describe('saudação pelo nome do cadastro', () => {
     expect(dual).toContain('*menu*')
     expect(dual).not.toContain('painel')
     expect(botProfileLine({ isDriver: false, isOffice: true })).toBeNull()
+    // No 1:1 não existe "grupo": a frase não pode citá-lo.
+    const direct = botProfileLine({ isDriver: true, isOffice: true }, { isDirect: true })
+    expect(direct).toContain('*menu*')
+    expect(direct).not.toContain('grupo')
   })
 })
 
