@@ -106,7 +106,7 @@ describe('a CSP da app do motorista (ADR-0075 §4)', () => {
       "default-src 'self'",
       "base-uri 'self'",
       "connect-src 'self' https://api.exemplo.test https://auth.exemplo.test https://bucket.exemplo.test",
-      "font-src 'self'",
+      "font-src 'self' data:",
       "form-action 'self'",
       "frame-ancestors 'none'",
       "frame-src 'none'",
