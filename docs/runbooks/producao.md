@@ -1450,7 +1450,13 @@ O formulário público (cotação da 338 e pedido de coleta anônimo da 339) val
 - **Conferir (somente leitura):** `scripts/ops/producao-rogerio-escolha-parada.sh` (pedidos e mensagens aceitas do grupo) e `scripts/ops/producao-rogerio-respostas-enviadas.sh` (o que o bot enviou, por `whatsapp_chat_messages`). Saída em `tmp/ops/saidas/`.
 - **Pendente (decisão do Anderson):** a saída da parada 1 registrada por engano em produção não foi desfeita (é escrita em produção).
 
-## 5.43 Módulo Contas (spec 325) em produção: promoção #819 e importação das contas de staging (16/11/2026)
+## 5.43 Preencher o cartão (tipo) das contas de Cartão de crédito a partir de `bill_location` (16/11/2026)
+
+- **Por quê:** o filtro por tipo e o total (previsto e pago) já existem na lista de Contas (spec 331, em staging e em `main`), mas as 36 contas importadas ficaram sem tipo: o cartão estava só no texto livre `bill_location`.
+- **Script:** `ops-scripts/contas-cartao-preenche-tipo.sh staging|production [--confirm]`. Sem `--confirm` simula e desfaz; com `--confirm` grava numa transação. Cria os tipos com a bandeira no nome (Santander Unique · Visa final 8738, Mercado Pago · Visa final 1594, Caixa) se faltarem e renomeia os que já existiam como Santander e Mercado Pago, só toca conta da categoria "Cartão de crédito" sem tipo, e lista as que não casam (não altera). Não apaga `bill_location`. Saída em `tmp/ops/saidas/contas-cartao-tipo-*.json`.
+- **Ordem:** staging simulação, staging `--confirm`, conferir na tela, produção simulação, produção `--confirm`. Escrita em produção; rodar só depois da simulação sem "sem casamento" inesperado.
+
+## 5.44 Módulo Contas (spec 325) em produção: promoção #819 e importação das contas de staging (16/11/2026)
 
 - **Promoção #819** (staging → main, merge 983a871, deploy de produção verde em 16/11/2026): levou o módulo Contas e as migrations `20261113175316` a `20261115192622`. Antes do merge foi preciso trazer a `main` para `staging` (#820, só o runbook conflitava).
 - **Conferir o módulo em produção (somente leitura):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-pos-promocao-819.sh`. Resultado de 16/11: `/health/ready` ok (revisão 983a871, `migrations: up`), 12 tabelas `company_expense*`, 15 categorias semeadas (inclui "Cartão de crédito"), rotinas `company-expense.occurrence.generate`, `company-expense.reminder.send` e `pickup-request.notify` com `enabled = false` e `paused_origin = 'system'`.
