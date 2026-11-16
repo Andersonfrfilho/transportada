@@ -140,7 +140,7 @@ export function buildContentSecurityPolicy({
     `default-src ${SELF}`,
     `base-uri ${SELF}`,
     `connect-src ${connectSource}`,
-    `font-src ${SELF}`,
+    `font-src ${SELF} data:`,
     `form-action ${SELF}`,
     `frame-ancestors ${NONE}`,
     // O `iframe` do mapa do endereço era o único do bundle, e saiu pela ADR-0037; o Keycloak roda

@@ -143,6 +143,15 @@ describe('content security policy', () => {
    * `blob:` já cobre o caso legítimo, e `data:` teria custo (XSS via imagem maliciosa embutida em
    * HTML) sem necessidade real.
    */
+  /**
+   * O Vite inlina como `data:` todo asset abaixo de 4 KB, fonte incluída; com `font-src 'self'` o
+   * navegador bloqueia (hotfix de 16/11/2026). Fonte não executa código, então `data:` só aqui.
+   */
+  test('font-src admite data: e script-src não', () => {
+    expect(directiveOf(SERVED_POLICY, 'font-src')).toBe("font-src 'self' data:")
+    expect(directiveOf(SERVED_POLICY, 'script-src')).not.toContain('data:')
+  })
+
   test('never adds data: to img-src', () => {
     expect(directiveOf(SERVED_POLICY, 'img-src')).not.toContain('data:')
   })
