@@ -419,7 +419,7 @@ ${farewell}`,
 *4* - 📦 Carga avariada
 *5* - 🔒 Local fechado
 
-_Responda com o número do motivo._`,
+_Responda com o número do motivo. Se ainda está aguardando para descarregar, responda *aguardando*._`,
       ],
       shown: 'não entreguei 17236',
     },
