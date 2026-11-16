@@ -305,11 +305,16 @@ A rota sugere ir antes para a *parada 2*. Se achar melhor, pode seguir para a 3.
 > 📍 Ribeirao Preto
 > 🗺️ *Como chegar:* https://www.google.com/maps/dir/?api=1&destination=-21.14,-47.99
 
+*Outras paradas*
+> 🔀 *PARADA 1*
+> 🧾 NF \`17234\` · *PADARIA SOL NASCENTE*
+
 *Para onde você vai?*
 *1* - ✅ Seguir para a *parada 3*
 *2* - 👉 Ir para a *parada 2*
+*3* - 🔀 Ir para a *parada 1*
 
-_Responda 1 ou 2._`,
+_Responda de 1 a 3. É a opção da lista, não o número da parada._`,
       ],
       shown: 'pular',
     },

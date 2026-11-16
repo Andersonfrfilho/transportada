@@ -95,7 +95,14 @@ export type GroupStopRoute = {
  */
 export type GroupStopRegistration = {
   readonly message: string
-  readonly outOfOrder?: { readonly nextStopId?: string; readonly stopId: string }
+  readonly outOfOrder?: {
+    /** As outras paradas oferecidas como opção 3, 4… (só na saída). */
+    readonly extraStopIds?: readonly string[]
+    readonly nextStopId?: string
+    readonly stopId: string
+  }
+  /** "Saí" para outra parada com a atual a caminho: `message` é a pergunta 1/2 da troca; `stopId` é a que está a caminho. */
+  readonly switchFrom?: { readonly stopId: string }
 }
 
 export type GroupStopFlowPorts = {
@@ -122,6 +129,14 @@ export type GroupStopFlowPorts = {
     readonly sentAt?: Date | undefined
     readonly stopId: string
   }): Promise<GroupStopRegistration>
+  /** Cancela a saída da parada a caminho (a mesma função do "Cancelar rota" do app). Ausente, o bot não oferece a troca. */
+  cancelDeparture?(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly idempotencyKey: string
+    readonly sentAt?: Date | undefined
+    readonly stopId: string
+  }): Promise<void>
   /**
    * Spec 294 RF24: há ponto compartilhado recente (não o consome)? Ausente, o bot não pede a localização
    * antes do "saí"/"cheguei" (como antes da 294).
@@ -171,7 +186,14 @@ type FlowState = {
   readonly outOfOrderFor?: {
     readonly documentNumber?: string | undefined
     readonly event: WhatsAppDriverStopCommandEvent
+    readonly extraStopIds?: readonly string[] | undefined
     readonly nextStopId?: string | undefined
+    readonly stopId: string
+  }
+  /** A parada a caminho e a nova escolhida, esperando o 1/2 da troca. */
+  readonly switchFor?: {
+    readonly currentStopId: string
+    readonly documentNumber?: string | undefined
     readonly stopId: string
   }
   /** Spec 294 RF24: a parada que espera a localização (ou o "pular") antes de registrar. */
@@ -250,9 +272,21 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
         outOfOrderFor: {
           documentNumber,
           event,
+          extraStopIds: result.outOfOrder.extraStopIds,
           nextStopId: result.outOfOrder.nextStopId,
           stopId: result.outOfOrder.stopId,
         },
+      }
+      return {
+        kind: 'continue',
+        replies: [result.message],
+        state,
+        step: GROUP_STOP_STEP.confirmOrder,
+      }
+    }
+    if (result.switchFrom !== undefined) {
+      const state: FlowState = {
+        switchFor: { currentStopId: result.switchFrom.stopId, documentNumber, stopId },
       }
       return {
         kind: 'continue',
@@ -265,12 +299,73 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     return { kind: 'done', replies: [result.message], withoutFarewell: true }
   }
 
+  /** "1" cancela a saída da parada a caminho e sai para a nova; "2" mantém; o resto repete a pergunta. */
+  async function answerSwitch(
+    turn: GroupFlowTurn,
+    role: WhatsAppSenderRole,
+    target: NonNullable<FlowState['switchFor']>,
+  ): Promise<GroupFlowOutcome> {
+    const choice = interpretDriverChoice(turn.text)
+    const stops = await ports.listStops({
+      companyId: turn.request.companyId,
+      driverId: turn.request.driverId,
+    })
+    const sequenceOf = (stopId: string) => stops.find((stop) => stop.id === stopId)?.sequence ?? ''
+    if (choice === DRIVER_CHOICE.first) {
+      try {
+        await ports.cancelDeparture?.({
+          companyId: turn.request.companyId,
+          driverId: turn.request.driverId,
+          idempotencyKey: `whatsapp-group-request:${turn.request.id}:cancel-departure`,
+          sentAt: turn.sentAt,
+          stopId: target.currentStopId,
+        })
+      } catch (error) {
+        ports.logger?.warn('whatsapp_group_request.switch_cancel_failed', {
+          companyId: turn.request.companyId,
+          errorName: error instanceof Error ? error.name : typeof error,
+        })
+        return {
+          kind: 'done',
+          replies: [OUT_OF_ORDER_TEXT.switchFailed(sequenceOf(target.currentStopId))],
+        }
+      }
+      return record(turn, role, {
+        documentNumber: target.documentNumber,
+        event: WHATSAPP_DRIVER_STOP_COMMAND.depart,
+        stopId: target.stopId,
+      })
+    }
+    if (choice === DRIVER_CHOICE.second || choice === DRIVER_CHOICE.skip) {
+      return {
+        kind: 'done',
+        replies: [OUT_OF_ORDER_TEXT.keepCurrent(sequenceOf(target.currentStopId))],
+        withoutFarewell: true,
+      }
+    }
+    return {
+      kind: 'not_understood',
+      prompt: '',
+      reason: `Responda *1* para sair para a parada ${sequenceOf(target.stopId)} ou *2* para continuar na parada ${sequenceOf(target.currentStopId)}.`,
+    }
+  }
+
   /** "1" confirma fora da ordem; "2" descarta, ou na saída vai à próxima do roteiro; o resto repete a pergunta. */
   async function answerConfirmOrder(
     turn: GroupFlowTurn,
     role: WhatsAppSenderRole,
     target: NonNullable<FlowState['outOfOrderFor']>,
   ): Promise<GroupFlowOutcome> {
+    const extraNumber = /^\s*(\d{1,2})\s*$/u.exec(turn.text)?.[1]
+    const extraStopId =
+      extraNumber === undefined ? undefined : target.extraStopIds?.[Number(extraNumber) - 3]
+    if (extraStopId !== undefined) {
+      return record(turn, role, {
+        confirmOutOfOrder: true,
+        event: target.event,
+        stopId: extraStopId,
+      })
+    }
     const choice = interpretDriverChoice(turn.text)
     if (choice === DRIVER_CHOICE.first) {
       return record(turn, role, { ...target, confirmOutOfOrder: true })
@@ -707,6 +802,9 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
       const state = turn.request.state as FlowState
       if (turn.request.step === GROUP_STOP_STEP.location && state.locationFor !== undefined) {
         return answerLocationStep(turn, role, state.locationFor)
+      }
+      if (turn.request.step === GROUP_STOP_STEP.confirmOrder && state.switchFor !== undefined) {
+        return answerSwitch(turn, role, state.switchFor)
       }
       if (turn.request.step === GROUP_STOP_STEP.confirmOrder && state.outOfOrderFor !== undefined) {
         return answerConfirmOrder(turn, role, state.outOfOrderFor)
