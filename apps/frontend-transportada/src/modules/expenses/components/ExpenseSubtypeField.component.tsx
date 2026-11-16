@@ -5,6 +5,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select'
 
 import { useExpenseMutations, useExpenseSubtypes } from '../hooks/useExpenses.hook'
 import styles from '../styles/expenses.module.css'
+import { ExpenseFieldLabel } from './ExpenseFieldLabel.component'
 
 type ExpenseSubtypeFieldProps = Readonly<{
   categoryId: string
@@ -41,7 +42,10 @@ export function ExpenseSubtypeField({
 
   return (
     <div className={styles.field}>
-      <span>{t('subtype.label')}</span>
+      <ExpenseFieldLabel
+        hint={t(disabled ? 'subtype.needCategory' : 'subtype.hint')}
+        text={t('subtype.label')}
+      />
       <SearchableSelect
         ariaLabel={t('subtype.label')}
         disabled={disabled}
@@ -53,7 +57,6 @@ export function ExpenseSubtypeField({
         searchPlaceholder={t('subtype.search')}
         value={value}
       />
-      <p className={styles.hint}>{t(disabled ? 'subtype.needCategory' : 'subtype.hint')}</p>
       {createSubtype.error === null ? null : (
         <p className={styles.error} role="alert">
           {t(`errors.${createSubtype.error.message}`, { defaultValue: t('errors.REQUEST_FAILED') })}

@@ -108,6 +108,7 @@
     "previousMonth": "Mês anterior"
   },
   "dialog": {
+    "help": "Ajuda: {{field}}",
     "close": "Fechar",
     "cancel": "Cancelar"
   },

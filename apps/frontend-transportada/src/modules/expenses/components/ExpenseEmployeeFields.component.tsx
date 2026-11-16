@@ -28,6 +28,7 @@ export function ExpenseEmployeeFields({
     <>
       <ExpensePersonField
         choice={employee}
+        hint={t('create.employeeHint')}
         label={t('create.employee')}
         name={employeeName}
         onChange={(person) => onChange({ employee: person.choice, employeeName: person.name })}
@@ -48,7 +49,6 @@ export function ExpenseEmployeeFields({
           value={employmentType}
         />
       </div>
-      <p className={styles.hint}>{t('create.employeeHint')}</p>
     </>
   )
 }
