@@ -1441,3 +1441,11 @@ O formulário público (cotação da 338 e pedido de coleta anônimo da 339) val
 **Fora do escopo / observação:** o console mostrou uma fonte `data:` bloqueada pela CSP (`font-src 'self'`). É aviso de fonte (cai na fonte do aparelho), não causa tela em branco; não foi liberado `data:` na CSP.
 
 **Se voltar a acontecer:** olhar `list-deployments` do `transportada-frontend` na hora do relato (deploy em andamento?) e o console do navegador (erro de chunk ou de API).
+
+## 5.42 Motorista respondeu "2" no "Fora da rota" e o app só dizia que a parada 1 estava a caminho (16/11/2026)
+
+- **Sintoma:** no grupo do motorista Rogério Lima, o bot perguntou "Para onde você vai? 1 Seguir para a parada 2 / 2 Ir para a parada 1". Ele respondeu "2" e parecia que o bot não respondeu.
+- **Causa (nada quebrou):** o bot respondeu "Saída registrada" para a parada 1 às 07:50:00 (entrega confirmada em `whatsapp_chat_messages`). O número da opção coincidiu com o número da parada. Depois disso, "929311" e "2" sem marcar o bot foram ignorados por desenho (pedido já fechado), e o bot não tinha como trocar a parada a caminho (spec 206: uma por vez; só "Cancelar rota" no app).
+- **Correção:** #818 (staging) e #821 (main): a dica diz "É a opção da lista, não o número da parada", as outras paradas entram como opções 3, 4… e "saí" para outra parada com uma a caminho pergunta se quer cancelar a saída da atual e sair para a nova. O chat direto (1:1) não ganhou a troca nem as opções extras.
+- **Conferir (somente leitura):** `scripts/ops/producao-rogerio-escolha-parada.sh` (pedidos e mensagens aceitas do grupo) e `scripts/ops/producao-rogerio-respostas-enviadas.sh` (o que o bot enviou, por `whatsapp_chat_messages`). Saída em `tmp/ops/saidas/`.
+- **Pendente (decisão do Anderson):** a saída da parada 1 registrada por engano em produção não foi desfeita (é escrita em produção).
