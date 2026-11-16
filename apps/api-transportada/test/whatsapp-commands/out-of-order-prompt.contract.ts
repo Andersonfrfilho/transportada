@@ -147,7 +147,7 @@ describe('a pergunta do fora de ordem (spec 294 RF25)', () => {
         '*1* - ✅ Seguir para a *parada 6*',
         '*2* - 👉 Ir para a *parada 4*',
         '',
-        '_Responda 1 ou 2._',
+        '_Responda 1 ou 2. É a opção da lista, não o número da parada._',
       ].join('\n'),
     )
   })

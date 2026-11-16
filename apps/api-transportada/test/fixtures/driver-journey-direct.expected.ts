@@ -268,7 +268,7 @@ A rota sugere ir antes para a *parada 2*. Se achar melhor, pode seguir para a 3.
 *1* - ✅ Seguir para a *parada 3*
 *2* - 👉 Ir para a *parada 2*
 
-_Responda 1 ou 2._`,
+_Responda 1 ou 2. É a opção da lista, não o número da parada._`,
       ],
       shown: 'pular',
     },

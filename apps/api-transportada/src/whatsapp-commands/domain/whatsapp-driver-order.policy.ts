@@ -95,7 +95,7 @@ export const OUT_OF_ORDER_TEXT = {
           { action: `Ir para a *parada ${input.next.sequence}*`, icon: '👉' },
         ]),
         '',
-        formatReplyHint('Responda 1 ou 2.'),
+        formatReplyHint('Responda 1 ou 2. É a opção da lista, não o número da parada.'),
       ].join('\n'),
     /** Chegada em outra parada que não a iniciada (spec 300, fluxo 3). */
     arrive: (input: { readonly current: OrderStopLabel; readonly requested: OrderStopLabel }) =>
