@@ -268,7 +268,7 @@ describe('envia o lembrete no grupo (spec 299 T2.2, RF9, RF10, RF12)', () => {
         '*1* - Entreguei (mande a foto do canhoto)',
         '*2* - Não entreguei',
         '*3* - Tive um problema (abrir ocorrência)',
-        '*4* - Ainda estou descarregando',
+        '*4* - Ainda estou aguardando ou descarregando',
       ].join('\n'),
     )
   })
