@@ -92,7 +92,7 @@ JSEOF
 ENC=$(printf '%s' "$JS" | base64 -w0)
 RAW="$OUT.raw"
 SVC=api
-railway ssh -s "$SVC" -e "$ENV" -- sh -c "echo $ENC | base64 -d > /tmp/cc.mjs && CONFIRM=$CONFIRM bun /tmp/cc.mjs; rm -f /tmp/cc.mjs" > "$RAW" 2>&1 || true
+timeout 180 railway ssh -s "$SVC" -e "$ENV" -- sh -c "echo $ENC | base64 -d > /tmp/cc.mjs && CONFIRM=$CONFIRM bun /tmp/cc.mjs; rm -f /tmp/cc.mjs" > "$RAW" 2>&1 || true
 sed -n '/__RESULT__/,$p' "$RAW" | sed 's/__RESULT__//' > "$OUT" || true
 if [ ! -s "$OUT" ]; then { echo "sem resultado. Saida bruta do railway ssh (sem segredos):"; tail -40 "$RAW"; } > "$OUT"; fi
 rm -f "$RAW"
