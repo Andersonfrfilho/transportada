@@ -149,8 +149,9 @@ function greeted(
   senderName: null | string,
   now: Date,
   profiles?: { readonly isDriver: boolean; readonly isOffice: boolean },
+  isDirect = false,
 ): GroupFlowOutcome {
-  const profileLine = profiles === undefined ? null : botProfileLine(profiles)
+  const profileLine = profiles === undefined ? null : botProfileLine(profiles, { isDirect })
   const greeting = `${botGreeting(now, senderName)}${profileLine === null ? '' : `\n${profileLine}`}`
   if (outcome.kind === 'not_understood') {
     return { ...outcome, prompt: `${greeting}\n\n${outcome.prompt}` }
@@ -375,6 +376,7 @@ export function createWhatsAppGroupRequestSessions(dependencies: {
             knownName === null || knownName === '' ? message.senderName : knownName,
             dependencies.clock(),
             person ?? undefined,
+            message.groupJid.endsWith('@s.whatsapp.net'),
           ),
         )
       }

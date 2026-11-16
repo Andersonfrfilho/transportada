@@ -3212,6 +3212,15 @@ function createAnonymousRoutes({
       groupAudio: whatsappGroupAudio,
       groupTurns: whatsappGroupTurns,
       logger,
+      // Sem o ator o desvio do 1:1 (`findDirectExpenseLauncher`) nunca existia: o financeiro que também é motorista
+      // caía sempre no fluxo do motorista.
+      resolveActor: createResolveWhatsAppActorUseCase({
+        memberships: new DrizzleMembershipRepository(database),
+        phones: new DrizzleWhatsAppPhoneRepository(database),
+        tenantContext: new TenantContextService({
+          repository: new DrizzleMembershipRepository(database),
+        }),
+      }),
     }),
   })
   /**
