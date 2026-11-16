@@ -260,6 +260,22 @@ describe('grupo: os passos novos têm dono', () => {
   })
 })
 
+describe('grupo: no motivo da devolução, quem ainda espera para descarregar não devolve a nota', () => {
+  test.each(['aguardando', 'ainda estou aguardando', 'esperando descarregar', 'descarregando'])(
+    '"%s" fecha sem registrar nada',
+    async (text) => {
+      const t = setup()
+      await t.start('cheguei')
+      await t.answer('não entreguei 90003')
+      const outcome = await t.answer(text)
+      expect(outcome).toMatchObject({ kind: 'done' })
+      const replies = outcome.kind === 'done' ? outcome.replies.join('\n') : ''
+      expect(replies).toContain('nada foi registrado')
+      expect(t.returned).toEqual([])
+    },
+  )
+})
+
 describe('grupo: comando digitado com o menu aberto vai ao comando, não à nota do menu (revisão do #552)', () => {
   test('"não entreguei 90003" com o menu da parada 1 aberto abre a nota 90003, não a 899840', async () => {
     const t = setup()
@@ -277,7 +293,7 @@ describe('grupo: comando digitado com o menu aberto vai ao comando, não à nota
         '*4* - 📦 Carga avariada',
         '*5* - 🔒 Local fechado',
         '',
-        '_Responda com o número do motivo._',
+        '_Responda com o número do motivo. Se ainda está aguardando para descarregar, responda *aguardando*._',
       ].join('\n'),
     )
   })

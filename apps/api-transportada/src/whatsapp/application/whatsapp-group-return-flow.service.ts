@@ -69,7 +69,17 @@ function describeReturnClient(document: GroupReturnDocument): string[] {
   return [`> 🏪 ${document.clientName}${city}`]
 }
 
+const RETURN_HINT =
+  'Responda com o número do motivo. Se ainda está aguardando para descarregar, responda *aguardando*.'
+
+/** Quem ainda espera para descarregar (ou descarrega) não devolveu a nota: nada é registrado. */
+const STILL_WAITING = /\b(aguardando|aguardo|esperando|espero|descarregando|descarrego)\b/u
+
 export const GROUP_RETURN_TEXT = {
+  stillWaiting: [
+    '⏳ *Certo, nada foi registrado.*',
+    formatNextStep('quando descarregar, mande a foto do canhoto ou *entreguei*.'),
+  ].join('\n'),
   askReason: (document: GroupReturnDocument) =>
     [
       `↩️ *Por que a NF \`${stripZeros(document.number)}\` não foi entregue?*`,
@@ -77,7 +87,7 @@ export const GROUP_RETURN_TEXT = {
       '',
       GROUP_RETURN_REASON_OPTIONS,
       '',
-      formatReplyHint('Responda com o número do motivo.'),
+      formatReplyHint(RETURN_HINT),
     ].join('\n'),
   whichDocument: [
     DRIVER_LIST_HEADING.returnDocument,
@@ -202,6 +212,9 @@ export function createGroupReturnFlow(ports: GroupReturnFlowPorts) {
       // Pedido sem a nota guardada não é mais deste fluxo: fecha limpo, dizendo como recomeçar.
       if (target === undefined) {
         return { kind: 'done', replies: [GROUP_RETURN_TEXT.whichDocument], withoutFarewell: true }
+      }
+      if (reason === undefined && STILL_WAITING.test(normalizeDriverCommandText(turn.text))) {
+        return { kind: 'done', replies: [GROUP_RETURN_TEXT.stillWaiting], withoutFarewell: true }
       }
       if (reason === undefined) {
         return {
