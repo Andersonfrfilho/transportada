@@ -74,10 +74,19 @@ function describeOrderBlock(stop: OrderStopLabel, header: string): string {
 
 export const OUT_OF_ORDER_TEXT = {
   discarded: DISCARDED_TEXT,
+  keepCurrent: (sequence: string | number) =>
+    `Certo, a *parada ${sequence}* continua a caminho. Quando chegar, mande *cheguei*.`,
+  switchFailed: (sequence: string | number) =>
+    `Não consegui cancelar a saída da *parada ${sequence}*. Fale com o escritório.`,
   notUnderstood: 'Responda *1* ou *2*.',
   question: {
     /** Saída que não é a próxima do roteiro (spec 300, fluxo 2). */
-    depart: (input: { readonly next: OrderStopLabel; readonly requested: OrderStopLabel }) =>
+    depart: (input: {
+      readonly next: OrderStopLabel
+      /** As outras paradas em aberto, oferecidas como opção 3, 4… (o motorista pode ir para qualquer uma). */
+      readonly others?: readonly OrderStopLabel[]
+      readonly requested: OrderStopLabel
+    }) =>
       [
         OFF_ROUTE_TITLE,
         `A rota sugere ir antes para a *parada ${input.next.sequence}*. Se achar melhor, pode seguir para a ${input.requested.sequence}.`,
@@ -93,6 +102,37 @@ export const OUT_OF_ORDER_TEXT = {
         formatOptions([
           { action: `Seguir para a *parada ${input.requested.sequence}*`, icon: '✅' },
           { action: `Ir para a *parada ${input.next.sequence}*`, icon: '👉' },
+          ...(input.others ?? []).map((other) => ({
+            action: `Ir para a *parada ${other.sequence}*${other.number === '' ? '' : ` · NF \`${other.number}\``}${other.client === '' ? '' : ` · ${other.client}`}`,
+            icon: '🔀',
+          })),
+        ]),
+        '',
+        formatReplyHint(
+          `Responda ${(input.others ?? []).length === 0 ? '1 ou 2' : `de 1 a ${2 + (input.others ?? []).length}`}. É a opção da lista, não o número da parada.`,
+        ),
+      ].join('\n'),
+    /** "Saí" para outra parada com a parada atual a caminho: oferece cancelar a saída dela e sair para a nova. */
+    switchDeparture: (input: {
+      readonly current: OrderStopLabel
+      readonly requested: OrderStopLabel
+    }) =>
+      [
+        OFF_ROUTE_TITLE,
+        `A *parada ${input.current.sequence}* está a caminho. Quer cancelar a saída dela e sair para a *parada ${input.requested.sequence}*?`,
+        '',
+        describeOrderBlock(
+          input.requested,
+          `🚚 *VOCÊ ESCOLHEU · PARADA ${input.requested.sequence}*`,
+        ),
+        '',
+        '*Quer trocar?*',
+        formatOptions([
+          {
+            action: `Sim, sair para a *parada ${input.requested.sequence}*`,
+            icon: '✅',
+          },
+          { action: `Não, continuar na *parada ${input.current.sequence}*`, icon: '↩️' },
         ]),
         '',
         formatReplyHint('Responda 1 ou 2. É a opção da lista, não o número da parada.'),
@@ -180,15 +220,18 @@ export function describeOutOfOrderViolation(input: {
   readonly documentNumber?: string | undefined
   readonly event: OutOfOrderEvent
   readonly labels: ReadonlyMap<string, OrderStopLabel>
+  /** Só na saída: as outras paradas em aberto, oferecidas como mais opções. */
+  readonly others?: readonly OrderStopLabel[]
   readonly violation: OutOfOrderViolation
 }): string {
-  const { documentNumber, event, labels, violation } = input
+  const { documentNumber, event, labels, others, violation } = input
   const labelOf = (stopId: string | null, sequence: number): OrderStopLabel =>
     (stopId === null ? undefined : labels.get(stopId)) ?? { client: '', number: '', sequence }
   const requested = labelOf(violation.requestedStopId, violation.requestedSequence)
   if (event === OUT_OF_ORDER_EVENT.depart && violation.nextSequence !== null) {
     return OUT_OF_ORDER_TEXT.question.depart({
       next: labelOf(violation.nextStopId, violation.nextSequence),
+      ...(others === undefined ? {} : { others }),
       requested,
     })
   }

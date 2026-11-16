@@ -29,6 +29,7 @@ import {
 } from '../../whatsapp-commands/application/whatsapp-driver-events.service.js'
 import {
   describeOutOfOrderViolation,
+  OUT_OF_ORDER_TEXT,
   toOrderStopLabel,
 } from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { WHATSAPP_DRIVER_STOP_COMMAND } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
@@ -51,6 +52,9 @@ export type OfficeStopEventInput = {
   readonly tripId: string
 }
 
+/** Quantas outras paradas a pergunta de "fora da rota" oferece além das duas primeiras opções. */
+const MAX_EXTRA_STOP_OPTIONS = 5
+
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 /** Spec 293 T15: a oferta da localização (pendente da T12), dita quando o evento sai sem ela. */
@@ -66,6 +70,16 @@ export const GROUP_STOP_LOCATION_HINT =
  * grava `unavailable` (nunca segura o evento) e o bot oferece a localização para a próxima vez.
  */
 export function createGroupStopPorts(dependencies: {
+  /** A mesma função do "Cancelar rota" do app, no canal WhatsApp; ausente, o bot não oferece a troca de parada. */
+  readonly cancelDeparture?: (input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly driverId: string
+    readonly idempotencyKey: string
+    readonly location: null
+    readonly stopId: string
+    readonly tappedAt: Date
+  }) => Promise<unknown>
   readonly clock?: () => Date
   /** O ponto compartilhado no grupo, consumido por um evento só; ausente, sempre `null`. */
   readonly consumeLocation?: (input: {
@@ -176,6 +190,27 @@ export function createGroupStopPorts(dependencies: {
 
     listStops: (input) => listOpenStops(input),
 
+    ...(dependencies.cancelDeparture === undefined
+      ? {}
+      : {
+          async cancelDeparture(input) {
+            const cancel = dependencies.cancelDeparture
+            const actorUserId = await findDriverUserId(dependencies.database, input)
+            if (actorUserId === null || cancel === undefined) {
+              throw new Error('driver_without_access')
+            }
+            await cancel({
+              actorUserId,
+              companyId: input.companyId,
+              driverId: input.driverId,
+              idempotencyKey: input.idempotencyKey,
+              location: null,
+              stopId: input.stopId,
+              tappedAt: input.sentAt ?? clock(),
+            })
+          },
+        }),
+
     async record(input) {
       const attendantTripId =
         input.attendant === undefined || dependencies.officeStopEvents === undefined
@@ -245,9 +280,17 @@ export function createGroupStopPorts(dependencies: {
               stops: asked,
             })
           : undefined
+        const extraStops = isDeparture
+          ? stops
+              .filter(
+                (stop) => stop.id !== refusal.requestedStopId && stop.id !== refusal.nextStopId,
+              )
+              .slice(0, MAX_EXTRA_STOP_OPTIONS)
+          : []
         return {
           message: describeOutOfOrderViolation({
             event: isDeparture ? 'depart' : 'arrive',
+            others: extraStops.map((stop) => toOrderStopLabel(stop)),
             labels: new Map(
               stops.map(
                 (stop) =>
@@ -260,11 +303,35 @@ export function createGroupStopPorts(dependencies: {
             violation: result.refusal,
           }),
           outOfOrder: {
+            ...(extraStops.length === 0 ? {} : { extraStopIds: extraStops.map((stop) => stop.id) }),
             ...(result.refusal.nextStopId === null
               ? {}
               : { nextStopId: result.refusal.nextStopId }),
             stopId: result.refusal.requestedStopId,
           },
+        }
+      }
+      if (
+        result.kind === 'refused' &&
+        result.refusal.code === 'stop_en_route' &&
+        input.event === WHATSAPP_DRIVER_STOP_COMMAND.depart &&
+        dependencies.cancelDeparture !== undefined &&
+        !isOffice
+      ) {
+        const stops = await listOpenStops(input)
+        const enRouteSequence = result.refusal.enRouteStopSequence
+        const current = stops.find((stop) => String(stop.sequence) === enRouteSequence)
+        const requested = stops.find((stop) => stop.id === input.stopId)
+        if (current !== undefined && requested !== undefined && current.id !== requested.id) {
+          const labelOf = (stop: (typeof stops)[number]) =>
+            toOrderStopLabel(stop, { total: stops.length })
+          return {
+            message: OUT_OF_ORDER_TEXT.question.switchDeparture({
+              current: labelOf(current),
+              requested: labelOf(requested),
+            }),
+            switchFrom: { stopId: current.id },
+          }
         }
       }
       const message = await say(
