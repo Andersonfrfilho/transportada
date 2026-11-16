@@ -89,6 +89,7 @@
     "status": "Estado",
     "actions": "Ações",
     "trips": "Viagens",
+    "cancel": "Cancelar",
     "settle": "Dar baixa",
     "edit": "Editar",
     "billLocation": "Onde está: {{place}}",
