@@ -22,8 +22,14 @@ const sql = new Bun.SQL(process.env.DATABASE_URL)
 const CONFIRM = process.env.CONFIRM === "1"
 const CARD = "Cartão de crédito"
 const norm = (s) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
-const CARDS = [["santander", "Santander"], ["mercado pago", "Mercado Pago"], ["mercadopago", "Mercado Pago"], ["caixa", "Caixa"]]
-const cardOf = (loc) => CARDS.find(([k]) => norm(loc).includes(k))?.[1] ?? null
+// [trecho do texto, nome antigo do tipo, nome com a bandeira (nome do tipo = o que aparece no filtro e na lista)]
+const CARDS = [
+  ["santander", "Santander", "Santander Unique · Visa final 8738"],
+  ["mercado pago", "Mercado Pago", "Mercado Pago · Visa final 1594"],
+  ["mercadopago", "Mercado Pago", "Mercado Pago · Visa final 1594"],
+  ["caixa", "Caixa", "Caixa"],
+]
+const cardOf = (loc) => CARDS.find(([k]) => norm(loc).includes(k)) ?? null
 class Rollback extends Error {}
 const out = { modo: CONFIRM ? "GRAVOU" : "SIMULACAO (desfeita no fim)" }
 try {
@@ -37,10 +43,18 @@ try {
     out.locaisDistintos = [...new Set(rows.map((r) => r.bill_location ?? "(vazio)"))]
     const subs = Object.fromEntries((await tx`select lower(name) as n, id::text as id from company_expense_subtypes where company_id = ${co.id}::uuid and category_id = ${cat.id}::uuid`).map((r) => [r.n, r.id]))
     out.tiposQueJaExistiam = Object.keys(subs)
-    out.criados = []; out.atualizadas = []; out.jaTinhamTipo = 0; out.semCasamento = []
+    out.criados = []; out.renomeados = []; out.atualizadas = []; out.jaTinhamTipo = 0; out.semCasamento = []
+    // bandeira: o tipo que ja existia com o nome antigo ganha o nome com a bandeira (as contas dele continuam ligadas)
+    for (const [, old, full] of CARDS) {
+      if (old !== full && subs[old.toLowerCase()] && !subs[full.toLowerCase()]) {
+        await tx`update company_expense_subtypes set name = ${full} where id = ${subs[old.toLowerCase()]}::uuid`
+        subs[full.toLowerCase()] = subs[old.toLowerCase()]; delete subs[old.toLowerCase()]; out.renomeados.push(old + " -> " + full)
+      }
+    }
     for (const r of rows) {
       if (r.subtype_id) { out.jaTinhamTipo++; continue }
-      const card = cardOf(r.bill_location) ?? cardOf(r.name)
+      const hit = cardOf(r.bill_location) ?? cardOf(r.name)
+      const card = hit?.[2]
       if (!card) { out.semCasamento.push({ conta: r.name, local: r.bill_location, valor: r.valor }); continue }
       let sid = subs[card.toLowerCase()]
       if (!sid) {
