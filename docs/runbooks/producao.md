@@ -1455,6 +1455,7 @@ O formulário público (cotação da 338 e pedido de coleta anônimo da 339) val
 - **Por quê:** o filtro por tipo e o total (previsto e pago) já existem na lista de Contas (spec 331, em staging e em `main`), mas as 36 contas importadas ficaram sem tipo: o cartão estava só no texto livre `bill_location`.
 - **Script:** `ops-scripts/contas-cartao-preenche-tipo.sh staging|production [--confirm]`. Sem `--confirm` simula e desfaz; com `--confirm` grava numa transação. Cria os tipos com a bandeira no nome (Santander Unique · Visa final 8738, Mercado Pago · Visa final 1594, Caixa) se faltarem e renomeia os que já existiam como Santander e Mercado Pago, só toca conta da categoria "Cartão de crédito" sem tipo, e lista as que não casam (não altera). Não apaga `bill_location`. Saída em `tmp/ops/saidas/contas-cartao-tipo-*.json`.
 - **Ordem:** staging simulação, staging `--confirm`, conferir na tela, produção simulação, produção `--confirm`. Escrita em produção; rodar só depois da simulação sem "sem casamento" inesperado.
+- **Feito em 16/11/2026:** staging gravado às 10:39 e produção às 10:42 (horário de São Paulo), 36 contas em cada, sem conta sem cartão: Santander Unique · Visa final 8738 (30 contas, R$ 23.109,89), Mercado Pago · Visa final 1594 (5, R$ 3.663,14) e Caixa (1, R$ 7.681,38). As 14 contas sem texto de local foram casadas pelo valor contra as faturas de Mercado Pago e Santander. Rodar de novo é seguro: só toca conta sem tipo.
 
 ## 5.44 Módulo Contas (spec 325) em produção: promoção #819 e importação das contas de staging (16/11/2026)
 
