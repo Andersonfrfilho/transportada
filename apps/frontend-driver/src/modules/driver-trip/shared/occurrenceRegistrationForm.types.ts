@@ -39,6 +39,8 @@ export type OccurrenceRegistrationForm = Readonly<{
   handleRegister: () => boolean
   handleProductsToggle: () => void
   handleTypeSelect: (occurrenceTypeId: string) => void
+  /** O tipo pede observação por escrito e ela ainda está vazia (hoje só trava a cobrança no recebimento). */
+  isNoteMissing: boolean
   /** Spec 246: a nota inteira apontada — o snapshot não traz a lista de itens para apontar um. */
   hasProducts: boolean
   missingFields: readonly OccurrenceMissingField[]

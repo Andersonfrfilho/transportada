@@ -835,6 +835,7 @@
         "documents": "the invoices of the charge",
         "paidBy": "who paid",
         "pix": "the PIX key type and key",
+        "note": "the note",
         "photo": "{{label}}"
       }
     }

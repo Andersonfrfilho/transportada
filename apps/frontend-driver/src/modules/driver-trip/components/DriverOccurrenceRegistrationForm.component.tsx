@@ -67,7 +67,7 @@ export function DriverOccurrenceRegistrationForm({
   const receivingCharge = form.receivingCharge
   const documentNumbers = new Map(stop.documents.map((entry) => [entry.id, entry.number]))
   /** Spec 317: o que falta da cobrança, em texto — com o rótulo da foto, que é o que o motorista precisa ler. */
-  const receivingChargeMissingLabels = receivingCharge?.missing.map((entry) => {
+  const receivingChargeFieldLabels = receivingCharge?.missing.map((entry) => {
     switch (entry.kind) {
       case 'photo':
         return entry.label
@@ -79,6 +79,12 @@ export function DriverOccurrenceRegistrationForm({
         return t(`occurrenceRegistration.receivingCharge.missing.${entry.kind}`)
     }
   })
+  const receivingChargeMissingLabels =
+    receivingChargeFieldLabels === undefined
+      ? undefined
+      : form.isNoteMissing
+        ? [...receivingChargeFieldLabels, t('occurrenceRegistration.receivingCharge.missing.note')]
+        : receivingChargeFieldLabels
   const valueLabels = {
     declaredAmount:
       selectedType?.declaredAmountLabel ?? t('occurrenceRegistration.declaredAmount.defaultLabel'),

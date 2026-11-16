@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { resolveOccurrenceRequirements } from '../shared/occurrenceRequirements.service'
 import { useState } from 'react'
 
 import { buildOccurrencePreview } from '../shared/occurrencePreview.service'
@@ -151,6 +152,13 @@ export function useOccurrenceRegistrationForm(
     return route !== 'blocked'
   }
 
+  /** O tipo pede observação por escrito: na cobrança no recebimento o servidor recusa sem ela (`TRIP_OCCURRENCE_NOTE_REQUIRED`). */
+  const isNoteMissing =
+    selectedType !== undefined &&
+    visibility?.rendersNote !== false &&
+    resolveOccurrenceRequirements(selectedType).noteMode === 'required' &&
+    description.trim() === ''
+
   const isSlotPhotoReading =
     receivingCharge !== undefined &&
     Object.values(receivingCharge.slotPhotoStates).includes('reading')
@@ -163,7 +171,7 @@ export function useOccurrenceRegistrationForm(
             isPhotoReading: photoState === 'reading',
             type: selectedType,
           })
-        : receivingCharge.missing.length === 0 && !isSlotPhotoReading,
+        : receivingCharge.missing.length === 0 && !isSlotPhotoReading && !isNoteMissing,
     description,
     handleDescriptionChange: setDescription,
     handleProductsToggle: () => setIsProductsMarked((marked) => !marked),
@@ -171,6 +179,7 @@ export function useOccurrenceRegistrationForm(
     handlePhotoSelect: (file) => void readPhoto(file),
     handleRegister,
     handleTypeSelect: setOccurrenceTypeId,
+    isNoteMissing,
     hasProducts,
     missingFields:
       selectedType === undefined || receivingCharge !== undefined
