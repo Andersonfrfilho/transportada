@@ -128,6 +128,7 @@ describe('o modelo geral do aviso manual: os arquivos (spec 324 T1b)', () => {
         numeroNotaSemSerie: '4512',
         observacao: 'Portão fechado.',
         tipoOcorrencia: 'Local fechado',
+        valorCobrado: '',
         valorNota: '1.234,56',
       },
     })
@@ -303,6 +304,7 @@ describe('só o botão cai no modelo geral (spec 324 T1b, D10)', () => {
               numeroNotaSemSerie: '4512',
               observacao: '',
               tipoOcorrencia: 'Local fechado',
+              valorCobrado: '',
               valorNota: '',
             },
           }

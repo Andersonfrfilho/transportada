@@ -6,6 +6,7 @@
 *Cliente:* {{cliente}}
 *Endereço:* {{enderecoEntrega}}
 *Registrada em:* {{data}}
+💵 *Valor cobrado:* *R$ {{valorCobrado}}*
 📝 {{observacao}}
 
 O cliente cobrou um valor para descarregar a mercadoria, que foi entregue. Vale alinhar com o cliente a regra de recebimento. Respondam aqui se quiserem que tratemos a cobrança como parte do frete.

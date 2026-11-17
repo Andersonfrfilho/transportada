@@ -45,6 +45,8 @@ export const OCCURRENCE_MAIL_VARIABLE_NAMES = [
   'enderecoEntrega',
   'cidadeEntrega',
   'cnpjCliente',
+  /** O valor que o motorista informou no app (cobrança no recebimento / valor pago). */
+  'valorCobrado',
 ] as const
 
 export type OccurrenceMailVariableName = (typeof OCCURRENCE_MAIL_VARIABLE_NAMES)[number]
@@ -87,6 +89,7 @@ export const OCCURRENCE_MAIL_SAMPLE_VALUES: Readonly<Record<OccurrenceMailVariab
   somaItens: '117,20',
   tabelaItens: '7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20',
   tipoOcorrencia: 'Avaria',
+  valorCobrado: '50,00',
   valorDeclarado: '117,20',
   valorNota: '7.840,64',
 }

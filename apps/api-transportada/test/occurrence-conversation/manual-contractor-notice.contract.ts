@@ -100,6 +100,7 @@ function setup(input: {
           numeroNotaSemSerie: '4512',
           observacao: '',
           tipoOcorrencia: 'Local fechado',
+          valorCobrado: '',
           valorNota: '',
         },
       }),

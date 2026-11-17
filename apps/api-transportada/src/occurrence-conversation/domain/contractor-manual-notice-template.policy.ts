@@ -37,6 +37,7 @@ export const CONTRACTOR_MANUAL_NOTICE_EMAIL_VARIABLES: ReadonlySet<string> = new
   'observacao',
   'razaoSocial',
   'tipoOcorrencia',
+  'valorCobrado',
   'valorNota',
   // moldura do sistema: identidade da transportadora, assinatura e rodapé (sem CNPJ)
   'assinaturaCargo',

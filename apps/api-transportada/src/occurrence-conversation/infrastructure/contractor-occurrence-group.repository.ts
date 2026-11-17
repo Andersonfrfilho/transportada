@@ -120,6 +120,12 @@ export async function findContractorOccurrenceGroupTemplate(
   return template === undefined ? null : text(template, 'body')
 }
 
+/** O valor informado pelo motorista (`numeric` em texto) no formato do e-mail; vazio quando não há valor. */
+function formatChargedAmount(stored: string): string {
+  const value = stored.trim()
+  return value === '' ? '' : formatBrazilianAmount(parseAmountToCents(value))
+}
+
 export function createContractorOccurrenceGroupRepository(dependencies: {
   readonly database: TripQueryable
   readonly send: ContractorOccurrenceGroupPort['send']
@@ -149,18 +155,19 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
         database,
         sql`select occurrence.note, occurrence.stage, occurrence.created_at,
                    occurrence.requested_due_date::text as requested_due_date,
+                   occurrence.declared_amount::text as declared_amount,
                    occurrence_type.name as type_name,
                    occurrence_type.asks_new_due_date,
                    occurrence_type.contractor_notification_template_key as type_key,
                    note.number, note.series
             from (
               select company_id, id, trip_document_id, note, stage, created_at, requested_due_date,
-                     occurrence_type_id
+                     occurrence_type_id, declared_amount
               from trip_document_occurrences
               union all
               /** Spec 343 (RF1): a ocorrência de parada com nota também avisa, só pelo botão. */
               select company_id, id, trip_document_id, description as note, 'delivery' as stage,
-                     created_at, null::date as requested_due_date, occurrence_type_id
+                     created_at, null::date as requested_due_date, occurrence_type_id, declared_amount
               from trip_stop_occurrences
               where trip_document_id is not null
             ) occurrence
@@ -212,6 +219,8 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
           numeroNotaSemSerie: number,
           observacao: summarizeOccurrenceNote(text(occurrence, 'note')),
           tipoOcorrencia: text(occurrence, 'type_name').trim(),
+          /** Spec 343: o valor que o motorista informou no app (cobrança no recebimento, valor pago); vazio sem valor. */
+          valorCobrado: formatChargedAmount(text(occurrence, 'declared_amount')),
           valorNota: totalValue === '' ? '' : formatBrazilianAmount(parseAmountToCents(totalValue)),
         },
       }

@@ -98,6 +98,7 @@ describe('valores do e-mail da ocorrência (spec 271 T2.2)', () => {
       razaoSocial: 'Supermercado Exemplo Ltda',
       somaItens: '107,19',
       tipoOcorrencia: 'Avaria',
+      valorCobrado: '67,20',
       valorDeclarado: '67,20',
       valorNota: '7.840,64',
     })
