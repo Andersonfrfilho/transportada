@@ -485,7 +485,10 @@ function OccurrenceDetailSections({
           /** Spec 324: o aviso manual vale só para ocorrência de nota; a rota responde 404 para parada. */
           <ContractorNoticeSection occurrenceId={occurrence.id} />
         )}
-        {participant === 'driver' || participant === 'client' ? null : (
+        {participant === 'driver' ||
+        participant === 'client' ||
+        occurrence.source !== 'document' ? null : (
+          /** O retorno da contratante é de ocorrência de nota; a rota responde 404 para parada. */
           <ContractorReplyPanel
             canResolve={canResolveOccurrenceCases}
             {...(companyId === undefined ? {} : { companyId })}
