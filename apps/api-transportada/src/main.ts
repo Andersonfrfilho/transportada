@@ -860,6 +860,7 @@ import { createFindDriverRouteOccurrenceUseCase } from './trips/application/find
 import { createSignDriverRouteOccurrenceFileUseCase } from './trips/application/sign-driver-route-occurrence-file.use-case.js'
 import { createListDriverRouteOccurrencesUseCase } from './trips/application/list-driver-route-occurrences.use-case.js'
 import { createDrizzleDriverRouteOccurrenceReader } from './trips/infrastructure/drizzle-driver-route-occurrence.repository.js'
+import { createRecordDriverPayoutReceiptUseCase } from './trips/application/record-driver-payout-receipt.use-case.js'
 import { createResolveOccurrenceUseCase } from './trips/application/resolve-occurrence.use-case.js'
 import { DrizzleOccurrenceResolutionUnitOfWork } from './trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
@@ -5439,6 +5440,11 @@ function createApplicationRoutes({
     }),
     /** Spec 266 / ADR-0105: o escritório resolve a ocorrência (nota ou parada) com observação. */
     ...createOccurrenceResolutionRoutes({
+      /** Spec 317 (E13): o comprovante da transferência ao motorista, sem concluir a ocorrência. */
+      recordDriverPayoutReceipt: createRecordDriverPayoutReceiptUseCase({
+        logger,
+        unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
+      }),
       resolveOccurrence: createResolveOccurrenceUseCase({
         logger,
         notifier: occurrenceResolutionNotifier,

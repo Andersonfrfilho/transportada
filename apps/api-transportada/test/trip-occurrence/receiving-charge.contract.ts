@@ -31,6 +31,7 @@ import type {
   RecordDriverPayoutReceiptOutcome,
 } from '../../src/trips/application/occurrence-resolution.port.js'
 import { resolveFieldOccurrenceTypes } from '../../src/trips/application/list-field-occurrence-types.use-case.js'
+import { createRecordDriverPayoutReceiptUseCase } from '../../src/trips/application/record-driver-payout-receipt.use-case.js'
 import { createResolveOccurrenceUseCase } from '../../src/trips/application/resolve-occurrence.use-case.js'
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import {
@@ -817,6 +818,56 @@ describe('o comprovante do PIX ao concluir (spec 317 E13, T5b)', () => {
       ),
     ).toBe('STOP_OCCURRENCE_PAYOUT_NOT_APPLICABLE')
     expect(documentKind.calls).toEqual([])
+  })
+})
+
+describe('o comprovante ao motorista sem concluir (spec 317 E13)', () => {
+  const RECEIPT_ATTACHMENT = '00000000-0000-4000-8000-0000000000e1'
+
+  function recorder(outcome: RecordDriverPayoutReceiptOutcome, locked = true) {
+    const calls: string[] = []
+    const transaction: OccurrenceResolutionTransactionPort = {
+      insertInternalResolution: async () => {
+        calls.push('resolved')
+        return { createdAt: '2026-11-10T12:00:00.000Z' }
+      },
+      listLatestEvents: async () => [],
+      lockOccurrence: async () => (locked ? { cancelledAt: undefined } : undefined),
+      recordDriverPayoutReceipt: async (input) => {
+        calls.push(`payout:${input.attachmentId}:${input.occurrenceId}:${input.companyId}`)
+        return outcome
+      },
+    }
+    const useCase = createRecordDriverPayoutReceiptUseCase({
+      logger: { error() {}, info() {}, warn() {} },
+      now: () => new Date('2026-11-17T12:00:00.000Z'),
+      unitOfWork: { execute: (operation) => operation(transaction) },
+    })
+    const record = () =>
+      useCase.execute({
+        attachmentId: RECEIPT_ATTACHMENT,
+        context: { companyId: COMPANY_ID, userId: ACTOR_USER_ID } as never,
+        occurrenceId: STOP_ID,
+      })
+    return { calls, record }
+  }
+
+  test('grava o anexo da empresa do contexto e nunca resolve a ocorrência', async () => {
+    const { calls, record } = recorder('recorded')
+    expect(await record()).toEqual({ sentAt: '2026-11-17T12:00:00.000Z' })
+    expect(calls).toEqual([`payout:${RECEIPT_ATTACHMENT}:${STOP_ID}:${COMPANY_ID}`])
+  })
+
+  test('ocorrência inexistente é 404; anexo alheio é 404; paga pela empresa é 422', async () => {
+    expect(await asyncCodeOf(recorder('recorded', false).record())).toBe(
+      'TRIP_OCCURRENCE_NOT_FOUND',
+    )
+    expect(await asyncCodeOf(recorder('not_found').record())).toBe(
+      'STOP_OCCURRENCE_PAYOUT_RECEIPT_NOT_FOUND',
+    )
+    expect(await asyncCodeOf(recorder('not_driver_paid').record())).toBe(
+      'STOP_OCCURRENCE_PAYOUT_NOT_APPLICABLE',
+    )
   })
 })
 

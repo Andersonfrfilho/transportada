@@ -60,6 +60,13 @@ export type TripOccurrenceDetailItemValues = {
  */
 export type TripOccurrenceDetailReceivingCharge = {
   readonly declaredAmount: null | string
+  /** E13: o comprovante da transferência ao motorista (só com `trip.financials`); `null` enquanto não houve envio. */
+  readonly driverPayoutReceipt: null | {
+    readonly expiresAt: string
+    readonly fileName: string
+    readonly sentAt: string
+    readonly url: string
+  }
   readonly driverPix: null | { readonly key: string; readonly type: PixKeyType }
   readonly paidBy: null | StopOccurrencePaidBy
   readonly photos: readonly {
@@ -73,8 +80,14 @@ export type TripOccurrenceDetailReceivingCharge = {
 /** O que o leitor devolve da cobrança: onde cada foto está. Quem assina é o caso de uso. */
 export type TripOccurrenceDetailReceivingChargeSource = Omit<
   TripOccurrenceDetailReceivingCharge,
-  'photos'
+  'driverPayoutReceipt' | 'photos'
 > & {
+  readonly driverPayoutReceipt: null | {
+    readonly bucket: string
+    readonly fileName: string
+    readonly objectKey: string
+    readonly sentAt: string
+  }
   readonly photos: readonly {
     readonly bucket: string
     readonly label: string
@@ -168,10 +181,27 @@ export function createReadTripOccurrenceDetailUseCase(dependencies: {
                 }
               }),
             )
+      const receiptSource = input.includeFinancials === true ? source.driverPayoutReceipt : null
+      const driverPayoutReceipt =
+        receiptSource === null || downloads === undefined
+          ? null
+          : await downloads
+              .createDownloadUrl({
+                bucket: receiptSource.bucket,
+                fileName: receiptSource.fileName,
+                objectKey: receiptSource.objectKey,
+              })
+              .then((link) => ({
+                expiresAt: link.expiresAt,
+                fileName: receiptSource.fileName,
+                sentAt: receiptSource.sentAt,
+                url: link.url,
+              }))
       return {
         ...rest,
         receivingCharge: {
           ...source,
+          driverPayoutReceipt,
           driverPix: input.includeFinancials === true ? source.driverPix : null,
           photos,
         },

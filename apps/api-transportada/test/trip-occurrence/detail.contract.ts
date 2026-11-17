@@ -52,6 +52,12 @@ describe('detalhe da ocorrência — caso de uso (spec 183 T201)', () => {
   describe('cobrança no recebimento (placa, extrato e PIX do motorista)', () => {
     const SOURCE = {
       declaredAmount: '50,00',
+      driverPayoutReceipt: {
+        bucket: 'b',
+        fileName: 'pix.jpg',
+        objectKey: 'k/pix',
+        sentAt: '2026-11-17T19:00:00.000Z',
+      },
       driverPix: { key: '16993056772', type: 'phone' as const },
       paidBy: 'driver' as const,
       photos: [
@@ -86,6 +92,12 @@ describe('detalhe da ocorrência — caso de uso (spec 183 T201)', () => {
       })
 
       expect(detail.receivingCharge?.driverPix).toEqual({ key: '16993056772', type: 'phone' })
+      expect(detail.receivingCharge?.driverPayoutReceipt).toEqual({
+        expiresAt: '2026-11-17T20:00:00.000Z',
+        fileName: 'pix.jpg',
+        sentAt: '2026-11-17T19:00:00.000Z',
+        url: 'https://signed.example/k/pix',
+      })
       expect(detail.receivingCharge?.photos.map((photo) => [photo.slotKey, photo.url])).toEqual([
         ['plate', 'https://signed.example/k/placa'],
         ['payment_receipt', 'https://signed.example/k/extrato'],
@@ -99,6 +111,7 @@ describe('detalhe da ocorrência — caso de uso (spec 183 T201)', () => {
       })
 
       expect(detail.receivingCharge?.driverPix).toBeNull()
+      expect(detail.receivingCharge?.driverPayoutReceipt).toBeNull()
       expect(detail.receivingCharge?.paidBy).toBe('driver')
       expect(detail.receivingCharge?.declaredAmount).toBe('50,00')
       expect(detail.receivingCharge?.photos).toHaveLength(2)

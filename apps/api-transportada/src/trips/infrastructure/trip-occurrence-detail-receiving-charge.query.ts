@@ -7,6 +7,7 @@
  */
 import { and, asc, eq, ne } from 'drizzle-orm'
 
+import { occurrenceConversationAttachments } from '../../database/occurrence-conversation.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   companyOccurrenceTypePhotoSlots,
@@ -29,6 +30,8 @@ export async function findReceivingChargeDetail(
   const [occurrence] = await queryable
     .select({
       declaredAmount: tripStopOccurrences.declaredAmount,
+      driverPayoutReceiptObjectId: tripStopOccurrences.driverPayoutReceiptObjectId,
+      driverPayoutSentAt: tripStopOccurrences.driverPayoutSentAt,
       driverPixKey: tripStopOccurrences.driverPixKey,
       driverPixKeyType: tripStopOccurrences.driverPixKeyType,
       paidBy: tripStopOccurrences.paidBy,
@@ -82,6 +85,11 @@ export async function findReceivingChargeDetail(
     )
     .orderBy(asc(tripStopOccurrencePhotos.position), asc(tripStopOccurrencePhotos.slotKey))
 
+  const driverPayoutReceipt = await findDriverPayoutReceipt(queryable, {
+    companyId: input.companyId,
+    objectId: occurrence.driverPayoutReceiptObjectId,
+    sentAt: occurrence.driverPayoutSentAt,
+  })
   const hasPixKey = occurrence.driverPixKey !== null && occurrence.driverPixKeyType !== null
   if (occurrence.paidBy === null && occurrence.declaredAmount === null && photoRows.length === 0) {
     return null
@@ -91,6 +99,7 @@ export async function findReceivingChargeDetail(
       occurrence.declaredAmount === null
         ? null
         : formatAmountCents(parseAmountToCents(occurrence.declaredAmount)),
+    driverPayoutReceipt,
     driverPix:
       hasPixKey && occurrence.driverPixKey !== null && occurrence.driverPixKeyType !== null
         ? { key: occurrence.driverPixKey, type: occurrence.driverPixKeyType }
@@ -102,5 +111,46 @@ export async function findReceivingChargeDetail(
       objectKey: photo.objectKey,
       slotKey: photo.slotKey,
     })),
+  }
+}
+
+/** E13: o comprovante já enviado ao motorista pelo chat; o objeto é o da mensagem, lido pela empresa do contexto. */
+async function findDriverPayoutReceipt(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly objectId: null | string
+    readonly sentAt: Date | null
+  },
+): Promise<TripOccurrenceDetailReceivingChargeSource['driverPayoutReceipt']> {
+  if (input.objectId === null || input.sentAt === null) return null
+  const [row] = await queryable
+    .select({
+      bucket: storedObjects.bucket,
+      fileName: occurrenceConversationAttachments.fileName,
+      objectKey: storedObjects.objectKey,
+    })
+    .from(storedObjects)
+    .innerJoin(
+      occurrenceConversationAttachments,
+      and(
+        eq(occurrenceConversationAttachments.companyId, storedObjects.companyId),
+        eq(occurrenceConversationAttachments.storedObjectId, storedObjects.id),
+      ),
+    )
+    .where(
+      and(
+        eq(storedObjects.companyId, input.companyId),
+        eq(storedObjects.id, input.objectId),
+        ne(storedObjects.status, DELETED_OBJECT_STATUS),
+      ),
+    )
+    .limit(1)
+  if (row === undefined) return null
+  return {
+    bucket: row.bucket,
+    fileName: row.fileName,
+    objectKey: row.objectKey,
+    sentAt: input.sentAt.toISOString(),
   }
 }
