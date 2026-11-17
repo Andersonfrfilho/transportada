@@ -33,9 +33,10 @@ export type OccurrenceRequirements = Readonly<{
 }>
 
 /**
- * D-d da 246: a ocorrência de **parada** não lê exigência no servidor além da foto (que o app já
- * cobrava desde a 209). Nota, assinatura e produtos só valem para o tipo de nota — cobrar a
- * observação de uma parada no aparelho seria recusar o que o servidor aceita.
+ * D-d da 246: a ocorrência de **parada** não lê assinatura nem produtos no servidor. A foto e a
+ * observação, sim (`assertStopOccurrenceRequirements`, spec 209): o servidor recusa a parada sem a
+ * observação que o tipo exige (`TRIP_OCCURRENCE_NOTE_REQUIRED`), então o app a cobra e a marca como
+ * obrigatória em vez de oferecê-la como opcional.
  */
 const STOP_REQUIREMENTS = {
   declaredAmountMode: 'off',
@@ -60,7 +61,8 @@ function readPhotoMinimumCount(type: DriverOccurrenceType): number {
 
 export function resolveOccurrenceRequirements(type: DriverOccurrenceType): OccurrenceRequirements {
   const photoMode = type.photoMode ?? type.attachmentMode ?? 'off'
-  if (type.flow === 'stop') return { ...STOP_REQUIREMENTS, photoMode }
+  if (type.flow === 'stop')
+    return { ...STOP_REQUIREMENTS, noteMode: type.noteMode ?? 'optional', photoMode }
   return {
     declaredAmountMode: type.declaredAmountMode ?? 'off',
     declaredAmountScope: type.declaredAmountScope === 'occurrence' ? 'occurrence' : 'item',

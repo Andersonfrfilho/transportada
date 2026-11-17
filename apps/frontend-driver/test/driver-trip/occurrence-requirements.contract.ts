@@ -251,7 +251,7 @@ describe('observação e assinatura: required segura o botão, optional aparece,
     expect(calls[0]?.input).not.toHaveProperty('signature')
   })
 
-  it('a ocorrência de parada segue só com a foto: nota, assinatura e produtos obrigatórios não valem lá (D-d)', () => {
+  it('a ocorrência de parada cobra foto e observação (o servidor recusa sem elas); assinatura e produtos não valem lá (D-d)', () => {
     const stop = documentType({
       flow: 'stop',
       itemsMode: 'required',
@@ -261,8 +261,14 @@ describe('observação e assinatura: required segura o botão, optional aparece,
       stopKind: 'long_wait',
     })
 
-    expect(listMissingOccurrenceFields({ hasPhoto: false, type: stop })).toEqual(['photo'])
-    expect(listMissingOccurrenceFields({ hasPhoto: true, type: stop })).toEqual([])
+    expect(listMissingOccurrenceFields({ hasPhoto: false, type: stop })).toEqual(['note', 'photo'])
+    expect(listMissingOccurrenceFields({ hasNote: true, hasPhoto: true, type: stop })).toEqual([])
+    expect(
+      listMissingOccurrenceFields({
+        hasPhoto: true,
+        type: documentType({ flow: 'stop', noteMode: 'optional', photoMode: 'required' }),
+      }),
+    ).toEqual([])
     expect(resolveOccurrenceFieldVisibility(stop)).toMatchObject({
       photoLimit: 1,
       rendersNote: true,
