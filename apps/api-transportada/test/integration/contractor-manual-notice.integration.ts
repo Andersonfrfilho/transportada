@@ -14,6 +14,8 @@ import {
   contractorMailMessages,
   contractors,
   tripDocumentOccurrences,
+  tripDocuments,
+  tripStopOccurrences,
 } from '../../src/database/database.schema.js'
 import {
   readOccurrenceMailTemplateFiles,
@@ -579,6 +581,106 @@ describe('o modelo geral do aviso manual contra Postgres (spec 324 T1b, D10)', (
         expect(posts).toHaveLength(1)
         expect(posts[0]?.body).toContain('Tipo: Caixa violada')
         expect(posts[0]?.body).not.toContain('Aviso de ocorrência')
+      })
+    },
+    60_000,
+  )
+  testWithPostgres(
+    'spec 343 RF1: ocorrência de parada com nota — o botão avisa a contratante da nota, uma vez; o automático segue calado',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        await setType(database, seeded, { emailsContractor: false })
+        const { companyId, userId } = seeded.company
+        const [occurrence] = await database.db
+          .select({
+            documentId: tripDocumentOccurrences.tripDocumentId,
+            typeId: tripDocumentOccurrences.occurrenceTypeId,
+          })
+          .from(tripDocumentOccurrences)
+          .where(eq(tripDocumentOccurrences.id, seeded.occurrenceId))
+        const [document] = await database.db
+          .select({ stopId: tripDocuments.stopId })
+          .from(tripDocuments)
+          .where(eq(tripDocuments.id, occurrence?.documentId ?? ''))
+        const stopOccurrenceId = crypto.randomUUID()
+        await database.db.insert(tripStopOccurrences).values({
+          actorUserId: userId,
+          companyId,
+          description: 'Cobrança não prevista na parada',
+          id: stopOccurrenceId,
+          kind: 'unexpected_charge',
+          occurrenceTypeId: occurrence?.typeId ?? null,
+          stopId: document?.stopId ?? '',
+          tripDocumentId: occurrence?.documentId ?? null,
+        })
+        const useCase = notice(database, [])
+        const ref = { companyId, occurrenceId: stopOccurrenceId }
+
+        expect(await useCase.send({ ...ref, correlationId: 'c-343a' })).toEqual({
+          outcome: 'skipped',
+          reason: 'not_document',
+        })
+        expect(await useCase.readNoticeState(ref)).toMatchObject({
+          channel: 'email',
+          status: 'available',
+        })
+        expect(
+          await useCase.sendManual({ ...ref, actorUserId: userId, correlationId: 'c-343b' }),
+        ).toMatchObject({ outcome: 'sent' })
+        expect(
+          await useCase.sendManual({ ...ref, actorUserId: userId, correlationId: 'c-343c' }),
+        ).toEqual({ by: 'manual', outcome: 'already_notified' })
+        expect(await mails(database, companyId)).toEqual([{ actorUserId: userId }])
+        expect(
+          await database.db.execute(
+            sql`select occurrence_kind from occurrence_contractor_manual_notices
+                where company_id = ${companyId}::uuid and occurrence_id = ${stopOccurrenceId}::uuid`,
+          ),
+        ).toEqual([{ occurrence_kind: 'stop' }])
+      })
+    },
+    60_000,
+  )
+
+  testWithPostgres(
+    'spec 343 RF1: ocorrência de parada sem nota — indisponível com o motivo, sem reservar',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const { companyId, userId } = seeded.company
+        const [occurrence] = await database.db
+          .select({
+            documentId: tripDocumentOccurrences.tripDocumentId,
+            typeId: tripDocumentOccurrences.occurrenceTypeId,
+          })
+          .from(tripDocumentOccurrences)
+          .where(eq(tripDocumentOccurrences.id, seeded.occurrenceId))
+        const [document] = await database.db
+          .select({ stopId: tripDocuments.stopId })
+          .from(tripDocuments)
+          .where(eq(tripDocuments.id, occurrence?.documentId ?? ''))
+        const stopOccurrenceId = crypto.randomUUID()
+        await database.db.insert(tripStopOccurrences).values({
+          actorUserId: userId,
+          companyId,
+          description: 'Cobrança não prevista na parada',
+          id: stopOccurrenceId,
+          kind: 'unexpected_charge',
+          occurrenceTypeId: occurrence?.typeId ?? null,
+          stopId: document?.stopId ?? '',
+        })
+        const useCase = notice(database, [])
+        const ref = { companyId, occurrenceId: stopOccurrenceId }
+
+        expect(await useCase.readNoticeState(ref)).toEqual({
+          reason: 'no_document',
+          status: 'unavailable',
+        })
+        expect(
+          await useCase.sendManual({ ...ref, actorUserId: userId, correlationId: 'c-343d' }),
+        ).toEqual({ outcome: 'skipped', reason: 'not_document' })
+        expect(await mails(database, companyId)).toEqual([])
       })
     },
     60_000,

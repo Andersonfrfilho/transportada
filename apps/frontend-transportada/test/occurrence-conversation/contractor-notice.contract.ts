@@ -71,6 +71,9 @@ describe('estado do aviso à contratante (spec 324 T4)', () => {
     expect(
       readContractorNoticeState({ data: { reason: 'no_recipient', status: 'unavailable' } }),
     ).toEqual({ reason: 'no_recipient', status: 'unavailable' })
+    expect(
+      readContractorNoticeState({ data: { reason: 'no_document', status: 'unavailable' } }),
+    ).toEqual({ reason: 'no_document', status: 'unavailable' })
     expect(() => readContractorNoticeState({ data: { status: 'x' } })).toThrow()
     expect(() => readContractorNoticeState({})).toThrow()
   })

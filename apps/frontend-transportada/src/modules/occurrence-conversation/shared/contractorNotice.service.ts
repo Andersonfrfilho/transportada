@@ -29,7 +29,10 @@ export type ContractorNoticeState =
       recipientCount: number | null
       status: 'available'
     }>
-  | Readonly<{ reason: 'blocked' | 'no_recipient' | 'no_template'; status: 'unavailable' }>
+  | Readonly<{
+      reason: 'blocked' | 'no_document' | 'no_recipient' | 'no_template'
+      status: 'unavailable'
+    }>
 
 export type ContractorNoticeSkipReason =
   | 'mail_not_ready'
@@ -48,7 +51,12 @@ export type ContractorNoticeClient = Readonly<{
 }>
 
 const CHANNELS: readonly string[] = ['email', 'whatsapp_group']
-const UNAVAILABLE_REASONS: readonly string[] = ['blocked', 'no_recipient', 'no_template']
+const UNAVAILABLE_REASONS: readonly string[] = [
+  'blocked',
+  'no_document',
+  'no_recipient',
+  'no_template',
+]
 
 function invalid(): never {
   throw new OccurrenceConversationRequestError(OCCURRENCE_CONVERSATION_ERROR.RESPONSE_INVALID)
@@ -89,7 +97,7 @@ export function readContractorNoticeState(payload: unknown): ContractorNoticeSta
   if (data.status === 'unavailable' && isString(data.reason)) {
     if (!UNAVAILABLE_REASONS.includes(data.reason)) return invalid()
     return {
-      reason: data.reason as 'blocked' | 'no_recipient' | 'no_template',
+      reason: data.reason as 'blocked' | 'no_document' | 'no_recipient' | 'no_template',
       status: 'unavailable',
     }
   }

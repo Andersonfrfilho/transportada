@@ -971,8 +971,15 @@ export const occurrenceContractorManualNotices = pgTable(
   {
     id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
-    /** O aviso manual é só de ocorrência de nota (a de parada não tem contratante casada). */
+    /**
+     * Spec 343 (RF3): o id da ocorrência de nota **ou** de parada com nota. Sem FK de propósito: o alvo está em uma
+     * de duas tabelas, e `occurrence_kind` diz em qual (o mesmo molde de `occurrence_conversations`).
+     */
     occurrenceId: uuid('occurrence_id').notNull(),
+    occurrenceKind: varchar('occurrence_kind', { length: 16 })
+      .notNull()
+      .default('document')
+      .$type<OccurrenceConversationKind>(),
     actorUserId: uuid('actor_user_id').notNull(),
     status: varchar({ length: 16 }).notNull().$type<ContractorManualNoticeStatus>(),
     channel: varchar({ length: 24 }).$type<ContractorManualNoticeChannel>(),
@@ -993,13 +1000,6 @@ export const occurrenceContractorManualNotices = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
     foreignKey({
-      columns: [table.companyId, table.occurrenceId],
-      foreignColumns: [tripDocumentOccurrences.companyId, tripDocumentOccurrences.id],
-      name: 'occurrence_contractor_manual_notices_company_occurrence_fk',
-    })
-      .onDelete('cascade')
-      .onUpdate('cascade'),
-    foreignKey({
       columns: [table.actorUserId],
       foreignColumns: [identityUsers.id],
       name: 'occurrence_contractor_manual_notices_actor_user_fk',
@@ -1009,6 +1009,10 @@ export const occurrenceContractorManualNotices = pgTable(
     check(
       'occurrence_contractor_manual_notices_status_check',
       sql`${table.status} in (${sql.raw(inList(CONTRACTOR_MANUAL_NOTICE_STATUSES))})`,
+    ),
+    check(
+      'occurrence_contractor_manual_notices_kind_check',
+      sql`${table.occurrenceKind} in (${sql.raw(inList(OCCURRENCE_CONVERSATION_KINDS))})`,
     ),
     check(
       'occurrence_contractor_manual_notices_channel_check',
