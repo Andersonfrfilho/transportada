@@ -310,6 +310,42 @@ async function findOperatorSigner(
   }
 }
 
+/** Spec 343: o tipo e o momento de registro da ocorrência, de nota ou de parada (a de parada guarda o tipo na linha). */
+async function readOccurrenceTypeRef(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<null | { readonly createdAt: Date; readonly occurrenceTypeId: string }> {
+  const [document] = await queryable
+    .select({
+      createdAt: tripDocumentOccurrences.createdAt,
+      occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
+    })
+    .from(tripDocumentOccurrences)
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, params.companyId),
+        eq(tripDocumentOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  if (document !== undefined) return document
+  const [stop] = await queryable
+    .select({
+      createdAt: tripStopOccurrences.createdAt,
+      occurrenceTypeId: tripStopOccurrences.occurrenceTypeId,
+    })
+    .from(tripStopOccurrences)
+    .where(
+      and(
+        eq(tripStopOccurrences.companyId, params.companyId),
+        eq(tripStopOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  if (stop === undefined || stop.occurrenceTypeId === null) return null
+  return { createdAt: stop.createdAt, occurrenceTypeId: stop.occurrenceTypeId }
+}
+
 /**
  * Spec 271 (ADR-0108, D1/D9): o modelo do tipo da ocorrência — a chave escolhida no tipo e a versão ativa mais alta
  * no módulo de notificação. Sem chave, sem versão ativa de e-mail `pt-BR`, de corpo HTML ou sem assunto: `null`,
@@ -331,28 +367,23 @@ async function findOccurrenceNotificationTemplateSource(
   readonly key: string
   readonly version: number
 } | null> {
-  const [row] = await queryable
+  const ref = await readOccurrenceTypeRef(queryable, params)
+  if (ref === null) return null
+  const [type] = await queryable
     .select({
       key: companyOccurrenceTypes.contractorNotificationTemplateKey,
-      occurrenceCreatedAt: tripDocumentOccurrences.createdAt,
       selectedAt: companyOccurrenceTypes.contractorNotificationTemplateSelectedAt,
     })
-    .from(tripDocumentOccurrences)
-    .innerJoin(
-      companyOccurrenceTypes,
-      and(
-        eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
-        eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
-      ),
-    )
+    .from(companyOccurrenceTypes)
     .where(
       and(
-        eq(tripDocumentOccurrences.companyId, params.companyId),
-        eq(tripDocumentOccurrences.id, params.occurrenceId),
+        eq(companyOccurrenceTypes.companyId, params.companyId),
+        eq(companyOccurrenceTypes.id, ref.occurrenceTypeId),
       ),
     )
     .limit(1)
-  if (row === undefined) return null
+  if (type === undefined) return null
+  const row = { ...type, occurrenceCreatedAt: ref.createdAt }
   if (row.key !== null) {
     const template = await findActiveContractorTemplate(queryable, {
       companyId: params.companyId,
