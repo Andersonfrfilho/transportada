@@ -204,17 +204,11 @@ function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurr
         <h2 id="occurrence-driver-title">{t('occurrenceDetail.driver.title')}</h2>
       </div>
       <div className={styles.occurrenceDriver}>
-        {contact.pictureUrl === null ? (
-          <span aria-hidden="true" className={styles.occurrenceAvatar}>
-            {contact.initials}
-          </span>
-        ) : (
-          <img
-            alt={t('occurrenceDetail.driver.pictureAlt', { name: contact.name })}
-            className={styles.occurrenceAvatar}
-            src={contact.pictureUrl}
-          />
-        )}
+        <OccurrenceDriverAvatar
+          alt={t('occurrenceDetail.driver.pictureAlt', { name: contact.name })}
+          initials={contact.initials}
+          pictureUrl={contact.pictureUrl}
+        />
         <dl className={styles.occurrenceFacts}>
           <div>
             <dt>{t('occurrenceDetail.driver.name')}</dt>
@@ -444,6 +438,33 @@ function OccurrenceSummaryPanel({
         <OccurrenceAttachments item={occurrence} />
       )}
     </section>
+  )
+}
+
+/**
+ * A foto do motorista vem de um endereço público que pode não abrir (arquivo ausente no armazenamento, token trocado).
+ * Imagem quebrada com o texto alternativo no lugar do rosto é pior que a inicial: ao falhar a carga, mostra a inicial.
+ */
+function OccurrenceDriverAvatar({
+  alt,
+  initials,
+  pictureUrl,
+}: Readonly<{ alt: string; initials: string; pictureUrl: null | string }>): ReactNode {
+  const [failedUrl, setFailedUrl] = useState<null | string>(null)
+  if (pictureUrl === null || failedUrl === pictureUrl) {
+    return (
+      <span aria-hidden="true" className={styles.occurrenceAvatar}>
+        {initials}
+      </span>
+    )
+  }
+  return (
+    <img
+      alt={alt}
+      className={styles.occurrenceAvatar}
+      onError={() => setFailedUrl(pictureUrl)}
+      src={pictureUrl}
+    />
   )
 }
 

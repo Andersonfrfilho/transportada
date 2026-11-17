@@ -228,3 +228,16 @@ describe('os itens da ocorrência no detalhe (T207)', () => {
     expect(formatOccurrenceItemQuantity({ quantity: null, unit: null }, (value) => value)).toBe('')
   })
 })
+
+describe('foto do motorista no card de contato', () => {
+  const source = readFileSync(
+    new URL('src/modules/trip/pages/TripOccurrenceDetail.page.tsx', APPLICATION_ROOT),
+    'utf8',
+  )
+
+  test('imagem que não abre cai para a inicial, nunca fica o texto alternativo quebrado', () => {
+    expect(source).toContain('function OccurrenceDriverAvatar(')
+    expect(source).toContain('onError={() => setFailedUrl(pictureUrl)}')
+    expect(source).toContain('failedUrl === pictureUrl')
+  })
+})
