@@ -21,13 +21,14 @@
 
 ## Decisões do usuário (2026-11-17)
 
-| #   | pergunta                         | resposta                                                                                                           |
-| --- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| a   | alcance da correção do cliente   | **só cliente com CNPJ, próximas notas**; pessoa física fica fora até haver decisão de proteção do CPF (T1c da 084) |
-| b   | corrigir texto e ponto?          | **os dois**, depois que o escritório corrige                                                                       |
-| c   | pedido de correção na ocorrência | **sim, os dois e-mails** (aviso e pedido de correção)                                                              |
-| d   | WhatsApp                         | **cada tipo ativo tem modelo de WhatsApp**, para aviso e para pedido de correção                                   |
-| e   | botão em toda ocorrência         | **sim**, nota e parada                                                                                             |
+| #   | pergunta                         | resposta                                                                                                                                          |
+| --- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a   | alcance da correção do cliente   | **só cliente com CNPJ, próximas notas**; pessoa física fica fora até haver decisão de proteção do CPF (T1c da 084)                                |
+| b   | corrigir texto e ponto?          | **os dois**, depois que o escritório corrige                                                                                                      |
+| c   | pedido de correção na ocorrência | **sim, os dois e-mails** (aviso e pedido de correção)                                                                                             |
+| d   | WhatsApp                         | **cada tipo ativo tem modelo de WhatsApp**, para aviso e para pedido de correção                                                                  |
+| e   | botão em toda ocorrência         | **sim**, nota e parada                                                                                                                            |
+| f   | "nunca avisar" (321 D2)          | **não existe**: a marca do tipo (`blocks_contractor_notice`) só cala o **automático**; o botão, o chat e o portal à mão valem sempre (2026-11-17) |
 
 ## Requisitos
 

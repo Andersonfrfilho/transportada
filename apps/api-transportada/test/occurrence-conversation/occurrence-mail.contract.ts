@@ -1602,36 +1602,26 @@ describe('a prévia com modelo HTML (spec 272 T2.4, D12)', () => {
   })
 })
 
-describe('o tipo que nunca avisa a contratante recusa o e-mail à mão (spec 321 D2, CA01)', () => {
-  test('envio manual é 409 OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED, sem e-mail, conversa nem idempotência', async () => {
-    const { decryptCalls, state, useCase } = createFake({
-      target: { ...TARGET, blocksContractorNotice: true },
-    })
+describe('a marca do tipo só cala o automático (spec 321 D2 revista na 343)', () => {
+  test('o envio manual e o reenvio do retorno saem mesmo com a marca', async () => {
+    const { state, useCase } = createFake({ target: { ...TARGET, blocksContractorNotice: true } })
 
-    expect(await failure(() => useCase.send(input()))).toMatchObject({
-      code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED',
-      status: 409,
-    })
-    expect(state.mails).toEqual([])
-    expect(state.conversationMessages).toEqual([])
-    expect(state.idempotency.size).toBe(0)
-    expect(decryptCalls).toEqual([])
+    await useCase.send(input())
+    await useCase.send(input({ contractorReplyResend: true, idempotencyKey: 'r-1' }))
+
+    expect(state.mails).toHaveLength(2)
   })
 
-  test('o aviso automático e o reenvio do retorno também param aqui (rede do caso de uso)', async () => {
+  test('o aviso automático para aqui (rede do caso de uso), sem e-mail nem idempotência', async () => {
     const { state, useCase } = createFake({ target: { ...TARGET, blocksContractorNotice: true } })
 
     expect(
       await failure(() =>
         useCase.send(input({ actorUserId: null, automatic: true, idempotencyKey: 'auto-1' })),
       ),
-    ).toMatchObject({ code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED' })
-    expect(
-      await failure(() =>
-        useCase.send(input({ contractorReplyResend: true, idempotencyKey: 'r-1' })),
-      ),
-    ).toMatchObject({ code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED' })
+    ).toMatchObject({ code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED', status: 409 })
     expect(state.mails).toEqual([])
+    expect(state.idempotency.size).toBe(0)
   })
 
   test('sem a marca, o mesmo envio sai (a guarda lê a marca, não o tipo)', async () => {

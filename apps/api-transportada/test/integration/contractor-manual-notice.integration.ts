@@ -219,9 +219,9 @@ describe('o botão "Avisar a contratante" contra Postgres (spec 324 T1)', () => 
         })
 
         await setType(database, seeded, { blocksContractorNotice: true, emailsContractor: false })
-        expect(await useCase.readNoticeState(ref)).toEqual({
-          reason: 'blocked',
-          status: 'unavailable',
+        expect(await useCase.readNoticeState(ref)).toMatchObject({
+          by: 'manual',
+          status: 'notified',
         })
       })
     },
@@ -301,7 +301,7 @@ describe('o botão "Avisar a contratante" contra Postgres (spec 324 T1)', () => 
   )
 
   testWithPostgres(
-    'CA05: tipo marcado pela 321 (canhoto retido) — bloqueado, nada sai e nada é reservado',
+    'CA05 (343): tipo marcado pela 321 — a marca só cala o automático, o botão avisa',
     async () => {
       await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
@@ -315,9 +315,8 @@ describe('o botão "Avisar a contratante" contra Postgres (spec 324 T1)', () => 
             correlationId: 'c-324d',
             occurrenceId: seeded.occurrenceId,
           }),
-        ).toEqual({ outcome: 'blocked' })
-        expect(await mails(database, companyId)).toEqual([])
-        expect(await records(database, seeded)).toEqual([])
+        ).toMatchObject({ outcome: 'sent' })
+        expect(await mails(database, companyId)).toHaveLength(1)
       })
     },
     60_000,

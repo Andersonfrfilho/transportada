@@ -585,15 +585,13 @@ describe('a seleção do aviso do portal continua a da T3.7', () => {
   })
 })
 
-describe('o tipo que nunca avisa a contratante recusa o chat por e-mail (spec 321 D2, CA01)', () => {
-  test('409 OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED, sem e-mail nem mensagem', async () => {
+describe('a marca do tipo só cala o automático: o chat por e-mail à mão sai (spec 343)', () => {
+  test('com a marca, o chat do escritório envia o e-mail e grava a mensagem', async () => {
     const { state, useCase } = createFake({ target: { ...TARGET, blocksContractorNotice: true } })
 
-    expect(await failure(() => useCase.send(input()))).toMatchObject({
-      code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED',
-      status: 409,
-    })
-    expect(state.mails).toEqual([])
-    expect(state.conversationMessages).toEqual([])
+    await useCase.send(input())
+
+    expect(state.mails).toHaveLength(1)
+    expect(state.conversationMessages).toHaveLength(1)
   })
 })

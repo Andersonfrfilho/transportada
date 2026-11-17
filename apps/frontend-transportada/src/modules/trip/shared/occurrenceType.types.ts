@@ -100,7 +100,7 @@ export type OccurrenceType = Readonly<{
   asksNewDueDate?: boolean
   /** Spec 317 T14a: o motorista vê o aviso "possível cobrança" no cartão da parada. Ausente é API anterior ao campo. */
   showClientChargeSealToDriver?: boolean
-  /** Spec 321 T5: nunca avisa a contratante, em canal algum. Ausente é API anterior ao campo. */
+  /** Spec 321 T5 (revista na 343): não avisa a contratante automaticamente; o botão e o chat à mão valem sempre. Ausente é API anterior ao campo. */
   blocksContractorNotice?: boolean
   /** Spec 321 T5: a viagem da coleta soma peso e dimensão da nota? Na fase 1 a API só aceita `false`. Ausente é API anterior. */
   countsCargoOnPickupTrip?: boolean

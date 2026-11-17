@@ -322,15 +322,11 @@ describe('o botão "Avisar a contratante" (spec 324 T1)', () => {
     expect(fixture.records).toEqual([expect.objectContaining({ status: 'failed' })])
   })
 
-  test('CA05: tipo marcado pela 321 (canhoto retido) — bloqueado antes de reservar ou enviar', async () => {
-    const fixture = setup({
-      plan: plan({ blocksContractorNotice: true, recipients: [], suggested: null }),
-    })
+  test('CA05 (revisto na 343): a marca da 321 só cala o automático — o botão avisa e reserva como em qualquer tipo', async () => {
+    const fixture = setup({ plan: plan({ blocksContractorNotice: true }) })
 
-    expect(await fixture.manual()).toEqual({ outcome: 'blocked' })
-    expect(fixture.manualClaims()).toBe(0)
-    expect(fixture.mails).toEqual([])
-    expect(fixture.posts).toEqual([])
+    expect(await fixture.manual()).not.toEqual({ outcome: 'blocked' })
+    expect(fixture.manualClaims()).toBe(1)
   })
 
   test('ocorrência inexistente nesta empresa: not_document, sem reservar', async () => {
@@ -497,7 +493,7 @@ describe('o estado do botão "Avisar a contratante" (spec 324 T3)', () => {
     })
   })
 
-  test('tipo da 321 (CA05): indisponível por "blocked", mesmo já avisada', async () => {
+  test('tipo da 321 (CA05 revisto na 343): o estado não é "blocked"; já avisada segue "notified"', async () => {
     const fixture = setup({
       noticeRecord: {
         automatic: null,
@@ -506,7 +502,7 @@ describe('o estado do botão "Avisar a contratante" (spec 324 T3)', () => {
       plan: plan({ blocksContractorNotice: true }),
     })
 
-    expect(await fixture.state()).toEqual({ reason: 'blocked', status: 'unavailable' })
+    expect(await fixture.state()).toMatchObject({ by: 'manual', status: 'notified' })
   })
 
   test('RF4: avisada pelo botão devolve quem, quando e o canal', async () => {
