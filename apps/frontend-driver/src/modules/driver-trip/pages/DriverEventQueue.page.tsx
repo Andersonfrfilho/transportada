@@ -21,6 +21,7 @@ import type { DriverTripErrorDetail } from '../shared/offlineQueue.service'
 import {
   resolveRejectionCauseCode,
   resolveRejectionCauseLabelKey,
+  resolveUnknownRejectionCode,
 } from '../shared/rejectionCauseLabel.service'
 import { formatQueuedAt } from '../shared/stalePending.service'
 import type { SentHistoryEntry } from '../shared/sentHistory.service'
@@ -42,6 +43,8 @@ type DriverEventQueuePageProps = Readonly<{
   /** Pedido do usuário (01/10): de quando é a última leitura do servidor — `0` é "nunca nesta sessão". */
   lastSyncedAtMs: number
   onBack: () => void
+  /** Nome do tipo de ocorrência por id, para o histórico dizer qual ocorrência foi. */
+  occurrenceTypeNames?: ReadonlyMap<string, string>
   /** O motorista cancela o envio de uma ocorrência que só existe no aparelho (o atendimento já resolveu). */
   onCancel: (idempotencyKey: string) => void
   /** Spec 227: só o recusado de negócio, e só depois da confirmação na tela. */
@@ -101,6 +104,7 @@ export function DriverEventQueuePage({
   items,
   lastSyncedAtMs,
   onBack,
+  occurrenceTypeNames,
   onCancel,
   onDiscard,
   onFocusStop,
@@ -123,7 +127,12 @@ export function DriverEventQueuePage({
   }): string {
     const key = resolveRejectionCauseLabelKey(input.cause, input.details)
     const { cause } = input
-    if (key === undefined) return cause
+    if (key === undefined) {
+      const unknownCode = resolveUnknownRejectionCode(cause)
+      return unknownCode === undefined
+        ? cause
+        : t('eventQueue.cause.unknown', { code: unknownCode })
+    }
     if (resolveRejectionCauseCode(cause) === UNLOADED_DOCUMENTS_CODE) {
       const numbers = resolveRejectedDocumentNumbers({ details: input.details, stops })
       if (numbers.length > 0) {
@@ -143,6 +152,14 @@ export function DriverEventQueuePage({
       if (sequence !== undefined) return t('eventQueue.itemTitle.depart', { sequence })
     }
     return t(KIND_LABEL_KEYS[item.kind])
+  }
+
+  /** O nome do tipo de ocorrência: o gravado no item, senão o do catálogo que o aparelho já leu. */
+  function historyTypeName(entry: SentHistoryEntry): string | undefined {
+    if (entry.occurrenceTypeName !== undefined) return entry.occurrenceTypeName
+    return entry.occurrenceTypeId === undefined
+      ? undefined
+      : occurrenceTypeNames?.get(entry.occurrenceTypeId)
   }
 
   /** O nome da nota ou o número da parada, quando o snapshot ainda os tem. */
@@ -403,6 +420,7 @@ export function DriverEventQueuePage({
                 <div className={styles.eventQueueItemBody}>
                   <p className={styles.eventQueueItemTitle}>
                     {t(KIND_LABEL_KEYS[entry.kind])}
+                    {historyTypeName(entry) === undefined ? null : ` — ${historyTypeName(entry)}`}
                     {historySubject(entry) === undefined ? null : (
                       <span className={styles.eventQueueItemTime}>{historySubject(entry)}</span>
                     )}

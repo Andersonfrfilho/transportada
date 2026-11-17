@@ -139,4 +139,23 @@ describe('histórico de enviados (teste local de 15/10)', () => {
     })
     expect(history.map((item) => item.key)).toEqual(['dispatch', 'other-stop'])
   })
+
+  it('guarda o tipo da ocorrência para a lista mostrar o nome', () => {
+    const item: QueuedReport = {
+      attempts: 0,
+      createdAt: '2026-10-15T17:49:22.000Z',
+      report: {
+        description: 'x',
+        documentId: 'doc-1',
+        idempotencyKey: 'occ-1',
+        kind: 'documentOccurrence',
+        occurrenceTypeId: 'type-1',
+        occurrenceTypeName: 'Espera longa',
+        stopId: 'stop-1',
+      } as unknown as QueuedReport['report'],
+    }
+    const saved = toSentHistoryEntry({ at: '2026-10-15T17:49:35.000Z', item, result: 'sent' })
+    expect(saved?.occurrenceTypeId).toBe('type-1')
+    expect(saved?.occurrenceTypeName).toBe('Espera longa')
+  })
 })

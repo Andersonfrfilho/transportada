@@ -78,7 +78,7 @@ const FLOW_ORDER: readonly DriverOccurrenceFlow[] = ['stop', 'document']
 
 /**
  * Sem busca: os mais usados primeiro (só os que já foram usados, e só quando a lista é maior que o
- * limite), depois um grupo por `flow`, cada um com os mais usados na frente. Com busca: uma lista só
+ * limite), depois um grupo por `flow` com o que sobrou — quem já está em "Mais usados" não se repete no grupo. Com busca: uma lista só
  * de grupos, sem "Mais usados", porque o motorista já disse o que procura.
  */
 export function buildOccurrenceTypeList(input: {
@@ -101,9 +101,10 @@ export function buildOccurrenceTypeList(input: {
       ? byUse.filter((type) => used(type) > 0).slice(0, FREQUENT_OCCURRENCE_TYPE_LIMIT)
       : []
 
+  const frequentIds = new Set(frequent.map((type) => type.id))
   const groups = FLOW_ORDER.map((flow) => ({
     flow,
-    types: byUse.filter((type) => (type.flow ?? 'document') === flow),
+    types: byUse.filter((type) => (type.flow ?? 'document') === flow && !frequentIds.has(type.id)),
   })).filter((group) => group.types.length > 0)
 
   return { frequent, groups }
