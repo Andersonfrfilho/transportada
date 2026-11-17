@@ -47,3 +47,39 @@ describe('o registro do aviso manual entra aditivo (spec 324 T2)', () => {
     expect(text).not.toContain('"company_occurrence_types"')
   })
 })
+
+const KIND_MIGRATION_SUFFIX = '_occurrence_manual_notice_kind'
+
+async function readKindMigration(file: string): Promise<string> {
+  const directory = (await listMigrationDirectories()).find((name) =>
+    name.endsWith(KIND_MIGRATION_SUFFIX),
+  )
+  if (directory === undefined)
+    throw new Error('occurrence_manual_notice_kind migration is required')
+  return Bun.file(join(migrationsDirectory.pathname, directory, file)).text()
+}
+
+describe('o aviso manual passa a aceitar a ocorrência de parada (spec 343 T1)', () => {
+  test('troca a FK de nota por `occurrence_kind` e não toca em dado', async () => {
+    const text = withoutComments(await readKindMigration('migration.sql'))
+    expect(text).toContain(
+      'DROP CONSTRAINT "occurrence_contractor_manual_notices_company_occurrence_fk"',
+    )
+    expect(text).toContain(`ADD COLUMN "occurrence_kind" varchar(16) DEFAULT 'document' NOT NULL`)
+    expect(text).toContain(`CHECK ("occurrence_kind" in ('stop', 'document'))`)
+    expect(text).not.toMatch(/\bUPDATE\b(?! CASCADE)/u)
+    expect(text).not.toMatch(/\bDELETE\b/u)
+    expect(text).not.toMatch(/\bDROP TABLE\b/u)
+    const altered = [...text.matchAll(/ALTER TABLE "([^"]+)"/gu)].map((match) => match[1])
+    expect(altered.filter((table) => table !== 'occurrence_contractor_manual_notices')).toEqual([])
+  })
+
+  test('o rollback recusa aviso de parada gravado antes de devolver a FK', async () => {
+    const text = withoutComments(await readKindMigration('rollback.sql'))
+    expect(text).toContain('refusing to restore the spec 324 foreign key')
+    expect(text).toContain('DROP COLUMN "occurrence_kind"')
+    expect(text).toContain(
+      'REFERENCES "trip_document_occurrences"("company_id","id") ON DELETE CASCADE',
+    )
+  })
+})

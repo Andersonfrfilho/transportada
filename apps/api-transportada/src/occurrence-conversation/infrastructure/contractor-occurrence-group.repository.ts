@@ -153,7 +153,17 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
                    occurrence_type.asks_new_due_date,
                    occurrence_type.contractor_notification_template_key as type_key,
                    note.number, note.series
-            from trip_document_occurrences occurrence
+            from (
+              select company_id, id, trip_document_id, note, stage, created_at, requested_due_date,
+                     occurrence_type_id
+              from trip_document_occurrences
+              union all
+              /** Spec 343 (RF1): a ocorrência de parada com nota também avisa, só pelo botão. */
+              select company_id, id, trip_document_id, description as note, 'delivery' as stage,
+                     created_at, null::date as requested_due_date, occurrence_type_id
+              from trip_stop_occurrences
+              where trip_document_id is not null
+            ) occurrence
             join company_occurrence_types occurrence_type
               on occurrence_type.company_id = occurrence.company_id
              and occurrence_type.id = occurrence.occurrence_type_id

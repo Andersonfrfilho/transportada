@@ -33,6 +33,7 @@ import {
   occurrenceConversations,
   tripDocumentOccurrences,
   tripDocuments,
+  tripStopOccurrences,
   userCompanyMemberships,
 } from '../../database/database.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
@@ -469,34 +470,21 @@ export function createOccurrenceMailReader(
 }
 
 /**
- * O modelo da chave (spec 271) e os valores da nota — os mesmos que o registro lia do texto do tipo (079), com as
- * chaves `{{camelCase}}` da lista fechada. Modelo que não existe mais, ou ocorrência que sumiu: `null`.
+ * Spec 343 (RF1): o que o modelo precisa da ocorrência, de nota ou de parada. A de parada só avisa a contratante
+ * quando tem nota (`trip_document_id`); sem ela não há emitente e a leitura devolve `null`.
  */
-async function readTemplateSource(
+async function readOccurrenceMailBase(
   database: TripQueryable,
-  params: {
-    readonly companyId: string
-    readonly occurrenceId: string
-    readonly templateKey: string
-  },
+  params: { readonly companyId: string; readonly occurrenceId: string },
 ): Promise<null | {
-  readonly itemLines: readonly string[]
-  readonly itemRows: OccurrenceMailHtmlSource['itemRows']
-  readonly itemsSum: string
-  readonly mail: Readonly<Record<string, string>>
-  readonly template: { readonly body: string; readonly subject: string }
+  readonly createdAt: Date
+  readonly note: string
+  readonly productCode: string
+  readonly tripDocumentId: string
+  readonly tripId: string
+  readonly typeName: string
 }> {
-  const template = await findActiveContractorTemplate(database, {
-    companyId: params.companyId,
-    key: params.templateKey,
-  })
-  if (template === null) return null
-  // O modelo é relido aqui, depois da avaliação que o aceitou: uma versão nova pode ter chegado no intervalo.
-  if (blocksContractorMailSend(assessContractorTemplate({ key: params.templateKey, template }))) {
-    return null
-  }
-
-  const [row] = await database
+  const [document] = await database
     .select({
       createdAt: tripDocumentOccurrences.createdAt,
       note: tripDocumentOccurrences.note,
@@ -527,7 +515,70 @@ async function readTemplateSource(
       ),
     )
     .limit(1)
-  if (row === undefined) return null
+  if (document !== undefined) return document
+  const [stop] = await database
+    .select({
+      createdAt: tripStopOccurrences.createdAt,
+      note: tripStopOccurrences.description,
+      tripDocumentId: tripDocuments.id,
+      tripId: tripDocuments.tripId,
+      typeName: companyOccurrenceTypes.name,
+    })
+    .from(tripStopOccurrences)
+    .innerJoin(
+      tripDocuments,
+      and(
+        eq(tripDocuments.companyId, tripStopOccurrences.companyId),
+        eq(tripDocuments.id, tripStopOccurrences.tripDocumentId),
+      ),
+    )
+    .innerJoin(
+      companyOccurrenceTypes,
+      and(
+        eq(companyOccurrenceTypes.companyId, tripStopOccurrences.companyId),
+        eq(companyOccurrenceTypes.id, tripStopOccurrences.occurrenceTypeId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripStopOccurrences.companyId, params.companyId),
+        eq(tripStopOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  return stop === undefined ? null : { ...stop, productCode: '' }
+}
+
+/**
+ * O modelo da chave (spec 271) e os valores da nota — os mesmos que o registro lia do texto do tipo (079), com as
+ * chaves `{{camelCase}}` da lista fechada. Modelo que não existe mais, ou ocorrência que sumiu: `null`.
+ */
+async function readTemplateSource(
+  database: TripQueryable,
+  params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly templateKey: string
+  },
+): Promise<null | {
+  readonly itemLines: readonly string[]
+  readonly itemRows: OccurrenceMailHtmlSource['itemRows']
+  readonly itemsSum: string
+  readonly mail: Readonly<Record<string, string>>
+  readonly template: { readonly body: string; readonly subject: string }
+}> {
+  const template = await findActiveContractorTemplate(database, {
+    companyId: params.companyId,
+    key: params.templateKey,
+  })
+  if (template === null) return null
+  // O modelo é relido aqui, depois da avaliação que o aceitou: uma versão nova pode ter chegado no intervalo.
+  if (blocksContractorMailSend(assessContractorTemplate({ key: params.templateKey, template }))) {
+    return null
+  }
+
+  const row = await readOccurrenceMailBase(database, params)
+  if (row === null) return null
 
   const storedCodes = await listOccurrenceProductCodes(database, {
     companyId: params.companyId,
@@ -665,12 +716,27 @@ export function createAutomaticOccurrenceMailReader(
   return {
     async findPlan(params) {
       const target = await findOccurrenceTarget(database, params)
-      if (
-        target === null ||
-        target.kind !== 'document' ||
-        target.contractorId === null ||
-        target.stage === 'stop'
-      ) {
+      if (target === null || target.occurrenceTypeId === null) return null
+      if (target.contractorId === null) {
+        /** Spec 343 (RF1): o botão diz por que não avisa (parada sem nota); o automático segue sem plano. */
+        if (params.ignoreTypeOff !== true || target.kind !== 'stop') return null
+        return {
+          blocksContractorNotice: false,
+          chosenContactIds: [],
+          emailsContractor: false,
+          groupChannel: null,
+          isRegisteredBeforeTemplate: false,
+          missingContractor: true,
+          recipients: [],
+          stage: planStageOf(target.stage),
+          suggested: null,
+        }
+      }
+      /**
+       * Spec 343 (RF1): a ocorrência de parada com nota avisa só pelo botão (`ignoreTypeOff`); o automático segue
+       * calado nela (317 RF7). A de nota mantém o corte do estágio de parada de sempre.
+       */
+      if (target.kind === 'stop' ? params.ignoreTypeOff !== true : target.stage === 'stop') {
         return null
       }
       const [type] = await database
@@ -679,18 +745,11 @@ export function createAutomaticOccurrenceMailReader(
           emailsContractor: companyOccurrenceTypes.emailsContractor,
           occurrenceTypeId: companyOccurrenceTypes.id,
         })
-        .from(tripDocumentOccurrences)
-        .innerJoin(
-          companyOccurrenceTypes,
-          and(
-            eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
-            eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
-          ),
-        )
+        .from(companyOccurrenceTypes)
         .where(
           and(
-            eq(tripDocumentOccurrences.companyId, params.companyId),
-            eq(tripDocumentOccurrences.id, params.occurrenceId),
+            eq(companyOccurrenceTypes.companyId, params.companyId),
+            eq(companyOccurrenceTypes.id, target.occurrenceTypeId),
           ),
         )
         .limit(1)
@@ -704,7 +763,7 @@ export function createAutomaticOccurrenceMailReader(
           groupChannel: null,
           isRegisteredBeforeTemplate: false,
           recipients: [],
-          stage: target.stage,
+          stage: planStageOf(target.stage),
           suggested: null,
         }
       }
@@ -760,11 +819,16 @@ export function createAutomaticOccurrenceMailReader(
           preferredChannel: contact.preferredChannel === 'whatsapp' ? 'whatsapp' : 'email',
           stages: contact.occurrenceStages,
         })),
-        stage: target.stage,
+        stage: planStageOf(target.stage),
         suggested: planned.suggested,
       }
     },
   }
+}
+
+/** Spec 343: a parada com nota avisa como entrega; só `separation` tem contato próprio. */
+function planStageOf(stage: OccurrenceMailTarget['stage']): 'delivery' | 'separation' {
+  return stage === 'separation' ? 'separation' : 'delivery'
 }
 
 export class DrizzleOccurrenceMailRepository implements OccurrenceMailUnitOfWorkPort {

@@ -34,7 +34,6 @@ const STALE_PROCESSING_MINUTES = 10
 
 /** Spec 324 T2: a trilha do clique em `audit_logs` (sem texto, endereço, grupo nem número). */
 export const CONTRACTOR_MANUAL_NOTICE_AUDIT_ACTION = 'occurrence.contractor-notice.manual'
-const CONTRACTOR_MANUAL_NOTICE_AUDIT_ENTITY = 'trip_document_occurrence'
 const CONTRACTOR_MANUAL_NOTICE_AUDIT_PERMISSION = 'occurrences.resolve'
 /** A reserva não tem corpo de pedido para comparar: a impressão é fixa. */
 const CLAIM_FINGERPRINT = 'manual'
@@ -158,20 +157,28 @@ export function createContractorManualNoticeRepository(dependencies: {
                 and idempotency_key = ${MANUAL_OCCURRENCE_NOTICE_KEY_PREFIX + occurrenceId}
               returning company_id
             ),
+            /** Spec 343 (RF3): de qual tabela veio o id — a de parada, ou a de nota. */
+            origin as (
+              select case when exists (
+                       select 1 from trip_stop_occurrences stop_occurrence
+                       where stop_occurrence.company_id = ${companyId}::uuid
+                         and stop_occurrence.id = ${occurrenceId}::uuid)
+                     then 'stop' else 'document' end as kind
+            ),
             notice as (
               insert into occurrence_contractor_manual_notices
-                (company_id, occurrence_id, actor_user_id, status, channel, outcome, reason)
-              select company_id, ${occurrenceId}::uuid, ${actorUserId}::uuid, ${status},
+                (company_id, occurrence_id, occurrence_kind, actor_user_id, status, channel, outcome, reason)
+              select closed.company_id, ${occurrenceId}::uuid, origin.kind, ${actorUserId}::uuid, ${status},
                      ${channel}, ${outcome}, ${reason}
-              from closed
-              returning id
+              from closed cross join origin
+              returning id, occurrence_kind
             )
             insert into audit_logs
               (company_id, actor_user_id, action, entity_type, entity_id, permission, target_type,
                target_id, correlation_id, metadata)
             select ${companyId}::uuid, ${actorUserId}::uuid, ${CONTRACTOR_MANUAL_NOTICE_AUDIT_ACTION},
-                   ${CONTRACTOR_MANUAL_NOTICE_AUDIT_ENTITY}, ${occurrenceId}::uuid,
-                   ${CONTRACTOR_MANUAL_NOTICE_AUDIT_PERMISSION}, ${CONTRACTOR_MANUAL_NOTICE_AUDIT_ENTITY},
+                   'trip_' || notice.occurrence_kind || '_occurrence', ${occurrenceId}::uuid,
+                   ${CONTRACTOR_MANUAL_NOTICE_AUDIT_PERMISSION}, 'trip_' || notice.occurrence_kind || '_occurrence',
                    ${occurrenceId}::uuid, ${correlationId},
                    jsonb_build_object('noticeId', notice.id, 'status', ${status}::text,
                                       'channel', ${channel}::text, 'outcome', ${outcome}::text,

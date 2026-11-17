@@ -53,6 +53,11 @@ export type AutomaticOccurrenceMailPlan = {
   readonly emailsContractor: boolean
   /** A ocorrência é anterior ao momento em que o modelo efetivo foi escolhido: o aviso automático não vale. */
   readonly isRegisteredBeforeTemplate: boolean
+  /**
+   * Spec 343 (RF1): a ocorrência existe, mas não tem contratante casada (parada sem nota). Só o botão lê assim —
+   * o plano vem vazio e o estado diz `no_document`; o automático segue recebendo `null`.
+   */
+  readonly missingContractor?: boolean
   readonly recipients: readonly AutomaticOccurrenceMailRecipient[]
   readonly stage: 'delivery' | 'separation'
   /** O texto do modelo efetivo (spec 269) já com os valores da nota; `null` sem modelo efetivo. */
@@ -171,7 +176,7 @@ export type ManualNoticeState =
       readonly status: 'available'
     }
   | {
-      readonly reason: 'blocked' | 'no_recipient' | 'no_template'
+      readonly reason: 'blocked' | 'no_document' | 'no_recipient' | 'no_template'
       readonly status: 'unavailable'
     }
 
@@ -519,6 +524,7 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
       if (manualNotice === undefined) throw new Error('Manual contractor notice is not configured')
       const plan = await dependencies.reader.findPlan({ ...input, ignoreTypeOff: true })
       if (plan === null) return null
+      if (plan.missingContractor === true) return { reason: 'no_document', status: 'unavailable' }
       if (occurrenceTypeNeverNotifiesContractor(plan)) {
         return { reason: 'blocked', status: 'unavailable' }
       }
@@ -611,6 +617,8 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
         occurrenceId: input.occurrenceId,
       })
       if (plan === null) return { outcome: 'not_document' }
+      /** Spec 343 (RF1): parada sem nota — nada a reservar nem a enviar; o painel já mostra o motivo. */
+      if (plan.missingContractor === true) return { outcome: 'skipped', reason: 'not_document' }
       if (occurrenceTypeNeverNotifiesContractor(plan)) return { outcome: 'blocked' }
       if (plan.emailsContractor && (await manualNotice.isAutomaticNoticeSent(sendInput))) {
         return { by: 'automatic', outcome: 'already_notified' }

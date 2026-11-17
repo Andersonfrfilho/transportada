@@ -479,10 +479,8 @@ function OccurrenceDetailSections({
         <div className={styles.panelHead}>
           <h2 id="occurrence-conversations-title">{t('occurrenceDetail.conversations.title')}</h2>
         </div>
-        {participant === 'driver' ||
-        participant === 'client' ||
-        occurrence.source !== 'document' ? null : (
-          /** Spec 324: o aviso manual vale só para ocorrência de nota; a rota responde 404 para parada. */
+        {participant === 'driver' || participant === 'client' ? null : (
+          /** Spec 343: o aviso manual vale também para a parada; sem nota o botão fica desligado com o motivo. */
           <ContractorNoticeSection occurrenceId={occurrence.id} />
         )}
         {participant === 'driver' ||
