@@ -6700,6 +6700,7 @@ button.occurrenceCaseBadge {
 .driverAddressForm label {
   display: grid;
   gap: var(--space-1);
+  align-content: start;
 }
 
 .driverAddressForm textarea {
