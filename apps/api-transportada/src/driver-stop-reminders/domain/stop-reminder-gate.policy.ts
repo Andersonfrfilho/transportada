@@ -98,17 +98,21 @@ function isWithinOperatingHours(input: StopReminderGateInput, local: LocalMoment
   )
 }
 
-function isWithinSendWindow(local: LocalMoment): boolean {
-  return (
-    local.minutesOfDay >= DRIVER_STOP_REMINDER_SEND_WINDOW_START_MINUTES &&
-    local.minutesOfDay < DRIVER_STOP_REMINDER_SEND_WINDOW_END_MINUTES
-  )
+type SendWindow = { readonly startMinutes: number; readonly endMinutes: number }
+
+const DEFAULT_SEND_WINDOW: SendWindow = {
+  endMinutes: DRIVER_STOP_REMINDER_SEND_WINDOW_END_MINUTES,
+  startMinutes: DRIVER_STOP_REMINDER_SEND_WINDOW_START_MINUTES,
 }
 
-function nextSendWindowStart(local: LocalMoment, timeZone: string): Date {
-  const offset = local.minutesOfDay < DRIVER_STOP_REMINDER_SEND_WINDOW_START_MINUTES ? 0 : 1
+function isWithinSendWindow(local: LocalMoment, window: SendWindow): boolean {
+  return local.minutesOfDay >= window.startMinutes && local.minutesOfDay < window.endMinutes
+}
+
+function nextSendWindowStart(local: LocalMoment, timeZone: string, window: SendWindow): Date {
+  const offset = local.minutesOfDay < window.startMinutes ? 0 : 1
   const day = addDays(local.dateKey, offset)
-  return localToUtc(day.dateKey, DRIVER_STOP_REMINDER_SEND_WINDOW_START_MINUTES, timeZone)
+  return localToUtc(day.dateKey, window.startMinutes, timeZone)
 }
 
 function isStageComplete(input: StopReminderGateInput): boolean {
@@ -132,11 +136,12 @@ export function decideStopReminderGate(input: StopReminderGateInput): StopRemind
       until: findNextOpening(input, local) ?? fallbackUntil,
     }
   }
-  if (!isWithinSendWindow(local)) {
+  const sendWindow = input.sendWindow ?? DEFAULT_SEND_WINDOW
+  if (!isWithinSendWindow(local, sendWindow)) {
     return {
       decision: DRIVER_STOP_REMINDER_GATE_DECISION.DEFER,
       reason: DRIVER_STOP_REMINDER_DEFER_REASON.OUTSIDE_SEND_WINDOW,
-      until: nextSendWindowStart(local, input.timeZone),
+      until: nextSendWindowStart(local, input.timeZone, sendWindow),
     }
   }
   if (input.hasOpenQuestion) {
