@@ -90,6 +90,30 @@ export function createConversationAttachmentTransactionPort(
         )
     },
 
+    async attachStoredCopy(input) {
+      await transaction.insert(storedObjects).values({
+        bucket: input.bucket,
+        companyId: input.companyId,
+        id: input.id,
+        mimeType: input.contentType,
+        objectKey: input.objectKey,
+        provider: 's3',
+        purpose: 'occurrence_conversation_attachment',
+        sha256: input.sha256,
+        sizeBytes: BigInt(input.sizeBytes),
+        status: 'final',
+      })
+      await transaction.insert(occurrenceConversationAttachments).values({
+        companyId: input.companyId,
+        contentType: input.contentType,
+        fileName: input.fileName,
+        messageId: input.messageId,
+        sha256: input.sha256,
+        sizeBytes: input.sizeBytes,
+        storedObjectId: input.id,
+      })
+    },
+
     async lockPendingUploads({ ids, target }) {
       return transaction
         .select({

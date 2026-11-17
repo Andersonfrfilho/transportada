@@ -168,6 +168,7 @@ describe('a ligação do anexo à mensagem (spec 183 T702a)', () => {
     const locked: unknown[] = []
     const port: ConversationAttachmentTransactionPort = {
       attachUpload: async (input) => void attached.push(input),
+      attachStoredCopy: () => Promise.resolve(),
       lockPendingUploads: async (input) => {
         locked.push(input)
         return rows.filter((row) => input.ids.includes(row.id))
@@ -352,6 +353,7 @@ describe('o anexo conferido não pode ser trocado depois (spec 183 T903, S1)', (
       target: TARGET,
       transaction: {
         attachUpload: async (input) => void attached.push(input),
+        attachStoredCopy: () => Promise.resolve(),
         lockPendingUploads: async () => [upload('upload-1', 'staging-1')],
       },
       uploadIds: ['upload-1'],
@@ -387,6 +389,7 @@ describe('o anexo conferido não pode ser trocado depois (spec 183 T903, S1)', (
         target: TARGET,
         transaction: {
           attachUpload: async () => undefined,
+          attachStoredCopy: () => Promise.resolve(),
           lockPendingUploads: async () => [
             upload('upload-1', 'staging-1'),
             upload('upload-2', 'staging-2'),

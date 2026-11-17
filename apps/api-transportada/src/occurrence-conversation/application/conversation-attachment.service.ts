@@ -16,7 +16,7 @@
  * 3. **Leitura** (`signConversationAttachments`): URL temporária de cinco minutos, para baixar com o
  *    nome do arquivo.
  */
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 
 import {
   checkDeclaredConversationAttachment,
@@ -39,6 +39,7 @@ import type {
   ConversationAttachmentView,
   ConversationUploadRepositoryPort,
   ConversationUploadTarget,
+  ExistingObjectToAttach,
   PendingConversationUpload,
 } from './conversation-attachment.port.js'
 
@@ -284,4 +285,76 @@ export function normalizeConversationMessageBody(
     throw new OccurrenceConversationMessageInvalidError()
   }
   return body
+}
+
+/**
+ * Spec 317 (anexo da cobrança): liga cópias de objetos que **já existem** (as fotos da placa e do extrato da parada) à
+ * mensagem do e-mail. A cópia ganha chave nova (o anexo nunca aponta para a chave da foto da ocorrência, que tem prazo de
+ * retenção próprio), e o que não cabe no teto do e-mail, não existe ou não confere com o tipo fica de fora — nunca derruba o
+ * envio, porque a foto é complemento do aviso. Devolve quantos foram e quantos ficaram de fora.
+ */
+export async function attachExistingObjects(input: {
+  readonly alreadyAttachedBytes: number
+  readonly companyId: string
+  readonly messageId: string
+  readonly objects: readonly ExistingObjectToAttach[]
+  readonly storage: ConversationAttachmentStoragePort
+  readonly transaction: ConversationAttachmentTransactionPort
+}): Promise<{ readonly attached: number; readonly skipped: number }> {
+  let totalBytes = input.alreadyAttachedBytes
+  let attached = 0
+  let skipped = 0
+  const copies: { readonly bucket: string; readonly key: string }[] = []
+  try {
+    for (const object of input.objects.slice(0, CONVERSATION_ATTACHMENTS_PER_MESSAGE)) {
+      const location = { bucket: object.bucket, key: object.objectKey }
+      const maxBytes = maxConversationAttachmentBytes('email', object.contentType)
+      const head = await input.storage.headObject(location)
+      if (
+        head === undefined ||
+        head.contentLength <= 0 ||
+        head.contentLength > maxBytes ||
+        totalBytes + head.contentLength > CONVERSATION_EMAIL_ATTACHMENTS_MAX_TOTAL_BYTES
+      ) {
+        skipped += 1
+        continue
+      }
+      const bytes = await readAllBytes(await input.storage.getObjectStream(location))
+      if (
+        bytes.byteLength > maxBytes ||
+        !matchesConversationAttachmentSignature(object.contentType, bytes)
+      ) {
+        skipped += 1
+        continue
+      }
+      const sha256 = createHash('sha256').update(bytes).digest('hex')
+      const key = buildConversationUploadObjectKey(newConversationObjectToken())
+      await input.storage.storeObject({
+        body: bytes,
+        bucket: object.bucket,
+        contentLength: bytes.byteLength,
+        contentType: object.contentType,
+        key,
+        sha256,
+      })
+      copies.push({ bucket: object.bucket, key })
+      await input.transaction.attachStoredCopy({
+        bucket: object.bucket,
+        companyId: input.companyId,
+        contentType: object.contentType,
+        fileName: normalizeConversationAttachmentFileName(object.fileName),
+        id: randomUUID(),
+        messageId: input.messageId,
+        objectKey: key,
+        sha256,
+        sizeBytes: bytes.byteLength,
+      })
+      totalBytes += bytes.byteLength
+      attached += 1
+    }
+  } catch (error) {
+    await Promise.allSettled(copies.map((location) => input.storage.deleteObject(location)))
+    throw error
+  }
+  return { attached, skipped }
 }

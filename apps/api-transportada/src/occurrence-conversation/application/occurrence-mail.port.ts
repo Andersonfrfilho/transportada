@@ -5,7 +5,10 @@
  * 143 — thread por objeto, token derivado, `contractor_mail_messages` e outbox na mesma transação —;
  * esta porta só acrescenta a conversa e a mensagem de conversa que aponta para a mensagem da 143.
  */
-import type { ConversationAttachmentTransactionPort } from './conversation-attachment.port.js'
+import type {
+  ConversationAttachmentTransactionPort,
+  ExistingObjectToAttach,
+} from './conversation-attachment.port.js'
 import type {
   ContractorContactOccurrenceStage,
   ContractorContactType,
@@ -158,6 +161,14 @@ export type OccurrenceMailTransactionPort = {
     readonly companyId: string
     readonly occurrenceId: string
   }): Promise<OccurrenceMailTarget | null>
+  /**
+   * Spec 317: as fotos (placa e extrato) que o motorista anexou à cobrança no recebimento da parada, para irem no e-mail à
+   * contratante. Nunca o PIX. Ocorrência sem foto devolve `[]`.
+   */
+  listStopOccurrenceChargePhotos(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<readonly ExistingObjectToAttach[]>
   findIdempotency(params: {
     readonly companyId: string
     readonly idempotencyKey: string
