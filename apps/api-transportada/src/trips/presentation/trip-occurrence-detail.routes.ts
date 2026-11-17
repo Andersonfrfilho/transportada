@@ -39,6 +39,8 @@ export function createTripOccurrenceDetailRoutes(
       async handle({ context, input }): Promise<Response> {
         const detail = await dependencies.readTripOccurrenceDetail.execute({
           context: context.scope,
+          /** O PIX do motorista é dado financeiro: só com `trip.financials` (spec 317, como nos Ressarcimentos). */
+          includeFinancials: context.scope.permissions.has('trip.financials'),
           occurrenceId: input.occurrenceId,
         })
         return jsonResponse({ body: { data: detail }, status: 200 })

@@ -147,3 +147,39 @@ export class ReceivingChargeContractorMailNotAllowedError extends ApiError {
     })
   }
 }
+
+/** E13: o escritório pediu o envio ao WhatsApp, mas ainda não há comprovante registrado nesta ocorrência. */
+export class DriverPayoutReceiptMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DRIVER_PAYOUT_RECEIPT_MISSING',
+      message: 'There is no transfer receipt registered for this occurrence yet.',
+      status: 409,
+    })
+  }
+}
+
+/** E13: o motorista da viagem não tem WhatsApp verificado no cadastro. */
+export class DriverPayoutReceiptWhatsAppPhoneMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'DRIVER_WHATSAPP_PHONE_MISSING',
+      message: 'The driver of this trip has no verified WhatsApp number.',
+      status: 422,
+    })
+  }
+}
+
+/** E13: o Evolution não levou o comprovante; `reason` é o motivo fechado, nunca o número nem o arquivo. */
+export class DriverPayoutReceiptWhatsAppFailedError extends ApiError {
+  public constructor(
+    reason: 'attachment_too_large' | 'disconnected' | 'failed' | 'number_not_found',
+  ) {
+    super({
+      code: 'DRIVER_PAYOUT_RECEIPT_WHATSAPP_FAILED',
+      extraBody: { reason },
+      message: 'The transfer receipt could not be sent through WhatsApp.',
+      status: reason === 'failed' ? 502 : 409,
+    })
+  }
+}

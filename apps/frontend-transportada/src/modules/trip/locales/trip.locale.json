@@ -2578,6 +2578,45 @@
     }
   },
   "occurrenceDetail": {
+    "receivingCharge": {
+      "payout": {
+        "whatsapp": "Enviar no WhatsApp",
+        "whatsappSending": "Enviando no WhatsApp…",
+        "whatsappSent": "Comprovante enviado no WhatsApp do motorista.",
+        "whatsappNoPhone": "O motorista não tem WhatsApp verificado no cadastro.",
+        "whatsappDisconnected": "O WhatsApp da empresa está desconectado ou desligado.",
+        "whatsappNumberNotFound": "Esse número não tem WhatsApp.",
+        "whatsappFailed": "Não foi possível enviar no WhatsApp. Tente de novo.",
+        "title": "Comprovante da transferência ao motorista",
+        "help": "O arquivo vai ao motorista no chat da ocorrência.",
+        "choose": "Escolher arquivo",
+        "label": "Comprovante da transferência",
+        "placeholder": "Imagem ou PDF",
+        "send": "Enviar ao motorista",
+        "sending": "Enviando…",
+        "sent": "Enviado ao motorista em {{moment}}",
+        "open": "Abrir comprovante: {{fileName}}",
+        "failed": "Não foi possível enviar o comprovante. Tente de novo."
+      },
+      "amount": "Valor cobrado",
+      "openPhoto": "Abrir foto: {{label}}",
+      "paidBy": {
+        "company": "A empresa",
+        "driver": "O motorista"
+      },
+      "paidByLabel": "Quem pagou",
+      "photos": "Fotos da cobrança",
+      "pix": "PIX do motorista",
+      "pixRestricted": "Restrito a quem acompanha os valores da viagem.",
+      "pixType": {
+        "cnpj": "CNPJ",
+        "cpf": "CPF",
+        "email": "e-mail",
+        "phone": "telefone",
+        "random": "chave aleatória"
+      },
+      "title": "Cobrança no recebimento"
+    },
     "back": "Voltar para ocorrências",
     "breadcrumb": "Navegação da ocorrência",
     "kicker": "Ocorrência · {{stage}}",

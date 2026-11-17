@@ -860,6 +860,9 @@ import { createFindDriverRouteOccurrenceUseCase } from './trips/application/find
 import { createSignDriverRouteOccurrenceFileUseCase } from './trips/application/sign-driver-route-occurrence-file.use-case.js'
 import { createListDriverRouteOccurrencesUseCase } from './trips/application/list-driver-route-occurrences.use-case.js'
 import { createDrizzleDriverRouteOccurrenceReader } from './trips/infrastructure/drizzle-driver-route-occurrence.repository.js'
+import { createDrizzleDriverPayoutReceiptWhatsAppReader } from './trips/infrastructure/drizzle-driver-payout-receipt-whatsapp.reader.js'
+import { createSendDriverPayoutReceiptByWhatsAppUseCase } from './trips/application/send-driver-payout-receipt-by-whatsapp.use-case.js'
+import { createRecordDriverPayoutReceiptUseCase } from './trips/application/record-driver-payout-receipt.use-case.js'
 import { createResolveOccurrenceUseCase } from './trips/application/resolve-occurrence.use-case.js'
 import { DrizzleOccurrenceResolutionUnitOfWork } from './trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
@@ -5412,6 +5415,13 @@ function createApplicationRoutes({
     /** Spec 183 RF1: o detalhe que a linha de `/ocorrencias` abre (`fleet.read`, como a listagem). */
     ...createTripOccurrenceDetailRoutes({
       readTripOccurrenceDetail: createReadTripOccurrenceDetailUseCase({
+        /** Lido na chamada: o `storageGateway` é montado mais abaixo nesta composição (spec 317). */
+        downloads: {
+          createDownloadUrl: (location) =>
+            createDeliveryProofDownloadGateway({ storage: storageGateway }).createDownloadUrl(
+              location,
+            ),
+        },
         reader: { findDetail: (input) => findTripOccurrenceDetail(database, input) },
       }),
       readTripOccurrenceTimeline: createReadTripOccurrenceTimelineUseCase({
@@ -5432,6 +5442,22 @@ function createApplicationRoutes({
     }),
     /** Spec 266 / ADR-0105: o escritório resolve a ocorrência (nota ou parada) com observação. */
     ...createOccurrenceResolutionRoutes({
+      /** Spec 317 (E13): o comprovante da transferência ao motorista, sem concluir a ocorrência. */
+      recordDriverPayoutReceipt: createRecordDriverPayoutReceiptUseCase({
+        logger,
+        unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
+      }),
+      /** Spec 317 (E13): o mesmo comprovante ao WhatsApp do motorista, pelo Evolution da empresa. */
+      sendDriverPayoutReceiptByWhatsApp: createSendDriverPayoutReceiptByWhatsAppUseCase({
+        logger,
+        readBytes: async (location) => readAllBytes(await storageGateway.getObjectStream(location)),
+        reader: createDrizzleDriverPayoutReceiptWhatsAppReader(database),
+        sender: createEvolutionDocumentSender({
+          pacer: evolutionSendPacer,
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
+      }),
       resolveOccurrence: createResolveOccurrenceUseCase({
         logger,
         notifier: occurrenceResolutionNotifier,

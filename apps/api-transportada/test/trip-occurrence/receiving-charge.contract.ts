@@ -31,6 +31,12 @@ import type {
   RecordDriverPayoutReceiptOutcome,
 } from '../../src/trips/application/occurrence-resolution.port.js'
 import { resolveFieldOccurrenceTypes } from '../../src/trips/application/list-field-occurrence-types.use-case.js'
+import { createRecordDriverPayoutReceiptUseCase } from '../../src/trips/application/record-driver-payout-receipt.use-case.js'
+import {
+  createSendDriverPayoutReceiptByWhatsAppUseCase,
+  type DriverPayoutReceiptWhatsAppTarget,
+} from '../../src/trips/application/send-driver-payout-receipt-by-whatsapp.use-case.js'
+import { ContractorReplyWhatsAppSendError } from '../../src/occurrence-conversation/application/forward-contractor-reply-by-whatsapp.port.js'
 import { createResolveOccurrenceUseCase } from '../../src/trips/application/resolve-occurrence.use-case.js'
 import type { OccurrenceTypeRecord } from '../../src/trips/application/register-trip-occurrence.use-case.js'
 import {
@@ -817,6 +823,130 @@ describe('o comprovante do PIX ao concluir (spec 317 E13, T5b)', () => {
       ),
     ).toBe('STOP_OCCURRENCE_PAYOUT_NOT_APPLICABLE')
     expect(documentKind.calls).toEqual([])
+  })
+})
+
+describe('o comprovante ao motorista sem concluir (spec 317 E13)', () => {
+  const RECEIPT_ATTACHMENT = '00000000-0000-4000-8000-0000000000e1'
+
+  function recorder(outcome: RecordDriverPayoutReceiptOutcome, locked = true) {
+    const calls: string[] = []
+    const transaction: OccurrenceResolutionTransactionPort = {
+      insertInternalResolution: async () => {
+        calls.push('resolved')
+        return { createdAt: '2026-11-10T12:00:00.000Z' }
+      },
+      listLatestEvents: async () => [],
+      lockOccurrence: async () => (locked ? { cancelledAt: undefined } : undefined),
+      recordDriverPayoutReceipt: async (input) => {
+        calls.push(`payout:${input.attachmentId}:${input.occurrenceId}:${input.companyId}`)
+        return outcome
+      },
+    }
+    const useCase = createRecordDriverPayoutReceiptUseCase({
+      logger: { error() {}, info() {}, warn() {} },
+      now: () => new Date('2026-11-17T12:00:00.000Z'),
+      unitOfWork: { execute: (operation) => operation(transaction) },
+    })
+    const record = () =>
+      useCase.execute({
+        attachmentId: RECEIPT_ATTACHMENT,
+        context: { companyId: COMPANY_ID, userId: ACTOR_USER_ID } as never,
+        occurrenceId: STOP_ID,
+      })
+    return { calls, record }
+  }
+
+  test('grava o anexo da empresa do contexto e nunca resolve a ocorrência', async () => {
+    const { calls, record } = recorder('recorded')
+    expect(await record()).toEqual({ sentAt: '2026-11-17T12:00:00.000Z' })
+    expect(calls).toEqual([`payout:${RECEIPT_ATTACHMENT}:${STOP_ID}:${COMPANY_ID}`])
+  })
+
+  test('ocorrência inexistente é 404; anexo alheio é 404; paga pela empresa é 422', async () => {
+    expect(await asyncCodeOf(recorder('recorded', false).record())).toBe(
+      'TRIP_OCCURRENCE_NOT_FOUND',
+    )
+    expect(await asyncCodeOf(recorder('not_found').record())).toBe(
+      'STOP_OCCURRENCE_PAYOUT_RECEIPT_NOT_FOUND',
+    )
+    expect(await asyncCodeOf(recorder('not_driver_paid').record())).toBe(
+      'STOP_OCCURRENCE_PAYOUT_NOT_APPLICABLE',
+    )
+  })
+})
+
+describe('o comprovante ao WhatsApp do motorista (spec 317 E13)', () => {
+  const READY: DriverPayoutReceiptWhatsAppTarget = {
+    driverWhatsappPhone: '+5516999998888',
+    receipt: {
+      bucket: 'private',
+      fileName: 'pix.jpg',
+      mimeType: 'image/jpeg',
+      objectKey: 'k/pix',
+      sizeBytes: 1024,
+    },
+  }
+
+  function sender(
+    target: DriverPayoutReceiptWhatsAppTarget | null,
+    failure?: 'disconnected' | 'failed' | 'number_not_found',
+  ) {
+    const sent: { caption: string; companyId: string; fileName: string; number: string }[] = []
+    const logs: string[] = []
+    const useCase = createSendDriverPayoutReceiptByWhatsAppUseCase({
+      logger: {
+        error() {},
+        info: (message) => void logs.push(message),
+        warn: (message) => void logs.push(message),
+      },
+      now: () => new Date('2026-11-17T12:00:00.000Z'),
+      readBytes: async () => new Uint8Array([1, 2, 3]),
+      reader: { findTarget: async () => target },
+      sender: {
+        sendDocument: async (params) => {
+          if (failure !== undefined) throw new ContractorReplyWhatsAppSendError(failure)
+          sent.push(params)
+          return { providerMessageId: null }
+        },
+      },
+    })
+    const execute = () =>
+      useCase.execute({
+        context: { companyId: COMPANY_ID, userId: ACTOR_USER_ID } as never,
+        occurrenceId: STOP_ID,
+      })
+    return { execute, logs, sent }
+  }
+
+  test('envia o arquivo ao número do motorista, só com dígitos, sem PIX nem valor na legenda', async () => {
+    const { execute, logs, sent } = sender(READY)
+    expect(await execute()).toEqual({ sentAt: '2026-11-17T12:00:00.000Z' })
+    expect(sent).toHaveLength(1)
+    expect(sent[0]?.number).toBe('5516999998888')
+    expect(sent[0]?.companyId).toBe(COMPANY_ID)
+    expect(sent[0]?.fileName).toBe('pix.jpg')
+    expect(sent[0]?.caption).not.toMatch(/\d{4}/u)
+    expect(logs.join(' ')).not.toContain('5516999998888')
+  })
+
+  test('sem ocorrência, sem comprovante ou sem WhatsApp verificado, nada sai', async () => {
+    const missing = sender(null)
+    expect(await asyncCodeOf(missing.execute())).toBe('TRIP_OCCURRENCE_NOT_FOUND')
+    const noReceipt = sender({ ...READY, receipt: null })
+    expect(await asyncCodeOf(noReceipt.execute())).toBe('DRIVER_PAYOUT_RECEIPT_MISSING')
+    const noPhone = sender({ ...READY, driverWhatsappPhone: null })
+    expect(await asyncCodeOf(noPhone.execute())).toBe('DRIVER_WHATSAPP_PHONE_MISSING')
+    for (const world of [missing, noReceipt, noPhone]) expect(world.sent).toEqual([])
+  })
+
+  test('arquivo acima de 25 MB e falha do Evolution viram motivo fechado', async () => {
+    const huge = sender({ ...READY, receipt: { ...READY.receipt!, sizeBytes: 26 * 1024 * 1024 } })
+    expect(await asyncCodeOf(huge.execute())).toBe('DRIVER_PAYOUT_RECEIPT_WHATSAPP_FAILED')
+    for (const failure of ['disconnected', 'failed', 'number_not_found'] as const) {
+      const failing = sender(READY, failure)
+      expect(await asyncCodeOf(failing.execute())).toBe('DRIVER_PAYOUT_RECEIPT_WHATSAPP_FAILED')
+    }
   })
 })
 

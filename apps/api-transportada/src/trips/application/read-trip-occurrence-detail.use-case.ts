@@ -5,6 +5,8 @@
  * parada, com a tratativa da spec 164 em `case`), mais o bloco do motorista da viagem. **Leitura
  * pura**: nada aqui decide nem muda a tratativa (spec 183 D4).
  */
+import type { StopOccurrencePaidBy } from '../../database/trip.schema.js'
+import type { PixKeyType } from '../../shared/pix-key-type.constant.js'
 import type { TripOccurrenceDetailRequirements } from '../domain/occurrence-detail-requirements.policy.js'
 import { TripOccurrenceNotFoundError } from '../domain/trip.error.js'
 import type { OccurrenceCorrectionEntry } from './occurrence-correction.port.js'
@@ -51,6 +53,49 @@ export type TripOccurrenceDetailItemValues = {
   readonly unitValue: null | string
 }
 
+/**
+ * A cobrança no recebimento da ocorrência de parada (spec 317): quem pagou, o valor, o PIX do motorista e as
+ * fotos das vagas (placa, extrato), com link assinado de 5 min. ⚠️ O PIX é dado financeiro: só sai com
+ * `trip.financials` (`driverPix` é `null` sem ela, e o painel mostra "sem permissão"), como nos Ressarcimentos.
+ */
+export type TripOccurrenceDetailReceivingCharge = {
+  readonly declaredAmount: null | string
+  /** E13: o comprovante da transferência ao motorista (só com `trip.financials`); `null` enquanto não houve envio. */
+  readonly driverPayoutReceipt: null | {
+    readonly expiresAt: string
+    readonly fileName: string
+    readonly sentAt: string
+    readonly url: string
+  }
+  readonly driverPix: null | { readonly key: string; readonly type: PixKeyType }
+  readonly paidBy: null | StopOccurrencePaidBy
+  readonly photos: readonly {
+    readonly expiresAt: string
+    readonly label: string
+    readonly slotKey: string
+    readonly url: string
+  }[]
+}
+
+/** O que o leitor devolve da cobrança: onde cada foto está. Quem assina é o caso de uso. */
+export type TripOccurrenceDetailReceivingChargeSource = Omit<
+  TripOccurrenceDetailReceivingCharge,
+  'driverPayoutReceipt' | 'photos'
+> & {
+  readonly driverPayoutReceipt: null | {
+    readonly bucket: string
+    readonly fileName: string
+    readonly objectKey: string
+    readonly sentAt: string
+  }
+  readonly photos: readonly {
+    readonly bucket: string
+    readonly label: string
+    readonly objectKey: string
+    readonly slotKey: string
+  }[]
+}
+
 export type TripOccurrenceDetail = TripOccurrenceFeedItem & {
   /** Spec 240 RF9: mais antiga primeiro; `[]` quando nunca foi corrigida. */
   readonly corrections: readonly OccurrenceCorrectionEntry[]
@@ -63,6 +108,8 @@ export type TripOccurrenceDetail = TripOccurrenceFeedItem & {
   readonly itemValues: readonly TripOccurrenceDetailItemValues[]
   /** Spec 247 (T7.2 R2): o número do documento do cliente; `null` quando não foi registrado. */
   readonly referenceNumber: null | string
+  /** Cobrança no recebimento (ocorrência de parada com quem pagou ou foto de vaga); ausente nas demais. */
+  readonly receivingCharge?: null | TripOccurrenceDetailReceivingCharge
   /**
    * Spec 247 (T7.2b N2): o requisito EFETIVO do tipo para esta ocorrência (exceções do contratante e do
    * destinatário da nota já aplicadas); `null` na ocorrência de parada e no tipo que não existe mais.
@@ -70,15 +117,30 @@ export type TripOccurrenceDetail = TripOccurrenceFeedItem & {
   readonly requirements: null | TripOccurrenceDetailRequirements
 }
 
+export type TripOccurrenceDetailRead = Omit<TripOccurrenceDetail, 'receivingCharge'> & {
+  readonly receivingCharge?: null | TripOccurrenceDetailReceivingChargeSource
+}
+
 export type TripOccurrenceDetailReaderPort = {
   findDetail(input: {
     readonly companyId: string
     readonly occurrenceId: string
-  }): Promise<TripOccurrenceDetail | null>
+  }): Promise<null | TripOccurrenceDetailRead>
+}
+
+/** Assina o link de 5 min de uma foto da vaga; o mesmo gateway da prova de entrega. */
+export type TripOccurrenceDetailPhotoDownloadPort = {
+  createDownloadUrl(location: {
+    readonly bucket: string
+    readonly fileName: string
+    readonly objectKey: string
+  }): Promise<{ readonly expiresAt: string; readonly url: string }>
 }
 
 export type ReadTripOccurrenceDetailInput = {
   readonly context: { readonly companyId: string }
+  /** `trip.financials`: sem ele o PIX do motorista sai `null`. */
+  readonly includeFinancials?: boolean
   readonly occurrenceId: string
 }
 
@@ -88,6 +150,7 @@ export type ReadTripOccurrenceDetailUseCase = {
 
 /** Inexistente e de outra empresa respondem igual: a diferença confirmaria a existência. */
 export function createReadTripOccurrenceDetailUseCase(dependencies: {
+  readonly downloads?: TripOccurrenceDetailPhotoDownloadPort
   readonly reader: TripOccurrenceDetailReaderPort
 }): ReadTripOccurrenceDetailUseCase {
   return {
@@ -97,7 +160,52 @@ export function createReadTripOccurrenceDetailUseCase(dependencies: {
         occurrenceId: input.occurrenceId,
       })
       if (detail === null) throw new TripOccurrenceNotFoundError()
-      return detail
+      const { receivingCharge: source, ...rest } = detail
+      if (source === undefined || source === null) return { ...rest, receivingCharge: null }
+      const downloads = dependencies.downloads
+      const photos =
+        downloads === undefined
+          ? []
+          : await Promise.all(
+              source.photos.map(async (photo) => {
+                const link = await downloads.createDownloadUrl({
+                  bucket: photo.bucket,
+                  fileName: photo.slotKey,
+                  objectKey: photo.objectKey,
+                })
+                return {
+                  expiresAt: link.expiresAt,
+                  label: photo.label,
+                  slotKey: photo.slotKey,
+                  url: link.url,
+                }
+              }),
+            )
+      const receiptSource = input.includeFinancials === true ? source.driverPayoutReceipt : null
+      const driverPayoutReceipt =
+        receiptSource === null || downloads === undefined
+          ? null
+          : await downloads
+              .createDownloadUrl({
+                bucket: receiptSource.bucket,
+                fileName: receiptSource.fileName,
+                objectKey: receiptSource.objectKey,
+              })
+              .then((link) => ({
+                expiresAt: link.expiresAt,
+                fileName: receiptSource.fileName,
+                sentAt: receiptSource.sentAt,
+                url: link.url,
+              }))
+      return {
+        ...rest,
+        receivingCharge: {
+          ...source,
+          driverPayoutReceipt,
+          driverPix: input.includeFinancials === true ? source.driverPix : null,
+          photos,
+        },
+      }
     },
   }
 }
