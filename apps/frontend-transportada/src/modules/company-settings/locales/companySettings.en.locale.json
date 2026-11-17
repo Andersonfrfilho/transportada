@@ -585,7 +585,8 @@
           "avisoNovaData": "Paragraph \"New due date requested: DD/MM/YYYY\", only when the driver gave the date (system HTML).",
           "enderecoEntrega": "Client delivery address, from the invoice.",
           "cidadeEntrega": "Client city and state, from the invoice.",
-          "cnpjCliente": "Client CNPJ; empty when the client is an individual."
+          "cnpjCliente": "Client CNPJ; empty when the client is an individual.",
+          "valorCobrado": "Amount the driver entered in the app (charged or paid); empty when not entered."
         }
       },
       "watchers": {

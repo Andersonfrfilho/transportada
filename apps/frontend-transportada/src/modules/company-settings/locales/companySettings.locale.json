@@ -585,7 +585,8 @@
           "avisoNovaData": "Parágrafo \"Nova data de vencimento solicitada: DD/MM/AAAA\", só quando o motorista informou a data (HTML do sistema).",
           "enderecoEntrega": "Endereço de entrega do cliente, da nota.",
           "cidadeEntrega": "Cidade e UF do cliente, da nota.",
-          "cnpjCliente": "CNPJ do cliente; vazio quando o cliente é pessoa física."
+          "cnpjCliente": "CNPJ do cliente; vazio quando o cliente é pessoa física.",
+          "valorCobrado": "Valor que o motorista informou no app (valor cobrado ou pago); vazio quando não informou."
         }
       },
       "watchers": {
