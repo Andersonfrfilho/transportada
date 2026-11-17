@@ -6673,6 +6673,16 @@ button.occurrenceCaseBadge {
   justify-self: start;
 }
 
+.receivingChargePayoutThumbnail {
+  display: block;
+  inline-size: min(100%, 12rem);
+  max-block-size: 12rem;
+  object-fit: cover;
+  margin-block-end: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  border-radius: var(--space-1);
+}
+
 .receivingChargePayoutActions {
   display: flex;
   flex-wrap: wrap;

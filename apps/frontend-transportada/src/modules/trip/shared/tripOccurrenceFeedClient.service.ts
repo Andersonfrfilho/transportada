@@ -103,7 +103,7 @@ export type TripOccurrenceFeedClient = Readonly<{
   ) => Promise<OccurrenceResolutionResult>
   /**
    * Spec 317 (E13): `POST /trip-occurrences/stop/:id/driver-payout-receipt` — marca o anexo (de mensagem já enviada ao
-   * motorista no chat desta ocorrência) como o comprovante da transferência, sem concluir a ocorrência.
+   * motorista no chat desta ocorrência) como o comprovante da transferência. Quem conclui é a tela, em seguida.
    */
   recordDriverPayoutReceipt: (
     input: Readonly<{ attachmentId: string; occurrenceId: string }>,

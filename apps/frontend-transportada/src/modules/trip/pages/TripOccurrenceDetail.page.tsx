@@ -439,7 +439,10 @@ function OccurrenceSummaryPanel({
         permissions={permissions}
       />
       <OccurrenceCorrectionHistory occurrence={occurrence} />
-      <OccurrenceAttachments item={occurrence} />
+      {/* Spec 317: a cobrança já mostra as fotos das vagas, em tamanho cheio; repeti-las em miniatura era ruído. */}
+      {(occurrence.receivingCharge?.photos.length ?? 0) > 0 ? null : (
+        <OccurrenceAttachments item={occurrence} />
+      )}
     </section>
   )
 }
