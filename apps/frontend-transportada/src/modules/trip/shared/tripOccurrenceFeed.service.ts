@@ -317,9 +317,19 @@ export type TripOccurrenceRequirements = Readonly<{
 export const OCCURRENCE_PIX_KEY_TYPES = ['cpf', 'cnpj', 'email', 'phone', 'random'] as const
 export type OccurrencePixKeyType = (typeof OCCURRENCE_PIX_KEY_TYPES)[number]
 
+/** E13: o comprovante da transferência ao motorista, já enviado pelo chat. Só vem com `trip.financials`. */
+export type TripOccurrenceDriverPayoutReceipt = Readonly<{
+  expiresAt: string
+  fileName: string
+  sentAt: string
+  url: string
+}>
+
 export type TripOccurrenceReceivingCharge = Readonly<{
   /** Total pago, duas casas (`"0.00"` é valor); `null` quando não foi digitado. */
   declaredAmount: null | string
+  /** Ausente é API anterior ao comprovante; `null` é ainda sem envio (ou sem permissão). */
+  driverPayoutReceipt?: null | TripOccurrenceDriverPayoutReceipt
   /** Só vem com `trip.financials`; sem a permissão a API devolve `null` e a tela diz que está restrito. */
   driverPix: null | Readonly<{ key: string; type: OccurrencePixKeyType }>
   paidBy: 'company' | 'driver' | null

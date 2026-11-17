@@ -101,6 +101,20 @@ export type TripOccurrenceFeedClient = Readonly<{
       occurrenceId: string
     }>,
   ) => Promise<OccurrenceResolutionResult>
+  /**
+   * Spec 317 (E13): `POST /trip-occurrences/stop/:id/driver-payout-receipt` — marca o anexo (de mensagem já enviada ao
+   * motorista no chat desta ocorrência) como o comprovante da transferência, sem concluir a ocorrência.
+   */
+  recordDriverPayoutReceipt: (
+    input: Readonly<{ attachmentId: string; occurrenceId: string }>,
+  ) => Promise<Readonly<{ sentAt: string }>>
+  /**
+   * Spec 317 (E13): `POST …/driver-payout-receipt/whatsapp` — a API manda o comprovante registrado ao WhatsApp verificado do
+   * motorista pelo Evolution da empresa. Falha vem como erro com o `code` da API (`DRIVER_WHATSAPP_PHONE_MISSING` etc.).
+   */
+  sendDriverPayoutReceiptByWhatsApp: (
+    input: Readonly<{ occurrenceId: string }>,
+  ) => Promise<Readonly<{ sentAt: string }>>
   /** RF8: só sai de `decided`. */
   closeOccurrenceCase: (input: CaseActionInput) => Promise<CaseActionResult>
   /** RF7: recusa 422 quando `blocked` sem item para acertar. */
@@ -385,7 +399,19 @@ function readReceivingCharge(value: unknown): null | TripOccurrenceReceivingChar
   ) {
     return null
   }
-  return value as TripOccurrenceReceivingCharge
+  const receipt = value.driverPayoutReceipt
+  const receiptOk =
+    receipt === undefined ||
+    receipt === null ||
+    (isRecord(receipt) &&
+      isString(receipt.expiresAt) &&
+      isString(receipt.fileName) &&
+      isString(receipt.sentAt) &&
+      isString(receipt.url))
+  /** Comprovante malformado some; o resto da cobrança segue (leitura tolerante). */
+  return (
+    receiptOk ? value : { ...value, driverPayoutReceipt: null }
+  ) as TripOccurrenceReceivingCharge
 }
 
 function isDetailItem(value: unknown): value is TripOccurrenceDetailItem {
@@ -690,6 +716,28 @@ export function createTripOccurrenceFeedClient(
         },
       )
       return readResolutionResult(payload)
+    },
+    async recordDriverPayoutReceipt(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/stop/${encodeURIComponent(input.occurrenceId)}/driver-payout-receipt`,
+        { body: { attachmentId: input.attachmentId }, method: 'POST' },
+      )
+      if (!isRecord(payload) || !isRecord(payload.data) || !isString(payload.data.sentAt)) {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+      return { sentAt: payload.data.sentAt }
+    },
+    async sendDriverPayoutReceiptByWhatsApp(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/stop/${encodeURIComponent(input.occurrenceId)}/driver-payout-receipt/whatsapp`,
+        { body: {}, method: 'POST' },
+      )
+      if (!isRecord(payload) || !isRecord(payload.data) || !isString(payload.data.sentAt)) {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+      return { sentAt: payload.data.sentAt }
     },
     async cancelOccurrenceCase(input) {
       const payload = await requestJson(

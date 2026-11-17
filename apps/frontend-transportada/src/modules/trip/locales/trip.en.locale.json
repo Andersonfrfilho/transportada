@@ -2579,6 +2579,25 @@
   },
   "occurrenceDetail": {
     "receivingCharge": {
+      "payout": {
+        "whatsapp": "Send on WhatsApp",
+        "whatsappSending": "Sending on WhatsApp…",
+        "whatsappSent": "Receipt sent to the driver on WhatsApp.",
+        "whatsappNoPhone": "The driver has no verified WhatsApp number on file.",
+        "whatsappDisconnected": "The company WhatsApp is disconnected or turned off.",
+        "whatsappNumberNotFound": "That number has no WhatsApp.",
+        "whatsappFailed": "Could not send on WhatsApp. Try again.",
+        "title": "Transfer receipt to the driver",
+        "help": "The file goes to the driver in the occurrence chat.",
+        "choose": "Choose file",
+        "label": "Transfer receipt",
+        "placeholder": "Image or PDF",
+        "send": "Send to driver",
+        "sending": "Sending…",
+        "sent": "Sent to the driver on {{moment}}",
+        "open": "Open receipt: {{fileName}}",
+        "failed": "Could not send the receipt. Try again."
+      },
       "amount": "Amount charged",
       "openPhoto": "Open photo: {{label}}",
       "paidBy": {

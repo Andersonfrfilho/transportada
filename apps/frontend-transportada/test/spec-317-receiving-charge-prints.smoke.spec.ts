@@ -30,7 +30,7 @@ function photo(label: string): string {
   return `http://localhost:53000/smoke-photo/${encodeURIComponent(label)}.svg`
 }
 
-async function open(page: Page): Promise<void> {
+async function open(page: Page, withReceipt = false): Promise<void> {
   await page.route(/\/smoke-photo\//u, async (route) => {
     const label = decodeURIComponent(
       new URL(route.request().url()).pathname.split('/').pop() ?? '',
@@ -51,6 +51,14 @@ async function open(page: Page): Promise<void> {
     const body = { data: { ...STOP_OCCURRENCE } as Record<string, unknown> }
     body.data.receivingCharge = {
       declaredAmount: '650.00',
+      driverPayoutReceipt: withReceipt
+        ? {
+            expiresAt: '2099-01-01T00:00:00.000Z',
+            fileName: 'comprovante-pix.jpg',
+            sentAt: '2026-11-17T20:30:00.000Z',
+            url: photo('Comprovante'),
+          }
+        : null,
       driverPix: { key: '11999998888', type: 'phone' },
       paidBy: 'driver',
       photos: [
@@ -96,5 +104,34 @@ for (const viewport of ['desktop', 'mobile'] as const) {
         })
       }
     })
+  }
+}
+
+for (const viewport of ['desktop', 'mobile'] as const) {
+  for (const theme of ['light', 'dark'] as const) {
+    for (const state of ['sem-comprovante', 'com-comprovante'] as const) {
+      test(`spec 317: comprovante ao motorista — ${state} ${viewport} ${theme}`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme: theme })
+        await page.setViewportSize(VIEWPORTS[viewport])
+        await open(page, state === 'com-comprovante')
+        const block = page.getByRole('heading', {
+          name: 'Comprovante da transferência ao motorista',
+        })
+        await expect(block).toBeVisible()
+        if (state === 'com-comprovante') {
+          await expect(page.getByRole('button', { name: 'Enviar no WhatsApp' })).toBeVisible()
+        }
+        if (process.env.PLAYWRIGHT_SAVE_PRINTS === 'true') {
+          mkdirSync(PRINTS_DIRECTORY, { recursive: true })
+          await page
+            .locator('section[aria-labelledby="occurrence-receiving-charge-title"]')
+            .screenshot({
+              path: resolve(PRINTS_DIRECTORY, `comprovante-${state}-${viewport}-${theme}.png`),
+            })
+        }
+      })
+    }
   }
 }

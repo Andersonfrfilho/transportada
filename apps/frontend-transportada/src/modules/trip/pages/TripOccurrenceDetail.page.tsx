@@ -431,7 +431,7 @@ function OccurrenceSummaryPanel({
           </dd>
         </div>
       </dl>
-      <OccurrenceReceivingCharge occurrence={occurrence} />
+      <OccurrenceReceivingCharge occurrence={occurrence} permissions={permissions} />
       <OccurrenceItems occurrence={occurrence} />
       <OccurrenceCorrectionActions
         {...(companyId === undefined ? {} : { companyId })}
