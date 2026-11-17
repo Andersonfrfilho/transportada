@@ -11,7 +11,7 @@
    (`findPlan`) recusa `kind = 'stop'`. Pedido: **toda ocorrência tem o botão**.
 2. **Corrigir o endereço do cliente "na nossa base" não existe.** A 195 deixou isso fora do escopo (a nota é documento
    fiscal; o texto se corrige na origem, pela 150). Hoje o escritório só corrige **o ponto** (084 `PATCH
-   /geocoded-addresses/:addressKey`, 195 "Usar este ponto") e, por nota, o desvio de entrega (073, histórico).
+/geocoded-addresses/:addressKey`, 195 "Usar este ponto") e, por nota, o desvio de entrega (073, histórico).
    Pedido: o escritório corrige **o texto e o ponto**, e vale para as próximas notas do cliente.
 3. **O pedido de correção à contratante (150) só abre pela aba "Clientes a atualizar"** do Workspace NF-e. Pedido: na
    ocorrência de endereço incorreto, enviar **os dois**: o aviso à contratante e o pedido de correção, por e-mail e,
@@ -21,13 +21,13 @@
 
 ## Decisões do usuário (2026-11-17)
 
-| # | pergunta | resposta |
-| - | -------- | -------- |
-| a | alcance da correção do cliente | **só cliente com CNPJ, próximas notas**; pessoa física fica fora até haver decisão de proteção do CPF (T1c da 084) |
-| b | corrigir texto e ponto? | **os dois**, depois que o escritório corrige |
-| c | pedido de correção na ocorrência | **sim, os dois e-mails** (aviso e pedido de correção) |
-| d | WhatsApp | **cada tipo ativo tem modelo de WhatsApp**, para aviso e para pedido de correção |
-| e | botão em toda ocorrência | **sim**, nota e parada |
+| #   | pergunta                         | resposta                                                                                                           |
+| --- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| a   | alcance da correção do cliente   | **só cliente com CNPJ, próximas notas**; pessoa física fica fora até haver decisão de proteção do CPF (T1c da 084) |
+| b   | corrigir texto e ponto?          | **os dois**, depois que o escritório corrige                                                                       |
+| c   | pedido de correção na ocorrência | **sim, os dois e-mails** (aviso e pedido de correção)                                                              |
+| d   | WhatsApp                         | **cada tipo ativo tem modelo de WhatsApp**, para aviso e para pedido de correção                                   |
+| e   | botão em toda ocorrência         | **sim**, nota e parada                                                                                             |
 
 ## Requisitos
 
