@@ -14,6 +14,7 @@ import {
 import { defineRoute } from '../../http/router.service.js'
 import type { OccurrenceKind } from '../application/occurrence-resolution.port.js'
 import type { RecordDriverPayoutReceiptUseCase } from '../application/record-driver-payout-receipt.use-case.js'
+import type { SendDriverPayoutReceiptByWhatsAppUseCase } from '../application/send-driver-payout-receipt-by-whatsapp.use-case.js'
 import type { ResolveOccurrenceUseCase } from '../application/resolve-occurrence.use-case.js'
 
 const OCCURRENCE_RESOLUTION_PATH = '/trip-occurrences/:kind/:id/resolution'
@@ -50,6 +51,7 @@ const driverPayoutReceiptBodySchema = z.object({ attachmentId: z.uuid() }).stric
 
 export type OccurrenceResolutionRoutesDependencies = {
   readonly recordDriverPayoutReceipt?: RecordDriverPayoutReceiptUseCase
+  readonly sendDriverPayoutReceiptByWhatsApp?: SendDriverPayoutReceiptByWhatsAppUseCase
   readonly resolveOccurrence: ResolveOccurrenceUseCase
 }
 
@@ -68,10 +70,18 @@ function parseOccurrenceKind(value: string | undefined): OccurrenceKind {
 export function createOccurrenceResolutionRoutes(
   dependencies: OccurrenceResolutionRoutesDependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
-  const receiptRoutes =
-    dependencies.recordDriverPayoutReceipt === undefined
+  const receiptRoutes = [
+    ...(dependencies.recordDriverPayoutReceipt === undefined
       ? []
-      : [createRecordDriverPayoutReceiptRoute(dependencies.recordDriverPayoutReceipt)]
+      : [createRecordDriverPayoutReceiptRoute(dependencies.recordDriverPayoutReceipt)]),
+    ...(dependencies.sendDriverPayoutReceiptByWhatsApp === undefined
+      ? []
+      : [
+          createSendDriverPayoutReceiptByWhatsAppRoute(
+            dependencies.sendDriverPayoutReceiptByWhatsApp,
+          ),
+        ]),
+  ]
   return [
     ...receiptRoutes,
     defineRoute<ResolveOccurrenceRouteInput>({
@@ -134,5 +144,45 @@ function createRecordDriverPayoutReceiptRoute(
     pathname: DRIVER_PAYOUT_RECEIPT_PATH,
     policy: OCCURRENCE_RESOLUTION_POLICY,
     rateLimit: DRIVER_PAYOUT_RECEIPT_RATE_LIMIT,
+  })
+}
+
+const DRIVER_PAYOUT_RECEIPT_WHATSAPP_PATH =
+  '/trip-occurrences/:kind/:id/driver-payout-receipt/whatsapp'
+const DRIVER_PAYOUT_RECEIPT_WHATSAPP_RATE_LIMIT = {
+  maxRequests: 20,
+  scope: 'trip-occurrence-driver-payout-receipt-whatsapp',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+/** Spec 317 (E13): manda o comprovante registrado ao WhatsApp do motorista pelo Evolution da empresa. Só parada. */
+function createSendDriverPayoutReceiptByWhatsAppRoute(
+  useCase: SendDriverPayoutReceiptByWhatsAppUseCase,
+): ReturnType<typeof defineRoute> {
+  return defineRoute<{ readonly occurrenceId: string }>({
+    async handle({ context, input }): Promise<Response> {
+      const sent = await useCase.execute({
+        context: context.scope,
+        occurrenceId: input.occurrenceId,
+      })
+      return new Response(JSON.stringify({ data: sent }), {
+        headers: { 'cache-control': 'no-store', 'content-type': 'application/json' },
+        status: 201,
+      })
+    },
+    method: 'POST',
+    parse({ pathParameters }) {
+      if (parseOccurrenceKind(pathParameters.kind) !== 'stop') {
+        throw invalidRequest([
+          { field: 'kind', message: 'Only stop occurrences have a payout receipt' },
+        ])
+      }
+      return Promise.resolve({ occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? '') })
+    },
+    pathParameterFormat: 'raw',
+    pathname: DRIVER_PAYOUT_RECEIPT_WHATSAPP_PATH,
+    policy: OCCURRENCE_RESOLUTION_POLICY,
+    rateLimit: DRIVER_PAYOUT_RECEIPT_WHATSAPP_RATE_LIMIT,
   })
 }

@@ -860,6 +860,8 @@ import { createFindDriverRouteOccurrenceUseCase } from './trips/application/find
 import { createSignDriverRouteOccurrenceFileUseCase } from './trips/application/sign-driver-route-occurrence-file.use-case.js'
 import { createListDriverRouteOccurrencesUseCase } from './trips/application/list-driver-route-occurrences.use-case.js'
 import { createDrizzleDriverRouteOccurrenceReader } from './trips/infrastructure/drizzle-driver-route-occurrence.repository.js'
+import { createDrizzleDriverPayoutReceiptWhatsAppReader } from './trips/infrastructure/drizzle-driver-payout-receipt-whatsapp.reader.js'
+import { createSendDriverPayoutReceiptByWhatsAppUseCase } from './trips/application/send-driver-payout-receipt-by-whatsapp.use-case.js'
 import { createRecordDriverPayoutReceiptUseCase } from './trips/application/record-driver-payout-receipt.use-case.js'
 import { createResolveOccurrenceUseCase } from './trips/application/resolve-occurrence.use-case.js'
 import { DrizzleOccurrenceResolutionUnitOfWork } from './trips/infrastructure/drizzle-occurrence-resolution.repository.js'
@@ -5444,6 +5446,17 @@ function createApplicationRoutes({
       recordDriverPayoutReceipt: createRecordDriverPayoutReceiptUseCase({
         logger,
         unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
+      }),
+      /** Spec 317 (E13): o mesmo comprovante ao WhatsApp do motorista, pelo Evolution da empresa. */
+      sendDriverPayoutReceiptByWhatsApp: createSendDriverPayoutReceiptByWhatsAppUseCase({
+        logger,
+        readBytes: async (location) => readAllBytes(await storageGateway.getObjectStream(location)),
+        reader: createDrizzleDriverPayoutReceiptWhatsAppReader(database),
+        sender: createEvolutionDocumentSender({
+          pacer: evolutionSendPacer,
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
       }),
       resolveOccurrence: createResolveOccurrenceUseCase({
         logger,
