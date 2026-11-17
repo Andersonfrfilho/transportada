@@ -225,7 +225,7 @@ describe('o aviso automático à contratante contra Postgres (spec 183 T802)', (
           actorUserId: userId,
           bodyText: 'Canhoto retido pelo cliente.',
           companyId,
-          contactIds: [...seeded.contactIds],
+          contactIds: seeded.contactIds.slice(0, 1),
           correlationId: 'correlation-manual-321',
           idempotencyKey: 'manual-321',
           occurrenceId: seeded.occurrenceId,
