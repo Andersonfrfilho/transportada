@@ -101,7 +101,10 @@ export function createStopOccurrenceNotifier(input: {
               queryable: input.queryable,
             }),
             occurredAt: OCCURRED_AT_FORMATTER.format(occurredAt),
+            /** Os ids são opacos: o painel monta o destino do clique com eles (sem nome nem endereço). */
+            occurrenceId,
             stopLabel: stop.label,
+            tripId: stop.tripId,
           },
           recipientUserId: snapshot.actorUserId,
           templateKey,
