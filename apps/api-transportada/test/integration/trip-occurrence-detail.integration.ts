@@ -156,12 +156,14 @@ describe('o detalhe da ocorrência (spec 183 T202)', () => {
           driver,
           itemValues,
           items,
+          receivingCharge,
           referenceNumber,
           requirements,
           ...line
         } = detail
         expect(line).toEqual(feedItem)
         expect(requirements).toMatchObject({ declaredAmountMode: 'off', itemsMode: 'optional' })
+        expect(receivingCharge).toBeNull()
         expect(corrections).toEqual([])
         expect(items).toEqual([])
         expect([declaredAmount, itemValues, referenceNumber]).toEqual([null, [], null])
