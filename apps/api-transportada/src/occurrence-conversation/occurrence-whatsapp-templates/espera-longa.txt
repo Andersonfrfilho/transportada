@@ -1,0 +1,11 @@
+{{marcacao}}
+⏳ *Espera prolongada na entrega*
+
+*Nota fiscal:* {{numeroNota}}
+*Contratante:* {{contratante}}
+*Cliente:* {{cliente}}
+*Endereço:* {{enderecoEntrega}}
+*Registrada em:* {{data}}
+📝 {{observacao}}
+
+O motorista aguardou além do esperado para entregar. Se puderem orientar o cliente a liberar o recebimento, ou indicar como preferem seguir, é só responder aqui.
