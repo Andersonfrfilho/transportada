@@ -153,8 +153,8 @@ describe('2. horário de funcionamento no fuso da empresa', () => {
     })
   })
 
-  test('faixa vazia = sempre aberto, de madrugada e em sábado', () => {
-    expect(gate({ operatingHours: [], now: new Date('2026-11-14T05:00:00.000Z') })).toEqual({
+  test('faixa vazia = sempre aberto, em sábado dentro da janela global (8h–18h)', () => {
+    expect(gate({ operatingHours: [], now: new Date('2026-11-14T15:00:00.000Z') })).toEqual({
       decision: 'send',
     })
   })
@@ -237,5 +237,43 @@ describe('etapa idle (T2.7, RF22)', () => {
       decision: 'defer',
       reason: 'outside_operating_hours',
     })
+  })
+})
+
+describe('janela global de envio: nunca depois das 18h nem antes das 8h (17/11/2026)', () => {
+  test('sem horário de funcionamento, 19:40 local → adia para as 8h do dia seguinte', () => {
+    expect(gate({ operatingHours: [], now: new Date('2026-11-17T22:40:00.000Z') })).toEqual({
+      decision: 'defer',
+      reason: 'outside_send_window',
+      until: new Date('2026-11-18T11:00:00.000Z'),
+    })
+  })
+
+  test('sem horário de funcionamento, 18:00 local exato → adia', () => {
+    expect(gate({ operatingHours: [], now: new Date('2026-11-17T21:00:00.000Z') })).toMatchObject({
+      decision: 'defer',
+      reason: 'outside_send_window',
+    })
+  })
+
+  test('sem horário de funcionamento, 05:00 local → adia para as 8h do mesmo dia', () => {
+    expect(gate({ operatingHours: [], now: new Date('2026-11-17T08:00:00.000Z') })).toEqual({
+      decision: 'defer',
+      reason: 'outside_send_window',
+      until: new Date('2026-11-17T11:00:00.000Z'),
+    })
+  })
+
+  test('sem horário de funcionamento, 17:59 local → envia', () => {
+    expect(gate({ operatingHours: [], now: new Date('2026-11-17T20:59:00.000Z') })).toEqual({
+      decision: 'send',
+    })
+  })
+
+  test('empresa com faixa até 20h: a janela global ainda barra depois das 18h', () => {
+    const lateHours = WEEKDAYS.map((weekday) => ({ weekday, start: '08:00', end: '20:00' }))
+    expect(
+      gate({ operatingHours: lateHours, now: new Date('2026-11-09T21:30:00.000Z') }),
+    ).toMatchObject({ decision: 'defer', reason: 'outside_send_window' })
   })
 })

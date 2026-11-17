@@ -88,6 +88,7 @@ export const DRIVER_STOP_REMINDER_GATE_DECISION = {
 
 export const DRIVER_STOP_REMINDER_DEFER_REASON = {
   OUTSIDE_OPERATING_HOURS: 'outside_operating_hours',
+  OUTSIDE_SEND_WINDOW: 'outside_send_window',
   OPEN_QUESTION: 'open_question',
   NO_SEND_SLOT: 'no_send_slot',
 } as const
@@ -117,6 +118,13 @@ export const DRIVER_STOP_REMINDER_IDLE_VARIANT = { ROUTE: 'route', START: 'start
 export const MILLISECONDS_PER_MINUTE = 60_000
 export const MILLISECONDS_PER_SECOND = 1000
 export const MINUTES_PER_DAY = 1440
+
+/**
+ * Janela global de envio (regra do dono, 17/11/2026): o bot nunca cobra o motorista depois das 18h nem antes
+ * das 8h, no fuso da empresa — vale mesmo quando a empresa não tem horário de funcionamento (faixa vazia).
+ */
+export const DRIVER_STOP_REMINDER_SEND_WINDOW_START_MINUTES = 8 * 60
+export const DRIVER_STOP_REMINDER_SEND_WINDOW_END_MINUTES = 18 * 60
 
 export const DRIVER_STOP_REMINDER_SEND_FAILURE_RETRY_MINUTES = 5
 export const DRIVER_STOP_REMINDER_DISPATCH_RESERVATION_MINUTES = 2
