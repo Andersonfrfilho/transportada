@@ -112,6 +112,23 @@ async function acquireAdvisoryLock(
   await transaction.execute(sql`select pg_advisory_xact_lock(${lockId})`)
 }
 
+async function findStopOccurrenceTypeId(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<null | string> {
+  const [row] = await queryable
+    .select({ occurrenceTypeId: tripStopOccurrences.occurrenceTypeId })
+    .from(tripStopOccurrences)
+    .where(
+      and(
+        eq(tripStopOccurrences.companyId, params.companyId),
+        eq(tripStopOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  return row?.occurrenceTypeId ?? null
+}
+
 /** A contratante pelo emitente da nota (T203); ocorrência sem nota não tem a quem escrever. */
 async function findOccurrenceTarget(
   queryable: TripQueryable,
@@ -121,7 +138,10 @@ async function findOccurrenceTarget(
   if (item === null) return null
   /** Spec 237 (ADR-0094 §9.6): a ocorrência de recebimento ainda não tem conversa nem e-mail. */
   if (item.stage === TRIP_OCCURRENCE_STAGE.receiving) return null
-  const occurrenceTypeId = item.occurrenceTypeId ?? null
+  /** Spec 343: o feed não traz o tipo da parada (só o `kind`); o catálogo do tipo está na própria linha. */
+  const occurrenceTypeId =
+    item.occurrenceTypeId ??
+    (item.source === 'stop' ? await findStopOccurrenceTypeId(queryable, params) : null)
   return {
     /** Spec 321 (D2): o envio manual não lê o tipo; a marca vem junto do alvo para a guarda do caso de uso. */
     blocksContractorNotice: await findOccurrenceTypeBlocksContractorNotice(queryable, {
@@ -716,7 +736,7 @@ export function createAutomaticOccurrenceMailReader(
   return {
     async findPlan(params) {
       const target = await findOccurrenceTarget(database, params)
-      if (target === null || target.occurrenceTypeId === null) return null
+      if (target === null) return null
       if (target.contractorId === null) {
         /** Spec 343 (RF1): o botão diz por que não avisa (parada sem nota); o automático segue sem plano. */
         if (params.ignoreTypeOff !== true || target.kind !== 'stop') return null
@@ -732,6 +752,7 @@ export function createAutomaticOccurrenceMailReader(
           suggested: null,
         }
       }
+      if (target.occurrenceTypeId === null) return null
       /**
        * Spec 343 (RF1): a ocorrência de parada com nota avisa só pelo botão (`ignoreTypeOff`); o automático segue
        * calado nela (317 RF7). A de nota mantém o corte do estágio de parada de sempre.
