@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
+import { readFileSync } from 'node:fs'
 
 import ptLocale from '@/modules/driver-trip/locales/driverTrip.locale.json'
 import enLocale from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
@@ -69,5 +70,21 @@ describe('as recusas da devolução têm texto humano na fila', () => {
     }
     expect(Object.keys(ptLocale.eventQueue.cause)).toContain('itemDeclaredAmountRequired')
     expect(Object.keys(enLocale.eventQueue.cause)).toContain('itemDeclaredAmountRequired')
+  })
+
+  it('todo código mapeado tem texto nos dois idiomas (paridade com o mapa)', () => {
+    const source = readFileSync(
+      new URL(
+        '../../src/modules/driver-trip/shared/rejectionCauseLabel.service.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    const keys = [...source.matchAll(/'eventQueue\.cause\.([A-Za-z]+)'/gu)].map((m) => m[1] ?? '')
+    expect(keys.length).toBeGreaterThan(30)
+    for (const key of keys) {
+      expect(Object.keys(ptLocale.eventQueue.cause)).toContain(key)
+      expect(Object.keys(enLocale.eventQueue.cause)).toContain(key)
+    }
   })
 })

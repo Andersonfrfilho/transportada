@@ -44,12 +44,11 @@ describe('lista de tipos de ocorrência do motorista', () => {
     expect(list.groups[1]?.types.map((t) => t.id)).toEqual(['a', 'b', 'e'])
   })
 
-  it('os mais usados vêm primeiro, repetidos no grupo e limitados a três', () => {
+  it('os mais usados vêm primeiro, sem repetir no grupo e limitados a três', () => {
     const usage = { a: 1, b: 9, c: 5, d: 2 }
     const list = buildOccurrenceTypeList({ query: '', types: TYPES, usage })
     expect(list.frequent.map((t) => t.id)).toEqual(['b', 'c', 'd'])
-    expect(list.groups[0]?.types.map((t) => t.id)).toEqual(['c', 'd'])
-    expect(list.groups[1]?.types.map((t) => t.id)).toEqual(['b', 'a', 'e'])
+    expect(list.groups.map((group) => group.types.map((t) => t.id))).toEqual([['a', 'e']])
   })
 
   it('a busca ignora acento e caixa, e esconde "Mais usados"', () => {

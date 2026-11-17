@@ -59,6 +59,7 @@ import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
 import { DriverRouteOccurrencesRoute } from './DriverRouteOccurrencesRoute.page'
 import {
+  goBackInDriverApp,
   navigateToDriverSection,
   parseDriverStopHash,
   resolveDriverRouteSection,
@@ -424,6 +425,16 @@ export function DriverTripWorkspacePage() {
   }
 
   if (isQueueOpen) {
+    const occurrenceTypeNames = new Map<string, string>()
+    if (occurrenceTypes.status === 'loaded') {
+      for (const type of occurrenceTypes.types) occurrenceTypeNames.set(type.id, type.name)
+    }
+    for (const stop of trip?.stops ?? []) {
+      for (const document of stop.documents) {
+        for (const type of document.occurrenceTypes ?? [])
+          occurrenceTypeNames.set(type.id, type.name)
+      }
+    }
     return (
       <div className={styles.moduleShell}>
         <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
@@ -434,7 +445,8 @@ export function DriverTripWorkspacePage() {
           isSyncing={driverTrip.isSyncing}
           items={driverTrip.queueView}
           lastSyncedAtMs={driverTrip.lastSyncedAtMs}
-          onBack={() => window.history.back()}
+          occurrenceTypeNames={occurrenceTypeNames}
+          onBack={() => goBackInDriverApp()}
           onCancel={(idempotencyKey) => void driverTrip.cancelQueuedOccurrence(idempotencyKey)}
           onDiscard={(idempotencyKey) => void driverTrip.discardRejected(idempotencyKey)}
           onFocusStop={focusStop}
@@ -494,7 +506,7 @@ export function DriverTripWorkspacePage() {
       <div className={styles.moduleShell}>
         <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverPendingProofsPage
-          onBack={() => window.history.back()}
+          onBack={() => goBackInDriverApp()}
           onProof={handleProof}
           onProofFieldsUpdate={handleProofFieldsUpdate}
           onRemoveProof={handleRemoveProof}
