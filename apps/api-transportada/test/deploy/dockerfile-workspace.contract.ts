@@ -73,3 +73,46 @@ describe('Dockerfile workspace manifests', () => {
     }
   })
 })
+
+describe('api image: o publicador de modelos roda de dentro dela', () => {
+  /**
+   * `railway ssh` + `occurrence-mail-templates-publish.ts` lê código e arquivos de modelo de várias pastas de `src`.
+   * Pasta que o grafo de imports alcança e o Dockerfile não copia vira "Cannot find module" no container (visto em
+   * 17/11/2026, quando a 325 acrescentou `expenses`): o contrato calcula o grafo e cobra cada pasta.
+   */
+  test('toda pasta de src que o publicador importa é copiada pelo Dockerfile', async () => {
+    const apiRoot = join(REPOSITORY_ROOT, 'apps', 'api-transportada')
+    const result = await Bun.build({
+      entrypoints: [join(apiRoot, 'scripts', 'occurrence-mail-templates-publish.ts')],
+      metafile: true,
+      packages: 'external',
+      target: 'bun',
+    })
+    expect(result.success).toBe(true)
+    const folders = new Set(
+      Object.keys(result.metafile?.inputs ?? {})
+        .map((input) => input.replace(/^\.\//u, ''))
+        .filter((input) => input.startsWith('src/'))
+        .map((input) => input.slice(0, input.lastIndexOf('/'))),
+    )
+    const dockerfile = await Bun.file(join(apiRoot, 'Dockerfile')).text()
+    const copied = [...dockerfile.matchAll(/^COPY apps\/api-transportada\/(\S+) /gmu)].map(
+      (match) => (match[1] ?? '').replace(/\/$/u, ''),
+    )
+    const missing = [...folders].filter(
+      (folder) => !copied.some((entry) => folder === entry || folder.startsWith(`${entry}/`)),
+    )
+
+    expect(folders.size).toBeGreaterThan(5)
+    expect(missing).toEqual([])
+  })
+
+  test('as pastas de modelos de contas (e-mail e WhatsApp) também vão na imagem', async () => {
+    const dockerfile = await Bun.file(
+      join(REPOSITORY_ROOT, 'apps', 'api-transportada', 'Dockerfile'),
+    ).text()
+
+    expect(dockerfile).toContain('src/expenses/expense-mail-templates')
+    expect(dockerfile).toContain('src/expenses/expense-whatsapp-templates')
+  })
+})
