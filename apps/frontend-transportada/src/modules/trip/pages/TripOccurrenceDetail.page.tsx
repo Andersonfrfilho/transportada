@@ -29,6 +29,7 @@ import { OccurrenceResolutionPanel } from '../components/OccurrenceResolutionPan
 import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
+import { OccurrenceDriverAddress } from '../components/OccurrenceDriverAddress.component'
 import { OccurrenceReceivingCharge } from '../components/OccurrenceReceivingCharge.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceTripMap } from '../components/OccurrenceTripMap.component'
@@ -189,7 +190,10 @@ function OccurrenceDocumentPanel({ occurrence }: Readonly<{ occurrence: TripOccu
 }
 
 /** Spec 183 P2: o contato do motorista vira ação — ligar, WhatsApp, e-mail, copiar. */
-function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
+function OccurrenceDriverPanel({
+  canSend,
+  occurrence,
+}: Readonly<{ canSend: boolean; occurrence: TripOccurrenceDetail }>) {
   const { t } = useTranslation('trip')
   const contact = buildOccurrenceDriverContact({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
@@ -264,6 +268,12 @@ function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurr
             variant="boxed"
           />
         )}
+        {canSend ? (
+          <OccurrenceDriverAddress
+            occurrenceId={occurrence.id}
+            occurrenceKind={occurrence.source}
+          />
+        ) : null}
       </div>
     </section>
   )
@@ -595,7 +605,9 @@ function OccurrenceDetailSections({
     contractorConversation: () => conversations('contractor'),
     conversations: () => conversations(),
     document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,
-    driverContact: () => <OccurrenceDriverPanel occurrence={occurrence} />,
+    driverContact: () => (
+      <OccurrenceDriverPanel canSend={canResolveOccurrenceCases} occurrence={occurrence} />
+    ),
     driverConversation: () => conversations('driver'),
     summary: () => (
       <OccurrenceSummaryPanel

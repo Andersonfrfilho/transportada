@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, test } from 'bun:test'
 
+import { whatsappFailureKey } from '@/modules/trip/components/OccurrenceDriverAddress.component'
+import { buildDriverAddressChatMessage } from '@/modules/trip/shared/driverAddressMessage.service'
 import {
   buildOccurrenceDriverContact,
   formatOccurrenceItemQuantity,
@@ -239,5 +241,40 @@ describe('foto do motorista no card de contato', () => {
     expect(source).toContain('function OccurrenceDriverAvatar(')
     expect(source).toContain('onError={() => setFailedUrl(pictureUrl)}')
     expect(source).toContain('failedUrl === pictureUrl')
+  })
+})
+
+describe('endereço correto ao motorista (spec 343 T6a)', () => {
+  const page = readFileSync(
+    new URL('src/modules/trip/pages/TripOccurrenceDetail.page.tsx', APPLICATION_ROOT),
+    'utf8',
+  )
+  const client = readFileSync(
+    new URL('src/modules/trip/shared/tripOccurrenceFeedClient.service.ts', APPLICATION_ROOT),
+    'utf8',
+  )
+
+  test('o texto do chat leva o endereço e o link do mapa codificado', () => {
+    const message = buildDriverAddressChatMessage('  Rua A, 10 - Centro  ')
+    expect(message).toContain('Endereço correto da entrega: Rua A, 10 - Centro')
+    expect(message).toContain('?q=Rua%20A%2C%2010%20-%20Centro')
+  })
+
+  test('o botão só aparece a quem resolve ocorrência e vale para nota e parada', () => {
+    expect(page).toContain('canSend={canResolveOccurrenceCases}')
+    expect(page).toContain('occurrenceKind={occurrence.source}')
+  })
+
+  test('o cliente chama a rota do grupo com o tipo da ocorrência e só o texto no corpo', () => {
+    expect(client).toContain('/driver-address/whatsapp-group')
+    expect(client).toContain('body: { addressText: input.addressText }')
+  })
+
+  test('o código da API vira a mensagem certa', () => {
+    expect(whatsappFailureKey(new Error('DRIVER_WHATSAPP_GROUP_MISSING'))).toBe('whatsappNoGroup')
+    expect(whatsappFailureKey(new Error('WHATSAPP_EVOLUTION_DISABLED'))).toBe(
+      'whatsappDisconnected',
+    )
+    expect(whatsappFailureKey(new Error('qualquer'))).toBe('whatsappFailed')
   })
 })

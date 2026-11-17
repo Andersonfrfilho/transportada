@@ -861,6 +861,8 @@ import { createSignDriverRouteOccurrenceFileUseCase } from './trips/application/
 import { createListDriverRouteOccurrencesUseCase } from './trips/application/list-driver-route-occurrences.use-case.js'
 import { createDrizzleDriverRouteOccurrenceReader } from './trips/infrastructure/drizzle-driver-route-occurrence.repository.js'
 import { createDrizzleDriverPayoutReceiptWhatsAppReader } from './trips/infrastructure/drizzle-driver-payout-receipt-whatsapp.reader.js'
+import { createSendDriverAddressToWhatsAppGroupUseCase } from './trips/application/send-driver-address-to-whatsapp-group.use-case.js'
+import { createDrizzleDriverAddressGroupReader } from './trips/infrastructure/drizzle-driver-address-group.reader.js'
 import { createSendDriverPayoutReceiptByWhatsAppUseCase } from './trips/application/send-driver-payout-receipt-by-whatsapp.use-case.js'
 import { createRecordDriverPayoutReceiptUseCase } from './trips/application/record-driver-payout-receipt.use-case.js'
 import { createResolveOccurrenceUseCase } from './trips/application/resolve-occurrence.use-case.js'
@@ -5446,6 +5448,16 @@ function createApplicationRoutes({
       recordDriverPayoutReceipt: createRecordDriverPayoutReceiptUseCase({
         logger,
         unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
+      }),
+      /** Spec 343 (T6a): o endereço correto da entrega ao grupo de WhatsApp do motorista. */
+      sendDriverAddressToWhatsAppGroup: createSendDriverAddressToWhatsAppGroupUseCase({
+        logger,
+        reader: createDrizzleDriverAddressGroupReader(database),
+        sender: createEvolutionDocumentSender({
+          pacer: evolutionSendPacer,
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
       }),
       /** Spec 317 (E13): o mesmo comprovante ao WhatsApp do motorista, pelo Evolution da empresa. */
       sendDriverPayoutReceiptByWhatsApp: createSendDriverPayoutReceiptByWhatsAppUseCase({

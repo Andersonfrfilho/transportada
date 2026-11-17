@@ -6689,3 +6689,23 @@ button.occurrenceCaseBadge {
   gap: var(--space-2);
   align-items: center;
 }
+
+/* Spec 343 (T6a): o formulário de endereço correto ao motorista, dentro do card de contato. */
+.driverAddressForm {
+  display: grid;
+  gap: var(--space-2);
+  inline-size: 100%;
+}
+
+.driverAddressForm textarea {
+  field-sizing: content;
+  min-block-size: 4.5rem;
+  max-block-size: 12rem;
+}
+
+.driverAddressActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}

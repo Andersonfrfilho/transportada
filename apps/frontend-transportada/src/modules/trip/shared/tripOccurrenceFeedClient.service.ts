@@ -115,6 +115,14 @@ export type TripOccurrenceFeedClient = Readonly<{
   sendDriverPayoutReceiptByWhatsApp: (
     input: Readonly<{ occurrenceId: string }>,
   ) => Promise<Readonly<{ sentAt: string }>>
+  /** Spec 343 (T6a): o endereço correto da entrega ao grupo de WhatsApp do motorista (nota ou parada). */
+  sendDriverAddressToWhatsAppGroup: (
+    input: Readonly<{
+      addressText: string
+      occurrenceId: string
+      occurrenceKind: 'document' | 'stop'
+    }>,
+  ) => Promise<Readonly<{ sentAt: string }>>
   /** RF8: só sai de `decided`. */
   closeOccurrenceCase: (input: CaseActionInput) => Promise<CaseActionResult>
   /** RF7: recusa 422 quando `blocked` sem item para acertar. */
@@ -733,6 +741,17 @@ export function createTripOccurrenceFeedClient(
         dependencies,
         `${TRIP_OCCURRENCES_PATH}/stop/${encodeURIComponent(input.occurrenceId)}/driver-payout-receipt/whatsapp`,
         { body: {}, method: 'POST' },
+      )
+      if (!isRecord(payload) || !isRecord(payload.data) || !isString(payload.data.sentAt)) {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+      return { sentAt: payload.data.sentAt }
+    },
+    async sendDriverAddressToWhatsAppGroup(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceKind}/${encodeURIComponent(input.occurrenceId)}/driver-address/whatsapp-group`,
+        { body: { addressText: input.addressText }, method: 'POST' },
       )
       if (!isRecord(payload) || !isRecord(payload.data) || !isString(payload.data.sentAt)) {
         throw requestError(TRIP_ERROR.RESPONSE_INVALID)

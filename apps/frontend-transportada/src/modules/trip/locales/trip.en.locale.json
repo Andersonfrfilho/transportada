@@ -2653,6 +2653,21 @@
       "destinationOf": "Delivery address · {{recipient}}",
       "destinationUnknown": "Address not recorded on the invoice"
     },
+    "driverAddress": {
+      "open": "Send correct address",
+      "label": "Correct delivery address",
+      "placeholder": "Street, number, district, city and state",
+      "sendApp": "Send in the app chat",
+      "sendWhatsapp": "Send in the WhatsApp group",
+      "sending": "Sending…",
+      "close": "Close",
+      "appSent": "Address sent in the driver's app chat.",
+      "appFailed": "Could not send in the app chat. Try again.",
+      "whatsappSent": "Address sent in the driver's WhatsApp group.",
+      "whatsappNoGroup": "The driver has no WhatsApp group linked on their record.",
+      "whatsappDisconnected": "The company WhatsApp is disconnected or turned off.",
+      "whatsappFailed": "Could not send in the WhatsApp group. Try again."
+    },
     "driver": {
       "title": "Driver contact",
       "name": "Name",
