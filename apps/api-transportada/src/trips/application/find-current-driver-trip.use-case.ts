@@ -22,6 +22,7 @@
 import type { GeocodingPrecision } from '../../database/geocoding.schema.js'
 import type { HolidayWarning } from '../../business-calendar/domain/holiday-warning.policy.js'
 import type { DriverScorePort } from '../../fleet/application/driver-score.port.js'
+import type { PixKeyType } from '../../shared/pix-key-type.constant.js'
 import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
 import type { CanhotoRejection } from '../domain/canhoto-recapture.policy.js'
 import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
@@ -218,7 +219,18 @@ export type DriverPendingProof = {
   readonly tripStatus: string
 }
 
+/** A chave PIX do cadastro do motorista — pré-preenche a cobrança no recebimento no app. */
+export type DriverRegisteredPix = {
+  readonly key: string
+  readonly type: PixKeyType
+}
+
 export type CurrentDriverTripPort = {
+  /** Opcional: dublê antigo sem a leitura segue valendo, e o app começa com o campo vazio. */
+  findDriverPix?(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<DriverRegisteredPix | null>
   /** `null` quando a conta autenticada não está ligada a nenhum cadastro de motorista. */
   findDriverIdByMembership(input: {
     readonly companyId: string
@@ -261,6 +273,8 @@ export type FindCurrentDriverTripResult = {
   readonly isRegisteredDriver: boolean
   /** Spec 159 T11 (ALTO 1): as fotos obrigatórias que ainda faltam, de qualquer viagem dele. */
   readonly pendingProofs: readonly DriverPendingProof[]
+  /** Spec 317: o PIX do cadastro do motorista; `null` sem PIX. */
+  readonly registeredPix?: DriverRegisteredPix | null
   /** ADR-0070 §6, spec 159 RF2: a nota do próprio motorista — `null` sem histórico ou sem cadastro. */
   readonly score: number | null
   readonly trips: readonly DriverTrip[]
@@ -281,16 +295,24 @@ export async function findCurrentDriverTrip(
     membershipId: input.membershipId,
   })
   if (driverId === null) {
-    return { isRegisteredDriver: false, pendingProofs: [], score: null, trips: [] }
+    return {
+      isRegisteredDriver: false,
+      pendingProofs: [],
+      registeredPix: null,
+      score: null,
+      trips: [],
+    }
   }
 
   const shouldListPendingProofs = input.canReportProofs ?? true
-  const [trips, pendingProofs, scores] = await Promise.all([
+  const [trips, pendingProofs, scores, registeredPix] = await Promise.all([
     input.repository.listActiveTrips({ companyId: input.companyId, driverId }),
     shouldListPendingProofs
       ? input.repository.listPendingProofs({ companyId: input.companyId, driverId, now: input.now })
       : Promise.resolve([]),
     input.scores.readScores({ companyId: input.companyId, driverIds: [driverId], now: input.now }),
+    input.repository.findDriverPix?.({ companyId: input.companyId, driverId }) ??
+      Promise.resolve(null),
   ])
 
   /** Depois do recorte pelo vínculo do motorista, e fora do `Promise.all`: o aviso é refinamento. */
@@ -317,6 +339,7 @@ export async function findCurrentDriverTrip(
   return {
     isRegisteredDriver: true,
     pendingProofs,
+    registeredPix,
     score: scores.get(driverId) ?? null,
     trips: tripsWithSeal,
   }

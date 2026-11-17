@@ -378,6 +378,7 @@ export function createMeTripRoutes(
             data: {
               isRegisteredDriver: result.isRegisteredDriver,
               pendingProofs: result.pendingProofs,
+              registeredPix: result.registeredPix ?? null,
               score: result.score,
               trips: result.trips.map(serializeTrip),
             },

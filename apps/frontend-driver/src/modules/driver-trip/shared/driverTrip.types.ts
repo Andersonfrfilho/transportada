@@ -267,8 +267,13 @@ export type PendingProofDocument = Readonly<{
   tripStatus: string
 }>
 
+/** A chave PIX que o motorista (ou agregado) já tem no cadastro — pré-preenche a cobrança no recebimento. */
+export type DriverRegisteredPix = Readonly<{ key: string; type: DriverPixKeyType }>
+
 export type DriverTripSnapshot = Readonly<{
   isRegisteredDriver: boolean
+  /** Ausente (API antiga) ou `null` (sem PIX no cadastro): o campo começa vazio, como sempre. */
+  registeredPix?: DriverRegisteredPix | null
   /** Spec 159 (T11): toda nota entregue com foto obrigatória ainda sem foto, de qualquer viagem. */
   pendingProofs: readonly PendingProofDocument[]
   /** Spec 159 RF2/RF9, ADR-0070 §5: a nota do próprio motorista — `null` sem histórico em 90 dias. */

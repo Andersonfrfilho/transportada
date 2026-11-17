@@ -9,6 +9,8 @@ import type {
   ReceivingChargeMode,
   ReceivingChargePaidBy,
 } from '../shared/driverTrip.types'
+import { formatPixKey } from '../../shared/pixKey.service'
+import { useDriverRegisteredPix } from './driverRegisteredPix.context'
 import { isOccurrencePhotoWithinLimit } from '../shared/notDelivered.service'
 import { maskMoneyInput } from '../shared/occurrenceMoneyMask.service'
 import { reduceOccurrencePhotoToJpeg } from '../shared/occurrencePhotoImage.service'
@@ -69,7 +71,16 @@ export function useReceivingChargeForm(input: {
   readonly documentIds: readonly string[]
   readonly type: DriverOccurrenceType | undefined
 }): ReceivingChargeForm | undefined {
-  const [draft, setDraft] = useState<ReceivingChargeDraft>(EMPTY_RECEIVING_CHARGE_DRAFT)
+  const registeredPix = useDriverRegisteredPix()
+  const [draft, setDraft] = useState<ReceivingChargeDraft>(() =>
+    registeredPix === null
+      ? EMPTY_RECEIVING_CHARGE_DRAFT
+      : {
+          ...EMPTY_RECEIVING_CHARGE_DRAFT,
+          pixKey: formatPixKey(registeredPix.type, registeredPix.key),
+          pixKeyType: registeredPix.type,
+        },
+  )
   const [photoStates, setPhotoStates] = useState<Readonly<Record<string, SlotPhotoState>>>({})
   const slotPreviewUrls = useSlotPreviewUrls(draft.slotPhotos)
   const { documentIds, type } = input
@@ -121,8 +132,12 @@ export function useReceivingChargeForm(input: {
       }),
     handleModeChange: (mode) => patch({ mode }),
     handlePaidByChange: (paidBy) => patch({ paidBy }),
-    handlePixKeyChange: (pixKey) => patch({ pixKey }),
-    handlePixKeyTypeChange: (pixKeyType) => patch({ pixKeyType }),
+    handlePixKeyChange: (pixKey) =>
+      patch({
+        pixKey: draft.pixKeyType === undefined ? pixKey : formatPixKey(draft.pixKeyType, pixKey),
+      }),
+    handlePixKeyTypeChange: (pixKeyType) =>
+      patch({ pixKey: formatPixKey(pixKeyType, draft.pixKey), pixKeyType }),
     handleSlotPhotoSelect: (slotKey, file) => void readSlotPhoto(slotKey, file),
     hasDocumentChoice: hasDocumentChoice({ documentIds }),
     missing: listMissingReceivingCharge({

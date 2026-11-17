@@ -853,6 +853,7 @@
         "documents": "as notas da cobrança",
         "paidBy": "quem pagou",
         "pix": "o tipo e a chave PIX",
+        "note": "a observação",
         "photo": "{{label}}"
       }
     }

@@ -8,6 +8,8 @@ import {
   type DriverFieldReport,
   type DriverOccurrenceType,
 } from '../../src/modules/driver-trip/shared/driverTrip.types'
+import { formatPixKey, pixKeyMaskLength } from '../../src/modules/shared/pixKey.service'
+import { toDriverTripSnapshot } from '../../src/modules/driver-trip/shared/driverTripResponse.validation'
 import { createDriverTripClient } from '../../src/modules/driver-trip/shared/driverTripClient.service'
 import {
   dispatchOccurrenceRegistration,
@@ -363,5 +365,28 @@ describe('a fila sobe as fotos e faz um POST só (spec 317 RF4)', () => {
     )
     expect(posts[0]?.body?.occurrenceTypeId).toBe(TYPE.id)
     expect(seen.filter((entry) => entry.path.endsWith('/occurrence-uploads'))).toHaveLength(2)
+  })
+})
+
+describe('chave PIX do motorista: formato e pré-preenchimento', () => {
+  it('formata a chave conforme o tipo', () => {
+    expect(formatPixKey('cpf', '42141220890')).toBe('421.412.208-90')
+    expect(formatPixKey('cnpj', '12345678000195')).toBe('12.345.678/0001-95')
+    expect(formatPixKey('phone', '16991234567')).toBe('(16) 99123-4567')
+    expect(formatPixKey('email', 'a@b.com')).toBe('a@b.com')
+    expect(pixKeyMaskLength('cpf')).toBe(14)
+  })
+
+  it('lê o PIX do cadastro do snapshot e tolera ausência ou lixo', () => {
+    const base = { isRegisteredDriver: true, trips: [] }
+    const ok = toDriverTripSnapshot({
+      data: { ...base, registeredPix: { key: '42141220890', type: 'cpf' } },
+    })
+    expect(ok.registeredPix).toEqual({ key: '42141220890', type: 'cpf' })
+    expect(toDriverTripSnapshot({ data: base }).registeredPix).toBeNull()
+    expect(
+      toDriverTripSnapshot({ data: { ...base, registeredPix: { key: 'x', type: 'foo' } } })
+        .registeredPix,
+    ).toBeNull()
   })
 })

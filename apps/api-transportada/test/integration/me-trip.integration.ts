@@ -1208,6 +1208,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(opened).toEqual({
         isRegisteredDriver: true,
         pendingProofs: [],
+        registeredPix: null,
         score: null,
         trips: [],
       })
@@ -1542,6 +1543,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
       expect(opened).toEqual({
         isRegisteredDriver: false,
         pendingProofs: [],
+        registeredPix: null,
         score: null,
         trips: [],
       })

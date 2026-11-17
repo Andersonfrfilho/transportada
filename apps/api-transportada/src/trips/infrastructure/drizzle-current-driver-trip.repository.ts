@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { PixKeyType } from '../../shared/pix-key-type.constant.js'
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
@@ -130,6 +131,19 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     private readonly database: TripDatabase,
     private readonly logger?: ApiLogger,
   ) {}
+
+  public async findDriverPix(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<{ readonly key: string; readonly type: PixKeyType } | null> {
+    const [record] = await this.database
+      .select({ key: fleetDrivers.pixKey, type: fleetDrivers.pixKeyType })
+      .from(fleetDrivers)
+      .where(and(eq(fleetDrivers.companyId, input.companyId), eq(fleetDrivers.id, input.driverId)))
+      .limit(1)
+    if (record === undefined || record.key === '' || record.type === '') return null
+    return { key: record.key, type: record.type }
+  }
 
   public async findDriverIdByMembership(input: {
     readonly companyId: string
