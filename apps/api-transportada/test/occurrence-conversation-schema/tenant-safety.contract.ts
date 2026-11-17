@@ -53,10 +53,16 @@ describe('conversation attachment tenant safety (spec 183 T702a)', () => {
   })
 
   test('attaching writes the object and the attachment in the company of the target', () => {
-    const attach = section('async attachUpload(', 'async lockPendingUploads(')
+    const attach = section('async attachUpload(', 'async attachStoredCopy(')
 
     expect(attach.match(/companyId: input\.companyId/gu)?.length).toBe(2)
     expect(attach).toInclude('eq(occurrenceConversationUploads.companyId, input.companyId)')
+  })
+
+  test('copying a stored object writes it and its attachment in the company of the target', () => {
+    const copy = section('async attachStoredCopy(', 'async lockPendingUploads(')
+
+    expect(copy.match(/companyId: input\.companyId/gu)?.length).toBe(2)
   })
 })
 

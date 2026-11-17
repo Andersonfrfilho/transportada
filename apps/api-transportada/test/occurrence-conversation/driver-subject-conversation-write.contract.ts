@@ -131,6 +131,7 @@ function createWorld(state: {
 
   const attachments = {
     attachUpload: async () => undefined,
+    attachStoredCopy: () => Promise.resolve(),
     lockPendingUploads: async (input: { target: unknown }) => {
       uploadTargets.push(input.target)
       return []

@@ -30,7 +30,10 @@ import {
   OccurrenceConversationNoRecipientError,
 } from '../domain/occurrence-conversation.error.js'
 import type { ConversationAttachmentStoragePort } from './conversation-attachment.port.js'
-import { attachConversationUploads } from './conversation-attachment.service.js'
+import {
+  attachConversationUploads,
+  attachExistingObjects,
+} from './conversation-attachment.service.js'
 import type { OpenContractorReplyLogger } from './open-contractor-reply.service.js'
 import type {
   OccurrenceMailTransactionPort,
@@ -323,7 +326,7 @@ export async function recordMailDelivery(params: {
   })
   /** O anexo liga à mensagem **da conversa**; o worker o acha pela `mail_message_id` dela ao montar o envio. */
   if (params.actorUserId !== null) {
-    await attachConversationUploads({
+    const operatorAttached = await attachConversationUploads({
       messageId: conversationMessage.id,
       now: params.now,
       storage: params.storage,
@@ -338,6 +341,30 @@ export async function recordMailDelivery(params: {
       transaction: transaction.attachments,
       uploadIds: params.attachmentIds,
     })
+    const operatorBytes = [...operatorAttached.values()].reduce(
+      (total, item) => total + item.bytes.byteLength,
+      0,
+    )
+    /**
+     * Spec 317: o aviso manual de uma ocorrência de parada leva as fotos que o motorista anexou à cobrança (placa e extrato).
+     * Complemento do aviso: o que não couber no teto do e-mail fica de fora, e o envio segue.
+     */
+    if (params.occurrenceKind === 'stop') {
+      const photos = await transaction.listStopOccurrenceChargePhotos({
+        companyId,
+        occurrenceId: params.occurrenceId,
+      })
+      if (photos.length > 0) {
+        await attachExistingObjects({
+          alreadyAttachedBytes: operatorBytes,
+          companyId,
+          messageId: conversationMessage.id,
+          objects: photos,
+          storage: params.storage,
+          transaction: transaction.attachments,
+        })
+      }
+    }
   }
   const response: SendOccurrenceMailResult = {
     conversationId: params.conversationId,

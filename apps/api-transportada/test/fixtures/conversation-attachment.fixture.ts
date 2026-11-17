@@ -15,6 +15,7 @@ function unexpected(name: string): never {
 
 export const NO_ATTACHMENTS: ConversationAttachmentTransactionPort = {
   attachUpload: async () => unexpected('attachUpload'),
+  attachStoredCopy: () => Promise.resolve(),
   lockPendingUploads: async () => unexpected('lockPendingUploads'),
 }
 

@@ -31,8 +31,10 @@ import {
   nfeParticipants,
   occurrenceConversationMessages,
   occurrenceConversations,
+  storedObjects,
   tripDocumentOccurrences,
   tripDocuments,
+  tripStopOccurrencePhotos,
   tripStopOccurrences,
   userCompanyMemberships,
 } from '../../database/database.schema.js'
@@ -86,6 +88,7 @@ import {
 } from './drizzle-occurrence-contractor-reply.repository.js'
 import { recordContractorReplyResend } from './drizzle-contractor-reply-resend.repository.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
+import type { ExistingObjectToAttach } from '../application/conversation-attachment.port.js'
 import { occurrenceTypeNeverNotifiesContractor } from '../../trips/domain/occurrence-contractor-notice.policy.js'
 import { findOccurrenceTypeBlocksContractorNotice } from '../../trips/infrastructure/occurrence-contractor-notice.query.js'
 import type { AutomaticOccurrenceMailReaderPort } from '../application/send-automatic-occurrence-mail.use-case.js'
@@ -155,6 +158,55 @@ async function findOccurrenceTarget(
     occurrenceTypeId,
     stage: item.stage ?? 'stop',
   }
+}
+
+const CHARGE_PHOTO_FILE_NAMES: Readonly<Record<string, string>> = {
+  charge_sign: 'placa-da-cobranca',
+  payment_receipt: 'extrato-do-pagamento',
+}
+const CHARGE_PHOTO_EXTENSIONS: Readonly<Record<string, string>> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
+
+/**
+ * Spec 317: as fotos da cobrança no recebimento (placa e extrato) como anexos do e-mail à contratante. Só `final`, da empresa
+ * do contexto e da própria ocorrência de parada; o PIX nunca é lido aqui.
+ */
+async function listStopOccurrenceChargePhotos(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<readonly ExistingObjectToAttach[]> {
+  const rows = await queryable
+    .select({
+      bucket: storedObjects.bucket,
+      mimeType: storedObjects.mimeType,
+      objectKey: storedObjects.objectKey,
+      slotKey: tripStopOccurrencePhotos.slotKey,
+    })
+    .from(tripStopOccurrencePhotos)
+    .innerJoin(
+      storedObjects,
+      and(
+        eq(storedObjects.companyId, tripStopOccurrencePhotos.companyId),
+        eq(storedObjects.id, tripStopOccurrencePhotos.objectId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripStopOccurrencePhotos.companyId, params.companyId),
+        eq(tripStopOccurrencePhotos.stopOccurrenceId, params.occurrenceId),
+        eq(storedObjects.status, 'final'),
+      ),
+    )
+    .orderBy(asc(tripStopOccurrencePhotos.position), asc(tripStopOccurrencePhotos.createdAt))
+  return rows.map((row, index) => ({
+    bucket: row.bucket,
+    contentType: row.mimeType,
+    fileName: `${CHARGE_PHOTO_FILE_NAMES[row.slotKey] ?? 'foto-da-ocorrencia'}-${index + 1}.${CHARGE_PHOTO_EXTENSIONS[row.mimeType] ?? 'jpg'}`,
+    objectKey: row.objectKey,
+  }))
 }
 
 /** Spec 279 T3: da constante, para o alvo novo do cadastro do cliente também ficar fora da cadeia. */
@@ -939,6 +991,13 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     readonly occurrenceId: string
   }): Promise<OccurrenceMailTarget | null> {
     return findOccurrenceTarget(this.transaction, params)
+  }
+
+  public listStopOccurrenceChargePhotos(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<readonly ExistingObjectToAttach[]> {
+    return listStopOccurrenceChargePhotos(this.transaction, params)
   }
 
   public findOccurrenceNotificationTemplate(params: {
