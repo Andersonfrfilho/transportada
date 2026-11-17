@@ -1441,6 +1441,20 @@ export class TripOccurrenceMinWaitNotReachedError extends ApiError {
 }
 
 /**
+ * Spec 315 (D10): o tipo com espera mínima já tem uma ocorrência em aberto nesta parada (a do escritório, a do
+ * motorista ou a da fila que já chegou) — registrar outra duplicaria a espera. Resolvida, e não a duplicata, libera.
+ */
+export class TripOccurrenceAlreadyOpenForTypeError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_OCCURRENCE_ALREADY_OPEN_FOR_TYPE',
+      message: 'This stop already has an open occurrence of this type.',
+      status: 409,
+    })
+  }
+}
+
+/**
  * Spec 246 (RF8, CA06): o tipo efetivo da nota exige a assinatura de quem recusou e o registro chegou
  * sem ela. Código estável próprio — a tela diz qual dos campos falta. O WhatsApp do motorista não
  * colhe assinatura e devolve este mesmo erro (RF13).

@@ -14,6 +14,7 @@ import {
 } from '../domain/stop-occurrence-requirements.policy.js'
 import {
   OccurrenceTypeNotStopError,
+  TripOccurrenceAlreadyOpenForTypeError,
   TripDocumentNotReachableError,
   TripOccurrenceUploadNotReachableError,
   TripStopNotReachableError,
@@ -421,6 +422,21 @@ export async function reportStopOccurrence(
             now,
             requirements: reference.requirements,
           })
+          /**
+           * Spec 315 (D10): o tipo com espera mínima não se duplica na parada — vale para o motorista e para o escritório,
+           * lido na mesma transação (a corrida entre os dois cai aqui, não só na tela).
+           */
+          if (
+            reference.requirements.minWaitAfterArrivalMinutes !== null &&
+            reference.occurrenceTypeId !== null &&
+            (await transaction.hasOpenStopOccurrenceOfType({
+              companyId: input.companyId,
+              occurrenceTypeId: reference.occurrenceTypeId,
+              stopId: input.stopId,
+            }))
+          ) {
+            throw new TripOccurrenceAlreadyOpenForTypeError()
+          }
           if (decision.kind === 'record') {
             await recordInformedArrival({
               authorship,
