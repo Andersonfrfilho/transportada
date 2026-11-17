@@ -49,6 +49,7 @@ import {
   type ClientEmailType,
 } from '../../shared/delivery-client-email.constant.js'
 import type { ApiLogger } from '../../shared/api.types.js'
+import { CNPJ_PATTERN, formatCnpjForDisplay, normalizeTaxId } from '../../shared/tax-id.service.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { DeliveryProofFieldMode } from '../domain/delivery-proof-settings.policy.js'
 import type { EventLocationStampColumns } from '../domain/event-location-stamp.types.js'
@@ -1805,6 +1806,73 @@ async function writeOccurrenceTypeRow(
   }
 }
 
+/** `14400000` → `CEP 14400-000`; CEP que não tem oito dígitos sai vazio, nunca truncado. */
+function formatPostalCode(postalCode: null | string): string {
+  const digits = (postalCode ?? '').replace(/\D/gu, '')
+  return digits.length === 8 ? `CEP ${digits.slice(0, 5)}-${digits.slice(5)}` : ''
+}
+
+/** CNPJ com a máscara; CPF (dado de pessoa física) e documento truncado saem vazios: nunca vão ao e-mail. */
+function formatCompanyTaxId(taxId: string): string {
+  const normalized = normalizeTaxId(taxId)
+  return CNPJ_PATTERN.test(normalized) ? formatCnpjForDisplay(normalized) : ''
+}
+
+/**
+ * Spec 324: onde o cliente recebe, como a nota diz (`<enderDest>`): rua e número, complemento, bairro e CEP; e a cidade com a UF.
+ * Uma consulta, do destinatário (papéis `delivery` e `recipient`); nota sem endereço devolve vazio.
+ */
+async function readRecipientPlace(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly nfeDocumentId: string },
+): Promise<{ readonly address: string; readonly city: string } | null> {
+  const [row] = await queryable
+    .select({
+      city: nfeAddresses.city,
+      complement: nfeAddresses.complement,
+      district: nfeAddresses.district,
+      number: nfeAddresses.number,
+      postalCode: nfeAddresses.postalCode,
+      state: nfeAddresses.state,
+      street: nfeAddresses.street,
+    })
+    .from(nfeParticipants)
+    .innerJoin(
+      nfeAddresses,
+      and(
+        eq(nfeAddresses.companyId, nfeParticipants.companyId),
+        eq(nfeAddresses.participantId, nfeParticipants.id),
+      ),
+    )
+    .where(
+      and(
+        eq(nfeParticipants.companyId, input.companyId),
+        eq(nfeParticipants.documentId, input.nfeDocumentId),
+        inArray(nfeParticipants.role, ['delivery', 'recipient']),
+      ),
+    )
+    .orderBy(asc(nfeParticipants.role))
+    .limit(1)
+  if (row === undefined) return null
+  const join = (parts: readonly (null | string)[], separator: string): string =>
+    parts
+      .map((part) => (part ?? '').trim())
+      .filter((part) => part !== '')
+      .join(separator)
+  return {
+    address: join(
+      [
+        join([row.street, row.number], ', '),
+        row.complement,
+        row.district,
+        formatPostalCode(row.postalCode),
+      ],
+      ' – ',
+    ),
+    city: join([row.city, row.state], ' · '),
+  }
+}
+
 /**
  * Spec 079: tudo o que o modelo de e-mail sabe preencher, numa consulta da nota e as da ocorrência.
  *
@@ -1904,6 +1972,10 @@ export async function readOccurrenceMailValues(
   })
   const numero = row?.nfeNumber ?? ''
   const serie = row?.nfeSeries ?? ''
+  const recipientPlace =
+    nfeDocumentId === null
+      ? null
+      : await readRecipientPlace(queryable, { companyId: input.companyId, nfeDocumentId })
 
   return {
     contractorName: contato?.contractorName ?? '',
@@ -1923,6 +1995,9 @@ export async function readOccurrenceMailValues(
     occurrenceTypeName: input.occurrenceTypeName,
     occurredOn: input.occurredOn,
     recipientName: contato?.name ?? '',
+    recipientAddress: recipientPlace?.address ?? '',
+    recipientCity: recipientPlace?.city ?? '',
+    recipientTaxId: formatCompanyTaxId(contato?.taxId ?? ''),
     ...(stored?.referenceNumber == null ? {} : { referenceNumber: stored.referenceNumber }),
     ...(stored?.requestedDueDate == null ? {} : { requestedDueDate: stored.requestedDueDate }),
     stopLabel: row?.stopLabel ?? '',

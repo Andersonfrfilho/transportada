@@ -83,6 +83,10 @@ export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLES: readonly OccurrenceContractor
       'Parágrafo "Nova data de vencimento solicitada: DD/MM/AAAA", só quando o motorista informou a data (HTML do sistema).',
     name: 'avisoNovaData',
   },
+  /** O cliente que recebe (o destinatário da nota): onde e quem. O CNPJ só sai para pessoa jurídica, nunca CPF. */
+  { description: 'Endereço de entrega do cliente, da nota.', name: 'enderecoEntrega' },
+  { description: 'Cidade e UF do cliente, da nota.', name: 'cidadeEntrega' },
+  { description: 'CNPJ do cliente; vazio quando o cliente é pessoa física.', name: 'cnpjCliente' },
 ]
 
 export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES: ReadonlySet<string> = new Set(

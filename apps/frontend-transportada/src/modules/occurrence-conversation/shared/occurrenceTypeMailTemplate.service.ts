@@ -41,6 +41,10 @@ export const OCCURRENCE_MAIL_VARIABLE_NAMES = [
   /** A nova data de vencimento pedida pelo motorista (opcional): o texto e o aviso em HTML do sistema. */
   'novaDataVencimento',
   'avisoNovaData',
+  /** O cliente que recebe: endereço e cidade da nota; o CNPJ só de pessoa jurídica. */
+  'enderecoEntrega',
+  'cidadeEntrega',
+  'cnpjCliente',
 ] as const
 
 export type OccurrenceMailVariableName = (typeof OCCURRENCE_MAIL_VARIABLE_NAMES)[number]
@@ -53,11 +57,14 @@ export const OCCURRENCE_MAIL_SAMPLE_VALUES: Readonly<Record<OccurrenceMailVariab
   assinaturaNome: 'Maria Exemplo',
   avisoNovaData: 'Nova data de vencimento solicitada: 25/11/2026',
   cidadeTransportadora: 'Ribeirão Preto · SP',
+  cidadeEntrega: 'Franca · SP',
+  cnpjCliente: '12.345.678/0001-95',
   cnpjContratante: '98.765.432/0001-10',
   cnpjTransportadora: '12.345.678/0001-95',
   contratante: 'Contratante Exemplo',
   data: '01/01/2026',
   /** Os quatro de HTML do sistema têm exemplo fixo em texto, sem marcação: a prévia nunca monta HTML do sistema. */
+  enderecoEntrega: 'Rua Exemplo, 650, Centro',
   faixaResposta:
     '↩ Responda este e-mail: a resposta entra na conversa desta ocorrência e chega à equipe.',
   itens: 'PRODUTO EXEMPLO A 500G, PRODUTO EXEMPLO B 1KG',

@@ -12,7 +12,8 @@
  *
  * A régua de variáveis é a lista fechada do aviso no grupo (tipo, contratante, nota, cliente, endereço, valor, data,
  * momento, observação) mais, no e-mail, a moldura do sistema (identidade da transportadora, assinatura, rodapé).
- * CPF, CNPJ e telefone **nunca** entram, nem o da transportadora: o modelo é geral e vale para qualquer contratante.
+ * CPF e telefone **nunca** entram, nem o CNPJ da transportadora ou da contratante. O CNPJ do cliente (`cnpjCliente`) entra só
+ * para pessoa jurídica, e o endereço e a cidade de entrega vêm da nota (pedido do Anderson em 16/11/2026).
  */
 import { extractTemplatePlaceholders } from '@adatechnology/notification-contracts'
 
@@ -26,8 +27,11 @@ export const CONTRACTOR_MANUAL_NOTICE_TEMPLATE_KEY = 'ocorrencia.contratante-avi
  * (`razaoSocial` é o cliente; o e-mail não tem endereço de entrega nem momento) e a moldura do sistema.
  */
 export const CONTRACTOR_MANUAL_NOTICE_EMAIL_VARIABLES: ReadonlySet<string> = new Set([
+  'cidadeEntrega',
+  'cnpjCliente',
   'contratante',
   'data',
+  'enderecoEntrega',
   'numeroNota',
   'numeroNotaSemSerie',
   'observacao',

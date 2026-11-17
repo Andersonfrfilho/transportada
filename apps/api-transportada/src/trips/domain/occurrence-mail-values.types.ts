@@ -37,6 +37,12 @@ export type OccurrenceMailValues = {
   /** A nova data de vencimento pedida (`AAAA-MM-DD`); ausente é não informada. */
   readonly requestedDueDate?: string | undefined
   readonly recipientName: string
+  /** Spec 324: o endereço de entrega da nota (rua, número, bairro); ausente imprime vazio. */
+  readonly recipientAddress?: string | undefined
+  /** Cidade e UF do destinatário; ausente imprime vazio. */
+  readonly recipientCity?: string | undefined
+  /** CNPJ do destinatário já formatado; vazio para CPF (dado de pessoa física nunca vai ao e-mail). */
+  readonly recipientTaxId?: string | undefined
   /** O número do documento do cliente (a NFD) que quem registra digitou. */
   readonly referenceNumber?: string | undefined
   readonly stopLabel: string
