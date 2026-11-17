@@ -9,6 +9,17 @@ function hasHistoryMarker(): boolean {
 }
 
 /**
+ * Uma atualização do app esperando a captura fechar vai recarregar a página assim que ela fechar; o
+ * `history.back()` do desfazer cancelaria essa navegação (smoke CA09). Com a página prestes a
+ * recarregar, a entrada reserva sobra no histórico — custa um Voltar a mais, nunca a atualização.
+ */
+let isUndoSuspended = false
+
+export function suspendBackButtonUndo(): void {
+  isUndoSuspended = true
+}
+
+/**
  * O botão voltar do Android dispara `popstate`, nunca um evento de UI: sem isto, com um formulário
  * ou folha aberta, ele saía da tela inteira em vez de fechar só o que estava por cima. Uma entrada
  * de histórico "reserva" o gesto; o fechamento explícito a desfaz para não sobrar uma entrada morta.
@@ -41,7 +52,7 @@ export function useBackButtonClose(onClose: () => void): void {
       window.removeEventListener('popstate', handlePopState)
       pendingUndoRef.current = setTimeout(() => {
         pendingUndoRef.current = undefined
-        if (hasHistoryMarker()) window.history.back()
+        if (!isUndoSuspended && hasHistoryMarker()) window.history.back()
       })
     }
   }, [])

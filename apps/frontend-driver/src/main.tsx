@@ -30,6 +30,7 @@ import {
   runDriverBoot,
   scheduleAuthenticationOnReconnect,
 } from '@/modules/driver-trip/shared/bootMode.service'
+import { suspendBackButtonUndo } from '@/modules/shared/useBackButtonClose.hook'
 import {
   captureRegistry,
   createAuthenticationCaptureView,
@@ -131,6 +132,7 @@ function applyServiceWorkerUpdateNow(): void {
     captureRegistry,
   })
   if (outcome === 'deferred') {
+    suspendBackButtonUndo()
     isServiceWorkerUpdateWaiting = true
     notifyServiceWorkerUpdateListeners()
   }
