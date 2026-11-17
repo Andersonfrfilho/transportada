@@ -101,7 +101,12 @@ async function seedNotifications(database: TestDatabase, companyId: string, user
 
 function useCaseFor(database: TestDatabase) {
   return createSentMessagesUseCase({
-    now: () => new Date(),
+    /**
+     * As linhas nascem com `now()` do banco e a janela fecha no relógio deste processo: com o relógio do banco poucos
+     * milissegundos à frente, a última linha caía fora da janela (falhou duas vezes seguidas na CI de staging). Folga
+     * de um minuto, dentro do teto da janela.
+     */
+    now: () => new Date(Date.now() + 60_000),
     sources: createDrizzleSentMessagesSources(database.db),
   })
 }
