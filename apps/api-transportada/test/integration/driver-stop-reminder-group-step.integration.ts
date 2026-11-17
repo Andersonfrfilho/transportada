@@ -74,6 +74,20 @@ const CLOSED_QUESTIONS = {
   hasPendingPrompt: false,
 }
 
+/**
+ * O portão só envia entre 8h e 18h de Brasília (janela global de 17/11/2026). Fora dela o relógio de parede faria
+ * o teste adiar em vez de enviar, então o relógio do portão pula para as 8h30 seguintes (sempre no futuro do banco).
+ */
+function inSendWindowNow(): Date {
+  const now = new Date()
+  const localHour = (now.getUTCHours() + 21) % 24 // UTC-3, sem horário de verão
+  if (localHour >= 8 && localHour < 18) return now
+  const next = new Date(now)
+  next.setUTCHours(11, 30, 0, 0) // 08:30 em Brasília
+  if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1)
+  return next
+}
+
 type BuildOptions = {
   readonly clock?: () => Date
   /** Ausente ou `true`: a parada 1 sai antes (lembrete `arrival`). `false`: a viagem fica só despachada. */
@@ -82,7 +96,8 @@ type BuildOptions = {
 }
 
 async function build(db: JourneyDatabase, world: JourneyWorld, options: BuildOptions = {}) {
-  const clock = options.clock ?? (() => new Date())
+  const fixedNow = inSendWindowNow()
+  const clock = options.clock ?? (() => fixedNow)
   await db
     .insert(companyDriverReminderSettings)
     .values({ companyId: world.companyId, enabled: true })
@@ -349,7 +364,7 @@ describe('passo reminder.stage pelo caminho real do grupo (spec 299 T2.3, Postgr
     'sem resposta, a próxima tentativa do mesmo lembrete troca o pedido e envia, sem adiar',
     async () => {
       await inDatabase(async (db) => {
-        const start = new Date()
+        const start = inSendWindowNow()
         let current = start
         const world = await seedJourneyTrip(db, { driverPhone: '16988887777' })
         const harness = await build(db, world, { clock: () => current, realOpenQuestions: true })
