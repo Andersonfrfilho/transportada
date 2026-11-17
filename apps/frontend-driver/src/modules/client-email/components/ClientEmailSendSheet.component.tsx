@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useBackButtonClose } from '../../shared/useBackButtonClose.hook'
 import { useId, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -37,6 +38,7 @@ export function ClientEmailSendSheet({
   const titleId = useId()
   const addressId = useId()
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose })
+  useBackButtonClose(onClose)
   const { reset, send, status } = useClientBoletoEmailSend({ isOnline, occurrenceId })
   const pending = useClientBoletoEmailPending(occurrenceId)
   const [selectedIds, setSelectedIds] = useState<readonly string[]>([])
