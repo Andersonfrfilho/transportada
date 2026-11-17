@@ -153,6 +153,7 @@ export function createContractorOccurrenceChannelUseCase(dependencies: {
           numeroNotaSemSerie: '000000',
           observacao: 'Exemplo de resumo da ocorrência.',
           tipoOcorrencia: 'Teste',
+          valorCobrado: '50,00',
           valorNota: '1.250,00',
         },
       })

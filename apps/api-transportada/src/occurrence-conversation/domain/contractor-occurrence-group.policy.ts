@@ -36,6 +36,7 @@ export const CONTRACTOR_OCCURRENCE_GROUP_VARIABLES = [
   'numeroNotaSemSerie',
   'observacao',
   'tipoOcorrencia',
+  'valorCobrado',
   'valorNota',
 ] as const
 

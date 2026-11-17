@@ -87,6 +87,11 @@ export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLES: readonly OccurrenceContractor
   { description: 'Endereço de entrega do cliente, da nota.', name: 'enderecoEntrega' },
   { description: 'Cidade e UF do cliente, da nota.', name: 'cidadeEntrega' },
   { description: 'CNPJ do cliente; vazio quando o cliente é pessoa física.', name: 'cnpjCliente' },
+  {
+    description:
+      'Valor que o motorista informou no app (valor cobrado ou pago); vazio quando não informou.',
+    name: 'valorCobrado',
+  },
 ]
 
 export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES: ReadonlySet<string> = new Set(

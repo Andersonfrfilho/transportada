@@ -82,6 +82,7 @@ function setup(input: {
                 numeroNotaSemSerie: '4512',
                 observacao: 'Caixa violada',
                 tipoOcorrencia: 'Avaria',
+                valorCobrado: '',
                 valorNota: '1.250,00',
               },
             },
@@ -307,6 +308,7 @@ describe('o texto do aviso no grupo (spec 318 RF2, RF4)', () => {
     numeroNotaSemSerie: '4512',
     observacao: '',
     tipoOcorrencia: 'Falta',
+    valorCobrado: '',
     valorNota: '1.250,00',
   } as const
 

@@ -10,6 +10,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import {
   tripDocumentOccurrenceProducts,
   tripDocumentOccurrences,
+  tripStopOccurrences,
 } from '../../database/trip.schema.js'
 import type { StoredOccurrenceLine } from '../domain/occurrence-template-lines.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -59,7 +60,27 @@ export async function readStoredOccurrenceTemplateSource(
       )
       .orderBy(asc(tripDocumentOccurrenceProducts.position)),
   ])
-  if (occurrence === undefined) return null
+  if (occurrence === undefined) {
+    /** Spec 343: a ocorrência de parada guarda o valor que o motorista informou (cobrança no recebimento). */
+    const [stop] = await queryable
+      .select({ declaredAmount: tripStopOccurrences.declaredAmount })
+      .from(tripStopOccurrences)
+      .where(
+        and(
+          eq(tripStopOccurrences.companyId, input.companyId),
+          eq(tripStopOccurrences.id, input.occurrenceId),
+        ),
+      )
+      .limit(1)
+    return stop === undefined
+      ? null
+      : {
+          declaredAmount: stop.declaredAmount,
+          lines: [],
+          referenceNumber: null,
+          requestedDueDate: null,
+        }
+  }
 
   return { ...occurrence, lines }
 }

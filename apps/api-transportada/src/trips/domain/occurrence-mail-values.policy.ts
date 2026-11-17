@@ -162,6 +162,7 @@ export function buildContractorMailValues(
       razaoSocial: values.recipientName,
       somaItens: formatCents(amounts.itemsSumCents),
       tipoOcorrencia: values.occurrenceTypeName ?? '',
+      valorCobrado: formatCents(amounts.declaredAmountCents),
       valorDeclarado: formatCents(amounts.declaredAmountCents),
       valorNota: values.totalValue === '' ? '' : formatCents(parseAmountToCents(values.totalValue)),
     },

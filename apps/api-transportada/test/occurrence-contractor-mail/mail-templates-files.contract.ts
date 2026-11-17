@@ -154,3 +154,24 @@ describe('spec 272 T4.2: os cinco modelos .html do e-mail de ocorrência', () =>
     })
   }
 })
+
+describe('cobrança no recebimento: o valor cobrado sai em negrito (spec 343)', () => {
+  const html = readFileSync(new URL('cobranca-recebimento.html', TEMPLATES_DIR), 'utf8')
+  const whatsapp = readFileSync(
+    new URL(
+      '../../src/occurrence-conversation/occurrence-whatsapp-templates/cobranca-recebimento.txt',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  test('o e-mail imprime {{valorCobrado}} dentro de <strong>, na área editável', () => {
+    expect(html).toMatch(/<strong>\s*R\$ \{\{valorCobrado\}\}\s*<\/strong>/u)
+    const area = html.slice(html.indexOf(OPEN), html.indexOf(CLOSE))
+    expect(area).toContain('{{valorCobrado}}')
+  })
+
+  test('o grupo imprime o valor entre asteriscos (negrito do WhatsApp)', () => {
+    expect(whatsapp).toMatch(/\*R\$ \{\{valorCobrado\}\}\*/u)
+  })
+})
