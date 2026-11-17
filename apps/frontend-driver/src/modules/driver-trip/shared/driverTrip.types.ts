@@ -536,6 +536,11 @@ export type DriverOccurrenceType = Readonly<{
    */
   itemsMinimumCount?: number | null
   itemsMode?: ProofFieldRequirement
+  /**
+   * Spec 315 (D10): minutos de espera depois do "Cheguei" antes de o tipo abrir. Ausente ou `null` é sem espera
+   * mínima; quem cobra é o servidor, o app só esconde a opção e mostra o contador.
+   */
+  minWaitAfterArrivalMinutes?: number | null
   noteMode?: ProofFieldRequirement
   photoMinimumCount?: number
   photoMode?: ProofFieldRequirement
@@ -621,6 +626,7 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly flow?: unknown
     readonly id?: unknown
     readonly itemsMode?: unknown
+    readonly minWaitAfterArrivalMinutes?: unknown
     readonly name?: unknown
     readonly noteMode?: unknown
     readonly photoMode?: unknown
@@ -654,6 +660,11 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     (mode) => mode === undefined || (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(mode),
   )
   /** Spec 218: ausentes são a cópia guardada antes da spec; presentes, só no vocabulário. */
+  const hasKnownMinWait =
+    candidate.minWaitAfterArrivalMinutes === undefined ||
+    candidate.minWaitAfterArrivalMinutes === null ||
+    (typeof candidate.minWaitAfterArrivalMinutes === 'number' &&
+      Number.isFinite(candidate.minWaitAfterArrivalMinutes))
   const hasKnownFlow =
     candidate.flow === undefined ||
     (DRIVER_OCCURRENCE_FLOWS as readonly unknown[]).includes(candidate.flow)
@@ -686,6 +697,7 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     typeof candidate.id === 'string' &&
     typeof candidate.name === 'string' &&
     hasKnownMode &&
+    hasKnownMinWait &&
     hasKnownFlow &&
     hasKnownStopKind &&
     hasKnownDeclaredAmountScope &&

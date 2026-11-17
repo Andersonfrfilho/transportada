@@ -875,6 +875,13 @@
         "note": "the note",
         "photo": "{{label}}"
       }
+    },
+    "availability": {
+      "alreadyOpen": "Already registered at this stop",
+      "arrivalSyncing": "Waiting for the arrival to sync",
+      "needsArrival": "Tap \"Arrived\" first",
+      "waiting_one": "Available at {{time}} · {{count}} min left",
+      "waiting_other": "Available at {{time}} · {{count}} min left"
     }
   },
   "routeOccurrence": {

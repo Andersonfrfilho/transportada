@@ -893,6 +893,13 @@
         "note": "a observação",
         "photo": "{{label}}"
       }
+    },
+    "availability": {
+      "alreadyOpen": "Já registrada nesta parada",
+      "arrivalSyncing": "Aguardando a chegada sincronizar",
+      "needsArrival": "Marque \"Cheguei\" primeiro",
+      "waiting_one": "Disponível às {{time}} · falta {{count}} min",
+      "waiting_other": "Disponível às {{time}} · faltam {{count}} min"
     }
   },
   "routeOccurrence": {
