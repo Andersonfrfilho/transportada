@@ -6697,6 +6697,11 @@ button.occurrenceCaseBadge {
   inline-size: 100%;
 }
 
+.driverAddressForm label {
+  display: grid;
+  gap: var(--space-1);
+}
+
 .driverAddressForm textarea {
   field-sizing: content;
   min-block-size: 4.5rem;
