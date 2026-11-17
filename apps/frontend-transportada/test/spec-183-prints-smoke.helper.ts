@@ -69,7 +69,7 @@ const DOCUMENT_OCCURRENCE = {
   vehiclePlate: 'ABC1D23',
 } as const
 
-const STOP_OCCURRENCE = {
+export const STOP_OCCURRENCE = {
   ...DOCUMENT_OCCURRENCE,
   actorName: 'Escritório Sintético',
   case: null,

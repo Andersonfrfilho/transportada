@@ -2578,6 +2578,26 @@
     }
   },
   "occurrenceDetail": {
+    "receivingCharge": {
+      "amount": "Amount charged",
+      "openPhoto": "Open photo: {{label}}",
+      "paidBy": {
+        "company": "The company",
+        "driver": "The driver"
+      },
+      "paidByLabel": "Paid by",
+      "photos": "Charge photos",
+      "pix": "Driver PIX",
+      "pixRestricted": "Restricted to people who see trip amounts.",
+      "pixType": {
+        "cnpj": "CNPJ",
+        "cpf": "CPF",
+        "email": "e-mail",
+        "phone": "phone",
+        "random": "random key"
+      },
+      "title": "Charge on receiving"
+    },
     "back": "Back to occurrences",
     "breadcrumb": "Occurrence navigation",
     "kicker": "Occurrence · {{stage}}",

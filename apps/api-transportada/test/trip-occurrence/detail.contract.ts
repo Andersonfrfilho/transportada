@@ -22,7 +22,7 @@ describe('detalhe da ocorrência — caso de uso (spec 183 T201)', () => {
       reader: {
         findDetail: async (input) => {
           calls.push(input)
-          return OCCURRENCE_DETAIL
+          return { ...OCCURRENCE_DETAIL, receivingCharge: null }
         },
       },
     })
@@ -32,7 +32,7 @@ describe('detalhe da ocorrência — caso de uso (spec 183 T201)', () => {
       occurrenceId: OCCURRENCE_ID,
     })
 
-    expect(detail).toEqual(OCCURRENCE_DETAIL)
+    expect(detail).toEqual({ ...OCCURRENCE_DETAIL, receivingCharge: null })
     expect(calls).toEqual([{ companyId: COMPANY_ID, occurrenceId: OCCURRENCE_ID }])
   })
 
@@ -47,5 +47,61 @@ describe('detalhe da ocorrência — caso de uso (spec 183 T201)', () => {
     })
 
     expect(attempt).rejects.toBeInstanceOf(TripOccurrenceNotFoundError)
+  })
+
+  describe('cobrança no recebimento (placa, extrato e PIX do motorista)', () => {
+    const SOURCE = {
+      declaredAmount: '50,00',
+      driverPix: { key: '16993056772', type: 'phone' as const },
+      paidBy: 'driver' as const,
+      photos: [
+        { bucket: 'b', label: 'Placa do veículo', objectKey: 'k/placa', slotKey: 'plate' },
+        {
+          bucket: 'b',
+          label: 'Extrato do pagamento',
+          objectKey: 'k/extrato',
+          slotKey: 'payment_receipt',
+        },
+      ],
+    }
+    const downloads = {
+      createDownloadUrl: async (location: { readonly objectKey: string }) => ({
+        expiresAt: '2026-11-17T20:00:00.000Z',
+        url: `https://signed.example/${location.objectKey}`,
+      }),
+    }
+    const build = (): ReturnType<typeof createReadTripOccurrenceDetailUseCase> =>
+      createReadTripOccurrenceDetailUseCase({
+        downloads,
+        reader: {
+          findDetail: async () => ({ ...OCCURRENCE_DETAIL, receivingCharge: SOURCE }),
+        },
+      })
+
+    test('com trip.financials mostra o PIX e assina as fotos das vagas', async () => {
+      const detail = await build().execute({
+        context: { companyId: COMPANY_ID },
+        includeFinancials: true,
+        occurrenceId: OCCURRENCE_ID,
+      })
+
+      expect(detail.receivingCharge?.driverPix).toEqual({ key: '16993056772', type: 'phone' })
+      expect(detail.receivingCharge?.photos.map((photo) => [photo.slotKey, photo.url])).toEqual([
+        ['plate', 'https://signed.example/k/placa'],
+        ['payment_receipt', 'https://signed.example/k/extrato'],
+      ])
+    })
+
+    test('sem trip.financials o PIX some, e a foto e o valor continuam', async () => {
+      const detail = await build().execute({
+        context: { companyId: COMPANY_ID },
+        occurrenceId: OCCURRENCE_ID,
+      })
+
+      expect(detail.receivingCharge?.driverPix).toBeNull()
+      expect(detail.receivingCharge?.paidBy).toBe('driver')
+      expect(detail.receivingCharge?.declaredAmount).toBe('50,00')
+      expect(detail.receivingCharge?.photos).toHaveLength(2)
+    })
   })
 })

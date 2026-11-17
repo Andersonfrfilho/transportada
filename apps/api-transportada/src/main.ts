@@ -5412,6 +5412,13 @@ function createApplicationRoutes({
     /** Spec 183 RF1: o detalhe que a linha de `/ocorrencias` abre (`fleet.read`, como a listagem). */
     ...createTripOccurrenceDetailRoutes({
       readTripOccurrenceDetail: createReadTripOccurrenceDetailUseCase({
+        /** Lido na chamada: o `storageGateway` é montado mais abaixo nesta composição (spec 317). */
+        downloads: {
+          createDownloadUrl: (location) =>
+            createDeliveryProofDownloadGateway({ storage: storageGateway }).createDownloadUrl(
+              location,
+            ),
+        },
         reader: { findDetail: (input) => findTripOccurrenceDetail(database, input) },
       }),
       readTripOccurrenceTimeline: createReadTripOccurrenceTimelineUseCase({

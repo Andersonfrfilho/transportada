@@ -29,6 +29,7 @@ import { OccurrenceResolutionPanel } from '../components/OccurrenceResolutionPan
 import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
+import { OccurrenceReceivingCharge } from '../components/OccurrenceReceivingCharge.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceTripMap } from '../components/OccurrenceTripMap.component'
 import {
@@ -430,6 +431,7 @@ function OccurrenceSummaryPanel({
           </dd>
         </div>
       </dl>
+      <OccurrenceReceivingCharge occurrence={occurrence} />
       <OccurrenceItems occurrence={occurrence} />
       <OccurrenceCorrectionActions
         {...(companyId === undefined ? {} : { companyId })}

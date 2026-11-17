@@ -16,13 +16,14 @@ import { userWhatsAppPhones } from '../../database/user-whatsapp-phone.schema.js
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import type { OccurrenceCorrectionEntry } from '../application/occurrence-correction.port.js'
 import type {
-  TripOccurrenceDetail,
   TripOccurrenceDetailDriver,
   TripOccurrenceDetailItem,
+  TripOccurrenceDetailRead,
 } from '../application/read-trip-occurrence-detail.use-case.js'
 import type { TripOccurrenceFeedItem } from '../application/trip-occurrence-feed.use-case.js'
 import { listOccurrenceCorrectionsByIds } from './occurrence-correction-read.query.js'
 import { findOccurrenceDetailRequirements } from './trip-occurrence-detail-requirements.query.js'
+import { findReceivingChargeDetail } from './trip-occurrence-detail-receiving-charge.query.js'
 import { findRecordedValues } from './trip-occurrence-detail-values.query.js'
 import { resolveOccurrenceItems } from './occurrence-items.support.js'
 import { findTripOccurrenceFeedItem } from './trip-occurrence-feed.query.js'
@@ -126,10 +127,10 @@ async function findOccurrenceItems(
 export async function findTripOccurrenceDetail(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<TripOccurrenceDetail | null> {
+): Promise<null | TripOccurrenceDetailRead> {
   const item = await findTripOccurrenceFeedItem(queryable, input)
   if (item === null) return null
-  const [driver, items, corrections, recorded, requirements] = await Promise.all([
+  const [driver, items, corrections, recorded, requirements, receivingCharge] = await Promise.all([
     findTripDriver(queryable, { companyId: input.companyId, tripId: item.tripId }),
     findOccurrenceItems(queryable, { companyId: input.companyId, item }),
     item.source === 'document'
@@ -140,6 +141,7 @@ export async function findTripOccurrenceDetail(
       : Promise.resolve(new Map<string, OccurrenceCorrectionEntry[]>()),
     findRecordedValues(queryable, { companyId: input.companyId, item }),
     findOccurrenceDetailRequirements(queryable, { companyId: input.companyId, item }),
+    findReceivingChargeDetail(queryable, { companyId: input.companyId, item }),
   ])
   return {
     ...item,
@@ -147,6 +149,7 @@ export async function findTripOccurrenceDetail(
     corrections: corrections.get(item.id) ?? [],
     driver,
     items,
+    receivingCharge,
     requirements,
   }
 }

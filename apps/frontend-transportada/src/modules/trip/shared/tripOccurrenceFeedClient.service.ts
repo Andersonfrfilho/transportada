@@ -9,6 +9,7 @@ import { isOccurrenceCancellation, isOccurrenceCorrection } from './tripResponse
 import {
   EMPTY_OCCURRENCE_CONVERSATION,
   OCCURRENCE_CONTRACTOR_CONVERSATION_STATES,
+  OCCURRENCE_PIX_KEY_TYPES,
   OCCURRENCE_SETTLEMENT_AMOUNT_SOURCES,
   OCCURRENCE_SETTLEMENT_PAYER_KINDS,
   TRIP_OCCURRENCE_CASE_DECISION_KINDS,
@@ -36,6 +37,7 @@ import {
   type TripOccurrenceFeedItem,
   type TripOccurrenceFeedOrder,
   type TripOccurrenceFeedPage,
+  type TripOccurrenceReceivingCharge,
   type TripOccurrenceResolution,
 } from './tripOccurrenceFeed.service'
 import { serializeTripOccurrenceQuery } from './tripOccurrenceFeed.service'
@@ -349,6 +351,43 @@ function isDetailDriver(value: unknown): value is TripOccurrenceDetailDriver {
 
 const DECIMAL_STRING = /^-?\d+(\.\d+)?$/u
 
+function isReceivingChargePhoto(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isString(value.expiresAt) &&
+    isString(value.label) &&
+    isString(value.slotKey) &&
+    isString(value.url)
+  )
+}
+
+/**
+ * Spec 317: leitura tolerante. A cobrança é um bloco à parte da ocorrência — malformada, some (`null`) e a página
+ * abre igual; nunca derruba o detalhe.
+ */
+function readReceivingCharge(value: unknown): null | TripOccurrenceReceivingCharge {
+  if (!isRecord(value)) return null
+  const { declaredAmount, driverPix, paidBy, photos } = value
+  const pixOk =
+    driverPix === null ||
+    (isRecord(driverPix) &&
+      isString(driverPix.key) &&
+      (OCCURRENCE_PIX_KEY_TYPES as readonly unknown[]).includes(driverPix.type))
+  if (
+    !(
+      declaredAmount === null ||
+      (isString(declaredAmount) && DECIMAL_STRING.test(declaredAmount))
+    ) ||
+    !(paidBy === null || paidBy === 'driver' || paidBy === 'company') ||
+    !pixOk ||
+    !Array.isArray(photos) ||
+    !photos.every(isReceivingChargePhoto)
+  ) {
+    return null
+  }
+  return value as TripOccurrenceReceivingCharge
+}
+
 function isDetailItem(value: unknown): value is TripOccurrenceDetailItem {
   return (
     isRecord(value) &&
@@ -388,7 +427,7 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
   /** Os campos do detalhe ficam fora do guard da linha (que é tolerante, B5/B6) — conferidos aqui. */
   const fields: Readonly<Record<string, unknown>> = raw
   const { actorName, channel, corrections, document, driver, items, onBehalfOfDriverName } = fields
-  const { declaredAmount, itemValues, referenceNumber, requirements } = fields
+  const { declaredAmount, itemValues, receivingCharge, referenceNumber, requirements } = fields
   /** O detalhe nasceu com a 183: aqui `document` ausente é resposta inválida, não API antiga. */
   if (
     document === undefined ||
@@ -413,14 +452,19 @@ function readDetail(payload: unknown): TripOccurrenceDetail {
   ) {
     throw requestError(TRIP_ERROR.RESPONSE_INVALID)
   }
+  const charge = readReceivingCharge(receivingCharge)
+  /** `toFeedItem` espalha as chaves que não conhece: a cobrança crua sai e só a lida (tolerante) volta. */
+  const feedItem: Record<string, unknown> & ReturnType<typeof toFeedItem> = { ...toFeedItem(raw) }
+  delete feedItem.receivingCharge
   return {
-    ...toFeedItem(raw),
+    ...feedItem,
     actorName,
     channel,
     corrections: corrections ?? [],
     driver,
     items,
     onBehalfOfDriverName,
+    ...(charge === null ? {} : { receivingCharge: charge }),
   }
 }
 

@@ -2578,6 +2578,26 @@
     }
   },
   "occurrenceDetail": {
+    "receivingCharge": {
+      "amount": "Valor cobrado",
+      "openPhoto": "Abrir foto: {{label}}",
+      "paidBy": {
+        "company": "A empresa",
+        "driver": "O motorista"
+      },
+      "paidByLabel": "Quem pagou",
+      "photos": "Fotos da cobrança",
+      "pix": "PIX do motorista",
+      "pixRestricted": "Restrito a quem acompanha os valores da viagem.",
+      "pixType": {
+        "cnpj": "CNPJ",
+        "cpf": "CPF",
+        "email": "e-mail",
+        "phone": "telefone",
+        "random": "chave aleatória"
+      },
+      "title": "Cobrança no recebimento"
+    },
     "back": "Voltar para ocorrências",
     "breadcrumb": "Navegação da ocorrência",
     "kicker": "Ocorrência · {{stage}}",
