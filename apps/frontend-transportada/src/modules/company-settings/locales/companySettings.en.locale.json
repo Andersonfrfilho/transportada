@@ -582,7 +582,10 @@
           "marcasRodape": "Footer marks: TransportAdA and Ada Technology (system HTML).",
           "logoAssinatura": "Signature square: the carrier logo on the team signature, otherwise the initials (system HTML).",
           "novaDataVencimento": "New due date requested by the driver (DD/MM/YYYY); empty when not given.",
-          "avisoNovaData": "Paragraph \"New due date requested: DD/MM/YYYY\", only when the driver gave the date (system HTML)."
+          "avisoNovaData": "Paragraph \"New due date requested: DD/MM/YYYY\", only when the driver gave the date (system HTML).",
+          "enderecoEntrega": "Client delivery address, from the invoice.",
+          "cidadeEntrega": "Client city and state, from the invoice.",
+          "cnpjCliente": "Client CNPJ; empty when the client is an individual."
         }
       },
       "watchers": {

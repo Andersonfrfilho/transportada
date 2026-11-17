@@ -64,11 +64,26 @@ const VALUES: OccurrenceMailValues = {
 }
 
 describe('valores do e-mail da ocorrência (spec 271 T2.2)', () => {
+  test('o cliente que recebe: endereço, cidade e CNPJ vêm dos valores da nota (spec 324)', () => {
+    const { mail } = buildContractorMailValues({
+      ...VALUES,
+      recipientAddress: 'R FRANCISCO MARQUES, 650, CENTRO',
+      recipientCity: 'FRANCA · SP',
+      recipientTaxId: '12.345.678/0001-95',
+    })
+    expect(mail.enderecoEntrega).toBe('R FRANCISCO MARQUES, 650, CENTRO')
+    expect(mail.cidadeEntrega).toBe('FRANCA · SP')
+    expect(mail.cnpjCliente).toBe('12.345.678/0001-95')
+  })
+
   test('o nível do e-mail traz as chaves camelCase com os valores de hoje, mais tipoOcorrencia e linhasItens', () => {
     expect(buildContractorMailValues(VALUES).mail).toEqual({
+      cidadeEntrega: '',
+      cnpjCliente: '',
       codigosItens: '7000001 01, 7000002 02',
       contratante: 'Contratante Exemplo',
       data: '01/01/2026',
+      enderecoEntrega: '',
       itens: 'PRODUTO EXEMPLO A 500G, PRODUTO EXEMPLO B 1KG',
       linhasItens:
         '7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20\n7000002 02 – PRODUTO EXEMPLO B 1KG – 2,5 CX – R$ 10,00',

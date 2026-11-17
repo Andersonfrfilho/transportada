@@ -143,9 +143,12 @@ export function buildContractorMailValues(
   return {
     itemLines,
     mail: {
+      cidadeEntrega: values.recipientCity ?? '',
+      cnpjCliente: values.recipientTaxId ?? '',
       codigosItens: values.itemCode,
       contratante: values.contractorName,
       data: values.occurredOn,
+      enderecoEntrega: values.recipientAddress ?? '',
       itens: values.itemLabel,
       linhasItens: joinItemLines(itemLines),
       motorista: toDisplayPersonName(values.driverName),
