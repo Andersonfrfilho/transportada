@@ -807,7 +807,8 @@ export function createAutomaticOccurrenceMailReader(
         .limit(1)
       if (type === undefined) return null
       /** Spec 321 (D2): o tipo que nunca avisa a contratante não lê contato, modelo nem grupo. */
-      if (occurrenceTypeNeverNotifiesContractor(type)) {
+      /** Só o automático para na marca; o botão manual (`ignoreTypeOff`) lê o plano completo (vale sempre). */
+      if (occurrenceTypeNeverNotifiesContractor(type) && params.ignoreTypeOff !== true) {
         return {
           blocksContractorNotice: true,
           chosenContactIds: [],

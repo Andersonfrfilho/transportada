@@ -28,7 +28,7 @@ canhoto chega.
   (motorista, escritório e WhatsApp) e a aba Tipos. Nome "Canhoto retido pelo cliente", etapa `delivery`. Criado por cadastro/script
   de staging, **não** pelo catálogo de bootstrap (T0 §10). Modos: observação obrigatória, foto opcional, sem itens, valor nem
   localização; `duplicate_request_policy = until_resolved` (T0 §11).
-- **D2 — Nunca vai à contratante, por contrato.** `emails_contractor = false` e sem modelo no tipo, mais **guarda no código**, porque os
+- **D2 — Nunca vai à contratante _automaticamente_, por contrato. (Revisto na 343, 2026-11-17: a marca só cala o automático; botão, chat e portal à mão valem sempre.)** `emails_contractor = false` e sem modelo no tipo, mais **guarda no código**, porque os
   envios manuais não leem o tipo (T0 §4). Função pura `occurrenceTypeNeverNotifiesContractor(type)` lida por: e-mail automático
   (143/269/271), varredor do worker, envio/chat manual do escritório e, quando entrar, o canal de grupo da 318 (PR #646). A guarda
   é por **marca no tipo** (`blocks_contractor_notice`, boolean, padrão `false`), não por nome nem por id fixo. `notifies` **não** é o

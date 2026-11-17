@@ -525,9 +525,6 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
       const plan = await dependencies.reader.findPlan({ ...input, ignoreTypeOff: true })
       if (plan === null) return null
       if (plan.missingContractor === true) return { reason: 'no_document', status: 'unavailable' }
-      if (occurrenceTypeNeverNotifiesContractor(plan)) {
-        return { reason: 'blocked', status: 'unavailable' }
-      }
       const record = await manualNotice.readNoticeRecord(input)
       if (record.manual !== null) return { ...record.manual, by: 'manual', status: 'notified' }
       if (plan.emailsContractor && record.automatic !== null) {
@@ -619,7 +616,6 @@ export function createSendAutomaticOccurrenceMailUseCase(dependencies: {
       if (plan === null) return { outcome: 'not_document' }
       /** Spec 343 (RF1): parada sem nota — nada a reservar nem a enviar; o painel já mostra o motivo. */
       if (plan.missingContractor === true) return { outcome: 'skipped', reason: 'not_document' }
-      if (occurrenceTypeNeverNotifiesContractor(plan)) return { outcome: 'blocked' }
       if (plan.emailsContractor && (await manualNotice.isAutomaticNoticeSent(sendInput))) {
         return { by: 'automatic', outcome: 'already_notified' }
       }
