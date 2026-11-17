@@ -169,7 +169,6 @@ export function ContractorNoticeSection({ occurrenceId }: ContractorNoticeSectio
   if (query.isError) return <p className={styles.hint}>{t('contractorNotice.error')}</p>
   const state = query.data
   if (state === undefined) return null
-  if (state.status === 'unavailable' && state.reason === 'blocked') return null
 
   return (
     <section className={styles.section}>

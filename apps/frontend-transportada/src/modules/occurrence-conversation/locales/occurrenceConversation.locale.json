@@ -812,7 +812,7 @@
       "no_recipient": "Não dá para avisar: a contratante não tem contato para esta etapa (ou o e-mail não está verificado).",
       "no_template": "Não dá para avisar: não há modelo de aviso disponível.",
       "no_document": "Não dá para avisar: a ocorrência não tem nota, então não há contratante a avisar.",
-      "blocked": ""
+      "blocked": "Não dá para avisar: este tipo de ocorrência está marcado para nunca avisar a contratante."
     },
     "dialog": {
       "title": "Avisar a contratante",
