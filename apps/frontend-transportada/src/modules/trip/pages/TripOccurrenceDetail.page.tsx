@@ -9,6 +9,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
 import { formatPersonName } from '@/lib/personName'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { ContractorNoticeSection } from '@/modules/occurrence-conversation/components/ContractorNoticeSection.component'
 import { ContractorReplyPanel } from '@/modules/occurrence-conversation/components/ContractorReplyPanel.component'
 import { useOccurrenceConversationsQuery } from '@/modules/occurrence-conversation/queries/occurrenceConversation.query'
 import { findClientConversation } from '@/modules/occurrence-conversation/shared/clientConversation.service'
@@ -478,6 +479,12 @@ function OccurrenceDetailSections({
         <div className={styles.panelHead}>
           <h2 id="occurrence-conversations-title">{t('occurrenceDetail.conversations.title')}</h2>
         </div>
+        {participant === 'driver' ||
+        participant === 'client' ||
+        occurrence.source !== 'document' ? null : (
+          /** Spec 324: o aviso manual vale só para ocorrência de nota; a rota responde 404 para parada. */
+          <ContractorNoticeSection occurrenceId={occurrence.id} />
+        )}
         {participant === 'driver' || participant === 'client' ? null : (
           <ContractorReplyPanel
             canResolve={canResolveOccurrenceCases}
