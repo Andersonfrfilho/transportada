@@ -5,6 +5,8 @@
  * número, e **nenhum e-mail** (P1). Um aviso por ocorrência (RF3). Falha no grupo: tenta de novo a passageira, grava o
  * resultado e cai no e-mail de reserva se ele estiver ligado (P2). O texto é enxuto e sem dado sensível (RF4).
  */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, test } from 'bun:test'
 
 import { createAutomaticOccurrenceMailHook } from '../../src/occurrence-conversation/application/automatic-occurrence-mail.hook.js'
@@ -19,6 +21,7 @@ import {
   CONTRACTOR_OCCURRENCE_GROUP_SUMMARY_MAX_LENGTH,
   NEW_DUE_DATE_NOT_INFORMED,
   buildContractorOccurrenceGroupMessage,
+  formatElapsedWait,
   summarizeOccurrenceNote,
 } from '../../src/occurrence-conversation/domain/contractor-occurrence-group.policy.js'
 
@@ -76,6 +79,10 @@ function setup(input: {
                 contratante: 'Única Comércio Ltda',
                 data: '10/11/2026 10:35',
                 enderecoEntrega: 'RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
+                chegada: '',
+                inicioRota: '',
+                janelaRecebimento: '',
+                tempoEspera: '',
                 momento: 'entrega',
                 novaData: '',
                 numeroNota: '4512/1',
@@ -302,6 +309,10 @@ describe('o texto do aviso no grupo (spec 318 RF2, RF4)', () => {
     contratante: 'Única Comércio Ltda',
     data: '10/11/2026 10:35',
     enderecoEntrega: 'RUA DAS FLORES, 100, RIBEIRAO PRETO, SP',
+    chegada: '',
+    inicioRota: '',
+    janelaRecebimento: '',
+    tempoEspera: '',
     momento: 'separação',
     novaData: '',
     numeroNota: '4512/1',
@@ -400,5 +411,83 @@ describe('o texto do aviso no grupo (spec 318 RF2, RF4)', () => {
     )
     expect(long).toHaveLength(CONTRACTOR_OCCURRENCE_GROUP_SUMMARY_MAX_LENGTH)
     expect(long.endsWith('…')).toBe(true)
+  })
+})
+
+describe('a espera longa leva os eventos da entrega e o valor da nota (18/11/2026)', () => {
+  const ESPERA_LONGA = readFileSync(
+    new URL(
+      '../../src/occurrence-conversation/occurrence-whatsapp-templates/espera-longa.txt',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+  const base = {
+    chegada: '18/11/2026 15:10',
+    cliente: 'Destinatario Teste 15',
+    contratante: 'UNICA COMERCIO E DISTRIBUICAO LTDA',
+    data: '18/11/2026 17:40',
+    enderecoEntrega: 'Rua Teste, 100, RIBEIRAO PRETO, SP',
+    inicioRota: '18/11/2026 14:20',
+    janelaRecebimento: '08:00 às 17:00',
+    momento: 'entrega',
+    novaData: '',
+    numeroNota: '170572/1',
+    numeroNotaSemSerie: '170572',
+    observacao: 'Cliente sem ninguém para receber',
+    tempoEspera: '2 h 30 min',
+    tipoOcorrencia: 'Espera longa',
+    valorCobrado: '',
+    valorNota: '1.250,00',
+  } as const
+
+  test('o texto traz saída, chegada, tempo de espera, janela e valor da nota', () => {
+    const message = buildContractorOccurrenceGroupMessage({
+      mentionPhone: MENTION_PHONE,
+      template: ESPERA_LONGA,
+      values: base,
+    })
+    expect(message).toContain('*Valor da nota:* R$ 1.250,00')
+    expect(message).toContain('*Saiu para a entrega:* 18/11/2026 14:20')
+    expect(message).toContain('*Chegou ao cliente:* 18/11/2026 15:10')
+    expect(message).toContain('*Esperando há:* 2 h 30 min')
+    expect(message).toContain('*Janela de recebimento:* 08:00 às 17:00')
+  })
+
+  test('evento que não existe some do texto, sem linha vazia', () => {
+    const message = buildContractorOccurrenceGroupMessage({
+      mentionPhone: MENTION_PHONE,
+      template: ESPERA_LONGA,
+      values: { ...base, chegada: '', inicioRota: '', janelaRecebimento: '', tempoEspera: '' },
+    })
+    expect(message).not.toContain('Saiu para a entrega')
+    expect(message).not.toContain('Chegou ao cliente')
+    expect(message).not.toContain('Esperando há')
+    expect(message).not.toContain('Janela de recebimento')
+    expect(message).toContain('*Nota fiscal:* 170572/1')
+  })
+
+  test('nota sem valor: a linha do valor some, sem "R$" solto', () => {
+    const message = buildContractorOccurrenceGroupMessage({
+      mentionPhone: MENTION_PHONE,
+      template: ESPERA_LONGA,
+      values: { ...base, valorNota: '' },
+    })
+    expect(message).not.toContain('Valor da nota')
+    expect(message).not.toContain('R$')
+  })
+
+  test('o tempo de espera conta da chegada até agora', () => {
+    const arrived = new Date('2026-11-18T15:10:00Z')
+    expect(formatElapsedWait(arrived, new Date('2026-11-18T15:35:00Z'))).toBe('25 min')
+    expect(formatElapsedWait(arrived, new Date('2026-11-18T16:10:00Z'))).toBe('1 h')
+    expect(formatElapsedWait(arrived, new Date('2026-11-18T17:40:00Z'))).toBe('2 h 30 min')
+    expect(formatElapsedWait(arrived, new Date('2026-11-18T17:15:00Z'))).toBe('2 h 05 min')
+  })
+
+  test('sem chegada, ou com o relógio andando para trás, o tempo sai vazio', () => {
+    const now = new Date('2026-11-18T15:00:00Z')
+    expect(formatElapsedWait(null, now)).toBe('')
+    expect(formatElapsedWait(new Date('2026-11-18T15:30:00Z'), now)).toBe('')
   })
 })

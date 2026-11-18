@@ -45,6 +45,18 @@ export type OccurrenceMailValues = {
   readonly recipientTaxId?: string | undefined
   /** O número do documento do cliente (a NFD) que quem registra digitou. */
   readonly referenceNumber?: string | undefined
+  /**
+   * Espera longa (18/11/2026): os eventos da entrega da parada da nota, já formatados (saída, chegada, tempo de
+   * espera, janela); ausente ou vazio imprime vazio. Só o e-mail do módulo de ocorrência os lê.
+   */
+  readonly stopEvents?:
+    | {
+        readonly chegada: string
+        readonly inicioRota: string
+        readonly janelaRecebimento: string
+        readonly tempoEspera: string
+      }
+    | undefined
   readonly stopLabel: string
   /** `nfe_documents.total_value` cru (`numeric`); o renderizador o formata. */
   readonly totalValue: string

@@ -92,6 +92,14 @@ export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLES: readonly OccurrenceContractor
       'Valor que o motorista informou no app (valor cobrado ou pago); vazio quando não informou.',
     name: 'valorCobrado',
   },
+  /** Espera longa (18/11/2026): os eventos da entrega da parada da nota; vazios quando o evento não existe. */
+  { description: 'Quando o motorista saiu para a entrega (data e hora).', name: 'inicioRota' },
+  { description: 'Quando o motorista chegou ao cliente (data e hora).', name: 'chegada' },
+  { description: 'Há quanto tempo o motorista espera desde a chegada.', name: 'tempoEspera' },
+  {
+    description: 'Janela de recebimento do cliente (hora inicial às final).',
+    name: 'janelaRecebimento',
+  },
 ]
 
 export const OCCURRENCE_CONTRACTOR_MAIL_VARIABLE_NAMES: ReadonlySet<string> = new Set(

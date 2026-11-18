@@ -38,6 +38,7 @@ import {
   formatIsoDate,
   formatOccurrenceMoment,
 } from '../../trips/domain/occurrence-mail-values.policy.js'
+import { readOccurrenceStopEventValues } from './occurrence-stop-events.support.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 
@@ -128,9 +129,11 @@ function formatChargedAmount(stored: string): string {
 
 export function createContractorOccurrenceGroupRepository(dependencies: {
   readonly database: TripQueryable
+  readonly now?: () => Date
   readonly send: ContractorOccurrenceGroupPort['send']
 }): ContractorOccurrenceGroupPort {
   const { database } = dependencies
+  const now = dependencies.now ?? (() => new Date())
   return {
     async claim({ companyId, keyPrefix, occurrenceId }) {
       const rows = await rowsOf(
@@ -153,7 +156,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
     async readMessage({ companyId, fallbackTemplateKey, occurrenceId }) {
       const [occurrence] = await rowsOf(
         database,
-        sql`select occurrence.note, occurrence.stage, occurrence.created_at,
+        sql`select occurrence.note, occurrence.stage, occurrence.created_at, occurrence.trip_document_id,
                    occurrence.requested_due_date::text as requested_due_date,
                    occurrence.declared_amount::text as declared_amount,
                    occurrence_type.name as type_name,
@@ -198,10 +201,16 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       const number = text(occurrence, 'number').trim()
       const series = text(occurrence, 'series').trim()
       const createdAt = occurrence.created_at
+      const events = await readOccurrenceStopEventValues(database, {
+        companyId,
+        documentId: text(occurrence, 'trip_document_id'),
+        now,
+      })
       const stage = text(occurrence, 'stage') === 'separation' ? 'separation' : 'delivery'
       return {
         template,
         values: {
+          chegada: events.chegada,
           cliente: (item?.document?.recipient?.name ?? '').trim(),
           contratante: (item?.document?.contractor?.name ?? '').trim(),
           data:
@@ -209,6 +218,8 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
               ? formatOccurrenceMoment(new Date(createdAt))
               : '',
           enderecoEntrega: (item?.document?.destination?.label ?? '').trim(),
+          inicioRota: events.inicioRota,
+          janelaRecebimento: events.janelaRecebimento,
           momento: contractorOccurrenceMomentLabel(stage),
           novaData: !asksNewDueDate
             ? ''
@@ -218,6 +229,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
           numeroNota: number === '' ? '' : series === '' ? number : `${number}/${series}`,
           numeroNotaSemSerie: number,
           observacao: summarizeOccurrenceNote(text(occurrence, 'note')),
+          tempoEspera: events.tempoEspera,
           tipoOcorrencia: text(occurrence, 'type_name').trim(),
           /** Spec 343: o valor que o motorista informou no app (cobrança no recebimento, valor pago); vazio sem valor. */
           valorCobrado: formatChargedAmount(text(occurrence, 'declared_amount')),

@@ -2,9 +2,14 @@
 ⏳ *Espera prolongada na entrega*
 
 *Nota fiscal:* {{numeroNota}}
+*Valor da nota:* R$ {{valorNota}}
 *Contratante:* {{contratante}}
 *Cliente:* {{cliente}}
 *Endereço:* {{enderecoEntrega}}
+🚚 *Saiu para a entrega:* {{inicioRota}}
+📍 *Chegou ao cliente:* {{chegada}}
+⏱️ *Esperando há:* {{tempoEspera}}
+🕒 *Janela de recebimento:* {{janelaRecebimento}}
 *Registrada em:* {{data}}
 📝 {{observacao}}
 
