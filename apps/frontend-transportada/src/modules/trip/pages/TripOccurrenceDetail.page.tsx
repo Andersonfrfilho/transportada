@@ -29,7 +29,10 @@ import { OccurrenceResolutionPanel } from '../components/OccurrenceResolutionPan
 import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
-import { OccurrenceDriverAddress } from '../components/OccurrenceDriverAddress.component'
+import {
+  OccurrenceDriverAddressButton,
+  OccurrenceDriverAddressEditor,
+} from '../components/OccurrenceDriverAddress.component'
 import { OccurrenceDriverResult } from '../components/OccurrenceDriverResult.component'
 import { OccurrenceReceivingCharge } from '../components/OccurrenceReceivingCharge.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
@@ -203,6 +206,7 @@ function OccurrenceDriverPanel({
   permissions: readonly string[]
 }>) {
   const { t } = useTranslation('trip')
+  const [isAddressOpen, setIsAddressOpen] = useState(false)
   const contact = buildOccurrenceDriverContact({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
     driver: occurrence.driver,
@@ -278,11 +282,9 @@ function OccurrenceDriverPanel({
         )}
         {canSend ? (
           <>
-            <OccurrenceDriverAddress
-              {...(companyId === undefined ? {} : { companyId })}
-              occurrence={occurrence}
-              permissions={permissions}
-            />
+            {isAddressOpen ? null : (
+              <OccurrenceDriverAddressButton onOpen={() => setIsAddressOpen(true)} />
+            )}
             <OccurrenceDriverResult
               decision={occurrence.case?.decision ?? null}
               occurrenceId={occurrence.id}
@@ -291,6 +293,14 @@ function OccurrenceDriverPanel({
           </>
         ) : null}
       </div>
+      {canSend && isAddressOpen ? (
+        <OccurrenceDriverAddressEditor
+          {...(companyId === undefined ? {} : { companyId })}
+          occurrence={occurrence}
+          onClose={() => setIsAddressOpen(false)}
+          permissions={permissions}
+        />
+      ) : null}
     </section>
   )
 }
