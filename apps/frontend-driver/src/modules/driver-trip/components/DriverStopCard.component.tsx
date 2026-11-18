@@ -95,7 +95,10 @@ import { listStepsToRecordTogether } from '../shared/recordedTogether.service'
 import { DriverRecordedTogetherNotice } from './DriverRecordedTogetherNotice.component'
 import type { NotDeliveredDraft, NotDeliveredStatus } from '../shared/notDelivered.service'
 import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
-import type { RouteOccurrenceStopGroup } from '../shared/routeOccurrenceView.types'
+import type {
+  RouteOccurrenceEntry,
+  RouteOccurrenceStopGroup,
+} from '../shared/routeOccurrenceView.types'
 import {
   applyRecipientShortcut,
   buildReceiverFields,
@@ -750,7 +753,9 @@ export function DriverStopCard({
               canActOnDocuments={canActOnDocuments}
               deliverActivity={deliverActivityByDocumentId.get(document.id)}
               document={document}
+              isArrivalRecorded={isArrivalRecorded}
               isFieldWorkBlocked={isFieldWorkBlocked}
+              openStopEntries={occurrenceGroup?.stopLevel?.entries ?? []}
               isReadOnly={isReadOnly}
               isLocationDenied={isLocationDenied}
               isLateRegistration={isLateRegistration}
@@ -838,6 +843,8 @@ type DocumentRowProps = Readonly<{
   /** Pedido do usuário (25/09): "entregue às HH:MM" — mesmo retorno de fila da devolução/ocorrência. */
   deliverActivity: DocumentActivityView | undefined
   document: DriverTripDocument
+  /** Spec 315 (T7b): o "Cheguei" já tocado (inclui o da fila) e as ocorrências vivas da parada, para a espera mínima. */
+  isArrivalRecorded: boolean
   isFieldWorkBlocked: boolean
   isLocationDenied: boolean
   /** Spec 243: ajudante — mantém o estado e a hora da nota e esconde só as ações. */
@@ -846,6 +853,7 @@ type DocumentRowProps = Readonly<{
   isLateRegistration: boolean
   notDeliveredKey: string | undefined
   notDeliveredStatus: NotDeliveredStatus | undefined
+  openStopEntries: readonly RouteOccurrenceEntry[]
   /** O aviso transitório do cartão inteiro — um por parada, anunciado pela nota que agiu. */
   onAnnounce: (message: string) => void
   onDeliver: (input: { documentId: string; lateRegistration: boolean }) => void
@@ -896,6 +904,7 @@ function DocumentRow({
   canActOnDocuments,
   deliverActivity,
   document,
+  isArrivalRecorded,
   isFieldWorkBlocked,
   isLateRegistration,
   isLocationDenied,
@@ -903,6 +912,7 @@ function DocumentRow({
   notDeliveredKey,
   notDeliveredStatus,
   occurrenceHandlers,
+  openStopEntries,
   occurrenceTypes,
   onAnnounce,
   onDeliver,
@@ -975,7 +985,9 @@ function DocumentRow({
     <DriverOccurrenceRegistrationForm
       document={document}
       handlers={occurrenceHandlers}
+      isArrivalRecorded={isArrivalRecorded}
       occurrenceTypes={occurrenceTypes}
+      openStopEntries={openStopEntries}
       onClose={() => setOpenOccurrence(false)}
       onRetryOccurrenceTypes={onRetryOccurrenceTypes}
       stop={stop}

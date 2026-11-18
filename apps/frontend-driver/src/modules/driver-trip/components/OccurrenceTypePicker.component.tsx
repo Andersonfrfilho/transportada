@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
 import type { DriverOccurrenceType } from '../shared/driverTrip.types'
+import type { OccurrenceAvailability } from '../shared/occurrenceAvailability.service'
 import { resolveOccurrenceAttachmentMode } from '../shared/occurrenceRegistration.service'
 import { isReceivingChargeType } from '../shared/receivingCharge.service'
 import {
@@ -16,6 +17,8 @@ import styles from '../styles/driverTrip.module.css'
 import { OccurrenceTypeIcon } from './OccurrenceTypeIcon.component'
 
 type OccurrenceTypePickerProps = Readonly<{
+  /** Spec 315 (T7b): o tipo com espera mínima fica desabilitado até abrir; ausente, todo tipo está disponível. */
+  getAvailability?: (type: DriverOccurrenceType) => OccurrenceAvailability
   onSelect: (typeId: string) => void
   selectedTypeId: string | undefined
   types: readonly DriverOccurrenceType[]
@@ -26,6 +29,7 @@ type OccurrenceTypePickerProps = Readonly<{
  * Cor e ícone ajudam a achar; o nome e a exigência de foto continuam em todo chip.
  */
 export function OccurrenceTypePicker({
+  getAvailability,
   onSelect,
   selectedTypeId,
   types,
@@ -61,12 +65,36 @@ export function OccurrenceTypePicker({
     return t(`occurrenceRegistration.attachment.${resolveOccurrenceAttachmentMode(type)}`)
   }
 
+  /** Spec 315 (T7b): por que o tipo não abre agora — o que falta, em texto, nunca só a cor. */
+  function describeBlock(availability: OccurrenceAvailability): string | undefined {
+    switch (availability.status) {
+      case 'available':
+        return undefined
+      case 'alreadyOpen':
+        return t('occurrenceRegistration.availability.alreadyOpen')
+      case 'needsArrival':
+        return t('occurrenceRegistration.availability.needsArrival')
+      case 'arrivalSyncing':
+        return t('occurrenceRegistration.availability.arrivalSyncing')
+      case 'waiting':
+        return t('occurrenceRegistration.availability.waiting', {
+          count: availability.remainingMinutes,
+          time: new Date(availability.availableAtMs).toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        })
+    }
+  }
+
   function renderChip(type: DriverOccurrenceType, keyPrefix: string) {
     const isSelected = type.id === selectedTypeId
+    const block = describeBlock(getAvailability?.(type) ?? { status: 'available' })
     return (
       <Button
         aria-checked={isSelected}
         className={styles.occurrenceChip}
+        disabled={block !== undefined}
         key={`${keyPrefix}:${type.id}`}
         onClick={() => handleSelect(type.id)}
         role="radio"
@@ -76,7 +104,7 @@ export function OccurrenceTypePicker({
         <OccurrenceTypeIcon iconName={type.iconName} />
         <span className={styles.occurrenceChipLabel}>
           <span>{type.name}</span>
-          <span className={styles.occurrenceChipMode}>{describeAttachment(type)}</span>
+          <span className={styles.occurrenceChipMode}>{block ?? describeAttachment(type)}</span>
         </span>
       </Button>
     )
