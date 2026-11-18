@@ -11,6 +11,7 @@
   "appAccessOn": "Linked",
   "applications": {
     "approveButton": "Approve",
+    "approveFailed": "Could not approve the application. Check the driver's CPF and try again.",
     "attachments": {
       "approveButton": "Approve attachment",
       "confirmRejectButton": "Confirm rejection",
@@ -65,6 +66,9 @@
       "toggleShow": "Show declared data",
       "vehicleTitle": "Vehicle"
     },
+    "driverTaxIdHint": "This application is from a company (CNPJ). The driver record uses the CPF of whoever drives; the CNPJ stays linked to it.",
+    "driverTaxIdLabel": "Driver's CPF",
+    "driverTaxIdTitle": "Approve company application",
     "duplicateBadge": "Already registered",
     "empty": "No pending applications",
     "filterName": "Name contains",

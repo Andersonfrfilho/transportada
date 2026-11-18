@@ -18,6 +18,7 @@ import type { AggregateApplication } from '../application/aggregate-applications
 import type { AggregateApplicationsUseCase } from '../application/aggregate-applications.use-case.js'
 import {
   parseAggregateApplicationId,
+  parseApproveAggregateApplicationRequest,
   parseRejectAggregateApplicationRequest,
   parseSubmitAggregateApplicationRequest,
   type SubmitAggregateApplicationRequest,
@@ -95,16 +96,20 @@ export function createAggregateApplicationRoutes(
       pathname: API_AGGREGATE_APPLICATIONS_PATH,
       policy: FLEET_MANAGE_POLICY,
     }),
-    defineRoute<{ readonly id: string }>({
+    defineRoute<{ readonly driverTaxId: string | undefined; readonly id: string }>({
       async handle({ context, input }): Promise<Response> {
         const application = await dependencies.aggregateApplications.approve({
           context: context.scope,
+          ...(input.driverTaxId === undefined ? {} : { driverTaxId: input.driverTaxId }),
           id: input.id,
         })
         return jsonResponse({ body: { data: serialize(application) }, status: 200 })
       },
       method: 'POST',
-      parse: ({ pathParameters }) => ({ id: parseAggregateApplicationId(pathParameters) }),
+      parse: async ({ pathParameters, request }) => ({
+        driverTaxId: await parseApproveAggregateApplicationRequest(request),
+        id: parseAggregateApplicationId(pathParameters),
+      }),
       pathname: APPROVE_PATH,
       policy: FLEET_MANAGE_POLICY,
     }),
