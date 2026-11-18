@@ -5,6 +5,8 @@ import type { DriverOccurrenceType } from '../../src/modules/driver-trip/shared/
 import { isDriverOccurrenceType } from '../../src/modules/driver-trip/shared/driverTrip.types'
 import {
   isAwaitingTapLocation,
+  listLocatedReportKeys,
+  withLegacyLocation,
   type QueuedReport,
 } from '../../src/modules/driver-trip/shared/offlineQueue.service'
 import { resolveOccurrenceAvailability } from '../../src/modules/driver-trip/shared/occurrenceAvailability.service'
@@ -118,5 +120,33 @@ describe('a ocorrência de parada espera o ponto antes de sair da fila (spec 315
     expect(
       isAwaitingTapLocation({ item: deliver as unknown as QueuedReport, now: at(1_000) }),
     ).toBe(false)
+  })
+})
+
+describe('a foto da ocorrência de parada leva o ponto do toque (recusa "exige a localização" com GPS ligado)', () => {
+  const photo = {
+    description: 'x',
+    documentId: null,
+    idempotencyKey: 'k-photo',
+    kind: 'stopOccurrencePhoto',
+    occurrenceKey: 'k-occ',
+    stopId: 's1',
+  } as unknown as QueuedReport['report']
+
+  test('entra nas chaves que a leitura do GPS completa', () => {
+    expect(listLocatedReportKeys([{ ...photo, location: null } as never])).toEqual(['k-photo'])
+  })
+
+  test('item gravado antes do campo sai com location null, nunca sem a chave', () => {
+    expect(withLegacyLocation(photo)).toMatchObject({ location: null })
+  })
+
+  test('espera o ponto como a ocorrência', () => {
+    const item = {
+      attempts: 0,
+      createdAt: ARRIVED,
+      report: { ...photo, location: null },
+    } as unknown as QueuedReport
+    expect(isAwaitingTapLocation({ item, now: new Date(Date.parse(ARRIVED) + 2_000) })).toBe(true)
   })
 })

@@ -35,6 +35,7 @@ export function buildStopOccurrenceReports(input: {
       documentId: occurrence.documentId,
       idempotencyKey: input.createKey(),
       kind: 'stopOccurrencePhoto',
+      location: null,
       occurrenceKey: occurrence.idempotencyKey,
       occurrenceTypeId: occurrence.occurrenceTypeId,
       photo: input.photo,

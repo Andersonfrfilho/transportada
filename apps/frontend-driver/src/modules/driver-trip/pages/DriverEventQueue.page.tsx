@@ -55,6 +55,9 @@ type DriverEventQueuePageProps = Readonly<{
   onSendOne: (idempotencyKey: string) => void
   /** Spec 206 RF8: dá o número da parada do item ("Iniciar rota — parada N"). */
   stops: readonly DriverTripStop[]
+  /** Pedido do usuário (18/11): o id da viagem e o protocolo do manifesto (a rota) entram em cada item da fila e do histórico. */
+  tripId?: string
+  manifestProtocol?: string
 }>
 
 /** Dia e hora: o histórico guarda dias, e só "14:32" não diz de qual. */
@@ -111,6 +114,8 @@ export function DriverEventQueuePage({
   onSendAll,
   onSendOne,
   stops,
+  tripId,
+  manifestProtocol,
 }: DriverEventQueuePageProps) {
   const { t } = useTranslation('driverTrip')
   /** O descarte não se desfaz: o primeiro toque só abre o aviso, e o segundo é que apaga. */
@@ -160,6 +165,27 @@ export function DriverEventQueuePage({
     return entry.occurrenceTypeId === undefined
       ? undefined
       : occurrenceTypeNames?.get(entry.occurrenceTypeId)
+  }
+
+  /** Pedido do usuário (18/11): nota, parada, rota (manifesto) e viagem de cada item — o que o escritório pede para achar o caso. */
+  function referenceLine(input: {
+    readonly documentId: string | undefined
+    readonly stopId: string | undefined
+  }): string | undefined {
+    const parts: string[] = []
+    const number =
+      input.documentId === undefined
+        ? undefined
+        : stops.flatMap((stop) => stop.documents).find((d) => d.id === input.documentId)?.number
+    if (number !== undefined) parts.push(t('eventQueue.reference.note', { number }))
+    const sequence =
+      input.stopId === undefined ? undefined : stops.find((s) => s.id === input.stopId)?.sequence
+    if (sequence !== undefined) parts.push(t('eventQueue.reference.stop', { sequence }))
+    if (manifestProtocol !== undefined) {
+      parts.push(t('eventQueue.reference.route', { id: manifestProtocol }))
+    }
+    if (tripId !== undefined) parts.push(t('eventQueue.reference.trip', { id: tripId }))
+    return parts.length === 0 ? undefined : parts.join(' · ')
   }
 
   /** O nome da nota ou o número da parada, quando o snapshot ainda os tem. */
@@ -263,6 +289,12 @@ export function DriverEventQueuePage({
                         {formatQueuedAt({ nowMs: Date.now(), queuedAt: item.queuedAt })}
                       </span>
                     </p>
+                    {referenceLine({ documentId: item.documentId, stopId: item.stopId }) ===
+                    undefined ? null : (
+                      <p className={styles.profileMeta}>
+                        {referenceLine({ documentId: item.documentId, stopId: item.stopId })}
+                      </p>
+                    )}
                     {item.attachmentCount > 0 ? (
                       <p className={styles.profileMeta}>
                         {t('eventQueue.attachments', { count: item.attachmentCount })}
@@ -439,6 +471,12 @@ export function DriverEventQueuePage({
                       time: formatHistoryTime(entry.at),
                     })}
                   </p>
+                  {referenceLine({ documentId: entry.documentId, stopId: entry.stopId }) ===
+                  undefined ? null : (
+                    <p className={styles.profileMeta}>
+                      {referenceLine({ documentId: entry.documentId, stopId: entry.stopId })}
+                    </p>
+                  )}
                   <p className={styles.profileMeta}>
                     {t('eventQueue.history.tapped', { time: formatHistoryTime(entry.tappedAt) })}
                   </p>

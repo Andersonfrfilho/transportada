@@ -130,7 +130,12 @@ export function buildEventQueueView(input: {
       kind: item.report.kind,
       ...toProofAttachments(group),
       queuedAt: item.createdAt,
-      ...(report.kind === 'arrive' || report.kind === 'depart' || report.kind === 'cancelDeparture'
+      ...(report.kind === 'arrive' ||
+      report.kind === 'depart' ||
+      report.kind === 'cancelDeparture' ||
+      report.kind === 'occurrence' ||
+      report.kind === 'stopOccurrencePhoto' ||
+      report.kind === 'stopOccurrenceCharge'
         ? { stopId: report.stopId }
         : {}),
       ...(report.kind === 'dispatch' ? { tripId: report.tripId } : {}),

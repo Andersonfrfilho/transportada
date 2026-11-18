@@ -464,6 +464,8 @@ export type DriverFieldReport =
       documentId: string | null
       idempotencyKey: string
       kind: 'stopOccurrencePhoto'
+      /** O ponto do toque, completado pela leitura do GPS (`completeLocations`); a foto reenvia a ocorrência, e o servidor cobra a localização nela. */
+      location?: DriverReportedLocation | null
       occurrenceKey: string
       photo: DriverOccurrencePhoto
       stopId: string

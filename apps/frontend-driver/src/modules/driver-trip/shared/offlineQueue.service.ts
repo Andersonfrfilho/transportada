@@ -220,7 +220,12 @@ export function isAwaitingTapLocation(input: {
 }): boolean {
   const { item, now } = input
   const report = item.report
-  if (report.kind !== 'occurrence' || report.location !== null) return false
+  if (
+    (report.kind !== 'occurrence' && report.kind !== 'stopOccurrencePhoto') ||
+    report.location !== null
+  ) {
+    return false
+  }
   const createdMs = Date.parse(item.createdAt)
   if (!Number.isFinite(createdMs)) return false
   return now.getTime() - createdMs < CURRENT_LOCATION_APP_BUDGET_MS + LOCATION_HOLD_MARGIN_MS
@@ -332,6 +337,7 @@ export function withLegacyLocation(report: DriverFieldReport): DriverFieldReport
     report.kind !== 'dispatch' &&
     report.kind !== 'documentOccurrence' &&
     report.kind !== 'occurrence' &&
+    report.kind !== 'stopOccurrencePhoto' &&
     report.kind !== 'stopOccurrenceCharge'
   ) {
     return report
