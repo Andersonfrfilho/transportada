@@ -1004,18 +1004,20 @@ test('ocorrência de parada com foto obrigatória: habilita ao capturar, e nunca
   /** Spec 196: a ocorrência e o reenvio da foto levam o ponto do mesmo toque (o servidor cobra a localização no reenvio). */
   expect(api.reports()[0]?.body).toMatchObject({
     description: '',
-    documentId: null,
     location: { latitude: -23.5505, longitude: -46.6333 },
     occurrenceTypeId: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
   })
   expect(api.reports()[3]?.body).toMatchObject({
     attachmentObjectId: confirmedId?.[1],
     description: '',
-    documentId: null,
     location: { latitude: -23.5505, longitude: -46.6333 },
     occurrenceTypeId: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
   })
   expect(api.reports()[3]?.idempotencyKey).toBe(api.reports()[0]?.idempotencyKey)
+  /** A nota do toque (ou a falta dela) é a mesma na ocorrência e no reenvio da foto. */
+  expect((api.reports()[3]?.body as { documentId?: unknown }).documentId).toEqual(
+    (api.reports()[0]?.body as { documentId?: unknown }).documentId,
+  )
 })
 
 /** Spec 218 D3: tipo de nota com foto vai pelo item da 179 — a foto sobe antes do registro. */

@@ -122,6 +122,7 @@ describe('o item nasce sem ponto e a posição o completa pela chave (196 T5.1)'
       return () => `parada-${(counter += 1)}`
     })(),
     description: 'doca fechada',
+    documentId: null,
     occurrenceTypeId: 'type-1',
     photo: { blob: new Blob(['x'], { type: 'image/jpeg' }), fileName: 'a.jpg' },
     stopId: 'stop-1',
