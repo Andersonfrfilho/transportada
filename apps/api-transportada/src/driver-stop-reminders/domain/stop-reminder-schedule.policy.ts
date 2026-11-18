@@ -16,16 +16,30 @@ import type {
   StopReminderSchedule,
 } from './driver-stop-reminder.types.js'
 
+/**
+ * O prazo de cada etapa é o tempo esperado até o próximo marco mais a folga da empresa (`graceMinMinutes`; 90 em
+ * produção desde 18/11/2026). Cada evento recebido reinicia o prazo: o lembrete da etapa anterior fecha e o da
+ * etapa seguinte nasce ancorado no evento novo.
+ * - arrival: viagem prevista + max(folga, % da viagem) — com o percentual em 0, viagem + folga;
+ * - settlement: permanência esperada (`dwellMinutes`) + folga;
+ * - idle: espera esperada até o próximo marco (`idleMinutes`) + folga.
+ */
 export function computeStopReminderSchedule(
   params: ComputeStopReminderScheduleParams,
 ): StopReminderSchedule {
   const { stage, anchorAt, travelSeconds, settings } = params
   if (stage === DRIVER_STOP_REMINDER_STAGE.IDLE) {
-    const dueAt = new Date(anchorAt.getTime() + settings.idleMinutes * MILLISECONDS_PER_MINUTE)
+    const dueAt = new Date(
+      anchorAt.getTime() +
+        (settings.idleMinutes + settings.graceMinMinutes) * MILLISECONDS_PER_MINUTE,
+    )
     return { expectedAt: anchorAt, dueAt }
   }
   if (stage === DRIVER_STOP_REMINDER_STAGE.SETTLEMENT) {
-    const dueAt = new Date(anchorAt.getTime() + settings.dwellMinutes * MILLISECONDS_PER_MINUTE)
+    const dueAt = new Date(
+      anchorAt.getTime() +
+        (settings.dwellMinutes + settings.graceMinMinutes) * MILLISECONDS_PER_MINUTE,
+    )
     return { expectedAt: anchorAt, dueAt }
   }
   const travelMs =

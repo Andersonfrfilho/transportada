@@ -86,7 +86,12 @@ describe('a varredura garante o lembrete da etapa atual (spec 299, dono 2026-11-
       ['stop-2', 'settlement', ARRIVAL],
     ])
     expect(world.opens[1]?.dueAt).toEqual(
-      new Date(ARRIVAL.getTime() + DRIVER_STOP_REMINDER_DEFAULT_SETTINGS.dwellMinutes * MINUTE),
+      new Date(
+        ARRIVAL.getTime() +
+          (DRIVER_STOP_REMINDER_DEFAULT_SETTINGS.dwellMinutes +
+            DRIVER_STOP_REMINDER_DEFAULT_SETTINGS.graceMinMinutes) *
+            MINUTE,
+      ),
     )
     expect(world.afterOpen).toEqual([
       { companyId: COMPANY_ID, reminderId: 'reminder-stop-1' },
