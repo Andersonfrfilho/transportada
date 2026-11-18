@@ -193,8 +193,15 @@ function OccurrenceDocumentPanel({ occurrence }: Readonly<{ occurrence: TripOccu
 /** Spec 183 P2: o contato do motorista vira ação — ligar, WhatsApp, e-mail, copiar. */
 function OccurrenceDriverPanel({
   canSend,
+  companyId,
   occurrence,
-}: Readonly<{ canSend: boolean; occurrence: TripOccurrenceDetail }>) {
+  permissions,
+}: Readonly<{
+  canSend: boolean
+  companyId?: string
+  occurrence: TripOccurrenceDetail
+  permissions: readonly string[]
+}>) {
   const { t } = useTranslation('trip')
   const contact = buildOccurrenceDriverContact({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
@@ -272,8 +279,9 @@ function OccurrenceDriverPanel({
         {canSend ? (
           <>
             <OccurrenceDriverAddress
-              occurrenceId={occurrence.id}
-              occurrenceKind={occurrence.source}
+              {...(companyId === undefined ? {} : { companyId })}
+              occurrence={occurrence}
+              permissions={permissions}
             />
             <OccurrenceDriverResult
               decision={occurrence.case?.decision ?? null}
@@ -614,7 +622,12 @@ function OccurrenceDetailSections({
     conversations: () => conversations(),
     document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,
     driverContact: () => (
-      <OccurrenceDriverPanel canSend={canResolveOccurrenceCases} occurrence={occurrence} />
+      <OccurrenceDriverPanel
+        canSend={canResolveOccurrenceCases}
+        {...(companyId === undefined ? {} : { companyId })}
+        occurrence={occurrence}
+        permissions={permissions}
+      />
     ),
     driverConversation: () => conversations('driver'),
     summary: () => (

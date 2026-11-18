@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import { buildOccurrenceTripMapView } from '../../src/modules/trip/shared/occurrenceTripMap.service'
+import { resolveOccurrenceNoteStopPoint } from '../../src/modules/trip/shared/occurrenceTripMapStops.service'
 import type {
   TripStopDetail,
   TripTimelineItem,
@@ -296,5 +297,31 @@ describe('o mapa da viagem na ocorrência: serviço puro', () => {
 
   it('a legenda lista só os tipos que têm pino', () => {
     expect(view().categories).toEqual(['arrived', 'occurrence', 'delivered'])
+  })
+})
+
+describe('o ponto original da parada da nota (spec 343, mapa do endereço)', () => {
+  it('acha a parada pelo rótulo e devolve a coordenada do cadastro', () => {
+    expect(
+      resolveOccurrenceNoteStopPoint({
+        occurrence: { stopLabel: 'Loja B', tripDocumentId: null },
+        stops: STOPS,
+      }),
+    ).toEqual({ label: 'Loja B', latitude: -21.2, longitude: -47.5 })
+  })
+
+  it('devolve null sem parada ou com parada não geocodificada', () => {
+    expect(
+      resolveOccurrenceNoteStopPoint({
+        occurrence: { stopLabel: 'Nenhuma', tripDocumentId: null },
+        stops: STOPS,
+      }),
+    ).toBeNull()
+    expect(
+      resolveOccurrenceNoteStopPoint({
+        occurrence: { stopLabel: 'Sem ponto', tripDocumentId: null },
+        stops: [stop('stop-3', 3, 'Sem ponto')],
+      }),
+    ).toBeNull()
   })
 })

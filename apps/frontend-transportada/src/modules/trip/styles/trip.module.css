@@ -6691,6 +6691,58 @@ button.occurrenceCaseBadge {
 }
 
 /* Spec 343 (T6a): o formulário de endereço correto ao motorista, dentro do card de contato. */
+/* Formulário e mapa: lado a lado na tela larga, mapa abaixo do formulário no celular. */
+.driverAddressLayout {
+  display: grid;
+  gap: var(--space-4);
+  inline-size: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 64rem) {
+  .driverAddressLayout {
+    grid-template-columns: minmax(0, 44rem) minmax(0, 1fr);
+  }
+}
+
+.driverAddressMap {
+  --vector-map-height: var(--occurrence-trip-map-height);
+
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.driverAddressMapLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--color-slate);
+  list-style: none;
+}
+
+.driverAddressMapLegend li {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.driverAddressMapLegend li::before {
+  content: '';
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 50%;
+  background: #5b6770;
+}
+
+.driverAddressMapLegend li[data-kind='new']::before {
+  background: #b8642e;
+}
+
 .driverAddressForm {
   display: grid;
   gap: var(--space-3);

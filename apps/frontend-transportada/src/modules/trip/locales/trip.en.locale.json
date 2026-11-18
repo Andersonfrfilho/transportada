@@ -2654,6 +2654,15 @@
       "destinationUnknown": "Address not recorded on the invoice"
     },
     "driverAddress": {
+      "map": {
+        "original": "Original stop address",
+        "new": "New address",
+        "noOriginal": "Original address has no map position",
+        "noNew": "Fill in postal code, street, city and state to see the new address",
+        "empty": "No position to show yet. Fill in the new address.",
+        "loading": "Loading the map",
+        "unavailable": "The map is unavailable right now."
+      },
       "open": "Send correct address",
       "label": "Correct delivery address",
       "sendApp": "Send in the app chat",
