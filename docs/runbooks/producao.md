@@ -1493,3 +1493,10 @@ O formulário público (cotação da 338 e pedido de coleta anônimo da 339) val
   2. Gravar: o mesmo comando com `--confirm`. A versão anterior vai para o histórico antes de ser trocada.
   3. Se o painel tiver edição própria dessa fala, a prévia avisa; nesse caso editar o texto direto em Fluxos.
 - **Não feito:** a saída errada da parada 1 do Rogério (5.42) segue em produção.
+
+## Aprovar candidatura de agregado que dá 422 (18/11/2026)
+
+`POST /aggregate-applications/:id/approve` responde `422 AGGREGATE_APPLICATION_REQUIRES_MANUAL_DRIVER_CREATION` quando a candidatura é de CNPJ e não há ficha para vincular
+(a ficha de motorista só guarda CPF). Desde esta correção o painel pede o "CPF de quem dirige" ao aprovar e o corpo opcional `{ driverTaxId }` cria a ficha (CNPJ vira
+`linked_tax_id`) ou vincula à ficha que já tem esse CPF. Diagnóstico somente leitura: `tmp/ops/producao-diagnostico-candidatura.sh` (consulta `aggregate_applications` pelo id via `railway ssh -s api -e production`).
+Os logs do serviço `api` no Railway não registram o 422 de negócio com filtro `approve`: confirme pelo código de erro na resposta.
