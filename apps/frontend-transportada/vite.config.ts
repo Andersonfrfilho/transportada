@@ -189,7 +189,7 @@ export default defineConfig({
     maplibreWorkerAssetsPlugin(),
     openCvCompressionPlugin(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       devOptions: { enabled: true },
       includeAssets: ['icons/icon.svg', 'icons/icon-work-in-progress.svg', 'offline.html'],
       manifest: {
