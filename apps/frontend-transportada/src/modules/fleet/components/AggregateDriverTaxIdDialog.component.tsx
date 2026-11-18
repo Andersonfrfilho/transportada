@@ -4,11 +4,13 @@ import { createPortal } from 'react-dom'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { formatCpf } from '@/modules/shared/taxId.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import styles from '../styles/fleet.module.css'
 
 const CPF_DIGITS = 11
+const NON_DIGITS = /\D/gu
 
 type AggregateDriverTaxIdDialogProps = Readonly<{
   cancelLabel: string
@@ -35,13 +37,16 @@ export function AggregateDriverTaxIdDialog({
   onConfirm,
   title,
 }: AggregateDriverTaxIdDialogProps): ReactNode {
-  const [value, setValue] = useState('')
+  const [digits, setDigits] = useState('')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: true, onClose: onCancel })
-  const digits = value.replaceAll(/\D/gu, '')
   const canConfirm = digits.length === CPF_DIGITS && !isSubmitting
 
   return createPortal(
-    <div className={styles.driverDialogOverlay} onKeyDown={handleKeyDown} role="presentation">
+    <div
+      className={`${styles.driverDialogOverlay} ${styles.driverDialogSheet}`}
+      onKeyDown={handleKeyDown}
+      role="presentation"
+    >
       <div
         aria-labelledby="aggregate-driver-tax-id-dialog-title"
         aria-modal="true"
@@ -67,9 +72,12 @@ export function AggregateDriverTaxIdDialog({
             autoComplete="off"
             inputMode="numeric"
             maxLength={14}
+            placeholder="000.000.000-00"
             required
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
+            value={formatCpf(digits)}
+            onChange={(event) =>
+              setDigits(event.target.value.replaceAll(NON_DIGITS, '').slice(0, CPF_DIGITS))
+            }
           />
         </label>
         <p className={styles.hint}>{hint}</p>

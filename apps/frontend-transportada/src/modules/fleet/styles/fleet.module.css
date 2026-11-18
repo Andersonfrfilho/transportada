@@ -1012,7 +1012,21 @@
   font-size: 1.5rem;
 }
 
+/* Diálogo curto no celular: folha presa ao rodapé, na altura do conteúdo, em vez de tela cheia com vazio no meio. */
+.driverDialogSheet {
+  align-items: flex-end;
+}
+
+.driverDialogSheet .driverDialog {
+  height: auto;
+  max-height: 92dvh;
+}
+
 @media (min-width: 40rem) {
+  .driverDialogSheet {
+    align-items: center;
+  }
+
   .driverDialogOverlay {
     padding: var(--space-4);
   }
