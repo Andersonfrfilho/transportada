@@ -14,3 +14,9 @@ export function useFindDriverAddressPoint() {
   const client = getTripOccurrenceFeedClient()
   return useMutation({ mutationFn: client.findDriverAddressPoint })
 }
+
+/** Spec 343: o resultado da ocorrência ao grupo de WhatsApp do motorista. Não muda o detalhe da ocorrência. */
+export function useSendDriverResultToWhatsAppGroup() {
+  const client = getTripOccurrenceFeedClient()
+  return useMutation({ mutationFn: client.sendDriverResultToWhatsAppGroup })
+}

@@ -125,6 +125,14 @@ export type TripOccurrenceFeedClient = Readonly<{
       occurrenceKind: 'document' | 'stop'
     }>,
   ) => Promise<Readonly<{ pinSent: boolean; sentAt: string }>>
+  /** Spec 343: o resultado da ocorrência (decisão da contratante ou texto do escritório) ao grupo de WhatsApp do motorista. */
+  sendDriverResultToWhatsAppGroup: (
+    input: Readonly<{
+      occurrenceId: string
+      occurrenceKind: 'document' | 'stop'
+      text: string
+    }>,
+  ) => Promise<Readonly<{ sentAt: string }>>
   /** Spec 343 (T6a): o ponto no mapa do endereço digitado; `null` quando o geocodificador não resolve. */
   findDriverAddressPoint: (
     input: Readonly<{
@@ -778,6 +786,17 @@ export function createTripOccurrenceFeedClient(
         throw requestError(TRIP_ERROR.RESPONSE_INVALID)
       }
       return { pinSent: payload.data.pinSent === true, sentAt: payload.data.sentAt }
+    },
+    async sendDriverResultToWhatsAppGroup(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceKind}/${encodeURIComponent(input.occurrenceId)}/driver-result/whatsapp-group`,
+        { body: { text: input.text }, method: 'POST' },
+      )
+      if (!isRecord(payload) || !isRecord(payload.data) || !isString(payload.data.sentAt)) {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+      return { sentAt: payload.data.sentAt }
     },
     async findDriverAddressPoint(input) {
       try {

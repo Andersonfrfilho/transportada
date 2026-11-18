@@ -2776,6 +2776,27 @@
         "caseClosed": "A tratativa foi fechada; a ocorrência virou histórico e já não pode ser corrigida nem cancelada.",
         "caseCancelled": "A tratativa foi cancelada; a ocorrência segue com o histórico dela e já não pode ser corrigida nem cancelada."
       }
+    },
+    "driverResult": {
+      "open": "Enviar resultado ao motorista",
+      "label": "Resultado da ocorrência",
+      "placeholder": "Escreva o resultado para o motorista",
+      "noteLabel": "Observação",
+      "decisionLead": {
+        "redelivery_authorized": "A contratante autorizou a reentrega.",
+        "goods_paid": "A contratante decidiu pagar os produtos.",
+        "other": "A contratante registrou outra solução."
+      },
+      "sendApp": "Enviar no chat do app",
+      "sendWhatsapp": "Enviar no grupo do WhatsApp",
+      "sending": "Enviando…",
+      "close": "Fechar",
+      "appSent": "Resultado enviado no chat do app do motorista.",
+      "appFailed": "Não foi possível enviar no chat do app. Tente de novo.",
+      "whatsappSent": "Resultado enviado no grupo de WhatsApp do motorista.",
+      "whatsappNoGroup": "O motorista não tem grupo de WhatsApp vinculado na ficha.",
+      "whatsappDisconnected": "O WhatsApp da empresa está desconectado ou desligado.",
+      "whatsappFailed": "Não foi possível enviar no grupo do WhatsApp. Tente de novo."
     }
   },
   "occurrenceTimeline": {
