@@ -93,6 +93,7 @@ describe('os itens do "Deu problema" na fila (spec 209 D2)', () => {
     expect(photo).toEqual({
       description: 'Doca fechada até as 14h',
       documentId: null,
+      location: null,
       idempotencyKey: 'chave-2',
       kind: 'stopOccurrencePhoto',
       occurrenceKey: 'chave-1',
@@ -173,6 +174,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
       attachmentObjectId: UPLOAD_ID,
       description: 'Doca fechada até as 14h',
       documentId: null,
+      location: null,
       occurrenceTypeId: OCCURRENCE_TYPE_ID,
     })
   })

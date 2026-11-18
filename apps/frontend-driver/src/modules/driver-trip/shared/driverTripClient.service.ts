@@ -916,6 +916,7 @@ async function sendStopOccurrencePhoto(input: {
       attachmentObjectId,
       description: report.description,
       documentId: report.documentId,
+      location: report.location,
       ...stopOccurrenceReference(report),
     }),
     dependencies,

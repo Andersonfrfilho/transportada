@@ -454,6 +454,10 @@ export function DriverTripWorkspacePage() {
           onSendAll={() => driverTrip.sendAllNow()}
           onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}
           stops={trip?.stops ?? []}
+          {...(trip === undefined ? {} : { tripId: trip.id })}
+          {...(trip?.manifest === undefined || trip.manifest === null
+            ? {}
+            : { manifestProtocol: trip.manifest.protocol })}
         />
         <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>

@@ -110,7 +110,7 @@
       "photoRequired": "este tipo de ocorrência exige foto",
       "photoMinimumNotMet": "faltaram fotos: este tipo exige mais fotos",
       "signatureRequired": "este tipo de ocorrência exige a assinatura",
-      "locationRequired": "este tipo de ocorrência exige a localização; ligue o GPS e registre de novo",
+      "locationRequired": "o aparelho não enviou a localização desta ocorrência; confira a permissão de localização do app e registre de novo",
       "arrivalTimeRequired": "registre a chegada na parada antes desta ocorrência",
       "duplicateRequest": "esta ocorrência já foi registrada",
       "uploadNotReachable": "não foi possível enviar a foto desta ocorrência; tente de novo",
@@ -166,6 +166,12 @@
       "tapped": "Toque às {{time}}"
     },
     "empty": "Nada aguardando envio.",
+    "reference": {
+      "note": "Nota {{number}}",
+      "route": "Rota {{id}}",
+      "stop": "Parada {{sequence}}",
+      "trip": "Viagem {{id}}"
+    },
     "itemTitle": {
       "depart": "Iniciar rota — parada {{sequence}}"
     },
