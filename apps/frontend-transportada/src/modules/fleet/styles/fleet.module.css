@@ -1012,7 +1012,21 @@
   font-size: 1.5rem;
 }
 
+/* Diálogo curto no celular: folha presa ao rodapé, na altura do conteúdo, em vez de tela cheia com vazio no meio. */
+.driverDialogSheet {
+  align-items: flex-end;
+}
+
+.driverDialogSheet .driverDialog {
+  height: auto;
+  max-height: 92dvh;
+}
+
 @media (min-width: 40rem) {
+  .driverDialogSheet {
+    align-items: center;
+  }
+
   .driverDialogOverlay {
     padding: var(--space-4);
   }
@@ -1284,7 +1298,15 @@
   margin: 0;
 }
 
-.driverDialog textarea {
+.driverDialog label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+.driverDialog textarea,
+.driverDialog input {
   width: 100%;
   min-height: var(--field-height);
   padding: var(--field-padding);
