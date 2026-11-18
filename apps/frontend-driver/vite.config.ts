@@ -68,6 +68,8 @@ function contentSecurityPolicyPlugin(): Plugin {
 }
 
 export default defineConfig({
+  /** Quando este bundle foi gerado: a tela de eventos mostra, para dizer qual versão o aparelho roda. */
+  define: { __APP_BUILD_TIME__: JSON.stringify(new Date().toISOString()) },
   envDir: resolve(import.meta.dirname, '../..'),
   plugins: [
     react(),

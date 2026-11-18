@@ -123,7 +123,7 @@
       "photoRequired": "this occurrence type requires a photo",
       "photoMinimumNotMet": "photos are missing: this type requires more photos",
       "signatureRequired": "this occurrence type requires a signature",
-      "locationRequired": "the device did not send the location for this occurrence; check the app location permission and register again",
+      "locationRequired": "the device did not send the location for this occurrence; check the browser location permission (on a computer it may not be able to get one) and register again",
       "arrivalTimeRequired": "register your arrival at the stop before this occurrence",
       "duplicateRequest": "this occurrence was already registered",
       "uploadNotReachable": "the photo for this occurrence could not be sent; try again",
@@ -179,6 +179,7 @@
       "tapped": "Tapped at {{time}}"
     },
     "empty": "Nothing waiting to be sent.",
+    "appVersion": "App version: {{time}}",
     "reference": {
       "note": "Invoice {{number}}",
       "route": "Route {{id}}",
