@@ -99,6 +99,8 @@ function DriverAddressEditor({
   const app = useSendDriverAppMessageMutation(occurrenceId)
   const whatsapp = useSendDriverAddressToWhatsAppGroup()
   const point = useFindDriverAddressPoint()
+  /** A busca do mapa tem a própria mutation: não pode acender "Enviando…" nem travar os botões. */
+  const mapLookup = useFindDriverAddressPoint()
   const mapData = useOccurrenceTripMapData({
     companyId,
     permissions,
@@ -122,7 +124,7 @@ function DriverAddressEditor({
   const text = composeDriverAddressText(fields)
   const isBusy = app.isPending || whatsapp.isPending || point.isPending
   const addressKey = completeAddressKey(fields)
-  const { mutateAsync: lookupPoint } = point
+  const { mutateAsync: lookupPoint } = mapLookup
 
   function change(key: keyof DriverAddressFields, value: string): void {
     setFields((current) => ({ ...current, [key]: value }))
@@ -140,12 +142,21 @@ function DriverAddressEditor({
   useEffect(() => {
     if (addressKey === null) return
     const request = pointRequest()
+    let cancelled = false
     const timer = window.setTimeout(() => {
-      void lookupPoint(request).then((found) => {
-        setFoundPoint(found === null ? null : { key: addressKey, point: found })
-      })
+      lookupPoint(request)
+        .then((found) => {
+          if (cancelled) return
+          setFoundPoint(found === null ? null : { key: addressKey, point: found })
+        })
+        .catch(() => {
+          if (!cancelled) setFoundPoint(null)
+        })
     }, POINT_LOOKUP_DEBOUNCE_MS)
-    return () => window.clearTimeout(timer)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `pointRequest` lê `fields`, que `addressKey` já resume.
   }, [addressKey, lookupPoint])
 

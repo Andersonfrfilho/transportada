@@ -6707,6 +6707,8 @@ button.occurrenceCaseBadge {
 }
 
 .driverAddressMap {
+  --vector-map-height: var(--occurrence-trip-map-height);
+
   display: grid;
   gap: var(--space-2);
   min-inline-size: 0;
@@ -6715,10 +6717,11 @@ button.occurrenceCaseBadge {
 .driverAddressMapLegend {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin: 0;
   padding: 0;
   font-size: 0.85rem;
+  color: var(--color-slate);
   list-style: none;
 }
 
