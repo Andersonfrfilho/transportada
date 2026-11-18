@@ -189,7 +189,7 @@ export default defineConfig({
     maplibreWorkerAssetsPlugin(),
     openCvCompressionPlugin(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       devOptions: { enabled: true },
       includeAssets: ['icons/icon.svg', 'icons/icon-work-in-progress.svg', 'offline.html'],
       manifest: {
@@ -206,6 +206,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        /** Com `prompt` não há claim automático: a primeira instalação assume a aba já no primeiro uso. */
+        clientsClaim: true,
         /**
          * O modelo e o runtime do recorte de fundo ficam **fora** do precache: são 16 MB que o
          * service worker baixaria na primeira visita de toda pessoa — inclusive a que nunca vai

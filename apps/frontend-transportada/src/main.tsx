@@ -21,6 +21,8 @@ import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment
 import { installChunkReloadHandler } from '@/modules/shared/chunkReload.service'
 import { applyColorTheme, readStoredColorTheme } from '@/modules/shared/colorTheme.service'
 import { useColorTheme } from '@/modules/shared/useColorTheme.hook'
+import { AppUpdateNotice } from '@/modules/shared/AppUpdateNotice.component'
+import { appUpdateStore, scheduleUpdateChecks } from '@/modules/shared/appUpdate.service'
 import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service'
 import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
@@ -86,7 +88,27 @@ applyColorTheme({
 installChunkReloadHandler(window)
 
 if (!isSmokeAuthBypassEnabled()) {
-  registerSW({ immediate: true })
+  const updateServiceWorker = registerSW({
+    immediate: true,
+    onNeedRefresh: () => appUpdateStore.markReady(() => updateServiceWorker(true)),
+    onRegisteredSW: (_url, registration) => {
+      if (registration === undefined) return
+      scheduleUpdateChecks(registration, {
+        addVisibilityListener: (listener) =>
+          document.addEventListener('visibilitychange', listener),
+        isOnline: () => navigator.onLine,
+        isVisible: () => document.visibilityState === 'visible',
+        setInterval: (handler, milliseconds) => window.setInterval(handler, milliseconds),
+      })
+    },
+  })
+  const updateNoticeElement = document.createElement('div')
+  document.body.append(updateNoticeElement)
+  createRoot(updateNoticeElement).render(
+    <StrictMode>
+      <AppUpdateNotice />
+    </StrictMode>,
+  )
 }
 
 const rootElement = document.getElementById('root')
