@@ -1523,4 +1523,5 @@ produção (15%) e 454 de 3 024 em staging. A política pura é `parseReceivingH
   destinatário, o que seria gravado. Com `--confirm` grava só para cliente **sem nenhuma janela** e sem divergência entre as notas do mesmo cliente; nunca sobrescreve janela cadastrada.
   Cliente que ainda não existe em `delivery_clients` fica de fora. Repetir é seguro (quem já tem janela é pulado).
 - Staging, simulação de 18/11/2026: 456 de 466 notas lidas (as 10 restantes são "ATÉ AS 18:20", que não diz quando abre), 120 destinatários, 99 gravariam, 21 sem cadastro, 0 divergências.
-- Produção: gravar só depois de a lista da simulação ser aprovada pelo Anderson.
+- Staging gravado em 18/11/2026: 99 clientes; a repetição da simulação mostrou os 99 como "já tem janela".
+- Produção gravada em 18/11/2026, depois de o Anderson aprovar a lista: 124 clientes (133 destinatários com horário, 8 sem cadastro, 1 de fora por divergência entre as notas: Toesca Supermercado, 4 de 7 notas iguais).
