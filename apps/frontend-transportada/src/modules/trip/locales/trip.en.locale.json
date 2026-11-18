@@ -2776,6 +2776,27 @@
         "caseClosed": "The case was closed; the occurrence became history and can no longer be corrected or cancelled.",
         "caseCancelled": "The case was cancelled; the occurrence keeps its history and can no longer be corrected or cancelled."
       }
+    },
+    "driverResult": {
+      "open": "Send result to the driver",
+      "label": "Occurrence result",
+      "placeholder": "Write the result for the driver",
+      "noteLabel": "Note",
+      "decisionLead": {
+        "redelivery_authorized": "The contractor authorized the redelivery.",
+        "goods_paid": "The contractor decided to pay for the goods.",
+        "other": "The contractor recorded another solution."
+      },
+      "sendApp": "Send in the app chat",
+      "sendWhatsapp": "Send in the WhatsApp group",
+      "sending": "Sending…",
+      "close": "Close",
+      "appSent": "Result sent in the driver's app chat.",
+      "appFailed": "Could not send in the app chat. Try again.",
+      "whatsappSent": "Result sent in the driver's WhatsApp group.",
+      "whatsappNoGroup": "The driver has no WhatsApp group linked on the record.",
+      "whatsappDisconnected": "The company WhatsApp is disconnected or turned off.",
+      "whatsappFailed": "Could not send in the WhatsApp group. Try again."
     }
   },
   "occurrenceTimeline": {

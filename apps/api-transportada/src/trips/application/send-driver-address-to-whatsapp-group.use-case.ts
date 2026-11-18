@@ -148,3 +148,63 @@ export function createSendDriverAddressToWhatsAppGroupUseCase(dependencies: {
     },
   }
 }
+
+export type SendDriverResultToWhatsAppGroupUseCase = {
+  readonly execute: (input: {
+    readonly context: CompanyContext
+    readonly occurrenceId: string
+    readonly occurrenceKind: 'document' | 'stop'
+    readonly text: string
+  }) => Promise<{ readonly sentAt: string }>
+}
+
+/**
+ * O resultado da ocorrência (a decisão da contratante, ou um texto do escritório) ao grupo de WhatsApp do motorista:
+ * mesmo alvo e mesmo remetente do endereço correto. O texto é do escritório e vai como está; nada dele vai a log.
+ */
+export function createSendDriverResultToWhatsAppGroupUseCase(dependencies: {
+  readonly logger: ApiLogger
+  readonly now?: () => Date
+  readonly reader: DriverAddressGroupReaderPort
+  readonly sender: DriverAddressTextSender
+}): SendDriverResultToWhatsAppGroupUseCase {
+  const now = dependencies.now ?? (() => new Date())
+  return {
+    async execute(input) {
+      const { companyId } = input.context
+      const target = await dependencies.reader.findTarget({
+        companyId,
+        occurrenceId: input.occurrenceId,
+        occurrenceKind: input.occurrenceKind,
+      })
+      if (target === null) throw new TripOccurrenceNotFoundError()
+      if (target.groupJid === null) throw new DriverAddressWhatsAppGroupMissingError()
+      const mention = withGroupMention({
+        body: `📋 Resultado da ocorrência:\n${input.text}`,
+        mentionNumber: target.driverPhone?.replace(/\D/gu, ''),
+      })
+      try {
+        await dependencies.sender.sendText({
+          body: mention.body,
+          companyId,
+          ...(mention.mentionNumber === undefined ? {} : { mentionNumber: mention.mentionNumber }),
+          number: target.groupJid,
+        })
+      } catch (error) {
+        const reason = error instanceof ContractorReplyWhatsAppSendError ? error.failure : 'failed'
+        dependencies.logger.warn('occurrence.driver-result.whatsapp_group_failed', {
+          occurrenceId: input.occurrenceId,
+          reason,
+        })
+        throw new DriverAddressWhatsAppFailedError(
+          reason === 'disconnected' || reason === 'number_not_found' ? reason : 'failed',
+        )
+      }
+      dependencies.logger.info('occurrence.driver-result.whatsapp_group_sent', {
+        actorUserId: input.context.userId,
+        occurrenceId: input.occurrenceId,
+      })
+      return { sentAt: now().toISOString() }
+    },
+  }
+}

@@ -862,7 +862,10 @@ import { createListDriverRouteOccurrencesUseCase } from './trips/application/lis
 import { createDrizzleDriverRouteOccurrenceReader } from './trips/infrastructure/drizzle-driver-route-occurrence.repository.js'
 import { createDrizzleDriverPayoutReceiptWhatsAppReader } from './trips/infrastructure/drizzle-driver-payout-receipt-whatsapp.reader.js'
 import { createFindDriverAddressPointUseCase } from './trips/application/find-driver-address-point.use-case.js'
-import { createSendDriverAddressToWhatsAppGroupUseCase } from './trips/application/send-driver-address-to-whatsapp-group.use-case.js'
+import {
+  createSendDriverAddressToWhatsAppGroupUseCase,
+  createSendDriverResultToWhatsAppGroupUseCase,
+} from './trips/application/send-driver-address-to-whatsapp-group.use-case.js'
 import { createDrizzleDriverAddressGroupReader } from './trips/infrastructure/drizzle-driver-address-group.reader.js'
 import { createSendDriverPayoutReceiptByWhatsAppUseCase } from './trips/application/send-driver-payout-receipt-by-whatsapp.use-case.js'
 import { createRecordDriverPayoutReceiptUseCase } from './trips/application/record-driver-payout-receipt.use-case.js'
@@ -5460,6 +5463,16 @@ function createApplicationRoutes({
           }),
       /** Spec 343 (T6a): o endereço correto da entrega ao grupo de WhatsApp do motorista. */
       sendDriverAddressToWhatsAppGroup: createSendDriverAddressToWhatsAppGroupUseCase({
+        logger,
+        reader: createDrizzleDriverAddressGroupReader(database),
+        sender: createEvolutionDocumentSender({
+          pacer: evolutionSendPacer,
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
+      }),
+      /** Spec 343: o resultado da ocorrência ao grupo de WhatsApp do motorista (mesmo alvo e remetente do endereço). */
+      sendDriverResultToWhatsAppGroup: createSendDriverResultToWhatsAppGroupUseCase({
         logger,
         reader: createDrizzleDriverAddressGroupReader(database),
         sender: createEvolutionDocumentSender({

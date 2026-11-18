@@ -10,6 +10,7 @@ import { ContractorReplyWhatsAppSendError } from '../../src/occurrence-conversat
 import {
   buildDriverAddressMessage,
   createSendDriverAddressToWhatsAppGroupUseCase,
+  createSendDriverResultToWhatsAppGroupUseCase,
   type DriverAddressGroupTarget,
 } from '../../src/trips/application/send-driver-address-to-whatsapp-group.use-case.js'
 
@@ -248,5 +249,55 @@ describe('ponto do endereço correto (busca por CEP)', () => {
       geocoding: { geocode: () => Promise.resolve(null) },
     })
     expect(await missing.execute(request)).toBeNull()
+  })
+})
+
+describe('resultado da ocorrência ao grupo do motorista', () => {
+  function buildResult(target: DriverAddressGroupTarget | null, fail?: unknown) {
+    const sent: Sent[] = []
+    const useCase = createSendDriverResultToWhatsAppGroupUseCase({
+      logger: LOGGER,
+      now: () => new Date('2026-11-17T12:00:00.000Z'),
+      reader: { findTarget: () => Promise.resolve(target) },
+      sender: {
+        sendText(input) {
+          if (fail !== undefined) return Promise.reject(fail)
+          sent.push(input as Sent)
+          return Promise.resolve({})
+        },
+      },
+    })
+    return { sent, useCase }
+  }
+  const input = {
+    context: CONTEXT,
+    occurrenceId: OCCURRENCE_ID,
+    occurrenceKind: 'document',
+    text: 'A contratante autorizou a reentrega.',
+  } as const
+
+  test('posta o texto do escritório no grupo da ficha e marca o motorista', async () => {
+    const { sent, useCase } = buildResult({ driverPhone: '(16) 99999-0000', groupJid: 'g@g.us' })
+    const result = await useCase.execute(input)
+    expect(result.sentAt).toBe('2026-11-17T12:00:00.000Z')
+    expect(sent).toHaveLength(1)
+    expect(sent[0]?.number).toBe('g@g.us')
+    expect(sent[0]?.body).toContain('A contratante autorizou a reentrega.')
+  })
+
+  test('sem grupo vinculado recusa com o código próprio', async () => {
+    const { useCase } = buildResult({ driverPhone: null, groupJid: null })
+    await expect(useCase.execute(input)).rejects.toMatchObject({
+      code: 'DRIVER_WHATSAPP_GROUP_MISSING',
+    })
+  })
+
+  test('ocorrência de outra empresa é 404 e o Evolution fora do ar vira falha fechada', async () => {
+    await expect(buildResult(null).useCase.execute(input)).rejects.toMatchObject({ status: 404 })
+    const failing = buildResult(
+      { driverPhone: null, groupJid: 'g@g.us' },
+      new ContractorReplyWhatsAppSendError('disconnected'),
+    )
+    await expect(failing.useCase.execute(input)).rejects.toMatchObject({ status: 409 })
   })
 })

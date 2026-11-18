@@ -15,7 +15,10 @@ import { defineRoute } from '../../http/router.service.js'
 import type { OccurrenceKind } from '../application/occurrence-resolution.port.js'
 import type { RecordDriverPayoutReceiptUseCase } from '../application/record-driver-payout-receipt.use-case.js'
 import type { FindDriverAddressPointUseCase } from '../application/find-driver-address-point.use-case.js'
-import type { SendDriverAddressToWhatsAppGroupUseCase } from '../application/send-driver-address-to-whatsapp-group.use-case.js'
+import type {
+  SendDriverAddressToWhatsAppGroupUseCase,
+  SendDriverResultToWhatsAppGroupUseCase,
+} from '../application/send-driver-address-to-whatsapp-group.use-case.js'
 import type { SendDriverPayoutReceiptByWhatsAppUseCase } from '../application/send-driver-payout-receipt-by-whatsapp.use-case.js'
 import type { ResolveOccurrenceUseCase } from '../application/resolve-occurrence.use-case.js'
 
@@ -55,6 +58,7 @@ export type OccurrenceResolutionRoutesDependencies = {
   readonly recordDriverPayoutReceipt?: RecordDriverPayoutReceiptUseCase
   readonly findDriverAddressPoint?: FindDriverAddressPointUseCase
   readonly sendDriverAddressToWhatsAppGroup?: SendDriverAddressToWhatsAppGroupUseCase
+  readonly sendDriverResultToWhatsAppGroup?: SendDriverResultToWhatsAppGroupUseCase
   readonly sendDriverPayoutReceiptByWhatsApp?: SendDriverPayoutReceiptByWhatsAppUseCase
   readonly resolveOccurrence: ResolveOccurrenceUseCase
 }
@@ -90,9 +94,14 @@ export function createOccurrenceResolutionRoutes(
     dependencies.sendDriverAddressToWhatsAppGroup === undefined
       ? []
       : [createSendDriverAddressToWhatsAppGroupRoute(dependencies.sendDriverAddressToWhatsAppGroup)]
+  const resultRoutes =
+    dependencies.sendDriverResultToWhatsAppGroup === undefined
+      ? []
+      : [createSendDriverResultToWhatsAppGroupRoute(dependencies.sendDriverResultToWhatsAppGroup)]
   return [
     ...receiptRoutes,
     ...addressRoutes,
+    ...resultRoutes,
     ...(dependencies.findDriverAddressPoint === undefined
       ? []
       : [createFindDriverAddressPointRoute(dependencies.findDriverAddressPoint)]),
@@ -255,6 +264,49 @@ function createSendDriverAddressToWhatsAppGroupRoute(
     pathname: DRIVER_ADDRESS_WHATSAPP_GROUP_PATH,
     policy: OCCURRENCE_RESOLUTION_POLICY,
     rateLimit: DRIVER_ADDRESS_WHATSAPP_GROUP_RATE_LIMIT,
+  })
+}
+
+const DRIVER_RESULT_WHATSAPP_GROUP_PATH = '/trip-occurrences/:kind/:id/driver-result/whatsapp-group'
+const DRIVER_RESULT_TEXT_MAX_LENGTH = 1000
+const DRIVER_RESULT_WHATSAPP_GROUP_RATE_LIMIT = {
+  maxRequests: 20,
+  scope: 'trip-occurrence-driver-result-whatsapp-group',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+const driverResultBodySchema = z
+  .object({ text: z.string().trim().min(1).max(DRIVER_RESULT_TEXT_MAX_LENGTH) })
+  .strict()
+
+/** O resultado da ocorrência (decisão da contratante ou texto do escritório) ao grupo de WhatsApp do motorista. */
+function createSendDriverResultToWhatsAppGroupRoute(
+  useCase: SendDriverResultToWhatsAppGroupUseCase,
+): ReturnType<typeof defineRoute> {
+  return defineRoute<{
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceKind
+    readonly text: string
+  }>({
+    async handle({ context, input }): Promise<Response> {
+      const sent = await useCase.execute({ ...input, context: context.scope })
+      return new Response(JSON.stringify({ data: sent }), {
+        headers: { 'cache-control': 'no-store', 'content-type': 'application/json' },
+        status: 201,
+      })
+    },
+    method: 'POST',
+    async parse({ pathParameters, request }) {
+      const occurrenceKind = parseOccurrenceKind(pathParameters.kind)
+      const occurrenceId = parseUuidPathIdentifier(pathParameters.id ?? '')
+      const body = await parseBody(driverResultBodySchema, request)
+      return { occurrenceId, occurrenceKind, text: body.text }
+    },
+    pathParameterFormat: 'raw',
+    pathname: DRIVER_RESULT_WHATSAPP_GROUP_PATH,
+    policy: OCCURRENCE_RESOLUTION_POLICY,
+    rateLimit: DRIVER_RESULT_WHATSAPP_GROUP_RATE_LIMIT,
   })
 }
 

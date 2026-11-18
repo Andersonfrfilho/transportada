@@ -8,6 +8,7 @@ import {
   buildDriverAddressChatMessage,
   composeDriverAddressText,
 } from '@/modules/trip/shared/driverAddressMessage.service'
+import { buildDriverResultText } from '@/modules/trip/shared/driverResultMessage.service'
 import {
   buildOccurrenceDriverContact,
   formatOccurrenceItemQuantity,
@@ -312,5 +313,33 @@ describe('endereço correto ao motorista (spec 343 T6a)', () => {
       'whatsappDisconnected',
     )
     expect(whatsappFailureKey(new Error('qualquer'))).toBe('whatsappFailed')
+  })
+})
+
+describe('resultado da ocorrência ao motorista', () => {
+  const page = readFileSync(
+    new URL('src/modules/trip/pages/TripOccurrenceDetail.page.tsx', APPLICATION_ROOT),
+    'utf8',
+  )
+  const client = readFileSync(
+    new URL('src/modules/trip/shared/tripOccurrenceFeedClient.service.ts', APPLICATION_ROOT),
+    'utf8',
+  )
+
+  test('a mensagem já vem com a decisão e a observação da contratante', () => {
+    expect(
+      buildDriverResultText({
+        lead: 'A contratante autorizou a reentrega.',
+        note: '  Reentregar amanhã  ',
+        noteLabel: 'Observação',
+      }),
+    ).toBe('A contratante autorizou a reentrega.\nObservação: Reentregar amanhã')
+    expect(buildDriverResultText({ lead: 'Lead', note: ' ', noteLabel: 'Observação' })).toBe('Lead')
+  })
+
+  test('o painel oferece o envio a quem resolve e passa a decisão da tratativa', () => {
+    expect(page).toContain('decision={occurrence.case?.decision ?? null}')
+    expect(client).toContain('/driver-result/whatsapp-group')
+    expect(client).toContain('body: { text: input.text }')
   })
 })

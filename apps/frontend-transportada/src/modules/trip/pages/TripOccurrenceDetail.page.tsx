@@ -30,6 +30,7 @@ import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.compo
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
 import { OccurrenceDriverAddress } from '../components/OccurrenceDriverAddress.component'
+import { OccurrenceDriverResult } from '../components/OccurrenceDriverResult.component'
 import { OccurrenceReceivingCharge } from '../components/OccurrenceReceivingCharge.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceTripMap } from '../components/OccurrenceTripMap.component'
@@ -269,10 +270,17 @@ function OccurrenceDriverPanel({
           />
         )}
         {canSend ? (
-          <OccurrenceDriverAddress
-            occurrenceId={occurrence.id}
-            occurrenceKind={occurrence.source}
-          />
+          <>
+            <OccurrenceDriverAddress
+              occurrenceId={occurrence.id}
+              occurrenceKind={occurrence.source}
+            />
+            <OccurrenceDriverResult
+              decision={occurrence.case?.decision ?? null}
+              occurrenceId={occurrence.id}
+              occurrenceKind={occurrence.source}
+            />
+          </>
         ) : null}
       </div>
     </section>
