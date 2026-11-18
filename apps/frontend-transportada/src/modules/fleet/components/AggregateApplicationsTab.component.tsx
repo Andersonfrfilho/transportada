@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { formatTaxId } from '@/modules/shared/taxId.service'
 
 import { AggregateApplicationAttachments } from './AggregateApplicationAttachments.component'
 import { AggregateDriverTaxIdDialog } from './AggregateDriverTaxIdDialog.component'
@@ -178,7 +179,7 @@ export function AggregateApplicationsTab({
                       )}
                     </span>
                   </td>
-                  <td>{application.taxId}</td>
+                  <td>{formatTaxId(application.taxId)}</td>
                   <td>
                     {application.email}
                     <br />
