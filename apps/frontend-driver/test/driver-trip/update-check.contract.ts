@@ -7,32 +7,29 @@ import {
 } from '@/modules/driver-trip/shared/updateCheck.service'
 
 function build(state: { fail: boolean; now: number; visible: boolean }) {
-  const calls = { checks: 0, midSession: 0 }
+  const calls = { checks: 0 }
   const scheduler = createUpdateCheckScheduler({
     check: () => {
       calls.checks += 1
       return state.fail ? Promise.reject(new Error('offline')) : Promise.resolve()
     },
     isVisible: () => state.visible,
-    markMidSession: () => {
-      calls.midSession += 1
-    },
     now: () => state.now,
   })
   return { calls, scheduler }
 }
 
 describe('procura de versão nova do PWA', () => {
-  it('procura ao voltar ao app e marca a versão achada como de meio de sessão', async () => {
+  it('procura ao voltar ao app', async () => {
     const { calls, scheduler } = build({ fail: false, now: 1_000_000, visible: true })
     expect(await scheduler.run()).toBe(true)
-    expect(calls).toEqual({ checks: 1, midSession: 1 })
+    expect(calls).toEqual({ checks: 1 })
   })
 
   it('não procura com a tela escondida', async () => {
     const { calls, scheduler } = build({ fail: false, now: 1_000_000, visible: false })
     expect(await scheduler.run()).toBe(false)
-    expect(calls).toEqual({ checks: 0, midSession: 0 })
+    expect(calls).toEqual({ checks: 0 })
   })
 
   it('não repete antes do intervalo mínimo, e repete depois dele', async () => {
@@ -68,7 +65,6 @@ describe('procura de versão nova do PWA', () => {
         })
       },
       isVisible: () => state.visible,
-      markMidSession: () => undefined,
       now: () => state.now,
     })
     const first = scheduler.run()

@@ -100,8 +100,8 @@ const serviceWorkerUpdateListeners = new Set<() => void>()
 let needsServiceWorkerUpdate = false
 /** B4: o toque foi ouvido com captura aberta — o aviso troca o botão por "Atualiza ao terminar". */
 let isServiceWorkerUpdateWaiting = false
-/** Ligada quando a procura periódica corre: a versão que ela achar não recarrega a página sozinha. */
-let isUpdateFoundMidSession = false
+/** `onRegisteredSW` pode voltar a disparar: o agendamento da procura é de uma vez só. */
+let isUpdateCheckScheduled = false
 let applyServiceWorkerUpdate: ((reloadPage?: boolean) => Promise<void>) | undefined
 
 function notifyServiceWorkerUpdateListeners(): void {
@@ -117,15 +117,13 @@ if (!isSmokeAuthBypassEnabled()) {
      * ao voltar para o app e de hora em hora.
      */
     onRegisteredSW: (_url, registration) => {
-      if (registration === undefined) return
+      if (registration === undefined || isUpdateCheckScheduled) return
+      isUpdateCheckScheduled = true
       const scheduler = createUpdateCheckScheduler({
         check: async () => {
           await registration.update()
         },
         isVisible: () => document.visibilityState === 'visible',
-        markMidSession: () => {
-          isUpdateFoundMidSession = true
-        },
         now: () => Date.now(),
       })
       document.addEventListener('visibilitychange', () => {
@@ -134,12 +132,6 @@ if (!isSmokeAuthBypassEnabled()) {
       window.setInterval(() => void scheduler.run(), 60 * 60 * 1000)
     },
     onNeedRefresh: () => {
-      /** Versão achada com o app já em uso: só o aviso, nunca o recarregamento automático (a tela é do motorista). */
-      if (isUpdateFoundMidSession) {
-        needsServiceWorkerUpdate = true
-        notifyServiceWorkerUpdateListeners()
-        return
-      }
       handleServiceWorkerUpdateAvailable({
         apply: () => void applyServiceWorkerUpdate?.(true),
         captureRegistry,
@@ -157,7 +149,6 @@ function applyServiceWorkerUpdateNow(): void {
     apply: () => {
       needsServiceWorkerUpdate = false
       isServiceWorkerUpdateWaiting = false
-      isUpdateFoundMidSession = false
       notifyServiceWorkerUpdateListeners()
       void applyServiceWorkerUpdate?.(true)
     },
