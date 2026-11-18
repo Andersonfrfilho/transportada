@@ -150,7 +150,7 @@ export function AggregateApplicationsTab({
       <p className={styles.hint}>
         {t('applications.shownOfTotal', { shown: visible.length, total: applications.length })}
       </p>
-      <table className={styles.fleetTable}>
+      <table className={`${styles.fleetTable} ${styles.applicationsTable}`}>
         <thead>
           <tr>
             {renderSortableHeader('name', t('applications.columns.name'))}
@@ -166,7 +166,7 @@ export function AggregateApplicationsTab({
             const isExpanded = expandedIds.has(application.id)
             return (
               <Fragment key={application.id}>
-                <tr>
+                <tr className={styles.applicationRow}>
                   <td>
                     <span className={styles.applicationNameCell}>
                       <span>{application.name}</span>
@@ -178,13 +178,15 @@ export function AggregateApplicationsTab({
                       )}
                     </span>
                   </td>
-                  <td>{application.taxId}</td>
-                  <td>
+                  <td data-label={t('applications.columns.taxId')}>{application.taxId}</td>
+                  <td data-label={t('applications.columns.contact')}>
                     {application.email}
                     <br />
                     {application.phone}
                   </td>
-                  <td>{statusLabel(application.status, t)}</td>
+                  <td data-label={t('applications.columns.status')}>
+                    {statusLabel(application.status, t)}
+                  </td>
                   <td className={styles.rowActions}>
                     {application.status === 'pending' ? (
                       <>
