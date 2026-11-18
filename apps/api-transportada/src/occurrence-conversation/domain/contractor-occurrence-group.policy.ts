@@ -25,16 +25,20 @@ export const CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_CHANNEL = 'whatsapp'
 export const CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION = 'occurrence-contractor-group.send'
 
 export const CONTRACTOR_OCCURRENCE_GROUP_VARIABLES = [
+  'chegada',
   'cliente',
   'contratante',
   'data',
   'enderecoEntrega',
+  'inicioRota',
+  'janelaRecebimento',
   'marcacao',
   'momento',
   'novaData',
   'numeroNota',
   'numeroNotaSemSerie',
   'observacao',
+  'tempoEspera',
   'tipoOcorrencia',
   'valorCobrado',
   'valorNota',
@@ -55,6 +59,20 @@ export const CONTRACTOR_OCCURRENCE_GROUP_SUMMARY_MAX_LENGTH = 300
 
 /** A Meta recusa acima de 4096; o mesmo teto do bot no grupo. */
 export const CONTRACTOR_OCCURRENCE_GROUP_MESSAGE_MAX_LENGTH = 4000
+
+/**
+ * Quanto tempo se passou desde `from` até `to`, para a espera: "35 min", "1 h", "2 h 05 min". Vazio quando falta a
+ * chegada ou o relógio anda para trás (relógio do aparelho adiantado): melhor sem a linha que com um número inventado.
+ */
+export function formatElapsedWait(from: Date | null, to: Date): string {
+  if (from === null) return ''
+  const minutes = Math.floor((to.getTime() - from.getTime()) / 60_000)
+  if (!Number.isFinite(minutes) || minutes < 0) return ''
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (hours === 0) return `${minutes} min`
+  return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, '0')} min`
+}
 
 const MOMENT_LABELS: Readonly<Record<'delivery' | 'separation', string>> = {
   delivery: 'entrega',
