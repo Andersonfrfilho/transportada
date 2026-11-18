@@ -175,16 +175,28 @@ async function readStopEvents(
         from trip_stop_events
         where company_id = ${params.companyId}::uuid
           and stop_id = ${stopId}::uuid
-          and kind in ('departed', 'arrived')
-        order by recorded_at desc`,
+          and kind in ('departed', 'arrived', 'departure_cancelled')`,
   )
+  /** O instante mais recente do tipo, pela hora do evento (a fila offline entrega fora de ordem), nunca pela da gravação. */
   const latest = (kind: string): Date | null => {
-    const found = events.find((event) => text(event, 'kind') === kind)
-    return found === undefined ? null : asDate(found.moment)
+    let found: Date | null = null
+    for (const event of events) {
+      if (text(event, 'kind') !== kind) continue
+      const moment = asDate(event.moment)
+      if (moment !== null && (found === null || moment.getTime() > found.getTime())) found = moment
+    }
+    return found
   }
+  /** A saída cancelada depois da última saída deixa de valer: o motorista ainda não saiu. */
+  const departed = latest('departed')
+  const cancelled = latest('departure_cancelled')
+  const departedAt =
+    departed !== null && cancelled !== null && cancelled.getTime() >= departed.getTime()
+      ? null
+      : departed
   return {
     arrivedAt: latest('arrived'),
-    departedAt: latest('departed'),
+    departedAt,
     windowEnd: asDate(stop?.delivery_window_end),
     windowStart: asDate(stop?.delivery_window_start),
   }
@@ -196,6 +208,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
   readonly send: ContractorOccurrenceGroupPort['send']
 }): ContractorOccurrenceGroupPort {
   const { database } = dependencies
+  const now = dependencies.now ?? (() => new Date())
   return {
     async claim({ companyId, keyPrefix, occurrenceId }) {
       const rows = await rowsOf(
@@ -296,10 +309,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
           numeroNota: number === '' ? '' : series === '' ? number : `${number}/${series}`,
           numeroNotaSemSerie: number,
           observacao: summarizeOccurrenceNote(text(occurrence, 'note')),
-          tempoEspera: formatElapsedWait(
-            events.arrivedAt,
-            (dependencies.now ?? (() => new Date()))(),
-          ),
+          tempoEspera: formatElapsedWait(events.arrivedAt, now()),
           tipoOcorrencia: text(occurrence, 'type_name').trim(),
           /** Spec 343: o valor que o motorista informou no app (cobrança no recebimento, valor pago); vazio sem valor. */
           valorCobrado: formatChargedAmount(text(occurrence, 'declared_amount')),

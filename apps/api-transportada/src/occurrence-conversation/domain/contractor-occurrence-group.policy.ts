@@ -91,10 +91,10 @@ export function summarizeOccurrenceNote(note: string): string {
 
 /**
  * Linha que sobrou só com emoji e/ou rótulo em negrito vazio (ex.: "📝 " quando a observação veio vazia, ou
- * "📅 *Vencimento pedido:* " no tipo sem data). Linha em branco de propósito não casa.
+ * "📅 *Vencimento pedido:* " no tipo sem data, ou "*Valor da nota:* R$ " na nota sem valor). Linha em branco de propósito não casa.
  */
 const EMOJI_ONLY_LINE =
-  /^[ \t]*(?:(?:[\p{Extended_Pictographic}️‍][ \t]*)+(?:\*[^*\n]+:\*[ \t]*)?|\*[^*\n]+:\*[ \t]*)$/u
+  /^[ \t]*(?:(?:[\p{Extended_Pictographic}️‍][ \t]*)+(?:\*[^*\n]+:\*[ \t]*(?:R\$[ \t]*)?)?|\*[^*\n]+:\*[ \t]*(?:R\$[ \t]*)?)$/u
 const BLANK_LINES = /\n{3,}/gu
 const MENTION_PLACEHOLDER = /\{\{\s*marcacao\s*\}\}/u
 

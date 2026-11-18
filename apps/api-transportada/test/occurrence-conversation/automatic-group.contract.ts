@@ -467,6 +467,16 @@ describe('a espera longa leva os eventos da entrega e o valor da nota (18/11/202
     expect(message).toContain('*Nota fiscal:* 170572/1')
   })
 
+  test('nota sem valor: a linha do valor some, sem "R$" solto', () => {
+    const message = buildContractorOccurrenceGroupMessage({
+      mentionPhone: MENTION_PHONE,
+      template: ESPERA_LONGA,
+      values: { ...base, valorNota: '' },
+    })
+    expect(message).not.toContain('Valor da nota')
+    expect(message).not.toContain('R$')
+  })
+
   test('o tempo de espera conta da chegada até agora', () => {
     const arrived = new Date('2026-11-18T15:10:00Z')
     expect(formatElapsedWait(arrived, new Date('2026-11-18T15:35:00Z'))).toBe('25 min')
