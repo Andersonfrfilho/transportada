@@ -105,27 +105,27 @@ describe('etapa arrival: saída + viagem + max(folga mínima, % da viagem)', () 
   })
 })
 
-describe('etapa settlement: chegada + permanência (RF2)', () => {
+describe('etapa settlement: chegada + permanência + folga (RF2)', () => {
   const arrivedAt = new Date('2026-11-09T17:41:00.000Z')
 
-  test('permanência padrão de 30 min (critério de aceite 2: 14:41 → 15:11)', () => {
+  test('permanência padrão de 30 min + folga de 30 min (14:41 → 15:41)', () => {
     const schedule = computeStopReminderSchedule({
       stage: 'settlement',
       anchorAt: arrivedAt,
       travelSeconds: undefined,
       settings,
     })
-    expect(schedule.dueAt).toEqual(new Date('2026-11-09T18:11:00.000Z'))
+    expect(schedule.dueAt).toEqual(new Date('2026-11-09T18:41:00.000Z'))
   })
 
-  test('permanência da empresa: 45 min', () => {
+  test('permanência da empresa: 45 min + folga de 30 = 75 min', () => {
     const schedule = computeStopReminderSchedule({
       stage: 'settlement',
       anchorAt: arrivedAt,
       travelSeconds: undefined,
       settings: { ...settings, dwellMinutes: 45 },
     })
-    expect(schedule.dueAt).toEqual(plusMinutes(arrivedAt, 45))
+    expect(schedule.dueAt).toEqual(plusMinutes(arrivedAt, 75))
   })
 
   test('o tempo de viagem não entra no settlement', () => {
@@ -135,7 +135,17 @@ describe('etapa settlement: chegada + permanência (RF2)', () => {
       travelSeconds: 600 * 60,
       settings,
     })
-    expect(schedule.dueAt).toEqual(plusMinutes(arrivedAt, 30))
+    expect(schedule.dueAt).toEqual(plusMinutes(arrivedAt, 60))
+  })
+
+  test('folga de 90 min (produção): 30 + 90 = 120 min depois da chegada', () => {
+    const schedule = computeStopReminderSchedule({
+      stage: 'settlement',
+      anchorAt: arrivedAt,
+      travelSeconds: undefined,
+      settings: { ...settings, graceMinMinutes: 90, gracePercent: 0 },
+    })
+    expect(schedule.dueAt).toEqual(plusMinutes(arrivedAt, 120))
   })
 })
 
@@ -162,25 +172,45 @@ describe('próximo prazo e fim das tentativas (RF12, D4)', () => {
   })
 })
 
-describe('etapa idle: âncora + idleMinutes (T2.7, D10)', () => {
-  test('vence 30 min depois da âncora, sem previsão de viagem', () => {
+describe('etapa idle: âncora + idleMinutes + folga (T2.7, D10)', () => {
+  test('vence 30 min + 30 min de folga depois da âncora, sem previsão de viagem', () => {
     const schedule = computeStopReminderSchedule({
       stage: 'idle',
       anchorAt: DEPARTED_AT,
       travelSeconds: 35 * 60,
       settings,
     })
-    expect(schedule.dueAt).toEqual(plusMinutes(DEPARTED_AT, 30))
+    expect(schedule.dueAt).toEqual(plusMinutes(DEPARTED_AT, 60))
     expect(schedule.expectedAt).toEqual(DEPARTED_AT)
   })
 
-  test('respeita o idleMinutes da empresa', () => {
+  test('respeita o idleMinutes e a folga da empresa: 90 + 30 = 120 min', () => {
     const schedule = computeStopReminderSchedule({
       stage: 'idle',
       anchorAt: DEPARTED_AT,
       travelSeconds: undefined,
       settings: { ...settings, idleMinutes: 90 },
     })
-    expect(schedule.dueAt).toEqual(plusMinutes(DEPARTED_AT, 90))
+    expect(schedule.dueAt).toEqual(plusMinutes(DEPARTED_AT, 120))
+  })
+
+  test('folga de 90 min (produção): 30 + 90 = 120 min depois do último evento', () => {
+    const schedule = computeStopReminderSchedule({
+      stage: 'idle',
+      anchorAt: DEPARTED_AT,
+      travelSeconds: undefined,
+      settings: { ...settings, graceMinMinutes: 90, gracePercent: 0 },
+    })
+    expect(schedule.dueAt).toEqual(plusMinutes(DEPARTED_AT, 120))
+  })
+
+  test('arrival com folga de 90 e percentual 0: viagem + 90 min', () => {
+    const schedule = computeStopReminderSchedule({
+      stage: 'arrival',
+      anchorAt: DEPARTED_AT,
+      travelSeconds: 35 * 60,
+      settings: { ...settings, graceMinMinutes: 90, gracePercent: 0 },
+    })
+    expect(schedule.dueAt).toEqual(plusMinutes(DEPARTED_AT, 125))
   })
 })
