@@ -166,7 +166,7 @@ describe('a varredura da etapa idle contra o Postgres (spec 299 T2.7)', () => {
           status: 'pending',
           tripStopId: world.trip.stopId,
         })
-        expect(rows[0]?.dueAt).toEqual(new Date(DISPATCHED_AT.getTime() + 30 * MINUTE))
+        expect(rows[0]?.dueAt).toEqual(new Date(DISPATCHED_AT.getTime() + 60 * MINUTE))
         expect(await reconcile(world)).toEqual({ openedCount: 0 })
       })
     },
@@ -189,7 +189,7 @@ describe('a varredura da etapa idle contra o Postgres (spec 299 T2.7)', () => {
             status: 'pending',
             tripStopId: world.trip.stopId,
           })
-          expect(rows[0]?.dueAt).toEqual(new Date(DISPATCHED_AT.getTime() + 30 * MINUTE))
+          expect(rows[0]?.dueAt).toEqual(new Date(DISPATCHED_AT.getTime() + 60 * MINUTE))
           expect(await reconcile(world)).toEqual({ openedCount: 0 })
         }
       })
