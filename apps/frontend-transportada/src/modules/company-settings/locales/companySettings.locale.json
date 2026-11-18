@@ -1002,19 +1002,19 @@
       },
       "graceMinMinutes": {
         "label": "Folga mínima (min)",
-        "hint": "De {{min}} a {{max}} minutos de espera depois do horário previsto."
+        "hint": "De {{min}} a {{max}} minutos de espera depois do tempo esperado de cada etapa (a caminho, no destino e parado). O prazo recomeça a cada evento registrado."
       },
       "gracePercent": {
         "label": "Folga (%)",
-        "hint": "De {{min}} a {{max}}% do tempo de deslocamento, somado à folga mínima."
+        "hint": "De {{min}} a {{max}}% do tempo de deslocamento. Só vale na etapa a caminho, e a folga é o maior valor entre este e a folga mínima."
       },
       "dwellMinutes": {
         "label": "Permanência (min)",
-        "hint": "De {{min}} a {{max}} minutos entre a chegada e a cobrança da entrega."
+        "hint": "De {{min}} a {{max}} minutos esperados entre a chegada e a baixa. A cobrança vem depois da folga mínima."
       },
       "idleMinutes": {
         "label": "Sem evento (min)",
-        "hint": "De {{min}} a {{max}} minutos sem nenhum registro da viagem antes de cobrar."
+        "hint": "De {{min}} a {{max}} minutos esperados até o próximo evento da viagem. A cobrança vem depois da folga mínima."
       }
     },
     "hours": {
