@@ -27,7 +27,6 @@ import {
   CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_CHANNEL,
   CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_KEY,
   NEW_DUE_DATE_NOT_INFORMED,
-  formatElapsedWait,
   contractorOccurrenceMomentLabel,
   summarizeOccurrenceNote,
 } from '../domain/contractor-occurrence-group.policy.js'
@@ -39,6 +38,7 @@ import {
   formatIsoDate,
   formatOccurrenceMoment,
 } from '../../trips/domain/occurrence-mail-values.policy.js'
+import { readOccurrenceStopEventValues } from './occurrence-stop-events.support.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 
@@ -127,81 +127,6 @@ function formatChargedAmount(stored: string): string {
   return value === '' ? '' : formatBrazilianAmount(parseAmountToCents(value))
 }
 
-const SAO_PAULO_TIME = new Intl.DateTimeFormat('pt-BR', {
-  hour: '2-digit',
-  hourCycle: 'h23',
-  minute: '2-digit',
-  timeZone: 'America/Sao_Paulo',
-})
-
-function asDate(value: unknown): Date | null {
-  if (value instanceof Date) return value
-  if (typeof value === 'string' && value !== '') {
-    const parsed = new Date(value)
-    return Number.isNaN(parsed.getTime()) ? null : parsed
-  }
-  return null
-}
-
-/**
- * Os eventos da entrega da parada da nota: quando o motorista saiu para ela (`departed`), quando chegou (`arrived`)
- * e a janela de recebimento do cliente. O momento do evento é o do toque (`occurred_at`, senão `tapped_at`, senão a
- * hora do servidor). Sem o evento, a variável sai vazia e a linha some do texto.
- */
-async function readStopEvents(
-  database: TripQueryable,
-  params: { readonly companyId: string; readonly documentId: string },
-): Promise<{
-  readonly arrivedAt: Date | null
-  readonly departedAt: Date | null
-  readonly windowEnd: Date | null
-  readonly windowStart: Date | null
-}> {
-  const [stop] = await rowsOf(
-    database,
-    sql`select stop.id as stop_id, stop.delivery_window_start, stop.delivery_window_end
-        from trip_documents document
-        join trip_stops stop
-          on stop.company_id = document.company_id and stop.id = document.stop_id
-        where document.company_id = ${params.companyId}::uuid
-          and document.id = ${params.documentId}::uuid`,
-  )
-  const stopId = text(stop, 'stop_id')
-  if (stopId === '')
-    return { arrivedAt: null, departedAt: null, windowEnd: null, windowStart: null }
-  const events = await rowsOf(
-    database,
-    sql`select kind, coalesce(occurred_at, tapped_at, recorded_at) as moment
-        from trip_stop_events
-        where company_id = ${params.companyId}::uuid
-          and stop_id = ${stopId}::uuid
-          and kind in ('departed', 'arrived', 'departure_cancelled')`,
-  )
-  /** O instante mais recente do tipo, pela hora do evento (a fila offline entrega fora de ordem), nunca pela da gravação. */
-  const latest = (kind: string): Date | null => {
-    let found: Date | null = null
-    for (const event of events) {
-      if (text(event, 'kind') !== kind) continue
-      const moment = asDate(event.moment)
-      if (moment !== null && (found === null || moment.getTime() > found.getTime())) found = moment
-    }
-    return found
-  }
-  /** A saída cancelada depois da última saída deixa de valer: o motorista ainda não saiu. */
-  const departed = latest('departed')
-  const cancelled = latest('departure_cancelled')
-  const departedAt =
-    departed !== null && cancelled !== null && cancelled.getTime() >= departed.getTime()
-      ? null
-      : departed
-  return {
-    arrivedAt: latest('arrived'),
-    departedAt,
-    windowEnd: asDate(stop?.delivery_window_end),
-    windowStart: asDate(stop?.delivery_window_start),
-  }
-}
-
 export function createContractorOccurrenceGroupRepository(dependencies: {
   readonly database: TripQueryable
   readonly now?: () => Date
@@ -276,21 +201,16 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       const number = text(occurrence, 'number').trim()
       const series = text(occurrence, 'series').trim()
       const createdAt = occurrence.created_at
-      const events = await readStopEvents(database, {
+      const events = await readOccurrenceStopEventValues(database, {
         companyId,
         documentId: text(occurrence, 'trip_document_id'),
+        now,
       })
-      const formatMoment = (value: Date | null): string =>
-        value === null ? '' : formatOccurrenceMoment(value)
-      const window =
-        events.windowStart !== null && events.windowEnd !== null
-          ? `${SAO_PAULO_TIME.format(events.windowStart)} às ${SAO_PAULO_TIME.format(events.windowEnd)}`
-          : ''
       const stage = text(occurrence, 'stage') === 'separation' ? 'separation' : 'delivery'
       return {
         template,
         values: {
-          chegada: formatMoment(events.arrivedAt),
+          chegada: events.chegada,
           cliente: (item?.document?.recipient?.name ?? '').trim(),
           contratante: (item?.document?.contractor?.name ?? '').trim(),
           data:
@@ -298,8 +218,8 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
               ? formatOccurrenceMoment(new Date(createdAt))
               : '',
           enderecoEntrega: (item?.document?.destination?.label ?? '').trim(),
-          inicioRota: formatMoment(events.departedAt),
-          janelaRecebimento: window,
+          inicioRota: events.inicioRota,
+          janelaRecebimento: events.janelaRecebimento,
           momento: contractorOccurrenceMomentLabel(stage),
           novaData: !asksNewDueDate
             ? ''
@@ -309,7 +229,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
           numeroNota: number === '' ? '' : series === '' ? number : `${number}/${series}`,
           numeroNotaSemSerie: number,
           observacao: summarizeOccurrenceNote(text(occurrence, 'note')),
-          tempoEspera: formatElapsedWait(events.arrivedAt, now()),
+          tempoEspera: events.tempoEspera,
           tipoOcorrencia: text(occurrence, 'type_name').trim(),
           /** Spec 343: o valor que o motorista informou no app (cobrança no recebimento, valor pago); vazio sem valor. */
           valorCobrado: formatChargedAmount(text(occurrence, 'declared_amount')),

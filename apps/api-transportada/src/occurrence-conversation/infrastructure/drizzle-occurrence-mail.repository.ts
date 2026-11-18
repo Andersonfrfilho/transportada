@@ -47,6 +47,7 @@ import {
   formatOccurrenceMoment,
 } from '../../trips/domain/occurrence-mail-values.policy.js'
 import { resolveOccurrenceProductCodes } from '../../trips/domain/occurrence-scope.policy.js'
+import { readOccurrenceStopEventValues } from './occurrence-stop-events.support.js'
 import { readOccurrenceMailValues } from '../../trips/infrastructure/delivery-proof-read.support.js'
 import { listOccurrenceProductCodes } from '../../trips/infrastructure/drizzle-occurrence-product.repository.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
@@ -700,8 +701,14 @@ async function readTemplateSource(
     }),
     tripId: row.tripId,
   })
-  const { itemLines, mail } = buildContractorMailValues(values)
-  const { itemsSum, rows } = buildOccurrenceItemRows(values)
+  const stopEvents = await readOccurrenceStopEventValues(database, {
+    companyId: params.companyId,
+    documentId: row.tripDocumentId,
+    now: () => new Date(),
+  })
+  const withEvents = { ...values, stopEvents }
+  const { itemLines, mail } = buildContractorMailValues(withEvents)
+  const { itemsSum, rows } = buildOccurrenceItemRows(withEvents)
   return { itemLines, itemRows: rows, itemsSum, mail, template }
 }
 
