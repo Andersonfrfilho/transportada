@@ -2654,6 +2654,15 @@
       "destinationUnknown": "Endereço não registrado na nota"
     },
     "driverAddress": {
+      "map": {
+        "original": "Endereço original da parada",
+        "new": "Endereço novo",
+        "noOriginal": "Endereço original sem posição no mapa",
+        "noNew": "Preencha CEP, rua, cidade e UF para ver o endereço novo",
+        "empty": "Sem posição para mostrar ainda. Preencha o endereço novo.",
+        "loading": "Carregando o mapa",
+        "unavailable": "O mapa não está disponível agora."
+      },
       "open": "Enviar endereço correto",
       "label": "Endereço correto da entrega",
       "sendApp": "Enviar no chat do app",
