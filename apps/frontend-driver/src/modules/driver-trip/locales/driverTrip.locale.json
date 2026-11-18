@@ -140,7 +140,8 @@
       "receiverNameRequired": "informe o nome de quem recebeu",
       "receivedByRequired": "informe quem recebeu",
       "returnReasonRequired": "informe o motivo da devolução",
-      "unknown": "o servidor recusou este registro (código {{code}}); fale com o escritório"
+      "unknown": "o servidor recusou este registro (código {{code}}); fale com o escritório",
+      "alreadyOpenForType": "esta parada já tem uma ocorrência aberta deste tipo; não precisa registrar de novo"
     },
     "cancel": {
       "confirm": "Cancelar mesmo assim",
@@ -893,6 +894,13 @@
         "note": "a observação",
         "photo": "{{label}}"
       }
+    },
+    "availability": {
+      "alreadyOpen": "Já registrada nesta parada",
+      "arrivalSyncing": "Aguardando a chegada sincronizar",
+      "needsArrival": "Marque \"Cheguei\" primeiro",
+      "waiting_one": "Disponível às {{time}} · falta {{count}} min",
+      "waiting_other": "Disponível às {{time}} · faltam {{count}} min"
     }
   },
   "routeOccurrence": {

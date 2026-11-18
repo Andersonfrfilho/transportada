@@ -1,6 +1,7 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/shared/offlineQueue.service.ts (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { toEventClockStamp, type StampedReport } from './clockOffset.service'
+import { CURRENT_LOCATION_APP_BUDGET_MS } from './driverLocation.service'
 import { isRetryDue, type DrainOrigin } from './retryBackoff.service'
 import type {
   DriverFieldReport,
@@ -208,6 +209,26 @@ export function listReportPhotos(report: DriverFieldReport): readonly DriverOccu
 }
 
 /**
+ * Recusa "exige a localização" depois de o GPS ter sido ligado (17/11/2026, "Espera longa"): o toque grava com
+ * `location: null` e o ponto chega até `CURRENT_LOCATION_APP_BUDGET_MS` depois; uma drenagem que passa nesse intervalo
+ * leva a ocorrência sem ponto, o servidor recusa (422, terminal) e o motorista lê "ligue o GPS" mesmo com ele ligado.
+ * A ocorrência de parada espera a leitura terminar; passado o prazo sem ponto, sai como está (GPS desligado de verdade).
+ */
+export function isAwaitingTapLocation(input: {
+  readonly item: QueuedReport
+  readonly now: Date
+}): boolean {
+  const { item, now } = input
+  const report = item.report
+  if (report.kind !== 'occurrence' || report.location !== null) return false
+  const createdMs = Date.parse(item.createdAt)
+  if (!Number.isFinite(createdMs)) return false
+  return now.getTime() - createdMs < CURRENT_LOCATION_APP_BUDGET_MS + LOCATION_HOLD_MARGIN_MS
+}
+
+const LOCATION_HOLD_MARGIN_MS = 1_500
+
+/**
  * A ordem importa: chegada antes de entrega, entrega antes da próxima chegada. Drenar em paralelo
  * entregaria numa parada onde o servidor ainda não sabe que o motorista chegou.
  *
@@ -238,6 +259,7 @@ export async function drainQueue(input: {
     if (input.origin === 'timer' && !isRetryDue({ item, now: readClock(), random: input.random })) {
       break
     }
+    if (isAwaitingTapLocation({ item, now: readClock() })) break
     const outcome = await input.send(
       { report: item.report, stamp: toEventClockStamp(item) },
       { attempt: item.attempts + 1 },

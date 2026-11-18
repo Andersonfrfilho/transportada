@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useBackButtonClose } from '../../shared/useBackButtonClose.hook'
-import { useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,10 @@ import type {
   DriverTripDocument,
   DriverTripStop,
 } from '../shared/driverTrip.types'
+import { readCorrectedNowMs } from '../shared/holidayWarning.service'
+import { resolveOccurrenceAvailability } from '../shared/occurrenceAvailability.service'
 import type { OccurrenceRegistrationHandlers } from '../shared/occurrenceDispatch.service'
+import type { RouteOccurrenceEntry } from '../shared/routeOccurrenceView.types'
 import { hasRequiredOccurrenceField } from '../shared/occurrenceRequiredFields.service'
 import {
   resolveOccurrenceRequirements,
@@ -34,6 +37,9 @@ type DriverOccurrenceRegistrationFormProps = Readonly<{
   document: DriverTripDocument
   handlers: OccurrenceRegistrationHandlers
   occurrenceTypes: DriverOccurrenceTypesState
+  /** Spec 315 (T7b): "Cheguei" já tocado (inclui o da fila) e as ocorrências vivas da parada, para o bloqueio por espera. */
+  isArrivalRecorded?: boolean
+  openStopEntries?: readonly RouteOccurrenceEntry[]
   /** Registrou ou cancelou — quem abriu fecha. */
   onClose: () => void
   /** Spec 157 RF5: o toque em "Tentar de novo" quando a lista de tipos falhou. */
@@ -49,12 +55,20 @@ type DriverOccurrenceRegistrationFormProps = Readonly<{
 export function DriverOccurrenceRegistrationForm({
   document,
   handlers,
+  isArrivalRecorded = false,
   occurrenceTypes,
   onClose,
   onRetryOccurrenceTypes,
+  openStopEntries = [],
   stop,
 }: DriverOccurrenceRegistrationFormProps) {
   const { t } = useTranslation('driverTrip')
+  /** O contador anda sozinho: a opção abre no minuto certo, sem o motorista reabrir a tela. */
+  const [nowMs, setNowMs] = useState(() => readCorrectedNowMs())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(readCorrectedNowMs()), 15_000)
+    return () => window.clearInterval(timer)
+  }, [])
   useBackButtonClose(onClose)
   const form = useOccurrenceRegistrationForm({ document, handlers, occurrenceTypes, stop })
   const panelRef = useRef<HTMLDivElement>(null)
@@ -139,6 +153,15 @@ export function DriverOccurrenceRegistrationForm({
         <p className={styles.stopMeta}>{t('documentOccurrenceTypesEmpty')}</p>
       ) : (
         <OccurrenceTypePicker
+          getAvailability={(type) =>
+            resolveOccurrenceAvailability({
+              arrivedAt: stop.arrivedAt,
+              isArrivalRecorded,
+              nowMs,
+              openEntries: openStopEntries,
+              type,
+            })
+          }
           onSelect={form.handleTypeSelect}
           selectedTypeId={selectedType?.id}
           types={form.types}

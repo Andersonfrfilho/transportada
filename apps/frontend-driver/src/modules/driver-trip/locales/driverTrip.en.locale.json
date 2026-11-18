@@ -153,7 +153,8 @@
       "receiverNameRequired": "enter the name of who received",
       "receivedByRequired": "say who received",
       "returnReasonRequired": "enter the return reason",
-      "unknown": "the server refused this record (code {{code}}); contact the office"
+      "unknown": "the server refused this record (code {{code}}); contact the office",
+      "alreadyOpenForType": "this stop already has an open occurrence of this type; no need to register it again"
     },
     "cancel": {
       "confirm": "Cancel anyway",
@@ -875,6 +876,13 @@
         "note": "the note",
         "photo": "{{label}}"
       }
+    },
+    "availability": {
+      "alreadyOpen": "Already registered at this stop",
+      "arrivalSyncing": "Waiting for the arrival to sync",
+      "needsArrival": "Tap \"Arrived\" first",
+      "waiting_one": "Available at {{time}} · {{count}} min left",
+      "waiting_other": "Available at {{time}} · {{count}} min left"
     }
   },
   "routeOccurrence": {

@@ -15,6 +15,7 @@ const REJECTION_CAUSE_LABEL_KEYS: Readonly<Record<string, string>> = {
   OCCURRENCE_ITEM_QUANTITY_ABOVE_DOCUMENT: 'eventQueue.cause.itemQuantityAboveNote',
   /** Spec 270 (ADR-0107, RF7): o tipo mudou de escopo enquanto o registro esperava na fila. */
   OCCURRENCE_TYPE_NOT_AVAILABLE_FOR_CONTRACTOR: 'eventQueue.cause.typeNotAvailableForContractor',
+  TRIP_OCCURRENCE_ALREADY_OPEN_FOR_TYPE: 'eventQueue.cause.alreadyOpenForType',
   TRIP_OCCURRENCE_MIN_WAIT_NOT_REACHED: 'eventQueue.cause.minWaitNotReached',
   TRIP_OCCURRENCE_NOTE_REQUIRED: 'eventQueue.cause.noteRequired',
   TRIP_OCCURRENCE_ATTACHMENT_REQUIRED: 'eventQueue.cause.attachmentRequired',
