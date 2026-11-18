@@ -74,19 +74,8 @@ const CLOSED_QUESTIONS = {
   hasPendingPrompt: false,
 }
 
-/**
- * O portão só envia entre 8h e 18h de Brasília (janela global de 17/11/2026). Fora dela o relógio de parede faria
- * o teste adiar em vez de enviar, então o relógio do portão pula para as 8h30 seguintes (sempre no futuro do banco).
- */
-function inSendWindowNow(): Date {
-  const now = new Date()
-  const localHour = (now.getUTCHours() + 21) % 24 // UTC-3, sem horário de verão
-  if (localHour >= 8 && localHour < 18) return now
-  const next = new Date(now)
-  next.setUTCHours(11, 30, 0, 0) // 08:30 em Brasília
-  if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1)
-  return next
-}
+/** O portão tem janela global de 8h–18h; o teste anda no relógio de parede, então abre a janela o dia todo. */
+const ALL_DAY_SEND_WINDOW = { endMinutes: 24 * 60, startMinutes: 0 } as const
 
 type BuildOptions = {
   readonly clock?: () => Date
@@ -96,8 +85,7 @@ type BuildOptions = {
 }
 
 async function build(db: JourneyDatabase, world: JourneyWorld, options: BuildOptions = {}) {
-  const fixedNow = inSendWindowNow()
-  const clock = options.clock ?? (() => fixedNow)
+  const clock = options.clock ?? (() => new Date())
   await db
     .insert(companyDriverReminderSettings)
     .values({ companyId: world.companyId, enabled: true })
@@ -150,6 +138,7 @@ async function build(db: JourneyDatabase, world: JourneyWorld, options: BuildOpt
       repository: requests,
     }),
     repository: new DrizzleDriverStopReminderDeliveryRepository(db),
+    sendWindow: ALL_DAY_SEND_WINDOW,
     sender: {
       send: async ({ body }) => {
         reminderSent.push(body)
@@ -364,7 +353,7 @@ describe('passo reminder.stage pelo caminho real do grupo (spec 299 T2.3, Postgr
     'sem resposta, a próxima tentativa do mesmo lembrete troca o pedido e envia, sem adiar',
     async () => {
       await inDatabase(async (db) => {
-        const start = inSendWindowNow()
+        const start = new Date()
         let current = start
         const world = await seedJourneyTrip(db, { driverPhone: '16988887777' })
         const harness = await build(db, world, { clock: () => current, realOpenQuestions: true })
