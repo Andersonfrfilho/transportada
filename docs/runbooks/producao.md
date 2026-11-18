@@ -1551,7 +1551,7 @@ Ocorrência já gravada não se corrige sozinha:
 - `tmp/ops/corrige-ocorrencia-parada-sem-nota-staging.sh [--confirm] [--desde AAAA-MM-DD]` — só staging. Liga a nota só quando a parada tem **uma** nota viva;
   sem `--confirm` apenas mostra. Em produção não se roda sem decisão do dono.
 
-## 5.46 Promoção #898 staging → main (18/11/2026): comandos de produção depois do merge
+## 5.47 Promoção #898 staging → main (18/11/2026): comandos de produção depois do merge
 
 Migrations (rodam sozinhas no `preDeployCommand` da API): `occurrence_manual_notice_kind` (aditiva) e `occurrence_type_icons_address_closed` (só `UPDATE` de `icon_name` nulo
 em "Local fechado" e "Endereço incorreto"). Nenhuma variável de ambiente nova; o grafo do bot não mudou (não republicar).
