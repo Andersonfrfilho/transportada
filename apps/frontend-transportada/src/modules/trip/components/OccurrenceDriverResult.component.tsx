@@ -68,7 +68,7 @@ export function OccurrenceDriverResult({
   return (
     <div className={styles.driverAddressForm}>
       <label>
-        {t('occurrenceDetail.driverResult.label')}
+        <span>{t('occurrenceDetail.driverResult.label')}</span>
         <textarea
           maxLength={1000}
           onChange={(event) => setEdited(event.target.value)}

@@ -3399,6 +3399,30 @@ function createAnonymousRoutes({
     createPickup: createCreateIntegrationPickupUseCase({ repository: integrationPickupRepository }),
     getPickup: createGetIntegrationPickupUseCase({ repository: integrationPickupRepository }),
   })
+  /**
+   * Valem nos dois modos de instalação: a foto de perfil e as imagens do e-mail são abertas por `<img src>`, sem login.
+   * Ficar só no modo sem `companyId` deixou a instalação dedicada respondendo 401 à foto do motorista.
+   */
+  const publicIdentityAssetRoutes = [
+    /**
+     * O endereço público da foto de perfil. Ele existe sempre: o token é a credencial, e uma foto
+     * só ganha endereço quando alguém a envia — não há superfície ociosa a esconder.
+     */
+    ...createPublicUserPictureRoutes({
+      userPicture: createPublicUserPictureUseCase({
+        repository: new DrizzleUserPictureRepository(database),
+      }),
+    }),
+    /**
+     * As imagens do e-mail da ocorrência (logo e foto de quem assina) por endereço estável, sem token: o cliente de
+     * e-mail da contratante abre `<img src>` sem login. Só leitura, e a foto exige vínculo ativo com a empresa.
+     */
+    ...createPublicMailAssetRoutes({
+      companyLogo: new DrizzleCompanyLogoRepository(database),
+      userPicture: new DrizzleUserPictureRepository(database),
+      whiteLogo,
+    }),
+  ]
   if (config.companyId === undefined) {
     return [
       ...nfseCallbackRoutes,
@@ -3407,24 +3431,7 @@ function createAnonymousRoutes({
       ...whatsappWebhookRoutes,
       ...whatsappEvolutionWebhookRoutes,
       ...publicExtraChargeBatchRoutes,
-      /**
-       * O endereço público da foto de perfil. Ele existe sempre: o token é a credencial, e uma foto
-       * só ganha endereço quando alguém a envia — não há superfície ociosa a esconder.
-       */
-      ...createPublicUserPictureRoutes({
-        userPicture: createPublicUserPictureUseCase({
-          repository: new DrizzleUserPictureRepository(database),
-        }),
-      }),
-      /**
-       * As imagens do e-mail da ocorrência (logo e foto de quem assina) por endereço estável, sem token: o cliente de
-       * e-mail da contratante abre `<img src>` sem login. Só leitura, e a foto exige vínculo ativo com a empresa.
-       */
-      ...createPublicMailAssetRoutes({
-        companyLogo: new DrizzleCompanyLogoRepository(database),
-        userPicture: new DrizzleUserPictureRepository(database),
-        whiteLogo,
-      }),
+      ...publicIdentityAssetRoutes,
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,
       ...aggregateApplicationPublicRoutes,
@@ -3440,6 +3447,7 @@ function createAnonymousRoutes({
     ...whatsappWebhookRoutes,
     ...whatsappEvolutionWebhookRoutes,
     ...publicExtraChargeBatchRoutes,
+    ...publicIdentityAssetRoutes,
     ...landingPublicRoutes,
     ...publicCnpjInfoRoutes,
     ...aggregateApplicationPublicRoutes,
