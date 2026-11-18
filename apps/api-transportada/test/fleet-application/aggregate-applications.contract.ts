@@ -164,7 +164,7 @@ describe('aggregate applications use case', () => {
     ).rejects.toBeInstanceOf(AggregateApplicationRequiresManualDriverCreationError)
   })
 
-  it('approves a legal-entity application when the driver CPF is given, linking the CNPJ', async () => {
+  test('approves a legal-entity application when the driver CPF is given, linking the CNPJ', async () => {
     const { repository, useCase } = buildUseCase()
     await useCase.submit({
       companyId: UNIT_COMPANY_ID,
