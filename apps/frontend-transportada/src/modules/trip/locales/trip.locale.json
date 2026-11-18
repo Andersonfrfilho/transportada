@@ -2656,7 +2656,6 @@
     "driverAddress": {
       "open": "Enviar endereço correto",
       "label": "Endereço correto da entrega",
-      "placeholder": "Rua, número, bairro, cidade e UF",
       "sendApp": "Enviar no chat do app",
       "sendWhatsapp": "Enviar no grupo do WhatsApp",
       "sending": "Enviando…",
@@ -2666,7 +2665,17 @@
       "whatsappSent": "Endereço enviado no grupo de WhatsApp do motorista.",
       "whatsappNoGroup": "O motorista não tem grupo de WhatsApp vinculado na ficha.",
       "whatsappDisconnected": "O WhatsApp da empresa está desconectado ou desligado.",
-      "whatsappFailed": "Não foi possível enviar no grupo do WhatsApp. Tente de novo."
+      "whatsappFailed": "Não foi possível enviar no grupo do WhatsApp. Tente de novo.",
+      "postalCode": "CEP",
+      "postalCodeSearching": "Buscando o CEP…",
+      "postalCodeMissing": "CEP não encontrado. Digite o endereço.",
+      "street": "Rua",
+      "number": "Número",
+      "district": "Bairro",
+      "city": "Cidade",
+      "state": "UF",
+      "preview": "Será enviado: {{address}}",
+      "pinHint": "O pino de localização do Google vai junto quando o endereço está completo."
     },
     "driver": {
       "title": "Contato do motorista",

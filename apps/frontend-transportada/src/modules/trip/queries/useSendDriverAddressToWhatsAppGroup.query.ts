@@ -8,3 +8,9 @@ export function useSendDriverAddressToWhatsAppGroup() {
   const client = getTripOccurrenceFeedClient()
   return useMutation({ mutationFn: client.sendDriverAddressToWhatsAppGroup })
 }
+
+/** Spec 343 (T6a): o ponto no mapa do endereço digitado, para o pino. Nada é gravado. */
+export function useFindDriverAddressPoint() {
+  const client = getTripOccurrenceFeedClient()
+  return useMutation({ mutationFn: client.findDriverAddressPoint })
+}

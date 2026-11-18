@@ -4,7 +4,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'bun:test'
 
 import { whatsappFailureKey } from '@/modules/trip/components/OccurrenceDriverAddress.component'
-import { buildDriverAddressChatMessage } from '@/modules/trip/shared/driverAddressMessage.service'
+import {
+  buildDriverAddressChatMessage,
+  composeDriverAddressText,
+} from '@/modules/trip/shared/driverAddressMessage.service'
 import {
   buildOccurrenceDriverContact,
   formatOccurrenceItemQuantity,
@@ -260,14 +263,47 @@ describe('endereço correto ao motorista (spec 343 T6a)', () => {
     expect(message).toContain('?q=Rua%20A%2C%2010%20-%20Centro')
   })
 
+  test('com o ponto, o link do mapa abre nas coordenadas', () => {
+    const message = buildDriverAddressChatMessage('Rua A, 10', {
+      latitude: -21.1,
+      longitude: -47.8,
+    })
+    expect(message).toContain('?q=-21.1,-47.8')
+  })
+
+  test('o formulário vira uma linha só, sem partes vazias', () => {
+    expect(
+      composeDriverAddressText({
+        city: 'Ribeirão Preto',
+        district: 'Centro',
+        number: '10',
+        postalCode: '14015-000',
+        state: 'sp',
+        street: 'Rua A',
+      }),
+    ).toBe('Rua A, 10 - Centro, Ribeirão Preto/SP, CEP 14015-000')
+    expect(
+      composeDriverAddressText({
+        city: '',
+        district: '',
+        number: '',
+        postalCode: '',
+        state: '',
+        street: 'Rua A',
+      }),
+    ).toBe('Rua A')
+  })
+
   test('o botão só aparece a quem resolve ocorrência e vale para nota e parada', () => {
     expect(page).toContain('canSend={canResolveOccurrenceCases}')
     expect(page).toContain('occurrenceKind={occurrence.source}')
   })
 
-  test('o cliente chama a rota do grupo com o tipo da ocorrência e só o texto no corpo', () => {
+  test('o cliente chama a rota do grupo com o texto e o ponto só quando há os dois', () => {
     expect(client).toContain('/driver-address/whatsapp-group')
-    expect(client).toContain('body: { addressText: input.addressText }')
+    expect(client).toContain('addressText: input.addressText')
+    expect(client).toContain('{ latitude: input.latitude, longitude: input.longitude }')
+    expect(client).toContain('/driver-address/point')
   })
 
   test('o código da API vira a mensagem certa', () => {

@@ -2656,7 +2656,6 @@
     "driverAddress": {
       "open": "Send correct address",
       "label": "Correct delivery address",
-      "placeholder": "Street, number, district, city and state",
       "sendApp": "Send in the app chat",
       "sendWhatsapp": "Send in the WhatsApp group",
       "sending": "Sending…",
@@ -2666,7 +2665,17 @@
       "whatsappSent": "Address sent in the driver's WhatsApp group.",
       "whatsappNoGroup": "The driver has no WhatsApp group linked on their record.",
       "whatsappDisconnected": "The company WhatsApp is disconnected or turned off.",
-      "whatsappFailed": "Could not send in the WhatsApp group. Try again."
+      "whatsappFailed": "Could not send in the WhatsApp group. Try again.",
+      "postalCode": "Postal code",
+      "postalCodeSearching": "Looking up the postal code…",
+      "postalCodeMissing": "Postal code not found. Type the address.",
+      "street": "Street",
+      "number": "Number",
+      "district": "District",
+      "city": "City",
+      "state": "State",
+      "preview": "Will be sent: {{address}}",
+      "pinHint": "The Google location pin goes along when the address is complete."
     },
     "driver": {
       "title": "Driver contact",
