@@ -8,9 +8,14 @@ import { Icon } from '@/components/ui/icon'
 import { getOccurrenceConversationClient } from '@/modules/occurrence-conversation/queries/occurrenceConversation.query'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
+import { useResolveOccurrence } from '../queries/useResolveOccurrence.query'
 import { useRecordDriverPayoutReceipt } from '../queries/useRecordDriverPayoutReceipt.query'
 import { useSendDriverPayoutReceiptByWhatsApp } from '../queries/useSendDriverPayoutReceiptByWhatsApp.query'
-import { sendDriverPayoutReceipt } from '../shared/driverPayoutReceipt.service'
+import {
+  isReceiptImageFileName,
+  sendDriverPayoutReceipt,
+  shouldConcludeAfterReceipt,
+} from '../shared/driverPayoutReceipt.service'
 import type {
   TripOccurrenceDetail,
   TripOccurrenceReceivingCharge,
@@ -101,7 +106,11 @@ export function OccurrenceReceivingCharge({
       {charge.paidBy === 'driver' &&
       permissions.includes(FINANCIALS_PERMISSION) &&
       permissions.includes(RESOLVE_PERMISSION) ? (
-        <DriverPayoutReceiptEntry charge={charge} occurrenceId={occurrence.id} />
+        <DriverPayoutReceiptEntry
+          charge={charge}
+          occurrenceId={occurrence.id}
+          resolutionState={occurrence.resolution?.state ?? null}
+        />
       ) : null}
     </section>
   )
@@ -112,23 +121,44 @@ const RECEIPT_ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf'
 /**
  * Spec 317 (E13): o escritório sobe o comprovante da transferência ao motorista, que vai a ele pelo chat da ocorrência
  * (a mesma subida e o mesmo envio da mensagem comum) e fica registrado na ocorrência. Só quem acompanha os valores
- * (`trip.financials`) e resolve ocorrências vê a ação; o comprovante já enviado abre por link.
+ * (`trip.financials`) e resolve ocorrências vê a ação; o comprovante já enviado aparece em miniatura e abre por link.
+ * Enviar o comprovante (pelo chat ou pelo WhatsApp) conclui a ocorrência, se ela ainda estiver em aberto.
  */
 function DriverPayoutReceiptEntry({
   charge,
   occurrenceId,
+  resolutionState,
 }: Readonly<{
   charge: TripOccurrenceReceivingCharge
   occurrenceId: string
+  resolutionState: null | string
 }>): JSX.Element {
   const { t } = useTranslation('trip')
   const formatMoment = useMomentFormatter()
   const record = useRecordDriverPayoutReceipt()
   const whatsapp = useSendDriverPayoutReceiptByWhatsApp()
+  const resolve = useResolveOccurrence()
+  const [concludeFailed, setConcludeFailed] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [failed, setFailed] = useState(false)
   const receipt = charge.driverPayoutReceipt ?? null
+
+  /** O comprovante já foi enviado: concluir é o passo seguinte, e falhar nele não desfaz o envio. */
+  async function concludeOccurrence(): Promise<void> {
+    setConcludeFailed(false)
+    if (!shouldConcludeAfterReceipt(resolutionState)) return
+    try {
+      await resolve.mutateAsync({
+        kind: 'stop',
+        note: t('occurrenceDetail.receivingCharge.payout.concludeNote'),
+        occurrenceId,
+      })
+    } catch (error) {
+      const code = error instanceof Error ? error.message : ''
+      if (code !== 'OCCURRENCE_ALREADY_RESOLVED') setConcludeFailed(true)
+    }
+  }
 
   async function handleSend(): Promise<void> {
     if (file === null) return
@@ -148,6 +178,7 @@ function DriverPayoutReceiptEntry({
       }
       await record.mutateAsync({ attachmentId, occurrenceId })
       setFile(null)
+      await concludeOccurrence()
     } catch {
       setFailed(true)
     } finally {
@@ -161,6 +192,16 @@ function DriverPayoutReceiptEntry({
       {receipt === null ? null : (
         <p>
           <a href={receipt.url} rel="noreferrer noopener" target="_blank">
+            {isReceiptImageFileName(receipt.fileName) ? (
+              <img
+                alt={t('occurrenceDetail.receivingCharge.payout.thumbnailAlt', {
+                  fileName: receipt.fileName,
+                })}
+                className={styles.receivingChargePayoutThumbnail}
+                loading="lazy"
+                src={receipt.url}
+              />
+            ) : null}
             <Icon name="document" size="sm" />{' '}
             {t('occurrenceDetail.receivingCharge.payout.open', { fileName: receipt.fileName })}
           </a>
@@ -175,7 +216,9 @@ function DriverPayoutReceiptEntry({
         <div className={styles.receivingChargePayoutActions}>
           <Button
             disabled={whatsapp.isPending}
-            onClick={() => whatsapp.mutate({ occurrenceId })}
+            onClick={() =>
+              whatsapp.mutate({ occurrenceId }, { onSuccess: () => void concludeOccurrence() })
+            }
             size="sm"
             type="button"
             variant="secondary"
@@ -225,6 +268,11 @@ function DriverPayoutReceiptEntry({
       {failed ? (
         <p className={styles.alert} role="alert">
           {t('occurrenceDetail.receivingCharge.payout.failed')}
+        </p>
+      ) : null}
+      {concludeFailed ? (
+        <p className={styles.alert} role="alert">
+          {t('occurrenceDetail.receivingCharge.payout.concludeFailed')}
         </p>
       ) : null}
     </div>

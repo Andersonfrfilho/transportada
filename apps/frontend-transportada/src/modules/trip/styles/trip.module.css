@@ -6673,7 +6673,43 @@ button.occurrenceCaseBadge {
   justify-self: start;
 }
 
+.receivingChargePayoutThumbnail {
+  display: block;
+  inline-size: min(100%, 12rem);
+  max-block-size: 12rem;
+  object-fit: cover;
+  margin-block-end: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  border-radius: var(--space-1);
+}
+
 .receivingChargePayoutActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* Spec 343 (T6a): o formulário de endereço correto ao motorista, dentro do card de contato. */
+.driverAddressForm {
+  display: grid;
+  gap: var(--space-2);
+  inline-size: 100%;
+}
+
+.driverAddressForm label {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.driverAddressForm textarea {
+  field-sizing: content;
+  min-block-size: 4.5rem;
+  max-block-size: 12rem;
+}
+
+.driverAddressActions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);

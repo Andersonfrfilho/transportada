@@ -29,6 +29,7 @@ import { OccurrenceResolutionPanel } from '../components/OccurrenceResolutionPan
 import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
+import { OccurrenceDriverAddress } from '../components/OccurrenceDriverAddress.component'
 import { OccurrenceReceivingCharge } from '../components/OccurrenceReceivingCharge.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceTripMap } from '../components/OccurrenceTripMap.component'
@@ -189,7 +190,10 @@ function OccurrenceDocumentPanel({ occurrence }: Readonly<{ occurrence: TripOccu
 }
 
 /** Spec 183 P2: o contato do motorista vira ação — ligar, WhatsApp, e-mail, copiar. */
-function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
+function OccurrenceDriverPanel({
+  canSend,
+  occurrence,
+}: Readonly<{ canSend: boolean; occurrence: TripOccurrenceDetail }>) {
   const { t } = useTranslation('trip')
   const contact = buildOccurrenceDriverContact({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
@@ -204,17 +208,11 @@ function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurr
         <h2 id="occurrence-driver-title">{t('occurrenceDetail.driver.title')}</h2>
       </div>
       <div className={styles.occurrenceDriver}>
-        {contact.pictureUrl === null ? (
-          <span aria-hidden="true" className={styles.occurrenceAvatar}>
-            {contact.initials}
-          </span>
-        ) : (
-          <img
-            alt={t('occurrenceDetail.driver.pictureAlt', { name: contact.name })}
-            className={styles.occurrenceAvatar}
-            src={contact.pictureUrl}
-          />
-        )}
+        <OccurrenceDriverAvatar
+          alt={t('occurrenceDetail.driver.pictureAlt', { name: contact.name })}
+          initials={contact.initials}
+          pictureUrl={contact.pictureUrl}
+        />
         <dl className={styles.occurrenceFacts}>
           <div>
             <dt>{t('occurrenceDetail.driver.name')}</dt>
@@ -270,6 +268,12 @@ function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurr
             variant="boxed"
           />
         )}
+        {canSend ? (
+          <OccurrenceDriverAddress
+            occurrenceId={occurrence.id}
+            occurrenceKind={occurrence.source}
+          />
+        ) : null}
       </div>
     </section>
   )
@@ -439,8 +443,38 @@ function OccurrenceSummaryPanel({
         permissions={permissions}
       />
       <OccurrenceCorrectionHistory occurrence={occurrence} />
-      <OccurrenceAttachments item={occurrence} />
+      {/* Spec 317: a cobrança já mostra as fotos das vagas, em tamanho cheio; repeti-las em miniatura era ruído. */}
+      {(occurrence.receivingCharge?.photos.length ?? 0) > 0 ? null : (
+        <OccurrenceAttachments item={occurrence} />
+      )}
     </section>
+  )
+}
+
+/**
+ * A foto do motorista vem de um endereço público que pode não abrir (arquivo ausente no armazenamento, token trocado).
+ * Imagem quebrada com o texto alternativo no lugar do rosto é pior que a inicial: ao falhar a carga, mostra a inicial.
+ */
+function OccurrenceDriverAvatar({
+  alt,
+  initials,
+  pictureUrl,
+}: Readonly<{ alt: string; initials: string; pictureUrl: null | string }>): ReactNode {
+  const [failedUrl, setFailedUrl] = useState<null | string>(null)
+  if (pictureUrl === null || failedUrl === pictureUrl) {
+    return (
+      <span aria-hidden="true" className={styles.occurrenceAvatar}>
+        {initials}
+      </span>
+    )
+  }
+  return (
+    <img
+      alt={alt}
+      className={styles.occurrenceAvatar}
+      onError={() => setFailedUrl(pictureUrl)}
+      src={pictureUrl}
+    />
   )
 }
 
@@ -571,7 +605,9 @@ function OccurrenceDetailSections({
     contractorConversation: () => conversations('contractor'),
     conversations: () => conversations(),
     document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,
-    driverContact: () => <OccurrenceDriverPanel occurrence={occurrence} />,
+    driverContact: () => (
+      <OccurrenceDriverPanel canSend={canResolveOccurrenceCases} occurrence={occurrence} />
+    ),
     driverConversation: () => conversations('driver'),
     summary: () => (
       <OccurrenceSummaryPanel

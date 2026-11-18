@@ -103,7 +103,7 @@ export type TripOccurrenceFeedClient = Readonly<{
   ) => Promise<OccurrenceResolutionResult>
   /**
    * Spec 317 (E13): `POST /trip-occurrences/stop/:id/driver-payout-receipt` — marca o anexo (de mensagem já enviada ao
-   * motorista no chat desta ocorrência) como o comprovante da transferência, sem concluir a ocorrência.
+   * motorista no chat desta ocorrência) como o comprovante da transferência. Quem conclui é a tela, em seguida.
    */
   recordDriverPayoutReceipt: (
     input: Readonly<{ attachmentId: string; occurrenceId: string }>,
@@ -115,6 +115,27 @@ export type TripOccurrenceFeedClient = Readonly<{
   sendDriverPayoutReceiptByWhatsApp: (
     input: Readonly<{ occurrenceId: string }>,
   ) => Promise<Readonly<{ sentAt: string }>>
+  /** Spec 343 (T6a): o endereço correto da entrega ao grupo de WhatsApp do motorista (nota ou parada). */
+  sendDriverAddressToWhatsAppGroup: (
+    input: Readonly<{
+      addressText: string
+      latitude?: number
+      longitude?: number
+      occurrenceId: string
+      occurrenceKind: 'document' | 'stop'
+    }>,
+  ) => Promise<Readonly<{ pinSent: boolean; sentAt: string }>>
+  /** Spec 343 (T6a): o ponto no mapa do endereço digitado; `null` quando o geocodificador não resolve. */
+  findDriverAddressPoint: (
+    input: Readonly<{
+      city: string
+      district: string
+      number: string
+      postalCode: string
+      state: string
+      street: string
+    }>,
+  ) => Promise<null | Readonly<{ latitude: number; longitude: number }>>
   /** RF8: só sai de `decided`. */
   closeOccurrenceCase: (input: CaseActionInput) => Promise<CaseActionResult>
   /** RF7: recusa 422 quando `blocked` sem item para acertar. */
@@ -738,6 +759,42 @@ export function createTripOccurrenceFeedClient(
         throw requestError(TRIP_ERROR.RESPONSE_INVALID)
       }
       return { sentAt: payload.data.sentAt }
+    },
+    async sendDriverAddressToWhatsAppGroup(input) {
+      const payload = await requestJson(
+        dependencies,
+        `${TRIP_OCCURRENCES_PATH}/${input.occurrenceKind}/${encodeURIComponent(input.occurrenceId)}/driver-address/whatsapp-group`,
+        {
+          body: {
+            addressText: input.addressText,
+            ...(input.latitude === undefined || input.longitude === undefined
+              ? {}
+              : { latitude: input.latitude, longitude: input.longitude }),
+          },
+          method: 'POST',
+        },
+      )
+      if (!isRecord(payload) || !isRecord(payload.data) || !isString(payload.data.sentAt)) {
+        throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      }
+      return { pinSent: payload.data.pinSent === true, sentAt: payload.data.sentAt }
+    },
+    async findDriverAddressPoint(input) {
+      try {
+        const payload = await requestJson(
+          dependencies,
+          `${TRIP_OCCURRENCES_PATH}/driver-address/point`,
+          { body: input, method: 'POST' },
+        )
+        if (!isRecord(payload) || !isRecord(payload.data)) return null
+        const { latitude, longitude } = payload.data
+        return typeof latitude === 'number' && typeof longitude === 'number'
+          ? { latitude, longitude }
+          : null
+      } catch {
+        /** Sem ponto (404, rota desligada ou fora do ar) o envio segue só com o texto. */
+        return null
+      }
     },
     async cancelOccurrenceCase(input) {
       const payload = await requestJson(

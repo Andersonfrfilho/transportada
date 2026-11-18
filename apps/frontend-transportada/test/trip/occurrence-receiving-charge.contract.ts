@@ -7,6 +7,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import {
+  isReceiptImageFileName,
+  shouldConcludeAfterReceipt,
+} from '@/modules/trip/shared/driverPayoutReceipt.service'
 import { createTripOccurrenceFeedClient } from '@/modules/trip/shared/tripOccurrenceFeedClient.service'
 
 const CHARGE = {
@@ -175,5 +179,21 @@ describe('registrar e enviar o comprovante ao motorista (spec 317 E13)', () => {
       .then(() => null)
       .catch((error: unknown) => (error instanceof Error ? error.message : null))
     expect(failure).toBe('DRIVER_WHATSAPP_PHONE_MISSING')
+  })
+})
+
+describe('miniatura e conclusão do comprovante (spec 317 E13)', () => {
+  test('só imagem tem miniatura; PDF e nome estranho seguem como link', () => {
+    expect(isReceiptImageFileName('Captura de Tela 2026-11-17 às 18.00.12.png')).toBe(true)
+    expect(isReceiptImageFileName('pix.JPG')).toBe(true)
+    expect(isReceiptImageFileName('pix.webp')).toBe(true)
+    expect(isReceiptImageFileName('pix.pdf')).toBe(false)
+    expect(isReceiptImageFileName('png')).toBe(false)
+  })
+
+  test('o comprovante conclui a ocorrência em aberto, nunca a já resolvida', () => {
+    expect(shouldConcludeAfterReceipt(null)).toBe(true)
+    expect(shouldConcludeAfterReceipt('open')).toBe(true)
+    expect(shouldConcludeAfterReceipt('resolved')).toBe(false)
   })
 })

@@ -14,6 +14,8 @@ import {
 import { defineRoute } from '../../http/router.service.js'
 import type { OccurrenceKind } from '../application/occurrence-resolution.port.js'
 import type { RecordDriverPayoutReceiptUseCase } from '../application/record-driver-payout-receipt.use-case.js'
+import type { FindDriverAddressPointUseCase } from '../application/find-driver-address-point.use-case.js'
+import type { SendDriverAddressToWhatsAppGroupUseCase } from '../application/send-driver-address-to-whatsapp-group.use-case.js'
 import type { SendDriverPayoutReceiptByWhatsAppUseCase } from '../application/send-driver-payout-receipt-by-whatsapp.use-case.js'
 import type { ResolveOccurrenceUseCase } from '../application/resolve-occurrence.use-case.js'
 
@@ -51,6 +53,8 @@ const driverPayoutReceiptBodySchema = z.object({ attachmentId: z.uuid() }).stric
 
 export type OccurrenceResolutionRoutesDependencies = {
   readonly recordDriverPayoutReceipt?: RecordDriverPayoutReceiptUseCase
+  readonly findDriverAddressPoint?: FindDriverAddressPointUseCase
+  readonly sendDriverAddressToWhatsAppGroup?: SendDriverAddressToWhatsAppGroupUseCase
   readonly sendDriverPayoutReceiptByWhatsApp?: SendDriverPayoutReceiptByWhatsAppUseCase
   readonly resolveOccurrence: ResolveOccurrenceUseCase
 }
@@ -82,8 +86,16 @@ export function createOccurrenceResolutionRoutes(
           ),
         ]),
   ]
+  const addressRoutes =
+    dependencies.sendDriverAddressToWhatsAppGroup === undefined
+      ? []
+      : [createSendDriverAddressToWhatsAppGroupRoute(dependencies.sendDriverAddressToWhatsAppGroup)]
   return [
     ...receiptRoutes,
+    ...addressRoutes,
+    ...(dependencies.findDriverAddressPoint === undefined
+      ? []
+      : [createFindDriverAddressPointRoute(dependencies.findDriverAddressPoint)]),
     defineRoute<ResolveOccurrenceRouteInput>({
       async handle({ context, input }): Promise<Response> {
         const resolved = await dependencies.resolveOccurrence.execute({
@@ -184,5 +196,109 @@ function createSendDriverPayoutReceiptByWhatsAppRoute(
     pathname: DRIVER_PAYOUT_RECEIPT_WHATSAPP_PATH,
     policy: OCCURRENCE_RESOLUTION_POLICY,
     rateLimit: DRIVER_PAYOUT_RECEIPT_WHATSAPP_RATE_LIMIT,
+  })
+}
+
+const DRIVER_ADDRESS_WHATSAPP_GROUP_PATH =
+  '/trip-occurrences/:kind/:id/driver-address/whatsapp-group'
+const DRIVER_ADDRESS_ADDRESS_MAX_LENGTH = 300
+const DRIVER_ADDRESS_WHATSAPP_GROUP_RATE_LIMIT = {
+  maxRequests: 20,
+  scope: 'trip-occurrence-driver-address-whatsapp-group',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+const driverAddressBodySchema = z
+  .object({
+    addressText: z.string().trim().min(1).max(DRIVER_ADDRESS_ADDRESS_MAX_LENGTH),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+  })
+  .strict()
+  .refine((body) => (body.latitude === undefined) === (body.longitude === undefined), {
+    message: 'latitude and longitude come together',
+  })
+
+/** Spec 343 (T6a): o endereço correto da entrega ao grupo de WhatsApp do motorista, pelo Evolution da empresa. */
+function createSendDriverAddressToWhatsAppGroupRoute(
+  useCase: SendDriverAddressToWhatsAppGroupUseCase,
+): ReturnType<typeof defineRoute> {
+  return defineRoute<{
+    readonly addressText: string
+    readonly occurrenceId: string
+    readonly occurrenceKind: OccurrenceKind
+    readonly point?: { readonly latitude: number; readonly longitude: number }
+  }>({
+    async handle({ context, input }): Promise<Response> {
+      const sent = await useCase.execute({ ...input, context: context.scope })
+      return new Response(JSON.stringify({ data: sent }), {
+        headers: { 'cache-control': 'no-store', 'content-type': 'application/json' },
+        status: 201,
+      })
+    },
+    method: 'POST',
+    async parse({ pathParameters, request }) {
+      const occurrenceKind = parseOccurrenceKind(pathParameters.kind)
+      const occurrenceId = parseUuidPathIdentifier(pathParameters.id ?? '')
+      const body = await parseBody(driverAddressBodySchema, request)
+      return {
+        addressText: body.addressText,
+        occurrenceId,
+        occurrenceKind,
+        ...(body.latitude === undefined || body.longitude === undefined
+          ? {}
+          : { point: { latitude: body.latitude, longitude: body.longitude } }),
+      }
+    },
+    pathParameterFormat: 'raw',
+    pathname: DRIVER_ADDRESS_WHATSAPP_GROUP_PATH,
+    policy: OCCURRENCE_RESOLUTION_POLICY,
+    rateLimit: DRIVER_ADDRESS_WHATSAPP_GROUP_RATE_LIMIT,
+  })
+}
+
+const DRIVER_ADDRESS_POINT_PATH = '/trip-occurrences/driver-address/point'
+const DRIVER_ADDRESS_POINT_RATE_LIMIT = {
+  maxRequests: 60,
+  scope: 'trip-occurrence-driver-address-point',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+const driverAddressPointBodySchema = z
+  .object({
+    city: z.string().trim().min(1).max(120),
+    district: z.string().trim().max(120).default(''),
+    number: z.string().trim().max(20).default(''),
+    postalCode: z
+      .string()
+      .trim()
+      .regex(/^\d{8}$/u),
+    state: z.string().trim().length(2),
+    street: z.string().trim().min(1).max(200),
+  })
+  .strict()
+
+/** Spec 343 (T6a): o ponto no mapa do endereço digitado (CEP incluso), para o pino do Google. 404 sem coordenada. */
+function createFindDriverAddressPointRoute(
+  useCase: FindDriverAddressPointUseCase,
+): ReturnType<typeof defineRoute> {
+  return defineRoute<z.infer<typeof driverAddressPointBodySchema>>({
+    async handle({ input }): Promise<Response> {
+      const point = await useCase.execute(input)
+      return new Response(
+        JSON.stringify(point === null ? { error: 'not_found' } : { data: point }),
+        {
+          headers: { 'cache-control': 'no-store', 'content-type': 'application/json' },
+          status: point === null ? 404 : 200,
+        },
+      )
+    },
+    method: 'POST',
+    parse: ({ request }) => parseBody(driverAddressPointBodySchema, request),
+    pathname: DRIVER_ADDRESS_POINT_PATH,
+    policy: OCCURRENCE_RESOLUTION_POLICY,
+    rateLimit: DRIVER_ADDRESS_POINT_RATE_LIMIT,
   })
 }

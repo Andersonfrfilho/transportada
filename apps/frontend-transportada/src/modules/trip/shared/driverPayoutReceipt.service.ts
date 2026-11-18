@@ -54,3 +54,18 @@ export async function sendDriverPayoutReceipt(
       : messages.find((message) => message.id === receipt.conversationMessageId)
   return sent?.attachments[0]?.id ?? null
 }
+
+const IMAGE_FILE_NAME = /\.(?:jpe?g|png|webp)$/iu
+
+/** Spec 317 (E13): só imagem tem miniatura; PDF e o resto seguem como link. */
+export function isReceiptImageFileName(fileName: string): boolean {
+  return IMAGE_FILE_NAME.test(fileName.trim())
+}
+
+/**
+ * Spec 317 (E13): o comprovante enviado ao motorista (pelo chat ou pelo WhatsApp) conclui a ocorrência de parada.
+ * Já resolvida não conclui de novo — a API responde 409, e a tela nem tenta.
+ */
+export function shouldConcludeAfterReceipt(state: null | string | undefined): boolean {
+  return state !== 'resolved'
+}
