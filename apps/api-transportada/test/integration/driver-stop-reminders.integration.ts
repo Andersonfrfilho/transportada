@@ -285,7 +285,7 @@ describe('o lembrete abre e fecha com os eventos da parada (spec 299 T1.4)', () 
       expect(arrival).toMatchObject({ closedReason: 'arrived', status: 'closed' })
       expect(settlement).toMatchObject({ status: 'pending', originKind: 'fallback' })
       expect(settlement?.anchorAt.toISOString()).toBe(arrivedAt.toISOString())
-      expect(settlement?.dueAt.getTime()).toBe(arrivedAt.getTime() + 30 * 60_000)
+      expect(settlement?.dueAt.getTime()).toBe(arrivedAt.getTime() + 60 * 60_000)
       expect(settlement?.travelSeconds).toBeNull()
       expect(settlement?.version).toBe(1n)
     })
@@ -565,7 +565,7 @@ describe('correções da revisão do PR 566 (spec 299)', () => {
       await runtime.idle()
       const settlement = (await readReminders(world)).find((row) => row.stage === 'settlement')
 
-      expect(settlement?.dueAt.getTime()).toBe(arrivedAt.getTime() + 30 * 60_000)
+      expect(settlement?.dueAt.getTime()).toBe(arrivedAt.getTime() + 60 * 60_000)
       expect(settlement?.originKind).toBe('fallback')
       expect(settlement?.travelSeconds).toBeNull()
       expect(settlement?.version).toBe(1n)
@@ -650,7 +650,7 @@ describe('correções da revisão do PR 566 (spec 299)', () => {
       const settlement = (await readReminders(world)).find((row) => row.stage === 'settlement')
 
       expect(settlement?.anchorAt.toISOString()).toBe(tappedAt.toISOString())
-      expect(settlement?.dueAt.getTime()).toBe(tappedAt.getTime() + 30 * 60_000)
+      expect(settlement?.dueAt.getTime()).toBe(tappedAt.getTime() + 60 * 60_000)
     })
   })
 
