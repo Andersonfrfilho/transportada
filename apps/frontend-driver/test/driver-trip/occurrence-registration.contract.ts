@@ -337,6 +337,7 @@ describe('confirmar sai por uma rota só, a do flow do tipo (D1, D3, D4)', () =>
       {
         input: {
           description: 'Duas horas na fila',
+          documentId: DOCUMENT_ID,
           isPhotoRequired: true,
           occurrenceTypeId: STOP_REQUIRED.id,
           photo: PHOTO,
@@ -368,6 +369,7 @@ describe('a ocorrência de parada vai com o tipo do catálogo, não com o kind (
     const reports = buildStopOccurrenceReports({
       createKey: () => `chave-${++counter}`,
       description: 'Doca fechada',
+      documentId: null,
       occurrenceTypeId: STOP_OPTIONAL.id,
       photo: PHOTO,
       stopId: STOP_ID,

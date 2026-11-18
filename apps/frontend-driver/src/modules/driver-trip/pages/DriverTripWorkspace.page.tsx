@@ -704,6 +704,7 @@ export function DriverTripWorkspacePage() {
     const reports = buildStopOccurrenceReports({
       createKey: createIdempotencyKey,
       description: input.description,
+      documentId: input.documentId,
       occurrenceTypeId: input.occurrenceTypeId,
       photo: input.photo,
       stopId: input.stopId,
