@@ -43,6 +43,7 @@ import {
   handleServiceWorkerUpdateAvailable,
   requestServiceWorkerUpdate,
 } from '@/modules/driver-trip/shared/serviceWorkerUpdate.service'
+import { createUpdateCheckScheduler } from '@/modules/driver-trip/shared/updateCheck.service'
 import type { DriverTripSnapshot } from '@/modules/driver-trip/shared/driverTrip.types'
 import { toDriverTripSnapshot } from '@/modules/driver-trip/shared/driverTripResponse.validation'
 import {
@@ -99,6 +100,8 @@ const serviceWorkerUpdateListeners = new Set<() => void>()
 let needsServiceWorkerUpdate = false
 /** B4: o toque foi ouvido com captura aberta — o aviso troca o botão por "Atualiza ao terminar". */
 let isServiceWorkerUpdateWaiting = false
+/** Ligada quando a procura periódica corre: a versão que ela achar não recarrega a página sozinha. */
+let isUpdateFoundMidSession = false
 let applyServiceWorkerUpdate: ((reloadPage?: boolean) => Promise<void>) | undefined
 
 function notifyServiceWorkerUpdateListeners(): void {
@@ -115,15 +118,26 @@ if (!isSmokeAuthBypassEnabled()) {
      */
     onRegisteredSW: (_url, registration) => {
       if (registration === undefined) return
-      const check = (): void => {
-        void registration.update().catch(() => undefined)
-      }
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') check()
+      const scheduler = createUpdateCheckScheduler({
+        check: () => void registration.update().catch(() => undefined),
+        isVisible: () => document.visibilityState === 'visible',
+        markMidSession: () => {
+          isUpdateFoundMidSession = true
+        },
+        now: () => Date.now(),
       })
-      window.setInterval(check, 60 * 60 * 1000)
+      document.addEventListener('visibilitychange', () => {
+        scheduler.run()
+      })
+      window.setInterval(() => scheduler.run(), 60 * 60 * 1000)
     },
     onNeedRefresh: () => {
+      /** Versão achada com o app já em uso: só o aviso, nunca o recarregamento automático (a tela é do motorista). */
+      if (isUpdateFoundMidSession) {
+        needsServiceWorkerUpdate = true
+        notifyServiceWorkerUpdateListeners()
+        return
+      }
       handleServiceWorkerUpdateAvailable({
         apply: () => void applyServiceWorkerUpdate?.(true),
         captureRegistry,
