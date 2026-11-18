@@ -107,6 +107,7 @@ import {
   saveCachedOccurrenceTypes,
 } from '../shared/occurrenceTypesCache.service'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
+import { formatAppBuildTime, readAppBuildTime } from '../shared/appBuild.service'
 import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.service'
 import { DriverVehiclePlate } from '../components/DriverVehiclePlate.component'
 import { formatShortTripId, formatTripCreatedAt } from '../shared/tripIdentifier.service'
@@ -426,6 +427,8 @@ export function DriverTripWorkspacePage() {
   }
 
   if (isQueueOpen) {
+    const buildTime = readAppBuildTime()
+    const buildTimeLabel = buildTime === undefined ? undefined : formatAppBuildTime(buildTime)
     const occurrenceTypeNames = new Map<string, string>()
     if (occurrenceTypes.status === 'loaded') {
       for (const type of occurrenceTypes.types) occurrenceTypeNames.set(type.id, type.name)
@@ -440,6 +443,7 @@ export function DriverTripWorkspacePage() {
       <div className={styles.moduleShell}>
         <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverEventQueuePage
+          {...(buildTimeLabel === undefined ? {} : { appBuildTime: buildTimeLabel })}
           {...(enRouteStopId === undefined ? {} : { enRouteStopId })}
           history={driverTrip.sentHistory}
           isLoading={driverTrip.isQueueLoading}

@@ -59,6 +59,8 @@ type DriverEventQueuePageProps = Readonly<{
   /** Pedido do usuário (18/11): o id da viagem e o protocolo do manifesto (a rota) entram em cada item da fila e do histórico. */
   tripId?: string
   manifestProtocol?: string
+  /** Quando o bundle em execução foi gerado — diz ao motorista (e a quem o atende) qual versão o aparelho roda. */
+  appBuildTime?: string
 }>
 
 /** Dia e hora: o histórico guarda dias, e só "14:32" não diz de qual. */
@@ -117,6 +119,7 @@ export function DriverEventQueuePage({
   stops,
   tripId,
   manifestProtocol,
+  appBuildTime,
 }: DriverEventQueuePageProps) {
   const { t } = useTranslation('driverTrip')
   /** O descarte não se desfaz: o primeiro toque só abre o aviso, e o segundo é que apaga. */
@@ -508,6 +511,9 @@ export function DriverEventQueuePage({
           </ul>
         )}
       </section>
+      {appBuildTime === undefined ? null : (
+        <p className={styles.profileMeta}>{t('eventQueue.appVersion', { time: appBuildTime })}</p>
+      )}
     </main>
   )
 }

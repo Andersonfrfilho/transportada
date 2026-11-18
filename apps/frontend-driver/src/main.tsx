@@ -108,6 +108,21 @@ function notifyServiceWorkerUpdateListeners(): void {
 if (!isSmokeAuthBypassEnabled()) {
   applyServiceWorkerUpdate = registerSW({
     immediate: true,
+    /**
+     * Um PWA instalado fica dias na memória sem navegar, e o navegador só procura o service worker novo
+     * ao navegar: o aparelho seguia no bundle antigo horas depois do deploy (18/11, "Espera longa"). Procura
+     * ao voltar para o app e de hora em hora.
+     */
+    onRegisteredSW: (_url, registration) => {
+      if (registration === undefined) return
+      const check = (): void => {
+        void registration.update().catch(() => undefined)
+      }
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') check()
+      })
+      window.setInterval(check, 60 * 60 * 1000)
+    },
     onNeedRefresh: () => {
       handleServiceWorkerUpdateAvailable({
         apply: () => void applyServiceWorkerUpdate?.(true),
