@@ -102,70 +102,73 @@ export function OccurrenceDriverAddress({
   }
   return (
     <div className={styles.driverAddressForm}>
-      <label>
-        {t('occurrenceDetail.driverAddress.postalCode')}
-        <input
-          inputMode="numeric"
-          maxLength={9}
-          onChange={(event) => {
-            const value = formatPostalCode(event.target.value)
-            change('postalCode', value)
-            postalCode.lookup(value)
-          }}
-          placeholder="00000-000"
-          value={fields.postalCode}
-        />
-      </label>
-      {postalCode.status === 'pending' ? (
-        <p className={styles.hint} role="status">
-          {t('occurrenceDetail.driverAddress.postalCodeSearching')}
-        </p>
-      ) : null}
-      {postalCode.status === 'missing' ? (
-        <p className={styles.hint} role="status">
-          {t('occurrenceDetail.driverAddress.postalCodeMissing')}
-        </p>
-      ) : null}
-      <label>
-        {t('occurrenceDetail.driverAddress.street')}
-        <input
-          maxLength={120}
-          onChange={(event) => change('street', event.target.value)}
-          value={fields.street}
-        />
-      </label>
-      <label>
-        {t('occurrenceDetail.driverAddress.number')}
-        <input
-          maxLength={20}
-          onChange={(event) => change('number', event.target.value)}
-          value={fields.number}
-        />
-      </label>
-      <label>
-        {t('occurrenceDetail.driverAddress.district')}
-        <input
-          maxLength={60}
-          onChange={(event) => change('district', event.target.value)}
-          value={fields.district}
-        />
-      </label>
-      <label>
-        {t('occurrenceDetail.driverAddress.city')}
-        <input
-          maxLength={60}
-          onChange={(event) => change('city', event.target.value)}
-          value={fields.city}
-        />
-      </label>
-      <label>
-        {t('occurrenceDetail.driverAddress.state')}
-        <input
-          maxLength={2}
-          onChange={(event) => change('state', event.target.value.toUpperCase())}
-          value={fields.state}
-        />
-      </label>
+      <div className={styles.driverAddressGrid}>
+        <label className={styles.driverAddressCep}>
+          <span>{t('occurrenceDetail.driverAddress.postalCode')}</span>
+          <input
+            autoComplete="postal-code"
+            inputMode="numeric"
+            maxLength={9}
+            onChange={(event) => {
+              const value = formatPostalCode(event.target.value)
+              change('postalCode', value)
+              postalCode.lookup(value)
+            }}
+            placeholder="00000-000"
+            value={fields.postalCode}
+          />
+        </label>
+        <label className={styles.driverAddressNumber}>
+          <span>{t('occurrenceDetail.driverAddress.number')}</span>
+          <input
+            maxLength={20}
+            onChange={(event) => change('number', event.target.value)}
+            value={fields.number}
+          />
+        </label>
+        {postalCode.status === 'pending' ? (
+          <p className={`${styles.hint} ${styles.driverAddressFull}`} role="status">
+            {t('occurrenceDetail.driverAddress.postalCodeSearching')}
+          </p>
+        ) : null}
+        {postalCode.status === 'missing' ? (
+          <p className={`${styles.hint} ${styles.driverAddressFull}`} role="status">
+            {t('occurrenceDetail.driverAddress.postalCodeMissing')}
+          </p>
+        ) : null}
+        <label className={styles.driverAddressStreet}>
+          <span>{t('occurrenceDetail.driverAddress.street')}</span>
+          <input
+            maxLength={120}
+            onChange={(event) => change('street', event.target.value)}
+            value={fields.street}
+          />
+        </label>
+        <label className={styles.driverAddressDistrict}>
+          <span>{t('occurrenceDetail.driverAddress.district')}</span>
+          <input
+            maxLength={60}
+            onChange={(event) => change('district', event.target.value)}
+            value={fields.district}
+          />
+        </label>
+        <label className={styles.driverAddressCity}>
+          <span>{t('occurrenceDetail.driverAddress.city')}</span>
+          <input
+            maxLength={60}
+            onChange={(event) => change('city', event.target.value)}
+            value={fields.city}
+          />
+        </label>
+        <label className={styles.driverAddressState}>
+          <span>{t('occurrenceDetail.driverAddress.state')}</span>
+          <input
+            maxLength={2}
+            onChange={(event) => change('state', event.target.value.toUpperCase())}
+            value={fields.state}
+          />
+        </label>
+      </div>
       {text === '' ? null : (
         <p className={styles.hint}>
           {t('occurrenceDetail.driverAddress.preview', { address: text })}
