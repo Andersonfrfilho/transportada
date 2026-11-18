@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
+import { buildEventQueueView } from '../../src/modules/driver-trip/shared/eventQueueView.service'
 import type { DriverOccurrenceType } from '../../src/modules/driver-trip/shared/driverTrip.types'
 import { isDriverOccurrenceType } from '../../src/modules/driver-trip/shared/driverTrip.types'
 import {
@@ -148,5 +149,20 @@ describe('a foto da ocorrência de parada leva o ponto do toque (recusa "exige a
       report: { ...photo, location: null },
     } as unknown as QueuedReport
     expect(isAwaitingTapLocation({ item, now: new Date(Date.parse(ARRIVED) + 2_000) })).toBe(true)
+  })
+})
+
+describe('a fila mostra de qual parada é cada ocorrência e segura o toque sem ponto', () => {
+  test('o item da ocorrência de parada, da foto e da cobrança leva a parada para a linha de referência', () => {
+    const queued = ['occurrence', 'stopOccurrencePhoto', 'stopOccurrenceCharge'].map(
+      (kind, index) =>
+        ({
+          attempts: 0,
+          createdAt: ARRIVED,
+          report: { idempotencyKey: `k${index}`, kind, location: null, photos: [], stopId: 's1' },
+        }) as unknown as QueuedReport,
+    )
+    const view = buildEventQueueView({ attachments: [], queued })
+    expect(view.map((item) => item.stopId)).toEqual(['s1', 's1', 's1'])
   })
 })
