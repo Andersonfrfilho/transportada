@@ -1550,3 +1550,19 @@ Ocorrência já gravada não se corrige sozinha:
 - `tmp/ops/consulta-ocorrencia-parada-sem-nota.sh` — só leitura, staging e produção: total, sem nota, por tipo e por dia.
 - `tmp/ops/corrige-ocorrencia-parada-sem-nota-staging.sh [--confirm] [--desde AAAA-MM-DD]` — só staging. Liga a nota só quando a parada tem **uma** nota viva;
   sem `--confirm` apenas mostra. Em produção não se roda sem decisão do dono.
+
+## 5.46 Promoção #898 staging → main (18/11/2026): comandos de produção depois do merge
+
+Migrations (rodam sozinhas no `preDeployCommand` da API): `occurrence_manual_notice_kind` (aditiva) e `occurrence_type_icons_address_closed` (só `UPDATE` de `icon_name` nulo
+em "Local fechado" e "Endereço incorreto"). Nenhuma variável de ambiente nova; o grafo do bot não mudou (não republicar).
+
+Depois do deploy da API, na ordem, todos gravam a saída em `tmp/ops/saidas/` e imprimem só o caminho:
+
+1. `tmp/ops/producao-promocao-898-modelos.sh` — simulação do plano; depois `--confirm`. Cria os modelos de e-mail e WhatsApp `ocorrencia.espera-longa`,
+   `ocorrencia.cobranca-recebimento`, `ocorrencia.endereco-incorreto` e `ocorrencia.local-fechado` (na `main` anterior eles não existiam, então todos são `create`). Com
+   `--confirm` o script para se o plano tiver `create` de outra chave. `--overwrite-aviso-manual` cria versão nova de `ocorrencia.contratante-aviso-manual` (e-mail; ganhou
+   endereço, cidade e CNPJ do cliente) se o plano mostrar `differs`.
+2. `tmp/ops/producao-promocao-898-modelo-grupo.sh` — simulação; depois `--confirm`. Publica o texto geral `ocorrencia.contratante-grupo` (WhatsApp, spec 318).
+3. `tmp/ops/producao-promocao-898-confere.sh` — só leitura: coluna `occurrence_kind`, ícones dos tipos, modelos `ocorrencia.*` ativos e tipos de parada existentes.
+
+Nada liga sozinho: tipos e canais seguem como estão; ativar "Espera longa"/"Endereço incorreto" e o canal de grupo da contratante é decisão do Anderson, pelo painel.
