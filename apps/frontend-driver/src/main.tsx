@@ -119,7 +119,9 @@ if (!isSmokeAuthBypassEnabled()) {
     onRegisteredSW: (_url, registration) => {
       if (registration === undefined) return
       const scheduler = createUpdateCheckScheduler({
-        check: () => void registration.update().catch(() => undefined),
+        check: async () => {
+          await registration.update()
+        },
         isVisible: () => document.visibilityState === 'visible',
         markMidSession: () => {
           isUpdateFoundMidSession = true
@@ -127,9 +129,9 @@ if (!isSmokeAuthBypassEnabled()) {
         now: () => Date.now(),
       })
       document.addEventListener('visibilitychange', () => {
-        scheduler.run()
+        void scheduler.run()
       })
-      window.setInterval(() => scheduler.run(), 60 * 60 * 1000)
+      window.setInterval(() => void scheduler.run(), 60 * 60 * 1000)
     },
     onNeedRefresh: () => {
       /** Versão achada com o app já em uso: só o aviso, nunca o recarregamento automático (a tela é do motorista). */
@@ -155,6 +157,7 @@ function applyServiceWorkerUpdateNow(): void {
     apply: () => {
       needsServiceWorkerUpdate = false
       isServiceWorkerUpdateWaiting = false
+      isUpdateFoundMidSession = false
       notifyServiceWorkerUpdateListeners()
       void applyServiceWorkerUpdate?.(true)
     },

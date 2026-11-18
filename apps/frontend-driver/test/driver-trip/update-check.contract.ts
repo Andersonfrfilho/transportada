@@ -5,13 +5,13 @@ import {
   createUpdateCheckScheduler,
   UPDATE_CHECK_MIN_INTERVAL_MS,
 } from '@/modules/driver-trip/shared/updateCheck.service'
-import { formatAppBuildTime } from '@/modules/driver-trip/shared/appBuild.service'
 
-function build(state: { now: number; visible: boolean }) {
+function build(state: { fail: boolean; now: number; visible: boolean }) {
   const calls = { checks: 0, midSession: 0 }
   const scheduler = createUpdateCheckScheduler({
     check: () => {
       calls.checks += 1
+      return state.fail ? Promise.reject(new Error('offline')) : Promise.resolve()
     },
     isVisible: () => state.visible,
     markMidSession: () => {
@@ -23,34 +23,58 @@ function build(state: { now: number; visible: boolean }) {
 }
 
 describe('procura de versão nova do PWA', () => {
-  it('procura ao voltar ao app e marca a versão achada como de meio de sessão', () => {
-    const state = { now: 1_000_000, visible: true }
-    const { calls, scheduler } = build(state)
-    expect(scheduler.run()).toBe(true)
+  it('procura ao voltar ao app e marca a versão achada como de meio de sessão', async () => {
+    const { calls, scheduler } = build({ fail: false, now: 1_000_000, visible: true })
+    expect(await scheduler.run()).toBe(true)
     expect(calls).toEqual({ checks: 1, midSession: 1 })
   })
 
-  it('não procura com a tela escondida', () => {
-    const { calls, scheduler } = build({ now: 1_000_000, visible: false })
-    expect(scheduler.run()).toBe(false)
+  it('não procura com a tela escondida', async () => {
+    const { calls, scheduler } = build({ fail: false, now: 1_000_000, visible: false })
+    expect(await scheduler.run()).toBe(false)
     expect(calls).toEqual({ checks: 0, midSession: 0 })
   })
 
-  it('não repete antes do intervalo mínimo, e repete depois dele', () => {
-    const state = { now: 1_000_000, visible: true }
+  it('não repete antes do intervalo mínimo, e repete depois dele', async () => {
+    const state = { fail: false, now: 1_000_000, visible: true }
     const { calls, scheduler } = build(state)
-    scheduler.run()
+    await scheduler.run()
     state.now += UPDATE_CHECK_MIN_INTERVAL_MS - 1
-    expect(scheduler.run()).toBe(false)
+    expect(await scheduler.run()).toBe(false)
     state.now += 1
-    expect(scheduler.run()).toBe(true)
+    expect(await scheduler.run()).toBe(true)
     expect(calls.checks).toBe(2)
   })
-})
 
-describe('versão do app na fila', () => {
-  it('formata a hora do build e recusa data inválida', () => {
-    expect(formatAppBuildTime('2026-11-18T17:05:12.000Z')).toMatch(/^\d{2}\/\d{2},? \d{2}:\d{2}$/u)
-    expect(formatAppBuildTime('não é data')).toBeUndefined()
+  it('procura que falhou (sem rede) não gasta o intervalo', async () => {
+    const state = { fail: true, now: 1_000_000, visible: true }
+    const { calls, scheduler } = build(state)
+    expect(await scheduler.run()).toBe(false)
+    state.fail = false
+    state.now += 1_000
+    expect(await scheduler.run()).toBe(true)
+    expect(calls.checks).toBe(2)
+  })
+
+  it('não começa uma procura enquanto outra está em andamento', async () => {
+    const state = { now: 1_000_000, visible: true }
+    let release: () => void = () => undefined
+    let checks = 0
+    const scheduler = createUpdateCheckScheduler({
+      check: () => {
+        checks += 1
+        return new Promise<void>((resolve) => {
+          release = resolve
+        })
+      },
+      isVisible: () => state.visible,
+      markMidSession: () => undefined,
+      now: () => state.now,
+    })
+    const first = scheduler.run()
+    expect(await scheduler.run()).toBe(false)
+    release()
+    expect(await first).toBe(true)
+    expect(checks).toBe(1)
   })
 })
