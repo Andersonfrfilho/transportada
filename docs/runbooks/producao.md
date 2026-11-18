@@ -912,6 +912,17 @@ do tipo (ex.: `ocorrencia.prorrogacao-boleto`), depois `ocorrencia.contratante-g
 com `scripts/ops/staging-confere-ocorrencia-unica.sh` (somente leitura) e publicar o modelo com
 `scripts/ops/staging-publica-modelo-grupo-ocorrencia.sh [--confirm]` (staging; sem `--confirm` só simula; sempre versão nova).
 
+## 5.30b Lembrete do motorista mandando à noite (17/11/2026)
+
+Sintoma: o bot cobrou motoristas (lembretes `idle` e `arrival`, spec 299) às 18:55, 19:40 e 19:45 BRT. Regra do dono: no máximo até as 18h.
+
+- **Causa (medida em produção em 18/11/2026, `tmp/ops/producao-lembrete-porque-hoje.sh`):** a empresa **tem** horário de funcionamento em `company_driver_reminder_settings.operating_hours`: segunda a sábado, 06:00–20:00, ligada desde 10/11/2026 16:25 (85 lembretes enviados desde 10/11). O portão (`decideStopReminderGate`) respeitou esse horário, então o envio até as 19:45 estava "dentro da regra" cadastrada. O limite das 18h do dono não estava gravado em lugar nenhum e não havia teto global. A primeira versão deste texto dizia que a faixa estava vazia: estava errada.
+- **Freio (17/11/2026, ~19:57 BRT):** `DRIVER_REMINDERS_ENABLED=false` nos serviços **worker e api** pelo MCP do Railway (`set-variables`, redeploya os dois). O freio de 11/11 foi só no `api`; o worker lê a própria variável, então os dois precisam ser tratados. Religar só com o hotfix no ar e `true` nos dois.
+- **Correção:** janela global de envio 8h–18h no fuso da empresa, valendo por cima do horário da empresa e da faixa vazia (`DRIVER_STOP_REMINDER_SEND_WINDOW_*`, adia com motivo `outside_send_window` para as 8h seguintes, sem gastar tentativa). Hotfix #863 na `main` (deploy verde em 18/11/2026 00:27Z), testes em staging nos #865 e #866.
+- **Lembretes que ficaram pendentes:** dois (`idle` com 2 adiamentos e `arrival`, vencidos 20:10 e 20:15). Com o hotfix sairiam às 8h seguintes ao religar, então foram cancelados em 18/11/2026 10:13 BRT por `tmp/ops/producao-lembrete-fecha-pendentes.sh` (`status='cancelled'`, `closed_reason='dismissed'`, só linhas `pending`, aborta com mais de 5). Resultado: 2 atualizados.
+- **Como ver o que saiu:** logs do worker/api com o filtro `driver_stop_reminder_delivery` (campos `stage`, `attempt`, `outcome`) e o ciclo `driver_stop_reminder_cycle_finished` (`sent`; `enabled:false` com o freio ligado). No banco: `tmp/ops/producao-lembrete-porque-hoje.sh` (somente leitura).
+- ⚠️ **SQL no `bun -e`:** `interval ${"7 days"}` (parâmetro dentro de `interval`) dá `syntax error at or near "$n"`; use `make_interval(days => 7)` com número literal.
+
 ## 5.31 Ordem das paradas no rascunho (spec 323, 11/11/2026)
 
 O rascunho da viagem nasce com as paradas na ordem da estrada (OSRM, a partir do barracão), sem clique. Fases B e C
