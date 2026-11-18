@@ -15,6 +15,8 @@ import {
 } from '../domain/driver-address-message.error.js'
 import { TripOccurrenceNotFoundError } from '../domain/trip.error.js'
 
+const DRIVER_ADDRESS_PIN_NAME = 'Endereço correto da entrega'
+
 export type DriverAddressGroupTarget = {
   /** O telefone do cadastro do motorista, só para marcá-lo no grupo; `null` sem número. */
   readonly driverPhone: null | string
@@ -39,6 +41,17 @@ export type DriverAddressTextSender = {
   }): Promise<unknown>
 }
 
+export type DriverAddressLocationSender = {
+  sendLocation(input: {
+    readonly address: string
+    readonly companyId: string
+    readonly latitude: number
+    readonly longitude: number
+    readonly name: string
+    readonly number: string
+  }): Promise<unknown>
+}
+
 export type DriverAddressPoint = { readonly latitude: number; readonly longitude: number }
 
 export type SendDriverAddressToWhatsAppGroupUseCase = {
@@ -48,7 +61,7 @@ export type SendDriverAddressToWhatsAppGroupUseCase = {
     readonly occurrenceId: string
     readonly occurrenceKind: 'document' | 'stop'
     readonly point?: DriverAddressPoint | undefined
-  }) => Promise<{ readonly sentAt: string }>
+  }) => Promise<{ readonly pinSent: boolean; readonly sentAt: string }>
 }
 
 /** O texto que o motorista lê: o endereço e o link do mapa (ponto, senão a busca pelo texto). */
@@ -72,7 +85,7 @@ export function createSendDriverAddressToWhatsAppGroupUseCase(dependencies: {
   readonly logger: ApiLogger
   readonly now?: () => Date
   readonly reader: DriverAddressGroupReaderPort
-  readonly sender: DriverAddressTextSender
+  readonly sender: DriverAddressLocationSender & DriverAddressTextSender
 }): SendDriverAddressToWhatsAppGroupUseCase {
   const now = dependencies.now ?? (() => new Date())
   return {
@@ -106,11 +119,32 @@ export function createSendDriverAddressToWhatsAppGroupUseCase(dependencies: {
           reason === 'disconnected' || reason === 'number_not_found' ? reason : 'failed',
         )
       }
+      /** O pino é um complemento: o texto já chegou, então falhar nele não desfaz o envio. */
+      let pinSent = false
+      if (input.point !== undefined) {
+        try {
+          await dependencies.sender.sendLocation({
+            address: input.addressText,
+            companyId,
+            latitude: input.point.latitude,
+            longitude: input.point.longitude,
+            name: DRIVER_ADDRESS_PIN_NAME,
+            number: target.groupJid,
+          })
+          pinSent = true
+        } catch (error) {
+          dependencies.logger.warn('occurrence.driver-address.whatsapp_pin_failed', {
+            occurrenceId: input.occurrenceId,
+            reason: error instanceof ContractorReplyWhatsAppSendError ? error.failure : 'failed',
+          })
+        }
+      }
       dependencies.logger.info('occurrence.driver-address.whatsapp_group_sent', {
         actorUserId: input.context.userId,
         occurrenceId: input.occurrenceId,
+        pinSent,
       })
-      return { sentAt: now().toISOString() }
+      return { pinSent, sentAt: now().toISOString() }
     },
   }
 }

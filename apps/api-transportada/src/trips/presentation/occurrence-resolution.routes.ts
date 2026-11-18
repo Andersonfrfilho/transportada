@@ -14,6 +14,7 @@ import {
 import { defineRoute } from '../../http/router.service.js'
 import type { OccurrenceKind } from '../application/occurrence-resolution.port.js'
 import type { RecordDriverPayoutReceiptUseCase } from '../application/record-driver-payout-receipt.use-case.js'
+import type { FindDriverAddressPointUseCase } from '../application/find-driver-address-point.use-case.js'
 import type { SendDriverAddressToWhatsAppGroupUseCase } from '../application/send-driver-address-to-whatsapp-group.use-case.js'
 import type { SendDriverPayoutReceiptByWhatsAppUseCase } from '../application/send-driver-payout-receipt-by-whatsapp.use-case.js'
 import type { ResolveOccurrenceUseCase } from '../application/resolve-occurrence.use-case.js'
@@ -52,6 +53,7 @@ const driverPayoutReceiptBodySchema = z.object({ attachmentId: z.uuid() }).stric
 
 export type OccurrenceResolutionRoutesDependencies = {
   readonly recordDriverPayoutReceipt?: RecordDriverPayoutReceiptUseCase
+  readonly findDriverAddressPoint?: FindDriverAddressPointUseCase
   readonly sendDriverAddressToWhatsAppGroup?: SendDriverAddressToWhatsAppGroupUseCase
   readonly sendDriverPayoutReceiptByWhatsApp?: SendDriverPayoutReceiptByWhatsAppUseCase
   readonly resolveOccurrence: ResolveOccurrenceUseCase
@@ -91,6 +93,9 @@ export function createOccurrenceResolutionRoutes(
   return [
     ...receiptRoutes,
     ...addressRoutes,
+    ...(dependencies.findDriverAddressPoint === undefined
+      ? []
+      : [createFindDriverAddressPointRoute(dependencies.findDriverAddressPoint)]),
     defineRoute<ResolveOccurrenceRouteInput>({
       async handle({ context, input }): Promise<Response> {
         const resolved = await dependencies.resolveOccurrence.execute({
@@ -250,5 +255,50 @@ function createSendDriverAddressToWhatsAppGroupRoute(
     pathname: DRIVER_ADDRESS_WHATSAPP_GROUP_PATH,
     policy: OCCURRENCE_RESOLUTION_POLICY,
     rateLimit: DRIVER_ADDRESS_WHATSAPP_GROUP_RATE_LIMIT,
+  })
+}
+
+const DRIVER_ADDRESS_POINT_PATH = '/trip-occurrences/driver-address/point'
+const DRIVER_ADDRESS_POINT_RATE_LIMIT = {
+  maxRequests: 60,
+  scope: 'trip-occurrence-driver-address-point',
+  store: 'postgres',
+  windowSeconds: 300,
+} as const
+
+const driverAddressPointBodySchema = z
+  .object({
+    city: z.string().trim().min(1).max(120),
+    district: z.string().trim().max(120).default(''),
+    number: z.string().trim().max(20).default(''),
+    postalCode: z
+      .string()
+      .trim()
+      .regex(/^\d{8}$/u),
+    state: z.string().trim().length(2),
+    street: z.string().trim().min(1).max(200),
+  })
+  .strict()
+
+/** Spec 343 (T6a): o ponto no mapa do endereço digitado (CEP incluso), para o pino do Google. 404 sem coordenada. */
+function createFindDriverAddressPointRoute(
+  useCase: FindDriverAddressPointUseCase,
+): ReturnType<typeof defineRoute> {
+  return defineRoute<z.infer<typeof driverAddressPointBodySchema>>({
+    async handle({ input }): Promise<Response> {
+      const point = await useCase.execute(input)
+      return new Response(
+        JSON.stringify(point === null ? { error: 'not_found' } : { data: point }),
+        {
+          headers: { 'cache-control': 'no-store', 'content-type': 'application/json' },
+          status: point === null ? 404 : 200,
+        },
+      )
+    },
+    method: 'POST',
+    parse: ({ request }) => parseBody(driverAddressPointBodySchema, request),
+    pathname: DRIVER_ADDRESS_POINT_PATH,
+    policy: OCCURRENCE_RESOLUTION_POLICY,
+    rateLimit: DRIVER_ADDRESS_POINT_RATE_LIMIT,
   })
 }

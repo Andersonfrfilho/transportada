@@ -18,9 +18,18 @@ const LOGGER = { error() {}, info() {}, warn() {} } as never
 const OCCURRENCE_ID = '00000000-0000-4000-8000-00000000a001'
 
 type Sent = { body: string; companyId: string; mentionNumber?: string; number: string }
+type Pin = {
+  address: string
+  companyId: string
+  latitude: number
+  longitude: number
+  name: string
+  number: string
+}
 
-function build(target: DriverAddressGroupTarget | null, fail?: unknown) {
+function build(target: DriverAddressGroupTarget | null, fail?: unknown, failPin?: unknown) {
   const sent: Sent[] = []
+  const pins: Pin[] = []
   const queries: unknown[] = []
   const useCase = createSendDriverAddressToWhatsAppGroupUseCase({
     logger: LOGGER,
@@ -32,6 +41,11 @@ function build(target: DriverAddressGroupTarget | null, fail?: unknown) {
       },
     },
     sender: {
+      sendLocation(input) {
+        if (failPin !== undefined) return Promise.reject(failPin)
+        pins.push(input as Pin)
+        return Promise.resolve({})
+      },
       sendText(input) {
         if (fail !== undefined) return Promise.reject(fail)
         sent.push(input as Sent)
@@ -39,7 +53,7 @@ function build(target: DriverAddressGroupTarget | null, fail?: unknown) {
       },
     },
   })
-  return { queries, sent, useCase }
+  return { pins, queries, sent, useCase }
 }
 
 describe('endereço correto ao grupo do motorista', () => {
@@ -54,7 +68,7 @@ describe('endereço correto ao grupo do motorista', () => {
       occurrenceId: OCCURRENCE_ID,
       occurrenceKind: 'document',
     })
-    expect(result).toEqual({ sentAt: '2026-11-17T12:00:00.000Z' })
+    expect(result).toEqual({ pinSent: false, sentAt: '2026-11-17T12:00:00.000Z' })
     expect(queries).toEqual([
       { companyId: 'company-1', occurrenceId: OCCURRENCE_ID, occurrenceKind: 'document' },
     ])
@@ -64,6 +78,49 @@ describe('endereço correto ao grupo do motorista', () => {
     expect(sent[0]?.body.startsWith('@16993056772 ')).toBe(true)
     expect(sent[0]?.body).toContain('Rua das Flores, 120, Centro')
     expect(sent[0]?.body).toContain('maps.google.com/?q=Rua%20das%20Flores')
+  })
+
+  test('com o ponto, manda também o pino de localização no grupo', async () => {
+    const { pins, sent, useCase } = build({
+      driverPhone: null,
+      groupJid: '120363000000000001@g.us',
+    })
+    const result = await useCase.execute({
+      addressText: 'Rua A, 1',
+      context: CONTEXT,
+      occurrenceId: OCCURRENCE_ID,
+      occurrenceKind: 'stop',
+      point: { latitude: -21.1775, longitude: -47.8103 },
+    })
+    expect(result.pinSent).toBe(true)
+    expect(sent).toHaveLength(1)
+    expect(pins).toEqual([
+      {
+        address: 'Rua A, 1',
+        companyId: 'company-1',
+        latitude: -21.1775,
+        longitude: -47.8103,
+        name: 'Endereço correto da entrega',
+        number: '120363000000000001@g.us',
+      },
+    ])
+  })
+
+  test('o pino que falha não desfaz o texto já enviado', async () => {
+    const { sent, useCase } = build(
+      { driverPhone: null, groupJid: '120363000000000001@g.us' },
+      undefined,
+      new ContractorReplyWhatsAppSendError('failed'),
+    )
+    const result = await useCase.execute({
+      addressText: 'Rua A, 1',
+      context: CONTEXT,
+      occurrenceId: OCCURRENCE_ID,
+      occurrenceKind: 'stop',
+      point: { latitude: -21.1775, longitude: -47.8103 },
+    })
+    expect(result.pinSent).toBe(false)
+    expect(sent).toHaveLength(1)
   })
 
   test('com o ponto, o link do mapa usa a coordenada', () => {
@@ -143,5 +200,53 @@ describe('rota do endereço ao motorista', () => {
     )
     expect(reader.match(/companyId, input\.companyId/gu)?.length).toBeGreaterThanOrEqual(3)
     expect(reader).toContain('eq(fleetDriverWhatsappGroups.companyId, fleetDrivers.companyId)')
+  })
+})
+
+describe('ponto do endereço correto (busca por CEP)', () => {
+  const routes = readFileSync(
+    new URL('../../src/trips/presentation/occurrence-resolution.routes.ts', import.meta.url),
+    'utf8',
+  )
+
+  test('a rota é occurrences.resolve, estrita, com CEP de 8 dígitos e limite no Postgres', () => {
+    expect(routes).toContain("'/trip-occurrences/driver-address/point'")
+    expect(routes).toContain("scope: 'trip-occurrence-driver-address-point'")
+    expect(routes).toContain('regex(/^\\d{8}$/u)')
+  })
+
+  test('devolve a coordenada em número e nada quando o geocodificador não acha', async () => {
+    const { createFindDriverAddressPointUseCase } = await import(
+      '../../src/trips/application/find-driver-address-point.use-case.js'
+    )
+    const found = createFindDriverAddressPointUseCase({
+      geocoding: {
+        geocode: () =>
+          Promise.resolve({
+            externalPlaceId: 'p',
+            latitude: '-21.1775000',
+            longitude: '-47.8103000',
+            precision: 'rooftop',
+            source: 'google',
+          }),
+      },
+    })
+    const request = {
+      city: 'Ribeirão Preto',
+      district: 'Centro',
+      number: '120',
+      postalCode: '14015000',
+      state: 'SP',
+      street: 'Rua A',
+    }
+    expect(await found.execute(request)).toEqual({
+      latitude: -21.1775,
+      longitude: -47.8103,
+      precision: 'rooftop',
+    })
+    const missing = createFindDriverAddressPointUseCase({
+      geocoding: { geocode: () => Promise.resolve(null) },
+    })
+    expect(await missing.execute(request)).toBeNull()
   })
 })
