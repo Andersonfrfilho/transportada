@@ -202,6 +202,7 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       const series = text(occurrence, 'series').trim()
       const createdAt = occurrence.created_at
       const events = await readOccurrenceStopEventValues(database, {
+        at: createdAt instanceof Date || typeof createdAt === 'string' ? new Date(createdAt) : null,
         companyId,
         documentId: text(occurrence, 'trip_document_id'),
         now,

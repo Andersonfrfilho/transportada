@@ -702,6 +702,7 @@ async function readTemplateSource(
     tripId: row.tripId,
   })
   const stopEvents = await readOccurrenceStopEventValues(database, {
+    at: row.createdAt,
     companyId: params.companyId,
     documentId: row.tripDocumentId,
     now: () => new Date(),

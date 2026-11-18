@@ -45,7 +45,7 @@ function asDate(value: unknown): Date | null {
  */
 async function readStopEvents(
   database: TripQueryable,
-  params: { readonly companyId: string; readonly documentId: string },
+  params: { readonly at: Date | null; readonly companyId: string; readonly documentId: string },
 ): Promise<{
   readonly arrivedAt: Date | null
   readonly departedAt: Date | null
@@ -72,15 +72,28 @@ async function readStopEvents(
           and stop_id = ${stopId}::uuid
           and kind in ('departed', 'arrived', 'departure_cancelled')`,
   )
-  /** O instante mais recente do tipo, pela hora do evento (a fila offline entrega fora de ordem), nunca pela da gravação. */
+  /**
+   * O instante mais recente do tipo, pela hora do evento (a fila offline entrega fora de ordem), nunca pela da
+   * gravação. Com `at` (o momento da ocorrência), vale o último evento até ali: uma chegada posterior à ocorrência não
+   * é a que ela narra. Sem nenhum evento até `at`, o mais recente de todos (a hora do evento pode estar adiantada).
+   */
   const latest = (kind: string): Date | null => {
     let found: Date | null = null
+    let foundUntilAt: Date | null = null
     for (const event of events) {
       if (text(event, 'kind') !== kind) continue
       const moment = asDate(event.moment)
-      if (moment !== null && (found === null || moment.getTime() > found.getTime())) found = moment
+      if (moment === null) continue
+      if (found === null || moment.getTime() > found.getTime()) found = moment
+      if (
+        params.at !== null &&
+        moment.getTime() <= params.at.getTime() &&
+        (foundUntilAt === null || moment.getTime() > foundUntilAt.getTime())
+      ) {
+        foundUntilAt = moment
+      }
     }
-    return found
+    return foundUntilAt ?? found
   }
   /** A saída cancelada depois da última saída deixa de valer: o motorista ainda não saiu. */
   const departed = latest('departed')
@@ -108,6 +121,8 @@ export type OccurrenceStopEventValues = Readonly<{
 export async function readOccurrenceStopEventValues(
   database: TripQueryable,
   params: {
+    /** O momento da ocorrência: a espera é medida até ele (senão até agora) e os eventos valem até ele. */
+    readonly at?: Date | null
     readonly companyId: string
     readonly documentId: string
     readonly now: () => Date
@@ -116,7 +131,8 @@ export async function readOccurrenceStopEventValues(
   if (params.documentId === '') {
     return { chegada: '', inicioRota: '', janelaRecebimento: '', tempoEspera: '' }
   }
-  const events = await readStopEvents(database, params)
+  const at = params.at ?? null
+  const events = await readStopEvents(database, { ...params, at })
   const formatMoment = (value: Date | null): string =>
     value === null ? '' : formatOccurrenceMoment(value)
   return {
@@ -126,6 +142,6 @@ export async function readOccurrenceStopEventValues(
       events.windowStart !== null && events.windowEnd !== null
         ? `${SAO_PAULO_TIME.format(events.windowStart)} às ${SAO_PAULO_TIME.format(events.windowEnd)}`
         : '',
-    tempoEspera: formatElapsedWait(events.arrivedAt, params.now()),
+    tempoEspera: formatElapsedWait(events.arrivedAt, at ?? params.now()),
   }
 }
