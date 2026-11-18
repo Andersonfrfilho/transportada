@@ -108,7 +108,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@adatechnology/conversation-contracts": "0.6.0",
-        "@adatechnology/conversations-ui": "0.14.0",
+        "@adatechnology/conversations-ui": "0.14.1",
         "@adatechnology/notification-client": "0.3.0",
         "@adatechnology/notification-ui": "0.4.1",
         "@tanstack/react-query": "5.90.20",
@@ -171,7 +171,7 @@
       "version": "0.2.0",
       "dependencies": {
         "@adatechnology/conversation-contracts": "0.7.0",
-        "@adatechnology/conversations-ui": "0.14.0",
+        "@adatechnology/conversations-ui": "0.14.1",
         "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/image-cutout": "0.1.0-rc.2",
@@ -284,7 +284,7 @@
 
     "@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.6.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-meGNEfiQAeBkXJQ+YNZlJOPK4sLnWHhbiiuQ16yPH8OsZ2/Fa1KQ7CWwdG3SGOOazjNpCBkqd/VcUAlBTwLkPw=="],
 
-    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.14.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.7.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-0gkYD5XfPFRC/2cIUBz6dXWzrh7TKwXZwz/bEywIpzJxM6tf/2heUfCmsJiupAbN4VrH1cfsUnbbQWszV0prnA=="],
+    "@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.14.1", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.7.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-/P2ob74bTYvSDlXc73DzFifNn5yObPeXyNKBy720h909lj1+0yZ6ccQXOqzuHLFbV7rSOSb9HMy/utkkYeM54A=="],
 
     "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0", "", {}, "sha512-OPY9pvRJcsHQQKhDMe7bm4fUz0vZLz6X3MQa+nOEUSzFxRpWf+lPrlBlbyPYNxgvuEVqGk111aaFHSh83wUBbA=="],
 
@@ -1996,6 +1996,8 @@
 
     "@adatechnology/notification-module/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
+    "@adatechnology/notification-ui/@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.14.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.7.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-0gkYD5XfPFRC/2cIUBz6dXWzrh7TKwXZwz/bEywIpzJxM6tf/2heUfCmsJiupAbN4VrH1cfsUnbbQWszV0prnA=="],
+
     "@adatechnology/notification-ui/@adatechnology/notification-contracts": ["@adatechnology/notification-contracts@0.5.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-LdT1MByhB2oz9LFWVr2YOa9YPvDdA0WMC0wxK10bCOsJf7TbAaYSsNFDmZEgfoJEQZzrME8OZlPNddwKLNPWTA=="],
 
     "@adatechnology/user-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
@@ -2086,9 +2088,15 @@
 
     "@adatechnology/notification-client/@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
+    "@adatechnology/notification-ui/@adatechnology/conversations-ui/@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.7.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-eoGmBc+WMmPjL5FwcTMxYRoAd8clrMBc9aZNrHvyMeIOGNcvhysHfjmFcc8bv7tQBzmQUtwPf9ojkRuA76Rxuw=="],
+
+    "@adatechnology/notification-ui/@adatechnology/conversations-ui/tailwind-merge": ["tailwind-merge@3.7.0", "", {}, "sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA=="],
+
     "@adatechnology/notification-ui/@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@transportada/frontend-client/@adatechnology/conversations-ui/tailwind-merge": ["tailwind-merge@3.7.0", "", {}, "sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA=="],
+
+    "@transportada/frontend-driver/@adatechnology/notification-ui/@adatechnology/conversations-ui": ["@adatechnology/conversations-ui@0.14.0", "", { "dependencies": { "@adatechnology/conversation-contracts": "0.7.0", "@adatechnology/meta-whatsapp-contracts": "0.6.0", "clsx": "^2.1.1", "lucide-react": "^1.21.0", "tailwind-merge": "^3.6.0" }, "peerDependencies": { "@xyflow/react": "^12", "react": "^18 || ^19", "react-dom": "^18 || ^19" }, "optionalPeers": ["@xyflow/react"] }, "sha512-0gkYD5XfPFRC/2cIUBz6dXWzrh7TKwXZwz/bEywIpzJxM6tf/2heUfCmsJiupAbN4VrH1cfsUnbbQWszV0prnA=="],
 
     "@transportada/frontend/@adatechnology/conversation-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
@@ -2198,11 +2206,19 @@
 
     "yargs/find-up/locate-path": ["locate-path@5.0.0", "", { "dependencies": { "p-locate": "^4.1.0" } }, "sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g=="],
 
+    "@adatechnology/notification-ui/@adatechnology/conversations-ui/@adatechnology/conversation-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "@transportada/frontend-driver/@adatechnology/notification-ui/@adatechnology/conversations-ui/@adatechnology/conversation-contracts": ["@adatechnology/conversation-contracts@0.7.0", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-eoGmBc+WMmPjL5FwcTMxYRoAd8clrMBc9aZNrHvyMeIOGNcvhysHfjmFcc8bv7tQBzmQUtwPf9ojkRuA76Rxuw=="],
+
+    "@transportada/frontend-driver/@adatechnology/notification-ui/@adatechnology/conversations-ui/tailwind-merge": ["tailwind-merge@3.7.0", "", {}, "sha512-XPPUyAc+cvspz3lHTcR/QgPfW2A0lv/xQNIjX3HGhLR+Nq2lHaLq5MtTesHn8GUr3W3DguT2KT5x3NVgRtYwmA=="],
+
     "@typescript-eslint/typescript-estree/minimatch/brace-expansion/balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 
     "glob/minimatch/brace-expansion/balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 
     "yargs/find-up/locate-path/p-locate": ["p-locate@4.1.0", "", { "dependencies": { "p-limit": "^2.2.0" } }, "sha512-R79ZZ/0wAxKGu3oYMlz8jy/kbhsNrS7SKZ7PxEHBgJ5+F2mtFW2fK2cOtBh1cHYkQsbzFV7I+EoRKe6Yt0oK7A=="],
+
+    "@transportada/frontend-driver/@adatechnology/notification-ui/@adatechnology/conversations-ui/@adatechnology/conversation-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "yargs/find-up/locate-path/p-locate/p-limit": ["p-limit@2.3.0", "", { "dependencies": { "p-try": "^2.0.0" } }, "sha512-//88mFWSJx8lxCzwdAABTJL2MyWB12+eIY7MDL2SqLmAkeKU9qxRvWuSyTjm3FUmpBEMuFfckAIqEaVGUDxb6w=="],
   }

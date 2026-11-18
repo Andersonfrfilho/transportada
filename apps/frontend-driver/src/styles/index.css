@@ -329,20 +329,3 @@ button:has(svg) {
 .login__submit {
   width: 100%;
 }
-
-/*
- * Foto no balão da conversa (SDK conversations-ui 0.14.0): o anexo de imagem é um `<figure>`, que traz 40px de margem
- * lateral do navegador, e é item flex com `flex: 1 0 100%` e sem `min-width: 0` — a imagem larga empurrava o anexo
- * para a largura natural dela e saía pela borda do balão. Zerar a margem, prender o anexo à largura do balão e deixar
- * a imagem escalar resolve nos dois temas; sai quando o pacote corrigir.
- */
-.cv-p-bubble > .cv-p-attachment {
-  min-width: 0;
-  max-width: 100%;
-  margin-inline: 0;
-}
-
-.cv-p-attachment__image {
-  max-width: 100%;
-  height: auto;
-}
