@@ -129,6 +129,15 @@ export type DriverFieldReportTransactionPort = {
     readonly stopId: string
     readonly target: FieldTripTarget
   }): Promise<DriverStopReference | null>
+  /**
+   * Spec 315 (D10): a parada já tem ocorrência em aberto deste tipo? Aberta é a sem andamento, ou a cujo último evento
+   * (por `seq`) é `reopened`; a de parada nunca é cancelada. Lida na mesma transação do registro.
+   */
+  hasOpenStopOccurrenceOfType(input: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+    readonly stopId: string
+  }): Promise<boolean>
   findDocumentForDriver(input: {
     readonly companyId: string
     readonly documentId: string
