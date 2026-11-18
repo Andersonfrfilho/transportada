@@ -1347,6 +1347,15 @@ Sintoma: o bot reenviava a cada ~30 min o lembrete `idle` ("Vamos iniciar a rota
 - **Freio em produção (11/11/2026, 16:02 BRT):** `DRIVER_REMINDERS_ENABLED=false` no serviço `api` (script `tmp/ops/producao-lembrete-rota-freio-variavel.sh pausar`; `religar` volta). Religar só depois da correção em produção. O script `producao-lembrete-rota-freio.sh` (ssh + `UPDATE` em `company_driver_reminder_settings`) travou no `railway ssh`; prefira o da variável.
 - **Diagnóstico (somente leitura):** `tmp/ops/producao-lembrete-rota-diagnostico.sh` lista os lembretes pendentes/recentes com o status da viagem e das paradas.
 
+## 5.30b Lembrete do motorista mandando à noite (17/11/2026)
+
+Sintoma: o bot cobrou motoristas (lembretes `idle` e `arrival`, spec 299) a partir das 18:55 BRT e seguiu às 19:40 e 19:45. Regra do dono: no máximo até as 18h.
+
+- **Causa:** a empresa de produção não tem `operating_hours` em `company_driver_reminder_settings`, e faixa vazia vale "sempre aberto" no portão (`decideStopReminderGate`). Não havia teto global de horário.
+- **Freio (17/11/2026, ~19:57 BRT):** `DRIVER_REMINDERS_ENABLED=false` nos serviços **worker e api** pelo MCP do Railway (`set-variables`, redeploya os dois). Atenção: o freio de 11/11 foi só no `api`; o worker lê a própria variável, então os dois precisam ser tratados. Religar só depois do hotfix na `main` (PR #863) e com `true` nos dois.
+- **Correção:** janela global de envio 8h–18h no fuso da empresa, valendo mesmo com faixa vazia (`DRIVER_STOP_REMINDER_SEND_WINDOW_*`, adia com motivo `outside_send_window`). Hotfix #863 na `main`, mesma mudança em staging no #864.
+- **Como ver o que saiu:** logs do worker/api com o filtro `driver_stop_reminder_delivery` (campos `stage`, `attempt`, `outcome`) e o ciclo `driver_stop_reminder_cycle_finished` (`sent`).
+
 ## 5.31 Conferir o envio de push (12/11/2026) — somente leitura
 
 - **Script:** `tmp/ops/producao-push-confere.sh` confere, para `api` e `worker`, a presença (sem valor) de `RABBITMQ_URL`, `QUEUE_PREFIX` e `VAPID_*`, lista os logs de 7 dias de fila/push e consulta as entregas de push no banco. Saída em `tmp/ops/saidas/push-confere-*.txt`. Os nomes das tabelas do módulo de notificação variam: as consultas ao banco podem falhar sem prejuízo.

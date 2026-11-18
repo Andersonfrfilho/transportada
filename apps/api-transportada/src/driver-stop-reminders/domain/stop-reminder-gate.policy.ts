@@ -7,6 +7,8 @@ import {
   DRIVER_STOP_REMINDER_MAX_SEND_SLOT_WAIT_SECONDS,
   DRIVER_STOP_REMINDER_OPEN_QUESTION_WAIT_MINUTES,
   DRIVER_STOP_REMINDER_OPERATING_HOURS_SEARCH_DAYS,
+  DRIVER_STOP_REMINDER_SEND_WINDOW_END_MINUTES,
+  DRIVER_STOP_REMINDER_SEND_WINDOW_START_MINUTES,
   DRIVER_STOP_REMINDER_STAGE,
   MILLISECONDS_PER_MINUTE,
   MILLISECONDS_PER_SECOND,
@@ -96,6 +98,23 @@ function isWithinOperatingHours(input: StopReminderGateInput, local: LocalMoment
   )
 }
 
+type SendWindow = { readonly startMinutes: number; readonly endMinutes: number }
+
+const DEFAULT_SEND_WINDOW: SendWindow = {
+  endMinutes: DRIVER_STOP_REMINDER_SEND_WINDOW_END_MINUTES,
+  startMinutes: DRIVER_STOP_REMINDER_SEND_WINDOW_START_MINUTES,
+}
+
+function isWithinSendWindow(local: LocalMoment, window: SendWindow): boolean {
+  return local.minutesOfDay >= window.startMinutes && local.minutesOfDay < window.endMinutes
+}
+
+function nextSendWindowStart(local: LocalMoment, timeZone: string, window: SendWindow): Date {
+  const offset = local.minutesOfDay < window.startMinutes ? 0 : 1
+  const day = addDays(local.dateKey, offset)
+  return localToUtc(day.dateKey, window.startMinutes, timeZone)
+}
+
 function isStageComplete(input: StopReminderGateInput): boolean {
   if (input.stop.isClosed) return true
   if (input.stage === DRIVER_STOP_REMINDER_STAGE.IDLE) {
@@ -115,6 +134,14 @@ export function decideStopReminderGate(input: StopReminderGateInput): StopRemind
       decision: DRIVER_STOP_REMINDER_GATE_DECISION.DEFER,
       reason: DRIVER_STOP_REMINDER_DEFER_REASON.OUTSIDE_OPERATING_HOURS,
       until: findNextOpening(input, local) ?? fallbackUntil,
+    }
+  }
+  const sendWindow = input.sendWindow ?? DEFAULT_SEND_WINDOW
+  if (!isWithinSendWindow(local, sendWindow)) {
+    return {
+      decision: DRIVER_STOP_REMINDER_GATE_DECISION.DEFER,
+      reason: DRIVER_STOP_REMINDER_DEFER_REASON.OUTSIDE_SEND_WINDOW,
+      until: nextSendWindowStart(local, input.timeZone, sendWindow),
     }
   }
   if (input.hasOpenQuestion) {

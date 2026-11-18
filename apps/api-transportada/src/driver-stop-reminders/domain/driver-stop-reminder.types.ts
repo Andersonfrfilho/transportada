@@ -123,6 +123,8 @@ export type StopReminderGateInput = {
   readonly timeZone: string
   readonly hasOpenQuestion: boolean
   readonly sendSlotAt?: Date | undefined
+  /** Só teste: troca a janela global de envio (padrão 8h–18h). Produção nunca passa. */
+  readonly sendWindow?: { readonly startMinutes: number; readonly endMinutes: number } | undefined
 }
 
 export type StopReminderGateResult =

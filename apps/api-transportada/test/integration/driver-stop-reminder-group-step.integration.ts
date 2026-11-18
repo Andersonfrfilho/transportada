@@ -74,6 +74,9 @@ const CLOSED_QUESTIONS = {
   hasPendingPrompt: false,
 }
 
+/** O portão tem janela global de 8h–18h; o teste anda no relógio de parede, então abre a janela o dia todo. */
+const ALL_DAY_SEND_WINDOW = { endMinutes: 24 * 60, startMinutes: 0 } as const
+
 type BuildOptions = {
   readonly clock?: () => Date
   /** Ausente ou `true`: a parada 1 sai antes (lembrete `arrival`). `false`: a viagem fica só despachada. */
@@ -135,6 +138,7 @@ async function build(db: JourneyDatabase, world: JourneyWorld, options: BuildOpt
       repository: requests,
     }),
     repository: new DrizzleDriverStopReminderDeliveryRepository(db),
+    sendWindow: ALL_DAY_SEND_WINDOW,
     sender: {
       send: async ({ body }) => {
         reminderSent.push(body)
