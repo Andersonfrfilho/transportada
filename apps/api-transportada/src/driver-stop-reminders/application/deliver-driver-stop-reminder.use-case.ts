@@ -118,6 +118,8 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
   readonly isEnabled: boolean
   readonly logger?: ApiLogger
   readonly promptOpener: ReminderPromptOpener
+  /** Só teste: troca a janela global de envio (padrão 8h–18h). A composição de produção nunca passa. */
+  readonly sendWindow?: { readonly startMinutes: number; readonly endMinutes: number }
   readonly repository: DriverStopReminderDeliveryRepository
   readonly sender: GroupStopReminderSenderPort
   readonly sleep?: (milliseconds: number) => Promise<void>
@@ -451,6 +453,7 @@ export function createDeliverDriverStopReminderUseCase(dependencies: {
         now,
         operatingHours: context.settings.operatingHours,
         sendSlotAt: context.sendSlotAt,
+        sendWindow: dependencies.sendWindow,
         stage: reminder.stage,
         stop: context.stop,
         timeZone: context.timeZone,
