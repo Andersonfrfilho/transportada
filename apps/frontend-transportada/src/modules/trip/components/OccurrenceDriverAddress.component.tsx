@@ -66,18 +66,21 @@ function completeAddressKey(fields: DriverAddressFields): null | string {
     : null
 }
 
-export function OccurrenceDriverAddress(props: Props): JSX.Element {
+/**
+ * O botão que abre o formulário mora na linha de ações do contato; o formulário **não**: ele abre abaixo
+ * dessa linha, ocupando a largura do painel (a linha é flex e esticaria os botões vizinhos na altura dele,
+ * e deixaria o mapa sem coluna).
+ */
+export function OccurrenceDriverAddressButton({
+  onOpen,
+}: Readonly<{ onOpen: () => void }>): JSX.Element {
   const { t } = useTranslation('trip')
-  const [isOpen, setIsOpen] = useState(false)
-  if (!isOpen) {
-    return (
-      <Button onClick={() => setIsOpen(true)} size="sm" type="button" variant="secondary">
-        <Icon name="map-pin" />
-        {t('occurrenceDetail.driverAddress.open')}
-      </Button>
-    )
-  }
-  return <DriverAddressEditor {...props} onClose={() => setIsOpen(false)} />
+  return (
+    <Button onClick={onOpen} size="sm" type="button" variant="secondary">
+      <Icon name="map-pin" />
+      {t('occurrenceDetail.driverAddress.open')}
+    </Button>
+  )
 }
 
 /**
@@ -85,7 +88,7 @@ export function OccurrenceDriverAddress(props: Props): JSX.Element {
  * grupo de WhatsApp dele. Nada é enviado sozinho: cada canal é um clique, e o resultado de um não depende do outro.
  * O mapa ao lado mostra o ponto original da parada e o do endereço novo, que se atualiza conforme o endereço se completa.
  */
-function DriverAddressEditor({
+export function OccurrenceDriverAddressEditor({
   companyId,
   occurrence,
   onClose,
