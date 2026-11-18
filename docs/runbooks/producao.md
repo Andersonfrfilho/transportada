@@ -1368,6 +1368,19 @@ Sintoma: o bot reenviava a cada ~30 min o lembrete `idle` ("Vamos iniciar a rota
 - **Freio em produção (11/11/2026, 16:02 BRT):** `DRIVER_REMINDERS_ENABLED=false` no serviço `api` (script `tmp/ops/producao-lembrete-rota-freio-variavel.sh pausar`; `religar` volta). Religar só depois da correção em produção. O script `producao-lembrete-rota-freio.sh` (ssh + `UPDATE` em `company_driver_reminder_settings`) travou no `railway ssh`; prefira o da variável.
 - **Diagnóstico (somente leitura):** `tmp/ops/producao-lembrete-rota-diagnostico.sh` lista os lembretes pendentes/recentes com o status da viagem e das paradas.
 
+## 5.30b Lembrete do motorista mandando à noite (17/11/2026)
+
+Sintoma: o bot cobrou motoristas (lembretes `idle` e `arrival`, spec 299) às 18:55, 19:40 e 19:45 BRT. Regra do dono: no máximo até as 18h.
+
+- **Causa (medida em produção em 18/11/2026, `tmp/ops/producao-lembrete-porque-hoje.sh`):** a empresa **tem** horário de funcionamento em `company_driver_reminder_settings.operating_hours`: segunda a sábado, 06:00–20:00, ligada desde 10/11/2026 16:25 (85 lembretes enviados desde 10/11). O portão (`decideStopReminderGate`) respeitou esse horário, então o envio até as 19:45 estava "dentro da regra" cadastrada. O limite das 18h do dono não estava gravado em lugar nenhum e não havia teto global. A primeira versão deste texto dizia que a faixa estava vazia: estava errada.
+- **Freio (17/11/2026, ~19:57 BRT):** `DRIVER_REMINDERS_ENABLED=false` nos serviços **worker e api** pelo MCP do Railway (`set-variables`, redeploya os dois). O freio de 11/11 foi só no `api`; o worker lê a própria variável, então os dois precisam ser tratados. Religar só com o hotfix no ar e `true` nos dois.
+- **Correção:** janela global de envio 8h–18h no fuso da empresa, valendo por cima do horário da empresa e da faixa vazia (`DRIVER_STOP_REMINDER_SEND_WINDOW_*`, adia com motivo `outside_send_window` para as 8h seguintes, sem gastar tentativa). Hotfix #863 na `main` (deploy verde em 18/11/2026 00:27Z), testes em staging nos #865 e #866.
+- **Lembretes que ficaram pendentes:** dois (`idle` com 2 adiamentos e `arrival`, vencidos 20:10 e 20:15). Com o hotfix sairiam às 8h seguintes ao religar, então foram cancelados em 18/11/2026 10:13 BRT por `tmp/ops/producao-lembrete-fecha-pendentes.sh` (`status='cancelled'`, `closed_reason='dismissed'`, só linhas `pending`, aborta com mais de 5). Resultado: 2 atualizados.
+- **Como ver o que saiu:** logs do worker/api com o filtro `driver_stop_reminder_delivery` (campos `stage`, `attempt`, `outcome`) e o ciclo `driver_stop_reminder_cycle_finished` (`sent`; `enabled:false` com o freio ligado). No banco: `tmp/ops/producao-lembrete-porque-hoje.sh` (somente leitura).
+- ⚠️ **SQL no `bun -e`:** `interval ${"7 days"}` (parâmetro dentro de `interval`) dá `syntax error at or near "$n"`; use `make_interval(days => 7)` com número literal.
+- **Religado e prazo novo (18/11/2026):** `DRIVER_REMINDERS_ENABLED=true` de volta no worker e na api. Quem está marcando eventos não é cobrado: o prazo da cobrança é o **tempo esperado até o próximo evento + folga**, e reinicia a cada evento recebido. Fonte do "esperado": a caminho = tempo de viagem estimado da parada; chegou = `dwell_minutes` (padrão 30); parado = `idle_minutes` (padrão 30). A folga é `grace_min_minutes` (em "a caminho", vale o maior entre ela e `grace_percent` do tempo de viagem; em baixa e parado, soma direto). O teto 8h–18h continua por cima. Código: `stop-reminder-schedule.policy.ts`, na `main` pelo #882 (deploy verde em 18/11/2026).
+- **Folga de 90 minutos em produção:** `tmp/ops/producao-lembrete-folga.sh` (escrita só em `company_driver_reminder_settings` da empresa de produção: `grace_min_minutes=90`, `grace_percent=0`). Rodado em 18/11/2026 13:03 BRT, 1 linha atualizada; a linha já estava em 90/0 (alterada às 11:55 BRT), então o efeito foi só confirmar. Nas saídas, os horários `*_brt` já estão em BRT, só impressos com um `Z` no fim. Ajustável pela tela de configurações do lembrete (`settings.manage`), sem deploy.
+
 ## 5.31 Conferir o envio de push (12/11/2026) — somente leitura
 
 - **Script:** `tmp/ops/producao-push-confere.sh` confere, para `api` e `worker`, a presença (sem valor) de `RABBITMQ_URL`, `QUEUE_PREFIX` e `VAPID_*`, lista os logs de 7 dias de fila/push e consulta as entregas de push no banco. Saída em `tmp/ops/saidas/push-confere-*.txt`. Os nomes das tabelas do módulo de notificação variam: as consultas ao banco podem falhar sem prejuízo.
@@ -1537,3 +1550,19 @@ Ocorrência já gravada não se corrige sozinha:
 - `tmp/ops/consulta-ocorrencia-parada-sem-nota.sh` — só leitura, staging e produção: total, sem nota, por tipo e por dia.
 - `tmp/ops/corrige-ocorrencia-parada-sem-nota-staging.sh [--confirm] [--desde AAAA-MM-DD]` — só staging. Liga a nota só quando a parada tem **uma** nota viva;
   sem `--confirm` apenas mostra. Em produção não se roda sem decisão do dono.
+
+## 5.46 Promoção #898 staging → main (18/11/2026): comandos de produção depois do merge
+
+Migrations (rodam sozinhas no `preDeployCommand` da API): `occurrence_manual_notice_kind` (aditiva) e `occurrence_type_icons_address_closed` (só `UPDATE` de `icon_name` nulo
+em "Local fechado" e "Endereço incorreto"). Nenhuma variável de ambiente nova; o grafo do bot não mudou (não republicar).
+
+Depois do deploy da API, na ordem, todos gravam a saída em `tmp/ops/saidas/` e imprimem só o caminho:
+
+1. `tmp/ops/producao-promocao-898-modelos.sh` — simulação do plano; depois `--confirm`. Cria os modelos de e-mail e WhatsApp `ocorrencia.espera-longa`,
+   `ocorrencia.cobranca-recebimento`, `ocorrencia.endereco-incorreto` e `ocorrencia.local-fechado` (na `main` anterior eles não existiam, então todos são `create`). Com
+   `--confirm` o script para se o plano tiver `create` de outra chave. `--overwrite-aviso-manual` cria versão nova de `ocorrencia.contratante-aviso-manual` (e-mail; ganhou
+   endereço, cidade e CNPJ do cliente) se o plano mostrar `differs`.
+2. `tmp/ops/producao-promocao-898-modelo-grupo.sh` — simulação; depois `--confirm`. Publica o texto geral `ocorrencia.contratante-grupo` (WhatsApp, spec 318).
+3. `tmp/ops/producao-promocao-898-confere.sh` — só leitura: coluna `occurrence_kind`, ícones dos tipos, modelos `ocorrencia.*` ativos e tipos de parada existentes.
+
+Nada liga sozinho: tipos e canais seguem como estão; ativar "Espera longa"/"Endereço incorreto" e o canal de grupo da contratante é decisão do Anderson, pelo painel.
