@@ -1528,7 +1528,7 @@ produção (15%) e 454 de 3 024 em staging. A política pura é `parseReceivingH
 - Staging gravado em 18/11/2026: 99 clientes; a repetição da simulação mostrou os 99 como "já tem janela".
 - Produção gravada em 18/11/2026, depois de o Anderson aprovar a lista: 124 clientes (133 destinatários com horário, 8 sem cadastro, 1 de fora por divergência entre as notas: Toesca Supermercado, 4 de 7 notas iguais).
 
-## 5.30 Ocorrência de parada sem nota (18/11/2026)
+## 5.46 Ocorrência de parada sem nota (18/11/2026)
 
 O app do motorista zerava a nota ao enfileirar a ocorrência de parada (fluxo `stop`, ex.: "Espera longa") aberta a partir de uma nota; a ocorrência
 nascia com `trip_stop_occurrences.trip_document_id` nulo e o painel dizia "Sem nota nesta ocorrência" (sem contratante a avisar). Corrigido no app (PR #892).
