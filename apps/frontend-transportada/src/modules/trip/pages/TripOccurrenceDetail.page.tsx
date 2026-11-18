@@ -33,7 +33,10 @@ import {
   OccurrenceDriverAddressButton,
   OccurrenceDriverAddressEditor,
 } from '../components/OccurrenceDriverAddress.component'
-import { OccurrenceDriverResult } from '../components/OccurrenceDriverResult.component'
+import {
+  OccurrenceDriverResultButton,
+  OccurrenceDriverResultEditor,
+} from '../components/OccurrenceDriverResult.component'
 import { OccurrenceReceivingCharge } from '../components/OccurrenceReceivingCharge.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceTripMap } from '../components/OccurrenceTripMap.component'
@@ -206,7 +209,17 @@ function OccurrenceDriverPanel({
   permissions: readonly string[]
 }>) {
   const { t } = useTranslation('trip')
-  const [isAddressOpen, setIsAddressOpen] = useState(false)
+  /** Só um painel de envio fica aberto por vez; ao enviar ele fecha e a confirmação ocupa o lugar. */
+  const [openPanel, setOpenPanel] = useState<'address' | 'result' | null>(null)
+  const [sentKey, setSentKey] = useState<string | null>(null)
+  function openOnly(panel: 'address' | 'result'): void {
+    setSentKey(null)
+    setOpenPanel(panel)
+  }
+  function finishSend(messageKey: string): void {
+    setOpenPanel(null)
+    setSentKey(messageKey)
+  }
   const contact = buildOccurrenceDriverContact({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
     driver: occurrence.driver,
@@ -282,25 +295,38 @@ function OccurrenceDriverPanel({
         )}
         {canSend ? (
           <>
-            {isAddressOpen ? null : (
-              <OccurrenceDriverAddressButton onOpen={() => setIsAddressOpen(true)} />
+            {openPanel === 'address' ? null : (
+              <OccurrenceDriverAddressButton onOpen={() => openOnly('address')} />
             )}
-            <OccurrenceDriverResult
-              decision={occurrence.case?.decision ?? null}
-              occurrenceId={occurrence.id}
-              occurrenceKind={occurrence.source}
-            />
+            {openPanel === 'result' ? null : (
+              <OccurrenceDriverResultButton onOpen={() => openOnly('result')} />
+            )}
           </>
         ) : null}
       </div>
-      {canSend && isAddressOpen ? (
+      {canSend && openPanel === 'address' ? (
         <OccurrenceDriverAddressEditor
           {...(companyId === undefined ? {} : { companyId })}
           occurrence={occurrence}
-          onClose={() => setIsAddressOpen(false)}
+          onClose={() => setOpenPanel(null)}
+          onSent={finishSend}
           permissions={permissions}
         />
       ) : null}
+      {canSend && openPanel === 'result' ? (
+        <OccurrenceDriverResultEditor
+          decision={occurrence.case?.decision ?? null}
+          occurrenceId={occurrence.id}
+          occurrenceKind={occurrence.source}
+          onClose={() => setOpenPanel(null)}
+          onSent={finishSend}
+        />
+      ) : null}
+      {sentKey === null ? null : (
+        <p className={styles.hint} role="status">
+          {t(sentKey)}
+        </p>
+      )}
     </section>
   )
 }

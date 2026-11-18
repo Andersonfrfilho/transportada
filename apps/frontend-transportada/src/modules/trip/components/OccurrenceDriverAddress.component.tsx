@@ -92,8 +92,9 @@ export function OccurrenceDriverAddressEditor({
   companyId,
   occurrence,
   onClose,
+  onSent,
   permissions,
-}: Props & Readonly<{ onClose: () => void }>): JSX.Element {
+}: Props & Readonly<{ onClose: () => void; onSent: (messageKey: string) => void }>): JSX.Element {
   const occurrenceId = occurrence.id
   const occurrenceKind = occurrence.source
   const { t } = useTranslation('trip')
@@ -175,20 +176,26 @@ export function OccurrenceDriverAddressEditor({
     if (text.length === 0) return
     const found = await findPoint()
     if (channel === 'app') {
-      app.mutate({
-        body: buildDriverAddressChatMessage(text, found),
-        files: [],
-        idempotencyKey: crypto.randomUUID(),
-        uploaded: new Map(),
-      })
+      app.mutate(
+        {
+          body: buildDriverAddressChatMessage(text, found),
+          files: [],
+          idempotencyKey: crypto.randomUUID(),
+          uploaded: new Map(),
+        },
+        { onSuccess: () => onSent('occurrenceDetail.driverAddress.appSent') },
+      )
       return
     }
-    whatsapp.mutate({
-      addressText: text,
-      occurrenceId,
-      occurrenceKind,
-      ...(found === undefined ? {} : found),
-    })
+    whatsapp.mutate(
+      {
+        addressText: text,
+        occurrenceId,
+        occurrenceKind,
+        ...(found === undefined ? {} : found),
+      },
+      { onSuccess: () => onSent('occurrenceDetail.driverAddress.whatsappSent') },
+    )
   }
 
   const visiblePoint =
@@ -301,19 +308,9 @@ export function OccurrenceDriverAddressEditor({
             {t('occurrenceDetail.driverAddress.close')}
           </Button>
         </div>
-        {app.isSuccess ? (
-          <p className={styles.hint} role="status">
-            {t('occurrenceDetail.driverAddress.appSent')}
-          </p>
-        ) : null}
         {app.isError ? (
           <p className={styles.alert} role="alert">
             {t('occurrenceDetail.driverAddress.appFailed')}
-          </p>
-        ) : null}
-        {whatsapp.isSuccess ? (
-          <p className={styles.hint} role="status">
-            {t('occurrenceDetail.driverAddress.whatsappSent')}
           </p>
         ) : null}
         {whatsapp.isError ? (
