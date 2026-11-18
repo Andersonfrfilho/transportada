@@ -1511,3 +1511,16 @@ O formulário público (cotação da 338 e pedido de coleta anônimo da 339) val
 (a ficha de motorista só guarda CPF). Desde esta correção o painel pede o "CPF de quem dirige" ao aprovar e o corpo opcional `{ driverTaxId }` cria a ficha (CNPJ vira
 `linked_tax_id`) ou vincula à ficha que já tem esse CPF. Diagnóstico somente leitura: `tmp/ops/producao-diagnostico-candidatura.sh` (consulta `aggregate_applications` pelo id via `railway ssh -s api -e production`).
 Os logs do serviço `api` no Railway não registram o 422 de negócio com filtro `approve`: confirme pelo código de erro na resposta.
+
+## 5.40 Horário de recebimento lido da nota (18/11/2026) — leitura em staging e produção; gravação só com `--confirm`
+
+O cliente escreve o horário em que recebe no `infCpl` da nota (bloco "Obs. Cliente: RECEBIMENTO DE SEGUNDA A SEXTA DAS 08:00 AS 17:00"). Medido em 18/11/2026: 748 de 4 950 notas em
+produção (15%) e 454 de 3 024 em staging. A política pura é `parseReceivingHoursFromNote` (`apps/api-transportada/src/delivery-clients/domain/receiving-hours-note.policy.ts`); o destino é
+`delivery_client_windows`.
+
+- Contagem (só leitura): `tmp/ops/horario-recebimento-nota.sh <staging|production>`.
+- Simulação e gravação: `tmp/ops/horario-recebimento-aplica.sh <staging|production> [--confirm]` (usa a cópia da política em `tmp/ops/receiving-hours-note.policy.ts`). Sem `--confirm` só lista, por
+  destinatário, o que seria gravado. Com `--confirm` grava só para cliente **sem nenhuma janela** e sem divergência entre as notas do mesmo cliente; nunca sobrescreve janela cadastrada.
+  Cliente que ainda não existe em `delivery_clients` fica de fora. Repetir é seguro (quem já tem janela é pulado).
+- Staging, simulação de 18/11/2026: 456 de 466 notas lidas (as 10 restantes são "ATÉ AS 18:20", que não diz quando abre), 120 destinatários, 99 gravariam, 21 sem cadastro, 0 divergências.
+- Produção: gravar só depois de a lista da simulação ser aprovada pelo Anderson.
