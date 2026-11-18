@@ -483,6 +483,10 @@ describe('a espera longa leva os eventos da entrega e o valor da nota (18/11/202
     expect(formatElapsedWait(arrived, new Date('2026-11-18T16:10:00Z'))).toBe('1 h')
     expect(formatElapsedWait(arrived, new Date('2026-11-18T17:40:00Z'))).toBe('2 h 30 min')
     expect(formatElapsedWait(arrived, new Date('2026-11-18T17:15:00Z'))).toBe('2 h 05 min')
+    expect(formatElapsedWait(arrived, new Date('2026-11-19T15:10:00Z'))).toBe('1 d')
+    expect(formatElapsedWait(arrived, new Date('2026-11-19T17:10:00Z'))).toBe('1 d 2 h')
+    expect(formatElapsedWait(arrived, new Date('2026-11-20T14:16:00Z'))).toBe('1 d 23 h 06 min')
+    expect(formatElapsedWait(arrived, new Date('2026-11-19T15:15:00Z'))).toBe('1 d 0 h 05 min')
   })
 
   test('sem chegada, ou com o relógio andando para trás, o tempo sai vazio', () => {

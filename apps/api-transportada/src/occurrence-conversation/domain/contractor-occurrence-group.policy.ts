@@ -68,10 +68,17 @@ export function formatElapsedWait(from: Date | null, to: Date): string {
   if (from === null) return ''
   const minutes = Math.floor((to.getTime() - from.getTime()) / 60_000)
   if (!Number.isFinite(minutes) || minutes < 0) return ''
-  const hours = Math.floor(minutes / 60)
+  const totalHours = Math.floor(minutes / 60)
   const rest = minutes % 60
-  if (hours === 0) return `${minutes} min`
-  return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, '0')} min`
+  if (totalHours === 0) return `${minutes} min`
+  const days = Math.floor(totalHours / 24)
+  const hours = totalHours % 24
+  if (days === 0)
+    return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, '0')} min`
+  /** Passou de 24 h: separa em dias, horas e minutos ("1 d 23 h 06 min"); o que for zero no fim some. */
+  if (hours === 0 && rest === 0) return `${days} d`
+  if (rest === 0) return `${days} d ${hours} h`
+  return `${days} d ${hours} h ${String(rest).padStart(2, '0')} min`
 }
 
 const MOMENT_LABELS: Readonly<Record<'delivery' | 'separation', string>> = {
