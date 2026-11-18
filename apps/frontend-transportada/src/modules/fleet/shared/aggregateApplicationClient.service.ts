@@ -46,7 +46,7 @@ export type AggregateApplicationAttachment = Readonly<{
 }>
 
 export type AggregateApplicationClient = Readonly<{
-  approve: (id: string) => Promise<AggregateApplication>
+  approve: (id: string, driverTaxId?: string) => Promise<AggregateApplication>
   attachmentDownloadUrl: (
     input: Readonly<{ applicationId: string; attachmentId: string }>,
   ) => Promise<string>
@@ -107,9 +107,10 @@ export function createAggregateApplicationClient(
   dependencies: ClientDependencies,
 ): AggregateApplicationClient {
   return {
-    async approve(id) {
+    async approve(id, driverTaxId) {
       const request = await authenticatedRequest({
         dependencies,
+        ...(driverTaxId === undefined ? {} : { body: { driverTaxId } }),
         method: 'POST',
         path: `${AGGREGATE_APPLICATIONS_PATH}/${id}/approve`,
       })

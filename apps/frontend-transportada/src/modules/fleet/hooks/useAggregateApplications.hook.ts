@@ -44,7 +44,8 @@ export function useAggregateApplications(
   }
 
   const approveMutation = useMutation({
-    mutationFn: (id: string) => client.approve(id),
+    mutationFn: (input: Readonly<{ driverTaxId?: string; id: string }>) =>
+      client.approve(input.id, input.driverTaxId),
     onSuccess: invalidate,
   })
   const rejectMutation = useMutation({

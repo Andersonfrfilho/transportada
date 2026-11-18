@@ -482,10 +482,11 @@ export function FleetWorkspacePage() {
             panel: (
               <AggregateApplicationsTab
                 applications={aggregateApplications.query.data ?? []}
+                approveFailed={aggregateApplications.approveMutation.isError}
                 isApproving={aggregateApplications.approveMutation.isPending}
                 isRejecting={aggregateApplications.rejectMutation.isPending}
                 loading={aggregateApplications.query.isLoading}
-                onApprove={(id) => aggregateApplications.approveMutation.mutate(id)}
+                onApprove={(input) => aggregateApplications.approveMutation.mutate(input)}
                 onReject={(input) => aggregateApplications.rejectMutation.mutate(input)}
                 onViewDriver={(name) => {
                   setDriverFilters({ nameContains: name })

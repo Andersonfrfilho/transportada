@@ -11,6 +11,7 @@
   "appAccessOn": "Vinculado",
   "applications": {
     "approveButton": "Aprovar",
+    "approveFailed": "Não foi possível aprovar a candidatura. Confira o CPF de quem dirige e tente de novo.",
     "attachments": {
       "approveButton": "Aprovar anexo",
       "confirmRejectButton": "Confirmar recusa",
@@ -68,6 +69,9 @@
       "toggleShow": "Ver dados declarados",
       "vehicleTitle": "Veículo"
     },
+    "driverTaxIdHint": "A candidatura é de uma empresa (CNPJ). A ficha do motorista usa o CPF de quem dirige; o CNPJ fica vinculado a ela.",
+    "driverTaxIdLabel": "CPF de quem dirige",
+    "driverTaxIdTitle": "Aprovar candidatura de empresa",
     "duplicateBadge": "Já cadastrado",
     "empty": "Nenhuma candidatura pendente",
     "filterName": "Nome contém",

@@ -5,8 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { formatTaxId } from '@/modules/shared/taxId.service'
 
 import { AggregateApplicationAttachments } from './AggregateApplicationAttachments.component'
+import { AggregateDriverTaxIdDialog } from './AggregateDriverTaxIdDialog.component'
 import { AggregateRejectionDialog } from './AggregateRejectionDialog.component'
 
 import { FleetTableSkeleton } from './FleetTableSkeleton.component'
@@ -41,6 +43,8 @@ function sortApplications(
   )
 }
 
+const CPF_PATTERN = /^[0-9]{11}$/u
+
 type RejectDialogState = Readonly<{ applicationId: string }> | null
 
 function statusLabel(status: AggregateApplication['status'], t: (key: string) => string): string {
@@ -49,16 +53,18 @@ function statusLabel(status: AggregateApplication['status'], t: (key: string) =>
 
 type AggregateApplicationsTabProps = Readonly<{
   applications: readonly AggregateApplication[]
+  approveFailed: boolean
   isApproving: boolean
   isRejecting: boolean
   loading: boolean
-  onApprove: (id: string) => void
+  onApprove: (input: Readonly<{ driverTaxId?: string; id: string }>) => void
   onReject: (input: Readonly<{ id: string; rejectionReason: string }>) => void
   onViewDriver: (name: string) => void
 }>
 
 export function AggregateApplicationsTab({
   applications,
+  approveFailed,
   isApproving,
   isRejecting,
   loading,
@@ -68,6 +74,7 @@ export function AggregateApplicationsTab({
 }: AggregateApplicationsTabProps): ReactNode {
   const { t } = useTranslation('fleet')
   const [rejectDialog, setRejectDialog] = useState<RejectDialogState>(null)
+  const [taxIdDialogId, setTaxIdDialogId] = useState<string | null>(null)
   const [nameFilter, setNameFilter] = useState('')
   const [sort, setSort] = useState<SortState>(null)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
@@ -136,6 +143,11 @@ export function AggregateApplicationsTab({
           />
         </label>
       </div>
+      {approveFailed ? (
+        <p className={styles.hint} role="alert">
+          {t('applications.approveFailed')}
+        </p>
+      ) : null}
       <p className={styles.hint}>
         {t('applications.shownOfTotal', { shown: visible.length, total: applications.length })}
       </p>
@@ -167,7 +179,7 @@ export function AggregateApplicationsTab({
                       )}
                     </span>
                   </td>
-                  <td>{application.taxId}</td>
+                  <td>{formatTaxId(application.taxId)}</td>
                   <td>
                     {application.email}
                     <br />
@@ -182,7 +194,11 @@ export function AggregateApplicationsTab({
                             disabled={isApproving}
                             size="sm"
                             type="button"
-                            onClick={() => onApprove(application.id)}
+                            onClick={() =>
+                              CPF_PATTERN.test(application.taxId)
+                                ? onApprove({ id: application.id })
+                                : setTaxIdDialogId(application.id)
+                            }
                           >
                             <Icon name="check" />
                             {t('applications.approveButton')}
@@ -192,7 +208,7 @@ export function AggregateApplicationsTab({
                             disabled={isApproving}
                             size="sm"
                             type="button"
-                            onClick={() => onApprove(application.id)}
+                            onClick={() => onApprove({ id: application.id })}
                           >
                             <Icon name="link" />
                             {t('applications.linkButton')}
@@ -323,6 +339,21 @@ export function AggregateApplicationsTab({
           })}
         </tbody>
       </table>
+      {taxIdDialogId === null ? null : (
+        <AggregateDriverTaxIdDialog
+          cancelLabel={t('applications.cancelButton')}
+          confirmLabel={t('applications.approveButton')}
+          hint={t('applications.driverTaxIdHint')}
+          isSubmitting={isApproving}
+          label={t('applications.driverTaxIdLabel')}
+          title={t('applications.driverTaxIdTitle')}
+          onCancel={() => setTaxIdDialogId(null)}
+          onConfirm={(cpf) => {
+            onApprove({ driverTaxId: cpf, id: taxIdDialogId })
+            setTaxIdDialogId(null)
+          }}
+        />
+      )}
       {rejectDialog === null ? null : (
         <AggregateRejectionDialog
           cancelLabel={t('applications.cancelButton')}

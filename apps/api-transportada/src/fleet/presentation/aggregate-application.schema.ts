@@ -11,7 +11,7 @@ import {
   parseJson,
   readBoundedRequestBody,
 } from '../../shared/request-body.service.js'
-import { normalizeTaxId, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
+import { CPF_PATTERN, normalizeTaxId, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
 import type { SubmitAggregateApplicationInput } from '../application/aggregate-applications.use-case.js'
 import { aggregateApplicationDeclaredDataSchema } from './aggregate-application-declared-data.schema.js'
 
@@ -68,6 +68,28 @@ export async function parseRejectAggregateApplicationRequest(request: Request): 
   const result = rejectSchema.safeParse(parseJson(body))
   if (!result.success) throw new ApiError(HTTP_ERROR.invalidRequest)
   return result.data.rejectionReason
+}
+
+const approveSchema = z
+  .object({
+    driverTaxId: z.string().trim().transform(normalizeTaxId).pipe(z.string().regex(CPF_PATTERN)),
+  })
+  .partial()
+  .strict()
+
+/**
+ * Corpo opcional da aprovação: candidatura de pessoa jurídica traz o CPF de quem dirige, porque a
+ * ficha de motorista só guarda pessoa física. Corpo vazio é o caso normal (candidatura de CPF).
+ */
+export async function parseApproveAggregateApplicationRequest(
+  request: Request,
+): Promise<string | undefined> {
+  const body = await readBoundedRequestBody(request)
+  if (body.trim() === '') return undefined
+  assertJsonContentType(request.headers.get('content-type'))
+  const result = approveSchema.safeParse(parseJson(body))
+  if (!result.success) throw new ApiError(HTTP_ERROR.invalidRequest)
+  return result.data.driverTaxId
 }
 
 export function parseAggregateApplicationId(

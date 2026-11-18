@@ -34,6 +34,23 @@ export type AggregateApplicationAccessStatus =
   | 'no-contact'
   | 'not-available'
 
+/** O CNPJ da candidatura vira o `linked_tax_id` da ficha do condutor (autônomo com empresa). */
+function withLinkedLegalEntity(input: {
+  readonly declaredData: Record<string, unknown>
+  readonly legalName: string
+  readonly taxId: string
+}): Record<string, unknown> {
+  const driver = (input.declaredData.driver ?? {}) as Record<string, unknown>
+  return {
+    ...input.declaredData,
+    driver: {
+      ...driver,
+      linkedLegalName: driver.linkedLegalName || input.legalName,
+      linkedTaxId: driver.linkedTaxId || input.taxId,
+    },
+  }
+}
+
 export type SubmitAggregateApplicationInput = Readonly<{
   /** Rascunhos enviados antes do formulário. Ausente é o caso normal: anexar é opcional. */
   attachmentDraftIds?: readonly string[]
@@ -57,6 +74,8 @@ type Dependencies = {
 export type AggregateApplicationsUseCase = Readonly<{
   approve: (input: {
     readonly context: CompanyContext
+    /** CPF de quem dirige, para candidatura de pessoa jurídica sem ficha para vincular. */
+    readonly driverTaxId?: string
     readonly id: string
   }) => Promise<AggregateApplication>
   list: (input: { readonly context: CompanyContext }) => Promise<readonly AggregateApplication[]>
@@ -223,7 +242,7 @@ export function createAggregateApplicationsUseCase(
       return dependencies.repository.listByCompany({ companyId: context.companyId })
     },
 
-    async approve({ context, id }) {
+    async approve({ context, driverTaxId, id }) {
       const application = await findOwned({ companyId: context.companyId, id })
       if (application.status !== 'pending') {
         throw new AggregateApplicationAlreadyReviewedError()
@@ -241,17 +260,41 @@ export function createAggregateApplicationsUseCase(
         })
         return approved
       }
-      if (!CPF_PATTERN.test(application.taxId)) {
+      const isLegalEntity = !CPF_PATTERN.test(application.taxId)
+      if (isLegalEntity && driverTaxId === undefined) {
         throw new AggregateApplicationRequiresManualDriverCreationError()
+      }
+      const driverCpf = isLegalEntity ? (driverTaxId ?? application.taxId) : application.taxId
+      if (isLegalEntity) {
+        // O CPF informado já tem ficha na empresa: vincula a ela em vez de criar outra.
+        const existingDriverId = await dependencies.repository.findDriverIdByTaxIdInCompanies({
+          companyIds: [application.companyId],
+          taxId: driverCpf,
+        })
+        if (existingDriverId !== null) {
+          const linked = await dependencies.repository.approve({ driverId: existingDriverId, id })
+          await ensureDriverAccess({
+            companyId: application.companyId,
+            correlationId: crypto.randomUUID(),
+            driverId: existingDriverId,
+          })
+          return linked
+        }
       }
       const approved = await dependencies.repository.createDriverAndApprove({
         companyId: application.companyId,
-        declaredData: application.declaredData,
+        declaredData: isLegalEntity
+          ? withLinkedLegalEntity({
+              declaredData: application.declaredData,
+              legalName: application.name,
+              taxId: application.taxId,
+            })
+          : application.declaredData,
         email: application.email,
         id,
         name: application.name,
         phone: application.phone,
-        taxId: application.taxId,
+        taxId: driverCpf,
       })
       if (approved.driverId !== null) {
         await ensureDriverAccess({

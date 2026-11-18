@@ -164,6 +164,29 @@ describe('aggregate applications use case', () => {
     ).rejects.toBeInstanceOf(AggregateApplicationRequiresManualDriverCreationError)
   })
 
+  test('approves a legal-entity application when the driver CPF is given, linking the CNPJ', async () => {
+    const { repository, useCase } = buildUseCase()
+    await useCase.submit({
+      companyId: UNIT_COMPANY_ID,
+      declaredData: {},
+      email: 'candidato@example.com',
+      name: 'Transportes Fulano',
+      phone: '11988887777',
+      taxId: '12345678000195',
+    })
+    const applicationId = repository.rows[0]?.id
+    if (applicationId === undefined) throw new Error('application was not inserted')
+
+    const approved = await useCase.approve({
+      context: COMPANY_CONTEXT,
+      driverTaxId: '52998224725',
+      id: applicationId,
+    })
+
+    expect(approved.status).toBe('approved')
+    expect(approved.driverId).not.toBeNull()
+  })
+
   describe('access for the approved driver', () => {
     function buildWithAccount(execute: (input: Record<string, unknown>) => Promise<unknown>) {
       const repository = new FakeAggregateApplicationRepository()
