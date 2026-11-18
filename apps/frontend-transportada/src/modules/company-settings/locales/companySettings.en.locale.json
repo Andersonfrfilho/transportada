@@ -1002,19 +1002,19 @@
       },
       "graceMinMinutes": {
         "label": "Minimum grace (min)",
-        "hint": "From {{min}} to {{max}} minutes of wait after the expected time."
+        "hint": "From {{min}} to {{max}} minutes of wait after the expected time of each stage (en route, at the stop, idle). The deadline restarts on every recorded event."
       },
       "gracePercent": {
         "label": "Grace (%)",
-        "hint": "From {{min}} to {{max}}% of the travel time, added to the minimum grace."
+        "hint": "From {{min}} to {{max}}% of the travel time. Only applies to the en-route stage, and the grace is the larger of this and the minimum grace."
       },
       "dwellMinutes": {
         "label": "Dwell (min)",
-        "hint": "From {{min}} to {{max}} minutes between arrival and the delivery reminder."
+        "hint": "From {{min}} to {{max}} expected minutes between arrival and unloading. The reminder comes after the minimum grace."
       },
       "idleMinutes": {
         "label": "No event (min)",
-        "hint": "From {{min}} to {{max}} minutes with no trip record before reminding."
+        "hint": "From {{min}} to {{max}} expected minutes until the next trip event. The reminder comes after the minimum grace."
       }
     },
     "hours": {
