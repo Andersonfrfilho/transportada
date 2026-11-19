@@ -1584,3 +1584,11 @@ A v2 gravou **v1** de 15 modelos em produção (saída `producao-promocao-898-mo
 Em produção só existia "Espera longa" (inativo); "Local fechado" e "Endereço incorreto" não existiam. A configuração vem do despejo da staging (`tmp/ops/staging-tipos-ocorrencia-dump.sh`, só leitura). `bash tmp/ops/producao-promocao-898-tipos.sh` simula (transação desfeita) e `--confirm` grava: ativa a Espera longa (espera mínima de 30 min, localização, foto e observação obrigatórias, ícone `clock`), cria Local fechado (`alert`) e Endereço incorreto (`clipboard-list`), cada um ligado ao modelo `ocorrencia.<tipo>` já publicado. Nunca apaga nem renomeia; tipo que já existe (exceto a Espera longa) não é tocado.
 
 **Resultado (19/11/2026, `--confirm` gravado):** "Espera longa" ficou **ativa** (de inativa; passou a exigir foto, observação e localização, espera mínima de 30 min e modelo `ocorrencia.espera-longa`); "Local fechado" e "Endereço incorreto" foram **criados** e ativos com a configuração da staging. Saída: `producao-promocao-898-tipos-confirmado-20261118-221251.txt`. Ainda não conferido pelo app do motorista em produção.
+
+## 5.48 Promoção #914 staging → main (19/11/2026): trocar o comprovante enviado errado (spec 327)
+
+O painel passa a permitir ao escritório **substituir a foto do comprovante que o motorista subiu errada**, com motivo da lista fixa. A rota é a mesma do comprovante pelo escritório (`POST /trips/:id/documents/:documentId/field-proof`, permissão `trip.report-on-behalf`), com `replaceDriverProof` e o motivo. Sem a confirmação ela responde `409`; o motivo e o canal anterior (`replacedProofChannel`, `replaceReason`) ficam na auditoria.
+
+- Merge `7e567220` na `main` (merge commit do PR #914, que incluiu o #912). O run `Deploy push` 44616707941 terminou com sucesso: gate completo e deploy de api, frontend, driver, client, landing, worker e cron.
+- **Nenhuma migration, variável de ambiente ou comando de produção** nesta promoção. Não há nada a rodar depois do deploy.
+- Não foi testado com um comprovante real em produção: a conferência fica para o primeiro caso de comprovante errado de um motorista (abrir a viagem → comprovante da entrega → "Substituir comprovante").
