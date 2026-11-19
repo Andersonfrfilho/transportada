@@ -56,6 +56,12 @@ canhoto chega.
   ocorrência recebe o andamento `resolved` (266). Mudança de banco necessária e aditiva (T0 §6): `resolved` do tipo `system` passa a
   aceitar `pickup_id` como origem, nova frase fixa `canhoto_collected`; reprovar na conferência **reabre** a coleta (`scheduled`) e
   a ocorrência (`reopened` por `system` com `pickup_id`). Espelhar a frase nas três apps (contrato de paridade).
+- **D5b — Conclui no encaixe (Anderson, 19/11/2026, revê a D5).** A ocorrência conclui sozinha quando a coleta é encaixada numa
+  viagem nova (outro motorista, ou o mesmo em outra viagem): `resolved` do `system` com a coleta e a causa `scheduled`, frase
+  `canhoto_scheduled`, na transação do encaixe. Sem encaixe, conclui quando a nota fica concluída (o canhoto aprovado, causa
+  `collected`, frase `canhoto_collected`). Foto reprovada **não reabre mais** a ocorrência: só a coleta volta a esperar o canhoto.
+  Desencaixar, retirar a parada e cancelar a viagem da coleta também não reabrem. A coleta segue com seu próprio estado (D6 vale
+  para selo e lista: a nota fica "canhoto retido" até o canhoto chegar).
 - **D6 — Marca de "aberta" única.** Ocorrência deste tipo **aberta** = coleta com `status` em `pending | scheduled`. Selo, lista
   (filtro por id do tipo, não por nome), duplicidade e a 266 usam essa mesma definição.
 - **D7 — Quem registra e quem escolhe a viagem** (recomendações assumidas, ver Dúvidas): motorista (app e WhatsApp) e escritório
@@ -70,7 +76,7 @@ canhoto chega.
 - **RF4** — O escritório encaixa a coleta numa viagem de outro motorista; a parada aparece no app dele como "Coletar canhoto".
 - **RF5** — A coleta não entra em peso, volume, dimensão, ocupação, planta nem excesso de peso da viagem nova (D4c); a lista de
   notas a mostra com a flag e o tooltip (D4d).
-- **RF6** — Canhoto fotografado na coleta casa (worker e bot), a coleta vira `collected` e a ocorrência resolve; reprovado, reabre (D5).
+- **RF6** — Canhoto fotografado na coleta casa (worker e bot), a coleta vira `collected` e a ocorrência resolve; reprovado, a coleta volta a esperar e a ocorrência fica concluída (D5b).
 - **RF7** — Contratante, relatórios e score não enxergam a coleta como nova entrega (T0 §9).
 
 ## Requisitos não funcionais
@@ -96,7 +102,8 @@ canhoto chega.
 - **CA03** A viagem de origem fecha; a nota continua entregue; a linha de `trip_documents` não muda (CHECK de entregue intacto).
 - **CA03b** Peso, volume e ocupação da viagem nova ficam iguais com a coleta encaixada.
 - **CA03c** Flag e tooltip aparecem, em tema claro e escuro, no desktop e no celular.
-- **CA04** Foto do canhoto pelo motorista da viagem nova resolve; reprovação reabre.
+- **CA04** Foto do canhoto pelo motorista da viagem nova fecha a coleta; reprovação devolve só a coleta (D5b).
+- **CA04b** Encaixar a coleta numa viagem nova conclui a ocorrência (`canhoto_scheduled`); desencaixar não reabre (D5b).
 - **CA05** Em staging, prints da aba Tipos e da lista, comparados com outra tela do painel.
 
 ## Dúvidas

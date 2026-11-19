@@ -18,6 +18,8 @@ export const ROUTE_OCCURRENCE_PHRASE_KEYS = [
   'contractor_reply_delivered',
   /** Spec 321 T4: o canhoto retido foi coletado e aprovado na conferência. */
   'canhoto_collected',
+  /** Spec 321 T8: a nota foi encaixada numa nova viagem para buscar o canhoto; a ocorrência conclui ali. */
+  'canhoto_scheduled',
 ] as const
 export type RouteOccurrencePhraseKey = (typeof ROUTE_OCCURRENCE_PHRASE_KEYS)[number]
 

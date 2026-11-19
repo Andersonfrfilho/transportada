@@ -8,6 +8,7 @@ import {
   describeOccurrenceTimelineEvent,
   filterOccurrenceTimelineEvents,
   OCCURRENCE_TIMELINE_ACTOR_TONE,
+  SYSTEM_RESOLUTION_PHRASE_KEYS,
   type OccurrenceTimelineEvent,
 } from '@/modules/trip/shared/tripOccurrenceTimeline.service'
 
@@ -81,6 +82,37 @@ describe('spec 266 T3.3: linha do tempo da resolução', () => {
     expect(
       describeOccurrenceTimelineEvent({ ...RESOLVED_BY_SYSTEM, phraseKey: 'canhoto_collected' }),
     ).toEqual({ key: 'occurrenceTimeline.event.resolvedCanhotoCollected', values: {} })
+  })
+
+  test('fechada sozinha pela nota encaixada numa nova viagem (spec 321 T8) diz a causa', () => {
+    expect(
+      describeOccurrenceTimelineEvent({ ...RESOLVED_BY_SYSTEM, phraseKey: 'canhoto_scheduled' }),
+    ).toEqual({ key: 'occurrenceTimeline.event.resolvedCanhotoScheduled', values: {} })
+  })
+
+  test('as frases fixas do sistema são as seis da API, na ordem (paridade, spec 321 T8)', () => {
+    expect([...SYSTEM_RESOLUTION_PHRASE_KEYS]).toEqual([
+      'case_closed',
+      'case_returned_to_warehouse',
+      'case_cancelled',
+      'contractor_reply_delivered',
+      'canhoto_collected',
+      'canhoto_scheduled',
+    ])
+  })
+
+  test('toda chave de frase do painel existe no locale pt-BR e en', () => {
+    for (const file of ['trip.locale.json', 'trip.en.locale.json']) {
+      const locale = JSON.parse(
+        readFileSync(new URL(`../../src/modules/trip/locales/${file}`, import.meta.url), 'utf8'),
+      ) as { occurrenceTimeline: { event: Record<string, string> } }
+      const missing = SYSTEM_RESOLUTION_PHRASE_KEYS.map(
+        (phraseKey) => describeOccurrenceTimelineEvent({ ...RESOLVED_BY_SYSTEM, phraseKey }).key,
+      )
+        .map((key) => key.replace('occurrenceTimeline.event.', ''))
+        .filter((key) => locale.occurrenceTimeline.event[key] === undefined)
+      expect(missing).toEqual([])
+    }
   })
 
   test('reaberta pelo sistema (canhoto coletado reprovado, spec 321 T4) não cita motorista', () => {

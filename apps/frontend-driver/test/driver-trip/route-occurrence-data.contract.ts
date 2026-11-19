@@ -3,10 +3,11 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
-import type {
-  DriverRouteOccurrence,
-  RouteOccurrenceSnapshotStore,
-  StoredRouteOccurrences,
+import {
+  ROUTE_OCCURRENCE_PHRASE_KEYS,
+  type DriverRouteOccurrence,
+  type RouteOccurrenceSnapshotStore,
+  type StoredRouteOccurrences,
 } from '@/modules/driver-trip/shared/driverRouteOccurrence.types'
 import {
   DriverRouteOccurrenceResponseError,
@@ -143,6 +144,24 @@ describe('validação da lista de ocorrências da rota (spec 266 T4.2)', () => {
       ],
     })
     expect(item?.resolution?.phraseKey).toBe('contractor_reply_delivered')
+  })
+
+  it('a frase da nota encaixada numa nova viagem (spec 321 T8) é conhecida', () => {
+    const [item] = toDriverRouteOccurrenceList({
+      data: [
+        {
+          ...WIRE_ITEM,
+          resolution: {
+            actorKind: 'system',
+            at: '2026-11-19T11:00:00.000Z',
+            note: null,
+            phraseKey: 'canhoto_scheduled',
+          },
+          state: 'resolved',
+        },
+      ],
+    })
+    expect(item?.resolution?.phraseKey).toBe('canhoto_scheduled')
   })
 
   it('resolução: nota nula e frase fixa conhecida; reportKey ausente vira null', () => {
@@ -385,8 +404,25 @@ describe('o cliente das rotas de leitura (spec 266 T4.2)', () => {
   })
 })
 
+/**
+ * Cópia por valor de `SYSTEM_RESOLUTION_PHRASE_KEYS` da API (`occurrence-resolution.types.ts`), que repete esta lista
+ * literal no contrato dela; o painel faz o mesmo. Frase nova entra nas três apps juntas.
+ */
+describe('as frases fixas do sistema, em paridade com a API (spec 321 T8)', () => {
+  it('lista as seis chaves, na ordem da API', () => {
+    expect([...ROUTE_OCCURRENCE_PHRASE_KEYS]).toEqual([
+      'case_closed',
+      'case_returned_to_warehouse',
+      'case_cancelled',
+      'contractor_reply_delivered',
+      'canhoto_collected',
+      'canhoto_scheduled',
+    ])
+  })
+})
+
 describe('as frases fixas da tratativa no locale (spec 266 T4.2b)', () => {
-  it('as cinco existem em pt-BR e en (a da 276 T3b e a da 321 T4 inclusas)', () => {
+  it('as seis existem em pt-BR e en (a da 276 T3b e as da 321 T4 e T8 inclusas)', () => {
     for (const file of ['driverTrip.locale.json', 'driverTrip.en.locale.json']) {
       const locale = JSON.parse(
         readFileSync(
@@ -396,6 +432,7 @@ describe('as frases fixas da tratativa no locale (spec 266 T4.2b)', () => {
       ) as { routeOccurrence: { phrase: Record<string, string> } }
       expect(Object.keys(locale.routeOccurrence.phrase).sort()).toEqual([
         'canhoto_collected',
+        'canhoto_scheduled',
         'case_cancelled',
         'case_closed',
         'case_returned_to_warehouse',

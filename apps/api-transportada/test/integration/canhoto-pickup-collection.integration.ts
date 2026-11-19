@@ -5,6 +5,10 @@
  * entrega de origem, marca a coleta (`photo_sent_at`) e fecha a parada só de coleta; a conferência que aprova o
  * canhoto fecha a coleta (`collected`) e resolve a ocorrência pelo `system` (frase `canhoto_collected`); a que reprova
  * reabre as duas. O fim da viagem da coleta não devolve a coleta já fotografada a `pending`.
+ *
+ * Spec 321 T8 (decisão do Anderson, 19/11/2026): a ocorrência conclui no encaixe (`canhoto_scheduled`); o canhoto aprovado
+ * depois não grava outro `resolved`, e o reprovado devolve só a coleta a esperar — a ocorrência **não** reabre. A coleta
+ * nunca encaixada conclui quando a nota fica concluída (canhoto aprovado, causa `collected`).
  */
 import { describe, expect } from 'bun:test'
 import { and, desc, eq } from 'drizzle-orm'
@@ -68,7 +72,10 @@ type World = Readonly<{
 }>
 
 /** A entrega de origem com a coleta registrada pelo motorista 1, encaixada na viagem do motorista 2 (T2 + T3). */
-async function buildWorld(database: TestDatabase): Promise<World> {
+async function buildWorld(
+  database: TestDatabase,
+  options: { readonly schedule: boolean } = { schedule: true },
+): Promise<World> {
   const company = await seedCompany(database)
   const origin = await seedTrip(database, company, 'in_transit')
   await seedStopArrival(database, origin, new Date('2026-09-18T08:30:00.000Z'))
@@ -127,13 +134,15 @@ async function buildWorld(database: TestDatabase): Promise<World> {
   if (pickup === undefined) throw new Error('pickup not created')
 
   const target = await seedTrip(database, company, 'on_delivery_route')
-  await createDrizzleCanhotoPickupSchedule(database.db).schedule({
-    actorUserId: company.userId,
-    companyId: company.companyId,
-    correlationId: 'integration-canhoto-pickup-collection',
-    pickupId: pickup.id,
-    tripId: target.tripId,
-  })
+  if (options.schedule) {
+    await createDrizzleCanhotoPickupSchedule(database.db).schedule({
+      actorUserId: company.userId,
+      companyId: company.companyId,
+      correlationId: 'integration-canhoto-pickup-collection',
+      pickupId: pickup.id,
+      tripId: target.tripId,
+    })
+  }
   return {
     company,
     database,
@@ -245,6 +254,7 @@ async function readResolutionEvents(world: World) {
   return world.database.db
     .select({
       actorKind: tripOccurrenceResolutionEvents.actorKind,
+      canhotoPickupCause: tripOccurrenceResolutionEvents.canhotoPickupCause,
       canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
       kind: tripOccurrenceResolutionEvents.kind,
     })
@@ -253,15 +263,25 @@ async function readResolutionEvents(world: World) {
     .orderBy(tripOccurrenceResolutionEvents.sequence)
 }
 
+/** Spec 321 T8: o `resolved` que o encaixe gravou (a ocorrência conclui ali). */
+const resolvedBySchedule = (world: World) => ({
+  actorKind: 'system' as const,
+  canhotoPickupCause: 'scheduled',
+  canhotoPickupId: world.pickupId,
+  kind: 'resolved' as const,
+})
+
 describe('a coleta de canhoto se fecha pelo canhoto da nota de origem (spec 321 T4, CA04)', () => {
   testWithPostgres(
-    'a foto do motorista da viagem nova vira o canhoto da origem; aprovado resolve, reprovado reabre',
+    'a foto do motorista da viagem nova vira o canhoto da origem; aprovado fecha a coleta, reprovado não reabre a ocorrência',
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await buildWorld(database)
         const scheduled = await readPickup(world)
         const pickupStopId = scheduled.pickupStopId
         if (pickupStopId === null) throw new Error('pickup stop missing')
+        /** Spec 321 T8: o encaixe já concluiu a ocorrência. */
+        expect(await readResolutionEvents(world)).toEqual([resolvedBySchedule(world)])
 
         /** O bot oferece a coleta ao motorista da viagem dela até a foto chegar. */
         const collection = createDrizzleCanhotoPickupCollection(database.db)
@@ -313,7 +333,7 @@ describe('a coleta de canhoto se fecha pelo canhoto da nota de origem (spec 321 
         expect(photographed.photoSentAt).not.toBeNull()
         expect((await readStop(world, pickupStopId))?.completedAt).not.toBeNull()
 
-        /** A leitura do worker casa o número da nota de origem: aprova, fecha a coleta e resolve a ocorrência. */
+        /** A leitura do worker casa o número da nota de origem: aprova e fecha a coleta; a ocorrência já estava concluída. */
         await review(world, {
           action: 'automatic',
           readDocumentId: world.origin.documentId,
@@ -324,9 +344,7 @@ describe('a coleta de canhoto se fecha pelo canhoto da nota de origem (spec 321 
         const collected = await readPickup(world)
         expect(collected.status).toBe('collected')
         expect(collected.collectedAt).not.toBeNull()
-        expect(await readResolutionEvents(world)).toEqual([
-          { actorKind: 'system', canhotoPickupId: world.pickupId, kind: 'resolved' },
-        ])
+        expect(await readResolutionEvents(world)).toEqual([resolvedBySchedule(world)])
         const state = resolveOccurrenceResolutionState({
           cancelledAt: undefined,
           events: await listAllResolutionEventsByOccurrence(database.db, {
@@ -336,9 +354,12 @@ describe('a coleta de canhoto se fecha pelo canhoto da nota de origem (spec 321 
           }).then((rows) => rows.get(world.occurrenceId) ?? []),
         })
         expect(state.state).toBe('resolved')
-        expect(state.lastResolution).toMatchObject({ causedByCanhotoPickup: true })
+        expect(state.lastResolution).toMatchObject({
+          canhotoPickupScheduled: true,
+          causedByCanhotoPickup: true,
+        })
 
-        /** A pessoa reprova (sobrepõe a aprovação automática): a coleta volta a esperar e a ocorrência reabre. */
+        /** A pessoa reprova (sobrepõe a aprovação automática): a coleta volta a esperar, a ocorrência fica concluída. */
         await review(world, {
           action: 'reject',
           note: 'assinatura ilegível no canhoto coletado',
@@ -352,10 +373,7 @@ describe('a coleta de canhoto se fecha pelo canhoto da nota de origem (spec 321 
           pickupTripId: world.target.tripId,
           status: 'scheduled',
         })
-        expect(await readResolutionEvents(world)).toEqual([
-          { actorKind: 'system', canhotoPickupId: world.pickupId, kind: 'resolved' },
-          { actorKind: 'system', canhotoPickupId: world.pickupId, kind: 'reopened' },
-        ])
+        expect(await readResolutionEvents(world)).toEqual([resolvedBySchedule(world)])
       })
     },
     TEST_TIMEOUT_MS,
@@ -401,8 +419,8 @@ describe('a coleta de canhoto se fecha pelo canhoto da nota de origem (spec 321 
           pickupTripId: null,
           status: 'pending',
         })
-        /** Nunca resolvida: reprovar não grava `reopened`. */
-        expect(await readResolutionEvents(world)).toEqual([])
+        /** Spec 321 T8: reprovar não grava `reopened`; a ocorrência segue concluída pelo encaixe. */
+        expect(await readResolutionEvents(world)).toEqual([resolvedBySchedule(world)])
       })
     },
     TEST_TIMEOUT_MS,
@@ -444,6 +462,63 @@ describe('a coleta de canhoto se fecha pelo canhoto da nota de origem (spec 321 
           .where(eq(tripOccurrenceResolutionEvents.documentOccurrenceId, world.occurrenceId))
           .orderBy(desc(tripOccurrenceResolutionEvents.sequence))
         expect(events).toEqual([{ kind: 'resolved' }])
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'a coleta nunca encaixada conclui a ocorrência quando a nota fica concluída (canhoto aprovado, causa collected)',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await buildWorld(database, { schedule: false })
+        expect((await readPickup(world)).status).toBe('pending')
+        expect(await readResolutionEvents(world)).toEqual([])
+
+        /** O canhoto da entrega chega pela própria viagem de origem (o motorista volta e fotografa). */
+        await attachDeliveryProof({
+          actorUserId: world.originDriverUserId,
+          channel: 'driver_app',
+          companyId: world.company.companyId,
+          documentId: world.origin.documentId,
+          driverId: world.company.firstDriverId,
+          newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
+          now: new Date(),
+          repository: new DrizzleDeliveryProofRepository(database.db, TEST_BUCKET),
+          sealDocument: async () => FAKE_ENVELOPE,
+          storage: { store: async () => ({ sha256: 'f'.repeat(64) }) },
+          upload: {
+            attachmentKey: `origin-${crypto.randomUUID()}`,
+            bytes: JPEG_BYTES,
+            capturedAt: undefined,
+            kind: 'photo',
+            mimeType: 'image/jpeg',
+            position: undefined,
+            receiverDocument: '',
+            receiverName: '',
+          },
+        })
+        await review(world, { action: 'approve' })
+        expect((await readPickup(world)).status).toBe('collected')
+        expect(await readResolutionEvents(world)).toEqual([
+          {
+            actorKind: 'system',
+            canhotoPickupCause: 'collected',
+            canhotoPickupId: world.pickupId,
+            kind: 'resolved',
+          },
+        ])
+        const state = resolveOccurrenceResolutionState({
+          cancelledAt: undefined,
+          events: await listAllResolutionEventsByOccurrence(database.db, {
+            companyId: world.company.companyId,
+            occurrenceIds: [world.occurrenceId],
+            occurrenceKind: 'document',
+          }).then((rows) => rows.get(world.occurrenceId) ?? []),
+        })
+        expect(state.lastResolution).toMatchObject({ causedByCanhotoPickup: true })
+        expect(state.lastResolution).not.toHaveProperty('canhotoPickupScheduled')
       })
     },
     TEST_TIMEOUT_MS,

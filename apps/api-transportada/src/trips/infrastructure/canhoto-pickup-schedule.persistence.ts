@@ -10,6 +10,10 @@
  * Ordem das travas (ADR-0068 §2): as viagens envolvidas `FOR NO KEY UPDATE` (em ordem de id), depois a coleta
  * `FOR UPDATE` — a mesma ordem do fechamento da viagem, que trava a viagem e só então devolve a coleta a `pending`
  * (`recordTripStatusChange`). A coleta é relida depois da trava; se mudou, `CanhotoPickupChangedError`.
+ *
+ * Spec 321 T8: encaixar a coleta conclui a ocorrência (`resolved` do `system`, causa `scheduled`) na mesma transação,
+ * depois das travas da viagem e da coleta — a ocorrência é a última trava (a ordem da 266). Desencaixar e retirar a
+ * parada não tocam a ocorrência: ela fica concluída.
  */
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
@@ -36,6 +40,7 @@ import {
   CanhotoPickupScheduleRefusedError,
 } from '../domain/canhoto-pickup.error.js'
 import { decideCanhotoPickupSchedule } from '../domain/canhoto-pickup.policy.js'
+import { resolveOccurrenceOnPickupSchedule } from './canhoto-pickup-collection.persistence.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
 import { TRIP_STATUSES_BEFORE_DISPATCH } from '../domain/trip-state.policy.js'
 import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconciliation.support.js'
@@ -49,6 +54,7 @@ const AUDIT_ENTITY_TYPE = 'canhoto_pickup'
 
 type PickupRow = {
   readonly id: string
+  readonly occurrenceId: string
   readonly originStopId: null | string
   readonly originTripId: string
   readonly pickupStopId: null | string
@@ -67,6 +73,7 @@ async function readPickup(
   const query = queryable
     .select({
       id: tripCanhotoPickups.id,
+      occurrenceId: tripCanhotoPickups.occurrenceId,
       originStopId: tripDocuments.stopId,
       originTripId: tripDocuments.tripId,
       pickupStopId: tripCanhotoPickups.pickupStopId,
@@ -393,6 +400,12 @@ export function createDrizzleCanhotoPickupSchedule(
         })
         if (decision.kind === 'refuse') throw new CanhotoPickupScheduleRefusedError(decision.reason)
         if (decision.kind === 'unchanged') {
+          /** A coleta encaixada antes da T8 conclui a ocorrência no primeiro encaixe repetido. */
+          await resolveOccurrenceOnPickupSchedule(transaction, {
+            companyId,
+            occurrenceId: pickup.occurrenceId,
+            pickupId: pickup.id,
+          })
           return { pickup: await readPickupView(transaction, params), tripsToRefreeze: [] }
         }
 
@@ -418,6 +431,11 @@ export function createDrizzleCanhotoPickupSchedule(
           .where(
             and(eq(tripCanhotoPickups.companyId, companyId), eq(tripCanhotoPickups.id, pickup.id)),
           )
+        await resolveOccurrenceOnPickupSchedule(transaction, {
+          companyId,
+          occurrenceId: pickup.occurrenceId,
+          pickupId: pickup.id,
+        })
         await recordAudit(transaction, {
           ...params,
           action: 'scheduled',

@@ -39,6 +39,7 @@ import {
   type OccurrenceConversationSubjectType,
 } from '../shared/occurrence-conversation-subject.constant.js'
 import { occurrenceContractorReplies } from './occurrence-contractor-reply.schema.js'
+import { CANHOTO_PICKUP_RESOLUTION_CAUSES } from '../shared/canhoto-pickup.constant.js'
 import { inList } from './schema-check.constant.js'
 import { storedObjects } from './storage.schema.js'
 import {
@@ -829,6 +830,12 @@ export const tripOccurrenceResolutionEvents = pgTable(
      * aprovado, `reopened` quando é reprovado. Sem índice único: a mesma coleta resolve e reabre mais de uma vez.
      */
     canhotoPickupId: uuid('canhoto_pickup_id'),
+    /**
+     * Spec 321 T8: a causa do `resolved` pela coleta — `scheduled` (encaixada numa viagem nova) ou `collected` (canhoto
+     * aprovado). Nulo fora do `resolved` da coleta; o `resolved` da T4, gravado antes da coluna, fica nulo e vale
+     * `collected`.
+     */
+    canhotoPickupCause: varchar('canhoto_pickup_cause', { length: 16 }),
     note: text(),
     conversationMessageId: uuid('conversation_message_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -930,6 +937,11 @@ export const tripOccurrenceResolutionEvents = pgTable(
     check(
       'trip_occurrence_resolution_events_canhoto_pickup_owner_check',
       sql`${table.canhotoPickupId} is null or ${table.documentOccurrenceId} is not null`,
+    ),
+    /** Spec 321 T8: a causa só existe no `resolved` da coleta. */
+    check(
+      'trip_occurrence_resolution_events_canhoto_pickup_cause_check',
+      sql`${table.canhotoPickupCause} is null or (${table.canhotoPickupCause} in (${sql.raw(inList(CANHOTO_PICKUP_RESOLUTION_CAUSES))}) and ${table.canhotoPickupId} is not null and ${table.kind} = 'resolved')`,
     ),
     index('trip_occurrence_resolution_events_canhoto_pickup_idx')
       .on(table.companyId, table.canhotoPickupId)

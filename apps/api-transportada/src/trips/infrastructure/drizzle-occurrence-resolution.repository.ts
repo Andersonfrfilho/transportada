@@ -213,6 +213,7 @@ export async function listLatestResolutionEventsByOccurrence(
     .selectDistinctOn([ownerColumn, tripOccurrenceResolutionEvents.kind], {
       actorKind: tripOccurrenceResolutionEvents.actorKind,
       caseEventStatus: tripOccurrenceCaseEvents.toStatus,
+      canhotoPickupCause: tripOccurrenceResolutionEvents.canhotoPickupCause,
       canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
       contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
       createdAt: tripOccurrenceResolutionEvents.createdAt,
@@ -250,6 +251,7 @@ export async function listLatestResolutionEventsByOccurrence(
       caseEventStatus: row.caseEventStatus ?? undefined,
       ...(row.contractorReplyId === null ? {} : { causedByContractorReply: true as const }),
       ...(row.canhotoPickupId === null ? {} : { causedByCanhotoPickup: true as const }),
+      ...(row.canhotoPickupCause === 'scheduled' ? { canhotoPickupScheduled: true as const } : {}),
       createdAt: row.createdAt.toISOString(),
       id: row.id,
       kind: row.kind,
@@ -277,6 +279,7 @@ export async function listAllResolutionEventsByOccurrence(
     .select({
       actorKind: tripOccurrenceResolutionEvents.actorKind,
       caseEventStatus: tripOccurrenceCaseEvents.toStatus,
+      canhotoPickupCause: tripOccurrenceResolutionEvents.canhotoPickupCause,
       canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
       contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
       createdAt: tripOccurrenceResolutionEvents.createdAt,
@@ -310,6 +313,7 @@ export async function listAllResolutionEventsByOccurrence(
       caseEventStatus: row.caseEventStatus ?? undefined,
       ...(row.contractorReplyId === null ? {} : { causedByContractorReply: true as const }),
       ...(row.canhotoPickupId === null ? {} : { causedByCanhotoPickup: true as const }),
+      ...(row.canhotoPickupCause === 'scheduled' ? { canhotoPickupScheduled: true as const } : {}),
       createdAt: row.createdAt.toISOString(),
       id: row.id,
       kind: row.kind,

@@ -11,7 +11,10 @@ import {
   resolveSystemResolutionCausePhraseKey,
   resolveSystemResolutionPhraseKey,
 } from '../../src/trips/domain/occurrence-resolution.policy.js'
-import type { OccurrenceResolutionEventFact } from '../../src/trips/domain/occurrence-resolution.types.js'
+import {
+  SYSTEM_RESOLUTION_PHRASE_KEYS,
+  type OccurrenceResolutionEventFact,
+} from '../../src/trips/domain/occurrence-resolution.types.js'
 
 function event(
   overrides: Partial<OccurrenceResolutionEventFact> & { id: string; createdAt: string },
@@ -216,5 +219,54 @@ describe('system resolution caused by the collected canhoto (spec 321 T4)', () =
     })
     expect(state.state).toBe('resolved')
     expect(state.lastResolution).toMatchObject({ causedByCanhotoPickup: true })
+  })
+})
+
+describe('system resolution caused by scheduling the pickup into a new trip (spec 321 T8)', () => {
+  test('the pickup scheduled into another trip has its own key, distinct from the collected canhoto', () => {
+    expect(
+      resolveSystemResolutionCausePhraseKey({
+        caseEventStatus: undefined,
+        causedByCanhotoPickup: true,
+        canhotoPickupScheduled: true,
+      }),
+    ).toBe('canhoto_scheduled')
+  })
+
+  test('the last resolution carries the scheduling cause', () => {
+    const state = resolveOccurrenceResolutionState({
+      cancelledAt: undefined,
+      events: [
+        event({
+          actorKind: 'system',
+          causedByCanhotoPickup: true,
+          canhotoPickupScheduled: true,
+          createdAt: '2026-11-19T10:00:00.000Z',
+          id: 'a',
+          note: undefined,
+        }),
+      ],
+    })
+    expect(state.lastResolution).toMatchObject({
+      canhotoPickupScheduled: true,
+      causedByCanhotoPickup: true,
+    })
+  })
+})
+
+/**
+ * Cópia por valor: o painel (`tripOccurrenceTimeline.service.ts`) e o app do motorista (`ROUTE_OCCURRENCE_PHRASE_KEYS` e
+ * os locales) repetem esta lista literal nos contratos deles. Frase nova entra nas três apps ao mesmo tempo.
+ */
+describe('the fixed system phrases (parity with the panel and the driver app)', () => {
+  test('lists the six phrase keys, in order', () => {
+    expect([...SYSTEM_RESOLUTION_PHRASE_KEYS]).toEqual([
+      'case_closed',
+      'case_returned_to_warehouse',
+      'case_cancelled',
+      'contractor_reply_delivered',
+      'canhoto_collected',
+      'canhoto_scheduled',
+    ])
   })
 })

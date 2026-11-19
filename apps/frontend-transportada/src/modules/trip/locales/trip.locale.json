@@ -2849,6 +2849,7 @@
       "resolvedAutomatic": "Resolvida automaticamente ao encerrar a tratativa",
       "resolvedOnDelivery": "Resolvida automaticamente ao entregar o documento ao motorista",
       "resolvedCanhotoCollected": "Resolvida automaticamente: o canhoto coletado foi aprovado na conferência",
+      "resolvedCanhotoScheduled": "Resolvida automaticamente: a nota entrou numa nova viagem para buscar o canhoto",
       "reopened": "Reaberta pelo motorista {{name}}",
       "reopenedAutomatic": "Reaberta automaticamente: o canhoto coletado foi reprovado na conferência",
       "contractorReply": "Retorno da contratante: {{status}}",

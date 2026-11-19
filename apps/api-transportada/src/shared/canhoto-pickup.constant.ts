@@ -14,3 +14,12 @@ export const CANHOTO_PICKUP_OPEN_STATUSES = [
   'pending',
   'scheduled',
 ] as const satisfies readonly CanhotoPickupStatus[]
+
+/**
+ * Spec 321 T8: o que fez a coleta concluir a ocorrência (`trip_occurrence_resolution_events.canhoto_pickup_cause`).
+ * `scheduled` = a coleta foi encaixada numa viagem nova (outro motorista, ou o mesmo em outra viagem); `collected` = o
+ * canhoto chegou e foi aprovado. O `resolved` gravado antes da coluna (T4) fica nulo e vale `collected`.
+ */
+export const CANHOTO_PICKUP_RESOLUTION_CAUSES = ['collected', 'scheduled'] as const
+
+export type CanhotoPickupResolutionCause = (typeof CANHOTO_PICKUP_RESOLUTION_CAUSES)[number]

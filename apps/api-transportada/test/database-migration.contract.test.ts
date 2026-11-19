@@ -12,6 +12,7 @@ import './database-migration/occurrence-contractor-notice-block.static.contract.
 import './database-migration/canhoto-pickups.static.contract.js'
 import './database-migration/whatsapp-chats.static.contract.js'
 import './database-migration/canhoto-pickup-resolution.static.contract.js'
+import './database-migration/canhoto-pickup-resolution-cause.static.contract.js'
 import './database-migration/contractor-manual-notices.static.contract.js'
 import './database-migration/company-expenses.static.contract.js'
 import './database-migration/company-expense-allocation.static.contract.js'

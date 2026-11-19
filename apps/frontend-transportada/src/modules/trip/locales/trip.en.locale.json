@@ -2849,6 +2849,7 @@
       "resolvedAutomatic": "Resolved automatically when the case was closed",
       "resolvedOnDelivery": "Resolved automatically when the document was delivered to the driver",
       "resolvedCanhotoCollected": "Resolved automatically: the collected canhoto was approved in the review",
+      "resolvedCanhotoScheduled": "Resolved automatically: the invoice was added to a new trip to pick up the canhoto",
       "reopened": "Reopened by the driver {{name}}",
       "reopenedAutomatic": "Reopened automatically: the collected canhoto was rejected in the review",
       "contractorReply": "Contractor reply: {{status}}",

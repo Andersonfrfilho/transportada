@@ -1423,6 +1423,7 @@ Valor exato em `bigint`, `0` é valor; "quem pagou" obrigatório e `driver` exig
 - **Filtro por id do tipo.** `GET /trip-occurrences?typeIdIn=<uuid>,<uuid>` filtra a ocorrência de nota por `occurrence_type_id` (o `typeIn` segue sendo por nome/`kind`). Valor que não é UUID é `400`, nunca lista vazia; ocorrência de parada não tem tipo cadastrado e fica fora quando o filtro vem.
 - **`canhotoRetained` no detalhe do documento.** `GET /trips/:id` leva `documents[].canhotoRetained` (derivado, nunca gravado): a nota de origem tem coleta de canhoto aberta (`pending | scheduled`, D6) de ocorrência não cancelada. Uma leitura fixa para a viagem (`loadCanhotoRetainedDocumentIds`, `canhoto-pickup.query.ts`). O painel já o lê como opcional.
 - Contratos: `test/trip-occurrence/feed.contract.ts` (`typeIdIn`) e `test/integration/canhoto-pickup-registration.integration.ts` (marcador).
+- **Conclui sozinha (T8, D5b).** Encaixar a coleta numa viagem nova grava `resolved` do `system` com `canhoto_pickup_cause = 'scheduled'` (frase `canhoto_scheduled`) na transação do encaixe; sem encaixe, o canhoto aprovado conclui (`collected`, `canhoto_collected`; nulo = `collected` no histórico da T4). Foto reprovada, desencaixe, retirada da parada e viagem cancelada **não reabrem**: só a coleta volta a esperar. A frase é lista fechada nas três apps (`SYSTEM_RESOLUTION_PHRASE_KEYS`, contrato de paridade em cada uma).
 
 ## A ordem das paradas nasce no rascunho (spec 323, ADR-0044 §1)
 

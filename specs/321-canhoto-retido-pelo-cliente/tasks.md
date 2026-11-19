@@ -18,3 +18,6 @@ nada para `main` (não é bug crítico). **Nenhuma task começa com `[NEEDS CLAR
 - [x] **T6** App do motorista: parada "Coletar canhoto", foto, frase espelhada (paridade nas três apps); prints. — Modelo: sonnet
 - [ ] **T7** Staging: tipo no script de configuração (dry-run primeiro), runbook, `apps/api-transportada/CLAUDE.md`,
       `docs/ai-context/api-transportada.md`, publicação painel → API → app e conferência de CA01–CA05. — Modelo: sonnet
+- [x] **T8** [contrato primeiro] Concluir sozinha (D5b, Anderson 19/11/2026): `resolved` do `system` no encaixe (causa `scheduled`,
+      coluna aditiva `canhoto_pickup_cause`), frase `canhoto_scheduled` nas três apps com paridade, foto reprovada e desencaixe não
+      reabrem; integração da coleta e do encaixe. Só staging. — Modelo: opus

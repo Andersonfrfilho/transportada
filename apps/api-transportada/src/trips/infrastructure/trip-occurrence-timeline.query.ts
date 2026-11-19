@@ -180,6 +180,7 @@ async function listResolutionSources(
       actorKind: tripOccurrenceResolutionEvents.actorKind,
       actorName: identityUserProfiles.name,
       caseStatus: tripOccurrenceCaseEvents.toStatus,
+      canhotoPickupCause: tripOccurrenceResolutionEvents.canhotoPickupCause,
       canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
       contractorReplyId: tripOccurrenceResolutionEvents.contractorReplyId,
       createdAt: tripOccurrenceResolutionEvents.createdAt,
@@ -244,6 +245,9 @@ async function listResolutionSources(
             caseEventStatus: row.caseStatus ?? undefined,
             ...(row.contractorReplyId === null ? {} : { causedByContractorReply: true as const }),
             ...(row.canhotoPickupId === null ? {} : { causedByCanhotoPickup: true as const }),
+            ...(row.canhotoPickupCause === 'scheduled'
+              ? { canhotoPickupScheduled: true as const }
+              : {}),
           }) ?? null)
         : null,
     }

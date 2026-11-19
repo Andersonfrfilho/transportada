@@ -1037,6 +1037,7 @@
     "noteLabel": "NF {{number}}",
     "phrase": {
       "canhoto_collected": "O canhoto foi coletado e aprovado pelo escritório.",
+      "canhoto_scheduled": "A nota entrou numa nova viagem para buscar o canhoto.",
       "case_cancelled": "Tratativa cancelada pelo escritório",
       "case_closed": "Encerrada pelo escritório",
       "case_returned_to_warehouse": "Mercadoria devolvida ao armazém",

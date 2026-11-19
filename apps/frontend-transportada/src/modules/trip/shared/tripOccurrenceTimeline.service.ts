@@ -253,6 +253,39 @@ export type OccurrenceTimelineSentence = Readonly<{
   values: Readonly<Record<string, number | string>>
 }>
 
+/**
+ * As frases fixas do sistema: cópia por valor de `SYSTEM_RESOLUTION_PHRASE_KEYS` da API (`occurrence-resolution.types.ts`),
+ * que repete a mesma lista literal no contrato dela; o app do motorista também. Frase nova entra nas três apps juntas.
+ */
+export const SYSTEM_RESOLUTION_PHRASE_KEYS = [
+  'case_closed',
+  'case_returned_to_warehouse',
+  'case_cancelled',
+  'contractor_reply_delivered',
+  'canhoto_collected',
+  'canhoto_scheduled',
+] as const
+
+type SystemResolutionPhraseKey = (typeof SYSTEM_RESOLUTION_PHRASE_KEYS)[number]
+
+/** A causa que tem frase própria; as da tratativa dizem só "resolvida automaticamente". */
+const SYSTEM_RESOLUTION_KEYS: Readonly<Record<SystemResolutionPhraseKey, string>> = {
+  canhoto_collected: 'occurrenceTimeline.event.resolvedCanhotoCollected',
+  /** Spec 321 T8: a nota entrou numa nova viagem para buscar o canhoto, e a ocorrência concluiu ali. */
+  canhoto_scheduled: 'occurrenceTimeline.event.resolvedCanhotoScheduled',
+  case_cancelled: 'occurrenceTimeline.event.resolvedAutomatic',
+  case_closed: 'occurrenceTimeline.event.resolvedAutomatic',
+  case_returned_to_warehouse: 'occurrenceTimeline.event.resolvedAutomatic',
+  contractor_reply_delivered: 'occurrenceTimeline.event.resolvedOnDelivery',
+}
+
+function describeSystemResolutionKey(phraseKey: null | string | undefined): string {
+  const known = SYSTEM_RESOLUTION_PHRASE_KEYS.find((key) => key === phraseKey)
+  return known === undefined
+    ? 'occurrenceTimeline.event.resolvedAutomatic'
+    : SYSTEM_RESOLUTION_KEYS[known]
+}
+
 /** A frase é chave de locale; o status da tratativa é a mesma chave da coluna da listagem. */
 export function describeOccurrenceTimelineEvent(
   event: OccurrenceTimelineEvent,
@@ -281,15 +314,7 @@ export function describeOccurrenceTimelineEvent(
       return { key: 'occurrenceTimeline.event.mailReceived', values: {} }
     case 'resolution.resolved':
       if (event.actor.kind === 'system') {
-        return {
-          key:
-            event.phraseKey === 'contractor_reply_delivered'
-              ? 'occurrenceTimeline.event.resolvedOnDelivery'
-              : event.phraseKey === 'canhoto_collected'
-                ? 'occurrenceTimeline.event.resolvedCanhotoCollected'
-                : 'occurrenceTimeline.event.resolvedAutomatic',
-          values: {},
-        }
+        return { key: describeSystemResolutionKey(event.phraseKey), values: {} }
       }
       return {
         key: 'occurrenceTimeline.event.resolvedInternal',

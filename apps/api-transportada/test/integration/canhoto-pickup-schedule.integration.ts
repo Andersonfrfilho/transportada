@@ -5,14 +5,21 @@
  * parada no endereço da entrega de origem (RF4); a carga da viagem nova fica igual (CA03b); desencaixar, mover,
  * retirar a parada, cancelar ou concluir a viagem devolvem a coleta a `pending` (casos extremos), e a nota que sai de
  * uma parada com coleta não a apaga (a FK da coleta para a parada é `restrict`).
+ *
+ * Spec 321 T8: encaixar a coleta numa viagem nova conclui a ocorrência sozinha (`resolved` do `system`, causa
+ * `scheduled`, frase `canhoto_scheduled`), na transação do encaixe; desencaixar, retirar a parada, cancelar a viagem e
+ * re-encaixar não reabrem nem duplicam.
  */
 import { describe, expect } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
+
+import { tripOccurrenceResolutionEvents } from '../../src/database/occurrence-conversation.schema.js'
 
 import { auditLogs } from '../../src/database/fiscal-operation.schema.js'
 import { fleetVehicles } from '../../src/database/database.schema.js'
 import {
   tripCanhotoPickups,
+  tripDocumentOccurrences,
   tripDocuments,
   tripStops,
   trips,
@@ -29,6 +36,11 @@ import { createDrizzleCanhotoPickupSchedule } from '../../src/trips/infrastructu
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
+import { listAllResolutionEventsByOccurrence } from '../../src/trips/infrastructure/drizzle-occurrence-resolution.repository.js'
+import {
+  resolveOccurrenceResolutionState,
+  resolveSystemResolutionCausePhraseKey,
+} from '../../src/trips/domain/occurrence-resolution.policy.js'
 import {
   seedCompany,
   seedTrip,
@@ -45,6 +57,7 @@ const DELIVERED_AT = new Date('2026-09-18T15:00:00.000Z')
 type World = Readonly<{
   company: Company
   database: TestDatabase
+  occurrenceId: string
   origin: SeededTrip
   pickupId: string
 }>
@@ -103,7 +116,7 @@ async function buildWorld(database: TestDatabase): Promise<World> {
     .from(tripCanhotoPickups)
     .where(eq(tripCanhotoPickups.occurrenceId, occurrence.id))
   if (pickup === undefined) throw new Error('pickup not created')
-  return { company, database, origin, pickupId: pickup.id }
+  return { company, database, occurrenceId: occurrence.id, origin, pickupId: pickup.id }
 }
 
 /** A viagem de outro motorista, num caminhão com baú medido — para a ocupação ser calculada de verdade (CA03b). */
@@ -500,6 +513,179 @@ describe('o encaixe da coleta de canhoto (spec 321 T3)', () => {
           statuses: ['pending', 'scheduled'],
         })
         expect(listed).toEqual([])
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+})
+
+async function readResolutionEvents(world: World) {
+  return world.database.db
+    .select({
+      actorKind: tripOccurrenceResolutionEvents.actorKind,
+      canhotoPickupCause: tripOccurrenceResolutionEvents.canhotoPickupCause,
+      canhotoPickupId: tripOccurrenceResolutionEvents.canhotoPickupId,
+      kind: tripOccurrenceResolutionEvents.kind,
+    })
+    .from(tripOccurrenceResolutionEvents)
+    .where(eq(tripOccurrenceResolutionEvents.documentOccurrenceId, world.occurrenceId))
+    .orderBy(tripOccurrenceResolutionEvents.sequence)
+}
+
+async function readResolutionState(world: World) {
+  const events = await listAllResolutionEventsByOccurrence(world.database.db, {
+    companyId: world.company.companyId,
+    occurrenceIds: [world.occurrenceId],
+    occurrenceKind: 'document',
+  })
+  return resolveOccurrenceResolutionState({
+    cancelledAt: undefined,
+    events: events.get(world.occurrenceId) ?? [],
+  })
+}
+
+describe('o encaixe conclui a ocorrência do canhoto retido (spec 321 T8)', () => {
+  testWithPostgres(
+    'encaixar em outra viagem resolve pelo sistema (canhoto_scheduled); desencaixar, retirar, cancelar e re-encaixar não reabrem nem duplicam',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await buildWorld(database)
+        expect(await readResolutionEvents(world)).toEqual([])
+
+        const first = await seedTargetTrip(world, 'draft')
+        const scheduled = await writer(world).schedule({
+          ...actor(world),
+          pickupId: world.pickupId,
+          tripId: first.tripId,
+        })
+        const resolvedOnce = [
+          {
+            actorKind: 'system' as const,
+            canhotoPickupCause: 'scheduled',
+            canhotoPickupId: world.pickupId,
+            kind: 'resolved' as const,
+          },
+        ]
+        expect(await readResolutionEvents(world)).toEqual(resolvedOnce)
+        const state = await readResolutionState(world)
+        expect(state.state).toBe('resolved')
+        expect(state.lastResolution).toMatchObject({
+          canhotoPickupScheduled: true,
+          causedByCanhotoPickup: true,
+        })
+        expect(
+          resolveSystemResolutionCausePhraseKey(
+            state.lastResolution ?? { caseEventStatus: undefined },
+          ),
+        ).toBe('canhoto_scheduled')
+        /** A coleta segue aberta (o canhoto ainda não chegou): só a ocorrência conclui. */
+        expect((await readPickup(world))?.status).toBe('scheduled')
+
+        /** Encaixar de novo na mesma viagem não muda nada. */
+        await writer(world).schedule({
+          ...actor(world),
+          pickupId: world.pickupId,
+          tripId: first.tripId,
+        })
+        expect(await readResolutionEvents(world)).toEqual(resolvedOnce)
+
+        /** Retirar a parada do rascunho devolve a coleta a pending e não reabre. */
+        await new DrizzleTripRepository(database.db).retireStop({
+          actor: { channel: 'backoffice', userId: world.company.userId },
+          companyId: world.company.companyId,
+          stopId: scheduled.pickup.pickupStopId ?? '',
+          tripId: first.tripId,
+        })
+        expect((await readPickup(world))?.status).toBe('pending')
+        expect(await readResolutionEvents(world)).toEqual(resolvedOnce)
+
+        /** Re-encaixar (o mesmo motorista ou outro, noutra viagem) não grava outro resolved. */
+        const second = await seedTargetTrip(world, 'route_planned')
+        await writer(world).schedule({
+          ...actor(world),
+          pickupId: world.pickupId,
+          tripId: second.tripId,
+        })
+        expect(await readResolutionEvents(world)).toEqual(resolvedOnce)
+
+        /** Mover para uma terceira viagem e depois desencaixar: nada reabre. */
+        const third = await seedTargetTrip(world, 'on_delivery_route')
+        await writer(world).schedule({
+          ...actor(world),
+          pickupId: world.pickupId,
+          tripId: third.tripId,
+        })
+        await writer(world).unschedule({ ...actor(world), pickupId: world.pickupId })
+        expect((await readPickup(world))?.status).toBe('pending')
+        expect(await readResolutionEvents(world)).toEqual(resolvedOnce)
+
+        /** A viagem da coleta cancelada devolve a coleta a pending e também não reabre. */
+        await writer(world).schedule({
+          ...actor(world),
+          pickupId: world.pickupId,
+          tripId: second.tripId,
+        })
+        await new DrizzleTripRouteRepository(database.db).markCancelled({
+          actorUserId: world.company.userId,
+          channel: 'backoffice',
+          companyId: world.company.companyId,
+          onBehalfOfDriverId: null,
+          tripId: second.tripId,
+        })
+        expect((await readPickup(world))?.status).toBe('pending')
+        expect(await readResolutionEvents(world)).toEqual(resolvedOnce)
+        expect((await readResolutionState(world)).state).toBe('resolved')
+      })
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'a ocorrência cancelada ou já resolvida pelo escritório não ganha resolved do sistema no encaixe',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const cancelledWorld = await buildWorld(database)
+        await database.db
+          .update(tripDocumentOccurrences)
+          .set({
+            cancellationReason: 'registrada por engano',
+            cancelledAt: new Date(),
+            cancelledByUserId: cancelledWorld.company.userId,
+          })
+          .where(eq(tripDocumentOccurrences.id, cancelledWorld.occurrenceId))
+        const target = await seedTargetTrip(cancelledWorld, 'draft')
+        await writer(cancelledWorld).schedule({
+          ...actor(cancelledWorld),
+          pickupId: cancelledWorld.pickupId,
+          tripId: target.tripId,
+        })
+        expect(await readResolutionEvents(cancelledWorld)).toEqual([])
+      })
+
+      await withDisposableDatabase(async (database) => {
+        const world = await buildWorld(database)
+        await database.db.insert(tripOccurrenceResolutionEvents).values({
+          actorKind: 'internal',
+          actorUserId: world.company.userId,
+          companyId: world.company.companyId,
+          documentOccurrenceId: world.occurrenceId,
+          kind: 'resolved',
+          note: 'resolvida pelo escritório',
+        })
+        const target = await seedTargetTrip(world, 'draft')
+        await writer(world).schedule({
+          ...actor(world),
+          pickupId: world.pickupId,
+          tripId: target.tripId,
+        })
+        expect(await readResolutionEvents(world)).toEqual([
+          {
+            actorKind: 'internal',
+            canhotoPickupCause: null,
+            canhotoPickupId: null,
+            kind: 'resolved',
+          },
+        ])
       })
     },
     TEST_TIMEOUT_MS,

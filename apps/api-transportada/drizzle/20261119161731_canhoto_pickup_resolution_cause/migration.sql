@@ -1,0 +1,2 @@
+ALTER TABLE "trip_occurrence_resolution_events" ADD COLUMN "canhoto_pickup_cause" varchar(16);--> statement-breakpoint
+ALTER TABLE "trip_occurrence_resolution_events" ADD CONSTRAINT "trip_occurrence_resolution_events_canhoto_pickup_cause_check" CHECK ("canhoto_pickup_cause" is null or ("canhoto_pickup_cause" in ('collected', 'scheduled') and "canhoto_pickup_id" is not null and "kind" = 'resolved'));

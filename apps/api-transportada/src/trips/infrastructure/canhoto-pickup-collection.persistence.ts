@@ -9,9 +9,12 @@
  * tem comprovante próprio.
  *
  * Quem decide é a conferência do canhoto (escritor único `reviewCanhotoProof`): aprovado, a coleta aberta vira `collected`
- * e a ocorrência recebe `resolved` do `system` com a coleta como causa; reprovado, a coleta volta a `scheduled` (ou
- * `pending`, se a viagem dela já acabou) e a ocorrência resolvida recebe `reopened` do `system`. Tudo na transação da
- * conferência.
+ * e a ocorrência ainda aberta recebe `resolved` do `system` com a coleta como causa (`collected`); reprovado, a coleta
+ * volta a `scheduled` (ou `pending`, se a viagem dela já acabou). Tudo na transação da conferência.
+ *
+ * Spec 321 T8 (decisão do Anderson, 19/11/2026): a ocorrência conclui já no encaixe da coleta numa viagem nova
+ * (`resolveOccurrenceOnPickupSchedule`, causa `scheduled`), e o canhoto reprovado **não reabre mais** a ocorrência — só
+ * a coleta volta a esperar o canhoto. O `reopened` do `system` gravado pela T4 continua legível no histórico.
  *
  * Ordem das travas (ADR-0068 §2, a mesma da T3): viagem da coleta `FOR NO KEY UPDATE`, depois a coleta `FOR UPDATE`,
  * depois a ocorrência `FOR NO KEY UPDATE` (a ordem da 266). Nada aqui toca `trip_documents` (D3, CA03).
@@ -33,6 +36,7 @@ import {
 } from '../../database/trip.schema.js'
 import {
   CANHOTO_PICKUP_OPEN_STATUSES,
+  type CanhotoPickupResolutionCause,
   type CanhotoPickupStatus,
 } from '../../shared/canhoto-pickup.constant.js'
 import { isTripOpenForCanhotoPickup } from '../domain/canhoto-pickup.policy.js'
@@ -46,7 +50,6 @@ export type CanhotoPickupSettlement =
   | {
       readonly kind: 'reopened'
       readonly pickupId: string
-      readonly reopenedOccurrence: boolean
       readonly status: CanhotoPickupStatus
     }
   | { readonly kind: 'none' }
@@ -144,23 +147,46 @@ async function readLatestResolutionKind(
   return row?.kind
 }
 
-async function insertSystemResolutionEvent(
+/**
+ * Grava o `resolved` do `system` com a coleta como causa, se a ocorrência existe, não foi cancelada e não está resolvida.
+ * Trava a ocorrência (`FOR NO KEY UPDATE`, 266) e lê o último evento **depois** da trava. Quem chama já travou a viagem
+ * e a coleta (ADR-0068 §2). Devolve `true` quando gravou.
+ */
+async function resolveOccurrenceByPickup(
   queryable: TripQueryable,
   input: {
+    readonly cause: CanhotoPickupResolutionCause
     readonly companyId: string
-    readonly kind: 'reopened' | 'resolved'
     readonly occurrenceId: string
     readonly pickupId: string
   },
-): Promise<void> {
+): Promise<boolean> {
+  const occurrence = await lockOccurrence(queryable, input)
+  if (occurrence === undefined || occurrence.cancelled) return false
+  const latest = await readLatestResolutionKind(queryable, input)
+  if (latest === 'resolved') return false
   await queryable.insert(tripOccurrenceResolutionEvents).values({
     actorKind: 'system',
     actorUserId: null,
+    canhotoPickupCause: input.cause,
     canhotoPickupId: input.pickupId,
     companyId: input.companyId,
     documentOccurrenceId: input.occurrenceId,
-    kind: input.kind,
+    kind: 'resolved',
   })
+  return true
+}
+
+/**
+ * Spec 321 T8: a coleta encaixada numa viagem nova (outro motorista, ou o mesmo em outra viagem) conclui a ocorrência,
+ * na transação do encaixe e depois das travas da viagem e da coleta. Re-encaixar, desencaixar ou retirar a parada não
+ * reabrem: a ocorrência já resolvida fica como está.
+ */
+export async function resolveOccurrenceOnPickupSchedule(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceId: string; readonly pickupId: string },
+): Promise<boolean> {
+  return resolveOccurrenceByPickup(queryable, { ...input, cause: 'scheduled' })
 }
 
 /**
@@ -265,25 +291,13 @@ async function collectOpenPickup(
     })
   }
 
-  const occurrence = await lockOccurrence(queryable, {
+  const resolved = await resolveOccurrenceByPickup(queryable, {
+    cause: 'collected',
     companyId: input.companyId,
-    occurrenceId: pickup.occurrenceId,
-  })
-  if (occurrence === undefined || occurrence.cancelled) {
-    return { kind: 'collected', pickupId: pickup.id, resolved: false }
-  }
-  const latest = await readLatestResolutionKind(queryable, {
-    companyId: input.companyId,
-    occurrenceId: pickup.occurrenceId,
-  })
-  if (latest === 'resolved') return { kind: 'collected', pickupId: pickup.id, resolved: false }
-  await insertSystemResolutionEvent(queryable, {
-    companyId: input.companyId,
-    kind: 'resolved',
     occurrenceId: pickup.occurrenceId,
     pickupId: pickup.id,
   })
-  return { kind: 'collected', pickupId: pickup.id, resolved: true }
+  return { kind: 'collected', pickupId: pickup.id, resolved }
 }
 
 async function readTripStatus(
@@ -300,8 +314,9 @@ async function readTripStatus(
 
 /**
  * Reprovado: a coleta que o canhoto fechou (`collected`) ou cuja foto esperava a conferência volta a esperar o canhoto —
- * `scheduled` na mesma viagem se ela segue aberta, senão `pending` para o escritório encaixar de novo. A ocorrência
- * resolvida reabre. Outra coleta já aberta na mesma entrega (uma ocorrência nova) impede reabrir a antiga: a nova vale.
+ * `scheduled` na mesma viagem se ela segue aberta, senão `pending` para o escritório encaixar de novo. Spec 321 T8: a
+ * ocorrência **não** reabre (ela concluiu no encaixe ou no canhoto aprovado). Outra coleta já aberta na mesma entrega
+ * (uma ocorrência nova) impede reabrir a antiga: a nova vale.
  */
 async function reopenPickup(
   queryable: TripQueryable,
@@ -372,27 +387,7 @@ async function reopenPickup(
       and(eq(tripCanhotoPickups.companyId, input.companyId), eq(tripCanhotoPickups.id, pickup.id)),
     )
 
-  const occurrence = await lockOccurrence(queryable, {
-    companyId: input.companyId,
-    occurrenceId: pickup.occurrenceId,
-  })
-  if (occurrence === undefined || occurrence.cancelled) {
-    return { kind: 'reopened', pickupId: pickup.id, reopenedOccurrence: false, status }
-  }
-  const latest = await readLatestResolutionKind(queryable, {
-    companyId: input.companyId,
-    occurrenceId: pickup.occurrenceId,
-  })
-  if (latest !== 'resolved') {
-    return { kind: 'reopened', pickupId: pickup.id, reopenedOccurrence: false, status }
-  }
-  await insertSystemResolutionEvent(queryable, {
-    companyId: input.companyId,
-    kind: 'reopened',
-    occurrenceId: pickup.occurrenceId,
-    pickupId: pickup.id,
-  })
-  return { kind: 'reopened', pickupId: pickup.id, reopenedOccurrence: true, status }
+  return { kind: 'reopened', pickupId: pickup.id, status }
 }
 
 /**

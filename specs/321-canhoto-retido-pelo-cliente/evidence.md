@@ -304,3 +304,31 @@ Prints (claro/escuro, desktop 1280 e celular 375; vazio, com foto, enviada) em `
 Contrato `test/trip-occurrence/feed.contract.ts` (typeIdIn aceita UUID, recusa o resto), marcador em `test/integration/canhoto-pickup-registration.integration.ts`. `tsc` limpo; API: 15030 contratos, 0 fail. **Ainda aberto na T7:** tipo no script de staging (dry-run), publicação painel → API → app e conferência de CA01–CA05 em staging, que pedem acesso ao ambiente.
 
 **Tipo em staging.** `apps/api-transportada/scripts/canhoto-retido-type-publish.ts` (simula sem `--confirm`; só cria, nunca reescreve) e o invólucro `ops-scripts/staging-canhoto-retido-tipo.sh` (simula, pede "sim", grava a saída em `tmp/ops/saidas/`). Só roda depois que o PR da T7 estiver publicado em staging.
+
+## T8 — a ocorrência conclui sozinha (D5b)
+
+Pedido do Anderson (19/11/2026): concluir a ocorrência quando a nota entra para outro motorista, ou o mesmo em outra viagem, ou quando
+fica concluída; foto reprovada não reabre.
+
+**API.** `schedule` (`canhoto-pickup-schedule.persistence.ts`) grava `resolved` do `system` com `canhoto_pickup_id` e
+`canhoto_pickup_cause = 'scheduled'` na transação do encaixe, depois das travas da viagem e da coleta (a ocorrência é a última trava,
+`FOR NO KEY UPDATE`, estado lido depois dela). Ocorrência cancelada ou já resolvida não ganha evento. O encaixe repetido na mesma
+viagem também conclui (cobre a coleta encaixada antes da T8). `reopenPickup` não grava mais `reopened`: a coleta volta a `scheduled`
+ou `pending` e a ocorrência fica como está. Desencaixe, retirada da parada e cancelamento da viagem não tocam a ocorrência.
+O canhoto aprovado de coleta nunca encaixada grava a causa `collected`.
+
+**"Nota concluída".** A linha entregue nunca solta (`trip_documents_delivered_locks_release_check`) e a nota não fica viva em duas
+viagens (`trip_documents_live_nfe_document_unique`), então a nota de origem não entra noutra viagem como entrega: a "nota concluída"
+é o canhoto aprovado (D5), que continua concluindo quando não houve encaixe.
+
+**Banco.** Migration `20261119161731_canhoto_pickup_resolution_cause`: coluna anulável e CHECK (só no `resolved` com coleta); sem
+UPDATE. O `resolved` da T4 fica nulo e vale `collected`. Rollback recusa havendo causa `scheduled` (provado contra Postgres 16:
+migra do zero, rollback limpo, coluna some).
+
+**Frase.** `canhoto_scheduled` em `SYSTEM_RESOLUTION_PHRASE_KEYS` (API), `ROUTE_OCCURRENCE_PHRASE_KEYS` + locales pt/en (motorista) e
+`SYSTEM_RESOLUTION_PHRASE_KEYS` + `resolvedCanhotoScheduled` (painel); cada app tem o contrato com a mesma lista literal de seis chaves.
+O app do motorista publicado lê frase desconhecida como `null` (texto genérico), então a ordem de publicação não quebra nada.
+
+**Testes.** API: contratos 15697 pass, 0 fail; integração `canhoto-pickup-schedule`, `canhoto-pickup-collection`,
+`canhoto-pickup-registration` e `delivery-proof-canhoto-review` contra Postgres 16 com `--env-file=../../.env.test`: 33 pass, 0 fail.
+Painel: 8960 + 1497 pass, 0 fail. Motorista: 2365 pass, 0 fail. `tsc` e `eslint` limpos nas três apps.
