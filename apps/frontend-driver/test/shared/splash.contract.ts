@@ -112,5 +112,6 @@ describe('splash do motorista', () => {
     expect(html).toContain('prefers-reduced-motion: no-preference')
     expect(html).toContain('prefers-reduced-motion: reduce')
     expect(html).not.toContain('<script>')
+    expect(html).toMatch(/#splash \{[^}]*pointer-events: none/u)
   })
 })

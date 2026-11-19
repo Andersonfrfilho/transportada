@@ -42,11 +42,12 @@
         place-items: center;
         background: var(--splash-bg);
         opacity: 1;
+        /* Só visual: o toque passa para o app por baixo, a splash nunca atrasa o uso. */
+        pointer-events: none;
         transition: opacity 250ms ease-out;
       }
       #splash.is-leaving {
         opacity: 0;
-        pointer-events: none;
       }
       #splash svg {
         width: 10rem;
