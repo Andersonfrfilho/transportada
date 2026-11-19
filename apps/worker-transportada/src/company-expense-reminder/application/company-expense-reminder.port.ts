@@ -33,6 +33,8 @@ export type ReminderRecipient = {
 export type ReminderPerson = ReminderRecipient & {
   readonly emailAddress: string | null
   readonly name: string
+  /** Número verificado do WhatsApp (como cadastrado), ou nulo. */
+  readonly whatsappPhone: string | null
 }
 
 export type ReminderOccurrence = {
@@ -75,6 +77,14 @@ export type CompanyExpenseReminderPorts = {
     /** Lança se o provedor não aceitou o envio. */
     send(email: ReminderEmail): Promise<void>
   }
+  readonly whatsapp: {
+    /** Lança se o envio não saiu (canal não configurado, número recusado, instância fora). */
+    sendText(input: {
+      readonly body: string
+      readonly companyId: string
+      readonly number: string
+    }): Promise<void>
+  }
   readonly occurrences: {
     /** Só ocorrência `open`. */
     listOpen(input: { companyId: string }): Promise<readonly ReminderOccurrence[]>
@@ -90,6 +100,11 @@ export type CompanyExpenseReminderPorts = {
   }
   readonly settings: { get(input: { companyId: string }): Promise<ReminderSettings> }
   readonly templates: {
+    /** A versão ativa mais alta do modelo de WhatsApp pt-BR da empresa, ou `null`. */
+    findWhatsapp(input: {
+      companyId: string
+      key: string
+    }): Promise<{ readonly body: string } | null>
     /** A versão ativa mais alta do modelo de e-mail pt-BR da empresa, ou `null`. */
     findEmail(input: {
       companyId: string

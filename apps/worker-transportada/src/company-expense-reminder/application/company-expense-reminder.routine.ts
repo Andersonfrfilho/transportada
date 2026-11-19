@@ -10,11 +10,13 @@ import type {
 } from '../../job-run/application/job-routine.port.js'
 import { safeLogInfo, safeLogWarn } from '../../logging/safe-logger.service.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
+import { toWhatsAppPhone } from '../../whatsapp/domain/whatsapp-phone.policy.js'
 import { EXPENSE_REMINDER_TEMPLATE_KEY } from '../domain/company-expense-reminder.constant.js'
 import {
   buildExpenseMailButtonHtml,
   buildExpenseReminderValues,
   renderExpenseReminderMail,
+  renderExpenseWhatsappText,
 } from '../domain/expense-reminder-mail.policy.js'
 import {
   chooseReminderRecipients,
@@ -60,10 +62,11 @@ export function saoPauloClock(now: Date): { readonly hour: number; readonly toda
 }
 
 /**
- * Spec 325 T7.4 (RF25, RF28): avisa por e-mail as contas a vencer, as que vencem hoje e as vencidas, por empresa.
- * Idempotente: o aviso é reservado em `company_expense_reminders_sent` antes de enviar (chave única por ocorrência,
- * responsável, dia e tipo) e a reserva é solta se o e-mail não saiu. WhatsApp e push ainda não saem daqui (contados em
- * `unsupportedChannel`). Uma empresa que falha não segura as outras; o ciclo as termina e só depois acusa.
+ * Spec 325 T7.4 (RF25, RF26, RF28): avisa por e-mail e por WhatsApp as contas a vencer, as que vencem hoje e as vencidas,
+ * por empresa. Idempotente: o aviso é reservado em `company_expense_reminders_sent` antes de enviar (chave única por
+ * ocorrência, responsável, dia e tipo, **sem canal**: um aviso por pessoa) e a reserva é solta se nenhum canal entregou.
+ * O WhatsApp sai pelo Evolution da empresa, com o modelo de texto `contas.aviso-vencimento`. Push ainda não sai daqui
+ * (contado em `unsupportedChannel`). Uma empresa que falha não segura as outras; o ciclo as termina e só depois acusa.
  */
 export function createCompanyExpenseReminderRoutine(
   dependencies: CompanyExpenseReminderRoutineDependencies,
@@ -146,11 +149,19 @@ async function remindCompany(input: {
   }
   if (due.length === 0) return
 
-  const template = await ports.templates.findEmail({
+  const emailTemplateRaw = await ports.templates.findEmail({
     companyId,
     key: EXPENSE_REMINDER_TEMPLATE_KEY,
   })
-  if (template === null || findUnsafeEmailHtml(template.body).length > 0) {
+  const emailTemplate =
+    emailTemplateRaw === null || findUnsafeEmailHtml(emailTemplateRaw.body).length > 0
+      ? null
+      : emailTemplateRaw
+  const whatsappTemplate = await ports.templates.findWhatsapp({
+    companyId,
+    key: EXPENSE_REMINDER_TEMPLATE_KEY,
+  })
+  if (emailTemplate === null && whatsappTemplate === null) {
     counters.templateMissing += due.length
     return
   }
@@ -179,53 +190,80 @@ async function remindCompany(input: {
     }
     for (const recipient of choice.recipients) {
       const person = people.get(recipient.userId)
-      counters.unsupportedChannel += recipient.channels.filter((c) => c !== 'email').length
-      if (person === undefined || !recipient.channels.includes('email')) continue
-      await sendEmailReminder({
-        companyDisplayName,
+      counters.unsupportedChannel += recipient.channels.filter(
+        (c) => c !== 'email' && c !== 'whatsapp',
+      ).length
+      if (person === undefined) continue
+      const channels = recipient.channels.filter(
+        (c): c is 'email' | 'whatsapp' => c === 'email' || c === 'whatsapp',
+      )
+      const firstChannel = channels[0]
+      if (firstChannel === undefined) continue
+      const key = {
         companyId,
-        counters,
-        dependencies,
+        day: today,
         kind,
-        occurrence,
-        openContasUrl,
-        person,
-        template,
-        today,
-      })
+        occurrenceId: occurrence.id,
+        recipientUserId: person.userId,
+      }
+      // Reserva antes de enviar: duas rotinas ao mesmo tempo não mandam duas vezes (a chave única decide).
+      if (!(await ports.sent.record({ ...key, channel: firstChannel }))) {
+        counters.skipped += 1
+        continue
+      }
+      let delivered = 0
+      for (const channel of channels) {
+        const ok =
+          channel === 'email'
+            ? await sendEmailReminder({
+                companyDisplayName,
+                counters,
+                dependencies,
+                kind,
+                occurrence,
+                openContasUrl,
+                person,
+                template: emailTemplate,
+                today,
+              })
+            : await sendWhatsappReminder({
+                companyDisplayName,
+                companyId,
+                counters,
+                dependencies,
+                occurrence,
+                person,
+                template: whatsappTemplate,
+                today,
+              })
+        if (ok) delivered += 1
+      }
+      // Nenhum canal entregou: solta a reserva, a próxima rodada do dia tenta de novo.
+      if (delivered === 0) await ports.sent.release(key)
     }
   }
 }
 
 async function sendEmailReminder(input: {
   readonly companyDisplayName: string
-  readonly companyId: string
   readonly counters: Counters
   readonly dependencies: CompanyExpenseReminderRoutineDependencies
   readonly kind: ReminderKind
   readonly occurrence: ReminderOccurrence
   readonly openContasUrl: string | null
   readonly person: ReminderPerson
-  readonly template: { readonly body: string; readonly subject: string }
+  readonly template: { readonly body: string; readonly subject: string } | null
   readonly today: string
-}): Promise<void> {
+}): Promise<boolean> {
   const { counters, occurrence, person } = input
   const { ports } = input.dependencies
+  if (input.template === null) {
+    counters.templateMissing += 1
+    return false
+  }
   if (person.emailAddress === null) {
     counters.failed += 1
-    return
-  }
-  const key = {
-    companyId: input.companyId,
-    day: input.today,
-    kind: input.kind,
-    occurrenceId: occurrence.id,
-    recipientUserId: person.userId,
-  }
-  // Reserva antes de enviar: duas rotinas ao mesmo tempo não mandam duas vezes (a chave única decide).
-  if (!(await ports.sent.record({ ...key, channel: 'email' }))) {
-    counters.skipped += 1
-    return
+    return false
   }
   try {
     const mail = renderExpenseReminderMail({
@@ -257,9 +295,54 @@ async function sendEmailReminder(input: {
       to: person.emailAddress,
     })
     counters.sent += 1
+    return true
   } catch {
     counters.failed += 1
-    // Nenhum canal entregou: solta a reserva, a próxima rodada do dia tenta de novo.
-    await ports.sent.release(key)
+    return false
+  }
+}
+
+/** RF26: o aviso por WhatsApp, pelo Evolution da empresa. Número ausente ou fora do padrão é falha, nunca envio a outro. */
+async function sendWhatsappReminder(input: {
+  readonly companyDisplayName: string
+  readonly companyId: string
+  readonly counters: Counters
+  readonly dependencies: CompanyExpenseReminderRoutineDependencies
+  readonly occurrence: ReminderOccurrence
+  readonly person: ReminderPerson
+  readonly template: { readonly body: string } | null
+  readonly today: string
+}): Promise<boolean> {
+  const { counters, occurrence, person } = input
+  if (input.template === null) {
+    counters.templateMissing += 1
+    return false
+  }
+  const number = person.whatsappPhone === null ? undefined : toWhatsAppPhone(person.whatsappPhone)
+  if (number === undefined) {
+    counters.failed += 1
+    return false
+  }
+  try {
+    const body = renderExpenseWhatsappText({
+      body: input.template.body,
+      values: buildExpenseReminderValues({
+        amount: occurrence.expectedAmount,
+        categoryName: occurrence.categoryName,
+        companyDisplayName: input.companyDisplayName,
+        competence: occurrence.competence,
+        dueDate: occurrence.dueDate,
+        expenseName: occurrence.expenseName,
+        payeeName: occurrence.payeeName,
+        recipientName: person.name,
+        today: input.today,
+      }),
+    })
+    await input.dependencies.ports.whatsapp.sendText({ body, companyId: input.companyId, number })
+    counters.sent += 1
+    return true
+  } catch {
+    counters.failed += 1
+    return false
   }
 }
