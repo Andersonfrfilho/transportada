@@ -457,6 +457,18 @@ export function ExpensesWorkspacePage() {
                             {t('list.settle')}
                           </Button>
                         ) : null}
+                        {canManage && row.status === 'open' ? (
+                          <Button
+                            onClick={() =>
+                              workspace.openDialog({ kind: 'cancel', occurrence: row })
+                            }
+                            size="sm"
+                            type="button"
+                            variant="secondary"
+                          >
+                            {t('list.cancel')}
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -485,6 +497,15 @@ export function ExpensesWorkspacePage() {
           action={workspace.dialog.action}
           expected={workspace.selection.expected}
           items={workspace.openItems.filter((item) => workspace.selectedIds.has(item.id))}
+          onClose={workspace.closeDialog}
+        />
+      ) : null}
+
+      {workspace.dialog?.kind === 'cancel' ? (
+        <ExpenseBulkDialog
+          action="cancel"
+          expected={workspace.dialog.occurrence.expectedAmount}
+          items={[workspace.dialog.occurrence]}
           onClose={workspace.closeDialog}
         />
       ) : null}

@@ -193,7 +193,7 @@ describe('o aviso automático à contratante contra Postgres (spec 183 T802)', (
   )
 
   testWithPostgres(
-    'spec 321 (CA01/CA02): tipo que nunca avisa a contratante, com o automático ligado, não manda nada — nem à mão',
+    'spec 321/343 (CA01/CA02): a marca do tipo cala o automático, mesmo ligado; à mão o e-mail sai',
     async () => {
       await withConversationDatabase(async (database) => {
         const seeded = await seedMailScenario(database)
@@ -221,29 +221,22 @@ describe('o aviso automático à contratante contra Postgres (spec 183 T802)', (
           }),
         ).toEqual({ outcome: 'skipped', reason: 'contractor_notice_blocked' })
 
-        await expect(
-          createOccurrenceMailUseCase(database).send({
-            actorUserId: userId,
-            bodyText: 'Canhoto retido pelo cliente.',
-            companyId,
-            contactIds: [...seeded.contactIds],
-            correlationId: 'correlation-manual-321',
-            idempotencyKey: 'manual-321',
-            occurrenceId: seeded.occurrenceId,
-            subject: 'Canhoto retido',
-          }),
-        ).rejects.toMatchObject({ code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED', status: 409 })
+        await createOccurrenceMailUseCase(database).send({
+          actorUserId: userId,
+          bodyText: 'Canhoto retido pelo cliente.',
+          companyId,
+          contactIds: seeded.contactIds.slice(0, 1),
+          correlationId: 'correlation-manual-321',
+          idempotencyKey: 'manual-321',
+          occurrenceId: seeded.occurrenceId,
+          subject: 'Canhoto retido',
+        })
 
         const mails = await database.db
           .select({ id: contractorMailMessages.id })
           .from(contractorMailMessages)
           .where(eq(contractorMailMessages.companyId, companyId))
-        expect(mails).toEqual([])
-        const messages = await database.db
-          .select({ id: occurrenceConversationMessages.id })
-          .from(occurrenceConversationMessages)
-          .where(eq(occurrenceConversationMessages.companyId, companyId))
-        expect(messages).toEqual([])
+        expect(mails).toHaveLength(1)
       })
     },
     30_000,

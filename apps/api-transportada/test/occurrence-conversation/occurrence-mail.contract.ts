@@ -24,7 +24,10 @@ import {
   OccurrenceMailTemplateMissingError,
 } from '../../src/occurrence-conversation/domain/occurrence-conversation.error.js'
 import type { StoredContractorReplyConfiguration } from '../../src/occurrence-conversation/application/occurrence-mail.port.js'
-import type { ConversationUploadTarget } from '../../src/occurrence-conversation/application/conversation-attachment.port.js'
+import type {
+  ConversationUploadTarget,
+  ExistingObjectToAttach,
+} from '../../src/occurrence-conversation/application/conversation-attachment.port.js'
 import type { OccurrenceOwnerReader } from '../../src/occurrence-conversation/application/occurrence-owner-reader.port.js'
 import { htmlToPlainText } from '../../src/occurrence-conversation/domain/occurrence-mail-plain-text.policy.js'
 import { composeOccurrenceMailHtml } from '../../src/occurrence-conversation/domain/occurrence-mail-html-compose.policy.js'
@@ -111,6 +114,8 @@ function createFake(
     resendOutcome: RecordContractorReplyResendOutcome
     settings: Awaited<ReturnType<OccurrenceMailTransactionPort['findMailSettings']>>
     target: OccurrenceMailTarget | null
+    /** Spec 317: as fotos da cobrança da parada (placa e extrato) que o aviso manual leva. */
+    chargePhotos: readonly ExistingObjectToAttach[]
     /** Spec 183 T702e: o tamanho de cada objeto subido, pelo `head()`. */
     uploadBytes: number
   }> = {},
@@ -118,6 +123,7 @@ function createFake(
   const uploadBytes = overrides.uploadBytes ?? PDF.byteLength
   const locked: { ids: readonly string[]; target: ConversationUploadTarget }[] = []
   const attached: { messageId: string; uploadId: string }[] = []
+  const storedCopies: { fileName: string; messageId: string }[] = []
   const state: FakeState = {
     calls: [],
     conversationMessages: [],
@@ -134,8 +140,10 @@ function createFake(
   const transaction: OccurrenceMailTransactionPort = {
     findClientEmailAudience: async () => null,
     findOrCreateClientEmailConversation: async () => ({ id: 'client-email-conversation' }),
+    listStopOccurrenceChargePhotos: async () => overrides.chargePhotos ?? [],
     attachments: {
       attachUpload: async (params) => void attached.push(params),
+      attachStoredCopy: async (params) => void storedCopies.push(params),
       lockPendingUploads: async (params) => {
         locked.push(params)
         return params.ids.map((id) => ({
@@ -271,7 +279,7 @@ function createFake(
     },
     unitOfWork: { execute: (operation) => operation(transaction) },
   })
-  return { attached, decryptCalls, locked, state, useCase }
+  return { attached, decryptCalls, locked, state, storedCopies, useCase }
 }
 
 function input(
@@ -689,6 +697,58 @@ describe('o modelo do e-mail da ocorrência no envio (spec 271 D9, RF11)', () =>
     await useCase.send(input({ contractorReplyResend: true }))
 
     expect(state.mails[0]?.notificationTemplate).toBeNull()
+  })
+})
+
+describe('o aviso da cobrança leva a placa e o extrato (spec 317)', () => {
+  /** O fake do bucket devolve bytes de PDF para todo objeto; o tipo do anexo acompanha, o foco aqui é a ligação. */
+  const PHOTOS: readonly ExistingObjectToAttach[] = [
+    {
+      bucket: 'private',
+      contentType: 'application/pdf',
+      fileName: 'placa-da-cobranca-1.jpg',
+      objectKey: 'tenants/x/plate',
+    },
+    {
+      bucket: 'private',
+      contentType: 'application/pdf',
+      fileName: 'extrato-do-pagamento-2.jpg',
+      objectKey: 'tenants/x/receipt',
+    },
+  ]
+
+  test('a ocorrência de parada leva as fotos como anexos da mensagem do e-mail', async () => {
+    const { storedCopies, useCase } = createFake({
+      chargePhotos: PHOTOS,
+      target: { ...TARGET, kind: 'stop' },
+    })
+
+    const result = await useCase.send(input())
+
+    expect(storedCopies.map((copy) => [copy.fileName, copy.messageId])).toEqual([
+      ['placa-da-cobranca-1.jpg', result.conversationMessageId],
+      ['extrato-do-pagamento-2.jpg', result.conversationMessageId],
+    ])
+  })
+
+  test('a ocorrência de nota não lê nem leva foto de cobrança', async () => {
+    const { storedCopies, useCase } = createFake({ chargePhotos: PHOTOS })
+
+    await useCase.send(input())
+
+    expect(storedCopies).toEqual([])
+  })
+
+  test('foto que não cabe no teto do e-mail fica de fora e o envio segue', async () => {
+    const { storedCopies, useCase } = createFake({
+      chargePhotos: PHOTOS,
+      target: { ...TARGET, kind: 'stop' },
+      uploadBytes: 30 * 1024 * 1024,
+    })
+
+    await useCase.send(input())
+
+    expect(storedCopies).toEqual([])
   })
 })
 
@@ -1602,36 +1662,26 @@ describe('a prévia com modelo HTML (spec 272 T2.4, D12)', () => {
   })
 })
 
-describe('o tipo que nunca avisa a contratante recusa o e-mail à mão (spec 321 D2, CA01)', () => {
-  test('envio manual é 409 OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED, sem e-mail, conversa nem idempotência', async () => {
-    const { decryptCalls, state, useCase } = createFake({
-      target: { ...TARGET, blocksContractorNotice: true },
-    })
+describe('a marca do tipo só cala o automático (spec 321 D2 revista na 343)', () => {
+  test('o envio manual e o reenvio do retorno saem mesmo com a marca', async () => {
+    const { state, useCase } = createFake({ target: { ...TARGET, blocksContractorNotice: true } })
 
-    expect(await failure(() => useCase.send(input()))).toMatchObject({
-      code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED',
-      status: 409,
-    })
-    expect(state.mails).toEqual([])
-    expect(state.conversationMessages).toEqual([])
-    expect(state.idempotency.size).toBe(0)
-    expect(decryptCalls).toEqual([])
+    await useCase.send(input())
+    await useCase.send(input({ contractorReplyResend: true, idempotencyKey: 'r-1' }))
+
+    expect(state.mails).toHaveLength(2)
   })
 
-  test('o aviso automático e o reenvio do retorno também param aqui (rede do caso de uso)', async () => {
+  test('o aviso automático para aqui (rede do caso de uso), sem e-mail nem idempotência', async () => {
     const { state, useCase } = createFake({ target: { ...TARGET, blocksContractorNotice: true } })
 
     expect(
       await failure(() =>
         useCase.send(input({ actorUserId: null, automatic: true, idempotencyKey: 'auto-1' })),
       ),
-    ).toMatchObject({ code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED' })
-    expect(
-      await failure(() =>
-        useCase.send(input({ contractorReplyResend: true, idempotencyKey: 'r-1' })),
-      ),
-    ).toMatchObject({ code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED' })
+    ).toMatchObject({ code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED', status: 409 })
     expect(state.mails).toEqual([])
+    expect(state.idempotency.size).toBe(0)
   })
 
   test('sem a marca, o mesmo envio sai (a guarda lê a marca, não o tipo)', async () => {

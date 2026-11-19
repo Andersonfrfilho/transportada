@@ -3,12 +3,15 @@
 import {
   CANHOTO_REJECTION_REASONS,
   CONTRACTOR_REPLY_STATUSES,
+  DRIVER_PIX_KEY_TYPES,
   isDriverOccurrenceType,
   TRIP_CREW_ROLES,
   type CanhotoRejection,
   type ContractorReplyStatus,
   type DriverDeliveryProofSettings,
   type DriverNfeProduct,
+  type DriverPixKeyType,
+  type DriverRegisteredPix,
   type DriverOccurrenceType,
   type DriverRegisteredOccurrence,
   type DriverStopSchedule,
@@ -417,6 +420,17 @@ function toTrip(value: unknown): DriverTrip {
   }
 }
 
+/** Tolerante: PIX ausente, de tipo desconhecido ou sem chave vira `null` — o campo só começa vazio. */
+function readRegisteredPix(value: unknown): DriverRegisteredPix | null {
+  if (!isRecord(value)) return null
+  const key = typeof value.key === 'string' ? value.key.trim() : ''
+  const type = (DRIVER_PIX_KEY_TYPES as readonly unknown[]).find(
+    (candidate) => candidate === value.type,
+  )
+  if (key === '' || type === undefined) return null
+  return { key, type: type as DriverPixKeyType }
+}
+
 export function toDriverTripSnapshot(payload: unknown): DriverTripSnapshot {
   if (!isRecord(payload) || !isRecord(payload.data)) throw new DriverTripResponseError()
   const data = payload.data
@@ -427,6 +441,7 @@ export function toDriverTripSnapshot(payload: unknown): DriverTripSnapshot {
   return {
     isRegisteredDriver: data.isRegisteredDriver,
     pendingProofs: toPendingProofs(data.pendingProofs),
+    registeredPix: readRegisteredPix(data.registeredPix),
     score: readDriverScore(data.score),
     trips: data.trips.map(toTrip),
   }

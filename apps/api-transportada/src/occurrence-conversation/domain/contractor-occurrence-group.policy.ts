@@ -25,17 +25,22 @@ export const CONTRACTOR_OCCURRENCE_GROUP_TEMPLATE_CHANNEL = 'whatsapp'
 export const CONTRACTOR_OCCURRENCE_GROUP_SEND_OPERATION = 'occurrence-contractor-group.send'
 
 export const CONTRACTOR_OCCURRENCE_GROUP_VARIABLES = [
+  'chegada',
   'cliente',
   'contratante',
   'data',
   'enderecoEntrega',
+  'inicioRota',
+  'janelaRecebimento',
   'marcacao',
   'momento',
   'novaData',
   'numeroNota',
   'numeroNotaSemSerie',
   'observacao',
+  'tempoEspera',
   'tipoOcorrencia',
+  'valorCobrado',
   'valorNota',
 ] as const
 
@@ -55,6 +60,27 @@ export const CONTRACTOR_OCCURRENCE_GROUP_SUMMARY_MAX_LENGTH = 300
 /** A Meta recusa acima de 4096; o mesmo teto do bot no grupo. */
 export const CONTRACTOR_OCCURRENCE_GROUP_MESSAGE_MAX_LENGTH = 4000
 
+/**
+ * Quanto tempo se passou desde `from` até `to`, para a espera: "35 min", "1 h", "2 h 05 min". Vazio quando falta a
+ * chegada ou o relógio anda para trás (relógio do aparelho adiantado): melhor sem a linha que com um número inventado.
+ */
+export function formatElapsedWait(from: Date | null, to: Date): string {
+  if (from === null) return ''
+  const minutes = Math.floor((to.getTime() - from.getTime()) / 60_000)
+  if (!Number.isFinite(minutes) || minutes < 0) return ''
+  const totalHours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (totalHours === 0) return `${minutes} min`
+  const days = Math.floor(totalHours / 24)
+  const hours = totalHours % 24
+  if (days === 0)
+    return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, '0')} min`
+  /** Passou de 24 h: separa em dias, horas e minutos ("1 d 23 h 06 min"); o que for zero no fim some. */
+  if (hours === 0 && rest === 0) return `${days} d`
+  if (rest === 0) return `${days} d ${hours} h`
+  return `${days} d ${hours} h ${String(rest).padStart(2, '0')} min`
+}
+
 const MOMENT_LABELS: Readonly<Record<'delivery' | 'separation', string>> = {
   delivery: 'entrega',
   separation: 'separação',
@@ -72,10 +98,10 @@ export function summarizeOccurrenceNote(note: string): string {
 
 /**
  * Linha que sobrou só com emoji e/ou rótulo em negrito vazio (ex.: "📝 " quando a observação veio vazia, ou
- * "📅 *Vencimento pedido:* " no tipo sem data). Linha em branco de propósito não casa.
+ * "📅 *Vencimento pedido:* " no tipo sem data, ou "*Valor da nota:* R$ " na nota sem valor). Linha em branco de propósito não casa.
  */
 const EMOJI_ONLY_LINE =
-  /^[ \t]*(?:(?:[\p{Extended_Pictographic}️‍][ \t]*)+(?:\*[^*\n]+:\*[ \t]*)?|\*[^*\n]+:\*[ \t]*)$/u
+  /^[ \t]*(?:(?:[\p{Extended_Pictographic}️‍][ \t]*)+(?:\*[^*\n]+:\*[ \t]*(?:R\$[ \t]*)?)?|\*[^*\n]+:\*[ \t]*(?:R\$[ \t]*)?)$/u
 const BLANK_LINES = /\n{3,}/gu
 const MENTION_PLACEHOLDER = /\{\{\s*marcacao\s*\}\}/u
 

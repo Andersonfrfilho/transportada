@@ -30,6 +30,7 @@ import {
   runDriverBoot,
   scheduleAuthenticationOnReconnect,
 } from '@/modules/driver-trip/shared/bootMode.service'
+import { suspendBackButtonUndo } from '@/modules/shared/useBackButtonClose.hook'
 import {
   captureRegistry,
   createAuthenticationCaptureView,
@@ -42,6 +43,7 @@ import {
   handleServiceWorkerUpdateAvailable,
   requestServiceWorkerUpdate,
 } from '@/modules/driver-trip/shared/serviceWorkerUpdate.service'
+import { createUpdateCheckScheduler } from '@/modules/driver-trip/shared/updateCheck.service'
 import type { DriverTripSnapshot } from '@/modules/driver-trip/shared/driverTrip.types'
 import { toDriverTripSnapshot } from '@/modules/driver-trip/shared/driverTripResponse.validation'
 import {
@@ -98,6 +100,8 @@ const serviceWorkerUpdateListeners = new Set<() => void>()
 let needsServiceWorkerUpdate = false
 /** B4: o toque foi ouvido com captura aberta — o aviso troca o botão por "Atualiza ao terminar". */
 let isServiceWorkerUpdateWaiting = false
+/** `onRegisteredSW` pode voltar a disparar: o agendamento da procura é de uma vez só. */
+let isUpdateCheckScheduled = false
 let applyServiceWorkerUpdate: ((reloadPage?: boolean) => Promise<void>) | undefined
 
 function notifyServiceWorkerUpdateListeners(): void {
@@ -107,6 +111,26 @@ function notifyServiceWorkerUpdateListeners(): void {
 if (!isSmokeAuthBypassEnabled()) {
   applyServiceWorkerUpdate = registerSW({
     immediate: true,
+    /**
+     * Um PWA instalado fica dias na memória sem navegar, e o navegador só procura o service worker novo
+     * ao navegar: o aparelho seguia no bundle antigo horas depois do deploy (18/11, "Espera longa"). Procura
+     * ao voltar para o app e de hora em hora.
+     */
+    onRegisteredSW: (_url, registration) => {
+      if (registration === undefined || isUpdateCheckScheduled) return
+      isUpdateCheckScheduled = true
+      const scheduler = createUpdateCheckScheduler({
+        check: async () => {
+          await registration.update()
+        },
+        isVisible: () => document.visibilityState === 'visible',
+        now: () => Date.now(),
+      })
+      document.addEventListener('visibilitychange', () => {
+        void scheduler.run()
+      })
+      window.setInterval(() => void scheduler.run(), 60 * 60 * 1000)
+    },
     onNeedRefresh: () => {
       handleServiceWorkerUpdateAvailable({
         apply: () => void applyServiceWorkerUpdate?.(true),
@@ -131,6 +155,7 @@ function applyServiceWorkerUpdateNow(): void {
     captureRegistry,
   })
   if (outcome === 'deferred') {
+    suspendBackButtonUndo()
     isServiceWorkerUpdateWaiting = true
     notifyServiceWorkerUpdateListeners()
   }

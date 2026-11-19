@@ -38,6 +38,7 @@ import {
   formatIsoDate,
   formatOccurrenceMoment,
 } from '../../trips/domain/occurrence-mail-values.policy.js'
+import { readOccurrenceStopEventValues } from './occurrence-stop-events.support.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
 import type { TripQueryable } from '../../trips/infrastructure/trip-queryable.type.js'
 
@@ -120,11 +121,19 @@ export async function findContractorOccurrenceGroupTemplate(
   return template === undefined ? null : text(template, 'body')
 }
 
+/** O valor informado pelo motorista (`numeric` em texto) no formato do e-mail; vazio quando não há valor. */
+function formatChargedAmount(stored: string): string {
+  const value = stored.trim()
+  return value === '' ? '' : formatBrazilianAmount(parseAmountToCents(value))
+}
+
 export function createContractorOccurrenceGroupRepository(dependencies: {
   readonly database: TripQueryable
+  readonly now?: () => Date
   readonly send: ContractorOccurrenceGroupPort['send']
 }): ContractorOccurrenceGroupPort {
   const { database } = dependencies
+  const now = dependencies.now ?? (() => new Date())
   return {
     async claim({ companyId, keyPrefix, occurrenceId }) {
       const rows = await rowsOf(
@@ -147,13 +156,24 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
     async readMessage({ companyId, fallbackTemplateKey, occurrenceId }) {
       const [occurrence] = await rowsOf(
         database,
-        sql`select occurrence.note, occurrence.stage, occurrence.created_at,
+        sql`select occurrence.note, occurrence.stage, occurrence.created_at, occurrence.trip_document_id,
                    occurrence.requested_due_date::text as requested_due_date,
+                   occurrence.declared_amount::text as declared_amount,
                    occurrence_type.name as type_name,
                    occurrence_type.asks_new_due_date,
                    occurrence_type.contractor_notification_template_key as type_key,
                    note.number, note.series
-            from trip_document_occurrences occurrence
+            from (
+              select company_id, id, trip_document_id, note, stage, created_at, requested_due_date,
+                     occurrence_type_id, declared_amount
+              from trip_document_occurrences
+              union all
+              /** Spec 343 (RF1): a ocorrência de parada com nota também avisa, só pelo botão. */
+              select company_id, id, trip_document_id, description as note, 'delivery' as stage,
+                     created_at, null::date as requested_due_date, occurrence_type_id, declared_amount
+              from trip_stop_occurrences
+              where trip_document_id is not null
+            ) occurrence
             join company_occurrence_types occurrence_type
               on occurrence_type.company_id = occurrence.company_id
              and occurrence_type.id = occurrence.occurrence_type_id
@@ -181,10 +201,17 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
       const number = text(occurrence, 'number').trim()
       const series = text(occurrence, 'series').trim()
       const createdAt = occurrence.created_at
+      const events = await readOccurrenceStopEventValues(database, {
+        at: createdAt instanceof Date || typeof createdAt === 'string' ? new Date(createdAt) : null,
+        companyId,
+        documentId: text(occurrence, 'trip_document_id'),
+        now,
+      })
       const stage = text(occurrence, 'stage') === 'separation' ? 'separation' : 'delivery'
       return {
         template,
         values: {
+          chegada: events.chegada,
           cliente: (item?.document?.recipient?.name ?? '').trim(),
           contratante: (item?.document?.contractor?.name ?? '').trim(),
           data:
@@ -192,6 +219,8 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
               ? formatOccurrenceMoment(new Date(createdAt))
               : '',
           enderecoEntrega: (item?.document?.destination?.label ?? '').trim(),
+          inicioRota: events.inicioRota,
+          janelaRecebimento: events.janelaRecebimento,
           momento: contractorOccurrenceMomentLabel(stage),
           novaData: !asksNewDueDate
             ? ''
@@ -201,7 +230,10 @@ export function createContractorOccurrenceGroupRepository(dependencies: {
           numeroNota: number === '' ? '' : series === '' ? number : `${number}/${series}`,
           numeroNotaSemSerie: number,
           observacao: summarizeOccurrenceNote(text(occurrence, 'note')),
+          tempoEspera: events.tempoEspera,
           tipoOcorrencia: text(occurrence, 'type_name').trim(),
+          /** Spec 343: o valor que o motorista informou no app (cobrança no recebimento, valor pago); vazio sem valor. */
+          valorCobrado: formatChargedAmount(text(occurrence, 'declared_amount')),
           valorNota: totalValue === '' ? '' : formatBrazilianAmount(parseAmountToCents(totalValue)),
         },
       }

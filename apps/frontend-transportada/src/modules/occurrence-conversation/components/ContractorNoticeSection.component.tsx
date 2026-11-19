@@ -169,7 +169,6 @@ export function ContractorNoticeSection({ occurrenceId }: ContractorNoticeSectio
   if (query.isError) return <p className={styles.hint}>{t('contractorNotice.error')}</p>
   const state = query.data
   if (state === undefined) return null
-  if (state.status === 'unavailable' && state.reason === 'blocked') return null
 
   return (
     <section className={styles.section}>
@@ -190,7 +189,24 @@ export function ContractorNoticeSection({ occurrenceId }: ContractorNoticeSectio
         </p>
       ) : null}
       {state.status === 'unavailable' ? (
-        <p className={styles.hint}>{t(`contractorNotice.unavailable.${state.reason}`)}</p>
+        <>
+          {/* Spec 343 (RF1): o botão aparece em toda ocorrência; sem como avisar, fica desligado e o motivo vem escrito. */}
+          <div>
+            <Button
+              aria-describedby="contractor-notice-reason"
+              disabled
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="send" size="sm" />
+              {t('contractorNotice.button')}
+            </Button>
+          </div>
+          <p className={styles.hint} id="contractor-notice-reason">
+            {t(`contractorNotice.unavailable.${state.reason}`)}
+          </p>
+        </>
       ) : null}
       {state.status === 'available' ? (
         <>

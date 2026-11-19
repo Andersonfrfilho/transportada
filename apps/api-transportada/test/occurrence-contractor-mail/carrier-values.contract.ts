@@ -93,10 +93,10 @@ describe('spec 272 D5: o catálogo da API', () => {
     expect(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.length).toBe(
       new Set(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.map((variable) => variable.name)).size,
     )
-    expect(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.length).toBe(17 + 13 + 2)
+    expect(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.length).toBe(17 + 13 + 2 + 3 + 1 + 4)
   })
 
-  test('a ordem do catálogo: as 17 da 271 primeiro, as 13 da 272 e as 2 da nova data depois', () => {
+  test('a ordem do catálogo: as 17 da 271 primeiro, as 13 da 272, as 2 da nova data, as 3 do cliente, o valor cobrado e os 4 eventos da entrega depois', () => {
     expect(OCCURRENCE_CONTRACTOR_MAIL_VARIABLES.slice(17).map((variable) => variable.name)).toEqual(
       [
         'nomeExibicao',
@@ -114,6 +114,14 @@ describe('spec 272 D5: o catálogo da API', () => {
         'logoAssinatura',
         'novaDataVencimento',
         'avisoNovaData',
+        'enderecoEntrega',
+        'cidadeEntrega',
+        'cnpjCliente',
+        'valorCobrado',
+        'inicioRota',
+        'chegada',
+        'tempoEspera',
+        'janelaRecebimento',
       ],
     )
   })

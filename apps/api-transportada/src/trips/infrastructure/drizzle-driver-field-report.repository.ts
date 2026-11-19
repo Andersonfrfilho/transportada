@@ -5,6 +5,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
+import { tripOccurrenceResolutionEvents } from '../../database/occurrence-conversation.schema.js'
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import { inList } from '../../database/schema-check.constant.js'
@@ -270,6 +271,47 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .limit(1)
 
     return record ?? null
+  }
+
+  public async hasOpenStopOccurrenceOfType(input: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+    readonly stopId: string
+  }): Promise<boolean> {
+    const occurrences = await this.transaction
+      .select({ id: tripStopOccurrences.id })
+      .from(tripStopOccurrences)
+      .where(
+        and(
+          eq(tripStopOccurrences.companyId, input.companyId),
+          eq(tripStopOccurrences.stopId, input.stopId),
+          eq(tripStopOccurrences.occurrenceTypeId, input.occurrenceTypeId),
+        ),
+      )
+    if (occurrences.length === 0) return false
+
+    /** O estado é o último evento por `seq` (ADR-0105), nunca por `created_at`. */
+    const events = await this.transaction
+      .select({
+        kind: tripOccurrenceResolutionEvents.kind,
+        occurrenceId: tripOccurrenceResolutionEvents.stopOccurrenceId,
+      })
+      .from(tripOccurrenceResolutionEvents)
+      .where(
+        and(
+          eq(tripOccurrenceResolutionEvents.companyId, input.companyId),
+          inArray(
+            tripOccurrenceResolutionEvents.stopOccurrenceId,
+            occurrences.map((occurrence) => occurrence.id),
+          ),
+        ),
+      )
+      .orderBy(asc(tripOccurrenceResolutionEvents.sequence))
+    const lastKindByOccurrence = new Map<string, string>()
+    for (const event of events) {
+      if (event.occurrenceId !== null) lastKindByOccurrence.set(event.occurrenceId, event.kind)
+    }
+    return occurrences.some((occurrence) => lastKindByOccurrence.get(occurrence.id) !== 'resolved')
   }
 
   /**

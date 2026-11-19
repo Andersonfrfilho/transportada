@@ -18,8 +18,8 @@ import {
   SEND_OCCURRENCE_MAIL_OPERATION,
 } from '../domain/occurrence-conversation.constant.js'
 import {
-  ContractorReplyNotResendableError,
   OccurrenceContractorNoticeBlockedError,
+  ContractorReplyNotResendableError,
   ContractorReplyResendTooSoonError,
   OccurrenceConversationContractorUnknownError,
   OccurrenceConversationMailInvalidError,
@@ -325,9 +325,10 @@ async function executeSend(params: {
   })
   if (target === null) throw new TripOccurrenceNotFoundError()
   if (target.contractorId === null) throw new OccurrenceConversationContractorUnknownError()
-  /** Spec 321 (D2): vale para o manual, o reenvio da 248 e, como rede, o automático. */
-  if (occurrenceTypeNeverNotifiesContractor(target))
+  /** Spec 321/343: a marca do tipo só cala o automático (rede do caso de uso); o envio à mão vale sempre. */
+  if (input.automatic === true && occurrenceTypeNeverNotifiesContractor(target)) {
     throw new OccurrenceContractorNoticeBlockedError()
+  }
   const { contractorId } = target
 
   const contactIds = [...new Set(input.contactIds)]

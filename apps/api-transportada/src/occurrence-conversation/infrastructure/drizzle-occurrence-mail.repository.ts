@@ -31,8 +31,11 @@ import {
   nfeParticipants,
   occurrenceConversationMessages,
   occurrenceConversations,
+  storedObjects,
   tripDocumentOccurrences,
   tripDocuments,
+  tripStopOccurrencePhotos,
+  tripStopOccurrences,
   userCompanyMemberships,
 } from '../../database/database.schema.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
@@ -44,6 +47,7 @@ import {
   formatOccurrenceMoment,
 } from '../../trips/domain/occurrence-mail-values.policy.js'
 import { resolveOccurrenceProductCodes } from '../../trips/domain/occurrence-scope.policy.js'
+import { readOccurrenceStopEventValues } from './occurrence-stop-events.support.js'
 import { readOccurrenceMailValues } from '../../trips/infrastructure/delivery-proof-read.support.js'
 import { listOccurrenceProductCodes } from '../../trips/infrastructure/drizzle-occurrence-product.repository.js'
 import { findTripOccurrenceFeedItem } from '../../trips/infrastructure/trip-occurrence-feed.query.js'
@@ -85,6 +89,7 @@ import {
 } from './drizzle-occurrence-contractor-reply.repository.js'
 import { recordContractorReplyResend } from './drizzle-contractor-reply-resend.repository.js'
 import type { OccurrenceConversationKind } from '../../database/occurrence-conversation.schema.js'
+import type { ExistingObjectToAttach } from '../application/conversation-attachment.port.js'
 import { occurrenceTypeNeverNotifiesContractor } from '../../trips/domain/occurrence-contractor-notice.policy.js'
 import { findOccurrenceTypeBlocksContractorNotice } from '../../trips/infrastructure/occurrence-contractor-notice.query.js'
 import type { AutomaticOccurrenceMailReaderPort } from '../application/send-automatic-occurrence-mail.use-case.js'
@@ -111,6 +116,23 @@ async function acquireAdvisoryLock(
   await transaction.execute(sql`select pg_advisory_xact_lock(${lockId})`)
 }
 
+async function findStopOccurrenceTypeId(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<null | string> {
+  const [row] = await queryable
+    .select({ occurrenceTypeId: tripStopOccurrences.occurrenceTypeId })
+    .from(tripStopOccurrences)
+    .where(
+      and(
+        eq(tripStopOccurrences.companyId, params.companyId),
+        eq(tripStopOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  return row?.occurrenceTypeId ?? null
+}
+
 /** A contratante pelo emitente da nota (T203); ocorrência sem nota não tem a quem escrever. */
 async function findOccurrenceTarget(
   queryable: TripQueryable,
@@ -120,7 +142,10 @@ async function findOccurrenceTarget(
   if (item === null) return null
   /** Spec 237 (ADR-0094 §9.6): a ocorrência de recebimento ainda não tem conversa nem e-mail. */
   if (item.stage === TRIP_OCCURRENCE_STAGE.receiving) return null
-  const occurrenceTypeId = item.occurrenceTypeId ?? null
+  /** Spec 343: o feed não traz o tipo da parada (só o `kind`); o catálogo do tipo está na própria linha. */
+  const occurrenceTypeId =
+    item.occurrenceTypeId ??
+    (item.source === 'stop' ? await findStopOccurrenceTypeId(queryable, params) : null)
   return {
     /** Spec 321 (D2): o envio manual não lê o tipo; a marca vem junto do alvo para a guarda do caso de uso. */
     blocksContractorNotice: await findOccurrenceTypeBlocksContractorNotice(queryable, {
@@ -134,6 +159,55 @@ async function findOccurrenceTarget(
     occurrenceTypeId,
     stage: item.stage ?? 'stop',
   }
+}
+
+const CHARGE_PHOTO_FILE_NAMES: Readonly<Record<string, string>> = {
+  charge_sign: 'placa-da-cobranca',
+  payment_receipt: 'extrato-do-pagamento',
+}
+const CHARGE_PHOTO_EXTENSIONS: Readonly<Record<string, string>> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
+
+/**
+ * Spec 317: as fotos da cobrança no recebimento (placa e extrato) como anexos do e-mail à contratante. Só `final`, da empresa
+ * do contexto e da própria ocorrência de parada; o PIX nunca é lido aqui.
+ */
+async function listStopOccurrenceChargePhotos(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<readonly ExistingObjectToAttach[]> {
+  const rows = await queryable
+    .select({
+      bucket: storedObjects.bucket,
+      mimeType: storedObjects.mimeType,
+      objectKey: storedObjects.objectKey,
+      slotKey: tripStopOccurrencePhotos.slotKey,
+    })
+    .from(tripStopOccurrencePhotos)
+    .innerJoin(
+      storedObjects,
+      and(
+        eq(storedObjects.companyId, tripStopOccurrencePhotos.companyId),
+        eq(storedObjects.id, tripStopOccurrencePhotos.objectId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripStopOccurrencePhotos.companyId, params.companyId),
+        eq(tripStopOccurrencePhotos.stopOccurrenceId, params.occurrenceId),
+        eq(storedObjects.status, 'final'),
+      ),
+    )
+    .orderBy(asc(tripStopOccurrencePhotos.position), asc(tripStopOccurrencePhotos.createdAt))
+  return rows.map((row, index) => ({
+    bucket: row.bucket,
+    contentType: row.mimeType,
+    fileName: `${CHARGE_PHOTO_FILE_NAMES[row.slotKey] ?? 'foto-da-ocorrencia'}-${index + 1}.${CHARGE_PHOTO_EXTENSIONS[row.mimeType] ?? 'jpg'}`,
+    objectKey: row.objectKey,
+  }))
 }
 
 /** Spec 279 T3: da constante, para o alvo novo do cadastro do cliente também ficar fora da cadeia. */
@@ -289,6 +363,42 @@ async function findOperatorSigner(
   }
 }
 
+/** Spec 343: o tipo e o momento de registro da ocorrência, de nota ou de parada (a de parada guarda o tipo na linha). */
+async function readOccurrenceTypeRef(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly occurrenceId: string },
+): Promise<null | { readonly createdAt: Date; readonly occurrenceTypeId: string }> {
+  const [document] = await queryable
+    .select({
+      createdAt: tripDocumentOccurrences.createdAt,
+      occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
+    })
+    .from(tripDocumentOccurrences)
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, params.companyId),
+        eq(tripDocumentOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  if (document !== undefined) return document
+  const [stop] = await queryable
+    .select({
+      createdAt: tripStopOccurrences.createdAt,
+      occurrenceTypeId: tripStopOccurrences.occurrenceTypeId,
+    })
+    .from(tripStopOccurrences)
+    .where(
+      and(
+        eq(tripStopOccurrences.companyId, params.companyId),
+        eq(tripStopOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  if (stop === undefined || stop.occurrenceTypeId === null) return null
+  return { createdAt: stop.createdAt, occurrenceTypeId: stop.occurrenceTypeId }
+}
+
 /**
  * Spec 271 (ADR-0108, D1/D9): o modelo do tipo da ocorrência — a chave escolhida no tipo e a versão ativa mais alta
  * no módulo de notificação. Sem chave, sem versão ativa de e-mail `pt-BR`, de corpo HTML ou sem assunto: `null`,
@@ -310,28 +420,23 @@ async function findOccurrenceNotificationTemplateSource(
   readonly key: string
   readonly version: number
 } | null> {
-  const [row] = await queryable
+  const ref = await readOccurrenceTypeRef(queryable, params)
+  if (ref === null) return null
+  const [type] = await queryable
     .select({
       key: companyOccurrenceTypes.contractorNotificationTemplateKey,
-      occurrenceCreatedAt: tripDocumentOccurrences.createdAt,
       selectedAt: companyOccurrenceTypes.contractorNotificationTemplateSelectedAt,
     })
-    .from(tripDocumentOccurrences)
-    .innerJoin(
-      companyOccurrenceTypes,
-      and(
-        eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
-        eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
-      ),
-    )
+    .from(companyOccurrenceTypes)
     .where(
       and(
-        eq(tripDocumentOccurrences.companyId, params.companyId),
-        eq(tripDocumentOccurrences.id, params.occurrenceId),
+        eq(companyOccurrenceTypes.companyId, params.companyId),
+        eq(companyOccurrenceTypes.id, ref.occurrenceTypeId),
       ),
     )
     .limit(1)
-  if (row === undefined) return null
+  if (type === undefined) return null
+  const row = { ...type, occurrenceCreatedAt: ref.createdAt }
   if (row.key !== null) {
     const template = await findActiveContractorTemplate(queryable, {
       companyId: params.companyId,
@@ -469,34 +574,21 @@ export function createOccurrenceMailReader(
 }
 
 /**
- * O modelo da chave (spec 271) e os valores da nota — os mesmos que o registro lia do texto do tipo (079), com as
- * chaves `{{camelCase}}` da lista fechada. Modelo que não existe mais, ou ocorrência que sumiu: `null`.
+ * Spec 343 (RF1): o que o modelo precisa da ocorrência, de nota ou de parada. A de parada só avisa a contratante
+ * quando tem nota (`trip_document_id`); sem ela não há emitente e a leitura devolve `null`.
  */
-async function readTemplateSource(
+async function readOccurrenceMailBase(
   database: TripQueryable,
-  params: {
-    readonly companyId: string
-    readonly occurrenceId: string
-    readonly templateKey: string
-  },
+  params: { readonly companyId: string; readonly occurrenceId: string },
 ): Promise<null | {
-  readonly itemLines: readonly string[]
-  readonly itemRows: OccurrenceMailHtmlSource['itemRows']
-  readonly itemsSum: string
-  readonly mail: Readonly<Record<string, string>>
-  readonly template: { readonly body: string; readonly subject: string }
+  readonly createdAt: Date
+  readonly note: string
+  readonly productCode: string
+  readonly tripDocumentId: string
+  readonly tripId: string
+  readonly typeName: string
 }> {
-  const template = await findActiveContractorTemplate(database, {
-    companyId: params.companyId,
-    key: params.templateKey,
-  })
-  if (template === null) return null
-  // O modelo é relido aqui, depois da avaliação que o aceitou: uma versão nova pode ter chegado no intervalo.
-  if (blocksContractorMailSend(assessContractorTemplate({ key: params.templateKey, template }))) {
-    return null
-  }
-
-  const [row] = await database
+  const [document] = await database
     .select({
       createdAt: tripDocumentOccurrences.createdAt,
       note: tripDocumentOccurrences.note,
@@ -527,7 +619,70 @@ async function readTemplateSource(
       ),
     )
     .limit(1)
-  if (row === undefined) return null
+  if (document !== undefined) return document
+  const [stop] = await database
+    .select({
+      createdAt: tripStopOccurrences.createdAt,
+      note: tripStopOccurrences.description,
+      tripDocumentId: tripDocuments.id,
+      tripId: tripDocuments.tripId,
+      typeName: companyOccurrenceTypes.name,
+    })
+    .from(tripStopOccurrences)
+    .innerJoin(
+      tripDocuments,
+      and(
+        eq(tripDocuments.companyId, tripStopOccurrences.companyId),
+        eq(tripDocuments.id, tripStopOccurrences.tripDocumentId),
+      ),
+    )
+    .innerJoin(
+      companyOccurrenceTypes,
+      and(
+        eq(companyOccurrenceTypes.companyId, tripStopOccurrences.companyId),
+        eq(companyOccurrenceTypes.id, tripStopOccurrences.occurrenceTypeId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripStopOccurrences.companyId, params.companyId),
+        eq(tripStopOccurrences.id, params.occurrenceId),
+      ),
+    )
+    .limit(1)
+  return stop === undefined ? null : { ...stop, productCode: '' }
+}
+
+/**
+ * O modelo da chave (spec 271) e os valores da nota — os mesmos que o registro lia do texto do tipo (079), com as
+ * chaves `{{camelCase}}` da lista fechada. Modelo que não existe mais, ou ocorrência que sumiu: `null`.
+ */
+async function readTemplateSource(
+  database: TripQueryable,
+  params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+    readonly templateKey: string
+  },
+): Promise<null | {
+  readonly itemLines: readonly string[]
+  readonly itemRows: OccurrenceMailHtmlSource['itemRows']
+  readonly itemsSum: string
+  readonly mail: Readonly<Record<string, string>>
+  readonly template: { readonly body: string; readonly subject: string }
+}> {
+  const template = await findActiveContractorTemplate(database, {
+    companyId: params.companyId,
+    key: params.templateKey,
+  })
+  if (template === null) return null
+  // O modelo é relido aqui, depois da avaliação que o aceitou: uma versão nova pode ter chegado no intervalo.
+  if (blocksContractorMailSend(assessContractorTemplate({ key: params.templateKey, template }))) {
+    return null
+  }
+
+  const row = await readOccurrenceMailBase(database, params)
+  if (row === null) return null
 
   const storedCodes = await listOccurrenceProductCodes(database, {
     companyId: params.companyId,
@@ -546,8 +701,15 @@ async function readTemplateSource(
     }),
     tripId: row.tripId,
   })
-  const { itemLines, mail } = buildContractorMailValues(values)
-  const { itemsSum, rows } = buildOccurrenceItemRows(values)
+  const stopEvents = await readOccurrenceStopEventValues(database, {
+    at: row.createdAt,
+    companyId: params.companyId,
+    documentId: row.tripDocumentId,
+    now: () => new Date(),
+  })
+  const withEvents = { ...values, stopEvents }
+  const { itemLines, mail } = buildContractorMailValues(withEvents)
+  const { itemsSum, rows } = buildOccurrenceItemRows(withEvents)
   return { itemLines, itemRows: rows, itemsSum, mail, template }
 }
 
@@ -665,12 +827,28 @@ export function createAutomaticOccurrenceMailReader(
   return {
     async findPlan(params) {
       const target = await findOccurrenceTarget(database, params)
-      if (
-        target === null ||
-        target.kind !== 'document' ||
-        target.contractorId === null ||
-        target.stage === 'stop'
-      ) {
+      if (target === null) return null
+      if (target.contractorId === null) {
+        /** Spec 343 (RF1): o botão diz por que não avisa (parada sem nota); o automático segue sem plano. */
+        if (params.ignoreTypeOff !== true || target.kind !== 'stop') return null
+        return {
+          blocksContractorNotice: false,
+          chosenContactIds: [],
+          emailsContractor: false,
+          groupChannel: null,
+          isRegisteredBeforeTemplate: false,
+          missingContractor: true,
+          recipients: [],
+          stage: planStageOf(target.stage),
+          suggested: null,
+        }
+      }
+      if (target.occurrenceTypeId === null) return null
+      /**
+       * Spec 343 (RF1): a ocorrência de parada com nota avisa só pelo botão (`ignoreTypeOff`); o automático segue
+       * calado nela (317 RF7). A de nota mantém o corte do estágio de parada de sempre.
+       */
+      if (target.kind === 'stop' ? params.ignoreTypeOff !== true : target.stage === 'stop') {
         return null
       }
       const [type] = await database
@@ -679,24 +857,18 @@ export function createAutomaticOccurrenceMailReader(
           emailsContractor: companyOccurrenceTypes.emailsContractor,
           occurrenceTypeId: companyOccurrenceTypes.id,
         })
-        .from(tripDocumentOccurrences)
-        .innerJoin(
-          companyOccurrenceTypes,
-          and(
-            eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
-            eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
-          ),
-        )
+        .from(companyOccurrenceTypes)
         .where(
           and(
-            eq(tripDocumentOccurrences.companyId, params.companyId),
-            eq(tripDocumentOccurrences.id, params.occurrenceId),
+            eq(companyOccurrenceTypes.companyId, params.companyId),
+            eq(companyOccurrenceTypes.id, target.occurrenceTypeId),
           ),
         )
         .limit(1)
       if (type === undefined) return null
       /** Spec 321 (D2): o tipo que nunca avisa a contratante não lê contato, modelo nem grupo. */
-      if (occurrenceTypeNeverNotifiesContractor(type)) {
+      /** Só o automático para na marca; o botão manual (`ignoreTypeOff`) lê o plano completo (vale sempre). */
+      if (occurrenceTypeNeverNotifiesContractor(type) && params.ignoreTypeOff !== true) {
         return {
           blocksContractorNotice: true,
           chosenContactIds: [],
@@ -704,7 +876,7 @@ export function createAutomaticOccurrenceMailReader(
           groupChannel: null,
           isRegisteredBeforeTemplate: false,
           recipients: [],
-          stage: target.stage,
+          stage: planStageOf(target.stage),
           suggested: null,
         }
       }
@@ -760,11 +932,16 @@ export function createAutomaticOccurrenceMailReader(
           preferredChannel: contact.preferredChannel === 'whatsapp' ? 'whatsapp' : 'email',
           stages: contact.occurrenceStages,
         })),
-        stage: target.stage,
+        stage: planStageOf(target.stage),
         suggested: planned.suggested,
       }
     },
   }
+}
+
+/** Spec 343: a parada com nota avisa como entrega; só `separation` tem contato próprio. */
+function planStageOf(stage: OccurrenceMailTarget['stage']): 'delivery' | 'separation' {
+  return stage === 'separation' ? 'separation' : 'delivery'
 }
 
 export class DrizzleOccurrenceMailRepository implements OccurrenceMailUnitOfWorkPort {
@@ -822,6 +999,13 @@ class OccurrenceMailDrizzleTransaction implements OccurrenceMailTransactionPort 
     readonly occurrenceId: string
   }): Promise<OccurrenceMailTarget | null> {
     return findOccurrenceTarget(this.transaction, params)
+  }
+
+  public listStopOccurrenceChargePhotos(params: {
+    readonly companyId: string
+    readonly occurrenceId: string
+  }): Promise<readonly ExistingObjectToAttach[]> {
+    return listStopOccurrenceChargePhotos(this.transaction, params)
   }
 
   public findOccurrenceNotificationTemplate(params: {

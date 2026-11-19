@@ -1001,20 +1001,22 @@ test('ocorrência de parada com foto obrigatória: habilita ao capturar, e nunca
   expect(api.storageUploads()).toHaveLength(1)
   expect(api.storageUploads()[0]?.contentType).toBe('image/jpeg')
   const confirmedId = /occurrence-uploads\/([^/]+)\/confirm$/u.exec(api.reports()[2]?.path ?? '')
-  /** Spec 196: a ocorrência leva o ponto; o reenvio da foto repete o corpo sem ele (a API guarda o primeiro). */
+  /** Spec 196: a ocorrência e o reenvio da foto levam o ponto do mesmo toque (o servidor cobra a localização no reenvio). */
   expect(api.reports()[0]?.body).toMatchObject({
     description: '',
-    documentId: null,
     location: { latitude: -23.5505, longitude: -46.6333 },
     occurrenceTypeId: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
   })
-  expect(api.reports()[3]?.body).toEqual({
+  expect(api.reports()[3]?.body).toMatchObject({
     attachmentObjectId: confirmedId?.[1],
     description: '',
-    documentId: null,
+    location: { latitude: -23.5505, longitude: -46.6333 },
     occurrenceTypeId: SMOKE_OCCURRENCE_TYPE_IDS.unexpectedCharge,
   })
   expect(api.reports()[3]?.idempotencyKey).toBe(api.reports()[0]?.idempotencyKey)
+  /** 18/11: a nota do toque vai na ocorrência e no reenvio da foto — nunca `null`. */
+  expect(api.reports()[0]?.body).toMatchObject({ documentId: DRIVER_DOCUMENT_ID })
+  expect(api.reports()[3]?.body).toMatchObject({ documentId: DRIVER_DOCUMENT_ID })
 })
 
 /** Spec 218 D3: tipo de nota com foto vai pelo item da 179 — a foto sobe antes do registro. */

@@ -39,6 +39,8 @@ const EXPECTED_KEYS = {
 } as const
 
 const EXPECTED_PLACEHOLDERS = ['documentLabel', 'occurredAt', 'stopLabel']
+/** Os ids opacos acompanham o texto para o painel montar o destino do clique. */
+const EXPECTED_PAYLOAD_KEYS = [...EXPECTED_PLACEHOLDERS, 'occurrenceId', 'tripId'].toSorted()
 
 const SILENT_LOGGER = { warn: () => undefined }
 
@@ -138,7 +140,9 @@ describe('disparo do aviso de ocorrência de parada (spec 082 D8)', () => {
     expect(sent[0]?.recipientUserId).toBe(DISPATCHER)
     expect(sent[0]?.dedupeKey).toContain(OCCURRENCE_ID)
     const payload = sent[0]?.payload as Record<string, string>
-    expect(Object.keys(payload).toSorted()).toEqual(EXPECTED_PLACEHOLDERS)
+    expect(Object.keys(payload).toSorted()).toEqual(EXPECTED_PAYLOAD_KEYS)
+    expect(payload.occurrenceId).toBe(OCCURRENCE_ID)
+    expect(payload.tripId).toBe(TRIP_ID)
     /** Relato sem nota não renderiza buraco no template. */
     expect(payload.documentLabel).toBe('—')
     expect(payload.stopLabel).toContain('MIGUEL PETRONI')

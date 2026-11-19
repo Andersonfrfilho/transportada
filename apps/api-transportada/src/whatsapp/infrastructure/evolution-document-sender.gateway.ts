@@ -12,6 +12,7 @@ import {
   type ContractorReplyWhatsAppSendFailure,
 } from '../../occurrence-conversation/application/forward-contractor-reply-by-whatsapp.port.js'
 import type { ClientReplyWhatsAppSenderPort } from '../../occurrence-conversation/application/send-client-reply.port.js'
+import { sendEvolutionLocation } from './evolution-location.gateway.js'
 import { sendEvolutionTextWithMention } from './evolution-mention-text.gateway.js'
 import type { EvolutionSendPacer } from '../application/evolution-send-pacer.service.js'
 import type { WhatsAppEvolutionRepositoryPort } from '../application/whatsapp-evolution.port.js'
@@ -44,8 +45,21 @@ type EvolutionTextParams = {
   readonly number: string
 }
 
+type EvolutionLocationParams = {
+  readonly address: string
+  readonly companyId: string
+  readonly latitude: number
+  readonly longitude: number
+  readonly name: string
+  readonly number: string
+}
+
 type EvolutionDocumentSender = ContractorReplyWhatsAppSenderPort &
   ClientReplyWhatsAppSenderPort & {
+    /** Spec 343: o pino de localização, para o endereço correto que o escritório manda ao motorista. */
+    sendLocation(
+      params: EvolutionLocationParams,
+    ): Promise<{ readonly providerMessageId: null | string }>
     sendText(params: EvolutionTextParams): Promise<{ readonly providerMessageId: null | string }>
   }
 
@@ -107,6 +121,27 @@ export function createEvolutionDocumentSender(
           to: params.number,
         })
         return { providerMessageId: sent.externalMessageId }
+      } catch (error) {
+        throw new ContractorReplyWhatsAppSendError(classify(error))
+      }
+    },
+
+    /** Spec 343: o pino de localização do WhatsApp (grupo ou número). */
+    async sendLocation(params: EvolutionLocationParams) {
+      const target = await credentials(params.companyId)
+      await pace(params.companyId)
+      try {
+        return await sendEvolutionLocation(
+          target,
+          {
+            address: params.address,
+            latitude: params.latitude,
+            longitude: params.longitude,
+            name: params.name,
+            number: params.number,
+          },
+          dependencies.fetch,
+        )
       } catch (error) {
         throw new ContractorReplyWhatsAppSendError(classify(error))
       }

@@ -43,6 +43,8 @@ export type FieldReportState = {
   /** Spec 159 T11: `documentId:kind` → o último evento gravado daquela nota e tipo. */
   readonly latestEvents: Map<string, { readonly id: string }>
   readonly occurrences: Map<string, { readonly id: string }>
+  /** Spec 315 (D10): `stopId:occurrenceTypeId` das ocorrências de parada em aberto. */
+  readonly openStopOccurrenceTypes: Set<string>
   /** Spec 218 D2: o `occurrence_type_id` de cada ocorrência de parada gravada, na ordem. */
   readonly recordedOccurrenceTypeIds: (string | null)[]
   /**
@@ -126,6 +128,7 @@ export function createFieldReportState(
     latestEvents: new Map(),
     occurrenceStamps: [],
     occurrences: new Map(),
+    openStopOccurrenceTypes: new Set(),
     recordedOccurrenceTypeIds: [],
     stopOccurrenceTypes: new Map(),
     stopChargeDocuments: new Map(),
@@ -199,6 +202,8 @@ export function createFieldReportUnitOfWork(
       if (existing !== undefined) existing.resultId = input.resultId
     },
     findStopForDriver: async (input) => state.stops.get(input.stopId) ?? null,
+    hasOpenStopOccurrenceOfType: async (input) =>
+      state.openStopOccurrenceTypes.has(`${input.stopId}:${input.occurrenceTypeId}`),
     findDocumentForDriver: async (input) => state.documents.get(input.documentId) ?? null,
     findInformedTimeWindowStart: async (input) =>
       state.dispatchedAtByTripId.get(input.tripId) ?? null,

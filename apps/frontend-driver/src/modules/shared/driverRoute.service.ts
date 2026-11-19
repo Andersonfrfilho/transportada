@@ -54,7 +54,33 @@ export function navigateToDriverSection(
 ): void {
   const path = buildDriverRoutePath(section)
   if (target.location.pathname === path) return
-  target.history.pushState({}, '', path)
+  target.history.pushState({ [DRIVER_NAV_STATE_KEY]: true }, '', path)
+  target.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+/** Marca a entrada de histórico que o próprio app empurrou: só dela `history.back()` volta ao app. */
+const DRIVER_NAV_STATE_KEY = 'driverNav'
+
+export type DriverBackTarget = Readonly<{
+  dispatchEvent: (event: Event) => boolean
+  history: Pick<History, 'back' | 'replaceState' | 'state'>
+}>
+
+/**
+ * "Voltar" das telas por cima (fila, fotos pendentes). Aberta pelo app, desfaz o `pushState`; aberta direto
+ * (recarga, aviso, link), não há entrada anterior do app e `history.back()` não faz nada — vai para a viagem.
+ */
+export function goBackInDriverApp(target: DriverBackTarget = window): void {
+  const state: unknown = target.history.state
+  const pushedByApp =
+    typeof state === 'object' &&
+    state !== null &&
+    (state as Record<string, unknown>)[DRIVER_NAV_STATE_KEY] === true
+  if (pushedByApp) {
+    target.history.back()
+    return
+  }
+  target.history.replaceState({}, '', buildDriverRoutePath('trip'))
   target.dispatchEvent(new PopStateEvent('popstate'))
 }
 

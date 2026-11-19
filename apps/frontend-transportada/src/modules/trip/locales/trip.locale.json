@@ -2578,6 +2578,48 @@
     }
   },
   "occurrenceDetail": {
+    "receivingCharge": {
+      "payout": {
+        "whatsapp": "Enviar no WhatsApp",
+        "whatsappSending": "Enviando no WhatsApp…",
+        "whatsappSent": "Comprovante enviado no WhatsApp do motorista.",
+        "whatsappNoPhone": "O motorista não tem WhatsApp verificado no cadastro.",
+        "whatsappDisconnected": "O WhatsApp da empresa está desconectado ou desligado.",
+        "whatsappNumberNotFound": "Esse número não tem WhatsApp.",
+        "whatsappFailed": "Não foi possível enviar no WhatsApp. Tente de novo.",
+        "title": "Comprovante da transferência ao motorista",
+        "help": "O arquivo vai ao motorista no chat da ocorrência e conclui a ocorrência.",
+        "choose": "Escolher arquivo",
+        "label": "Comprovante da transferência",
+        "placeholder": "Imagem ou PDF",
+        "send": "Enviar ao motorista",
+        "sending": "Enviando…",
+        "sent": "Enviado ao motorista em {{moment}}",
+        "concludeNote": "Comprovante da transferência enviado ao motorista.",
+        "concludeFailed": "O comprovante foi enviado, mas a ocorrência não pôde ser concluída. Conclua pelo painel.",
+        "thumbnailAlt": "Miniatura do comprovante: {{fileName}}",
+        "open": "Abrir comprovante: {{fileName}}",
+        "failed": "Não foi possível enviar o comprovante. Tente de novo."
+      },
+      "amount": "Valor cobrado",
+      "openPhoto": "Abrir foto: {{label}}",
+      "paidBy": {
+        "company": "A empresa",
+        "driver": "O motorista"
+      },
+      "paidByLabel": "Quem pagou",
+      "photos": "Fotos da cobrança",
+      "pix": "PIX do motorista",
+      "pixRestricted": "Restrito a quem acompanha os valores da viagem.",
+      "pixType": {
+        "cnpj": "CNPJ",
+        "cpf": "CPF",
+        "email": "e-mail",
+        "phone": "telefone",
+        "random": "chave aleatória"
+      },
+      "title": "Cobrança no recebimento"
+    },
     "back": "Voltar para ocorrências",
     "breadcrumb": "Navegação da ocorrência",
     "kicker": "Ocorrência · {{stage}}",
@@ -2610,6 +2652,39 @@
       "destination": "Endereço de entrega",
       "destinationOf": "Endereço de entrega · {{recipient}}",
       "destinationUnknown": "Endereço não registrado na nota"
+    },
+    "driverAddress": {
+      "map": {
+        "original": "Endereço original da parada",
+        "new": "Endereço novo",
+        "noOriginal": "Endereço original sem posição no mapa",
+        "noNew": "Preencha CEP, rua, cidade e UF para ver o endereço novo",
+        "empty": "Sem posição para mostrar ainda. Preencha o endereço novo.",
+        "loading": "Carregando o mapa",
+        "unavailable": "O mapa não está disponível agora."
+      },
+      "open": "Enviar endereço correto",
+      "label": "Endereço correto da entrega",
+      "sendApp": "Enviar no chat do app",
+      "sendWhatsapp": "Enviar no grupo do WhatsApp",
+      "sending": "Enviando…",
+      "close": "Fechar",
+      "appSent": "Endereço enviado no chat do app do motorista.",
+      "appFailed": "Não foi possível enviar no chat do app. Tente de novo.",
+      "whatsappSent": "Endereço enviado no grupo de WhatsApp do motorista.",
+      "whatsappNoGroup": "O motorista não tem grupo de WhatsApp vinculado na ficha.",
+      "whatsappDisconnected": "O WhatsApp da empresa está desconectado ou desligado.",
+      "whatsappFailed": "Não foi possível enviar no grupo do WhatsApp. Tente de novo.",
+      "postalCode": "CEP",
+      "postalCodeSearching": "Buscando o CEP…",
+      "postalCodeMissing": "CEP não encontrado. Digite o endereço.",
+      "street": "Rua",
+      "number": "Número",
+      "district": "Bairro",
+      "city": "Cidade",
+      "state": "UF",
+      "preview": "Será enviado: {{address}}",
+      "pinHint": "O pino de localização do Google vai junto quando o endereço está completo."
     },
     "driver": {
       "title": "Contato do motorista",
@@ -2710,6 +2785,27 @@
         "caseClosed": "A tratativa foi fechada; a ocorrência virou histórico e já não pode ser corrigida nem cancelada.",
         "caseCancelled": "A tratativa foi cancelada; a ocorrência segue com o histórico dela e já não pode ser corrigida nem cancelada."
       }
+    },
+    "driverResult": {
+      "open": "Enviar resultado ao motorista",
+      "label": "Resultado da ocorrência",
+      "placeholder": "Escreva o resultado para o motorista",
+      "noteLabel": "Observação",
+      "decisionLead": {
+        "redelivery_authorized": "A contratante autorizou a reentrega.",
+        "goods_paid": "A contratante decidiu pagar os produtos.",
+        "other": "A contratante registrou outra solução."
+      },
+      "sendApp": "Enviar no chat do app",
+      "sendWhatsapp": "Enviar no grupo do WhatsApp",
+      "sending": "Enviando…",
+      "close": "Fechar",
+      "appSent": "Resultado enviado no chat do app do motorista.",
+      "appFailed": "Não foi possível enviar no chat do app. Tente de novo.",
+      "whatsappSent": "Resultado enviado no grupo de WhatsApp do motorista.",
+      "whatsappNoGroup": "O motorista não tem grupo de WhatsApp vinculado na ficha.",
+      "whatsappDisconnected": "O WhatsApp da empresa está desconectado ou desligado.",
+      "whatsappFailed": "Não foi possível enviar no grupo do WhatsApp. Tente de novo."
     }
   },
   "occurrenceTimeline": {

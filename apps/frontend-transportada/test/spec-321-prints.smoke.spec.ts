@@ -130,7 +130,9 @@ for (const theme of THEMES) {
       await closeMenuWhenOpen(page)
       await page.getByRole('tab', { name: 'Tipos' }).click()
       await page.getByText('Canhoto retido pelo cliente').first().click()
-      const toggle = page.getByRole('checkbox', { name: 'Nunca avisar a contratante' })
+      const toggle = page.getByRole('checkbox', {
+        name: 'Não avisar a contratante automaticamente',
+      })
       await expect(toggle).toBeVisible()
       await expect(page.getByRole('checkbox', { name: 'Cria coleta de canhoto' })).toBeVisible()
       await toggle.scrollIntoViewIfNeeded()

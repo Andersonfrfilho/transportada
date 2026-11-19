@@ -10,6 +10,8 @@ import { sumReportPhotoBytes } from './offlineQueue.service'
 export function buildStopOccurrenceReports(input: {
   readonly createKey: () => string
   readonly description: string
+  /** A nota de onde o toque veio; a ocorrência e a foto a levam (a contratante sai dela). */
+  readonly documentId: string | null
   /** Spec 218 D2: o tipo do catálogo — o servidor tira dele o valor fixo que ainda decide o aviso. */
   readonly occurrenceTypeId: string
   readonly photo: DriverOccurrencePhoto | undefined
@@ -17,8 +19,7 @@ export function buildStopOccurrenceReports(input: {
 }): readonly DriverFieldReport[] {
   const occurrence = {
     description: input.description,
-    /** A ocorrência da parada não aponta nota: é da parada, e a foto também (spec 209). */
-    documentId: null,
+    documentId: input.documentId,
     idempotencyKey: input.createKey(),
     kind: 'occurrence',
     /** Spec 196: nasce sem ponto; a leitura completa pela chave (`completeReportLocations`). */
@@ -35,6 +36,7 @@ export function buildStopOccurrenceReports(input: {
       documentId: occurrence.documentId,
       idempotencyKey: input.createKey(),
       kind: 'stopOccurrencePhoto',
+      location: null,
       occurrenceKey: occurrence.idempotencyKey,
       occurrenceTypeId: occurrence.occurrenceTypeId,
       photo: input.photo,

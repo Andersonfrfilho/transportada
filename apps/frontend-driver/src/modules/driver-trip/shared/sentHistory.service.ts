@@ -17,6 +17,9 @@ export type SentHistoryEntry = Readonly<{
   documentId?: string
   key: string
   kind: EventQueueItemView['kind']
+  /** O tipo da ocorrência (id do catálogo) e, quando o item o guardava, o nome — o histórico mostra qual ocorrência foi. */
+  occurrenceTypeId?: string
+  occurrenceTypeName?: string
   result: SentHistoryResult
   stopId?: string
   /** A hora do toque do motorista. */
@@ -52,6 +55,16 @@ export function toSentHistoryEntry(input: {
       : {}),
     key: report.idempotencyKey,
     kind: report.kind,
+    ...((report.kind === 'documentOccurrence' ||
+      report.kind === 'occurrence' ||
+      report.kind === 'stopOccurrencePhoto' ||
+      report.kind === 'stopOccurrenceCharge') &&
+    report.occurrenceTypeId !== undefined
+      ? { occurrenceTypeId: report.occurrenceTypeId }
+      : {}),
+    ...(report.kind === 'documentOccurrence' && report.occurrenceTypeName !== ''
+      ? { occurrenceTypeName: report.occurrenceTypeName }
+      : {}),
     result: input.result,
     ...(report.kind === 'arrive' ||
     report.kind === 'depart' ||

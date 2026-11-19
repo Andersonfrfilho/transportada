@@ -3,6 +3,12 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, test } from 'bun:test'
 
+import { whatsappFailureKey } from '@/modules/trip/components/OccurrenceDriverAddress.component'
+import {
+  buildDriverAddressChatMessage,
+  composeDriverAddressText,
+} from '@/modules/trip/shared/driverAddressMessage.service'
+import { buildDriverResultText } from '@/modules/trip/shared/driverResultMessage.service'
 import {
   buildOccurrenceDriverContact,
   formatOccurrenceItemQuantity,
@@ -226,5 +232,114 @@ describe('os itens da ocorrência no detalhe (T207)', () => {
       formatOccurrenceItemQuantity({ quantity: '3.500', unit: 'CX' }, (value) => `n:${value}`),
     ).toBe('n:3.500 CX')
     expect(formatOccurrenceItemQuantity({ quantity: null, unit: null }, (value) => value)).toBe('')
+  })
+})
+
+describe('foto do motorista no card de contato', () => {
+  const source = readFileSync(
+    new URL('src/modules/trip/pages/TripOccurrenceDetail.page.tsx', APPLICATION_ROOT),
+    'utf8',
+  )
+
+  test('imagem que não abre cai para a inicial, nunca fica o texto alternativo quebrado', () => {
+    expect(source).toContain('function OccurrenceDriverAvatar(')
+    expect(source).toContain('onError={() => setFailedUrl(pictureUrl)}')
+    expect(source).toContain('failedUrl === pictureUrl')
+  })
+})
+
+describe('endereço correto ao motorista (spec 343 T6a)', () => {
+  const page = readFileSync(
+    new URL('src/modules/trip/pages/TripOccurrenceDetail.page.tsx', APPLICATION_ROOT),
+    'utf8',
+  )
+  const client = readFileSync(
+    new URL('src/modules/trip/shared/tripOccurrenceFeedClient.service.ts', APPLICATION_ROOT),
+    'utf8',
+  )
+
+  test('o texto do chat leva o endereço e o link do mapa codificado', () => {
+    const message = buildDriverAddressChatMessage('  Rua A, 10 - Centro  ')
+    expect(message).toContain('Endereço correto da entrega: Rua A, 10 - Centro')
+    expect(message).toContain('?q=Rua%20A%2C%2010%20-%20Centro')
+  })
+
+  test('com o ponto, o link do mapa abre nas coordenadas', () => {
+    const message = buildDriverAddressChatMessage('Rua A, 10', {
+      latitude: -21.1,
+      longitude: -47.8,
+    })
+    expect(message).toContain('?q=-21.1,-47.8')
+  })
+
+  test('o formulário vira uma linha só, sem partes vazias', () => {
+    expect(
+      composeDriverAddressText({
+        city: 'Ribeirão Preto',
+        district: 'Centro',
+        number: '10',
+        postalCode: '14015-000',
+        state: 'sp',
+        street: 'Rua A',
+      }),
+    ).toBe('Rua A, 10 - Centro, Ribeirão Preto/SP, CEP 14015-000')
+    expect(
+      composeDriverAddressText({
+        city: '',
+        district: '',
+        number: '',
+        postalCode: '',
+        state: '',
+        street: 'Rua A',
+      }),
+    ).toBe('Rua A')
+  })
+
+  test('o botão só aparece a quem resolve ocorrência e vale para nota e parada', () => {
+    expect(page).toContain('canSend={canResolveOccurrenceCases}')
+    expect(page).toContain('occurrenceKind={occurrence.source}')
+  })
+
+  test('o cliente chama a rota do grupo com o texto e o ponto só quando há os dois', () => {
+    expect(client).toContain('/driver-address/whatsapp-group')
+    expect(client).toContain('addressText: input.addressText')
+    expect(client).toContain('{ latitude: input.latitude, longitude: input.longitude }')
+    expect(client).toContain('/driver-address/point')
+  })
+
+  test('o código da API vira a mensagem certa', () => {
+    expect(whatsappFailureKey(new Error('DRIVER_WHATSAPP_GROUP_MISSING'))).toBe('whatsappNoGroup')
+    expect(whatsappFailureKey(new Error('WHATSAPP_EVOLUTION_DISABLED'))).toBe(
+      'whatsappDisconnected',
+    )
+    expect(whatsappFailureKey(new Error('qualquer'))).toBe('whatsappFailed')
+  })
+})
+
+describe('resultado da ocorrência ao motorista', () => {
+  const page = readFileSync(
+    new URL('src/modules/trip/pages/TripOccurrenceDetail.page.tsx', APPLICATION_ROOT),
+    'utf8',
+  )
+  const client = readFileSync(
+    new URL('src/modules/trip/shared/tripOccurrenceFeedClient.service.ts', APPLICATION_ROOT),
+    'utf8',
+  )
+
+  test('a mensagem já vem com a decisão e a observação da contratante', () => {
+    expect(
+      buildDriverResultText({
+        lead: 'A contratante autorizou a reentrega.',
+        note: '  Reentregar amanhã  ',
+        noteLabel: 'Observação',
+      }),
+    ).toBe('A contratante autorizou a reentrega.\nObservação: Reentregar amanhã')
+    expect(buildDriverResultText({ lead: 'Lead', note: ' ', noteLabel: 'Observação' })).toBe('Lead')
+  })
+
+  test('o painel oferece o envio a quem resolve e passa a decisão da tratativa', () => {
+    expect(page).toContain('decision={occurrence.case?.decision ?? null}')
+    expect(client).toContain('/driver-result/whatsapp-group')
+    expect(client).toContain('body: { text: input.text }')
   })
 })

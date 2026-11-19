@@ -89,6 +89,7 @@
     "status": "Status",
     "actions": "Actions",
     "trips": "Trips",
+    "cancel": "Cancel",
     "settle": "Settle",
     "edit": "Edit",
     "billLocation": "Where it is: {{place}}",
@@ -107,6 +108,7 @@
     "previousMonth": "Previous month"
   },
   "dialog": {
+    "help": "Help: {{field}}",
     "close": "Close",
     "cancel": "Cancel"
   },

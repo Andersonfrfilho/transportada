@@ -168,19 +168,16 @@ describe('a operação escreve pelo portal (spec 183 T654)', () => {
   })
 })
 
-describe('o tipo que nunca avisa a contratante não fala pelo portal (spec 321 D2, CA01)', () => {
-  test('409 OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED, sem gravar nem avisar', async () => {
-    const { calls, notices, send } = createFake({
+describe('a marca do tipo só cala o automático: o portal à mão segue (spec 343)', () => {
+  test('com a marca, a mensagem é gravada e a contratante é avisada', async () => {
+    const { calls, send } = createFake({
       ...AVAILABLE,
       audience: { ...AVAILABLE.audience, blocksContractorNotice: true },
     } as Audience)
 
-    await expect(send('Oi')).rejects.toMatchObject({
-      code: 'OCCURRENCE_CONTRACTOR_NOTICE_BLOCKED',
-      status: 409,
-    })
-    expect(calls.some((call) => call.name === 'insertPortalMessage')).toBe(false)
-    expect(notices).toEqual([])
+    await send('Oi')
+
+    expect(calls.some((call) => call.name === 'insertPortalMessage')).toBe(true)
   })
 })
 

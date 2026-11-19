@@ -313,6 +313,29 @@ export type TripOccurrenceRequirements = Readonly<{
   referenceNumberMode: OccurrenceAttachmentMode
 }>
 
+/** Cobrança no recebimento da ocorrência de parada (spec 317): foto por vaga (placa, extrato) e quem pagou. */
+export const OCCURRENCE_PIX_KEY_TYPES = ['cpf', 'cnpj', 'email', 'phone', 'random'] as const
+export type OccurrencePixKeyType = (typeof OCCURRENCE_PIX_KEY_TYPES)[number]
+
+/** E13: o comprovante da transferência ao motorista, já enviado pelo chat. Só vem com `trip.financials`. */
+export type TripOccurrenceDriverPayoutReceipt = Readonly<{
+  expiresAt: string
+  fileName: string
+  sentAt: string
+  url: string
+}>
+
+export type TripOccurrenceReceivingCharge = Readonly<{
+  /** Total pago, duas casas (`"0.00"` é valor); `null` quando não foi digitado. */
+  declaredAmount: null | string
+  /** Ausente é API anterior ao comprovante; `null` é ainda sem envio (ou sem permissão). */
+  driverPayoutReceipt?: null | TripOccurrenceDriverPayoutReceipt
+  /** Só vem com `trip.financials`; sem a permissão a API devolve `null` e a tela diz que está restrito. */
+  driverPix: null | Readonly<{ key: string; type: OccurrencePixKeyType }>
+  paidBy: 'company' | 'driver' | null
+  photos: readonly Readonly<{ expiresAt: string; label: string; slotKey: string; url: string }>[]
+}>
+
 /** Spec 183 RF1: a linha da listagem, com autoria, nota e o motorista. */
 export type TripOccurrenceDetail = TripOccurrenceFeedItem &
   Readonly<{
@@ -324,6 +347,8 @@ export type TripOccurrenceDetail = TripOccurrenceFeedItem &
     itemValues?: readonly TripOccurrenceItemValue[]
     /** Spec 247 R2: o número do documento do cliente. Ausente é API anterior ao campo. */
     referenceNumber?: null | string
+    /** Spec 317: ausente é API anterior ou ocorrência sem cobrança no recebimento. */
+    receivingCharge?: null | TripOccurrenceReceivingCharge
     /** Spec 247 T7.2b: ausente ou `null` é ocorrência antiga, API anterior ou parada sem nota — rótulos genéricos. */
     requirements?: null | TripOccurrenceRequirements
     driver: null | TripOccurrenceDetailDriver

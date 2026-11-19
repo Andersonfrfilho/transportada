@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import './identity-schema/public-picture-wiring.contract.js'
 import { describe, expect, test } from 'bun:test'
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 

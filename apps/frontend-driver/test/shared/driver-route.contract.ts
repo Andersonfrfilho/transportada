@@ -7,6 +7,8 @@ import {
   buildDriverRoutePath,
   buildDriverStopPath,
   DRIVER_ROUTE_PATH,
+  goBackInDriverApp,
+  navigateToDriverSection,
   navigateToDriverConversation,
   navigateToDriverOccurrence,
   navigateToDriverOccurrenceList,
@@ -196,5 +198,29 @@ describe('rotas das ocorrências da rota (spec 266 T4.4)', () => {
     expect(parseDriverStopHash('#stop-')).toBeUndefined()
     expect(parseDriverStopHash('#outra')).toBeUndefined()
     expect(parseDriverStopHash('#stop-%E0%A4%A')).toBeUndefined()
+  })
+
+  it('"Voltar" da fila: aberta pelo app desfaz o push; aberta direto vai para a viagem', () => {
+    const calls: string[] = []
+    const make = (state: unknown) => ({
+      dispatchEvent: () => {
+        calls.push('popstate')
+        return true
+      },
+      history: {
+        back: () => calls.push('back'),
+        replaceState: (_s: unknown, _t: string, url?: string | URL | null) =>
+          calls.push(`replace:${String(url)}`),
+        state,
+      },
+    })
+    goBackInDriverApp(make({ driverNav: true }))
+    expect(calls).toEqual(['back'])
+    calls.length = 0
+    goBackInDriverApp(make(null))
+    expect(calls).toEqual(['replace:/', 'popstate'])
+    const fake = createFakeTarget('/')
+    navigateToDriverSection('queue', fake.target)
+    expect(fake.pushed).toEqual(['/fila'])
   })
 })

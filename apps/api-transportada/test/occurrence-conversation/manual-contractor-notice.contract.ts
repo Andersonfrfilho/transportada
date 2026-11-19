@@ -94,12 +94,17 @@ function setup(input: {
           contratante: '',
           data: '',
           enderecoEntrega: '',
+          chegada: '',
+          inicioRota: '',
+          janelaRecebimento: '',
+          tempoEspera: '',
           momento: 'entrega',
           novaData: '',
           numeroNota: '4512/1',
           numeroNotaSemSerie: '4512',
           observacao: '',
           tipoOcorrencia: 'Local fechado',
+          valorCobrado: '',
           valorNota: '',
         },
       }),
@@ -322,22 +327,29 @@ describe('o botão "Avisar a contratante" (spec 324 T1)', () => {
     expect(fixture.records).toEqual([expect.objectContaining({ status: 'failed' })])
   })
 
-  test('CA05: tipo marcado pela 321 (canhoto retido) — bloqueado antes de reservar ou enviar', async () => {
-    const fixture = setup({
-      plan: plan({ blocksContractorNotice: true, recipients: [], suggested: null }),
-    })
+  test('CA05 (revisto na 343): a marca da 321 só cala o automático — o botão avisa e reserva como em qualquer tipo', async () => {
+    const fixture = setup({ plan: plan({ blocksContractorNotice: true }) })
 
-    expect(await fixture.manual()).toEqual({ outcome: 'blocked' })
-    expect(fixture.manualClaims()).toBe(0)
-    expect(fixture.mails).toEqual([])
-    expect(fixture.posts).toEqual([])
+    expect(await fixture.manual()).not.toEqual({ outcome: 'blocked' })
+    expect(fixture.manualClaims()).toBe(1)
   })
 
-  test('ocorrência de parada ou sem contratante: not_document, sem reservar', async () => {
+  test('ocorrência inexistente nesta empresa: not_document, sem reservar', async () => {
     const fixture = setup({ plan: null })
 
     expect(await fixture.manual()).toEqual({ outcome: 'not_document' })
     expect(fixture.manualClaims()).toBe(0)
+  })
+
+  test('spec 343 RF1: parada sem nota — não reserva, não envia e diz que não há contratante', async () => {
+    const fixture = setup({
+      plan: plan({ missingContractor: true, recipients: [], suggested: null }),
+    })
+
+    expect(await fixture.manual()).toEqual({ outcome: 'skipped', reason: 'not_document' })
+    expect(fixture.manualClaims()).toBe(0)
+    expect(fixture.mails).toEqual([])
+    expect(fixture.posts).toEqual([])
   })
 
   test('D8: tipo com aviso ligado já avisado pelo automático — recusa sem reservar', async () => {
@@ -486,7 +498,7 @@ describe('o estado do botão "Avisar a contratante" (spec 324 T3)', () => {
     })
   })
 
-  test('tipo da 321 (CA05): indisponível por "blocked", mesmo já avisada', async () => {
+  test('tipo da 321 (CA05 revisto na 343): o estado não é "blocked"; já avisada segue "notified"', async () => {
     const fixture = setup({
       noticeRecord: {
         automatic: null,
@@ -495,7 +507,7 @@ describe('o estado do botão "Avisar a contratante" (spec 324 T3)', () => {
       plan: plan({ blocksContractorNotice: true }),
     })
 
-    expect(await fixture.state()).toEqual({ reason: 'blocked', status: 'unavailable' })
+    expect(await fixture.state()).toMatchObject({ by: 'manual', status: 'notified' })
   })
 
   test('RF4: avisada pelo botão devolve quem, quando e o canal', async () => {
@@ -548,7 +560,14 @@ describe('o estado do botão "Avisar a contratante" (spec 324 T3)', () => {
     expect(await noTemplate.state()).toEqual({ reason: 'no_template', status: 'unavailable' })
   })
 
-  test('parada, nota sem contratante ou outra empresa: null (404 na rota)', async () => {
+  test('ocorrência de outra empresa ou inexistente: null (404 na rota)', async () => {
     expect(await setup({ plan: null }).state()).toBeNull()
+  })
+
+  test('spec 343 RF1: parada sem nota — indisponível com o motivo no_document', async () => {
+    const fixture = setup({
+      plan: plan({ missingContractor: true, recipients: [], suggested: null }),
+    })
+    expect(await fixture.state()).toEqual({ reason: 'no_document', status: 'unavailable' })
   })
 })

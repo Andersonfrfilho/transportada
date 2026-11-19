@@ -340,8 +340,8 @@
     "clientChannel": "Client channel",
     "asksClientContact": "Ask the driver for the client contact",
     "asksClientContactHint": "When the invoice client has no saved contact for this channel, the driver app asks for the WhatsApp number or e-mail when the occurrence is opened, so the driver does not have to send it in the chat. A client can have several numbers and e-mails.",
-    "blocksContractorNotice": "Never notify the contractor",
-    "blocksContractorNoticeHint": "This occurrence sends no e-mail, chat or group message to the contractor, on any channel. The internal team is still notified.",
+    "blocksContractorNotice": "Do not notify the contractor automatically",
+    "blocksContractorNoticeHint": "This occurrence sends no automatic e-mail or group message to the contractor. The \"Notify the contractor\" button and the office chat still work. The internal team is still notified.",
     "createsCanhotoPickup": "Creates a receipt pickup",
     "createsCanhotoPickupHint": "When registered, the invoice stays delivered and a pending receipt pickup is created for the office to schedule on another driver's trip.",
     "countsCargoOnPickupTrip": "Count weight and size on the pickup trip",
@@ -568,6 +568,10 @@
           "codigosItens": "The item codes, comma separated.",
           "quantidadesItens": "The quantities, comma separated.",
           "linhasItens": "One line per item: code – item – quantity unit – R$ value.",
+          "inicioRota": "When the driver left for the delivery (date and time).",
+          "chegada": "When the driver arrived at the customer (date and time).",
+          "tempoEspera": "How long the driver has been waiting since arriving.",
+          "janelaRecebimento": "The customer's receiving window (start time to end time).",
           "nomeExibicao": "Carrier display name.",
           "cnpjTransportadora": "Carrier CNPJ, formatted.",
           "cnpjContratante": "Contractor CPF or CNPJ; empty without a document.",
@@ -582,7 +586,11 @@
           "marcasRodape": "Footer marks: TransportAdA and Ada Technology (system HTML).",
           "logoAssinatura": "Signature square: the carrier logo on the team signature, otherwise the initials (system HTML).",
           "novaDataVencimento": "New due date requested by the driver (DD/MM/YYYY); empty when not given.",
-          "avisoNovaData": "Paragraph \"New due date requested: DD/MM/YYYY\", only when the driver gave the date (system HTML)."
+          "avisoNovaData": "Paragraph \"New due date requested: DD/MM/YYYY\", only when the driver gave the date (system HTML).",
+          "enderecoEntrega": "Client delivery address, from the invoice.",
+          "cidadeEntrega": "Client city and state, from the invoice.",
+          "cnpjCliente": "Client CNPJ; empty when the client is an individual.",
+          "valorCobrado": "Amount the driver entered in the app (charged or paid); empty when not entered."
         }
       },
       "watchers": {
@@ -998,19 +1006,19 @@
       },
       "graceMinMinutes": {
         "label": "Minimum grace (min)",
-        "hint": "From {{min}} to {{max}} minutes of wait after the expected time."
+        "hint": "From {{min}} to {{max}} minutes of wait after the expected time of each stage (en route, at the stop, idle). The deadline restarts on every recorded event."
       },
       "gracePercent": {
         "label": "Grace (%)",
-        "hint": "From {{min}} to {{max}}% of the travel time, added to the minimum grace."
+        "hint": "From {{min}} to {{max}}% of the travel time. Only applies to the en-route stage, and the grace is the larger of this and the minimum grace."
       },
       "dwellMinutes": {
         "label": "Dwell (min)",
-        "hint": "From {{min}} to {{max}} minutes between arrival and the delivery reminder."
+        "hint": "From {{min}} to {{max}} expected minutes between arrival and unloading. The reminder comes after the minimum grace."
       },
       "idleMinutes": {
         "label": "No event (min)",
-        "hint": "From {{min}} to {{max}} minutes with no trip record before reminding."
+        "hint": "From {{min}} to {{max}} expected minutes until the next trip event. The reminder comes after the minimum grace."
       }
     },
     "hours": {

@@ -37,6 +37,7 @@ function buildReports(photo: typeof PHOTO | undefined) {
   return buildStopOccurrenceReports({
     createKey: nextKey,
     description: 'Doca fechada até as 14h',
+    documentId: null,
     occurrenceTypeId: OCCURRENCE_TYPE_ID,
     photo,
     stopId: STOP_ID,
@@ -93,6 +94,7 @@ describe('os itens do "Deu problema" na fila (spec 209 D2)', () => {
     expect(photo).toEqual({
       description: 'Doca fechada até as 14h',
       documentId: null,
+      location: null,
       idempotencyKey: 'chave-2',
       kind: 'stopOccurrencePhoto',
       occurrenceKey: 'chave-1',
@@ -173,6 +175,7 @@ describe('a foto sobe pela rota da parada e completa a ocorrência (spec 209 RF1
       attachmentObjectId: UPLOAD_ID,
       description: 'Doca fechada até as 14h',
       documentId: null,
+      location: null,
       occurrenceTypeId: OCCURRENCE_TYPE_ID,
     })
   })
@@ -267,5 +270,20 @@ describe('a tela do "Deu problema" (spec 209 RF4)', () => {
   it('a página grava pelo hook que derruba a foto quando a fila está cheia', () => {
     expect(page).toInclude('reportStopOccurrence')
     expect(page).toInclude('occurrencePhotoDropped')
+  })
+})
+
+describe('a ocorrência de parada aberta pela nota leva a nota (18/11/2026)', () => {
+  it('a ocorrência e a foto carregam o documentId, e a contratante sai dele', () => {
+    const [occurrence, photo] = buildStopOccurrenceReports({
+      createKey: nextKey,
+      description: 'Espera longa',
+      documentId: 'doc-1',
+      occurrenceTypeId: OCCURRENCE_TYPE_ID,
+      photo: PHOTO,
+      stopId: STOP_ID,
+    })
+    expect(occurrence).toMatchObject({ documentId: 'doc-1', kind: 'occurrence' })
+    expect(photo).toMatchObject({ documentId: 'doc-1', kind: 'stopOccurrencePhoto' })
   })
 })

@@ -1,0 +1,3 @@
+ALTER TABLE "occurrence_contractor_manual_notices" DROP CONSTRAINT "occurrence_contractor_manual_notices_company_occurrence_fk";--> statement-breakpoint
+ALTER TABLE "occurrence_contractor_manual_notices" ADD COLUMN "occurrence_kind" varchar(16) DEFAULT 'document' NOT NULL;--> statement-breakpoint
+ALTER TABLE "occurrence_contractor_manual_notices" ADD CONSTRAINT "occurrence_contractor_manual_notices_kind_check" CHECK ("occurrence_kind" in ('stop', 'document'));

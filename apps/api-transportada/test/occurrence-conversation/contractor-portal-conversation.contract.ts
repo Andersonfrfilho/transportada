@@ -98,6 +98,7 @@ function createFake(
     },
     attachments: {
       attachUpload: async () => undefined,
+      attachStoredCopy: () => Promise.resolve(),
       lockPendingUploads: async () => [],
     },
     async ensureConversationRefs(input) {

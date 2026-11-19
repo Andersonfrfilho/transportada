@@ -116,7 +116,45 @@
       "unloadedDocumentsNamed_one": "{{notes}} has not been marked as loaded yet; ask the office to check the loading or release the departure",
       "unloadedDocumentsNamed_other": "invoices {{notes}} have not been marked as loaded yet; ask the office to check the loading or release the departure",
       "unscheduledStops": "some stops of the trip have no time; ask the office to complete the route",
-      "typeNotAvailableForContractor": "this occurrence type does not apply to the contractor of this note; choose another type"
+      "typeNotAvailableForContractor": "this occurrence type does not apply to the contractor of this note; choose another type",
+      "minWaitNotReached": "the minimum waiting time since arrival has not passed yet; register again later",
+      "noteRequired": "this occurrence type requires a written note",
+      "attachmentRequired": "this occurrence type requires a photo",
+      "photoRequired": "this occurrence type requires a photo",
+      "photoMinimumNotMet": "photos are missing: this type requires more photos",
+      "signatureRequired": "this occurrence type requires a signature",
+      "locationRequired": "the device did not send the location for this occurrence; check the browser location permission (on a computer it may not be able to get one) and register again",
+      "arrivalTimeRequired": "register your arrival at the stop before this occurrence",
+      "duplicateRequest": "this occurrence was already registered",
+      "uploadNotReachable": "the photo for this occurrence could not be sent; try again",
+      "attachmentLimit": "the photo limit for this occurrence was exceeded",
+      "deliveryClientNotResolved": "this note's client is not registered yet; ask the office to check the registration",
+      "photoSlotMissing": "one of the required photos for this occurrence is missing",
+      "photoSlotInvalid": "one of the photos is not accepted for this occurrence type",
+      "paidByRequired": "say who paid",
+      "driverPixRequired": "enter the PIX key for the reimbursement",
+      "stopDocumentRequired": "choose this occurrence's note",
+      "documentNotInStop": "the chosen note does not belong to this stop",
+      "chargeMixedParties": "the selected notes belong to different clients or contractors; register one charge per client",
+      "chargeNotAccepted": "this occurrence type does not take charge data",
+      "stopOutOfOrder": "the stop is out of route order; confirm or follow the order",
+      "documentAlreadySettled": "this note was already delivered or returned",
+      "documentAlreadyDelivered": "this note was already delivered",
+      "tripNotActive": "this trip is already finished",
+      "driverNotRegistered": "your account is not linked to a driver record; contact the office",
+      "timeInFuture": "the record time is in the future; check your device clock",
+      "occurrenceCancelled": "this occurrence was cancelled",
+      "tripClosed": "this trip is already closed",
+      "trailerRequired": "the trip needs an attached trailer; ask the office",
+      "stopEnRoute": "another stop is already en route; finish or cancel its departure first",
+      "itemQuantityNotPositive": "each product quantity must be greater than zero",
+      "productNotInDocument": "one of the marked products is not on this note",
+      "proofAlreadyCaptured": "this note already has a proof recorded",
+      "receiverNameRequired": "enter the name of who received",
+      "receivedByRequired": "say who received",
+      "returnReasonRequired": "enter the return reason",
+      "unknown": "the server refused this record (code {{code}}); contact the office",
+      "alreadyOpenForType": "this stop already has an open occurrence of this type; no need to register it again"
     },
     "cancel": {
       "confirm": "Cancel anyway",
@@ -141,6 +179,13 @@
       "tapped": "Tapped at {{time}}"
     },
     "empty": "Nothing waiting to be sent.",
+    "appVersion": "App version: {{time}}",
+    "reference": {
+      "note": "Invoice {{number}}",
+      "route": "Route {{id}}",
+      "stop": "Stop {{sequence}}",
+      "trip": "Trip {{id}}"
+    },
     "itemTitle": {
       "depart": "Start route — stop {{sequence}}"
     },
@@ -835,8 +880,16 @@
         "documents": "the invoices of the charge",
         "paidBy": "who paid",
         "pix": "the PIX key type and key",
+        "note": "the note",
         "photo": "{{label}}"
       }
+    },
+    "availability": {
+      "alreadyOpen": "Already registered at this stop",
+      "arrivalSyncing": "Waiting for the arrival to sync",
+      "needsArrival": "Tap \"Arrived\" first",
+      "waiting_one": "Available at {{time}} · {{count}} min left",
+      "waiting_other": "Available at {{time}} · {{count}} min left"
     }
   },
   "routeOccurrence": {

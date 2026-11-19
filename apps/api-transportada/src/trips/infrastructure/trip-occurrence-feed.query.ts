@@ -35,6 +35,7 @@ import {
   tripDocuments,
   tripDrivers,
   tripOccurrenceCases,
+  tripStopOccurrencePhotos,
   tripStopOccurrences,
   tripStops,
   trips,
@@ -1033,38 +1034,73 @@ const feedAttachmentThumbnails = alias(storedObjects, 'trip_occurrence_feed_atta
 
 /**
  * Os anexos de uma ocorrência de parada, para a rota de presign. Id que não é desta empresa, ou que
- * não tem anexo, devolve lista vazia — nunca 404, para não confirmar existência. Fora do escopo da
- * spec 161 (D2/D12): sempre `position: 1`, sem miniatura — a coluna de anexo da parada é sempre a
- * única fonte, e permanece intocada por esta feature.
+ * não tem anexo, devolve lista vazia — nunca 404, para não confirmar existência. A coluna de anexo
+ * da parada é a foto única (spec 209) e, na ocorrência com vagas de foto (spec 317, cobrança no
+ * recebimento), a primeira delas; as demais vagas moram em `trip_stop_occurrence_photos`. Aqui as
+ * duas fontes viram uma lista só, sem repetir o mesmo objeto, na ordem das vagas (`position` 1..N).
  */
 async function listStopOccurrenceAttachmentLocations(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly occurrenceId: string },
 ): Promise<readonly OccurrenceAttachmentRecord[]> {
-  const rows = await queryable
-    .select({
-      bucket: storedObjects.bucket,
-      id: tripStopOccurrences.id,
-      mimeType: storedObjects.mimeType,
-      objectKey: storedObjects.objectKey,
-      retentionUntil: storedObjects.retentionUntil,
-    })
-    .from(tripStopOccurrences)
-    .innerJoin(
-      storedObjects,
-      and(
-        eq(storedObjects.companyId, tripStopOccurrences.companyId),
-        eq(storedObjects.id, tripStopOccurrences.attachmentObjectId),
+  const [primaryRows, slotRows] = await Promise.all([
+    queryable
+      .select({
+        bucket: storedObjects.bucket,
+        id: tripStopOccurrences.id,
+        mimeType: storedObjects.mimeType,
+        objectId: storedObjects.id,
+        objectKey: storedObjects.objectKey,
+        retentionUntil: storedObjects.retentionUntil,
+      })
+      .from(tripStopOccurrences)
+      .innerJoin(
+        storedObjects,
+        and(
+          eq(storedObjects.companyId, tripStopOccurrences.companyId),
+          eq(storedObjects.id, tripStopOccurrences.attachmentObjectId),
+        ),
+      )
+      .where(
+        and(
+          eq(tripStopOccurrences.companyId, input.companyId),
+          eq(tripStopOccurrences.id, input.occurrenceId),
+        ),
       ),
-    )
-    .where(
-      and(
-        eq(tripStopOccurrences.companyId, input.companyId),
-        eq(tripStopOccurrences.id, input.occurrenceId),
-      ),
-    )
+    queryable
+      .select({
+        bucket: storedObjects.bucket,
+        id: tripStopOccurrencePhotos.stopOccurrenceId,
+        mimeType: storedObjects.mimeType,
+        objectId: storedObjects.id,
+        objectKey: storedObjects.objectKey,
+        retentionUntil: storedObjects.retentionUntil,
+      })
+      .from(tripStopOccurrencePhotos)
+      .innerJoin(
+        storedObjects,
+        and(
+          eq(storedObjects.companyId, tripStopOccurrencePhotos.companyId),
+          eq(storedObjects.id, tripStopOccurrencePhotos.objectId),
+        ),
+      )
+      .where(
+        and(
+          eq(tripStopOccurrencePhotos.companyId, input.companyId),
+          eq(tripStopOccurrencePhotos.stopOccurrenceId, input.occurrenceId),
+        ),
+      )
+      .orderBy(asc(tripStopOccurrencePhotos.position), asc(tripStopOccurrencePhotos.slotKey)),
+  ])
 
-  return rows.map((row) => ({
+  const seenObjectIds = new Set<string>()
+  const rows = [...primaryRows, ...slotRows].filter((row) => {
+    if (seenObjectIds.has(row.objectId)) return false
+    seenObjectIds.add(row.objectId)
+    return true
+  })
+
+  return rows.map((row, index) => ({
     id: row.id,
     original: {
       bucket: row.bucket,
@@ -1072,7 +1108,7 @@ async function listStopOccurrenceAttachmentLocations(
       objectKey: row.objectKey,
       retentionUntil: row.retentionUntil?.toISOString() ?? null,
     },
-    position: 1,
+    position: index + 1,
     thumbnail: null,
   }))
 }

@@ -63,6 +63,11 @@ COPY apps/api-transportada/src/occurrence-conversation/domain apps/api-transport
 COPY apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates apps/api-transportada/src/occurrence-conversation/occurrence-mail-templates
 # Spec 324 T1b: o texto WhatsApp do modelo geral do aviso manual, lido pelo mesmo publicador.
 COPY apps/api-transportada/src/occurrence-conversation/occurrence-whatsapp-templates apps/api-transportada/src/occurrence-conversation/occurrence-whatsapp-templates
+# Spec 325 T7.3: o mesmo publicador grava os modelos das contas (régua e arquivos de e-mail/WhatsApp de `expenses`); sem eles o
+# script cai em "Cannot find module" no container e nada é publicado.
+COPY apps/api-transportada/src/expenses/domain apps/api-transportada/src/expenses/domain
+COPY apps/api-transportada/src/expenses/expense-mail-templates apps/api-transportada/src/expenses/expense-mail-templates
+COPY apps/api-transportada/src/expenses/expense-whatsapp-templates apps/api-transportada/src/expenses/expense-whatsapp-templates
 COPY apps/api-transportada/scripts/occurrence-mail-templates-publish.ts apps/api-transportada/scripts/occurrence-mail-templates-publish.ts
 # Spec 286 T8: republicação do grafo raiz do WhatsApp (falas `fala_*` do bot), também via `railway ssh`.
 COPY apps/api-transportada/scripts/whatsapp-flow-publish.ts apps/api-transportada/scripts/whatsapp-flow-publish.ts

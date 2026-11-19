@@ -41,26 +41,43 @@ export const OCCURRENCE_MAIL_VARIABLE_NAMES = [
   /** A nova data de vencimento pedida pelo motorista (opcional): o texto e o aviso em HTML do sistema. */
   'novaDataVencimento',
   'avisoNovaData',
+  /** O cliente que recebe: endereço e cidade da nota; o CNPJ só de pessoa jurídica. */
+  'enderecoEntrega',
+  'cidadeEntrega',
+  'cnpjCliente',
+  /** O valor que o motorista informou no app (cobrança no recebimento / valor pago). */
+  'valorCobrado',
+  /** Espera longa (18/11/2026): os eventos da entrega da parada da nota. */
+  'inicioRota',
+  'chegada',
+  'tempoEspera',
+  'janelaRecebimento',
 ] as const
 
 export type OccurrenceMailVariableName = (typeof OCCURRENCE_MAIL_VARIABLE_NAMES)[number]
 
 /** O que a prévia mostra no lugar de cada variável — dados de exemplo, nunca da operação. */
 export const OCCURRENCE_MAIL_SAMPLE_VALUES: Readonly<Record<OccurrenceMailVariableName, string>> = {
+  chegada: '18/11/2026 15:10',
   codigosItens: '7000001 01, 7000002 02',
   assinaturaCargo: 'Analista de Operações',
   assinaturaIniciais: 'ME',
   assinaturaNome: 'Maria Exemplo',
   avisoNovaData: 'Nova data de vencimento solicitada: 25/11/2026',
   cidadeTransportadora: 'Ribeirão Preto · SP',
+  cidadeEntrega: 'Franca · SP',
+  cnpjCliente: '12.345.678/0001-95',
   cnpjContratante: '98.765.432/0001-10',
   cnpjTransportadora: '12.345.678/0001-95',
   contratante: 'Contratante Exemplo',
   data: '01/01/2026',
   /** Os quatro de HTML do sistema têm exemplo fixo em texto, sem marcação: a prévia nunca monta HTML do sistema. */
+  enderecoEntrega: 'Rua Exemplo, 650, Centro',
   faixaResposta:
     '↩ Responda este e-mail: a resposta entra na conversa desta ocorrência e chega à equipe.',
+  inicioRota: '18/11/2026 14:20',
   itens: 'PRODUTO EXEMPLO A 500G, PRODUTO EXEMPLO B 1KG',
+  janelaRecebimento: '08:00 às 17:00',
   linhasItens:
     '7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20\n7000002 02 – PRODUTO EXEMPLO B 1KG – 3 CX – R$ 60,00',
   logoAssinatura: 'ME',
@@ -78,8 +95,10 @@ export const OCCURRENCE_MAIL_SAMPLE_VALUES: Readonly<Record<OccurrenceMailVariab
   razaoSocial: 'Supermercado Exemplo Ltda',
   razaoSocialTransportadora: 'Transportadora Exemplo Ltda',
   somaItens: '117,20',
+  tempoEspera: '1 h 05 min',
   tabelaItens: '7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20',
   tipoOcorrencia: 'Avaria',
+  valorCobrado: '50,00',
   valorDeclarado: '117,20',
   valorNota: '7.840,64',
 }

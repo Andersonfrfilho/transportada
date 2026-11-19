@@ -9,6 +9,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tabs } from '@/components/ui/tabs'
 import { formatPersonName } from '@/lib/personName'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
+import { ContractorNoticeSection } from '@/modules/occurrence-conversation/components/ContractorNoticeSection.component'
 import { ContractorReplyPanel } from '@/modules/occurrence-conversation/components/ContractorReplyPanel.component'
 import { useOccurrenceConversationsQuery } from '@/modules/occurrence-conversation/queries/occurrenceConversation.query'
 import { findClientConversation } from '@/modules/occurrence-conversation/shared/clientConversation.service'
@@ -28,6 +29,15 @@ import { OccurrenceResolutionPanel } from '../components/OccurrenceResolutionPan
 import { OccurrenceCaseTakenBy } from '../components/OccurrenceCaseTakenBy.component'
 import { OccurrenceCorrectionActions } from '../components/OccurrenceCorrectionActions.component'
 import { OccurrenceCorrectionHistory } from '../components/OccurrenceCorrectionHistory.component'
+import {
+  OccurrenceDriverAddressButton,
+  OccurrenceDriverAddressEditor,
+} from '../components/OccurrenceDriverAddress.component'
+import {
+  OccurrenceDriverResultButton,
+  OccurrenceDriverResultEditor,
+} from '../components/OccurrenceDriverResult.component'
+import { OccurrenceReceivingCharge } from '../components/OccurrenceReceivingCharge.component'
 import { OccurrenceTimelinePanel } from '../components/OccurrenceTimeline.component'
 import { OccurrenceTripMap } from '../components/OccurrenceTripMap.component'
 import {
@@ -187,8 +197,29 @@ function OccurrenceDocumentPanel({ occurrence }: Readonly<{ occurrence: TripOccu
 }
 
 /** Spec 183 P2: o contato do motorista vira ação — ligar, WhatsApp, e-mail, copiar. */
-function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurrenceDetail }>) {
+function OccurrenceDriverPanel({
+  canSend,
+  companyId,
+  occurrence,
+  permissions,
+}: Readonly<{
+  canSend: boolean
+  companyId?: string
+  occurrence: TripOccurrenceDetail
+  permissions: readonly string[]
+}>) {
   const { t } = useTranslation('trip')
+  /** Só um painel de envio fica aberto por vez; ao enviar ele fecha e a confirmação ocupa o lugar. */
+  const [openPanel, setOpenPanel] = useState<'address' | 'result' | null>(null)
+  const [sentKey, setSentKey] = useState<string | null>(null)
+  function openOnly(panel: 'address' | 'result'): void {
+    setSentKey(null)
+    setOpenPanel(panel)
+  }
+  function finishSend(messageKey: string): void {
+    setOpenPanel(null)
+    setSentKey(messageKey)
+  }
   const contact = buildOccurrenceDriverContact({
     apiUrl: getIdentityEnvironment().apiBaseUrl,
     driver: occurrence.driver,
@@ -202,17 +233,11 @@ function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurr
         <h2 id="occurrence-driver-title">{t('occurrenceDetail.driver.title')}</h2>
       </div>
       <div className={styles.occurrenceDriver}>
-        {contact.pictureUrl === null ? (
-          <span aria-hidden="true" className={styles.occurrenceAvatar}>
-            {contact.initials}
-          </span>
-        ) : (
-          <img
-            alt={t('occurrenceDetail.driver.pictureAlt', { name: contact.name })}
-            className={styles.occurrenceAvatar}
-            src={contact.pictureUrl}
-          />
-        )}
+        <OccurrenceDriverAvatar
+          alt={t('occurrenceDetail.driver.pictureAlt', { name: contact.name })}
+          initials={contact.initials}
+          pictureUrl={contact.pictureUrl}
+        />
         <dl className={styles.occurrenceFacts}>
           <div>
             <dt>{t('occurrenceDetail.driver.name')}</dt>
@@ -268,7 +293,40 @@ function OccurrenceDriverPanel({ occurrence }: Readonly<{ occurrence: TripOccurr
             variant="boxed"
           />
         )}
+        {canSend ? (
+          <>
+            {openPanel === 'address' ? null : (
+              <OccurrenceDriverAddressButton onOpen={() => openOnly('address')} />
+            )}
+            {openPanel === 'result' ? null : (
+              <OccurrenceDriverResultButton onOpen={() => openOnly('result')} />
+            )}
+          </>
+        ) : null}
       </div>
+      {canSend && openPanel === 'address' ? (
+        <OccurrenceDriverAddressEditor
+          {...(companyId === undefined ? {} : { companyId })}
+          occurrence={occurrence}
+          onClose={() => setOpenPanel(null)}
+          onSent={finishSend}
+          permissions={permissions}
+        />
+      ) : null}
+      {canSend && openPanel === 'result' ? (
+        <OccurrenceDriverResultEditor
+          decision={occurrence.case?.decision ?? null}
+          occurrenceId={occurrence.id}
+          occurrenceKind={occurrence.source}
+          onClose={() => setOpenPanel(null)}
+          onSent={finishSend}
+        />
+      ) : null}
+      {sentKey === null ? null : (
+        <p className={styles.hint} role="status">
+          {t(sentKey)}
+        </p>
+      )}
     </section>
   )
 }
@@ -429,6 +487,7 @@ function OccurrenceSummaryPanel({
           </dd>
         </div>
       </dl>
+      <OccurrenceReceivingCharge occurrence={occurrence} permissions={permissions} />
       <OccurrenceItems occurrence={occurrence} />
       <OccurrenceCorrectionActions
         {...(companyId === undefined ? {} : { companyId })}
@@ -436,8 +495,38 @@ function OccurrenceSummaryPanel({
         permissions={permissions}
       />
       <OccurrenceCorrectionHistory occurrence={occurrence} />
-      <OccurrenceAttachments item={occurrence} />
+      {/* Spec 317: a cobrança já mostra as fotos das vagas, em tamanho cheio; repeti-las em miniatura era ruído. */}
+      {(occurrence.receivingCharge?.photos.length ?? 0) > 0 ? null : (
+        <OccurrenceAttachments item={occurrence} />
+      )}
     </section>
+  )
+}
+
+/**
+ * A foto do motorista vem de um endereço público que pode não abrir (arquivo ausente no armazenamento, token trocado).
+ * Imagem quebrada com o texto alternativo no lugar do rosto é pior que a inicial: ao falhar a carga, mostra a inicial.
+ */
+function OccurrenceDriverAvatar({
+  alt,
+  initials,
+  pictureUrl,
+}: Readonly<{ alt: string; initials: string; pictureUrl: null | string }>): ReactNode {
+  const [failedUrl, setFailedUrl] = useState<null | string>(null)
+  if (pictureUrl === null || failedUrl === pictureUrl) {
+    return (
+      <span aria-hidden="true" className={styles.occurrenceAvatar}>
+        {initials}
+      </span>
+    )
+  }
+  return (
+    <img
+      alt={alt}
+      className={styles.occurrenceAvatar}
+      onError={() => setFailedUrl(pictureUrl)}
+      src={pictureUrl}
+    />
   )
 }
 
@@ -479,6 +568,13 @@ function OccurrenceDetailSections({
           <h2 id="occurrence-conversations-title">{t('occurrenceDetail.conversations.title')}</h2>
         </div>
         {participant === 'driver' || participant === 'client' ? null : (
+          /** Spec 343: o aviso manual vale também para a parada; sem nota o botão fica desligado com o motivo. */
+          <ContractorNoticeSection occurrenceId={occurrence.id} />
+        )}
+        {participant === 'driver' ||
+        participant === 'client' ||
+        occurrence.source !== 'document' ? null : (
+          /** O retorno da contratante é de ocorrência de nota; a rota responde 404 para parada. */
           <ContractorReplyPanel
             canResolve={canResolveOccurrenceCases}
             {...(companyId === undefined ? {} : { companyId })}
@@ -561,7 +657,14 @@ function OccurrenceDetailSections({
     contractorConversation: () => conversations('contractor'),
     conversations: () => conversations(),
     document: () => <OccurrenceDocumentPanel occurrence={occurrence} />,
-    driverContact: () => <OccurrenceDriverPanel occurrence={occurrence} />,
+    driverContact: () => (
+      <OccurrenceDriverPanel
+        canSend={canResolveOccurrenceCases}
+        {...(companyId === undefined ? {} : { companyId })}
+        occurrence={occurrence}
+        permissions={permissions}
+      />
+    ),
     driverConversation: () => conversations('driver'),
     summary: () => (
       <OccurrenceSummaryPanel

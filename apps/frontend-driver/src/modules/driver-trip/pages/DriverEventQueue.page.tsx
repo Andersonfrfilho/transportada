@@ -9,6 +9,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { DriverSyncStatus } from '../components/DriverSyncStatus.component'
 import type { DriverTripStop } from '../shared/driverTrip.types'
+import { formatShortTripId } from '../shared/tripIdentifier.service'
 import {
   hasSendableEvents,
   isEventQueueItemCancellable,
@@ -21,6 +22,7 @@ import type { DriverTripErrorDetail } from '../shared/offlineQueue.service'
 import {
   resolveRejectionCauseCode,
   resolveRejectionCauseLabelKey,
+  resolveUnknownRejectionCode,
 } from '../shared/rejectionCauseLabel.service'
 import { formatQueuedAt } from '../shared/stalePending.service'
 import type { SentHistoryEntry } from '../shared/sentHistory.service'
@@ -42,6 +44,8 @@ type DriverEventQueuePageProps = Readonly<{
   /** Pedido do usuário (01/10): de quando é a última leitura do servidor — `0` é "nunca nesta sessão". */
   lastSyncedAtMs: number
   onBack: () => void
+  /** Nome do tipo de ocorrência por id, para o histórico dizer qual ocorrência foi. */
+  occurrenceTypeNames?: ReadonlyMap<string, string>
   /** O motorista cancela o envio de uma ocorrência que só existe no aparelho (o atendimento já resolveu). */
   onCancel: (idempotencyKey: string) => void
   /** Spec 227: só o recusado de negócio, e só depois da confirmação na tela. */
@@ -52,6 +56,11 @@ type DriverEventQueuePageProps = Readonly<{
   onSendOne: (idempotencyKey: string) => void
   /** Spec 206 RF8: dá o número da parada do item ("Iniciar rota — parada N"). */
   stops: readonly DriverTripStop[]
+  /** Pedido do usuário (18/11): o id da viagem e o protocolo do manifesto (a rota) entram em cada item da fila e do histórico. */
+  tripId?: string
+  manifestProtocol?: string
+  /** Quando o bundle em execução foi gerado — diz ao motorista (e a quem o atende) qual versão o aparelho roda. */
+  appBuildTime?: string
 }>
 
 /** Dia e hora: o histórico guarda dias, e só "14:32" não diz de qual. */
@@ -101,12 +110,16 @@ export function DriverEventQueuePage({
   items,
   lastSyncedAtMs,
   onBack,
+  occurrenceTypeNames,
   onCancel,
   onDiscard,
   onFocusStop,
   onSendAll,
   onSendOne,
   stops,
+  tripId,
+  manifestProtocol,
+  appBuildTime,
 }: DriverEventQueuePageProps) {
   const { t } = useTranslation('driverTrip')
   /** O descarte não se desfaz: o primeiro toque só abre o aviso, e o segundo é que apaga. */
@@ -123,7 +136,12 @@ export function DriverEventQueuePage({
   }): string {
     const key = resolveRejectionCauseLabelKey(input.cause, input.details)
     const { cause } = input
-    if (key === undefined) return cause
+    if (key === undefined) {
+      const unknownCode = resolveUnknownRejectionCode(cause)
+      return unknownCode === undefined
+        ? cause
+        : t('eventQueue.cause.unknown', { code: unknownCode })
+    }
     if (resolveRejectionCauseCode(cause) === UNLOADED_DOCUMENTS_CODE) {
       const numbers = resolveRejectedDocumentNumbers({ details: input.details, stops })
       if (numbers.length > 0) {
@@ -143,6 +161,45 @@ export function DriverEventQueuePage({
       if (sequence !== undefined) return t('eventQueue.itemTitle.depart', { sequence })
     }
     return t(KIND_LABEL_KEYS[item.kind])
+  }
+
+  /** O nome do tipo de ocorrência: o gravado no item, senão o do catálogo que o aparelho já leu. */
+  function historyTypeName(entry: SentHistoryEntry): string | undefined {
+    if (entry.occurrenceTypeName !== undefined) return entry.occurrenceTypeName
+    return entry.occurrenceTypeId === undefined
+      ? undefined
+      : occurrenceTypeNames?.get(entry.occurrenceTypeId)
+  }
+
+  /**
+   * Pedido do usuário (18/11): nota, parada, rota (manifesto) e viagem de cada item. O item da fila não guarda a
+   * viagem: rota e viagem só saem quando a nota ou a parada do item está na viagem exibida — nunca a de outra.
+   * No histórico a nota e a parada já estão no título (`withSubject: false`).
+   */
+  function referenceLine(input: {
+    readonly documentId: string | undefined
+    readonly stopId: string | undefined
+    readonly withSubject: boolean
+  }): string | undefined {
+    const parts: string[] = []
+    const number =
+      input.documentId === undefined
+        ? undefined
+        : stops.flatMap((stop) => stop.documents).find((d) => d.id === input.documentId)?.number
+    const sequence =
+      input.stopId === undefined ? undefined : stops.find((s) => s.id === input.stopId)?.sequence
+    if (input.withSubject) {
+      if (number !== undefined) parts.push(t('eventQueue.reference.note', { number }))
+      if (sequence !== undefined) parts.push(t('eventQueue.reference.stop', { sequence }))
+    }
+    const isInShownTrip = number !== undefined || sequence !== undefined
+    if (isInShownTrip && manifestProtocol !== undefined) {
+      parts.push(t('eventQueue.reference.route', { id: manifestProtocol }))
+    }
+    if (isInShownTrip && tripId !== undefined) {
+      parts.push(t('eventQueue.reference.trip', { id: formatShortTripId(tripId) }))
+    }
+    return parts.length === 0 ? undefined : parts.join(' · ')
   }
 
   /** O nome da nota ou o número da parada, quando o snapshot ainda os tem. */
@@ -232,6 +289,11 @@ export function DriverEventQueuePage({
           <ul className={styles.eventQueueList}>
             {items.map((item) => {
               const departBlock = resolveEventQueueDepartBlock({ enRouteStopId, item, stops })
+              const itemReference = referenceLine({
+                documentId: item.documentId,
+                stopId: item.stopId,
+                withSubject: true,
+              })
               return (
                 <li
                   className={`${styles.eventQueueItem} ${styles.eventQueueItemWithDiscard}`}
@@ -246,6 +308,9 @@ export function DriverEventQueuePage({
                         {formatQueuedAt({ nowMs: Date.now(), queuedAt: item.queuedAt })}
                       </span>
                     </p>
+                    {itemReference === undefined ? null : (
+                      <p className={styles.profileMeta}>{itemReference}</p>
+                    )}
                     {item.attachmentCount > 0 ? (
                       <p className={styles.profileMeta}>
                         {t('eventQueue.attachments', { count: item.attachmentCount })}
@@ -398,41 +463,57 @@ export function DriverEventQueuePage({
           <p className={styles.profileMeta}>{t('eventQueue.history.empty')}</p>
         ) : (
           <ul className={styles.eventQueueList}>
-            {history.map((entry) => (
-              <li className={styles.eventQueueItem} key={`${entry.key}-${entry.result}`}>
-                <div className={styles.eventQueueItemBody}>
-                  <p className={styles.eventQueueItemTitle}>
-                    {t(KIND_LABEL_KEYS[entry.kind])}
-                    {historySubject(entry) === undefined ? null : (
-                      <span className={styles.eventQueueItemTime}>{historySubject(entry)}</span>
+            {history.map((entry) => {
+              const entryReference = referenceLine({
+                documentId: entry.documentId,
+                stopId: entry.stopId,
+                withSubject: false,
+              })
+              return (
+                <li className={styles.eventQueueItem} key={`${entry.key}-${entry.result}`}>
+                  <div className={styles.eventQueueItemBody}>
+                    <p className={styles.eventQueueItemTitle}>
+                      {t(KIND_LABEL_KEYS[entry.kind])}
+                      {historyTypeName(entry) === undefined ? null : ` — ${historyTypeName(entry)}`}
+                      {historySubject(entry) === undefined ? null : (
+                        <span className={styles.eventQueueItemTime}>{historySubject(entry)}</span>
+                      )}
+                    </p>
+                    <p
+                      className={
+                        entry.result === 'sent'
+                          ? styles.profileMeta
+                          : styles.eventQueueStatusRejected
+                      }
+                    >
+                      <Icon
+                        aria-hidden="true"
+                        name={entry.result === 'sent' ? 'check' : 'clock'}
+                        size="sm"
+                      />
+                      {t(`eventQueue.history.${entry.result}`, {
+                        time: formatHistoryTime(entry.at),
+                      })}
+                    </p>
+                    {entryReference === undefined ? null : (
+                      <p className={styles.profileMeta}>{entryReference}</p>
                     )}
-                  </p>
-                  <p
-                    className={
-                      entry.result === 'sent' ? styles.profileMeta : styles.eventQueueStatusRejected
-                    }
-                  >
-                    <Icon
-                      aria-hidden="true"
-                      name={entry.result === 'sent' ? 'check' : 'clock'}
-                      size="sm"
-                    />
-                    {t(`eventQueue.history.${entry.result}`, {
-                      time: formatHistoryTime(entry.at),
-                    })}
-                  </p>
-                  <p className={styles.profileMeta}>
-                    {t('eventQueue.history.tapped', { time: formatHistoryTime(entry.tappedAt) })}
-                  </p>
-                  {entry.cause === undefined ? null : (
-                    <p className={styles.profileMeta}>{causeLabel({ cause: entry.cause })}</p>
-                  )}
-                </div>
-              </li>
-            ))}
+                    <p className={styles.profileMeta}>
+                      {t('eventQueue.history.tapped', { time: formatHistoryTime(entry.tappedAt) })}
+                    </p>
+                    {entry.cause === undefined ? null : (
+                      <p className={styles.profileMeta}>{causeLabel({ cause: entry.cause })}</p>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
+      {appBuildTime === undefined ? null : (
+        <p className={styles.profileMeta}>{t('eventQueue.appVersion', { time: appBuildTime })}</p>
+      )}
     </main>
   )
 }

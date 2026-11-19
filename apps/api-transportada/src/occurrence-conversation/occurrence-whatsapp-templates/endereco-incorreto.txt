@@ -1,0 +1,11 @@
+{{marcacao}}
+📍 *Endereço de entrega incorreto*
+
+*Nota fiscal:* {{numeroNota}}
+*Contratante:* {{contratante}}
+*Cliente:* {{cliente}}
+*Endereço:* {{enderecoEntrega}}
+*Registrada em:* {{data}}
+📝 {{observacao}}
+
+O endereço da nota não confere com o local. A entrega não foi concluída e a mercadoria segue com a transportadora. Podem nos informar o endereço correto? Respondendo aqui, atualizamos o cadastro do cliente e reprogramamos a entrega.

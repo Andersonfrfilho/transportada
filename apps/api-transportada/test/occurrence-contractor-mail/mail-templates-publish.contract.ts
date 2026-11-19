@@ -64,10 +64,14 @@ describe('os arquivos reais (spec 272 T4.3)', () => {
     const templates = readOccurrenceMailTemplateFiles()
     expect(templates.map((template) => template.key).sort()).toEqual([
       'ocorrencia.avaria',
+      'ocorrencia.cobranca-recebimento',
       'ocorrencia.contratante-aviso-manual',
       'ocorrencia.devolucao',
       'ocorrencia.devolucao-total',
+      'ocorrencia.endereco-incorreto',
       'ocorrencia.entrega-nao-realizada',
+      'ocorrencia.espera-longa',
+      'ocorrencia.local-fechado',
       'ocorrencia.prorrogacao-boleto',
       'ocorrencia.recusa',
     ])

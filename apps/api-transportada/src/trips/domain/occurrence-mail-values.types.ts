@@ -37,8 +37,26 @@ export type OccurrenceMailValues = {
   /** A nova data de vencimento pedida (`AAAA-MM-DD`); ausente é não informada. */
   readonly requestedDueDate?: string | undefined
   readonly recipientName: string
+  /** Spec 324: o endereço de entrega da nota (rua, número, bairro); ausente imprime vazio. */
+  readonly recipientAddress?: string | undefined
+  /** Cidade e UF do destinatário; ausente imprime vazio. */
+  readonly recipientCity?: string | undefined
+  /** CNPJ do destinatário já formatado; vazio para CPF (dado de pessoa física nunca vai ao e-mail). */
+  readonly recipientTaxId?: string | undefined
   /** O número do documento do cliente (a NFD) que quem registra digitou. */
   readonly referenceNumber?: string | undefined
+  /**
+   * Espera longa (18/11/2026): os eventos da entrega da parada da nota, já formatados (saída, chegada, tempo de
+   * espera, janela); ausente ou vazio imprime vazio. Só o e-mail do módulo de ocorrência os lê.
+   */
+  readonly stopEvents?:
+    | {
+        readonly chegada: string
+        readonly inicioRota: string
+        readonly janelaRecebimento: string
+        readonly tempoEspera: string
+      }
+    | undefined
   readonly stopLabel: string
   /** `nfe_documents.total_value` cru (`numeric`); o renderizador o formata. */
   readonly totalValue: string

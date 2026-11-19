@@ -38,6 +38,8 @@ import freightQuoteLocale from '@/modules/freight-quote/locales/freightQuote.loc
 import freightQuoteEnglishLocale from '@/modules/freight-quote/locales/freightQuote.en.locale.json'
 import extraChargesLocale from '@/modules/extra-charges/locales/extraCharges.locale.json'
 import extraChargesEnglishLocale from '@/modules/extra-charges/locales/extraCharges.en.locale.json'
+import appUpdateLocale from '@/modules/shared/locales/appUpdate.locale.json'
+import appUpdateEnglishLocale from '@/modules/shared/locales/appUpdate.en.locale.json'
 import keyReaderLocale from '@/modules/shared/locales/keyReader.locale.json'
 import keyReaderEnglishLocale from '@/modules/shared/locales/keyReader.en.locale.json'
 import spreadsheetLocale from '@/modules/shared/spreadsheet/locales/spreadsheet.locale.json'
@@ -96,6 +98,7 @@ void i18n.use(initReactI18next).init({
       extraCharges: extraChargesEnglishLocale,
       fleet: fleetEnglishLocale,
       identity: identityEnglishLocale,
+      appUpdate: appUpdateEnglishLocale,
       keyReader: keyReaderEnglishLocale,
       mdfeManifest: mdfeManifestEnglishLocale,
       nfeWorkspace: nfeWorkspaceEnglishLocale,
@@ -131,6 +134,7 @@ void i18n.use(initReactI18next).init({
       extraCharges: extraChargesLocale,
       fleet: fleetLocale,
       identity: identityLocale,
+      appUpdate: appUpdateLocale,
       keyReader: keyReaderLocale,
       mdfeManifest: mdfeManifestLocale,
       nfeWorkspace: nfeWorkspaceLocale,

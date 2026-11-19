@@ -83,6 +83,8 @@ export type OccurrenceRegistrationHandlers = Readonly<{
   /** Spec 209 + D2: a fila da parada, com o tipo do catálogo. */
   reportStopOccurrence: (input: {
     readonly description: string
+    /** A nota de onde o motorista abriu a ocorrência: a ocorrência de parada leva essa nota (e por ela a contratante). */
+    readonly documentId: string
     /** Foto obrigatória nunca é derrubada pela fila cheia — ou entra com ela, ou não entra. */
     readonly isPhotoRequired: boolean
     readonly occurrenceTypeId: string
@@ -138,8 +140,8 @@ function isDraftComplete(input: {
 }
 
 /**
- * Uma rota só, a do `flow`. D4: tipo de parada registra **na parada** — a nota é só de onde veio o
- * toque, e não vai junto. Spec 246: rascunho a que falta um campo obrigatório não entra em rota
+ * Uma rota só, a do `flow`. D4: tipo de parada registra **na parada** e leva a nota de onde veio o
+ * toque (18/11/2026: a ocorrência de parada sem nota não achava a contratante para avisar). Spec 246: rascunho a que falta um campo obrigatório não entra em rota
  * alguma — o botão já o segura, e esta é a segunda trava.
  */
 export function dispatchOccurrenceRegistration(input: {
@@ -158,6 +160,7 @@ export function dispatchOccurrenceRegistration(input: {
   if (resolveOccurrenceFlow(type) === 'stop') {
     handlers.reportStopOccurrence({
       description: effective.note,
+      documentId: input.documentId,
       isPhotoRequired: resolveOccurrenceAttachmentMode(type) === 'required',
       occurrenceTypeId: type.id,
       photo: effective.photo,

@@ -1,0 +1,11 @@
+{{marcacao}}
+🔒 *Local de entrega fechado*
+
+*Nota fiscal:* {{numeroNota}}
+*Contratante:* {{contratante}}
+*Cliente:* {{cliente}}
+*Endereço:* {{enderecoEntrega}}
+*Registrada em:* {{data}}
+📝 {{observacao}}
+
+Chegamos para entregar e o local estava fechado. A mercadoria segue com a transportadora. Podem confirmar com o cliente um horário em que haja alguém para receber? É só responder aqui que reprogramamos.

@@ -38,6 +38,7 @@ export type IconName =
   | 'filter-clear'
   | 'grip'
   | 'image'
+  | 'info'
   | 'invoice'
   | 'link'
   | 'logout'
@@ -138,6 +139,8 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M20.4 17.5v1.5',
   ],
   check: ['M5 13l4 4L19 7'],
+  /** Círculo com o i: a ajuda do campo, que abre num tooltip ao lado do rótulo. */
+  info: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 11v6', 'M12 7.5h.01'],
   'chevron-down': ['M6 9l6 6 6-6'],
   'chevron-left': ['M15 18l-6-6 6-6'],
   'chevron-right': ['M9 18l6-6-6-6'],

@@ -73,6 +73,11 @@ for (const theme of THEMES) {
         window.dispatchEvent(new PopStateEvent('popstate'))
       })
       await page.getByRole('tab', { name: 'Candidaturas' }).click()
+      await expect(page.getByRole('button', { name: 'Aprovar' })).toBeVisible()
+      await page.screenshot({
+        fullPage: true,
+        path: resolve(PRINTS_DIRECTORY, `lista-${theme}-${viewport}.png`),
+      })
       await page.getByRole('button', { name: 'Aprovar' }).click()
       await expect(
         page.getByRole('dialog', { name: 'Aprovar candidatura de empresa' }),

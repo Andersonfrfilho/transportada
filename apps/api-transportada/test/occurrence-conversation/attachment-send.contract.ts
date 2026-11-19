@@ -61,6 +61,7 @@ function attachmentsFake() {
   const attached: { messageId: string; uploadId: string }[] = []
   const port: ConversationAttachmentTransactionPort = {
     attachUpload: async (input) => void attached.push(input),
+    attachStoredCopy: () => Promise.resolve(),
     lockPendingUploads: async (input) => {
       locked.push(input)
       return input.ids.map((id) => ({

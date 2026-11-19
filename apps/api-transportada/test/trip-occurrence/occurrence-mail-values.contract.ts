@@ -64,12 +64,30 @@ const VALUES: OccurrenceMailValues = {
 }
 
 describe('valores do e-mail da ocorrência (spec 271 T2.2)', () => {
+  test('o cliente que recebe: endereço, cidade e CNPJ vêm dos valores da nota (spec 324)', () => {
+    const { mail } = buildContractorMailValues({
+      ...VALUES,
+      recipientAddress: 'R FRANCISCO MARQUES, 650, CENTRO',
+      recipientCity: 'FRANCA · SP',
+      recipientTaxId: '12.345.678/0001-95',
+    })
+    expect(mail.enderecoEntrega).toBe('R FRANCISCO MARQUES, 650, CENTRO')
+    expect(mail.cidadeEntrega).toBe('FRANCA · SP')
+    expect(mail.cnpjCliente).toBe('12.345.678/0001-95')
+  })
+
   test('o nível do e-mail traz as chaves camelCase com os valores de hoje, mais tipoOcorrencia e linhasItens', () => {
     expect(buildContractorMailValues(VALUES).mail).toEqual({
+      chegada: '',
+      cidadeEntrega: '',
+      cnpjCliente: '',
       codigosItens: '7000001 01, 7000002 02',
       contratante: 'Contratante Exemplo',
       data: '01/01/2026',
+      enderecoEntrega: '',
+      inicioRota: '',
       itens: 'PRODUTO EXEMPLO A 500G, PRODUTO EXEMPLO B 1KG',
+      janelaRecebimento: '',
       linhasItens:
         '7000001 01 – PRODUTO EXEMPLO A 500G – 1 FD – R$ 57,20\n7000002 02 – PRODUTO EXEMPLO B 1KG – 2,5 CX – R$ 10,00',
       motorista: 'Motorista Exemplo',
@@ -82,7 +100,9 @@ describe('valores do e-mail da ocorrência (spec 271 T2.2)', () => {
       quantidadesItens: '1, 2,5',
       razaoSocial: 'Supermercado Exemplo Ltda',
       somaItens: '107,19',
+      tempoEspera: '',
       tipoOcorrencia: 'Avaria',
+      valorCobrado: '67,20',
       valorDeclarado: '67,20',
       valorNota: '7.840,64',
     })
@@ -156,6 +176,24 @@ describe('valores do e-mail da ocorrência (spec 271 T2.2)', () => {
     expect(mail.valorDeclarado).toBe('')
     expect(mail.itens).toBe('')
     expect(mail.linhasItens).toBe('')
+  })
+
+  test('espera longa: os eventos da entrega vão aos quatro campos; sem eles saem vazios', () => {
+    const { mail } = buildContractorMailValues({
+      ...VALUES,
+      stopEvents: {
+        chegada: '18/11/2026 15:10',
+        inicioRota: '18/11/2026 14:20',
+        janelaRecebimento: '08:00 às 17:00',
+        tempoEspera: '1 h 05 min',
+      },
+    })
+
+    expect(mail.inicioRota).toBe('18/11/2026 14:20')
+    expect(mail.chegada).toBe('18/11/2026 15:10')
+    expect(mail.tempoEspera).toBe('1 h 05 min')
+    expect(mail.janelaRecebimento).toBe('08:00 às 17:00')
+    expect(buildContractorMailValues(VALUES).mail.tempoEspera).toBe('')
   })
 
   test('campo opcional ausente sai vazio, nunca undefined', () => {

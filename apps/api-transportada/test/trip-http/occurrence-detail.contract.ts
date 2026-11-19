@@ -141,7 +141,23 @@ describe('GET /trip-occurrences/:id (spec 183 T201)', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ data: OCCURRENCE_DETAIL })
-    expect(fixture.calls).toEqual([{ context: fixture.context.scope, occurrenceId: OCCURRENCE_ID }])
+    expect(fixture.calls).toEqual([
+      { context: fixture.context.scope, includeFinancials: false, occurrenceId: OCCURRENCE_ID },
+    ])
+  })
+
+  test('com trip.financials o caso de uso recebe includeFinancials (PIX do motorista)', async () => {
+    const fixture = createFixture({
+      permissions: new Set(['fleet.read', 'trip.financials'] as const),
+    })
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: detailPath(OCCURRENCE_ID) }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.calls).toEqual([
+      { context: fixture.context.scope, includeFinancials: true, occurrenceId: OCCURRENCE_ID },
+    ])
   })
 
   test('publica correções e cancelamento no mesmo formato das escritas (spec 240 RF9)', async () => {

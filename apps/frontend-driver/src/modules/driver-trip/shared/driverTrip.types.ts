@@ -267,8 +267,13 @@ export type PendingProofDocument = Readonly<{
   tripStatus: string
 }>
 
+/** A chave PIX que o motorista (ou agregado) já tem no cadastro — pré-preenche a cobrança no recebimento. */
+export type DriverRegisteredPix = Readonly<{ key: string; type: DriverPixKeyType }>
+
 export type DriverTripSnapshot = Readonly<{
   isRegisteredDriver: boolean
+  /** Ausente (API antiga) ou `null` (sem PIX no cadastro): o campo começa vazio, como sempre. */
+  registeredPix?: DriverRegisteredPix | null
   /** Spec 159 (T11): toda nota entregue com foto obrigatória ainda sem foto, de qualquer viagem. */
   pendingProofs: readonly PendingProofDocument[]
   /** Spec 159 RF2/RF9, ADR-0070 §5: a nota do próprio motorista — `null` sem histórico em 90 dias. */
@@ -459,6 +464,8 @@ export type DriverFieldReport =
       documentId: string | null
       idempotencyKey: string
       kind: 'stopOccurrencePhoto'
+      /** O ponto do toque, completado pela leitura do GPS (`completeLocations`); a foto reenvia a ocorrência, e o servidor cobra a localização nela. */
+      location?: DriverReportedLocation | null
       occurrenceKey: string
       photo: DriverOccurrencePhoto
       stopId: string
@@ -531,6 +538,11 @@ export type DriverOccurrenceType = Readonly<{
    */
   itemsMinimumCount?: number | null
   itemsMode?: ProofFieldRequirement
+  /**
+   * Spec 315 (D10): minutos de espera depois do "Cheguei" antes de o tipo abrir. Ausente ou `null` é sem espera
+   * mínima; quem cobra é o servidor, o app só esconde a opção e mostra o contador.
+   */
+  minWaitAfterArrivalMinutes?: number | null
   noteMode?: ProofFieldRequirement
   photoMinimumCount?: number
   photoMode?: ProofFieldRequirement
@@ -616,6 +628,7 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     readonly flow?: unknown
     readonly id?: unknown
     readonly itemsMode?: unknown
+    readonly minWaitAfterArrivalMinutes?: unknown
     readonly name?: unknown
     readonly noteMode?: unknown
     readonly photoMode?: unknown
@@ -649,6 +662,11 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     (mode) => mode === undefined || (PROOF_FIELD_REQUIREMENTS as readonly unknown[]).includes(mode),
   )
   /** Spec 218: ausentes são a cópia guardada antes da spec; presentes, só no vocabulário. */
+  const hasKnownMinWait =
+    candidate.minWaitAfterArrivalMinutes === undefined ||
+    candidate.minWaitAfterArrivalMinutes === null ||
+    (typeof candidate.minWaitAfterArrivalMinutes === 'number' &&
+      Number.isFinite(candidate.minWaitAfterArrivalMinutes))
   const hasKnownFlow =
     candidate.flow === undefined ||
     (DRIVER_OCCURRENCE_FLOWS as readonly unknown[]).includes(candidate.flow)
@@ -681,6 +699,7 @@ export function isDriverOccurrenceType(value: unknown): value is DriverOccurrenc
     typeof candidate.id === 'string' &&
     typeof candidate.name === 'string' &&
     hasKnownMode &&
+    hasKnownMinWait &&
     hasKnownFlow &&
     hasKnownStopKind &&
     hasKnownDeclaredAmountScope &&

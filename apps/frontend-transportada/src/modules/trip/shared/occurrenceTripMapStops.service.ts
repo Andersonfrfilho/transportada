@@ -53,6 +53,27 @@ function findNoteStop(input: OccurrenceTripMapStopsInput): TripStopDetail | unde
     : stops.find((stop) => stop.label === occurrence.stopLabel)
 }
 
+/**
+ * Onde a parada da nota está no cadastro (o ponto ORIGINAL do endereço), para a tela comparar com o endereço novo.
+ * `null` quando a parada não foi achada ou ainda não foi geocodificada.
+ */
+export function resolveOccurrenceNoteStopPoint(
+  input: Readonly<{
+    occurrence: Readonly<{ stopLabel: null | string; tripDocumentId: null | string }>
+    stops: readonly TripStopDetail[]
+  }>,
+): null | Readonly<{ label: string; latitude: number; longitude: number }> {
+  const stop = findNoteStop({
+    ...input,
+    highlightNoteStop: false,
+    noteStopId: null,
+    translate: (key) => key,
+  })
+  if (stop === undefined) return null
+  const coordinates = coordinatesOf(stop)
+  return coordinates === null ? null : { label: stop.label, ...coordinates }
+}
+
 /** Uma linha por nota viva da parada: número e destinatário, o que o escritório procura no pino. */
 function documentLines(stop: TripStopDetail, translate: Translate): readonly string[] {
   const live = stop.documents.filter((document) => document.releasedAt === null)

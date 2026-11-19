@@ -122,15 +122,16 @@ describe('o item nasce sem ponto e a posição o completa pela chave (196 T5.1)'
       return () => `parada-${(counter += 1)}`
     })(),
     description: 'doca fechada',
+    documentId: null,
     occurrenceTypeId: 'type-1',
     photo: { blob: new Blob(['x'], { type: 'image/jpeg' }), fileName: 'a.jpg' },
     stopId: 'stop-1',
   })
 
-  it('a ocorrência da parada nasce `null`; a foto, que não é evento, não tem o campo', () => {
+  it('a ocorrência da parada nasce `null`; a foto leva o ponto do mesmo toque', () => {
     expect(stopReports[0]).toMatchObject({ kind: 'occurrence', location: null })
-    expect(stopReports[1]).not.toHaveProperty('location')
-    expect(listLocatedReportKeys(stopReports)).toEqual(['parada-1'])
+    expect(stopReports[1]).toMatchObject({ kind: 'stopOccurrencePhoto', location: null })
+    expect(listLocatedReportKeys(stopReports)).toEqual(['parada-1', 'parada-2'])
   })
 
   it('applyReportLocation completa a ocorrência — sem a exceção antiga', () => {

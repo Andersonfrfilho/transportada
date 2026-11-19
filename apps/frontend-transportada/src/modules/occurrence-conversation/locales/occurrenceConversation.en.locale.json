@@ -811,7 +811,8 @@
     "unavailable": {
       "no_recipient": "Cannot notify: the contractor has no contact for this stage (or the e-mail is not verified).",
       "no_template": "Cannot notify: no notice template is available.",
-      "blocked": ""
+      "no_document": "Cannot notify: this occurrence has no invoice, so there is no contractor to notify.",
+      "blocked": "Cannot notify: this occurrence type is set to never notify the contractor."
     },
     "dialog": {
       "title": "Notify the contractor",

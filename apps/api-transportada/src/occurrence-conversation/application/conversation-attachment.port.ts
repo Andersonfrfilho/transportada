@@ -118,6 +118,29 @@ export type ConversationAttachmentTransactionPort = {
     readonly sizeBytes: number
     readonly uploadId: string
   }): Promise<void>
+  /** Grava o objeto final e o anexo da mensagem, sem pedido de upload (a cópia de um objeto já guardado). */
+  attachStoredCopy(input: ConversationStoredCopyInput): Promise<void>
+}
+
+/** Spec 317 (anexo da cobrança): um objeto que já existe (foto da parada), ligado à mensagem como cópia nova. */
+export type ConversationStoredCopyInput = {
+  readonly bucket: string
+  readonly companyId: string
+  readonly contentType: string
+  readonly fileName: string
+  readonly id: string
+  readonly messageId: string
+  readonly objectKey: string
+  readonly sha256: string
+  readonly sizeBytes: number
+}
+
+/** Spec 317: um objeto já guardado (foto da parada) que vai junto no e-mail, por onde está e o nome que o leitor vê. */
+export type ExistingObjectToAttach = {
+  readonly bucket: string
+  readonly contentType: string
+  readonly fileName: string
+  readonly objectKey: string
 }
 
 /** O anexo como as leituras o devolvem, antes de assinar a URL. */

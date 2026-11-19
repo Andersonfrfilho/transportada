@@ -860,6 +860,15 @@ import { createFindDriverRouteOccurrenceUseCase } from './trips/application/find
 import { createSignDriverRouteOccurrenceFileUseCase } from './trips/application/sign-driver-route-occurrence-file.use-case.js'
 import { createListDriverRouteOccurrencesUseCase } from './trips/application/list-driver-route-occurrences.use-case.js'
 import { createDrizzleDriverRouteOccurrenceReader } from './trips/infrastructure/drizzle-driver-route-occurrence.repository.js'
+import { createDrizzleDriverPayoutReceiptWhatsAppReader } from './trips/infrastructure/drizzle-driver-payout-receipt-whatsapp.reader.js'
+import { createFindDriverAddressPointUseCase } from './trips/application/find-driver-address-point.use-case.js'
+import {
+  createSendDriverAddressToWhatsAppGroupUseCase,
+  createSendDriverResultToWhatsAppGroupUseCase,
+} from './trips/application/send-driver-address-to-whatsapp-group.use-case.js'
+import { createDrizzleDriverAddressGroupReader } from './trips/infrastructure/drizzle-driver-address-group.reader.js'
+import { createSendDriverPayoutReceiptByWhatsAppUseCase } from './trips/application/send-driver-payout-receipt-by-whatsapp.use-case.js'
+import { createRecordDriverPayoutReceiptUseCase } from './trips/application/record-driver-payout-receipt.use-case.js'
 import { createResolveOccurrenceUseCase } from './trips/application/resolve-occurrence.use-case.js'
 import { DrizzleOccurrenceResolutionUnitOfWork } from './trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { createReadTripOccurrenceDetailUseCase } from './trips/application/read-trip-occurrence-detail.use-case.js'
@@ -3390,6 +3399,30 @@ function createAnonymousRoutes({
     createPickup: createCreateIntegrationPickupUseCase({ repository: integrationPickupRepository }),
     getPickup: createGetIntegrationPickupUseCase({ repository: integrationPickupRepository }),
   })
+  /**
+   * Valem nos dois modos de instalação: a foto de perfil e as imagens do e-mail são abertas por `<img src>`, sem login.
+   * Ficar só no modo sem `companyId` deixou a instalação dedicada respondendo 401 à foto do motorista.
+   */
+  const publicIdentityAssetRoutes = [
+    /**
+     * O endereço público da foto de perfil. Ele existe sempre: o token é a credencial, e uma foto
+     * só ganha endereço quando alguém a envia — não há superfície ociosa a esconder.
+     */
+    ...createPublicUserPictureRoutes({
+      userPicture: createPublicUserPictureUseCase({
+        repository: new DrizzleUserPictureRepository(database),
+      }),
+    }),
+    /**
+     * As imagens do e-mail da ocorrência (logo e foto de quem assina) por endereço estável, sem token: o cliente de
+     * e-mail da contratante abre `<img src>` sem login. Só leitura, e a foto exige vínculo ativo com a empresa.
+     */
+    ...createPublicMailAssetRoutes({
+      companyLogo: new DrizzleCompanyLogoRepository(database),
+      userPicture: new DrizzleUserPictureRepository(database),
+      whiteLogo,
+    }),
+  ]
   if (config.companyId === undefined) {
     return [
       ...nfseCallbackRoutes,
@@ -3398,24 +3431,7 @@ function createAnonymousRoutes({
       ...whatsappWebhookRoutes,
       ...whatsappEvolutionWebhookRoutes,
       ...publicExtraChargeBatchRoutes,
-      /**
-       * O endereço público da foto de perfil. Ele existe sempre: o token é a credencial, e uma foto
-       * só ganha endereço quando alguém a envia — não há superfície ociosa a esconder.
-       */
-      ...createPublicUserPictureRoutes({
-        userPicture: createPublicUserPictureUseCase({
-          repository: new DrizzleUserPictureRepository(database),
-        }),
-      }),
-      /**
-       * As imagens do e-mail da ocorrência (logo e foto de quem assina) por endereço estável, sem token: o cliente de
-       * e-mail da contratante abre `<img src>` sem login. Só leitura, e a foto exige vínculo ativo com a empresa.
-       */
-      ...createPublicMailAssetRoutes({
-        companyLogo: new DrizzleCompanyLogoRepository(database),
-        userPicture: new DrizzleUserPictureRepository(database),
-        whiteLogo,
-      }),
+      ...publicIdentityAssetRoutes,
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,
       ...aggregateApplicationPublicRoutes,
@@ -3431,6 +3447,7 @@ function createAnonymousRoutes({
     ...whatsappWebhookRoutes,
     ...whatsappEvolutionWebhookRoutes,
     ...publicExtraChargeBatchRoutes,
+    ...publicIdentityAssetRoutes,
     ...landingPublicRoutes,
     ...publicCnpjInfoRoutes,
     ...aggregateApplicationPublicRoutes,
@@ -5412,6 +5429,13 @@ function createApplicationRoutes({
     /** Spec 183 RF1: o detalhe que a linha de `/ocorrencias` abre (`fleet.read`, como a listagem). */
     ...createTripOccurrenceDetailRoutes({
       readTripOccurrenceDetail: createReadTripOccurrenceDetailUseCase({
+        /** Lido na chamada: o `storageGateway` é montado mais abaixo nesta composição (spec 317). */
+        downloads: {
+          createDownloadUrl: (location) =>
+            createDeliveryProofDownloadGateway({ storage: storageGateway }).createDownloadUrl(
+              location,
+            ),
+        },
         reader: { findDetail: (input) => findTripOccurrenceDetail(database, input) },
       }),
       readTripOccurrenceTimeline: createReadTripOccurrenceTimelineUseCase({
@@ -5432,6 +5456,50 @@ function createApplicationRoutes({
     }),
     /** Spec 266 / ADR-0105: o escritório resolve a ocorrência (nota ou parada) com observação. */
     ...createOccurrenceResolutionRoutes({
+      /** Spec 317 (E13): o comprovante da transferência ao motorista, sem concluir a ocorrência. */
+      recordDriverPayoutReceipt: createRecordDriverPayoutReceiptUseCase({
+        logger,
+        unitOfWork: new DrizzleOccurrenceResolutionUnitOfWork(database),
+      }),
+      /** Spec 343 (T6a): o ponto no mapa do endereço correto; sem `GOOGLE_MAPS_API_KEY` a rota não existe. */
+      ...(googleMapsApiKey === undefined
+        ? {}
+        : {
+            findDriverAddressPoint: createFindDriverAddressPointUseCase({
+              geocoding: createGoogleGeocodingGateway({ apiKey: googleMapsApiKey }),
+            }),
+          }),
+      /** Spec 343 (T6a): o endereço correto da entrega ao grupo de WhatsApp do motorista. */
+      sendDriverAddressToWhatsAppGroup: createSendDriverAddressToWhatsAppGroupUseCase({
+        logger,
+        reader: createDrizzleDriverAddressGroupReader(database),
+        sender: createEvolutionDocumentSender({
+          pacer: evolutionSendPacer,
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
+      }),
+      /** Spec 343: o resultado da ocorrência ao grupo de WhatsApp do motorista (mesmo alvo e remetente do endereço). */
+      sendDriverResultToWhatsAppGroup: createSendDriverResultToWhatsAppGroupUseCase({
+        logger,
+        reader: createDrizzleDriverAddressGroupReader(database),
+        sender: createEvolutionDocumentSender({
+          pacer: evolutionSendPacer,
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
+      }),
+      /** Spec 317 (E13): o mesmo comprovante ao WhatsApp do motorista, pelo Evolution da empresa. */
+      sendDriverPayoutReceiptByWhatsApp: createSendDriverPayoutReceiptByWhatsAppUseCase({
+        logger,
+        readBytes: async (location) => readAllBytes(await storageGateway.getObjectStream(location)),
+        reader: createDrizzleDriverPayoutReceiptWhatsAppReader(database),
+        sender: createEvolutionDocumentSender({
+          pacer: evolutionSendPacer,
+          repository: whatsappEvolutionRepository,
+          secrets: whatsappEvolutionSecrets,
+        }),
+      }),
       resolveOccurrence: createResolveOccurrenceUseCase({
         logger,
         notifier: occurrenceResolutionNotifier,

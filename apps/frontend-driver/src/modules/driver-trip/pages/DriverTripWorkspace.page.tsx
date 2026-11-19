@@ -1,5 +1,6 @@
 /* Cópia por valor de apps/frontend-transportada/src/modules/driver-trip/pages/DriverTripWorkspace.page.tsx (ADR-0075 §7). */
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { DriverRegisteredPixContext } from '../hooks/driverRegisteredPix.context'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -59,6 +60,7 @@ import { DriverPendingProofsPage } from './DriverPendingProofs.page'
 import { DriverProfilePage } from './DriverProfile.page'
 import { DriverRouteOccurrencesRoute } from './DriverRouteOccurrencesRoute.page'
 import {
+  goBackInDriverApp,
   navigateToDriverSection,
   parseDriverStopHash,
   resolveDriverRouteSection,
@@ -105,6 +107,7 @@ import {
   saveCachedOccurrenceTypes,
 } from '../shared/occurrenceTypesCache.service'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
+import { formatAppBuildTime, readAppBuildTime } from '../shared/appBuild.service'
 import { buildStopOccurrenceReports } from '../shared/stopOccurrencePhoto.service'
 import { DriverVehiclePlate } from '../components/DriverVehiclePlate.component'
 import { formatShortTripId, formatTripCreatedAt } from '../shared/tripIdentifier.service'
@@ -424,23 +427,41 @@ export function DriverTripWorkspacePage() {
   }
 
   if (isQueueOpen) {
+    const buildTime = readAppBuildTime()
+    const buildTimeLabel = buildTime === undefined ? undefined : formatAppBuildTime(buildTime)
+    const occurrenceTypeNames = new Map<string, string>()
+    if (occurrenceTypes.status === 'loaded') {
+      for (const type of occurrenceTypes.types) occurrenceTypeNames.set(type.id, type.name)
+    }
+    for (const stop of trip?.stops ?? []) {
+      for (const document of stop.documents) {
+        for (const type of document.occurrenceTypes ?? [])
+          occurrenceTypeNames.set(type.id, type.name)
+      }
+    }
     return (
       <div className={styles.moduleShell}>
         <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverEventQueuePage
+          {...(buildTimeLabel === undefined ? {} : { appBuildTime: buildTimeLabel })}
           {...(enRouteStopId === undefined ? {} : { enRouteStopId })}
           history={driverTrip.sentHistory}
           isLoading={driverTrip.isQueueLoading}
           isSyncing={driverTrip.isSyncing}
           items={driverTrip.queueView}
           lastSyncedAtMs={driverTrip.lastSyncedAtMs}
-          onBack={() => window.history.back()}
+          occurrenceTypeNames={occurrenceTypeNames}
+          onBack={() => goBackInDriverApp()}
           onCancel={(idempotencyKey) => void driverTrip.cancelQueuedOccurrence(idempotencyKey)}
           onDiscard={(idempotencyKey) => void driverTrip.discardRejected(idempotencyKey)}
           onFocusStop={focusStop}
           onSendAll={() => driverTrip.sendAllNow()}
           onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}
           stops={trip?.stops ?? []}
+          {...(trip === undefined ? {} : { tripId: trip.id })}
+          {...(trip?.manifest === undefined || trip.manifest === null
+            ? {}
+            : { manifestProtocol: trip.manifest.protocol })}
         />
         <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
       </div>
@@ -494,7 +515,7 @@ export function DriverTripWorkspacePage() {
       <div className={styles.moduleShell}>
         <DriverShellHeader pendingCount={driverTrip.pendingTotal} />
         <DriverPendingProofsPage
-          onBack={() => window.history.back()}
+          onBack={() => goBackInDriverApp()}
           onProof={handleProof}
           onProofFieldsUpdate={handleProofFieldsUpdate}
           onRemoveProof={handleRemoveProof}
@@ -687,6 +708,7 @@ export function DriverTripWorkspacePage() {
     const reports = buildStopOccurrenceReports({
       createKey: createIdempotencyKey,
       description: input.description,
+      documentId: input.documentId,
       occurrenceTypeId: input.occurrenceTypeId,
       photo: input.photo,
       stopId: input.stopId,
@@ -838,495 +860,507 @@ export function DriverTripWorkspacePage() {
   )
 
   return (
-    <div className={styles.moduleShell}>
-      <DriverShellHeader
-        openOccurrenceCount={routeOccurrences.openCount}
-        pendingCount={driverTrip.pendingTotal}
-      />
-      <main className={styles.shell}>
-        <header className={styles.header}>
-          <h1>{t('title')}</h1>
-          {trip === undefined ? null : (
-            <p className={styles.vehicle}>
-              <span className={styles.tripCodeLabelFirst}>{t('plate.label')}</span>
-              <DriverVehiclePlate plate={trip.vehiclePlate} />
-              {/*
-               * Pedido do usuário (01/10): o identificador curto da viagem, o MESMO que a listagem
-               * do escritório mostra — é por ele que motorista e escritório falam da mesma viagem
-               * ao telefone (`tripIdentifier.service.ts`). Rotulado: sem a palavra "Viagem" o
-               * código cola na placa e se lê como parte dela (visto no print da revisão).
-               */}
-              <span className={styles.tripCodeLabel}>{t('tripCodeLabel')}</span>
-              <code className={styles.tripCode}>{formatShortTripId(trip.id)}</code>
-              {/*
-               * Copia o id INTEIRO, como a listagem do escritório: o recorte é para ler na tela, e
-               * o que o escritório procura é o id completo — mandar os 8 pelo WhatsApp obrigaria
-               * alguém a adivinhar o resto.
-               */}
-              <CopyButton
-                copiedLabel={t('tripCodeCopied')}
-                label={t('tripCodeCopy')}
-                value={trip.id}
-              />
-            </p>
-          )}
-          {/* Pedido do usuário (02/10): de quando é esta viagem — o código curto não diz a data. */}
-          {trip === undefined || formatTripCreatedAt(trip.createdAt) === '' ? null : (
-            <p className={styles.tripCreatedAt}>
-              {t('tripCreatedAt', { date: formatTripCreatedAt(trip.createdAt) })}
-            </p>
-          )}
-          {trip === undefined || !canReportOnTrip(trip) ? null : (
-            <OpenSubjectConversationButton
-              contextLabel={t('tripCodeLabel')}
-              subjectId={trip.id}
-              subjectType="trip"
-            />
-          )}
-          {trip?.status === 'on_delivery_route' ? (
-            <p className={styles.tripOnRoute}>
-              <Icon aria-hidden="true" name="workspace-driver-trip" size="sm" />
-              {t('startRoute.onRoute')}
-            </p>
-          ) : null}
-        </header>
-
-        <DriverTripSelector
-          onSelect={selectTrip}
-          selectedTripId={trip?.id}
-          trips={snapshot?.trips ?? []}
+    <DriverRegisteredPixContext.Provider value={snapshot?.registeredPix ?? null}>
+      <div className={styles.moduleShell}>
+        <DriverShellHeader
+          openOccurrenceCount={routeOccurrences.openCount}
+          pendingCount={driverTrip.pendingTotal}
         />
+        <main className={styles.shell}>
+          <header className={styles.header}>
+            <h1>{t('title')}</h1>
+            {trip === undefined ? null : (
+              <p className={styles.vehicle}>
+                <span className={styles.tripCodeLabelFirst}>{t('plate.label')}</span>
+                <DriverVehiclePlate plate={trip.vehiclePlate} />
+                {/*
+                 * Pedido do usuário (01/10): o identificador curto da viagem, o MESMO que a listagem
+                 * do escritório mostra — é por ele que motorista e escritório falam da mesma viagem
+                 * ao telefone (`tripIdentifier.service.ts`). Rotulado: sem a palavra "Viagem" o
+                 * código cola na placa e se lê como parte dela (visto no print da revisão).
+                 */}
+                <span className={styles.tripCodeLabel}>{t('tripCodeLabel')}</span>
+                <code className={styles.tripCode}>{formatShortTripId(trip.id)}</code>
+                {/*
+                 * Copia o id INTEIRO, como a listagem do escritório: o recorte é para ler na tela, e
+                 * o que o escritório procura é o id completo — mandar os 8 pelo WhatsApp obrigaria
+                 * alguém a adivinhar o resto.
+                 */}
+                <CopyButton
+                  copiedLabel={t('tripCodeCopied')}
+                  label={t('tripCodeCopy')}
+                  value={trip.id}
+                />
+              </p>
+            )}
+            {/* Pedido do usuário (02/10): de quando é esta viagem — o código curto não diz a data. */}
+            {trip === undefined || formatTripCreatedAt(trip.createdAt) === '' ? null : (
+              <p className={styles.tripCreatedAt}>
+                {t('tripCreatedAt', { date: formatTripCreatedAt(trip.createdAt) })}
+              </p>
+            )}
+            {trip === undefined || !canReportOnTrip(trip) ? null : (
+              <OpenSubjectConversationButton
+                contextLabel={t('tripCodeLabel')}
+                subjectId={trip.id}
+                subjectType="trip"
+              />
+            )}
+            {trip?.status === 'on_delivery_route' ? (
+              <p className={styles.tripOnRoute}>
+                <Icon aria-hidden="true" name="workspace-driver-trip" size="sm" />
+                {t('startRoute.onRoute')}
+              </p>
+            ) : null}
+          </header>
 
-        {trip !== undefined && autoSwitchedTripId === trip.id ? (
-          <DriverTripAutoSwitchNotice
-            onDismiss={() => selectTrip(trip.id)}
-            path={describeTripSelectorPath(trip).path}
+          <DriverTripSelector
+            onSelect={selectTrip}
+            selectedTripId={trip?.id}
+            trips={snapshot?.trips ?? []}
           />
-        ) : null}
 
-        <DriverLocationSharingIndicator status={locationSharingStatus} />
+          {trip !== undefined && autoSwitchedTripId === trip.id ? (
+            <DriverTripAutoSwitchNotice
+              onDismiss={() => selectTrip(trip.id)}
+              path={describeTripSelectorPath(trip).path}
+            />
+          ) : null}
 
-        {/*
+          <DriverLocationSharingIndicator status={locationSharingStatus} />
+
+          {/*
           ADR-0075 §8: boot sem rede, ou releitura que falhou com a viagem em memória — a tela
           continua com o dado e diz de quando ele é
         */}
-        {driverTrip.dataSavedAt === undefined ? null : (
-          <p className={styles.queueBanner} role="status">
-            {t(driverTrip.isOfflineBoot ? 'offline.snapshotFrom' : 'offline.refetchFailed', {
-              time: new Date(driverTrip.dataSavedAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-            })}
-          </p>
-        )}
+          {driverTrip.dataSavedAt === undefined ? null : (
+            <p className={styles.queueBanner} role="status">
+              {t(driverTrip.isOfflineBoot ? 'offline.snapshotFrom' : 'offline.refetchFailed', {
+                time: new Date(driverTrip.dataSavedAt).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+              })}
+            </p>
+          )}
 
-        {trip === undefined || canReportOnTrip(trip) ? null : <DriverHelperNotice />}
+          {trip === undefined || canReportOnTrip(trip) ? null : <DriverHelperNotice />}
 
-        {trip === undefined ? null : (
-          <DriverTripSyncBanner
-            onOpen={() => navigateToDriverSection('queue')}
-            onSendNow={driverTrip.sendAllNow}
-            queueView={driverTrip.queueView}
-          />
-        )}
-        {trip === undefined ? null : (
-          <DriverTripProgress
-            stopIdsWithOpenOccurrence={routeOccurrences.stopIdsWithOpenOccurrence}
-            trip={trip}
-          />
-        )}
-        {trip !== undefined && isTripFullySettled(trip) ? (
-          <div className={styles.tripAllDone} role="status">
-            <strong className={styles.tripAllDoneTitle}>
-              <Icon aria-hidden="true" name="check" size="sm" />
-              {t('tripAllDone')}
-            </strong>
-            <span className={styles.tripAllDoneLine}>
-              <Icon aria-hidden="true" name="package" size="sm" />
-              {t('tripAllDoneStops', { total: trip.stops.length })}
-            </span>
-            {tripElapsedMinutes(trip) === undefined ? null : (
-              <span className={styles.tripAllDoneLine}>
-                <Icon aria-hidden="true" name="clock" size="sm" />
-                {t('tripAllDoneTime', {
-                  duration: formatElapsedMinutes(tripElapsedMinutes(trip) ?? 0),
-                })}
-              </span>
-            )}
-            <span className={styles.tripAllDoneLine}>
-              <Icon aria-hidden="true" name="truck" size="sm" />
-              {t('tripAllDoneBody')}
-            </span>
-          </div>
-        ) : null}
-
-        {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
-        {dispatchState?.canDispatch === true && trip !== undefined ? (
-          <div className={styles.actions}>
-            {unloadedDocumentNumbers.length > 0 ? (
-              <p className={styles.alert} role="status">
-                {t('dispatch.unloaded', {
-                  count: unloadedDocumentNumbers.length,
-                  notes: formatDocumentNumbers(unloadedDocumentNumbers),
-                })}
-              </p>
-            ) : null}
-            <Button onClick={() => dispatchTrip(trip.id)} type="button">
-              <Icon name="check" />
-              {t('dispatch.start')}
-            </Button>
-            <p className={styles.stopMeta}>{t('dispatch.waiting')}</p>
-          </div>
-        ) : null}
-        {/* Spec 230: o despacho ficou na fila — a tela diz que ainda não chegou ao servidor */}
-        {isDispatchQueued && trip !== undefined && isAwaitingDispatch(trip) ? (
-          <p className={styles.stopMeta} role="status">
-            <Icon name="clock" />
-            {t('dispatch.queued')}
-          </p>
-        ) : null}
-        {isDispatchRejected ? (
-          <p className={styles.alert} role="alert">
-            {t(isDispatchRejectedByUnloaded ? 'dispatch.failedUnloaded' : 'dispatch.failed')}
-          </p>
-        ) : null}
-
-        {eventLimitReached ? (
-          <p className={styles.alert} role="alert">
-            {t('eventLimitCount')}
-          </p>
-        ) : null}
-
-        {/* Spec 159 T9: atalho visível com a contagem — leva à tela de anexo em lote. */}
-        {proofPendingCount > 0 ? (
-          <button
-            className={styles.queueBannerButton}
-            type="button"
-            onClick={() => navigateToDriverSection('pending-proofs')}
-          >
-            {t('pendingProofs.open')} ({proofPendingCount})
-          </button>
-        ) : null}
-
-        {/* Spec 189 T9.2: o que foi feito sem rede, sem sessão, sobe só com a confirmação do dono */}
-        {driverTrip.unverifiedPending === undefined ? null : (
-          <DriverUnverifiedPendingNotice
-            count={driverTrip.unverifiedPending.count}
-            firstRecordedAt={driverTrip.unverifiedPending.firstRecordedAt}
-            onConfirm={() => void driverTrip.confirmUnverifiedPending()}
-            onDiscard={() => void driverTrip.discardUnverifiedPending()}
-          />
-        )}
-
-        {/* ADR-0075 §8: a fila de outra conta neste celular nunca sai com o token desta */}
-        {driverTrip.foreignPendingCount > 0 ? (
-          <DriverForeignPendingNotice
-            count={driverTrip.foreignPendingCount}
-            onDiscard={() => void driverTrip.discardForeignPending()}
-          />
-        ) : null}
-
-        {/* Spec 294 RF27: a API recusou o toque por fora de ordem; só grava com a confirmação */}
-        {outOfOrderPrompt === undefined ? null : (
-          <DriverOutOfOrderDialog
-            onConfirm={(key) => void driverTrip.confirmOutOfOrder(key)}
-            onDiscard={(key) => void driverTrip.discardRejected(key)}
-            prompt={outOfOrderPrompt}
-          />
-        )}
-
-        {/* Spec 294 RF26: a nota já tem outro canhoto; trocar pede confirmação */}
-        {canhotoReplacePrompt === undefined ? null : (
-          <DriverCanhotoReplaceDialog
-            onKeep={(key) => void driverTrip.keepCurrentCanhoto(key)}
-            onReplace={(key) => void driverTrip.confirmCanhotoReplace(key)}
-            prompt={canhotoReplacePrompt}
-          />
-        )}
-
-        {driverTrip.duplicateCanhotos.map((notice) => (
-          <DriverCanhotoDuplicateNotice
-            key={notice.documentId}
-            notice={notice}
-            onDismiss={() => driverTrip.dismissDuplicateCanhoto(notice.documentId)}
-          />
-        ))}
-
-        {/* Spec 294 RF5: a etapa que a API marcou junto da baixa */}
-        {driverTrip.fieldNotices.map((notice) => (
-          <DriverFieldReportNotice
-            isNextStopPending={isNextStopStillPending(snapshot?.trips ?? [], notice.nextStop?.id)}
-            key={notice.key}
-            notice={notice}
-            onDismiss={() => driverTrip.dismissFieldNotice(notice.key)}
-            onStartRoute={departStop}
-          />
-        ))}
-
-        {/* Spec 217 (RF8, D6): a viagem que estava aqui e sumiu — reatribuição ou volta a draft */}
-        {driverTrip.hasReassignedTripNotice ? (
-          <DriverTripReassignedNotice onDismiss={driverTrip.dismissReassignedTripNotice} />
-        ) : null}
-
-        {/* Spec 229: parado há mais de um dia — o app só envia aberto, e nada sai da fila por idade */}
-        {stalePending === undefined ? null : (
-          <DriverStalePendingNotice
-            count={stalePending.count}
-            oldestQueuedAt={stalePending.oldestQueuedAt}
-            onOpenQueue={() => navigateToDriverSection('queue')}
-          />
-        )}
-
-        {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
-        {driverTrip.queuedCount > 0 ? (
-          <button
-            className={styles.queueBannerButton}
-            type="button"
-            onClick={() => navigateToDriverSection('queue')}
-          >
-            {t('queued', { count: driverTrip.queuedCount })}
-            <span className={styles.queueBannerAction}>{t('eventQueue.open')}</span>
-          </button>
-        ) : null}
-
-        {/* Spec 159 (T11): a pontualidade da foto, fora da lista de pendentes, até ser dispensada */}
-        {visibleProofOutcomes.map(([documentId, outcome]) => (
-          <DriverProofOutcomeNotice
-            key={documentId}
-            label={proofLabelByDocumentId.get(documentId)}
-            onDismiss={() =>
-              setDismissedProofOutcomeIds((current) => new Set(current).add(documentId))
-            }
-            outcome={outcome}
-          />
-        ))}
-
-        {attachmentLimit !== undefined ? (
-          <p className={styles.alert} role="alert">
-            {t(attachmentLimit === 'count-limit' ? 'attachmentLimitCount' : 'attachmentLimitSize')}
-          </p>
-        ) : null}
-
-        {occurrencePhotoDropped ? (
-          <p className={styles.alert} role="alert">
-            {t('occurrencePhotoDropped')}
-          </p>
-        ) : null}
-
-        {proofFailed ? (
-          <p className={styles.rejectedBanner} role="alert">
-            {t('proofFailed')}
-          </p>
-        ) : null}
-
-        {driverTrip.rejectedCount > 0 ? (
-          <button
-            className={styles.rejectedBannerButton}
-            type="button"
-            onClick={() => navigateToDriverSection('queue')}
-          >
-            {t('rejected')}
-          </button>
-        ) : null}
-
-        {snapshot?.isRegisteredDriver === false ? <p role="alert">{t('notRegistered')}</p> : null}
-
-        {/* Spec 065 D9: com manifesto autorizado, o documento da barreira vem antes do romaneio */}
-        {trip?.manifest == null ? null : (
-          <DriverManifestCard
-            manifest={trip.manifest}
-            onOpenDamdfe={(manifestId) => openManifestDamdfe(manifestId)}
-            onOpenXml={(manifestId) => openManifestXml(manifestId)}
-          />
-        )}
-
-        {/* Spec 065 D1: o que ele leva na mão desde o despacho, e antes de existir MDF-e */}
-        {trip === undefined ? null : <DriverLoadSheet trip={trip} />}
-
-        {trip === undefined || trip.stops.length === 0 ? null : (
-          <div className={styles.stopSearch} role="search">
-            <Icon aria-hidden="true" name="search" />
-            <input
-              aria-label={t('search.placeholder')}
-              placeholder={t('search.placeholder')}
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+          {trip === undefined ? null : (
+            <DriverTripSyncBanner
+              onOpen={() => navigateToDriverSection('queue')}
+              onSendNow={driverTrip.sendAllNow}
+              queueView={driverTrip.queueView}
             />
-            {/*
+          )}
+          {trip === undefined ? null : (
+            <DriverTripProgress
+              stopIdsWithOpenOccurrence={routeOccurrences.stopIdsWithOpenOccurrence}
+              trip={trip}
+            />
+          )}
+          {trip !== undefined && isTripFullySettled(trip) ? (
+            <div className={styles.tripAllDone} role="status">
+              <strong className={styles.tripAllDoneTitle}>
+                <Icon aria-hidden="true" name="check" size="sm" />
+                {t('tripAllDone')}
+              </strong>
+              <span className={styles.tripAllDoneLine}>
+                <Icon aria-hidden="true" name="package" size="sm" />
+                {t('tripAllDoneStops', { total: trip.stops.length })}
+              </span>
+              {tripElapsedMinutes(trip) === undefined ? null : (
+                <span className={styles.tripAllDoneLine}>
+                  <Icon aria-hidden="true" name="clock" size="sm" />
+                  {t('tripAllDoneTime', {
+                    duration: formatElapsedMinutes(tripElapsedMinutes(trip) ?? 0),
+                  })}
+                </span>
+              )}
+              <span className={styles.tripAllDoneLine}>
+                <Icon aria-hidden="true" name="truck" size="sm" />
+                {t('tripAllDoneBody')}
+              </span>
+            </div>
+          ) : null}
+
+          {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
+          {dispatchState?.canDispatch === true && trip !== undefined ? (
+            <div className={styles.actions}>
+              {unloadedDocumentNumbers.length > 0 ? (
+                <p className={styles.alert} role="status">
+                  {t('dispatch.unloaded', {
+                    count: unloadedDocumentNumbers.length,
+                    notes: formatDocumentNumbers(unloadedDocumentNumbers),
+                  })}
+                </p>
+              ) : null}
+              <Button onClick={() => dispatchTrip(trip.id)} type="button">
+                <Icon name="check" />
+                {t('dispatch.start')}
+              </Button>
+              <p className={styles.stopMeta}>{t('dispatch.waiting')}</p>
+            </div>
+          ) : null}
+          {/* Spec 230: o despacho ficou na fila — a tela diz que ainda não chegou ao servidor */}
+          {isDispatchQueued && trip !== undefined && isAwaitingDispatch(trip) ? (
+            <p className={styles.stopMeta} role="status">
+              <Icon name="clock" />
+              {t('dispatch.queued')}
+            </p>
+          ) : null}
+          {isDispatchRejected ? (
+            <p className={styles.alert} role="alert">
+              {t(isDispatchRejectedByUnloaded ? 'dispatch.failedUnloaded' : 'dispatch.failed')}
+            </p>
+          ) : null}
+
+          {eventLimitReached ? (
+            <p className={styles.alert} role="alert">
+              {t('eventLimitCount')}
+            </p>
+          ) : null}
+
+          {/* Spec 159 T9: atalho visível com a contagem — leva à tela de anexo em lote. */}
+          {proofPendingCount > 0 ? (
+            <button
+              className={styles.queueBannerButton}
+              type="button"
+              onClick={() => navigateToDriverSection('pending-proofs')}
+            >
+              {t('pendingProofs.open')} ({proofPendingCount})
+            </button>
+          ) : null}
+
+          {/* Spec 189 T9.2: o que foi feito sem rede, sem sessão, sobe só com a confirmação do dono */}
+          {driverTrip.unverifiedPending === undefined ? null : (
+            <DriverUnverifiedPendingNotice
+              count={driverTrip.unverifiedPending.count}
+              firstRecordedAt={driverTrip.unverifiedPending.firstRecordedAt}
+              onConfirm={() => void driverTrip.confirmUnverifiedPending()}
+              onDiscard={() => void driverTrip.discardUnverifiedPending()}
+            />
+          )}
+
+          {/* ADR-0075 §8: a fila de outra conta neste celular nunca sai com o token desta */}
+          {driverTrip.foreignPendingCount > 0 ? (
+            <DriverForeignPendingNotice
+              count={driverTrip.foreignPendingCount}
+              onDiscard={() => void driverTrip.discardForeignPending()}
+            />
+          ) : null}
+
+          {/* Spec 294 RF27: a API recusou o toque por fora de ordem; só grava com a confirmação */}
+          {outOfOrderPrompt === undefined ? null : (
+            <DriverOutOfOrderDialog
+              onConfirm={(key) => void driverTrip.confirmOutOfOrder(key)}
+              onDiscard={(key) => void driverTrip.discardRejected(key)}
+              prompt={outOfOrderPrompt}
+            />
+          )}
+
+          {/* Spec 294 RF26: a nota já tem outro canhoto; trocar pede confirmação */}
+          {canhotoReplacePrompt === undefined ? null : (
+            <DriverCanhotoReplaceDialog
+              onKeep={(key) => void driverTrip.keepCurrentCanhoto(key)}
+              onReplace={(key) => void driverTrip.confirmCanhotoReplace(key)}
+              prompt={canhotoReplacePrompt}
+            />
+          )}
+
+          {driverTrip.duplicateCanhotos.map((notice) => (
+            <DriverCanhotoDuplicateNotice
+              key={notice.documentId}
+              notice={notice}
+              onDismiss={() => driverTrip.dismissDuplicateCanhoto(notice.documentId)}
+            />
+          ))}
+
+          {/* Spec 294 RF5: a etapa que a API marcou junto da baixa */}
+          {driverTrip.fieldNotices.map((notice) => (
+            <DriverFieldReportNotice
+              isNextStopPending={isNextStopStillPending(snapshot?.trips ?? [], notice.nextStop?.id)}
+              key={notice.key}
+              notice={notice}
+              onDismiss={() => driverTrip.dismissFieldNotice(notice.key)}
+              onStartRoute={departStop}
+            />
+          ))}
+
+          {/* Spec 217 (RF8, D6): a viagem que estava aqui e sumiu — reatribuição ou volta a draft */}
+          {driverTrip.hasReassignedTripNotice ? (
+            <DriverTripReassignedNotice onDismiss={driverTrip.dismissReassignedTripNotice} />
+          ) : null}
+
+          {/* Spec 229: parado há mais de um dia — o app só envia aberto, e nada sai da fila por idade */}
+          {stalePending === undefined ? null : (
+            <DriverStalePendingNotice
+              count={stalePending.count}
+              oldestQueuedAt={stalePending.oldestQueuedAt}
+              onOpenQueue={() => navigateToDriverSection('queue')}
+            />
+          )}
+
+          {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
+          {driverTrip.queuedCount > 0 ? (
+            <button
+              className={styles.queueBannerButton}
+              type="button"
+              onClick={() => navigateToDriverSection('queue')}
+            >
+              {t('queued', { count: driverTrip.queuedCount })}
+              <span className={styles.queueBannerAction}>{t('eventQueue.open')}</span>
+            </button>
+          ) : null}
+
+          {/* Spec 159 (T11): a pontualidade da foto, fora da lista de pendentes, até ser dispensada */}
+          {visibleProofOutcomes.map(([documentId, outcome]) => (
+            <DriverProofOutcomeNotice
+              key={documentId}
+              label={proofLabelByDocumentId.get(documentId)}
+              onDismiss={() =>
+                setDismissedProofOutcomeIds((current) => new Set(current).add(documentId))
+              }
+              outcome={outcome}
+            />
+          ))}
+
+          {attachmentLimit !== undefined ? (
+            <p className={styles.alert} role="alert">
+              {t(
+                attachmentLimit === 'count-limit' ? 'attachmentLimitCount' : 'attachmentLimitSize',
+              )}
+            </p>
+          ) : null}
+
+          {occurrencePhotoDropped ? (
+            <p className={styles.alert} role="alert">
+              {t('occurrencePhotoDropped')}
+            </p>
+          ) : null}
+
+          {proofFailed ? (
+            <p className={styles.rejectedBanner} role="alert">
+              {t('proofFailed')}
+            </p>
+          ) : null}
+
+          {driverTrip.rejectedCount > 0 ? (
+            <button
+              className={styles.rejectedBannerButton}
+              type="button"
+              onClick={() => navigateToDriverSection('queue')}
+            >
+              {t('rejected')}
+            </button>
+          ) : null}
+
+          {snapshot?.isRegisteredDriver === false ? <p role="alert">{t('notRegistered')}</p> : null}
+
+          {/* Spec 065 D9: com manifesto autorizado, o documento da barreira vem antes do romaneio */}
+          {trip?.manifest == null ? null : (
+            <DriverManifestCard
+              manifest={trip.manifest}
+              onOpenDamdfe={(manifestId) => openManifestDamdfe(manifestId)}
+              onOpenXml={(manifestId) => openManifestXml(manifestId)}
+            />
+          )}
+
+          {/* Spec 065 D1: o que ele leva na mão desde o despacho, e antes de existir MDF-e */}
+          {trip === undefined ? null : <DriverLoadSheet trip={trip} />}
+
+          {trip === undefined || trip.stops.length === 0 ? null : (
+            <div className={styles.stopSearch} role="search">
+              <Icon aria-hidden="true" name="search" />
+              <input
+                aria-label={t('search.placeholder')}
+                placeholder={t('search.placeholder')}
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+              {/*
               A etiqueta da nota traz a chave de 44 dígitos em Code128 (e a NFC-e em QR): ler com a
               câmera é digitar a chave inteira sem errar um dígito no caminhão.
             */}
-            <Button
-              aria-label={t('search.scanTrigger')}
-              className={styles.stopSearchScan}
-              onClick={() => setIsScannerOpen(true)}
-              type="button"
-              variant="ghost"
-            >
-              <Icon name="camera" />
-            </Button>
-          </div>
-        )}
+              <Button
+                aria-label={t('search.scanTrigger')}
+                className={styles.stopSearchScan}
+                onClick={() => setIsScannerOpen(true)}
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="camera" />
+              </Button>
+            </div>
+          )}
 
-        <BarcodeScanner
-          closeLabel={t('search.scanClose')}
-          deniedMessage={t('search.scanDenied')}
-          isOpen={isScannerOpen}
-          onClose={() => setIsScannerOpen(false)}
-          onRead={(text) => {
-            setSearchTerm(text)
-            setIsScannerOpen(false)
-          }}
-          readingMessage={t('search.scanReading')}
-          startingMessage={t('search.scanStarting')}
-          title={t('search.scanTitle')}
-          unavailableMessage={t('search.scanUnavailable')}
-        />
+          <BarcodeScanner
+            closeLabel={t('search.scanClose')}
+            deniedMessage={t('search.scanDenied')}
+            isOpen={isScannerOpen}
+            onClose={() => setIsScannerOpen(false)}
+            onRead={(text) => {
+              setSearchTerm(text)
+              setIsScannerOpen(false)
+            }}
+            readingMessage={t('search.scanReading')}
+            startingMessage={t('search.scanStarting')}
+            title={t('search.scanTitle')}
+            unavailableMessage={t('search.scanUnavailable')}
+          />
 
-        {trip !== undefined && isPagedView ? (
-          <nav aria-label={t('paging.region')} className={styles.stopPager} ref={stopPagerRef}>
-            <Button
-              aria-label={t('paging.previous')}
-              disabled={
-                neighborStopId({ direction: 'previous', stopId: pageStopId, stops: trip.stops }) ===
-                undefined
-              }
-              type="button"
-              variant="secondary"
-              onClick={() =>
-                goToStopPage(
-                  neighborStopId({ direction: 'previous', stopId: pageStopId, stops: trip.stops }),
-                )
-              }
-            >
-              <Icon aria-hidden="true" name="chevron-left" />
-            </Button>
-            <strong aria-live="polite">
-              {t('paging.position', {
-                index: trip.stops.findIndex((stop) => stop.id === pageStopId) + 1,
-                total: trip.stops.length,
-              })}
-            </strong>
-            <Button
-              aria-label={t('paging.next')}
-              disabled={
-                neighborStopId({ direction: 'next', stopId: pageStopId, stops: trip.stops }) ===
-                undefined
-              }
-              type="button"
-              variant="secondary"
-              onClick={() =>
-                goToStopPage(
-                  neighborStopId({ direction: 'next', stopId: pageStopId, stops: trip.stops }),
-                )
-              }
-            >
-              <Icon aria-hidden="true" name="chevron-right" />
-            </Button>
-            <Button
-              className={styles.stopPagerShowAll}
-              type="button"
-              variant="ghost"
-              onClick={() => setShowListWhenCurrentWas({ currentStopId })}
-            >
-              {t('paging.showAll', { count: trip.stops.length })}
-            </Button>
-          </nav>
-        ) : null}
+          {trip !== undefined && isPagedView ? (
+            <nav aria-label={t('paging.region')} className={styles.stopPager} ref={stopPagerRef}>
+              <Button
+                aria-label={t('paging.previous')}
+                disabled={
+                  neighborStopId({
+                    direction: 'previous',
+                    stopId: pageStopId,
+                    stops: trip.stops,
+                  }) === undefined
+                }
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  goToStopPage(
+                    neighborStopId({
+                      direction: 'previous',
+                      stopId: pageStopId,
+                      stops: trip.stops,
+                    }),
+                  )
+                }
+              >
+                <Icon aria-hidden="true" name="chevron-left" />
+              </Button>
+              <strong aria-live="polite">
+                {t('paging.position', {
+                  index: trip.stops.findIndex((stop) => stop.id === pageStopId) + 1,
+                  total: trip.stops.length,
+                })}
+              </strong>
+              <Button
+                aria-label={t('paging.next')}
+                disabled={
+                  neighborStopId({ direction: 'next', stopId: pageStopId, stops: trip.stops }) ===
+                  undefined
+                }
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  goToStopPage(
+                    neighborStopId({ direction: 'next', stopId: pageStopId, stops: trip.stops }),
+                  )
+                }
+              >
+                <Icon aria-hidden="true" name="chevron-right" />
+              </Button>
+              <Button
+                className={styles.stopPagerShowAll}
+                type="button"
+                variant="ghost"
+                onClick={() => setShowListWhenCurrentWas({ currentStopId })}
+              >
+                {t('paging.showAll', { count: trip.stops.length })}
+              </Button>
+            </nav>
+          ) : null}
 
-        {trip !== undefined &&
-        stopViewMode.mode === 'paged' &&
-        searchTerm === '' &&
-        !isPagedView ? (
-          <div className={styles.stopPager}>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setShowListWhenCurrentWas(undefined)}
-            >
-              {t('paging.backToPage')}
-            </Button>
-          </div>
-        ) : null}
+          {trip !== undefined &&
+          stopViewMode.mode === 'paged' &&
+          searchTerm === '' &&
+          !isPagedView ? (
+            <div className={styles.stopPager}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowListWhenCurrentWas(undefined)}
+              >
+                {t('paging.backToPage')}
+              </Button>
+            </div>
+          ) : null}
 
-        {trip === undefined ? (
-          snapshot?.isRegisteredDriver === false ? null : (
-            <p>{t('noTrip')}</p>
-          )
-        ) : visibleStops.length === 0 ? (
-          <p className={styles.stopSearchEmpty} role="status">
-            {t('search.noResults')}
-          </p>
-        ) : (
-          <OpenSubjectConversationProvider isEnabled={canReportOnTrip(trip)}>
-            <ul className={styles.stopList}>
-              {visibleStops.map((stop) => {
-                const startRouteBlock = canStartRouteAtStop({ enRouteStopId, stopId: stop.id })
-                const blockingStopSequence = startRouteBlock.enabled
-                  ? undefined
-                  : trip.stops.find((candidate) => candidate.id === startRouteBlock.blockingStopId)
-                      ?.sequence
-                return (
-                  <DriverStopCard
-                    {...(blockingStopSequence === undefined ? {} : { blockingStopSequence })}
-                    canReportArrival={canReportArrival({
-                      enRouteStopId,
-                      isLegacyEnRouteTracking: trip.isLegacyEnRouteTracking ?? false,
-                      stop,
-                    })}
-                    canStartRoute={startRouteBlock}
-                    deliverActivityByDocumentId={deliverActivityByDocumentId}
-                    isCurrent={stop.id === currentStopId}
-                    stopPosition={{
-                      index: trip.stops.findIndex((candidate) => candidate.id === stop.id) + 1,
-                      total: trip.stops.length,
-                    }}
-                    isEnRoute={stop.id === enRouteStopId}
-                    isFieldWorkBlocked={isTripAwaitingDispatch}
-                    isLocationDenied={isLocationDenied}
-                    isOpen={stopExpansion.isOpen(stop.id)}
-                    isReadOnly={!canReportOnTrip(trip)}
-                    key={stop.id}
-                    occurrenceGroup={routeOccurrences.stopGroupById.get(stop.id)}
-                    lastKnownLocation={lastKnownLocation}
-                    queueView={driverTrip.queueView}
-                    sentReportKeys={driverTrip.sentReportKeys}
-                    tappedReports={tappedReports}
-                    returnActivityByDocumentId={returnActivityByDocumentId}
-                    stop={stop}
-                    stopOccurrenceActivity={stopOccurrenceActivityByStopId.get(stop.id)}
-                    onArrive={arriveAtStop}
-                    onCancelDeparture={cancelStopDeparture}
-                    onDeliver={deliverDocument}
-                    onDepart={departStop}
-                    onDiscardProofAwaitingDelivery={handleDiscardProofAwaitingDelivery}
-                    onSendAllNow={driverTrip.sendAllNow}
-                    onFocusStop={focusStop}
-                    onHeaderRef={registerStopHeaderRef}
-                    onProof={handleProof}
-                    onSendCanhotoPickup={driverTrip.sendCanhotoPickupPhoto}
-                    onProofFieldsUpdate={handleProofFieldsUpdate}
-                    onRemoveProof={handleRemoveProof}
-                    occurrenceTypes={occurrenceTypes}
-                    onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
-                    onToggle={() => stopExpansion.toggle(stop.id)}
-                    onQueuedDocumentOccurrence={(input) => void reportDocumentOccurrence(input)}
-                    onReceivingCharge={(input) => void reportReceivingCharge(input)}
-                    onStopOccurrence={(input) => void reportStopOccurrence(input)}
-                    notDeliveredKeyByDocumentId={notDeliveredKeyByDocumentId}
-                    notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
-                    onNotDelivered={(input) => void reportNotDelivered(input)}
-                  />
-                )
-              })}
-            </ul>
-          </OpenSubjectConversationProvider>
-        )}
-      </main>
-      <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
-    </div>
+          {trip === undefined ? (
+            snapshot?.isRegisteredDriver === false ? null : (
+              <p>{t('noTrip')}</p>
+            )
+          ) : visibleStops.length === 0 ? (
+            <p className={styles.stopSearchEmpty} role="status">
+              {t('search.noResults')}
+            </p>
+          ) : (
+            <OpenSubjectConversationProvider isEnabled={canReportOnTrip(trip)}>
+              <ul className={styles.stopList}>
+                {visibleStops.map((stop) => {
+                  const startRouteBlock = canStartRouteAtStop({ enRouteStopId, stopId: stop.id })
+                  const blockingStopSequence = startRouteBlock.enabled
+                    ? undefined
+                    : trip.stops.find(
+                        (candidate) => candidate.id === startRouteBlock.blockingStopId,
+                      )?.sequence
+                  return (
+                    <DriverStopCard
+                      {...(blockingStopSequence === undefined ? {} : { blockingStopSequence })}
+                      canReportArrival={canReportArrival({
+                        enRouteStopId,
+                        isLegacyEnRouteTracking: trip.isLegacyEnRouteTracking ?? false,
+                        stop,
+                      })}
+                      canStartRoute={startRouteBlock}
+                      deliverActivityByDocumentId={deliverActivityByDocumentId}
+                      isCurrent={stop.id === currentStopId}
+                      stopPosition={{
+                        index: trip.stops.findIndex((candidate) => candidate.id === stop.id) + 1,
+                        total: trip.stops.length,
+                      }}
+                      isEnRoute={stop.id === enRouteStopId}
+                      isFieldWorkBlocked={isTripAwaitingDispatch}
+                      isLocationDenied={isLocationDenied}
+                      isOpen={stopExpansion.isOpen(stop.id)}
+                      isReadOnly={!canReportOnTrip(trip)}
+                      key={stop.id}
+                      occurrenceGroup={routeOccurrences.stopGroupById.get(stop.id)}
+                      lastKnownLocation={lastKnownLocation}
+                      queueView={driverTrip.queueView}
+                      sentReportKeys={driverTrip.sentReportKeys}
+                      tappedReports={tappedReports}
+                      returnActivityByDocumentId={returnActivityByDocumentId}
+                      stop={stop}
+                      stopOccurrenceActivity={stopOccurrenceActivityByStopId.get(stop.id)}
+                      onArrive={arriveAtStop}
+                      onCancelDeparture={cancelStopDeparture}
+                      onDeliver={deliverDocument}
+                      onDepart={departStop}
+                      onDiscardProofAwaitingDelivery={handleDiscardProofAwaitingDelivery}
+                      onSendAllNow={driverTrip.sendAllNow}
+                      onFocusStop={focusStop}
+                      onHeaderRef={registerStopHeaderRef}
+                      onProof={handleProof}
+                      onSendCanhotoPickup={driverTrip.sendCanhotoPickupPhoto}
+                      onProofFieldsUpdate={handleProofFieldsUpdate}
+                      onRemoveProof={handleRemoveProof}
+                      occurrenceTypes={occurrenceTypes}
+                      onRetryOccurrenceTypes={handleRetryOccurrenceTypes}
+                      onToggle={() => stopExpansion.toggle(stop.id)}
+                      onQueuedDocumentOccurrence={(input) => void reportDocumentOccurrence(input)}
+                      onReceivingCharge={(input) => void reportReceivingCharge(input)}
+                      onStopOccurrence={(input) => void reportStopOccurrence(input)}
+                      notDeliveredKeyByDocumentId={notDeliveredKeyByDocumentId}
+                      notDeliveredStatusByDocumentId={notDeliveredStatusByDocumentId}
+                      onNotDelivered={(input) => void reportNotDelivered(input)}
+                    />
+                  )
+                })}
+              </ul>
+            </OpenSubjectConversationProvider>
+          )}
+        </main>
+        <DriverBottomBar section={section} onSelect={(next) => navigateToDriverSection(next)} />
+      </div>
+    </DriverRegisteredPixContext.Provider>
   )
 }
 

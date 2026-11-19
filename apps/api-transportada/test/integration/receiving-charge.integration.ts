@@ -64,6 +64,7 @@ import { OCCURRENCE_PHOTO_MAX_BYTES } from '../../src/trips/domain/occurrence-at
 import { DrizzleDriverFieldReportUnitOfWork } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleOccurrenceResolutionUnitOfWork } from '../../src/trips/infrastructure/drizzle-occurrence-resolution.repository.js'
 import { DrizzleOccurrenceUploadRepository } from '../../src/trips/infrastructure/drizzle-occurrence-upload.repository.js'
+import { listTripOccurrenceAttachmentLocations } from '../../src/trips/infrastructure/trip-occurrence-feed.query.js'
 import { attachUploadToStopOccurrence } from '../../src/trips/infrastructure/stop-occurrence-attachment.query.js'
 import { createInMemoryObjectStorageProvider } from '../fixtures/in-memory-object-storage.fixture.js'
 
@@ -148,6 +149,15 @@ describe('a cobrança no recebimento vai para os acertos (spec 317, Postgres)', 
           { objectId: sign, slotKey: 'charge_sign' },
           { objectId: receipt, slotKey: 'payment_receipt' },
         ])
+
+        // O painel abre a ocorrência pelas duas fontes de foto: a coluna da parada (a primeira vaga) e as vagas,
+        // sem repetir o mesmo objeto — as duas fotos aparecem, nas posições 1 e 2.
+        const locations = await listTripOccurrenceAttachmentLocations(database.db, {
+          companyId: world.companyId,
+          occurrenceId: first.id,
+        })
+        expect(locations.map((location) => location.position)).toEqual([1, 2])
+        expect(new Set(locations.map((location) => location.original.objectKey)).size).toBe(2)
 
         const [occurrence] = await database.db
           .select({
