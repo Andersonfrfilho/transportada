@@ -13,7 +13,10 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
-import { DEFAULT_REMINDER_SETTINGS } from '../../src/expenses/application/expense-reminder.port.js'
+import {
+  DEFAULT_REMINDER_SETTINGS,
+  type ReminderRecipient,
+} from '../../src/expenses/application/expense-reminder.port.js'
 import {
   createDrizzleExpenseReminderRecipients,
   createDrizzleExpenseReminderSettings,
@@ -202,12 +205,11 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
     const admins = [...(await recipients.findAdmins({ companyId: companyA }))].sort((a, b) =>
       a.userId.localeCompare(b.userId),
     )
-    expect(admins).toEqual(
-      [
-        { channels: ['email', 'whatsapp'], userId: admin },
-        { channels: ['email'], userId: drivingAdmin },
-      ].sort((a, b) => a.userId.localeCompare(b.userId)),
-    )
+    const expected: ReminderRecipient[] = [
+      { channels: ['email', 'whatsapp'], userId: admin },
+      { channels: ['email'], userId: drivingAdmin },
+    ]
+    expect(admins).toEqual(expected.sort((a, b) => a.userId.localeCompare(b.userId)))
   })
 
   test('motorista puro nunca recebe: responsável só com papel de motorista é "não existe"', async () => {
