@@ -111,7 +111,12 @@ import {
 } from './trip-delivery-deadline.support.js'
 import { readTripStopHolidayWarnings } from './trip-holiday-warning.support.js'
 import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
-import { loadCanhotoRetainedDocumentIds } from './canhoto-pickup.query.js'
+import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
+import {
+  listMovableCanhotoRetainedLinks,
+  loadCanhotoRetainedDocumentIds,
+  repointPendingCanhotoPickups,
+} from './canhoto-pickup.query.js'
 import { loadProofPendingDocumentIds } from './proof-pending.query.js'
 import { loadTripDocumentVolumeCounts } from './trip-document-volume.query.js'
 import { readDispatchReadinessDocuments } from './dispatch-readiness.query.js'
@@ -505,6 +510,40 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   }
 
   /**
+   * Spec 321 (emenda): solta, na viagem de origem, as notas não entregues com canhoto retido aberto. Devolve
+   * `nfeDocumentId → id do vínculo liberado`, para a coleta seguir a nota depois que o vínculo novo existir.
+   */
+  private async moveCanhotoRetainedLinks(
+    transaction: TripTransaction,
+    input: {
+      readonly actorUserId: string
+      readonly companyId: string
+      readonly nfeDocumentIds: readonly string[]
+      readonly tripId: string
+    },
+  ): Promise<Map<string, string>> {
+    const movable = await listMovableCanhotoRetainedLinks(transaction, {
+      companyId: input.companyId,
+      excludeTripId: input.tripId,
+      nfeDocumentIds: input.nfeDocumentIds,
+    })
+    const movedOrigins = new Map<string, string>()
+    for (const link of movable) {
+      const released = await this.releaseDocumentWithin(transaction, {
+        actor: { channel: TRIP_FIELD_CHANNELS.backoffice, userId: input.actorUserId },
+        companyId: input.companyId,
+        documentId: link.tripDocumentId,
+        keepRoute: (TRIP_DISPATCHED_STATUSES as readonly string[]).includes(link.tripStatus),
+        note: `Canhoto retido: nota movida para a viagem ${input.tripId.slice(0, 8)}`,
+        scope: 'document',
+        tripId: link.tripId,
+      })
+      if (released !== null) movedOrigins.set(link.nfeDocumentId, link.tripDocumentId)
+    }
+    return movedOrigins
+  }
+
+  /**
    * A nota que está em **outra** viagem (qualquer status) e ainda não foi entregue sai de lá e vem para
    * esta: o vínculo antigo é liberado com evento na viagem de origem, e a chegada registra de onde veio.
    * Nota já entregue não se move (entrega feita não se desfaz) — ela segue como `already_linked`.
@@ -862,6 +901,8 @@ export class DrizzleTripRepository implements TripRepositoryPort {
    * `trip_documents_live_nfe_document_unique` que decide — por isso o insert ignora o conflito.
    */
   public async linkDocumentsBatch(input: {
+    /** Spec 321 (emenda): sem o ator, a nota com canhoto retido não se move e segue `already_linked`, como antes. */
+    readonly actorUserId?: string
     readonly companyId: string
     readonly nfeDocumentIds: readonly string[]
     readonly tripId: string
@@ -880,6 +921,20 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       if (input.nfeDocumentIds.length === 0) {
         return { linked: [], skipped: [], tripStatus: tripRow.status }
       }
+
+      /**
+       * Spec 321 (emenda de 19/11/2026): a nota não entregue com canhoto retido aberto sai da viagem de origem (evento de
+       * solta na origem) e entra aqui; a coleta aberta a acompanha. Só `pending`: a já encaixada é do escritório (T3).
+       */
+      const movedOrigins =
+        input.actorUserId === undefined
+          ? new Map<string, string>()
+          : await this.moveCanhotoRetainedLinks(transaction, {
+              actorUserId: input.actorUserId,
+              companyId: input.companyId,
+              nfeDocumentIds: input.nfeDocumentIds,
+              tripId: input.tripId,
+            })
 
       const live = await transaction
         .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
@@ -914,6 +969,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
 
       const linked: TripDocument[] = []
       for (const record of created) {
+        const movedFromDocumentId =
+          record.nfeDocumentId === null ? undefined : movedOrigins.get(record.nfeDocumentId)
+        if (movedFromDocumentId !== undefined) {
+          await repointPendingCanhotoPickups(transaction, {
+            companyId: input.companyId,
+            fromTripDocumentId: movedFromDocumentId,
+            toTripDocumentId: record.id,
+          })
+        }
         const { destinationOrigin, stopId } = await reconcileLinkedDocumentStop(transaction, {
           companyId: input.companyId,
           freightCalculationId: record.freightCalculationId,
