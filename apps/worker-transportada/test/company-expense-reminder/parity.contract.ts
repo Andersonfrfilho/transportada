@@ -37,6 +37,8 @@ describe('paridade dos lembretes com a API (spec 325 T7.4)', () => {
       "const CHANNEL_ORDER: readonly ReminderChannel[] = ['email', 'whatsapp', 'push']",
       "export const EXPENSE_REMINDER_DRIVING_ROLES = ['driver', 'aggregate', 'helper'] as const",
       'facts.drivesInFleet ||',
+      "export const EXPENSE_REMINDER_NEUTRAL_ROLES = ['viewer'] as const",
+      'return isCrew && !hasOfficeRole',
     ]) {
       expect(api).toContain(marker)
       expect(worker).toContain(marker)
