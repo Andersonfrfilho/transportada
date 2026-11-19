@@ -60,6 +60,7 @@ export function DriverShellHeader({
           brand={brand}
           logoClassName={styles.moduleBrandLogo}
           nameClassName={styles.moduleCompanyName}
+          themed
         />
       </span>
       <button
