@@ -88,7 +88,7 @@ import { TripDocumentEvents } from './TripDocumentEvents.component'
 import { TripDocumentOccurrences } from './TripDocumentOccurrences.component'
 import { SeparationOccurrenceDialog } from './SeparationOccurrenceDialog.component'
 import { TripRouteMap } from './TripRouteMap.component'
-import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
+import { resolveDeliveryProofView, type DeliveryProof } from '../shared/deliveryProof.service'
 import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProcessFlow } from './TripProcessFlow.component'
@@ -1667,6 +1667,18 @@ function noticeForOutcome(outcome: CanhotoReviewOutcome): CanhotoReviewNotice | 
     : undefined
 }
 
+/** O canhoto que a troca vai substituir é a foto (`photo`) — nunca o nome de uma assinatura da mesma nota. */
+function resolveReplaceDialogCurrent(
+  proofs: readonly DeliveryProof[],
+): Readonly<{ receivedBy?: string; receivedByDetail?: string; receiverName: string }> {
+  const photo = proofs.find((proof) => proof.kind === 'photo')
+  return {
+    ...(photo?.receivedBy == null ? {} : { receivedBy: photo.receivedBy }),
+    ...(photo?.receivedByDetail == null ? {} : { receivedByDetail: photo.receivedByDetail }),
+    receiverName: photo?.receiverName ?? '',
+  }
+}
+
 export function TripDeliveryProofLoader({
   canhotoReadContext,
   documents,
@@ -1718,6 +1730,10 @@ export function TripDeliveryProofLoader({
         documentId,
         imageBlob: submission.file,
         reason: submission.reason,
+        ...(submission.receivedBy === undefined ? {} : { receivedBy: submission.receivedBy }),
+        ...(submission.receivedByDetail === undefined
+          ? {}
+          : { receivedByDetail: submission.receivedByDetail }),
         receiverName: submission.receiverName,
         tripId: document.tripId,
       })
@@ -1783,12 +1799,7 @@ export function TripDeliveryProofLoader({
         {...(rejectErrorCode === undefined ? {} : { serverErrorCode: rejectErrorCode })}
       />
       <ProofReplaceDialog
-        defaultReceiverName={
-          resolveDeliveryProofView({
-            document,
-            proofs: workspace.deliveryProofsQuery.data ?? [],
-          }).receiverName ?? ''
-        }
+        current={resolveReplaceDialogCurrent(workspace.deliveryProofsQuery.data ?? [])}
         isOpen={isReplaceOpen}
         isSubmitting={isReplacing}
         onClose={() => setIsReplaceOpen(false)}

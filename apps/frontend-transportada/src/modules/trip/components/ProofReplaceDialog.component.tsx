@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -17,13 +17,18 @@ const DEFAULT_REASON = PROOF_REPLACE_REASONS[0]
 
 export type ProofReplaceSubmission = Readonly<{
   file: File
+  receivedBy?: string
+  receivedByDetail?: string
   receiverName: string
   reason: ProofReplaceReason
 }>
 
 type ProofReplaceDialogProps = Readonly<{
-  /** O nome que o comprovante atual já tem — a troca regrava a linha, e empresa com assinatura exige o nome. */
-  defaultReceiverName: string
+  /**
+   * O que o comprovante atual já tem — a troca regrava a linha, então nome e "quem recebeu" seguem
+   * junto (empresa com assinatura exige o nome; com "quem recebeu" obrigatório, o valor).
+   */
+  current: Readonly<{ receivedBy?: string; receivedByDetail?: string; receiverName: string }>
   isOpen: boolean
   isSubmitting: boolean
   onClose: () => void
@@ -40,7 +45,7 @@ function isReplaceReason(value: string): value is ProofReplaceReason {
  * Mesma moldura do diálogo de recusa do canhoto — o aviso diz que a troca fica na trilha.
  */
 export function ProofReplaceDialog({
-  defaultReceiverName,
+  current,
   isOpen,
   isSubmitting,
   onClose,
@@ -52,7 +57,10 @@ export function ProofReplaceDialog({
   const [file, setFile] = useState<File | undefined>()
   const [reason, setReason] = useState<ProofReplaceReason>(DEFAULT_REASON)
   const [isMissingFile, setIsMissingFile] = useState(false)
-  const [receiverName, setReceiverName] = useState(defaultReceiverName)
+  const [receiverName, setReceiverName] = useState(current.receiverName)
+  /** Lido na abertura: uma releitura da consulta com o diálogo aberto não apaga o que a pessoa já fez. */
+  const currentRef = useRef(current)
+  currentRef.current = current
 
   /** Nada sobrevive a um fechamento sem confirmar — cada abertura começa do padrão. */
   useEffect(() => {
@@ -60,8 +68,8 @@ export function ProofReplaceDialog({
     setFile(undefined)
     setReason(DEFAULT_REASON)
     setIsMissingFile(false)
-    setReceiverName(defaultReceiverName)
-  }, [defaultReceiverName, isOpen])
+    setReceiverName(currentRef.current.receiverName)
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -80,7 +88,14 @@ export function ProofReplaceDialog({
       setIsMissingFile(true)
       return
     }
-    onSubmit({ file, receiverName: receiverName.trim(), reason })
+    const { receivedBy, receivedByDetail } = currentRef.current
+    onSubmit({
+      file,
+      ...(receivedBy === undefined ? {} : { receivedBy }),
+      ...(receivedByDetail === undefined ? {} : { receivedByDetail }),
+      receiverName: receiverName.trim(),
+      reason,
+    })
   }
 
   return createPortal(

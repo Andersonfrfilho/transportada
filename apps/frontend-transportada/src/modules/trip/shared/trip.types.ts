@@ -1269,6 +1269,9 @@ export type AttachFieldProofInput = TripDocumentActionInput &
     kind: FieldProofKind
     /** Nome de quem recebeu; a troca grava de novo a linha, então o nome do comprovante anterior vai junto. */
     receiverName?: string
+    /** Quem recebeu (família/portaria…) do comprovante atual: a troca regrava a linha e não pode apagá-lo. */
+    receivedBy?: string
+    receivedByDetail?: string
     /** Só no canhoto (`photo`): passa por cima da foto que o motorista enviou, com motivo. */
     replaceDriverProof?: Readonly<{ reason: ProofReplaceReason }>
     signal?: AbortSignal

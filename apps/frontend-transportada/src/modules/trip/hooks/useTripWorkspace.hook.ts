@@ -802,6 +802,8 @@ export function useTripWorkspace(
       documentId: string
       imageBlob: Blob
       reason: ProofReplaceReason
+      receivedBy?: string
+      receivedByDetail?: string
       receiverName: string
       tripId: string
     }>,
@@ -812,6 +814,10 @@ export function useTripWorkspace(
       imageBlob: replacement.imageBlob,
       kind: 'photo',
       ...(replacement.receiverName === '' ? {} : { receiverName: replacement.receiverName }),
+      ...(replacement.receivedBy === undefined ? {} : { receivedBy: replacement.receivedBy }),
+      ...(replacement.receivedByDetail === undefined
+        ? {}
+        : { receivedByDetail: replacement.receivedByDetail }),
       replaceDriverProof: { reason: replacement.reason },
       tripId: replacement.tripId,
     })

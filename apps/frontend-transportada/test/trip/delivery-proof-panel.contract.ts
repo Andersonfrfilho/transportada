@@ -385,6 +385,12 @@ describe('substituir comprovante do motorista', () => {
     expect(detail).toInclude('receiverName: submission.receiverName')
   })
 
+  it('carrega o "quem recebeu" do comprovante atual e não zera o formulário numa releitura da consulta', () => {
+    expect(dialog).toInclude('receivedByDetail')
+    expect(detail).toInclude("proofs.find((proof) => proof.kind === 'photo')")
+    expect(dialog).toInclude('}, [isOpen])')
+  })
+
   it('os textos existem em português e em inglês com as mesmas chaves', () => {
     expect(Object.keys(tripEn.deliveryProof.replaceDialog).sort()).toEqual(
       Object.keys(trip.deliveryProof.replaceDialog).sort(),

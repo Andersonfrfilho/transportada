@@ -602,6 +602,46 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
     expect(proof.replacedObjectId).toBe('driver-object')
   })
 
+  it('empresa com "quem recebeu" obrigatório: a troca sem o valor é 422, com o valor do comprovante atual passa', async () => {
+    const world = buildWorld()
+    const delivery = await deliverWithoutProof(world, 'driver-delivery-before-replace-received-by')
+    world.state.proofDetailsByEventKind.set(`${delivery.id}:photo`, {
+      channel: 'driver_app',
+      objectId: 'driver-object',
+    })
+    const base = fieldProofInput({
+      key: 'office-replace-received-by',
+      unitOfWork: world.unitOfWork,
+    })
+    const attachment = {
+      ...base.attachment,
+      resolveSettings: async () => ({ ...OPTIONAL_SETTINGS, receivedBy: 'required' as const }),
+    }
+    const replace = { replaceDriverProof: { reason: 'wrong_note' as const } }
+
+    await expectApiError(
+      reportFieldProof({
+        ...base,
+        attachment,
+        target: await resolveTarget(),
+        upload: { ...base.upload, ...replace },
+      }),
+      'TRIP_DELIVERY_PROOF_RECEIVED_BY_REQUIRED',
+      422,
+    )
+    const proof = await reportFieldProof({
+      ...base,
+      attachment,
+      target: await resolveTarget(),
+      upload: {
+        ...base.upload,
+        ...replace,
+        receivedBy: { receivedBy: 'recipient', receivedByDetail: null },
+      },
+    })
+    expect(proof.replacedObjectId).toBe('driver-object')
+  })
+
   it('M1: o canhoto do escritório substitui o do escritório e devolve o objeto anterior', async () => {
     const world = buildWorld()
     const delivery = await deliverWithoutProof(world, 'office-delivery-before-second-proof')
