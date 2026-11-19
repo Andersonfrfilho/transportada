@@ -112,6 +112,12 @@ export async function reportFieldProof(
               details: {
                 documentId: input.documentId,
                 replacedObjectId: persisted.replacedObjectId,
+                ...(persisted.driverProofReplaced === undefined
+                  ? {}
+                  : {
+                      replacedProofChannel: persisted.driverProofReplaced.channel,
+                      replaceReason: persisted.driverProofReplaced.reason,
+                    }),
               },
               locator: { target: input.target },
             })

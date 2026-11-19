@@ -32,6 +32,10 @@ export async function insertTripFieldOfficeAudit(
       ...(input.replacedObjectId === undefined || input.replacedObjectId === null
         ? {}
         : { replacedObjectId: input.replacedObjectId }),
+      ...(input.replacedProofChannel === undefined
+        ? {}
+        : { replacedProofChannel: input.replacedProofChannel }),
+      ...(input.replaceReason === undefined ? {} : { replaceReason: input.replaceReason }),
       ...(input.stopId === undefined ? {} : { stopId: input.stopId }),
     },
     permission: TRIP_REPORT_ON_BEHALF_PERMISSION,

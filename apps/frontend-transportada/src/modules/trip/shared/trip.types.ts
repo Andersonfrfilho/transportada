@@ -1252,12 +1252,28 @@ export type FieldProofKind = (typeof FIELD_PROOF_KINDS)[number]
  * feita**, fora do `field-delivery`. É por aqui que a foto da carga do assistente (RF7) sobe,
  * depois que a baixa da nota já foi confirmada — nunca antes, e nunca no mesmo corpo.
  */
+/** Motivos da troca do comprovante do motorista — espelho da lista fechada da API (`OFFICE_PROOF_REPLACE_REASONS`). */
+export const PROOF_REPLACE_REASONS = [
+  'wrong_note',
+  'wrong_document',
+  'unreadable',
+  'other',
+] as const
+export type ProofReplaceReason = (typeof PROOF_REPLACE_REASONS)[number]
+
 export type AttachFieldProofInput = TripDocumentActionInput &
   Readonly<{
     driverId?: string
     idempotencyKey: string
     imageBlob: Blob
     kind: FieldProofKind
+    /** Nome de quem recebeu; a troca grava de novo a linha, então o nome do comprovante anterior vai junto. */
+    receiverName?: string
+    /** Quem recebeu (família/portaria…) do comprovante atual: a troca regrava a linha e não pode apagá-lo. */
+    receivedBy?: string
+    receivedByDetail?: string
+    /** Só no canhoto (`photo`): passa por cima da foto que o motorista enviou, com motivo. */
+    replaceDriverProof?: Readonly<{ reason: ProofReplaceReason }>
     signal?: AbortSignal
     thumbnailBlob?: Blob
   }>
