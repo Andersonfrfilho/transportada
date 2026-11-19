@@ -22,6 +22,7 @@ export function DriverShellHeader() {
           brand={brand}
           logoClassName={styles.moduleBrandLogo}
           nameClassName={styles.moduleCompanyName}
+          themed
         />
       </span>
       {/* A API não expõe foto ao papel de campo hoje (a rota de foto é `users.manage`): iniciais. */}

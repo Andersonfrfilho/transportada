@@ -48,6 +48,10 @@
   --touch-target: 2.75rem;
   --icon-size-sm: 0.9rem;
   --icon-size-md: 1.1rem;
+  /* Movimento: duas durações e uma curva. Transição nova usa estes, nunca um número solto. */
+  --motion-fast: 150ms;
+  --motion-base: 250ms;
+  --motion-ease: ease-out;
 }
 
 /**
@@ -328,4 +332,17 @@ button:has(svg) {
 
 .login__submit {
   width: 100%;
+}
+
+/**
+ * Rede de segurança do movimento: quem pede menos movimento não recebe transição nenhuma, mesmo
+ * numa regra que esqueceu o `@media` próprio. Animação de estado (giro de envio, barra de sincronia)
+ * fica de fora de propósito — cada uma já trata o `reduce` do seu jeito e tira o feedback junto.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
 }

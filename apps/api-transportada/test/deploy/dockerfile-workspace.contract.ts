@@ -116,3 +116,35 @@ describe('api image: o publicador de modelos roda de dentro dela', () => {
     expect(dockerfile).toContain('src/expenses/expense-whatsapp-templates')
   })
 })
+
+describe('api image: o cadastro do tipo Canhoto retido roda de dentro dela', () => {
+  /** Spec 321 T7: em 19/11/2026 o `railway ssh` do script caiu em "script ausente" porque o Dockerfile não o copiava. */
+  test('o script e toda pasta de src que ele importa são copiados pelo Dockerfile', async () => {
+    const apiRoot = join(REPOSITORY_ROOT, 'apps', 'api-transportada')
+    const script = 'scripts/canhoto-retido-type-publish.ts'
+    const result = await Bun.build({
+      entrypoints: [join(apiRoot, script)],
+      metafile: true,
+      packages: 'external',
+      target: 'bun',
+    })
+    expect(result.success).toBe(true)
+    const folders = new Set(
+      Object.keys(result.metafile?.inputs ?? {})
+        .map((input) => input.replace(/^\.\//u, ''))
+        .filter((input) => input.startsWith('src/'))
+        .map((input) => input.slice(0, input.lastIndexOf('/'))),
+    )
+    const dockerfile = await Bun.file(join(apiRoot, 'Dockerfile')).text()
+    const copied = [...dockerfile.matchAll(/^COPY apps\/api-transportada\/(\S+) /gmu)].map(
+      (match) => (match[1] ?? '').replace(/\/$/u, ''),
+    )
+    const missing = [...folders].filter(
+      (folder) => !copied.some((entry) => folder === entry || folder.startsWith(`${entry}/`)),
+    )
+
+    expect(copied).toContain(script)
+    expect(folders.size).toBeGreaterThan(5)
+    expect(missing).toEqual([])
+  })
+})

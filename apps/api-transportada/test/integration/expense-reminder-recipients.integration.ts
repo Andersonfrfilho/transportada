@@ -13,7 +13,10 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { sql } from 'drizzle-orm'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
-import { DEFAULT_REMINDER_SETTINGS } from '../../src/expenses/application/expense-reminder.port.js'
+import {
+  DEFAULT_REMINDER_SETTINGS,
+  type ReminderRecipient,
+} from '../../src/expenses/application/expense-reminder.port.js'
 import {
   createDrizzleExpenseReminderRecipients,
   createDrizzleExpenseReminderSettings,
@@ -40,13 +43,13 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
   const formerAdmin = crypto.randomUUID()
   /** Operador convidado por WhatsApp, sem e-mail, com push ligado. */
   const operator = crypto.randomUUID()
-  /** Administrador que também é motorista: nunca recebe. */
+  /** Administrador que também é motorista: o papel de escritório prevalece e ele recebe (2026-11-19). */
   const drivingAdmin = crypto.randomUUID()
   /** Motorista marcado como responsável: nunca recebe. */
   const driver = crypto.randomUUID()
-  /** Financeiro que é agregado por grupo: nunca recebe. */
+  /** Financeiro que é agregado por grupo: o papel de escritório prevalece e ele recebe. */
   const groupAggregate = crypto.randomUUID()
-  /** Operador com ficha da frota que dirige: nunca recebe. */
+  /** Operador com ficha da frota que dirige: o papel de escritório prevalece e ele recebe. */
   const fleetDriver = crypto.randomUUID()
   /** Ajudante (ficha que não dirige): recebe. */
   const helper = crypto.randomUUID()
@@ -197,16 +200,21 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
     }
   }, 60_000)
 
-  test('administradores: só vínculo e conta ativos com o papel, nunca o que também dirige, cada um com os canais dele', async () => {
+  test('administradores: só vínculo e conta ativos com o papel, inclusive o que também dirige, cada um com os canais dele', async () => {
     const recipients = createDrizzleExpenseReminderRecipients(db())
-    expect(await recipients.findAdmins({ companyId: companyA })).toEqual([
+    const admins = [...(await recipients.findAdmins({ companyId: companyA }))].sort((a, b) =>
+      a.userId.localeCompare(b.userId),
+    )
+    const expected: ReminderRecipient[] = [
       { channels: ['email', 'whatsapp'], userId: admin },
-    ])
+      { channels: ['email'], userId: drivingAdmin },
+    ]
+    expect(admins).toEqual(expected.sort((a, b) => a.userId.localeCompare(b.userId)))
   })
 
-  test('motorista nunca recebe: responsável por papel, por grupo ou pela ficha da frota é "não existe"', async () => {
+  test('motorista puro nunca recebe: responsável só com papel de motorista é "não existe"', async () => {
     const recipients = createDrizzleExpenseReminderRecipients(db())
-    for (const userId of [driver, groupAggregate, fleetDriver, drivingAdmin]) {
+    for (const userId of [driver]) {
       expect({
         userId,
         recipient: await recipients.findById({ companyId: companyA, userId }),
@@ -214,6 +222,13 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
         recipient: null,
         userId,
       })
+    }
+  })
+
+  test('papel de escritório prevalece: motorista por grupo, por ficha ou administrador que dirige recebe (2026-11-19)', async () => {
+    const recipients = createDrizzleExpenseReminderRecipients(db())
+    for (const userId of [groupAggregate, fleetDriver, drivingAdmin]) {
+      expect(await recipients.findById({ companyId: companyA, userId })).not.toBeNull()
     }
   })
 

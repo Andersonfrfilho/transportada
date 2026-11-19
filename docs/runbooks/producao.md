@@ -1566,3 +1566,21 @@ Depois do deploy da API, na ordem, todos gravam a saída em `tmp/ops/saidas/` e 
 3. `tmp/ops/producao-promocao-898-confere.sh` — só leitura: coluna `occurrence_kind`, ícones dos tipos, modelos `ocorrencia.*` ativos e tipos de parada existentes.
 
 Nada liga sozinho: tipos e canais seguem como estão; ativar "Espera longa"/"Endereço incorreto" e o canal de grupo da contratante é decisão do Anderson, pelo painel.
+
+### Resultado em produção (19/11/2026)
+
+- Migrations aplicadas: a coluna `occurrence_contractor_manual_notices.occurrence_kind` existe (padrão `document`). A migration dos ícones não alterou nada: em produção só existe o tipo "Espera longa" (`clock`, **inativo**); "Local fechado" e "Endereço incorreto" não existem lá.
+- Modelo geral do grupo `ocorrencia.contratante-grupo` (WhatsApp): gravado, versão 1.
+- `producao-promocao-898-modelos.sh --confirm` **não gravou nada, de propósito**: a trava parou porque o plano de produção tinha `create` também de `ocorrencia.contratante-aviso-manual` (e-mail e WhatsApp), `ocorrencia.devolucao-total`, `correcao-endereco.padrao` e `contas.aviso-vencimento`/`contas.resumo-diario` (e-mail e WhatsApp), que nunca tinham sido publicados em produção. A saída da v1 não mostrou o caminho do arquivo porque o `exit` dentro do bloco redirecionado levou o `echo` do `trap` para dentro do arquivo.
+- `tmp/ops/producao-promocao-898-modelos-v2.sh` (mesmo uso) inclui essas chaves na lista permitida e imprime o caminho no terminal. Continua só criando versão nova; `ocorrencia.prorrogacao-boleto` (`differs`, ativa v1) não é tocado.
+- Ainda **não gravados** em produção até a v2 rodar com `--confirm`: `ocorrencia.espera-longa`, `ocorrencia.cobranca-recebimento`, `ocorrencia.endereco-incorreto`, `ocorrencia.local-fechado` (e-mail e WhatsApp) e os demais acima.
+
+#### Modelos publicados (19/11/2026, v2 `--confirm`)
+
+A v2 gravou **v1** de 15 modelos em produção (saída `producao-promocao-898-modelos-v2-confirmado-20261118-215817.txt`): e-mail de `ocorrencia.cobranca-recebimento`, `contratante-aviso-manual`, `devolucao-total`, `endereco-incorreto`, `espera-longa`, `local-fechado`, `correcao-endereco.padrao`, `contas.aviso-vencimento` e `contas.resumo-diario`; WhatsApp de `cobranca-recebimento`, `contratante-aviso-manual`, `endereco-incorreto`, `espera-longa`, `local-fechado` e `contas.aviso-vencimento`. `ocorrencia.prorrogacao-boleto` (`differs`) ficou intacto. Nada foi enviado. Pendente: ativar o tipo "Espera longa" e criar "Local fechado"/"Endereço incorreto" em produção (decisão do Anderson).
+
+#### Tipos de ocorrência em produção (19/11/2026, aprovado pelo Anderson)
+
+Em produção só existia "Espera longa" (inativo); "Local fechado" e "Endereço incorreto" não existiam. A configuração vem do despejo da staging (`tmp/ops/staging-tipos-ocorrencia-dump.sh`, só leitura). `bash tmp/ops/producao-promocao-898-tipos.sh` simula (transação desfeita) e `--confirm` grava: ativa a Espera longa (espera mínima de 30 min, localização, foto e observação obrigatórias, ícone `clock`), cria Local fechado (`alert`) e Endereço incorreto (`clipboard-list`), cada um ligado ao modelo `ocorrencia.<tipo>` já publicado. Nunca apaga nem renomeia; tipo que já existe (exceto a Espera longa) não é tocado.
+
+**Resultado (19/11/2026, `--confirm` gravado):** "Espera longa" ficou **ativa** (de inativa; passou a exigir foto, observação e localização, espera mínima de 30 min e modelo `ocorrencia.espera-longa`); "Local fechado" e "Endereço incorreto" foram **criados** e ativos com a configuração da staging. Saída: `producao-promocao-898-tipos-confirmado-20261118-221251.txt`. Ainda não conferido pelo app do motorista em produção.

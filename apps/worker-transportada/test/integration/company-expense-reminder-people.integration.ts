@@ -121,18 +121,18 @@ describeIntegration(
       })
     }
 
-    test('administradores: o que também dirige fica de fora', async () => {
+    test('administradores: o que também dirige entra, o papel de escritório prevalece (2026-11-19)', async () => {
       const admins = await ports().people.findAdmins({ companyId })
-      expect(admins.map((person) => person.userId)).toEqual([people.admin])
+      expect(admins.map((person) => person.userId).sort()).toEqual(
+        [people.admin, people.drivingAdmin].sort(),
+      )
     })
 
-    test('responsável motorista (papel, grupo ou ficha que dirige) é "não existe"', async () => {
-      for (const userId of [
-        people.driver,
-        people.groupAggregate,
-        people.fleetDriver,
-        people.drivingAdmin,
-      ]) {
+    test('responsável só motorista é "não existe"; com papel de escritório (grupo, ficha, administrador) recebe', async () => {
+      for (const userId of [people.groupAggregate, people.fleetDriver, people.drivingAdmin]) {
+        expect(await ports().people.findById({ companyId, userId })).not.toBeNull()
+      }
+      for (const userId of [people.driver]) {
         expect({ person: await ports().people.findById({ companyId, userId }), userId }).toEqual({
           person: null,
           userId,
@@ -140,8 +140,11 @@ describeIntegration(
       }
     })
 
-    test('o ajudante nunca recebe: nem pelo papel, nem pela ficha que ajuda (decisão de 2026-11-15)', async () => {
-      for (const userId of [people.helper, people.fleetHelper]) {
+    test('o ajudante só com o papel de ajudante nunca recebe; com papel de escritório, mesmo com a ficha que ajuda, recebe', async () => {
+      expect(
+        await ports().people.findById({ companyId, userId: people.fleetHelper }),
+      ).not.toBeNull()
+      for (const userId of [people.helper]) {
         expect({ person: await ports().people.findById({ companyId, userId }), userId }).toEqual({
           person: null,
           userId,
