@@ -362,7 +362,7 @@
 
 .stopExpandIcon {
   color: var(--color-slate);
-  transition: transform 150ms ease;
+  transition: transform var(--motion-fast) var(--motion-ease);
 }
 
 .stopExpandIconOpen {
@@ -826,7 +826,7 @@
 
 /* O chevron gira ao abrir — a mesma dica visual que uma seta virando "para cima" daria. */
 .loadSheetToggleButton svg {
-  transition: transform 150ms ease;
+  transition: transform var(--motion-fast) var(--motion-ease);
 }
 
 .loadSheetToggleOpen svg {
@@ -1123,7 +1123,7 @@
   border-radius: 0;
   flex: 1;
   height: var(--space-2);
-  transition: background-color 0.3s ease;
+  transition: background-color var(--motion-base) var(--motion-ease);
 }
 
 .progressSegment[data-state='resolved'] {
@@ -2422,7 +2422,7 @@
   }
 
   .tripSyncBarFill {
-    transition: width 0.3s ease-out;
+    transition: width var(--motion-base) var(--motion-ease);
   }
 
   .tripSyncBar[data-mode='indeterminate'] > .tripSyncBarFill {

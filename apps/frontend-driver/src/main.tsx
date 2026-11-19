@@ -30,6 +30,7 @@ import {
   runDriverBoot,
   scheduleAuthenticationOnReconnect,
 } from '@/modules/driver-trip/shared/bootMode.service'
+import { dismissSplashInBrowser } from '@/modules/shared/splash.service'
 import { suspendBackButtonUndo } from '@/modules/shared/useBackButtonClose.hook'
 import {
   captureRegistry,
@@ -387,6 +388,8 @@ async function start(): Promise<void> {
   const container = document.getElementById('root')
   if (container === null) throw new Error('DRIVER_ROOT_ELEMENT_MISSING')
   const root = createRoot(container)
+  /** O esqueleto já está montando por baixo: a splash sai sem esperar a sonda nem a rede. */
+  dismissSplashInBrowser()
 
   await runDriverBoot({
     authenticate: () => startAuthenticated(root),
