@@ -1578,3 +1578,7 @@ Nada liga sozinho: tipos e canais seguem como estão; ativar "Espera longa"/"End
 #### Modelos publicados (19/11/2026, v2 `--confirm`)
 
 A v2 gravou **v1** de 15 modelos em produção (saída `producao-promocao-898-modelos-v2-confirmado-20261118-215817.txt`): e-mail de `ocorrencia.cobranca-recebimento`, `contratante-aviso-manual`, `devolucao-total`, `endereco-incorreto`, `espera-longa`, `local-fechado`, `correcao-endereco.padrao`, `contas.aviso-vencimento` e `contas.resumo-diario`; WhatsApp de `cobranca-recebimento`, `contratante-aviso-manual`, `endereco-incorreto`, `espera-longa`, `local-fechado` e `contas.aviso-vencimento`. `ocorrencia.prorrogacao-boleto` (`differs`) ficou intacto. Nada foi enviado. Pendente: ativar o tipo "Espera longa" e criar "Local fechado"/"Endereço incorreto" em produção (decisão do Anderson).
+
+#### Tipos de ocorrência em produção (19/11/2026, aprovado pelo Anderson)
+
+Em produção só existia "Espera longa" (inativo); "Local fechado" e "Endereço incorreto" não existiam. A configuração vem do despejo da staging (`tmp/ops/staging-tipos-ocorrencia-dump.sh`, só leitura). `bash tmp/ops/producao-promocao-898-tipos.sh` simula (transação desfeita) e `--confirm` grava: ativa a Espera longa (espera mínima de 30 min, localização, foto e observação obrigatórias, ícone `clock`), cria Local fechado (`alert`) e Endereço incorreto (`clipboard-list`), cada um ligado ao modelo `ocorrencia.<tipo>` já publicado. Nunca apaga nem renomeia; tipo que já existe (exceto a Espera longa) não é tocado.
