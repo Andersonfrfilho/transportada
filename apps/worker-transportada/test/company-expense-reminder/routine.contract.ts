@@ -29,6 +29,7 @@ const ADMIN = '00000000-0000-4000-8000-0000000000e3'
 
 const NOOP = () => undefined
 const LOGGER = { debug: NOOP, error: NOOP, info: NOOP, warn: NOOP }
+const WHATSAPP_TEMPLATE = { body: '💸 *{{conta}}* {{situacao}} — {{valor}}. Olá, {{responsavel}}.' }
 const TEMPLATE = {
   body: '<p>{{conta}} {{situacao}} — {{valor}} ({{favorecido}})</p><!-- mensagem -->{{botaoAbrirContas}}',
   subject: '{{conta}} {{situacao}} — {{valor}}',
@@ -66,6 +67,7 @@ const person = (
   emailAddress,
   name: userId === ADMIN ? 'Admin' : 'Responsável',
   userId,
+  whatsappPhone: '16999990001',
 })
 
 type State = {
@@ -73,9 +75,12 @@ type State = {
   failMail: boolean
   occurrences: ReminderOccurrence[]
   people: Map<string, ReminderPerson>
+  failWhatsapp: boolean
   sent: Set<string>
   settings: ReminderSettings
   template: { body: string; subject: string } | null
+  whatsapp: { body: string; companyId: string; number: string }[]
+  whatsappTemplate: { body: string } | null
 }
 
 let state: State
@@ -111,7 +116,16 @@ const ports = (): CompanyExpenseReminderPorts => ({
     },
   },
   settings: { get: async () => state.settings },
-  templates: { findEmail: async () => state.template },
+  templates: {
+    findEmail: async () => state.template,
+    findWhatsapp: async () => state.whatsappTemplate,
+  },
+  whatsapp: {
+    sendText: async (input) => {
+      if (state.failWhatsapp) throw new Error('evolution down')
+      state.whatsapp.push(input)
+    },
+  },
 })
 
 const run = (now = NOW) =>
@@ -128,9 +142,12 @@ beforeEach(() => {
       [RESPONSIBLE, person(RESPONSIBLE)],
       [ADMIN, person(ADMIN)],
     ]),
+    failWhatsapp: false,
     sent: new Set(),
     settings: DEFAULT_REMINDER_SETTINGS,
     template: TEMPLATE,
+    whatsapp: [],
+    whatsappTemplate: WHATSAPP_TEMPLATE,
   }
 })
 
@@ -200,13 +217,86 @@ describe('rotina dos lembretes de vencimento (spec 325 T7.4)', () => {
     expect(state.emails).toHaveLength(0)
   })
 
-  test('canais além do e-mail ainda não saem daqui e são contados', async () => {
+  test('push ainda não sai daqui e é contado', async () => {
     state.occurrences = [occurrence({ id: 'o1' })]
-    state.settings = { ...DEFAULT_REMINDER_SETTINGS, enabledChannels: ['email', 'whatsapp'] }
-    state.people.set(RESPONSIBLE, { ...person(RESPONSIBLE), channels: ['email', 'whatsapp'] })
+    state.settings = { ...DEFAULT_REMINDER_SETTINGS, enabledChannels: ['email', 'push'] }
+    state.people.set(RESPONSIBLE, { ...person(RESPONSIBLE), channels: ['email', 'push'] })
     const result = await run()
     expect(result.counters.sent).toBe(1)
     expect(result.counters.unsupportedChannel).toBe(1)
+  })
+
+  test('WhatsApp: só o canal ligado e o número verificado dela; texto do modelo, número com país', async () => {
+    state.occurrences = [occurrence({ id: 'o1' })]
+    state.settings = { ...DEFAULT_REMINDER_SETTINGS, enabledChannels: ['whatsapp'] }
+    state.people.set(RESPONSIBLE, { ...person(RESPONSIBLE), channels: ['whatsapp'] })
+    const result = await run()
+    expect(result.counters.sent).toBe(1)
+    expect(result.counters.unsupportedChannel).toBe(0)
+    expect(state.emails).toHaveLength(0)
+    expect(state.whatsapp).toEqual([
+      {
+        body: '💸 *Aluguel galpão* vence em 3 dias — R$ 1.500,00. Olá, Responsável.',
+        companyId: A,
+        number: '5516999990001',
+      },
+    ])
+  })
+
+  test('e-mail e WhatsApp juntos: os dois saem, uma reserva só, e rodar de novo não repete', async () => {
+    state.occurrences = [occurrence({ id: 'o1' })]
+    state.settings = { ...DEFAULT_REMINDER_SETTINGS, enabledChannels: ['email', 'whatsapp'] }
+    state.people.set(RESPONSIBLE, { ...person(RESPONSIBLE), channels: ['email', 'whatsapp'] })
+    const first = await run()
+    expect(first.counters.sent).toBe(2)
+    expect(state.emails).toHaveLength(1)
+    expect(state.whatsapp).toHaveLength(1)
+    expect(state.sent.size).toBe(1)
+    const second = await run()
+    expect(second.counters.sent).toBe(0)
+    expect(second.counters.skipped).toBe(1)
+    expect(state.whatsapp).toHaveLength(1)
+  })
+
+  test('WhatsApp que falha solta a reserva e a próxima rodada tenta de novo', async () => {
+    state.occurrences = [occurrence({ id: 'o1' })]
+    state.settings = { ...DEFAULT_REMINDER_SETTINGS, enabledChannels: ['whatsapp'] }
+    state.people.set(RESPONSIBLE, { ...person(RESPONSIBLE), channels: ['whatsapp'] })
+    state.failWhatsapp = true
+    const first = await run()
+    expect(first.counters.failed).toBe(1)
+    expect(state.sent.size).toBe(0)
+    state.failWhatsapp = false
+    expect((await run()).counters.sent).toBe(1)
+    expect(state.whatsapp).toHaveLength(1)
+  })
+
+  test('sem modelo de e-mail, o WhatsApp ainda sai; sem os dois, nada sai e conta', async () => {
+    state.occurrences = [occurrence({ id: 'o1' })]
+    state.settings = { ...DEFAULT_REMINDER_SETTINGS, enabledChannels: ['whatsapp'] }
+    state.people.set(RESPONSIBLE, { ...person(RESPONSIBLE), channels: ['whatsapp'] })
+    state.template = null
+    expect((await run()).counters.sent).toBe(1)
+    state.whatsapp = []
+    state.sent.clear()
+    state.whatsappTemplate = null
+    const none = await run()
+    expect(none.counters.templateMissing).toBe(1)
+    expect(state.whatsapp).toHaveLength(0)
+  })
+
+  test('número que não é telefone brasileiro falha sem enviar', async () => {
+    state.occurrences = [occurrence({ id: 'o1' })]
+    state.settings = { ...DEFAULT_REMINDER_SETTINGS, enabledChannels: ['whatsapp'] }
+    state.people.set(RESPONSIBLE, {
+      ...person(RESPONSIBLE),
+      channels: ['whatsapp'],
+      whatsappPhone: '123',
+    })
+    const result = await run()
+    expect(result.counters.failed).toBe(1)
+    expect(state.whatsapp).toHaveLength(0)
+    expect(state.sent.size).toBe(0)
   })
 
   test('uma empresa que falha não segura as outras, e o ciclo acusa no fim', async () => {

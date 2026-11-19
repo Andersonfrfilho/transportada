@@ -85,7 +85,7 @@ describeIntegration(
       create table company_group_roles (group_id uuid not null, role text not null);
       create table fleet_drivers (id uuid primary key, company_id uuid not null, membership_id uuid, can_drive boolean not null default true, can_act_as_helper boolean not null default false);
       create table company_expense_reminder_preferences (company_id uuid not null, user_id uuid not null, whatsapp_enabled boolean not null default false, push_enabled boolean not null default false);
-      create table user_whatsapp_phones (user_id uuid not null, verified_at timestamptz);
+      create table user_whatsapp_phones (user_id uuid not null, phone text not null default '', verified_at timestamptz);
     `)
       await addPerson({ roles: ['company-admin'], userId: people.admin })
       await addPerson({ roles: ['company-admin', 'driver'], userId: people.drivingAdmin })
@@ -118,6 +118,7 @@ describeIntegration(
         appBaseUrl: null,
         database: database.db,
         emailDriver: undefined,
+        sendWhatsAppText: undefined,
       })
     }
 
