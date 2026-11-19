@@ -54,6 +54,7 @@ export function LoginIdentifierPage() {
             brand={brand}
             logoClassName="login__logo"
             nameClassName="login__name"
+            themed
           />
         </div>
         <h1 className="page__title login__title">{t('login.title')}</h1>

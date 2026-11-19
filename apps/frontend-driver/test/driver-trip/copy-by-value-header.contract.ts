@@ -238,6 +238,10 @@ const COPIED_FILES: ReadonlyArray<readonly [path: string, origin: string]> = [
     'apps/frontend-transportada/src/modules/shared/useRevealedPanel.hook.ts',
   ],
   [
+    'src/modules/shared/useEffectiveColorTheme.hook.ts',
+    'apps/frontend-transportada/src/modules/shared/useEffectiveColorTheme.hook.ts',
+  ],
+  [
     'src/modules/shared/useModalDialog.hook.ts',
     'apps/frontend-transportada/src/modules/shared/useModalDialog.hook.ts',
   ],
