@@ -29,6 +29,7 @@ type PersonRow = {
   readonly roles: readonly string[]
   readonly user_id: string
   readonly whatsapp_opt_in: boolean
+  readonly whatsapp_phone: string | null
 }
 
 function toPerson(row: PersonRow): ReminderPerson {
@@ -44,6 +45,7 @@ function toPerson(row: PersonRow): ReminderPerson {
     emailAddress,
     name: row.name ?? '',
     userId: row.user_id,
+    whatsappPhone: row.whatsapp_phone,
   }
 }
 
@@ -58,6 +60,14 @@ export function createDrizzleCompanyExpenseReminderPorts(input: {
   readonly appBaseUrl: string | null
   readonly database: CompanyExpenseReminderDatabase
   readonly emailDriver: EmailDriverPort | undefined
+  /** Envio de texto pelo Evolution da empresa; ausente, o canal falha e a reserva é solta. */
+  readonly sendWhatsAppText:
+    | ((params: {
+        readonly body: string
+        readonly companyId: string
+        readonly number: string
+      }) => Promise<unknown>)
+    | undefined
 }): CompanyExpenseReminderPorts {
   const { database } = input
 
@@ -71,6 +81,7 @@ export function createDrizzleCompanyExpenseReminderPorts(input: {
                   when p.contact_channel = 'email' and coalesce(trim(p.contact_address), '') <> '' then trim(p.contact_address)
                   else null end as email_address,
              (w.user_id is not null) as has_verified_whatsapp,
+             w.phone as whatsapp_phone,
              coalesce(pref.push_enabled, false) as push_opt_in,
              coalesce(pref.whatsapp_enabled, false) as whatsapp_opt_in,
              array(
@@ -127,6 +138,12 @@ export function createDrizzleCompanyExpenseReminderPorts(input: {
           where status = 'open' order by company_id
         `)) as unknown as readonly { readonly company_id: string }[]
         return rows.map((row) => row.company_id)
+      },
+    },
+    whatsapp: {
+      sendText: async (params) => {
+        if (input.sendWhatsAppText === undefined) throw new Error('whatsapp_not_configured')
+        await input.sendWhatsAppText(params)
       },
     },
     mailer: {
@@ -239,6 +256,15 @@ export function createDrizzleCompanyExpenseReminderPorts(input: {
       },
     },
     templates: {
+      findWhatsapp: async ({ companyId, key }) => {
+        const rows = (await database.execute(sql`
+          select body from notification.templates
+          where company_id = ${companyId}::uuid and key = ${key} and channel = 'whatsapp'
+            and locale = ${TEMPLATE_LOCALE} and active
+          order by version desc limit 1
+        `)) as unknown as readonly { readonly body: string }[]
+        return rows[0] ?? null
+      },
       findEmail: async ({ companyId, key }) => {
         const rows = (await database.execute(sql`
           select body, coalesce(subject, '') as subject from notification.templates

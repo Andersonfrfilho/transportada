@@ -1699,6 +1699,16 @@ export async function startWorkerRuntime(
                 config.emailDelivery === undefined
                   ? undefined
                   : createWorkerEmailDriver(config.emailDelivery),
+              sendWhatsAppText: createEvolutionClientDocumentSender({
+                envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+                pacer: createEvolutionSendPacer({
+                  claimSlot: createDrizzleEvolutionSendSlotClaimer(
+                    database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                  ),
+                  maxWaitMs: 120_000,
+                }),
+                runner: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+              }).sendText,
             }),
           }),
           /** Spec 339 T4: sempre registrada — nasce pausada no relógio, e ligar é decisão do dono. */
