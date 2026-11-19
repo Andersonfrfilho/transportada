@@ -802,6 +802,7 @@ export function useTripWorkspace(
       documentId: string
       imageBlob: Blob
       reason: ProofReplaceReason
+      receiverName: string
       tripId: string
     }>,
   ): Promise<void> {
@@ -810,6 +811,7 @@ export function useTripWorkspace(
       idempotencyKey: crypto.randomUUID(),
       imageBlob: replacement.imageBlob,
       kind: 'photo',
+      ...(replacement.receiverName === '' ? {} : { receiverName: replacement.receiverName }),
       replaceDriverProof: { reason: replacement.reason },
       tripId: replacement.tripId,
     })

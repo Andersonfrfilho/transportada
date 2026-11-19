@@ -774,6 +774,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       form.set('kind', input.kind)
       if (input.thumbnailBlob !== undefined) form.set('thumbnail', input.thumbnailBlob)
       if (input.driverId !== undefined) form.set('driverId', input.driverId)
+      if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
       if (input.replaceDriverProof !== undefined) {
         form.set('replaceDriverProof', 'true')
         form.set('replaceReason', input.replaceDriverProof.reason)

@@ -1718,6 +1718,7 @@ export function TripDeliveryProofLoader({
         documentId,
         imageBlob: submission.file,
         reason: submission.reason,
+        receiverName: submission.receiverName,
         tripId: document.tripId,
       })
       setIsReplaceOpen(false)
@@ -1782,6 +1783,12 @@ export function TripDeliveryProofLoader({
         {...(rejectErrorCode === undefined ? {} : { serverErrorCode: rejectErrorCode })}
       />
       <ProofReplaceDialog
+        defaultReceiverName={
+          resolveDeliveryProofView({
+            document,
+            proofs: workspace.deliveryProofsQuery.data ?? [],
+          }).receiverName ?? ''
+        }
         isOpen={isReplaceOpen}
         isSubmitting={isReplacing}
         onClose={() => setIsReplaceOpen(false)}

@@ -196,6 +196,9 @@ export async function persistOfficeProof(
     const previous = await transaction.findProofForEvent({ companyId, eventId, kind })
     if (previous !== null && previous.channel !== TRIP_FIELD_CHANNELS.office) {
       if (upload.replaceDriverProof === undefined) throw new TripDeliveryProofAlreadyCapturedError()
+    }
+    /** Pedida a troca, o motivo vai para a auditoria seja qual for o canal da foto anterior. */
+    if (previous !== null && upload.replaceDriverProof !== undefined) {
       driverProofReplaced = { channel: previous.channel, reason: upload.replaceDriverProof.reason }
     }
     replacedObjectId = previous?.objectId ?? null

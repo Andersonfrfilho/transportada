@@ -1267,6 +1267,8 @@ export type AttachFieldProofInput = TripDocumentActionInput &
     idempotencyKey: string
     imageBlob: Blob
     kind: FieldProofKind
+    /** Nome de quem recebeu; a troca grava de novo a linha, então o nome do comprovante anterior vai junto. */
+    receiverName?: string
     /** Só no canhoto (`photo`): passa por cima da foto que o motorista enviou, com motivo. */
     replaceDriverProof?: Readonly<{ reason: ProofReplaceReason }>
     signal?: AbortSignal

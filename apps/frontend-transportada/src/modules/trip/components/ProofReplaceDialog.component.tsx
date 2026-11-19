@@ -17,10 +17,13 @@ const DEFAULT_REASON = PROOF_REPLACE_REASONS[0]
 
 export type ProofReplaceSubmission = Readonly<{
   file: File
+  receiverName: string
   reason: ProofReplaceReason
 }>
 
 type ProofReplaceDialogProps = Readonly<{
+  /** O nome que o comprovante atual já tem — a troca regrava a linha, e empresa com assinatura exige o nome. */
+  defaultReceiverName: string
   isOpen: boolean
   isSubmitting: boolean
   onClose: () => void
@@ -37,6 +40,7 @@ function isReplaceReason(value: string): value is ProofReplaceReason {
  * Mesma moldura do diálogo de recusa do canhoto — o aviso diz que a troca fica na trilha.
  */
 export function ProofReplaceDialog({
+  defaultReceiverName,
   isOpen,
   isSubmitting,
   onClose,
@@ -48,6 +52,7 @@ export function ProofReplaceDialog({
   const [file, setFile] = useState<File | undefined>()
   const [reason, setReason] = useState<ProofReplaceReason>(DEFAULT_REASON)
   const [isMissingFile, setIsMissingFile] = useState(false)
+  const [receiverName, setReceiverName] = useState(defaultReceiverName)
 
   /** Nada sobrevive a um fechamento sem confirmar — cada abertura começa do padrão. */
   useEffect(() => {
@@ -55,7 +60,8 @@ export function ProofReplaceDialog({
     setFile(undefined)
     setReason(DEFAULT_REASON)
     setIsMissingFile(false)
-  }, [isOpen])
+    setReceiverName(defaultReceiverName)
+  }, [defaultReceiverName, isOpen])
 
   if (!isOpen) return null
 
@@ -74,7 +80,7 @@ export function ProofReplaceDialog({
       setIsMissingFile(true)
       return
     }
-    onSubmit({ file, reason })
+    onSubmit({ file, receiverName: receiverName.trim(), reason })
   }
 
   return createPortal(
@@ -128,6 +134,15 @@ export function ProofReplaceDialog({
               value: option,
             }))}
             value={reason}
+          />
+        </label>
+
+        <label>
+          {t('fieldDelivery.receiverNameLabel')}
+          <input
+            autoComplete="off"
+            onChange={(event) => setReceiverName(event.target.value)}
+            value={receiverName}
           />
         </label>
 
