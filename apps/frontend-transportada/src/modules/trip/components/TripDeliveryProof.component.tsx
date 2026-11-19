@@ -5,6 +5,7 @@ import type React from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
@@ -34,6 +35,8 @@ type TripDeliveryProofProps = Readonly<{
   /** Spec 079 T019: o que vai dentro da nota, conferido de pé no galpão. */
   products: readonly TripDocumentProduct[]
   reviewActions: CanhotoReviewActions
+  /** Troca do comprovante que o motorista enviou; sem `trip.report-on-behalf` o botão nem entra no DOM. */
+  replaceAction?: Readonly<{ canReplace: boolean; onReplace: () => void }>
   view: DeliveryProofView
 }>
 
@@ -50,6 +53,7 @@ type TripDeliveryProofProps = Readonly<{
 export function TripDeliveryProof({
   documentId,
   products,
+  replaceAction,
   reviewActions,
   view,
 }: TripDeliveryProofProps) {
@@ -174,6 +178,16 @@ export function TripDeliveryProof({
           </div>
         </footer>
       ) : null}
+      {reviewed === undefined || replaceAction === undefined || !replaceAction.canReplace ? null : (
+        <footer className={styles.proofCardFooter}>
+          <div className={styles.proofCardActions}>
+            <Button onClick={replaceAction.onReplace} size="sm" type="button" variant="secondary">
+              <Icon name="upload" />
+              {t('deliveryProof.replace')}
+            </Button>
+          </div>
+        </footer>
+      )}
       <TripDeliveryProofDetail documentId={documentId} products={products} />
       {openProofId === null ? null : (
         <ProofGalleryDialog

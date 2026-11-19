@@ -702,6 +702,27 @@
       "pending": "Awaiting review",
       "approved": "Approved",
       "rejected": "Rejected"
+    },
+    "replace": "Replace proof",
+    "replaceDialog": {
+      "cancel": "Cancel",
+      "confirm": "Replace",
+      "error": {
+        "fileRequired": "Choose the proof photo.",
+        "requestFailed": "Could not replace the proof. Try again."
+      },
+      "fileChoose": "Choose photo",
+      "fileEmpty": "Take a photo or choose a file",
+      "fileLabel": "New proof photo",
+      "reason": {
+        "other": "Other reason",
+        "unreadable": "Unreadable",
+        "wrong_document": "Wrong invoice",
+        "wrong_note": "Photo of another invoice"
+      },
+      "reasonLabel": "Reason for the change",
+      "title": "Replace proof",
+      "warning": "The current photo leaves this proof. The log records who changed it, when and why."
     }
   },
   "deliveryProofSettings": {

@@ -519,6 +519,28 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
     expect(storage.stored).toEqual([])
   })
 
+  it('troca pedida pelo escritório: com motivo, a foto do motorista é substituída e a auditoria leva canal e motivo', async () => {
+    const world = buildWorld()
+    const delivery = await deliverWithoutProof(world, 'driver-delivery-before-replace')
+    world.state.proofDetailsByEventKind.set(`${delivery.id}:photo`, {
+      channel: 'driver_app',
+      objectId: 'driver-object',
+    })
+    const base = fieldProofInput({ key: 'office-replace-driver', unitOfWork: world.unitOfWork })
+
+    const proof = await reportFieldProof({
+      ...base,
+      target: await resolveTarget(),
+      upload: { ...base.upload, replaceDriverProof: { reason: 'wrong_note' } },
+    })
+
+    expect(proof).toEqual({
+      driverProofReplaced: { channel: 'driver_app', reason: 'wrong_note' },
+      id: 'proof-new',
+      replacedObjectId: 'driver-object',
+    })
+  })
+
   it('M1: o canhoto do escritório substitui o do escritório e devolve o objeto anterior', async () => {
     const world = buildWorld()
     const delivery = await deliverWithoutProof(world, 'office-delivery-before-second-proof')

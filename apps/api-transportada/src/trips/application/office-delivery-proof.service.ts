@@ -44,6 +44,19 @@ import type { RemovableObjectStoragePort } from './stored-object-cleanup.service
  * exigência com a foto do canhoto assinado e o nome de quem recebeu (ADR-0067 §5, D8). Spec 184:
  * `field-proof` também aceita `'cargo'` — a foto da mercadoria, sem nome nem documento.
  */
+/**
+ * Troca do comprovante que o motorista enviou (pedida pelo dono em 19/11/2026): o escritório só
+ * passa por cima da foto da rua com um motivo da lista fechada, que vai para a auditoria.
+ */
+export const OFFICE_PROOF_REPLACE_REASONS = [
+  'wrong_note',
+  'wrong_document',
+  'unreadable',
+  'other',
+] as const
+
+export type OfficeProofReplaceReason = (typeof OFFICE_PROOF_REPLACE_REASONS)[number]
+
 export type OfficeDeliveryProofUpload = {
   readonly attachmentKey: string
   readonly bytes: Uint8Array
@@ -57,6 +70,8 @@ export type OfficeDeliveryProofUpload = {
    * chama. Ausente é o comprovante sem o dado.
    */
   readonly receivedBy?: ReceivedByFields
+  /** Ausente é o comportamento de sempre: comprovante do motorista não é substituído (409). */
+  readonly replaceDriverProof?: { readonly reason: OfficeProofReplaceReason }
 }
 
 export type OfficeDeliveryProofAttachment = {
@@ -81,6 +96,11 @@ export type OfficeProofPersistResult = {
   readonly id: string
   /** Spec 156 T15 M1: o objeto do comprovante do escritório que este substituiu — vai para a auditoria. */
   readonly replacedObjectId: string | null
+  /** Só quando o escritório trocou a foto do motorista: canal de origem e motivo, para a auditoria. */
+  readonly driverProofReplaced?: {
+    readonly channel: string
+    readonly reason: OfficeProofReplaceReason
+  }
 }
 
 /**
@@ -128,7 +148,8 @@ export type PersistOfficeProofParams = {
 /**
  * Grava o comprovante do escritório no evento. O mesmo `attachmentKey` devolve o comprovante já
  * gravado sem subir de novo. Spec 156 T15 M1: comprovante do motorista (app ou WhatsApp) no mesmo
- * evento **não** é substituído — 409 `TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`; o do próprio escritório
+ * evento **não** é substituído — 409 `TRIP_DELIVERY_PROOF_ALREADY_CAPTURED`, salvo com `replaceDriverProof`
+ * (motivo obrigatório, vai à auditoria; o objeto antigo continua no storage); o do próprio escritório
  * é substituído pelo unique `(company, stop_event, kind)` da ADR-0057.
  *
  * Spec 184 (RF4): `kind: cargo` é a exceção — soma em vez de substituir, sem nome nem documento do
@@ -165,6 +186,7 @@ export async function persistOfficeProof(
   }
 
   let replacedObjectId: string | null = null
+  let driverProofReplaced: OfficeProofPersistResult['driverProofReplaced']
   if (isCargo) {
     const cargoCount = await transaction.countProofsForEvent({ companyId, eventId, kind })
     if (cargoCount >= TRIP_DELIVERY_PROOF_CARGO_LIMIT) {
@@ -173,7 +195,8 @@ export async function persistOfficeProof(
   } else {
     const previous = await transaction.findProofForEvent({ companyId, eventId, kind })
     if (previous !== null && previous.channel !== TRIP_FIELD_CHANNELS.office) {
-      throw new TripDeliveryProofAlreadyCapturedError()
+      if (upload.replaceDriverProof === undefined) throw new TripDeliveryProofAlreadyCapturedError()
+      driverProofReplaced = { channel: previous.channel, reason: upload.replaceDriverProof.reason }
     }
     replacedObjectId = previous?.objectId ?? null
   }
@@ -232,7 +255,11 @@ export async function persistOfficeProof(
     ...(thumbnail === undefined ? {} : { thumbnail }),
   })
 
-  return { id: saved.id, replacedObjectId }
+  return {
+    ...(driverProofReplaced === undefined ? {} : { driverProofReplaced }),
+    id: saved.id,
+    replacedObjectId,
+  }
 }
 
 async function storeOfficeThumbnail(input: {

@@ -9,7 +9,11 @@
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { parseTaxIdValue, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
-import type { OfficeDeliveryProofUpload } from '../application/office-delivery-proof.service.js'
+import {
+  OFFICE_PROOF_REPLACE_REASONS,
+  type OfficeDeliveryProofUpload,
+  type OfficeProofReplaceReason,
+} from '../application/office-delivery-proof.service.js'
 import {
   OFFICE_PROOF_KINDS,
   PHOTO_PROOF_KIND,
@@ -38,6 +42,8 @@ const FIELD = {
   receivedByDetail: 'receivedByDetail',
   receiverDocument: 'receiverDocument',
   receiverName: 'receiverName',
+  replaceDriverProof: 'replaceDriverProof',
+  replaceReason: 'replaceReason',
   thumbnail: 'thumbnail',
 } as const
 
@@ -56,7 +62,12 @@ const DELIVERY_FIELDS = new Set<string>([...PROOF_FIELDS, FIELD.deliveredAt])
  * Spec 184 RF3: `kind` só existe em `field-proof` — anexar comprovante a uma entrega já feita é o
  * único lugar em que a foto de carga entra (D5). `field-delivery` continua sem o campo.
  */
-const FIELD_PROOF_ONLY_FIELDS = new Set<string>([...PROOF_FIELDS, FIELD.kind])
+const FIELD_PROOF_ONLY_FIELDS = new Set<string>([
+  ...PROOF_FIELDS,
+  FIELD.kind,
+  FIELD.replaceDriverProof,
+  FIELD.replaceReason,
+])
 
 /** Sem `kind`, o padrão é `photo` — o comportamento de hoje, sem regressão (spec 184 RF3). */
 function parseOfficeProofKind(value: OfficeFormValue): OfficeProofKind {
@@ -98,6 +109,27 @@ async function readProofUpload(form: OfficeForm): Promise<OfficeDeliveryProofUpl
 }
 
 /**
+ * Troca da foto do motorista: `replaceDriverProof=true` exige `replaceReason` da lista fechada e só
+ * vale para o canhoto (`photo`) — a foto de carga soma, nunca substitui. Forma inválida é 400.
+ */
+function parseReplaceDriverProof(input: {
+  readonly form: OfficeForm
+  readonly kind: OfficeProofKind
+}): { readonly reason: OfficeProofReplaceReason } | undefined {
+  const flag = input.form.get(FIELD.replaceDriverProof)
+  const reason = input.form.get(FIELD.replaceReason)
+  if (flag === null || flag === '' || flag === 'false') {
+    if (typeof reason === 'string' && reason !== '') throw new ApiError(HTTP_ERROR.invalidRequest)
+    return undefined
+  }
+  if (flag !== 'true' || input.kind !== PHOTO_PROOF_KIND)
+    throw new ApiError(HTTP_ERROR.invalidRequest)
+  const found = OFFICE_PROOF_REPLACE_REASONS.find((candidate) => candidate === reason)
+  if (found === undefined) throw new ApiError(HTTP_ERROR.invalidRequest)
+  return { reason: found }
+}
+
+/**
  * `POST .../field-delivery`. A foto é opcional aqui — quem decide se ela é obrigatória é a
  * configuração da empresa, no caso de uso (aceite 9), nunca o formato do corpo.
  */
@@ -136,9 +168,12 @@ export async function parseOfficeFieldProofRequest(request: Request): Promise<{
   const proof = await readProofUpload(form)
   if (proof === null) throw new ApiError(HTTP_ERROR.invalidRequest)
 
+  const kind = parseOfficeProofKind(form.get(FIELD.kind))
+  const replace = parseReplaceDriverProof({ form, kind })
+
   return {
     driverId: parseOptionalDriverId(form.get(FIELD.driverId)),
-    kind: parseOfficeProofKind(form.get(FIELD.kind)),
-    proof,
+    kind,
+    proof: replace === undefined ? proof : { ...proof, replaceDriverProof: replace },
   }
 }

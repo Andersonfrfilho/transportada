@@ -75,6 +75,7 @@ import {
 } from '../shared/trip.constant'
 import type {
   AttachFieldProofInput,
+  ProofReplaceReason,
   AutoDispatchOutcome,
   BatchStatusInput,
   BatchStatusResult,
@@ -793,6 +794,31 @@ export function useTripWorkspace(
   }
 
   /**
+   * Troca do comprovante que o motorista enviou: sobe a foto certa pelo `field-proof` com motivo e
+   * refaz a leitura dos comprovantes da nota — a URL assinada e o veredito vêm sempre do servidor.
+   */
+  async function replaceDeliveryProof(
+    replacement: Readonly<{
+      documentId: string
+      imageBlob: Blob
+      reason: ProofReplaceReason
+      tripId: string
+    }>,
+  ): Promise<void> {
+    await controller.attachFieldProof({
+      documentId: replacement.documentId,
+      idempotencyKey: crypto.randomUUID(),
+      imageBlob: replacement.imageBlob,
+      kind: 'photo',
+      replaceDriverProof: { reason: replacement.reason },
+      tripId: replacement.tripId,
+    })
+    await queryClient.invalidateQueries({
+      queryKey: [...tripKey, 'delivery-proofs', replacement.documentId],
+    })
+  }
+
+  /**
    * ⚠️ Corrigir o ponto muda o **endereço**, não a viagem — mas a viagem lê a coordenada dele para
    * desenhar o mapa, então a chave da viagem é invalidada para o pino andar sem recarregar a página.
    */
@@ -1116,6 +1142,7 @@ export function useTripWorkspace(
     fieldReturnDocumentMutation,
     registerFieldOccurrencesMutation,
     resetFieldOccurrenceIdempotency,
+    replaceDeliveryProof,
     reviewCanhoto,
     invalidateFieldDeliveryEffects,
     invalidateTrip: invalidate,
