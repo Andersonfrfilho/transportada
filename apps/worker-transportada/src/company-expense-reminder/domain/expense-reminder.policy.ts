@@ -12,7 +12,7 @@
  *   que não rodou num dia não empurra o aviso para depois). Nada antes de `dailySummaryHour`.
  * - **Quem**: o responsável, se ele ainda é da empresa **e** tem algum canal ligado na empresa; senão os administradores
  *   (`company-admin` ativos). Responsável que não pode receber nada conta como sem responsável: o aviso cai no
- *   administrador em vez de não sair. **Motorista nunca recebe** (`isBarredFromExpenseReminders`): o leitor de
+ *   administrador em vez de não sair. **Tripulação pura nunca recebe** (`isBarredFromExpenseReminders`; papel de escritório prevalece): o leitor de
  *   destinatários o tira antes de chegar aqui, como responsável e como administrador.
  * - **Canal**: e-mail sempre que a pessoa tem e-mail; WhatsApp só com opt-in **e** número verificado; push só com opt-in.
  *   Cada um ainda precisa estar ligado na empresa. A ordem é fixa (e-mail, WhatsApp, push).
@@ -98,19 +98,29 @@ export type ReminderPersonFacts = {
 /** Papéis da tripulação: motorista, agregado e ajudante. Conta é controle financeiro da empresa, e a tripulação não recebe. */
 export const EXPENSE_REMINDER_DRIVING_ROLES = ['driver', 'aggregate', 'helper'] as const
 
+/** Papéis que não mostram função de escritório: `viewer` todo mundo tem, então não tira a pessoa da tripulação. */
+export const EXPENSE_REMINDER_NEUTRAL_ROLES = ['viewer'] as const
+
 /**
- * RF24 (decisão do Anderson, 2026-11-15): **nem motorista nem ajudante recebe aviso de conta** (o ajudante entrou em 2026-11-15, depois da primeira
- * decisão), nem marcado como responsável nem sendo também administrador. Tripulação = papel de motorista, agregado ou
- * ajudante, direto ou por grupo, ou ficha da frota que dirige ou ajuda (`fleet_drivers.can_drive` ou `can_act_as_helper`). Responsável motorista conta como sem responsável: o aviso cai nos administradores.
+ * RF24 (decisão do Anderson, 2026-11-15, revista em 2026-11-19): **a tripulação não recebe aviso de conta, a menos que também tenha
+ * papel de escritório**. Tripulação = papel de motorista, agregado ou ajudante, direto ou por grupo, ou ficha da frota que dirige ou ajuda
+ * (`fleet_drivers.can_drive` ou `can_act_as_helper`). Papel de escritório = qualquer outro além de `viewer`: ele prevalece sobre o de
+ * motorista (a Andréia é agregada e motorista e também financeiro, fiscal e operadora). Tripulação pura continua barrada: responsável
+ * motorista conta como sem responsável e o aviso cai nos administradores.
  */
 export function isBarredFromExpenseReminders(facts: {
   readonly drivesInFleet: boolean
   readonly roles: readonly string[]
 }): boolean {
-  return (
+  const isCrew =
     facts.drivesInFleet ||
     facts.roles.some((role) => (EXPENSE_REMINDER_DRIVING_ROLES as readonly string[]).includes(role))
+  const hasOfficeRole = facts.roles.some(
+    (role) =>
+      !(EXPENSE_REMINDER_DRIVING_ROLES as readonly string[]).includes(role) &&
+      !(EXPENSE_REMINDER_NEUTRAL_ROLES as readonly string[]).includes(role),
   )
+  return isCrew && !hasOfficeRole
 }
 
 /** RF26: os canais da pessoa (sem a empresa). E-mail não tem opt-out: é o canal que garante o aviso. */

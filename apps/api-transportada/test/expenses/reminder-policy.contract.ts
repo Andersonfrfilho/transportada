@@ -121,13 +121,21 @@ describe('por qual canal (spec 325 RF26, T7.3)', () => {
   })
 })
 
-describe('motorista e ajudante nunca recebem aviso de conta (spec 325 RF24, decisão de 2026-11-15)', () => {
+describe('tripulação pura não recebe aviso de conta; papel de escritório prevalece (spec 325 RF24, 2026-11-19)', () => {
   test.each([
     [['driver'], false, true, 'motorista'],
+    [['viewer', 'driver'], false, true, 'motorista com viewer'],
     [['aggregate'], false, true, 'agregado'],
-    [['company-admin', 'driver'], false, true, 'administrador que também dirige'],
-    [['operator'], true, true, 'ficha da frota que dirige, sem o papel'],
     [['helper'], false, true, 'ajudante (papel)'],
+    [['viewer'], true, true, 'ficha da frota que dirige, só com viewer'],
+    [['company-admin', 'driver'], false, false, 'administrador que também dirige'],
+    [['operator'], true, false, 'operador com ficha da frota'],
+    [
+      ['viewer', 'aggregate', 'operator', 'finance', 'fiscal', 'separator', 'driver'],
+      true,
+      false,
+      'Andréia',
+    ],
     [['operator'], false, false, 'operador'],
     [['company-admin'], false, false, 'administrador'],
     [['finance'], false, false, 'financeiro'],
