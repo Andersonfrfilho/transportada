@@ -21,10 +21,13 @@ try {
     }
     image.onerror = function () {
       image.remove()
+      splash.classList.remove('has-brand')
     }
     image.src = isDark
       ? logoUrl + (logoUrl.indexOf('?') === -1 ? '?' : '&') + 'variant=white'
       : logoUrl
+    /* Com marca guardada o ícone do produto já sai: o logo da transportadora é quem entra, sem piscada. */
+    splash.classList.add('has-brand')
     splash.appendChild(image)
   }
 } catch (error) {
