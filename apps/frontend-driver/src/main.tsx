@@ -367,7 +367,10 @@ function startOffline(root: Root, snapshot: OwnedTripSnapshot | undefined): void
   }
 
   scheduleAuthenticationOnReconnect({
-    authenticate: () => startAuthenticated(root),
+    authenticate: () => {
+      dismissSplashInBrowser()
+      return startAuthenticated(root)
+    },
     captureRegistry: createAuthenticationCaptureView(captureRegistry),
     probe: probeKeycloak,
     target: window,
@@ -388,17 +391,25 @@ async function start(): Promise<void> {
   const container = document.getElementById('root')
   if (container === null) throw new Error('DRIVER_ROOT_ELEMENT_MISSING')
   const root = createRoot(container)
-  /** O esqueleto já está montando por baixo: a splash sai sem esperar a sonda nem a rede. */
-  dismissSplashInBrowser()
 
   await runDriverBoot({
     authenticate: () => startAuthenticated(root),
     now: () => new Date(),
     probe: probeKeycloak,
     readLastSnapshot: () => readLastTripSnapshot({ now: new Date(), store: tripSnapshotStore }),
-    renderLoading: () => renderScreen(root, <DriverBootLoadingPage />),
-    startOffline: (snapshot) => startOffline(root, snapshot),
+    renderLoading: () => {
+      renderScreen(root, <DriverBootLoadingPage />)
+      dismissSplashInBrowser()
+    },
+    startOffline: (snapshot) => {
+      dismissSplashInBrowser()
+      return startOffline(root, snapshot)
+    },
   })
 }
 
-void start()
+void start().catch((error: unknown) => {
+  /** Falha no boot não pode deixar a splash cobrindo o erro para sempre. */
+  dismissSplashInBrowser()
+  throw error
+})

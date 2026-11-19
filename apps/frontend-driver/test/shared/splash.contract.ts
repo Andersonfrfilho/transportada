@@ -81,6 +81,12 @@ describe('splash do motorista', () => {
     expect(boot).toContain(`'${COLOR_THEME_STORAGE_KEY}'`)
   })
 
+  test('o theme-boot.js tem a rede de segurança que remove a splash se o app não montar', async () => {
+    const boot = await readApplicationFile('public/theme-boot.js')
+    expect(boot).toContain("getElementById('splash')")
+    expect(boot).toContain('setTimeout')
+  })
+
   test('as cores da splash são as dos tokens do app, nos dois temas', async () => {
     const html = await readApplicationFile('index.html')
     const css = await readApplicationFile('src/styles/index.css')

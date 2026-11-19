@@ -9,3 +9,9 @@ try {
 } catch (error) {
   /* Sem armazenamento: o tema segue o sistema. */
 }
+
+/* Rede de segurança da splash: se o bundle nunca montar (rede, erro de boot), ela não cobre a tela para sempre. */
+window.setTimeout(function () {
+  var splash = document.getElementById('splash')
+  if (splash !== null) splash.remove()
+}, 10000)
