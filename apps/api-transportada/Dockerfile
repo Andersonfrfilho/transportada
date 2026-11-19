@@ -71,6 +71,20 @@ COPY apps/api-transportada/src/expenses/expense-whatsapp-templates apps/api-tran
 COPY apps/api-transportada/scripts/occurrence-mail-templates-publish.ts apps/api-transportada/scripts/occurrence-mail-templates-publish.ts
 # Spec 286 T8: republicação do grafo raiz do WhatsApp (falas `fala_*` do bot), também via `railway ssh`.
 COPY apps/api-transportada/scripts/whatsapp-flow-publish.ts apps/api-transportada/scripts/whatsapp-flow-publish.ts
+# Spec 321 T7: o script que cadastra o tipo "Canhoto retido pelo cliente" (`railway ssh`, ação do operador) roda de dentro da imagem
+# e importa `saveOccurrenceType` (trips/infrastructure), que arrasta o fechamento de imports abaixo; o contrato do Dockerfile cobra cada pasta.
+COPY apps/api-transportada/scripts/canhoto-retido-type-publish.ts apps/api-transportada/scripts/canhoto-retido-type-publish.ts
+COPY apps/api-transportada/src/addresses/domain apps/api-transportada/src/addresses/domain
+COPY apps/api-transportada/src/contractor-mail/application apps/api-transportada/src/contractor-mail/application
+COPY apps/api-transportada/src/contractor-mail/infrastructure apps/api-transportada/src/contractor-mail/infrastructure
+COPY apps/api-transportada/src/delivery-clients/domain apps/api-transportada/src/delivery-clients/domain
+COPY apps/api-transportada/src/logging apps/api-transportada/src/logging
+COPY apps/api-transportada/src/nfe-documents/domain apps/api-transportada/src/nfe-documents/domain
+COPY apps/api-transportada/src/occurrence-conversation/infrastructure apps/api-transportada/src/occurrence-conversation/infrastructure
+COPY apps/api-transportada/src/toll-booths/domain apps/api-transportada/src/toll-booths/domain
+COPY apps/api-transportada/src/trips/application apps/api-transportada/src/trips/application
+COPY apps/api-transportada/src/trips/domain apps/api-transportada/src/trips/domain
+COPY apps/api-transportada/src/trips/infrastructure apps/api-transportada/src/trips/infrastructure
 COPY apps/api-transportada/src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.ts apps/api-transportada/src/whatsapp-commands/application/publish-whatsapp-flow-graph.use-case.ts
 COPY apps/api-transportada/src/whatsapp-commands/application/whatsapp-flow-graph-publisher.port.ts apps/api-transportada/src/whatsapp-commands/application/whatsapp-flow-graph-publisher.port.ts
 COPY apps/api-transportada/src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.ts apps/api-transportada/src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.ts
