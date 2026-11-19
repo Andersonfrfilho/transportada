@@ -106,6 +106,26 @@ describe('splash do motorista', () => {
     expect(css).toContain(`--color-copper: ${light.accent}`)
   })
 
+  test('o splash-brand.js lê a mesma marca guardada e a mesma variação branca do app', async () => {
+    const script = await readApplicationFile('public/splash-brand.js')
+    const cache = await readApplicationFile(
+      'src/modules/identity/shared/installationBrandCache.service.ts',
+    )
+    const theme = await readApplicationFile('src/modules/shared/colorTheme.service.ts')
+    const storageKey = /INSTALLATION_BRAND_STORAGE_KEY =\s*'([^']+)'/u.exec(cache)?.[1]
+    const whiteQuery = /WHITE_LOGO_QUERY = '([^']+)'/u.exec(theme)?.[1]
+    expect(storageKey).toBeDefined()
+    expect(whiteQuery).toBeDefined()
+    expect(script).toContain(`'${storageKey}'`)
+    expect(script).toContain(`'${whiteQuery}'`)
+  })
+
+  test('o splash-brand.js roda depois do #splash e antes do app', async () => {
+    const html = await readApplicationFile('index.html')
+    expect(html.indexOf('id="splash"')).toBeLessThan(html.indexOf('/splash-brand.js'))
+    expect(html.indexOf('/splash-brand.js')).toBeLessThan(html.indexOf('/src/main.tsx'))
+  })
+
   test('theme-color e manifest usam o fundo escuro da splash', async () => {
     const html = await readApplicationFile('index.html')
     const manifest = await readApplicationFile('src/modules/shared/webManifest.constant.ts')
