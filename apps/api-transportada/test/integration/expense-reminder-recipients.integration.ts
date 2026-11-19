@@ -204,8 +204,8 @@ describeDatabase('destinatários dos lembretes de vencimento no banco (spec 325 
     )
     expect(admins).toEqual(
       [
-        { channels: ['email', 'whatsapp'], userId: admin },
-        { channels: ['email'], userId: drivingAdmin },
+        { channels: ['email', 'whatsapp'] as const, userId: admin },
+        { channels: ['email'] as const, userId: drivingAdmin },
       ].sort((a, b) => a.userId.localeCompare(b.userId)),
     )
   })
