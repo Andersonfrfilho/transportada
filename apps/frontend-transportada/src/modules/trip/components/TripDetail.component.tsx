@@ -88,12 +88,13 @@ import { TripDocumentEvents } from './TripDocumentEvents.component'
 import { TripDocumentOccurrences } from './TripDocumentOccurrences.component'
 import { SeparationOccurrenceDialog } from './SeparationOccurrenceDialog.component'
 import { TripRouteMap } from './TripRouteMap.component'
-import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
+import { resolveDeliveryProofView, type DeliveryProof } from '../shared/deliveryProof.service'
 import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProcessFlow } from './TripProcessFlow.component'
 import { TripCloseDialog } from './TripCloseDialog.component'
 import { CanhotoRejectDialog, type CanhotoRejectSubmission } from './CanhotoRejectDialog.component'
+import { ProofReplaceDialog, type ProofReplaceSubmission } from './ProofReplaceDialog.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripCanhotoBatchDialog } from './TripCanhotoBatchDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
@@ -1666,6 +1667,18 @@ function noticeForOutcome(outcome: CanhotoReviewOutcome): CanhotoReviewNotice | 
     : undefined
 }
 
+/** O canhoto que a troca vai substituir é a foto (`photo`) — nunca o nome de uma assinatura da mesma nota. */
+function resolveReplaceDialogCurrent(
+  proofs: readonly DeliveryProof[],
+): Readonly<{ receivedBy?: string; receivedByDetail?: string; receiverName: string }> {
+  const photo = proofs.find((proof) => proof.kind === 'photo')
+  return {
+    ...(photo?.receivedBy == null ? {} : { receivedBy: photo.receivedBy }),
+    ...(photo?.receivedByDetail == null ? {} : { receivedByDetail: photo.receivedByDetail }),
+    receiverName: photo?.receiverName ?? '',
+  }
+}
+
 export function TripDeliveryProofLoader({
   canhotoReadContext,
   documents,
@@ -1680,6 +1693,9 @@ export function TripDeliveryProofLoader({
   const [isRejectOpen, setIsRejectOpen] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
   const [rejectErrorCode, setRejectErrorCode] = useState<string | undefined>()
+  const [isReplaceOpen, setIsReplaceOpen] = useState(false)
+  const [isReplacing, setIsReplacing] = useState(false)
+  const [replaceErrorCode, setReplaceErrorCode] = useState<string | undefined>()
   const [reviewNotice, setReviewNotice] = useState<CanhotoReviewNotice | undefined>()
   const { t } = useTranslation('trip')
   const document = documents.find((candidate) => candidate.id === documentId)
@@ -1702,6 +1718,30 @@ export function TripDeliveryProofLoader({
       setRejectErrorCode(error instanceof Error ? error.message : undefined)
     } finally {
       setIsRejecting(false)
+    }
+  }
+
+  async function handleReplaceSubmit(submission: ProofReplaceSubmission) {
+    if (document === undefined) return
+    setIsReplacing(true)
+    setReplaceErrorCode(undefined)
+    try {
+      await workspace.replaceDeliveryProof({
+        documentId,
+        imageBlob: submission.file,
+        reason: submission.reason,
+        ...(submission.receivedBy === undefined ? {} : { receivedBy: submission.receivedBy }),
+        ...(submission.receivedByDetail === undefined
+          ? {}
+          : { receivedByDetail: submission.receivedByDetail }),
+        receiverName: submission.receiverName,
+        tripId: document.tripId,
+      })
+      setIsReplaceOpen(false)
+    } catch (error) {
+      setReplaceErrorCode(error instanceof Error ? error.message : 'REQUEST_FAILED')
+    } finally {
+      setIsReplacing(false)
     }
   }
 
@@ -1758,6 +1798,16 @@ export function TripDeliveryProofLoader({
         }}
         {...(rejectErrorCode === undefined ? {} : { serverErrorCode: rejectErrorCode })}
       />
+      <ProofReplaceDialog
+        current={resolveReplaceDialogCurrent(workspace.deliveryProofsQuery.data ?? [])}
+        isOpen={isReplaceOpen}
+        isSubmitting={isReplacing}
+        onClose={() => setIsReplaceOpen(false)}
+        onSubmit={(submission) => {
+          void handleReplaceSubmit(submission)
+        }}
+        {...(replaceErrorCode === undefined ? {} : { serverErrorCode: replaceErrorCode })}
+      />
       {reviewNotice === undefined ? null : (
         <p
           className={reviewNotice === CANHOTO_REVIEW_NOTICE.FAILED ? styles.alert : styles.hint}
@@ -1769,6 +1819,13 @@ export function TripDeliveryProofLoader({
       <TripDeliveryProof
         documentId={documentId}
         products={workspace.documentProductsQuery.data ?? []}
+        replaceAction={{
+          canReplace: workspace.controller.canReportOnBehalf,
+          onReplace: () => {
+            setReplaceErrorCode(undefined)
+            setIsReplaceOpen(true)
+          },
+        }}
         reviewActions={{
           canReview: workspace.controller.canManageTrips,
           onApprove: () => {

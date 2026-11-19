@@ -702,6 +702,27 @@
       "pending": "Aguardando conferência",
       "approved": "Aprovado",
       "rejected": "Recusado"
+    },
+    "replace": "Substituir comprovante",
+    "replaceDialog": {
+      "cancel": "Cancelar",
+      "confirm": "Substituir",
+      "error": {
+        "fileRequired": "Escolha a foto do comprovante.",
+        "requestFailed": "Não foi possível substituir o comprovante. Tente novamente."
+      },
+      "fileChoose": "Escolher foto",
+      "fileEmpty": "Tirar foto ou escolher arquivo",
+      "fileLabel": "Nova foto do comprovante",
+      "reason": {
+        "other": "Outro motivo",
+        "unreadable": "Ilegível",
+        "wrong_document": "Nota errada",
+        "wrong_note": "Foto de outra nota"
+      },
+      "reasonLabel": "Motivo da troca",
+      "title": "Substituir comprovante",
+      "warning": "A foto atual sai deste comprovante. Fica registrado na trilha quem trocou, quando e por quê."
     }
   },
   "deliveryProofSettings": {

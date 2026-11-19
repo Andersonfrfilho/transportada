@@ -209,3 +209,45 @@ describe('o escritório grava a miniatura ao lado do original (spec 220 RF17/RF1
     expect(saved[0]?.thumbnail).toBeUndefined()
   })
 })
+
+describe('troca da foto do motorista pelo escritório — corpo do field-proof', () => {
+  it('replaceDriverProof=true com motivo da lista vira a troca no upload', async () => {
+    const parsed = await parseOfficeFieldProofRequest(
+      multipart({ fields: { replaceDriverProof: 'true', replaceReason: 'wrong_note' } }),
+    )
+    expect(parsed.proof.replaceDriverProof).toEqual({ reason: 'wrong_note' })
+  })
+
+  it('sem a flag nada muda: o upload não leva troca', async () => {
+    const parsed = await parseOfficeFieldProofRequest(multipart({}))
+    expect(parsed.proof.replaceDriverProof).toBeUndefined()
+  })
+
+  it('flag sem motivo, motivo fora da lista, motivo sem flag e foto de carga são 400', async () => {
+    for (const fields of [
+      { replaceDriverProof: 'true' },
+      { replaceDriverProof: 'true', replaceReason: 'qualquer' },
+      { replaceReason: 'wrong_note' },
+      { kind: 'cargo', replaceDriverProof: 'true', replaceReason: 'wrong_note' },
+      { replaceDriverProof: 'sim', replaceReason: 'wrong_note' },
+    ]) {
+      expect(await statusOf(parseOfficeFieldProofRequest(multipart({ fields })))).toBe(400)
+    }
+  })
+
+  it('field-delivery continua sem aceitar os campos da troca', async () => {
+    expect(
+      await statusOf(
+        parseOfficeFieldDeliveryRequest(
+          multipart({
+            fields: {
+              deliveredAt: '2026-09-18T12:00:00.000Z',
+              replaceDriverProof: 'true',
+              replaceReason: 'wrong_note',
+            },
+          }),
+        ),
+      ),
+    ).toBe(400)
+  })
+})

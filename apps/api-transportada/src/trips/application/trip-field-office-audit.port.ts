@@ -24,6 +24,9 @@ export type OfficeAuditDetails = {
   readonly documentIds?: readonly string[]
   /** Spec 156 T15 M1: o objeto do canhoto do escritório que o `field-proof` substituiu. */
   readonly replacedObjectId?: string | null
+  /** Troca da foto do motorista pelo escritório: canal de origem e motivo. */
+  readonly replacedProofChannel?: string
+  readonly replaceReason?: string
   readonly stopId?: string
 }
 

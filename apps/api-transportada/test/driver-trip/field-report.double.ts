@@ -28,6 +28,8 @@ export type ProofReceiverRow = {
 
 export type FieldReportState = {
   readonly calls: string[]
+  /** A linha de auditoria que o escritório gravou, inteira — para conferir o que a ação deixou na trilha. */
+  readonly officeAudits: Parameters<DriverFieldReportTransactionPort['recordOfficeAudit']>[0][]
   readonly dispatchedAtByTripId: Map<string, Date>
   /** Spec 179 T200: a ocorrência de nota (`trip_document_occurrences`), id à parte da de parada. */
   readonly documentOccurrences: Map<string, DriverDocumentOccurrence>
@@ -118,6 +120,7 @@ export function createFieldReportState(
 ): FieldReportState {
   return {
     calls: [],
+    officeAudits: [],
     dispatchedAtByTripId: new Map(),
     documentOccurrences: new Map(),
     documentOccurrenceStamps: [],
@@ -287,6 +290,7 @@ export function createFieldReportUnitOfWork(
     completeTripIfSettled: async () => state.tripCompletes,
     recordOfficeAudit: async (input) => {
       state.calls.push(`recordOfficeAudit:${input.action}`)
+      state.officeAudits.push(input)
     },
     advanceTripFromSettledDocuments: async (input) => {
       state.calls.push(`advanceTripFromSettledDocuments:${input.tripId}`)

@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
+import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 import { DELIVERY_PROOF_RECEIVED_BY_OPTIONS } from '../../src/modules/trip/shared/trip.constant'
 
@@ -347,5 +348,57 @@ describe('selos do comprovante (spec 220 T4.3)', () => {
     expect(block).toMatch(/display:\s*flex/u)
     expect(block).toMatch(/flex-wrap:\s*wrap/u)
     expect(block).toMatch(/gap:\s*var\(--space-\d+\)/u)
+  })
+})
+
+const REPLACE_DIALOG = new URL(
+  '../../src/modules/trip/components/ProofReplaceDialog.component.tsx',
+  import.meta.url,
+)
+
+/**
+ * Troca do comprovante enviado pelo motorista. Contrato por texto de fonte (esta app não tem DOM):
+ * o botão só entra com a permissão, o diálogo só usa o design system e manda motivo e nome.
+ */
+describe('substituir comprovante do motorista', () => {
+  const card = readFileSync(COMPONENT, 'utf8')
+  const dialog = readFileSync(REPLACE_DIALOG, 'utf8')
+  const detail = readFileSync(DETAIL, 'utf8')
+
+  it('o botão só entra no DOM com a permissão do escritório', () => {
+    expect(card).toMatch(/!replaceAction\.canReplace/u)
+    expect(detail).toInclude('canReplace: workspace.controller.canReportOnBehalf')
+  })
+
+  it('o diálogo usa só componentes do design system, sem controle com estilo próprio', () => {
+    for (const component of ['Button', 'FileField', 'Select', 'Icon']) {
+      expect(dialog).toInclude(`import { ${component} } from '@/components/ui/`)
+    }
+    expect(dialog).not.toMatch(/style=\{/u)
+    expect(dialog).not.toInclude('<select')
+    expect(dialog).not.toInclude('<button className={styles.primary')
+  })
+
+  it('a foto é obrigatória e o nome de quem recebeu acompanha a troca', () => {
+    expect(dialog).toInclude('fileRequired')
+    expect(dialog).toInclude('receiverName: receiverName.trim()')
+    expect(detail).toInclude('receiverName: submission.receiverName')
+  })
+
+  it('carrega o "quem recebeu" do comprovante atual e não zera o formulário numa releitura da consulta', () => {
+    expect(dialog).toInclude('receivedByDetail')
+    expect(detail).toInclude("proofs.find((proof) => proof.kind === 'photo')")
+    expect(dialog).toInclude('}, [isOpen])')
+  })
+
+  it('os textos existem em português e em inglês com as mesmas chaves', () => {
+    expect(Object.keys(tripEn.deliveryProof.replaceDialog).sort()).toEqual(
+      Object.keys(trip.deliveryProof.replaceDialog).sort(),
+    )
+    expect(Object.keys(tripEn.deliveryProof.replaceDialog.reason).sort()).toEqual(
+      Object.keys(trip.deliveryProof.replaceDialog.reason).sort(),
+    )
+    expect(trip.deliveryProof.replace).toBeString()
+    expect(tripEn.deliveryProof.replace).toBeString()
   })
 })

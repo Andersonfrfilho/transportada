@@ -519,6 +519,129 @@ describe('field-proof: anexa a uma entrega já feita, sem evento novo (spec 156 
     expect(storage.stored).toEqual([])
   })
 
+  it('troca pedida pelo escritório: com motivo, a foto do motorista é substituída e a auditoria leva canal e motivo', async () => {
+    const world = buildWorld()
+    const delivery = await deliverWithoutProof(world, 'driver-delivery-before-replace')
+    world.state.proofDetailsByEventKind.set(`${delivery.id}:photo`, {
+      channel: 'driver_app',
+      objectId: 'driver-object',
+    })
+    const base = fieldProofInput({ key: 'office-replace-driver', unitOfWork: world.unitOfWork })
+
+    const proof = await reportFieldProof({
+      ...base,
+      target: await resolveTarget(),
+      upload: { ...base.upload, replaceDriverProof: { reason: 'wrong_note' } },
+    })
+
+    expect(proof).toEqual({
+      driverProofReplaced: { channel: 'driver_app', reason: 'wrong_note' },
+      id: 'proof-new',
+      replacedObjectId: 'driver-object',
+    })
+    expect(world.state.officeAudits).toHaveLength(1)
+    expect(world.state.officeAudits[0]).toMatchObject({
+      action: 'trip_field_office.document_proof',
+      replacedObjectId: 'driver-object',
+      replacedProofChannel: 'driver_app',
+      replaceReason: 'wrong_note',
+    })
+  })
+
+  it('troca sobre a foto do próprio escritório também leva o motivo à auditoria', async () => {
+    const world = buildWorld()
+    const delivery = await deliverWithoutProof(world, 'office-delivery-before-replace-office')
+    world.state.proofDetailsByEventKind.set(`${delivery.id}:photo`, {
+      channel: 'office',
+      objectId: 'office-object-old',
+    })
+    const base = fieldProofInput({ key: 'office-replace-office', unitOfWork: world.unitOfWork })
+
+    await reportFieldProof({
+      ...base,
+      target: await resolveTarget(),
+      upload: { ...base.upload, replaceDriverProof: { reason: 'unreadable' } },
+    })
+
+    expect(world.state.officeAudits[0]).toMatchObject({
+      replacedProofChannel: 'office',
+      replaceReason: 'unreadable',
+    })
+  })
+
+  it('empresa com assinatura obrigatória: a troca sem o nome de quem recebeu é 422, com o nome passa', async () => {
+    const world = buildWorld()
+    const delivery = await deliverWithoutProof(world, 'driver-delivery-before-replace-signature')
+    world.state.proofDetailsByEventKind.set(`${delivery.id}:photo`, {
+      channel: 'driver_app',
+      objectId: 'driver-object',
+    })
+    const base = fieldProofInput({ key: 'office-replace-no-name', unitOfWork: world.unitOfWork })
+    const attachment = {
+      ...base.attachment,
+      resolveSettings: async () => REQUIRED_SIGNATURE_SETTINGS,
+    }
+    const replace = { replaceDriverProof: { reason: 'wrong_note' as const } }
+
+    await expectApiError(
+      reportFieldProof({
+        ...base,
+        attachment,
+        target: await resolveTarget(),
+        upload: { ...base.upload, ...replace, receiverName: '' },
+      }),
+      'TRIP_DELIVERY_PROOF_RECEIVER_NAME_REQUIRED',
+      422,
+    )
+    const proof = await reportFieldProof({
+      ...base,
+      attachment,
+      target: await resolveTarget(),
+      upload: { ...base.upload, ...replace, receiverName: 'Maria S.' },
+    })
+    expect(proof.replacedObjectId).toBe('driver-object')
+  })
+
+  it('empresa com "quem recebeu" obrigatório: a troca sem o valor é 422, com o valor do comprovante atual passa', async () => {
+    const world = buildWorld()
+    const delivery = await deliverWithoutProof(world, 'driver-delivery-before-replace-received-by')
+    world.state.proofDetailsByEventKind.set(`${delivery.id}:photo`, {
+      channel: 'driver_app',
+      objectId: 'driver-object',
+    })
+    const base = fieldProofInput({
+      key: 'office-replace-received-by',
+      unitOfWork: world.unitOfWork,
+    })
+    const attachment = {
+      ...base.attachment,
+      resolveSettings: async () => ({ ...OPTIONAL_SETTINGS, receivedBy: 'required' as const }),
+    }
+    const replace = { replaceDriverProof: { reason: 'wrong_note' as const } }
+
+    await expectApiError(
+      reportFieldProof({
+        ...base,
+        attachment,
+        target: await resolveTarget(),
+        upload: { ...base.upload, ...replace },
+      }),
+      'TRIP_DELIVERY_PROOF_RECEIVED_BY_REQUIRED',
+      422,
+    )
+    const proof = await reportFieldProof({
+      ...base,
+      attachment,
+      target: await resolveTarget(),
+      upload: {
+        ...base.upload,
+        ...replace,
+        receivedBy: { receivedBy: 'recipient', receivedByDetail: null },
+      },
+    })
+    expect(proof.replacedObjectId).toBe('driver-object')
+  })
+
   it('M1: o canhoto do escritório substitui o do escritório e devolve o objeto anterior', async () => {
     const world = buildWorld()
     const delivery = await deliverWithoutProof(world, 'office-delivery-before-second-proof')
