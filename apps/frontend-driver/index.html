@@ -9,9 +9,94 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Viagem" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <script src="/theme-boot.js"></script>
+    <style>
+      /* Splash: nasce no primeiro quadro, antes do JavaScript. Mesmas cores dos tokens de
+         src/styles/index.css (test/shared/splash.contract.ts cobra a paridade). */
+      :root {
+        --splash-bg: #10222c;
+        --splash-ink: #f0f2ee;
+        --splash-accent: #d58a47;
+      }
+      :root[data-theme='light'] {
+        --splash-bg: #f2efe9;
+        --splash-ink: #1d2b33;
+        --splash-accent: #a3591f;
+      }
+      @media (prefers-color-scheme: light) {
+        :root:not([data-theme='dark']) {
+          --splash-bg: #f2efe9;
+          --splash-ink: #1d2b33;
+          --splash-accent: #a3591f;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--splash-bg);
+      }
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        display: grid;
+        place-items: center;
+        background: var(--splash-bg);
+        opacity: 1;
+        /* Só visual: o toque passa para o app por baixo, a splash nunca atrasa o uso. */
+        pointer-events: none;
+        transition: opacity 250ms ease-out;
+      }
+      #splash.is-leaving {
+        opacity: 0;
+      }
+      #splash svg {
+        width: 10rem;
+        height: 10rem;
+      }
+      #splash .splash-mark {
+        fill: var(--splash-ink);
+      }
+      #splash .splash-bar {
+        fill: var(--splash-accent);
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        #splash .splash-mark {
+          animation: splash-mark-in 500ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+          transform-origin: center;
+        }
+        #splash .splash-bar {
+          animation: splash-bar-in 450ms cubic-bezier(0.2, 0.7, 0.2, 1) 200ms both;
+          transform-box: fill-box;
+          transform-origin: left center;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #splash {
+          transition: none;
+        }
+      }
+      @keyframes splash-mark-in {
+        from {
+          opacity: 0;
+          transform: scale(0.92);
+        }
+      }
+      @keyframes splash-bar-in {
+        from {
+          opacity: 0;
+          transform: scaleX(0);
+        }
+      }
+    </style>
     <title>Minha viagem</title>
   </head>
   <body>
+    <div id="splash" aria-hidden="true">
+      <svg viewBox="0 0 192 192" focusable="false">
+        <path class="splash-mark" d="M38 46h116v22H108v78H84V68H38z" />
+        <path class="splash-bar" d="M38 146h116v-18H38z" />
+      </svg>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
