@@ -106,6 +106,15 @@ describe('splash do motorista', () => {
     expect(css).toContain(`--color-copper: ${light.accent}`)
   })
 
+  test('theme-color e manifest usam o fundo escuro da splash', async () => {
+    const html = await readApplicationFile('index.html')
+    const manifest = await readApplicationFile('src/modules/shared/webManifest.constant.ts')
+    const theme = await readApplicationFile('src/modules/shared/colorTheme.service.ts')
+    expect(html).toContain('<meta name="theme-color" content="#10222c" />')
+    expect(manifest).toContain("THEME_COLOR = '#10222c'")
+    expect(theme).toContain("dark: '#10222c'")
+  })
+
   test('o index.html tem a splash fora do #root e respeita movimento reduzido', async () => {
     const html = await readApplicationFile('index.html')
     expect(html.indexOf('id="splash"')).toBeLessThan(html.indexOf('id="root"'))

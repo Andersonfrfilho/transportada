@@ -97,7 +97,7 @@ export function appendColorThemeToLoginUrl(input: {
  * sinal de que o tema claro "não pegou".
  */
 export const THEME_COLOR_BY_THEME: Readonly<Record<ColorTheme, string>> = {
-  dark: '#0B1F2A',
+  dark: '#10222c',
   light: '#F2EFE9',
 }
 

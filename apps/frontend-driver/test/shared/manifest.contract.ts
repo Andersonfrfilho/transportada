@@ -4,7 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import { DRIVER_WEB_MANIFEST } from '../../src/modules/shared/webManifest.constant'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
-const THEME_COLOR = '#0B1F2A'
+const THEME_COLOR = '#10222c'
 
 /** Largura e altura do cabeçalho `IHDR`, que todo PNG traz nos bytes 16 a 23. */
 async function readPngSize(path: string): Promise<{ width: number; height: number }> {
