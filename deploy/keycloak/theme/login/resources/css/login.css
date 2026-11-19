@@ -17,6 +17,8 @@
   --transportada-ink-on-accent: #10222c;
   /* A marca da Ada vira silhueta; o que muda entre os temas é a cor dela, não a regra. */
   --transportada-mark-filter: brightness(0) invert(1);
+  /* O logo da transportadora vem da API e costuma ser escuro: sobre o asfalto vira silhueta clara. */
+  --transportada-brand-logo-filter: brightness(0) invert(1);
   /* Passar o mouse afasta o cobre do fundo: no escuro isso é clarear, no claro é escurecer. */
   --transportada-copper-hover: color-mix(in srgb, var(--transportada-copper) 86%, white 14%);
   --transportada-font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
@@ -61,6 +63,7 @@
   --transportada-slate: #5a6b74;
   --transportada-ink-on-accent: #faf8f4;
   --transportada-mark-filter: brightness(0);
+  --transportada-brand-logo-filter: none;
   --transportada-copper-hover: color-mix(in srgb, var(--transportada-copper) 86%, black 14%);
 }
 
@@ -76,6 +79,7 @@
     --transportada-slate: #5a6b74;
     --transportada-ink-on-accent: #faf8f4;
     --transportada-mark-filter: brightness(0);
+    --transportada-brand-logo-filter: none;
     --transportada-copper-hover: color-mix(in srgb, var(--transportada-copper) 86%, black 14%);
   }
 }
@@ -153,6 +157,7 @@ body {
   max-width: 100%;
   height: clamp(3rem, 10vw, 5rem);
   object-fit: contain;
+  filter: var(--transportada-brand-logo-filter);
 }
 
 .brand-wordmark {
