@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { ManifestOptions } from 'vite-plugin-pwa'
 
-const THEME_COLOR = '#0B1F2A'
+const THEME_COLOR = '#10222c'
 
 type WebManifestIcon = {
   readonly src: string
