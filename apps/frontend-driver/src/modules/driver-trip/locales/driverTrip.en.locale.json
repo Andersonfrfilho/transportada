@@ -890,6 +890,7 @@
     },
     "availability": {
       "alreadyOpen": "Already registered at this stop",
+      "alreadyOpenOnNote": "Already registered on this note. Wait for the office to resolve it",
       "arrivalSyncing": "Waiting for the arrival to sync",
       "needsArrival": "Tap \"Arrived\" first",
       "waiting_one": "Available at {{time}} · {{count}} min left",

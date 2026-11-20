@@ -10,7 +10,10 @@ import {
   withLegacyLocation,
   type QueuedReport,
 } from '../../src/modules/driver-trip/shared/offlineQueue.service'
-import { resolveOccurrenceAvailability } from '../../src/modules/driver-trip/shared/occurrenceAvailability.service'
+import {
+  listNoteEntries,
+  resolveOccurrenceAvailability,
+} from '../../src/modules/driver-trip/shared/occurrenceAvailability.service'
 import type { RouteOccurrenceEntry } from '../../src/modules/driver-trip/shared/routeOccurrenceView.types'
 
 /** Spec 315 (D10, T7b): o tipo com espera mínima só abre depois de `chegada + N min`; o servidor é quem cobra. */
@@ -164,5 +167,55 @@ describe('a fila mostra de qual parada é cada ocorrência e segura o toque sem 
     )
     const view = buildEventQueueView({ attachments: [], queued })
     expect(view.map((item) => item.stopId)).toEqual(['s1', 's1', 's1'])
+  })
+})
+
+describe('o tipo repetido na mesma nota fica desabilitado (spec 321)', () => {
+  const plain: DriverOccurrenceType = { id: 'wait', name: 'Canhoto retido' }
+  const input = {
+    arrivedAt: null,
+    isArrivalRecorded: false,
+    nowMs: ARRIVED_MS,
+    openEntries: [],
+    type: plain,
+  }
+
+  test('qualquer tipo, com ou sem espera mínima, bloqueia se a nota já tem um aberto ou na fila', () => {
+    for (const state of ['open', 'queued'] as const) {
+      expect(resolveOccurrenceAvailability({ ...input, noteEntries: [entry(state)] }).status).toBe(
+        'alreadyOpenOnNote',
+      )
+      expect(
+        resolveOccurrenceAvailability({ ...input, noteEntries: [entry(state)], type: type(30) })
+          .status,
+      ).toBe('alreadyOpenOnNote')
+    }
+  })
+
+  test('resolvida, cancelada ou recusada não bloqueia; outro tipo também não', () => {
+    for (const state of ['resolved', 'cancelled', 'rejected'] as const) {
+      expect(resolveOccurrenceAvailability({ ...input, noteEntries: [entry(state)] }).status).toBe(
+        'available',
+      )
+    }
+    const other = { state: 'open', typeId: 'outro' } as RouteOccurrenceEntry
+    expect(resolveOccurrenceAvailability({ ...input, noteEntries: [other] }).status).toBe(
+      'available',
+    )
+  })
+})
+
+describe('a nota certa é a consultada (spec 321)', () => {
+  const mine = { state: 'open', typeId: 'wait' } as RouteOccurrenceEntry
+  const other = { state: 'open', typeId: 'outro' } as RouteOccurrenceEntry
+  const noteGroups = [
+    { documentId: 'doc-a', entries: [mine] },
+    { documentId: 'doc-b', entries: [other] },
+  ]
+
+  test('devolve só as ocorrências da nota pedida; nota sem ocorrência devolve vazio', () => {
+    expect(listNoteEntries({ documentId: 'doc-a', noteGroups })).toEqual([mine])
+    expect(listNoteEntries({ documentId: 'doc-b', noteGroups })).toEqual([other])
+    expect(listNoteEntries({ documentId: 'doc-c', noteGroups })).toEqual([])
   })
 })

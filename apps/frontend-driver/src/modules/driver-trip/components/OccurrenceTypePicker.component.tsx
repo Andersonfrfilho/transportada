@@ -72,6 +72,8 @@ export function OccurrenceTypePicker({
         return undefined
       case 'alreadyOpen':
         return t('occurrenceRegistration.availability.alreadyOpen')
+      case 'alreadyOpenOnNote':
+        return t('occurrenceRegistration.availability.alreadyOpenOnNote')
       case 'needsArrival':
         return t('occurrenceRegistration.availability.needsArrival')
       case 'arrivalSyncing':
