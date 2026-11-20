@@ -40,6 +40,8 @@ type DriverOccurrenceRegistrationFormProps = Readonly<{
   /** Spec 315 (T7b): "Cheguei" já tocado (inclui o da fila) e as ocorrências vivas da parada, para o bloqueio por espera. */
   isArrivalRecorded?: boolean
   openStopEntries?: readonly RouteOccurrenceEntry[]
+  /** As ocorrências já registradas nesta nota: o tipo repetido fica desabilitado, com o motivo. */
+  openNoteEntries?: readonly RouteOccurrenceEntry[]
   /** Registrou ou cancelou — quem abriu fecha. */
   onClose: () => void
   /** Spec 157 RF5: o toque em "Tentar de novo" quando a lista de tipos falhou. */
@@ -59,6 +61,7 @@ export function DriverOccurrenceRegistrationForm({
   occurrenceTypes,
   onClose,
   onRetryOccurrenceTypes,
+  openNoteEntries = [],
   openStopEntries = [],
   stop,
 }: DriverOccurrenceRegistrationFormProps) {
@@ -157,6 +160,7 @@ export function DriverOccurrenceRegistrationForm({
             resolveOccurrenceAvailability({
               arrivedAt: stop.arrivedAt,
               isArrivalRecorded,
+              noteEntries: openNoteEntries,
               nowMs,
               openEntries: openStopEntries,
               type,

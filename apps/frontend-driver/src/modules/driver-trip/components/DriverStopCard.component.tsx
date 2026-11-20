@@ -755,6 +755,10 @@ export function DriverStopCard({
               document={document}
               isArrivalRecorded={isArrivalRecorded}
               isFieldWorkBlocked={isFieldWorkBlocked}
+              openNoteEntries={
+                occurrenceGroup?.noteGroups.find((group) => group.documentId === document.id)
+                  ?.entries ?? []
+              }
               openStopEntries={occurrenceGroup?.stopLevel?.entries ?? []}
               isReadOnly={isReadOnly}
               isLocationDenied={isLocationDenied}
@@ -853,6 +857,7 @@ type DocumentRowProps = Readonly<{
   isLateRegistration: boolean
   notDeliveredKey: string | undefined
   notDeliveredStatus: NotDeliveredStatus | undefined
+  openNoteEntries: readonly RouteOccurrenceEntry[]
   openStopEntries: readonly RouteOccurrenceEntry[]
   /** O aviso transitório do cartão inteiro — um por parada, anunciado pela nota que agiu. */
   onAnnounce: (message: string) => void
@@ -912,6 +917,7 @@ function DocumentRow({
   notDeliveredKey,
   notDeliveredStatus,
   occurrenceHandlers,
+  openNoteEntries,
   openStopEntries,
   occurrenceTypes,
   onAnnounce,
@@ -987,6 +993,7 @@ function DocumentRow({
       handlers={occurrenceHandlers}
       isArrivalRecorded={isArrivalRecorded}
       occurrenceTypes={occurrenceTypes}
+      openNoteEntries={openNoteEntries}
       openStopEntries={openStopEntries}
       onClose={() => setOpenOccurrence(false)}
       onRetryOccurrenceTypes={onRetryOccurrenceTypes}

@@ -908,6 +908,7 @@
     },
     "availability": {
       "alreadyOpen": "Já registrada nesta parada",
+      "alreadyOpenOnNote": "Já registrada nesta nota. Aguarde o escritório resolver",
       "arrivalSyncing": "Aguardando a chegada sincronizar",
       "needsArrival": "Marque \"Cheguei\" primeiro",
       "waiting_one": "Disponível às {{time}} · falta {{count}} min",

@@ -166,3 +166,38 @@ describe('a fila mostra de qual parada é cada ocorrência e segura o toque sem 
     expect(view.map((item) => item.stopId)).toEqual(['s1', 's1', 's1'])
   })
 })
+
+describe('o tipo repetido na mesma nota fica desabilitado (spec 321)', () => {
+  const plain: DriverOccurrenceType = { id: 'wait', name: 'Canhoto retido' }
+  const input = {
+    arrivedAt: null,
+    isArrivalRecorded: false,
+    nowMs: ARRIVED_MS,
+    openEntries: [],
+    type: plain,
+  }
+
+  test('qualquer tipo, com ou sem espera mínima, bloqueia se a nota já tem um aberto ou na fila', () => {
+    for (const state of ['open', 'queued'] as const) {
+      expect(resolveOccurrenceAvailability({ ...input, noteEntries: [entry(state)] }).status).toBe(
+        'alreadyOpenOnNote',
+      )
+      expect(
+        resolveOccurrenceAvailability({ ...input, noteEntries: [entry(state)], type: type(30) })
+          .status,
+      ).toBe('alreadyOpenOnNote')
+    }
+  })
+
+  test('resolvida, cancelada ou recusada não bloqueia; outro tipo também não', () => {
+    for (const state of ['resolved', 'cancelled', 'rejected'] as const) {
+      expect(resolveOccurrenceAvailability({ ...input, noteEntries: [entry(state)] }).status).toBe(
+        'available',
+      )
+    }
+    const other = { state: 'open', typeId: 'outro' } as RouteOccurrenceEntry
+    expect(resolveOccurrenceAvailability({ ...input, noteEntries: [other] }).status).toBe(
+      'available',
+    )
+  })
+})
