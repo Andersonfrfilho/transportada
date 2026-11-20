@@ -66,6 +66,8 @@ function readMultipartTextFields(rawBody: string): Record<string, string> {
 }
 
 export type DriverTripProofScenario = Readonly<{
+  /** Spec 321: a API devolve a ocorrência de nota que já estava aberta (`alreadyOpen: true`) em vez de criar outra. */
+  documentOccurrencesAlreadyOpen?: boolean
   /** Spec 189 T7.2: viagens além da de sempre, depois dela — a API ordena por `createdAt`. */
   additionalTrips?: readonly unknown[]
   pendingProofs?: readonly unknown[]
@@ -433,13 +435,16 @@ export async function mockDriverTripApi(
     const proofDocumentId = /\/documents\/([^/]+)\/proof$/u.exec(path)?.[1]
     if (proofDocumentId !== undefined) provedDocumentIds.add(proofDocumentId)
     const data =
-      proofDocumentId === undefined
-        ? { id: crypto.randomUUID() }
-        : {
-            id: crypto.randomUUID(),
-            punctuality:
-              input.scenario?.punctualityByDocumentId?.[proofDocumentId] ?? 'not_required',
-          }
+      /\/documents\/[^/]+\/occurrences$/u.test(path) &&
+      input.scenario?.documentOccurrencesAlreadyOpen === true
+        ? { alreadyOpen: true, id: crypto.randomUUID(), recordedTogether: [] }
+        : proofDocumentId === undefined
+          ? { id: crypto.randomUUID() }
+          : {
+              id: crypto.randomUUID(),
+              punctuality:
+                input.scenario?.punctualityByDocumentId?.[proofDocumentId] ?? 'not_required',
+            }
     await fulfillJson(route, { data }, 201, buildServerClockHeaders(serverClockOffsetMs))
   })
 
