@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -26,12 +27,28 @@ export function DriverFieldReportNotice({
 }: DriverFieldReportNoticeProps) {
   const { t } = useTranslation('driverTrip')
   const { addressCorrection, alreadyOpen, nextStop } = notice
+  const alreadyOpenRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * O aviso mora no topo da viagem e o formulário da ocorrência fica lá embaixo: sem rolar até ele, o motorista toca em
+   * "Registrar" e não vê nada mudar (relato de 20/11/2026). Rola ao aparecer, sem animação se ele pediu menos movimento.
+   */
+  useEffect(() => {
+    if (alreadyOpen !== true) return
+    const element = alreadyOpenRef.current
+    if (element === null || typeof element.scrollIntoView !== 'function') return
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+  }, [alreadyOpen])
 
   return (
     <>
       {alreadyOpen === true ? (
         <div
           className={`${styles.proofPendingWarning} ${styles.occurrenceAlreadyOpenNotice}`}
+          ref={alreadyOpenRef}
           role="status"
         >
           <p className={styles.proofPendingWarningLead}>{t('occurrenceAlreadyOpen.notice')}</p>
