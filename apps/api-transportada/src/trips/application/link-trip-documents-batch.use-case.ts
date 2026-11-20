@@ -37,6 +37,8 @@ export type LinkTripDocumentsBatchResult = {
  */
 export type LinkTripDocumentsBatchPort = {
   linkDocumentsBatch(input: {
+    /** Spec 321 (emenda): quem move a nota com canhoto retido; sem ele a nota segue `already_linked`. */
+    readonly actorUserId?: string
     readonly companyId: string
     readonly nfeDocumentIds: readonly string[]
     readonly tripId: string
@@ -44,7 +46,7 @@ export type LinkTripDocumentsBatchPort = {
 }
 
 export type LinkTripDocumentsBatchInput = {
-  readonly context: { readonly companyId: string }
+  readonly context: { readonly companyId: string; readonly userId?: string }
   readonly nfeDocumentIds: readonly string[]
   readonly tripId: string
 }
@@ -78,6 +80,7 @@ export function createLinkTripDocumentsBatchUseCase(dependencies: {
       }
       const knownStopIds = await snapshotStopIdsGracefully(stopOrderScope)
       const result = await dependencies.repository.linkDocumentsBatch({
+        ...(input.context.userId === undefined ? {} : { actorUserId: input.context.userId }),
         companyId: input.context.companyId,
         nfeDocumentIds: unique,
         tripId: input.tripId,

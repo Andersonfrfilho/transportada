@@ -1033,6 +1033,11 @@ button.occurrenceCaseBadge {
   font-variant-numeric: tabular-nums;
 }
 
+/* Spec 321 (emenda): a flag "Canhoto retido" fica abaixo do número da nota. */
+.searchRetainedFlag {
+  margin-top: var(--space-1);
+}
+
 /*
  * A marca do peso estimado. Ela é discreta de propósito — o número continua sendo o dado —, mas
  * nunca opcional: sem ela um palpite de quilos lê igual à massa que o emitente declarou.

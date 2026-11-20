@@ -78,6 +78,7 @@ export const DOCUMENT_SUMMARY: NfeDocumentSummary = {
   documentOutput: { output: 'cte' },
   nfseBlockReason: null,
   tripId: null,
+  canhotoRetained: false,
   tripStatus: null,
   emitterAddress: 'Rua das Cargas, 100 - Centro',
   emitterCity: 'Campinas',
@@ -208,6 +209,7 @@ export function serializeDocumentSummary(document: NfeDocumentSummary): object {
     status: document.status,
     totalAmount: document.totalAmount,
     tripId: document.tripId,
+    canhotoRetained: document.canhotoRetained,
     tripStatus: document.tripStatus,
     variant: document.variant,
   }

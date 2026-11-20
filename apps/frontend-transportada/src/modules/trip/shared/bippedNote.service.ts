@@ -26,7 +26,13 @@ export function resolveBippedNoteBlocker(
   document: ScannedNfeDocument,
   options: Readonly<{ allowOtherTrip?: boolean }> = {},
 ): BippedNoteBlocker | undefined {
-  if (document.tripId !== null && options.allowOtherTrip !== true) return 'alreadyOnTrip'
+  if (
+    document.tripId !== null &&
+    options.allowOtherTrip !== true &&
+    document.canhotoRetained !== true
+  ) {
+    return 'alreadyOnTrip'
+  }
   if (document.status !== 'authorized') return 'notAuthorized'
   return undefined
 }

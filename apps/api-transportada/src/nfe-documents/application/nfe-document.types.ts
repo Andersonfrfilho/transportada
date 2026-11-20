@@ -59,6 +59,8 @@ export type NfeDocumentSummary = {
    */
   readonly freightAmount: string | null
   readonly freightRuleName: string | null
+  /** Spec 321 (emenda): a nota não entregue tem canhoto retido aberto; pode entrar noutra viagem. */
+  readonly canhotoRetained: boolean
   readonly cargoGrossWeight: string | null
   readonly cargoWeightSource: 'estimated' | 'xml' | null
   readonly recipientAddressNumber: string | null

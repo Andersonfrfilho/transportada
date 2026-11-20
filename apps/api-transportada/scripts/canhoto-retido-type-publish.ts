@@ -46,7 +46,9 @@ async function main(): Promise<void> {
         blocksContractorNotice: companyOccurrenceTypes.blocksContractorNotice,
         countsCargoOnPickupTrip: companyOccurrenceTypes.countsCargoOnPickupTrip,
         createsCanhotoPickup: companyOccurrenceTypes.createsCanhotoPickup,
+        attachmentMode: companyOccurrenceTypes.attachmentMode,
         id: companyOccurrenceTypes.id,
+        locationMode: companyOccurrenceTypes.locationMode,
       })
       .from(companyOccurrenceTypes)
       .where(
@@ -61,7 +63,9 @@ async function main(): Promise<void> {
       const marksOk =
         existing.blocksContractorNotice &&
         existing.createsCanhotoPickup &&
-        !existing.countsCargoOnPickupTrip
+        !existing.countsCargoOnPickupTrip &&
+        existing.attachmentMode === 'required' &&
+        existing.locationMode === 'required'
       process.stdout.write(
         `${TYPE_NAME}  já existe (${existing.id})  marcas ${marksOk ? 'corretas' : 'DIVERGEM — ajuste na aba Tipos'}\n`,
       )
@@ -74,7 +78,7 @@ async function main(): Promise<void> {
     const saved = await saveOccurrenceType(provider.db, {
       active: true,
       allowsMultipleItems: false,
-      attachmentMode: 'optional',
+      attachmentMode: 'required',
       blocksContractorNotice: true,
       companyId,
       countsCargoOnPickupTrip: false,
@@ -82,7 +86,7 @@ async function main(): Promise<void> {
       duplicateRequestPolicy: 'until_resolved',
       emailTemplateKey: null,
       itemsMode: 'off',
-      locationMode: 'off',
+      locationMode: 'required',
       moments: ['document', 'office'],
       name: TYPE_NAME,
       notifies: false,

@@ -167,6 +167,11 @@ export type NfeDocumentListItem = Readonly<{
    */
   tripId: null | string
   tripStatus: null | string
+  /**
+   * Spec 321 (emenda): nota não entregue com canhoto retido aberto — livre para outra viagem mesmo com `tripId`.
+   * Ausente enquanto a API anterior serve o corpo antigo (o painel sobe antes).
+   */
+  canhotoRetained?: boolean
   /** Ausente enquanto a API anterior serve o corpo antigo — a API sobe primeiro. */
   updatedAt?: string
   variant: 'complete' | 'event' | 'summary'
@@ -449,6 +454,7 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
     isNullableString(value.recipientState) &&
     isNullableString(value.tripId) &&
     isNullableString(value.tripStatus) &&
+    (value.canhotoRetained === undefined || typeof value.canhotoRetained === 'boolean') &&
     isNullableString(value.recipientTaxId) &&
     isString(value.series) &&
     isDocumentStatus(value.status) &&

@@ -861,7 +861,7 @@
     "trailerLockedHint": "The trailer can no longer be changed — the trip has already dispatched.",
     "trailerPlaceholder": "No trailer attached",
     "vehicle": "Vehicle: {{vehicle}}",
-    "linkAvailableHint": "Only this company's notes that are not on any trip yet appear here.",
+    "linkAvailableHint": "Only this company's notes that are not on any trip yet, or that are only waiting for a retained stub, appear here.",
     "linkSelected": "Link {{count}} note",
     "linkSelected_other": "Link {{count}} notes",
     "linkSelectedEmpty": "Select at least one note",
@@ -1808,7 +1808,7 @@
     "foundNotes": "Found invoices",
     "hiddenBySelection_one": "{{count}} selected invoice is outside the current filter and will not be included.",
     "hiddenBySelection_other": "{{count}} selected invoices are outside the current filter and will not be included.",
-    "intro": "Scan with the reader, use the camera or search the invoices that leave together. They appear under Found invoices and only join the trip with Add. Only invoices that are not on any trip yet are accepted.",
+    "intro": "Scan with the reader, use the camera or search the invoices that leave together. They appear under Found invoices and only join the trip with Add. Only invoices that are not on any trip yet, or that are only waiting for a retained stub, are accepted.",
     "issue": {
       "dailyAllowanceDaysInvalid": "Daily allowance: enter a whole number of days, starting at 1.",
       "driverRequired": "Select at least one driver.",

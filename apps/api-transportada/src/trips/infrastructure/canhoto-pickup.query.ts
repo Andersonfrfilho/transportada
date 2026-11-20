@@ -5,7 +5,7 @@
  * (registro, trava de repetido, cancelamento): a coleta nunca existe sem a ocorrência, nem a ocorrência do tipo com
  * coleta sem a coleta. Nenhuma função daqui escreve em `trip_documents` (D3, CA03).
  */
-import { and, desc, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
 
 import {
   CANHOTO_PICKUP_OPEN_STATUSES,
@@ -15,6 +15,7 @@ import {
   tripCanhotoPickups,
   tripDocumentOccurrences,
   tripDocuments,
+  trips,
 } from '../../database/trip.schema.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -201,4 +202,135 @@ export async function loadCanhotoRetainedDocumentIds(
       ),
     )
   return new Set(rows.map((row) => row.tripDocumentId))
+}
+
+/**
+ * Spec 321 (emenda de 19/11/2026): a nota **não entregue** com canhoto retido aberto (coleta `pending`, ocorrência não
+ * cancelada) pode sair da viagem de origem e entrar noutra. Devolve os vínculos vivos dessas notas em viagens
+ * **diferentes** de `excludeTripId`. Nota entregue nunca entra aqui (D3 segue valendo para ela) e a coleta já encaixada
+ * (`scheduled`) também não: o encaixe do escritório (T3) cuida dela.
+ */
+export async function listMovableCanhotoRetainedLinks(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    /** Ausente: toda viagem (a listagem de notas só quer saber quais estão com a flag). */
+    readonly excludeTripId?: string
+    readonly nfeDocumentIds: readonly string[]
+  },
+): Promise<
+  readonly {
+    readonly nfeDocumentId: string
+    readonly tripDocumentId: string
+    readonly tripId: string
+    readonly tripStatus: string
+  }[]
+> {
+  if (input.nfeDocumentIds.length === 0) return []
+  const rows = await queryable
+    .select({
+      nfeDocumentId: tripDocuments.nfeDocumentId,
+      tripDocumentId: tripDocuments.id,
+      tripId: tripDocuments.tripId,
+      tripStatus: trips.status,
+    })
+    .from(tripDocuments)
+    .innerJoin(
+      trips,
+      and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+    )
+    .innerJoin(
+      tripCanhotoPickups,
+      and(
+        eq(tripCanhotoPickups.companyId, tripDocuments.companyId),
+        eq(tripCanhotoPickups.originTripDocumentId, tripDocuments.id),
+        eq(tripCanhotoPickups.status, 'pending'),
+      ),
+    )
+    .innerJoin(
+      tripDocumentOccurrences,
+      and(
+        eq(tripDocumentOccurrences.companyId, tripCanhotoPickups.companyId),
+        eq(tripDocumentOccurrences.id, tripCanhotoPickups.occurrenceId),
+        isNull(tripDocumentOccurrences.cancelledAt),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+        ...(input.excludeTripId === undefined
+          ? []
+          : [ne(tripDocuments.tripId, input.excludeTripId)]),
+        isNull(tripDocuments.releasedAt),
+        isNull(tripDocuments.deliveredAt),
+      ),
+    )
+  return rows.flatMap((row) =>
+    row.nfeDocumentId === null ? [] : [{ ...row, nfeDocumentId: row.nfeDocumentId }],
+  )
+}
+
+/**
+ * A nota movida ganha um vínculo novo; a coleta aberta segue a nota (a flag "canhoto retido" acompanha), apontando para
+ * o vínculo vivo em vez do liberado.
+ */
+export async function repointPendingCanhotoPickups(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly fromTripDocumentId: string
+    readonly toTripDocumentId: string
+  },
+): Promise<void> {
+  await queryable
+    .update(tripCanhotoPickups)
+    .set({ originTripDocumentId: input.toTripDocumentId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        eq(tripCanhotoPickups.originTripDocumentId, input.fromTripDocumentId),
+        eq(tripCanhotoPickups.status, 'pending'),
+      ),
+    )
+}
+
+/**
+ * Depois que a nota com canhoto retido ganhou vínculo novo (acréscimo à viagem que já saiu), a coleta aberta passa a
+ * apontar para o vínculo **vivo**: o liberado só existe como histórico. Idempotente.
+ */
+export async function repointPendingCanhotoPickupsToLiveLinks(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly nfeDocumentIds: readonly string[] },
+): Promise<void> {
+  if (input.nfeDocumentIds.length === 0) return
+  const rows = await queryable
+    .select({
+      nfeDocumentId: tripDocuments.nfeDocumentId,
+      releasedAt: tripDocuments.releasedAt,
+      tripDocumentId: tripDocuments.id,
+    })
+    .from(tripDocuments)
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+      ),
+    )
+  const liveByNfe = new Map<string, string>()
+  for (const row of rows) {
+    if (row.releasedAt === null && row.nfeDocumentId !== null) {
+      liveByNfe.set(row.nfeDocumentId, row.tripDocumentId)
+    }
+  }
+  for (const row of rows) {
+    if (row.releasedAt === null || row.nfeDocumentId === null) continue
+    const live = liveByNfe.get(row.nfeDocumentId)
+    if (live === undefined) continue
+    await repointPendingCanhotoPickups(queryable, {
+      companyId: input.companyId,
+      fromTripDocumentId: row.tripDocumentId,
+      toTripDocumentId: live,
+    })
+  }
 }

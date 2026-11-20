@@ -33,6 +33,9 @@ export async function loadAvailableTripDocuments(): Promise<readonly NfeDocument
     cursor = result.nextCursor
   }
 
-  /** Nota já em viagem não é oferecida: o lote não existe para produzir recusa em massa. */
-  return items.filter((item) => item.tripId === null)
+  /**
+   * Nota já em viagem não é oferecida: o lote não existe para produzir recusa em massa. Exceção (spec 321, emenda):
+   * a nota não entregue com canhoto retido segue livre — ela sai da viagem de origem ao entrar noutra.
+   */
+  return items.filter((item) => item.tripId === null || item.canhotoRetained === true)
 }
