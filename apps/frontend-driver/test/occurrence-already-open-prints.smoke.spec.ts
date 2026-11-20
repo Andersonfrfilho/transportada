@@ -148,7 +148,17 @@ for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
       await expect(notice).toBeVisible({ timeout: 20_000 })
       await page.mouse.move(0, 0)
       const box = page.getByRole('status').filter({ has: notice })
-      await box.evaluate((element) => element.scrollIntoView({ block: 'center' }))
+      /** Sem rolar à mão: é o próprio aviso que tem de aparecer na vista de quem estava no formulário (PR 919). */
+      await expect
+        .poll(
+          () =>
+            box.evaluate((element) => {
+              const rect = element.getBoundingClientRect()
+              return rect.top >= 0 && rect.bottom <= window.innerHeight
+            }),
+          { timeout: 5_000 },
+        )
+        .toBe(true)
       await page.screenshot({
         animations: 'disabled',
         path: resolve(
