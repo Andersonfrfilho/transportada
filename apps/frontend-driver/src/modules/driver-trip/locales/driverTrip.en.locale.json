@@ -9,6 +9,10 @@
     "keep": "Keep the current one",
     "title": "Replace the receipt?"
   },
+  "occurrenceAlreadyOpen": {
+    "dismiss": "Got it",
+    "notice": "This invoice already has an open occurrence of this type. We did not create another one: the office was already notified."
+  },
   "addressCorrection": {
     "applied": "Address updated with your location. Thank you!",
     "suggested": "We sent your location to the office to check the address."

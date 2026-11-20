@@ -715,7 +715,7 @@ async function sendReport(input: {
   const { report: queuedReport, stamp } = stamped
   const report = withLegacyLocation(queuedReport)
   if (report.kind === 'documentOccurrence') {
-    await sendDocumentOccurrence({
+    return sendDocumentOccurrence({
       dependencies,
       diagnostics: {
         attempt: options?.attempt,
@@ -725,7 +725,6 @@ async function sendReport(input: {
       report,
       stamp,
     })
-    return undefined
   }
   if (report.kind === 'stopOccurrencePhoto') {
     await sendStopOccurrencePhoto({
@@ -783,7 +782,7 @@ async function sendDocumentOccurrence(input: {
   readonly diagnostics: StepContext
   readonly report: DocumentOccurrenceReport
   readonly stamp: EventClockStamp | undefined
-}): Promise<void> {
+}): Promise<FieldReportResponse | undefined> {
   const { dependencies, diagnostics, report, stamp } = input
   const observer = dependencies.occurrenceUpload
   const key = report.idempotencyKey
@@ -803,8 +802,15 @@ async function sendDocumentOccurrence(input: {
   }
   observer?.start(key)
   try {
-    await sendDocumentOccurrenceBody({ dependencies, diagnostics, report, reportProgress, stamp })
+    const response = await sendDocumentOccurrenceBody({
+      dependencies,
+      diagnostics,
+      report,
+      reportProgress,
+      stamp,
+    })
     observer?.done(key)
+    return response
   } catch (error) {
     const failure = describeAttachmentFailure(error)
     if (failure !== undefined) observer?.fail(key, failure)
@@ -819,7 +825,7 @@ async function sendDocumentOccurrenceBody(input: {
   readonly report: DocumentOccurrenceReport
   readonly reportProgress: (index: number, progress: UploadProgress) => void
   readonly stamp: EventClockStamp | undefined
-}): Promise<void> {
+}): Promise<FieldReportResponse | undefined> {
   const { dependencies, diagnostics, report, reportProgress, stamp } = input
   const uploadsPath = `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrence-uploads`
   const photos = listDocumentOccurrencePhotos(report)
@@ -847,7 +853,7 @@ async function sendDocumentOccurrenceBody(input: {
         }),
   ])
 
-  await request({
+  const payload = await request({
     body: JSON.stringify({
       ...buildAttachmentFields(attachmentObjectIds),
       /** Spec 320: a API retém a ocorrência cujo toque foi de outro dia (`202 held`, que `request` já trata como sucesso). */
@@ -867,6 +873,7 @@ async function sendDocumentOccurrenceBody(input: {
     method: 'POST',
     path: `${CURRENT_TRIP_PATH}/documents/${report.documentId}/occurrences`,
   })
+  return parseFieldReportResponse(payload)
 }
 
 /** As fotos do item, na ordem: a primeira (`photo`) e as demais (`extraPhotos`, spec 246). */

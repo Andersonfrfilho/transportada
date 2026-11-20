@@ -1,6 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
+
+import styles from '../styles/driverTrip.module.css'
 import type { FieldReportNotice } from '../shared/fieldReportNotice.service'
 import { DriverNextStopCard } from './DriverNextStopCard.component'
 import { DriverRecordedTogetherNotice } from './DriverRecordedTogetherNotice.component'
@@ -21,10 +25,19 @@ export function DriverFieldReportNotice({
   onStartRoute,
 }: DriverFieldReportNoticeProps) {
   const { t } = useTranslation('driverTrip')
-  const { addressCorrection, nextStop } = notice
+  const { addressCorrection, alreadyOpen, nextStop } = notice
 
   return (
     <>
+      {alreadyOpen === true ? (
+        <div className={styles.proofPendingWarning} role="status">
+          <p className={styles.proofPendingWarningLead}>{t('occurrenceAlreadyOpen.notice')}</p>
+          <Button type="button" variant="secondary" onClick={onDismiss}>
+            <Icon name="check" />
+            {t('occurrenceAlreadyOpen.dismiss')}
+          </Button>
+        </div>
+      ) : null}
       <DriverRecordedTogetherNotice
         mode="done"
         onDismiss={onDismiss}

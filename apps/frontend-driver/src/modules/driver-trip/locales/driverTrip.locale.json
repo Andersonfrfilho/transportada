@@ -9,6 +9,10 @@
     "keep": "Manter o que já tem",
     "title": "Trocar o canhoto?"
   },
+  "occurrenceAlreadyOpen": {
+    "dismiss": "Entendi",
+    "notice": "Esta nota já tem uma ocorrência aberta desse tipo. Não criamos outra: o escritório já foi avisado."
+  },
   "addressCorrection": {
     "applied": "Endereço atualizado com a sua localização. Obrigado!",
     "suggested": "Enviamos a sua localização para o escritório conferir o endereço."
