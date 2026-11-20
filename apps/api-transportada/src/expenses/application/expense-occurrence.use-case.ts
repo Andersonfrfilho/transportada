@@ -3,6 +3,7 @@
  *
  * Spec 325: ocorrências — geração (RF4), baixa (P3), cancelamento (RF6) e lista com totais (P4/CA05).
  */
+import { canTransitionOccurrence } from '@adatechnology/expense-contracts'
 import {
   competenceOfDate,
   listExpenseCompetenceWindow,
@@ -135,8 +136,9 @@ export function createSettleExpenseOccurrenceUseCase(ports: ExpensesPorts): {
 }
 
 function assertOpen(occurrence: CompanyExpenseOccurrence): void {
+  if (canTransitionOccurrence(occurrence.status, 'settle')) return
   if (occurrence.status === 'paid') throw new ExpenseOccurrenceAlreadyPaidError()
-  if (occurrence.status === 'canceled') throw new ExpenseOccurrenceCanceledError()
+  throw new ExpenseOccurrenceCanceledError()
 }
 
 export type CancelExpenseOccurrenceInput = {
@@ -158,7 +160,7 @@ export function createCancelExpenseOccurrenceUseCase(ports: ExpensesPorts): {
       const lookup = { companyId: input.companyId, occurrenceId: input.occurrenceId }
       const occurrence = await ports.occurrences.findById(lookup)
       if (occurrence === null) throw new ExpenseOccurrenceNotFoundError()
-      if (occurrence.status !== 'open') throw new ExpenseOccurrenceNotCancelableError()
+      if (!canTransitionOccurrence(occurrence.status, 'cancel')) throw new ExpenseOccurrenceNotCancelableError()
 
       const canceled = await ports.occurrences.cancel({
         canceledBy: input.canceledBy,
