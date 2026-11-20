@@ -76,7 +76,7 @@ export async function registerDriverOccurrence(
         transaction,
       },
       perform: async () => {
-        const result = await saveOrRecallDuplicate(
+        const saved = await saveOrRecallDuplicate(
           () =>
             transaction.saveDocumentOccurrence({
               actorUserId: input.actorUserId,
@@ -110,7 +110,10 @@ export async function registerDriverOccurrence(
           (occurrenceId) =>
             transaction.findDocumentOccurrenceById({ companyId: input.companyId, occurrenceId }),
         )
-        if (result === null) throw new TripDocumentNotReachableError()
+        if (saved === null) throw new TripDocumentNotReachableError()
+        const result: DriverDocumentOccurrence = saved.recalled
+          ? { ...saved.occurrence, alreadyOpen: true }
+          : saved.occurrence
         await transaction.onStopEvent({
           channel: authorship.channel,
           companyId: input.companyId,
@@ -154,12 +157,14 @@ export async function registerDriverOccurrence(
 async function saveOrRecallDuplicate(
   save: () => Promise<DriverDocumentOccurrence | null>,
   recall: (occurrenceId: string) => Promise<DriverDocumentOccurrence | null>,
-): Promise<DriverDocumentOccurrence | null> {
+): Promise<{ occurrence: DriverDocumentOccurrence; recalled: boolean } | null> {
   try {
-    return await save()
+    const occurrence = await save()
+    return occurrence === null ? null : { occurrence, recalled: false }
   } catch (error) {
     if (!(error instanceof OccurrenceDuplicateRequestError)) throw error
-    return recall(error.existingOccurrenceId)
+    const occurrence = await recall(error.existingOccurrenceId)
+    return occurrence === null ? null : { occurrence, recalled: true }
   }
 }
 

@@ -1588,6 +1588,11 @@
   padding: var(--space-3);
 }
 
+/* Aviso de ocorrência repetida: o botão ganha respiro do texto (no desktop ele encostava). */
+.occurrenceAlreadyOpenNotice {
+  gap: var(--space-3);
+}
+
 .proofPendingWarningTitle {
   align-items: center;
   color: var(--color-copper);

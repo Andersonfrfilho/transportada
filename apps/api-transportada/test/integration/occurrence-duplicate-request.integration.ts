@@ -198,6 +198,9 @@ describe('a trava de pedido repetido na mesma nota (spec 276 T4)', () => {
         const first = await registerAsDriver(world, typeId)
         const repeated = await registerAsDriver(world, typeId)
         expect(repeated.id).toBe(first.id)
+        /** O app precisa saber que não foi criada outra: só o pedido repetido leva a marca. */
+        expect(first.alreadyOpen).toBeUndefined()
+        expect(repeated.alreadyOpen).toBe(true)
 
         expect(await refusal(registerAsSeparator(world, typeId))).toEqual({
           code: 'TRIP_OCCURRENCE_DUPLICATE_REQUEST',

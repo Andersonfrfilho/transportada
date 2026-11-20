@@ -17,6 +17,8 @@ export type NextStopOffer = Readonly<{
 }>
 
 export type FieldReportResponse = Readonly<{
+  /** Ocorrência de nota: a API devolveu a que já estava aberta no mesmo tipo, em vez de criar outra. */
+  alreadyOpen?: true
   /** Spec 294 RF14: o que a chegada com ponto fez pelo endereço; ausente sem ponto e na API antiga. */
   addressCorrection?: AddressCorrectionOutcome
   /** Spec 294 RF8: só quando a baixa fechou a parada e a viagem segue. */
@@ -82,6 +84,7 @@ export function parseFieldReportResponse(payload: unknown): FieldReportResponse 
   )
   const nextStop = toNextStopOffer(record.nextStop)
   return {
+    ...(record.alreadyOpen === true ? { alreadyOpen: true as const } : {}),
     ...(addressCorrection === undefined ? {} : { addressCorrection }),
     ...(nextStop === undefined ? {} : { nextStop }),
     recordedTogether,

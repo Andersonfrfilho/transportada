@@ -15,6 +15,11 @@ export type DriverDocumentOccurrenceItem = {
 }
 
 export type DriverDocumentOccurrence = TripOccurrence & {
+  /**
+   * Presente (`true`) só quando o pedido repetiu um tipo já aberto na nota e a resposta é a ocorrência antiga (spec 276 T4):
+   * o app avisa o motorista em vez de fingir que criou outra.
+   */
+  readonly alreadyOpen?: true
   readonly declaredAmount: null | string
   /** Vazia é a nota inteira, ou o item único do app anterior (lido da coluna `product_code`). */
   readonly items: readonly DriverDocumentOccurrenceItem[]
