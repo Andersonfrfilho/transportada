@@ -160,7 +160,8 @@ export function createCancelExpenseOccurrenceUseCase(ports: ExpensesPorts): {
       const lookup = { companyId: input.companyId, occurrenceId: input.occurrenceId }
       const occurrence = await ports.occurrences.findById(lookup)
       if (occurrence === null) throw new ExpenseOccurrenceNotFoundError()
-      if (!canTransitionOccurrence(occurrence.status, 'cancel')) throw new ExpenseOccurrenceNotCancelableError()
+      if (!canTransitionOccurrence(occurrence.status, 'cancel'))
+        throw new ExpenseOccurrenceNotCancelableError()
 
       const canceled = await ports.occurrences.cancel({
         canceledBy: input.canceledBy,
