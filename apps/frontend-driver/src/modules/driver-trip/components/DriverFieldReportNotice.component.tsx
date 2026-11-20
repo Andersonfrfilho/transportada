@@ -30,7 +30,10 @@ export function DriverFieldReportNotice({
   return (
     <>
       {alreadyOpen === true ? (
-        <div className={styles.proofPendingWarning} role="status">
+        <div
+          className={`${styles.proofPendingWarning} ${styles.occurrenceAlreadyOpenNotice}`}
+          role="status"
+        >
           <p className={styles.proofPendingWarningLead}>{t('occurrenceAlreadyOpen.notice')}</p>
           <Button type="button" variant="secondary" onClick={onDismiss}>
             <Icon name="check" />
