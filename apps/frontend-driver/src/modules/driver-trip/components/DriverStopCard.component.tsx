@@ -116,6 +116,7 @@ import {
 } from '../shared/proofFormPlan.service'
 import { RECEIVED_BY_DETAIL_MAX_LENGTH, RECEIVED_BY_OPTIONS } from '../shared/receivedBy.constant'
 import { isSignatureCaptureSupported } from '../shared/signatureCapture.service'
+import { listNoteEntries } from '../shared/occurrenceAvailability.service'
 import styles from '../styles/driverTrip.module.css'
 
 const ACTIVITY_ICON: Readonly<Record<DocumentActivityStatus, IconName>> = {
@@ -755,10 +756,10 @@ export function DriverStopCard({
               document={document}
               isArrivalRecorded={isArrivalRecorded}
               isFieldWorkBlocked={isFieldWorkBlocked}
-              openNoteEntries={
-                occurrenceGroup?.noteGroups.find((group) => group.documentId === document.id)
-                  ?.entries ?? []
-              }
+              openNoteEntries={listNoteEntries({
+                documentId: document.id,
+                noteGroups: occurrenceGroup?.noteGroups ?? [],
+              })}
               openStopEntries={occurrenceGroup?.stopLevel?.entries ?? []}
               isReadOnly={isReadOnly}
               isLocationDenied={isLocationDenied}

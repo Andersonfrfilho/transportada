@@ -614,6 +614,17 @@
 }
 
 /*
+ * Spec 321: o chip desabilitado carrega o motivo, que é a única explicação de por que não abre. A opacidade
+ * do botão desabilitado derrubava o texto para ~2,8:1 no tema claro; aqui o texto fica opaco, numa cor que
+ * passa de 4,5:1 nos dois temas, e o estado desabilitado continua dito pelo `disabled` e pelo tracejado.
+ */
+.occurrenceChip.occurrenceChip:disabled {
+  border-style: dashed;
+  color: var(--color-slate);
+  opacity: 1;
+}
+
+/*
  * A lista de tipos agrupada: busca, "Mais usados" e um grupo por onde acontece. A cor do grupo vem
  * dos tokens que o app já tem (cobre na parada, névoa/ardósia na nota, verde nos mais usados) e só
  * ajuda a achar — o nome e a exigência de foto seguem em todo chip.

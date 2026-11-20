@@ -67,3 +67,14 @@ export function resolveOccurrenceAvailability(input: {
     status: 'waiting',
   }
 }
+
+/** As ocorrências da nota `documentId` dentro do grupo da parada — outra nota da mesma parada nunca entra. */
+export function listNoteEntries(input: {
+  readonly documentId: string
+  readonly noteGroups: readonly Readonly<{
+    documentId: string
+    entries: readonly RouteOccurrenceEntry[]
+  }>[]
+}): readonly RouteOccurrenceEntry[] {
+  return input.noteGroups.find((group) => group.documentId === input.documentId)?.entries ?? []
+}
