@@ -11,7 +11,7 @@
   },
   "occurrenceAlreadyOpen": {
     "dismiss": "Got it",
-    "notice": "This invoice already has an open occurrence of this type. We did not create another one: the office was already notified."
+    "notice": "This invoice already has an occurrence of this type registered. We did not create another one."
   },
   "addressCorrection": {
     "applied": "Address updated with your location. Thank you!",

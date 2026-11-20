@@ -11,7 +11,7 @@
   },
   "occurrenceAlreadyOpen": {
     "dismiss": "Entendi",
-    "notice": "Esta nota já tem uma ocorrência aberta desse tipo. Não criamos outra: o escritório já foi avisado."
+    "notice": "Esta nota já tem uma ocorrência desse tipo registrada. Não criamos outra."
   },
   "addressCorrection": {
     "applied": "Endereço atualizado com a sua localização. Obrigado!",
