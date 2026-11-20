@@ -10,6 +10,7 @@ import { describe, expect, test } from 'bun:test'
 import type { DrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
+import { tripOccurrenceResolutionEvents } from '../../src/database/occurrence-conversation.schema.js'
 import {
   tripCanhotoPickups,
   tripDocumentOccurrences,
@@ -20,6 +21,7 @@ import {
   createPendingCanhotoPickup,
   listMovableCanhotoRetainedLinks,
 } from '../../src/trips/infrastructure/canhoto-pickup.query.js'
+import { DrizzleDriverFieldReportTransaction } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleNfeDocumentRepository } from '../../src/nfe-documents/infrastructure/drizzle-nfe-document.repository.js'
 import type { NfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
 import { saveOccurrenceType } from '../../src/trips/infrastructure/delivery-proof-read.support.js'
@@ -130,6 +132,26 @@ async function readPickup(world: CrewTransferWorld, id: string) {
     .from(tripCanhotoPickups)
     .where(eq(tripCanhotoPickups.id, id))
   return row
+}
+
+async function deliver(world: CrewTransferWorld, documentId: string): Promise<void> {
+  await world.database.db.transaction((transaction) =>
+    new DrizzleDriverFieldReportTransaction(transaction, 'test-bucket').markDocumentDelivered({
+      at: new Date(),
+      companyId: world.trip.companyId,
+      documentId,
+    }),
+  )
+}
+
+async function readResolutionEvents(world: CrewTransferWorld, pickupId: string) {
+  return world.database.db
+    .select({
+      actorKind: tripOccurrenceResolutionEvents.actorKind,
+      kind: tripOccurrenceResolutionEvents.kind,
+    })
+    .from(tripOccurrenceResolutionEvents)
+    .where(eq(tripOccurrenceResolutionEvents.canhotoPickupId, pickupId))
 }
 
 async function liveLinkOf(world: CrewTransferWorld, tripId: string, nfeDocumentId: string) {
@@ -289,6 +311,74 @@ describe('a nota com canhoto retido fica livre para outra viagem (spec 321, emen
       expect(byId.get(retained.nfeDocumentId)?.canhotoRetained).toBe(true)
       expect(byId.get(retained.nfeDocumentId)?.tripId).toBe(world.trip.tripId)
       expect(byId.get(plain)?.canhotoRetained).toBe(false)
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'o mesmo motorista entrega na origem: a marca sai sozinha e a ocorrência resolve',
+    async () => {
+      const world = await seedOnRoadTrip(db())
+      const retained = await seedRetainedNote(world)
+
+      await deliver(world, retained.originDocumentId)
+
+      const pickup = await readPickup(world, retained.pickupId)
+      expect(pickup?.status).toBe('collected')
+      expect(pickup?.collectedAt).toBeInstanceOf(Date)
+      expect(await readResolutionEvents(world, retained.pickupId)).toEqual([
+        { actorKind: 'system', kind: 'resolved' },
+      ])
+      expect(
+        await listMovableCanhotoRetainedLinks(world.database.db, {
+          companyId: world.trip.companyId,
+          nfeDocumentIds: [retained.nfeDocumentId],
+        }),
+      ).toHaveLength(0)
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'o outro motorista entrega pelo vínculo novo: a marca sai sozinha',
+    async () => {
+      const world = await seedOnRoadTrip(db())
+      const retained = await seedRetainedNote(world)
+      const targetTripId = await seedTargetTrip(world, 'in_transit')
+      await world.repository.linkDocumentsAfterDispatch({
+        actorUserId: world.trip.userId,
+        channel: 'backoffice',
+        companyId: world.trip.companyId,
+        correlationId: `correlation-${crypto.randomUUID()}`,
+        ipAddress: '203.0.113.7',
+        nfeDocumentIds: [retained.nfeDocumentId],
+        reason: 'outro motorista busca o canhoto',
+        tripId: targetTripId,
+      })
+      const live = await liveLinkOf(world, targetTripId, retained.nfeDocumentId)
+      if (live === undefined) throw new Error('EXPECTED_LIVE_LINK')
+
+      await deliver(world, live.id)
+
+      expect((await readPickup(world, retained.pickupId))?.status).toBe('collected')
+      expect(await readResolutionEvents(world, retained.pickupId)).toEqual([
+        { actorKind: 'system', kind: 'resolved' },
+      ])
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'a entrega de outra nota não mexe na coleta aberta',
+    async () => {
+      const world = await seedOnRoadTrip(db())
+      const retained = await seedRetainedNote(world)
+      const other = await seedRetainedNote(world)
+
+      await deliver(world, other.originDocumentId)
+
+      expect((await readPickup(world, retained.pickupId))?.status).toBe('pending')
+      expect((await readPickup(world, other.pickupId))?.status).toBe('collected')
     },
     TEST_TIMEOUT_MS,
   )

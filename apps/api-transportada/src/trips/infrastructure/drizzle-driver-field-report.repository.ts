@@ -51,6 +51,7 @@ import type {
   OpenedStopReminder,
 } from '../../driver-stop-reminders/application/driver-stop-reminder.port.js'
 import type { DriverStopReminderRuntime } from '../../driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
+import { settleCanhotoPickupOnDelivery } from './canhoto-pickup-settle.support.js'
 import { correctAddressFromArrival } from './arrival-address-correction.support.js'
 import { saveTripOccurrence } from './delivery-proof-read.support.js'
 import { findDriverLockingOccurrence } from './occurrence-driver-lock.query.js'
@@ -672,6 +673,8 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .where(
         and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, input.documentId)),
       )
+    /** Spec 321 (emenda): entregue, a marca "Canhoto retido" sai sozinha — por qualquer motorista ou canal. */
+    await settleCanhotoPickupOnDelivery(this.transaction, input)
   }
 
   public async markDocumentReturned(input: {
