@@ -565,13 +565,12 @@ describe('spec 321 T3: o encaixe da coleta de canhoto leva a empresa em toda jun
 })
 
 describe('spec 321 T4: a coleta pela foto e pela conferência leva a empresa em toda junção e filtro', () => {
-  const source = readFileSync(
-    new URL(
-      '../../src/trips/infrastructure/canhoto-pickup-collection.persistence.ts',
-      import.meta.url,
-    ),
-    'utf8',
-  )
+  /** A coleta e o fechamento dela (conferência e entrega) moram em dois arquivos; os dois levam a empresa. */
+  const source = ['canhoto-pickup-collection.persistence.ts', 'canhoto-pickup-settle.support.ts']
+    .map((file) =>
+      readFileSync(new URL(`../../src/trips/infrastructure/${file}`, import.meta.url), 'utf8'),
+    )
+    .join('\n')
 
   test('every join and every filter carries companyId', () => {
     const joins = source.split(/\.(?:innerJoin|leftJoin)\(/).slice(1)
