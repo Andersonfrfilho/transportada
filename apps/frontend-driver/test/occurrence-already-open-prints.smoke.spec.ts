@@ -159,6 +159,18 @@ for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
       await expect
         .poll(() => page.evaluate(() => document.body.scrollWidth <= document.body.clientWidth))
         .toBe(true)
+
+      /** Comparação: a mesma tela da viagem, no mesmo tema, depois de dispensar o aviso. */
+      await page.getByRole('button', { name: 'Entendi' }).click()
+      await expect(notice).toBeHidden()
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await page.screenshot({
+        animations: 'disabled',
+        path: resolve(
+          PRINTS_DIRECTORY,
+          `comparacao-viagem-sem-aviso-${viewportName}-${viewport.width}-${theme}.png`,
+        ),
+      })
     })
   }
 }
