@@ -614,11 +614,14 @@
 }
 
 /*
- * Spec 321: o chip desabilitado carrega o motivo, que é a única explicação de por que não abre. A opacidade
- * do botão desabilitado derrubava o texto para ~2,8:1 no tema claro; aqui o texto fica opaco, numa cor que
- * passa de 4,5:1 nos dois temas, e o estado desabilitado continua dito pelo `disabled` e pelo tracejado.
+ * Spec 321: o chip bloqueado (desabilitado, ou `aria-disabled` quando o motivo vem na dica) fica opaco, numa
+ * cor que passa de 4,5:1 nos dois temas — a opacidade do botão desabilitado derrubava o texto para ~2,8:1
+ * no tema claro. O estado é dito pelo tracejado e pelo cursor, e o motivo, pela dica.
  */
-.occurrenceChip.occurrenceChip:disabled {
+.occurrenceChip.occurrenceChip:disabled,
+.occurrenceChip.occurrenceChip[aria-disabled='true'] {
+  cursor: not-allowed;
+  transform: none;
   border-style: dashed;
   color: var(--color-slate);
   opacity: 1;
@@ -2683,4 +2686,16 @@
 .stopViewModeChoices {
   display: grid;
   gap: var(--space-3);
+}
+
+/* Texto só para leitor de tela: o motivo do chip bloqueado, que na tela vem na dica. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
