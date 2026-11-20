@@ -14,28 +14,38 @@ const WORKER_SQL =
 const API_REPOSITORY =
   '../../../api-transportada/src/expenses/infrastructure/drizzle-expenses.repository.ts'
 
-/** As linhas que carregam a regra do calendário: se a API mudar uma e a cópia não, a rotina gera mês errado. */
-const POLICY_LINES = [
-  'export const EXPENSE_GENERATION_WINDOW_MONTHS = 4',
-  'const FORTNIGHT_FIRST_DAY = 15',
-  'bimonthly: 2,',
-  'fortnightly: 1,',
-  'monthly: 1,',
-  'quarterly: 3,',
-  'yearly: 12,',
-  'const day = Math.min(params.dueDay, lastDayOfMonth(year, month))',
-  'if (distance < 0 || distance % step !== 0) return []',
-  'const base = (distance / step) * perPeriod',
-  'return total === null ? slots : slots.filter((item) => (item.installmentNumber ?? 0) <= total)',
+const WORKER_PACKAGE = '../../package.json'
+const API_PACKAGE = '../../../api-transportada/package.json'
+const SDK_PACKAGE = '@adatechnology/expense-contracts'
+const SDK_IMPORT = `from '${SDK_PACKAGE}'`
+
+/** O calendário saiu de cópia por valor: as duas apps reexportam o mesmo pacote, na mesma versão fixa. */
+const SCHEDULE_EXPORTS = [
+  'EXPENSE_GENERATION_WINDOW_MONTHS',
+  'listExpenseCompetenceWindow',
+  'resolveExpenseDueDate',
+  'resolveExpenseSlots',
 ]
 
 describe('paridade da rotina das contas fixas com a API (spec 325 T1.5)', () => {
-  test('a política de calendário é a mesma, linha a linha', async () => {
+  test('o calendário vem do mesmo pacote do SDK nas duas apps, sem implementação local', async () => {
     const [worker, api] = await Promise.all([read(WORKER_POLICY), read(API_POLICY)])
-    for (const line of POLICY_LINES) {
-      expect(api).toContain(line)
-      expect(worker).toContain(line)
+    for (const source of [worker, api]) {
+      expect(source).toContain(SDK_IMPORT)
+      for (const name of SCHEDULE_EXPORTS) expect(source).toContain(`  ${name},`)
+      expect(source).not.toContain('function resolveExpenseSlots')
+      expect(source).not.toContain('function resolveExpenseDueDate')
     }
+  })
+
+  test('a versão do pacote é a mesma, fixa, nas duas apps', async () => {
+    const [worker, api] = await Promise.all([read(WORKER_PACKAGE), read(API_PACKAGE)])
+    const versionOf = (manifest: string): unknown =>
+      (JSON.parse(manifest) as { dependencies?: Record<string, string> }).dependencies?.[
+        SDK_PACKAGE
+      ]
+    expect(versionOf(worker)).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(versionOf(worker)).toBe(versionOf(api))
   })
 
   test('o SQL do worker usa a mesma chave de conflito e os mesmos filtros da API', async () => {
