@@ -59,6 +59,7 @@ type NfeDocumentSummary = {
   readonly recipientPostalCode: string | null
   readonly freightAmount: string | null
   readonly freightRuleName: string | null
+  readonly canhotoRetained: boolean
   readonly cargoGrossWeight: string | null
   readonly cargoWeightSource: 'estimated' | 'xml' | null
   readonly recipientPhone: string | null
@@ -324,6 +325,7 @@ function serializeDocument(input: {
     recipientPostalCode: document.recipientPostalCode,
     freightAmount: document.freightAmount,
     freightRuleName: document.freightRuleName,
+    canhotoRetained: document.canhotoRetained,
     cargoGrossWeight: document.cargoGrossWeight,
     cargoWeightSource: document.cargoWeightSource,
     recipientPhone: document.recipientPhone,
@@ -378,6 +380,7 @@ const NFE_DOCUMENT_FIELD_POLICY = {
   recipientPostalCode: 'safe',
   freightAmount: 'money',
   freightRuleName: 'safe',
+  canhotoRetained: 'safe',
   cargoGrossWeight: 'safe',
   cargoWeightSource: 'safe',
   recipientPhone: 'safe',

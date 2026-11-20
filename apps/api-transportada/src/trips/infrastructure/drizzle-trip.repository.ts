@@ -116,6 +116,7 @@ import {
   listMovableCanhotoRetainedLinks,
   loadCanhotoRetainedDocumentIds,
   repointPendingCanhotoPickups,
+  repointPendingCanhotoPickupsToLiveLinks,
 } from './canhoto-pickup.query.js'
 import { loadProofPendingDocumentIds } from './proof-pending.query.js'
 import { loadTripDocumentVolumeCounts } from './trip-document-volume.query.js'
@@ -504,7 +505,15 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     return runGuarded(() =>
       this.database.transaction(async (transaction) => {
         const movedFrom = await this.moveLiveLinksFromOtherTrips(transaction, input)
-        return applyTripDocumentLinkAfterDispatch(transaction, input, movedFrom)
+        const result = await applyTripDocumentLinkAfterDispatch(transaction, input, movedFrom)
+        /** Spec 321 (emenda): a coleta aberta da nota movida segue o vínculo novo. */
+        if (result !== null && movedFrom.size > 0) {
+          await repointPendingCanhotoPickupsToLiveLinks(transaction, {
+            companyId: input.companyId,
+            nfeDocumentIds: [...movedFrom.keys()],
+          })
+        }
+        return result
       }),
     )
   }

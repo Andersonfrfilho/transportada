@@ -19,6 +19,9 @@ import {
   splitCanhotoPickupsForTrip,
   type CanhotoPickup,
 } from '@/modules/trip/shared/canhotoPickup.service'
+import { resolveBippedNoteBlocker } from '@/modules/trip/shared/bippedNote.service'
+import { stageQuickCreateDocuments } from '@/modules/trip/shared/tripQuickCreate.service'
+import type { ScannedNfeDocument } from '@/modules/trip/shared/trip.types'
 import {
   CanhotoPickupRequestError,
   createCanhotoPickupClient,
@@ -186,5 +189,28 @@ describe('cliente das rotas da T3', () => {
     const malformed = clientWith(() => Response.json({ data: [{ id: 1 }] }))
     const invalid = await malformed.client.list(['pending']).catch((error: unknown) => error)
     expect((invalid as Error).message).toBe('RESPONSE_INVALID')
+  })
+})
+
+describe('spec 321 (emenda): a nota com canhoto retido aberto fica livre para outra viagem', () => {
+  const NOTE = {
+    accessKey: '35'.repeat(22),
+    id: 'doc-1',
+    status: 'authorized',
+    tripId: 'trip-origin',
+  } as unknown as ScannedNfeDocument
+
+  it('a nota em outra viagem é recusada, e deixa de ser com a marca do canhoto retido', () => {
+    expect(resolveBippedNoteBlocker(NOTE)).toBe('alreadyOnTrip')
+    expect(resolveBippedNoteBlocker({ ...NOTE, canhotoRetained: false })).toBe('alreadyOnTrip')
+    expect(resolveBippedNoteBlocker({ ...NOTE, canhotoRetained: true })).toBeUndefined()
+  })
+
+  it('a criação rápida põe a nota retida na fila em vez de recusá-la', () => {
+    const queue = stageQuickCreateDocuments({
+      documents: [NOTE, { ...NOTE, accessKey: '36'.repeat(22), canhotoRetained: true }],
+      queue: [],
+    })
+    expect(queue.map((entry) => entry.status)).toEqual(['refused', 'staged'])
   })
 })

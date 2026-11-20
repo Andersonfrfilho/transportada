@@ -12,6 +12,7 @@ import { formatAmount, formatWeightKilograms } from '@/modules/shared/decimalAmo
 import { useNfeDocumentTable } from '@/modules/nfe-workspace/hooks/useNfeDocumentTable.hook'
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 
+import { CanhotoPickupFlag } from './CanhotoPickupFlag.component'
 import type { ScannedNfeDocument } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
@@ -221,6 +222,11 @@ export function TripDocumentSearch({
                       </td>
                       <td>
                         {document.number}/{document.series}
+                        {document.canhotoRetained === true ? (
+                          <div className={styles.searchRetainedFlag}>
+                            <CanhotoPickupFlag variant="retained" />
+                          </div>
+                        ) : null}
                       </td>
                       <td>{document.recipientName}</td>
                       <td>{document.recipientAddress ?? ''}</td>

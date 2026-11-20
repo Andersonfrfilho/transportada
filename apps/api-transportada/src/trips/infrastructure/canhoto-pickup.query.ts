@@ -214,7 +214,8 @@ export async function listMovableCanhotoRetainedLinks(
   queryable: TripQueryable,
   input: {
     readonly companyId: string
-    readonly excludeTripId: string
+    /** Ausente: toda viagem (a listagem de notas só quer saber quais estão com a flag). */
+    readonly excludeTripId?: string
     readonly nfeDocumentIds: readonly string[]
   },
 ): Promise<
@@ -258,7 +259,9 @@ export async function listMovableCanhotoRetainedLinks(
       and(
         eq(tripDocuments.companyId, input.companyId),
         inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
-        ne(tripDocuments.tripId, input.excludeTripId),
+        ...(input.excludeTripId === undefined
+          ? []
+          : [ne(tripDocuments.tripId, input.excludeTripId)]),
         isNull(tripDocuments.releasedAt),
         isNull(tripDocuments.deliveredAt),
       ),
@@ -290,4 +293,44 @@ export async function repointPendingCanhotoPickups(
         eq(tripCanhotoPickups.status, 'pending'),
       ),
     )
+}
+
+/**
+ * Depois que a nota com canhoto retido ganhou vínculo novo (acréscimo à viagem que já saiu), a coleta aberta passa a
+ * apontar para o vínculo **vivo**: o liberado só existe como histórico. Idempotente.
+ */
+export async function repointPendingCanhotoPickupsToLiveLinks(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly nfeDocumentIds: readonly string[] },
+): Promise<void> {
+  if (input.nfeDocumentIds.length === 0) return
+  const rows = await queryable
+    .select({
+      nfeDocumentId: tripDocuments.nfeDocumentId,
+      releasedAt: tripDocuments.releasedAt,
+      tripDocumentId: tripDocuments.id,
+    })
+    .from(tripDocuments)
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+      ),
+    )
+  const liveByNfe = new Map<string, string>()
+  for (const row of rows) {
+    if (row.releasedAt === null && row.nfeDocumentId !== null) {
+      liveByNfe.set(row.nfeDocumentId, row.tripDocumentId)
+    }
+  }
+  for (const row of rows) {
+    if (row.releasedAt === null || row.nfeDocumentId === null) continue
+    const live = liveByNfe.get(row.nfeDocumentId)
+    if (live === undefined) continue
+    await repointPendingCanhotoPickups(queryable, {
+      companyId: input.companyId,
+      fromTripDocumentId: row.tripDocumentId,
+      toTripDocumentId: live,
+    })
+  }
 }

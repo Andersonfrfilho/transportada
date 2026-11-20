@@ -175,4 +175,30 @@ describe('link trip documents batch route recalculation (D6)', () => {
 
     expect(result.linked).toHaveLength(1)
   })
+
+  /** Spec 321 (emenda): quem move a nota com canhoto retido é o usuário do contexto; sem ele, nada se move. */
+  test('passes the acting user down, and omits it when the context has none', async () => {
+    const seen: (string | undefined)[] = []
+    const useCase = createLinkTripDocumentsBatchUseCase({
+      repository: {
+        async linkDocumentsBatch(input) {
+          seen.push(input.actorUserId)
+          return { linked: [], skipped: [], tripStatus: 'draft' }
+        },
+      },
+    })
+
+    await useCase.execute({
+      context: { companyId: COMPANY_ID, userId: 'user-1' },
+      nfeDocumentIds: ['doc-a'],
+      tripId: TRIP_ID,
+    })
+    await useCase.execute({
+      context: { companyId: COMPANY_ID },
+      nfeDocumentIds: ['doc-a'],
+      tripId: TRIP_ID,
+    })
+
+    expect(seen).toEqual(['user-1', undefined])
+  })
 })
