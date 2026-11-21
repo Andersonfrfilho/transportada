@@ -10,11 +10,22 @@
  * - o pagamento de motorista (`in_trip`) só entra pelo excedente sobre as viagens incluídas (§5): o custo do motorista
  *   mora uma vez, nas parcelas `driver`/`helper` da viagem;
  * - trocar o critério muda a divisão, nunca o total (§2, CA08).
+ *
+ * A regra mora no SDK (`@adatechnology/expense-contracts`, vocabulário genérico: unidade e bem). Aqui fica o adaptador
+ * fino: viagem → unidade e veículo → bem na entrada, e os nomes da transportada de volta na saída. O banco continua
+ * gravando `per_km`, `per_trip_day`, `in_trip` e `vehicle_fixed`; a tradução é só desta borda.
  */
-import type { ExpenseTripRoute } from './expense-trip-route.policy.js'
+import {
+  type AllocationCriterion as SdkCriterion,
+  type AllocationExpense as SdkExpense,
+  type AllocationSettings as SdkSettings,
+  type AllocationUnit,
+  allocateExpenses as sdkAllocateExpenses,
+  type ExpenseCostGroup as SdkCostGroup,
+  type UnallocatedReason as SdkReason,
+} from '@adatechnology/expense-contracts'
 
-import { distributeByWeight } from '../../shared/proportional-split.policy.js'
-import { formatCents, parseMoneyToCents } from './expense-money.policy.js'
+import type { ExpenseTripRoute } from './expense-trip-route.policy.js'
 
 export type ExpenseCostGroup = 'administrative' | 'in_trip' | 'per_km' | 'vehicle_fixed'
 /** O grupo `in_trip` não é rateado: o custo já está na viagem (ADR-0116 §1, §5). */
@@ -82,121 +93,81 @@ export type AllocationResult = {
   readonly unallocated: readonly AllocationUnallocated[]
 }
 
+const COST_GROUP_TO_SDK: Readonly<Record<ExpenseCostGroup, SdkCostGroup>> = {
+  administrative: 'administrative',
+  in_trip: 'in_unit',
+  per_km: 'per_distance',
+  vehicle_fixed: 'asset_fixed',
+}
+
+const CRITERION_TO_SDK: Readonly<Record<AllocationCriterion, SdkCriterion>> = {
+  equal: 'equal',
+  per_km: 'per_distance',
+  per_revenue: 'per_revenue',
+  per_trip_day: 'per_unit_day',
+}
+
+const CRITERION_FROM_SDK: Readonly<Record<SdkCriterion, AllocationCriterion>> = {
+  equal: 'equal',
+  per_distance: 'per_km',
+  per_revenue: 'per_revenue',
+  per_unit_day: 'per_trip_day',
+}
+
+const REASON_FROM_SDK: Readonly<Record<SdkReason, UnallocatedReason>> = {
+  asset_without_units: 'vehicle_without_trips',
+  no_unit_weight: 'no_trip_weight',
+}
+
+export const ALLOCATION_TRANSLATION = {
+  costGroupToSdk: COST_GROUP_TO_SDK,
+  criterionFromSdk: CRITERION_FROM_SDK,
+  criterionToSdk: CRITERION_TO_SDK,
+  reasonFromSdk: REASON_FROM_SDK,
+} as const
+
 export function allocateExpenses(input: {
   readonly expenses: readonly AllocationExpense[]
   readonly settings: AllocationSettings
   readonly trips: readonly AllocationTrip[]
 }): AllocationResult {
-  const trips = [...input.trips].sort(compareTrips)
-  const excesses: { amount: string; occurrenceId: string }[] = []
-  const shares: AllocationShare[] = []
-  const unallocated: AllocationUnallocated[] = []
-
-  for (const expense of input.expenses) {
-    const considered = requireCents(expense.amount, `amount of ${expense.occurrenceId}`)
-    let amount = considered
-    let group: AllocatableCostGroup
-    let vehicleId = expense.vehicleId
-
-    if (expense.costGroup === 'in_trip') {
-      // §5: a parte coberta pelas viagens incluídas já está no custo delas; abaixo delas não há crédito.
-      const included = requireCents(
-        expense.includedTripsAmount ?? '0',
-        `includedTripsAmount of ${expense.occurrenceId}`,
-      )
-      amount = considered > included ? considered - included : 0n
-      if (amount === 0n) continue
-      excesses.push({ amount: formatCents(amount), occurrenceId: expense.occurrenceId })
-      // O excedente é conta da empresa, no grupo administrativo, entre as viagens de todos os veículos.
-      group = 'administrative'
-      vehicleId = null
-    } else {
-      group = expense.costGroup
-    }
-
-    if (amount === 0n) continue
-
-    const eligible = vehicleId === null ? trips : trips.filter((t) => t.vehicleId === vehicleId)
-    if (vehicleId !== null && eligible.length === 0) {
-      unallocated.push({
-        amount: formatCents(amount),
-        occurrenceId: expense.occurrenceId,
-        reason: 'vehicle_without_trips',
-        vehicleId,
-      })
-      continue
-    }
-
-    const criterion = input.settings[group]
-    const weights = eligible.map((trip) => weightOf(trip, criterion))
-    if (weights.every((weight) => weight === 0n)) {
-      unallocated.push({
-        amount: formatCents(amount),
-        occurrenceId: expense.occurrenceId,
-        reason: 'no_trip_weight',
-        vehicleId,
-      })
-      continue
-    }
-
-    const scope = vehicleId === null ? 'general' : 'vehicle'
-    distributeByWeight(amount, weights).forEach((part, index) => {
-      const trip = eligible[index]
-      if (part === 0n || trip === undefined) return
-      shares.push({
-        amount: formatCents(part),
-        occurrenceId: expense.occurrenceId,
-        scope,
-        tripId: trip.tripId,
-      })
-    })
+  const settings: SdkSettings = {
+    administrative: CRITERION_TO_SDK[input.settings.administrative],
+    asset_fixed: CRITERION_TO_SDK[input.settings.vehicle_fixed],
+    per_distance: CRITERION_TO_SDK[input.settings.per_km],
   }
-
-  return { excesses, shares, unallocated }
-}
-
-/** Ordem estável (§6): data de conclusão, depois `id`; o empate do resto cai sempre na mesma viagem. */
-function compareTrips(left: AllocationTrip, right: AllocationTrip): number {
-  if (left.completedOn !== right.completedOn) return left.completedOn < right.completedOn ? -1 : 1
-  if (left.tripId === right.tripId) return 0
-  return left.tripId < right.tripId ? -1 : 1
-}
-
-/** Peso da viagem pelo critério (§2). Sem o dado (zero, negativo ou ilegível), peso zero: as outras absorvem. */
-function weightOf(trip: AllocationTrip, criterion: AllocationCriterion): bigint {
-  switch (criterion) {
-    case 'equal':
-      return 1n
-    case 'per_km':
-      return positiveWhole(trip.distanceMeters)
-    case 'per_trip_day':
-      return positiveWhole(trip.daysCount)
-    case 'per_revenue':
-      return revenueWeight(trip.revenue)
+  const units: AllocationUnit[] = input.trips.map((trip) => ({
+    assetId: trip.vehicleId,
+    completedOn: trip.completedOn,
+    daysCount: trip.daysCount,
+    distanceMeters: trip.distanceMeters,
+    revenue: trip.revenue,
+    unitId: trip.tripId,
+  }))
+  const expenses: SdkExpense[] = input.expenses.map((expense) => ({
+    amount: expense.amount,
+    assetId: expense.vehicleId,
+    costGroup: COST_GROUP_TO_SDK[expense.costGroup],
+    expenseId: expense.expenseId,
+    ...(expense.includedTripsAmount === undefined
+      ? {}
+      : { includedUnitsAmount: expense.includedTripsAmount }),
+    occurrenceId: expense.occurrenceId,
+  }))
+  const result = sdkAllocateExpenses({ expenses, settings, units })
+  return {
+    excesses: result.excesses,
+    shares: result.shares.map((share) => ({
+      amount: share.amount,
+      occurrenceId: share.occurrenceId,
+      scope: share.scope === 'asset' ? 'vehicle' : 'general',
+      tripId: share.unitId,
+    })),
+    unallocated: result.unallocated.map((item) => ({
+      amount: item.amount,
+      occurrenceId: item.occurrenceId,
+      reason: REASON_FROM_SDK[item.reason],
+      vehicleId: item.assetId,
+    })),
   }
-}
-
-function positiveWhole(value: number): bigint {
-  return Number.isFinite(value) && value > 0 ? BigInt(Math.round(value)) : 0n
-}
-
-/**
- * A receita é só peso, então aceita as quatro casas de `numeric(19,4)` como vêm do banco, sem arredondar: o peso de
- * `'1000.0000'` e de `'1000.00'` é o mesmo. Negativa ou ilegível pesa zero (a viagem sem CT-e não puxa conta).
- */
-function revenueWeight(value: string): bigint {
-  const match = /^(\d+)(?:\.(\d{1,4}))?$/.exec(value.trim())
-  if (match?.[1] === undefined) return 0n
-  return BigInt(match[1]) * 10_000n + BigInt((match[2] ?? '').padEnd(4, '0'))
-}
-
-/**
- * Valor de conta em centavos. Aceita as quatro casas do banco só quando as duas últimas são zero (`'10.5000'`): a conta
- * da empresa é digitada com duas casas, e arredondar aqui faria a soma deixar de bater com Contas. Ilegível é defeito de
- * quem montou a entrada, nunca zero silencioso.
- */
-function requireCents(value: string, label: string): bigint {
-  const cents = parseMoneyToCents(value.trim().replace(/^(\d+\.\d{2})0{1,2}$/, '$1'))
-  if (cents === null) throw new Error(`expense allocation: invalid money in ${label}`)
-  return cents
 }
