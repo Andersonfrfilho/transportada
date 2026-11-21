@@ -156,7 +156,7 @@ export function UnassignedMessages({
         ) : null}
       </div>
       {confirming ? (
-        <div className={styles.footer} role="group">
+        <div aria-label={t('unassigned.dismissAll')} className={styles.footer} role="group">
           <p className={styles.hint}>
             {t('unassigned.dismissAllConfirm', { count: items.length })}
           </p>
