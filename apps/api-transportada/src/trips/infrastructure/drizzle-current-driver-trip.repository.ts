@@ -64,6 +64,7 @@ import {
 } from '../domain/canhoto-recapture.policy.js'
 import type { OccurrenceTypeRecord } from '../application/register-trip-occurrence.use-case.js'
 import {
+  requirePhotoForRetainedCanhoto,
   resolveProofSettingsForRecipient,
   type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
@@ -92,6 +93,7 @@ import {
 } from '../domain/delivery-event.constant.js'
 import { isStopAddressReliable } from '../domain/stop-address-reliability.policy.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
+import { loadCanhotoRetainedNfeDocumentIds } from './canhoto-pickup.query.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 import {
@@ -360,7 +362,12 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     const nfeDocumentIds = documentRows
       .map((row) => row.nfeDocumentId)
       .filter((documentId): documentId is string => documentId !== null)
-    const [volumesByDocument, photoPresenceByDocument, productsByNfeDocument] = await Promise.all([
+    const [
+      volumesByDocument,
+      photoPresenceByDocument,
+      productsByNfeDocument,
+      retainedNfeDocumentIds,
+    ] = await Promise.all([
       this.sumVolumes({ companyId: input.companyId, nfeDocumentIds }),
       this.listDeliveryPhotoPresence({
         companyId: input.companyId,
@@ -376,11 +383,17 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         this.warnProductsReadFailed({ companyId: input.companyId, nfeDocumentIds, tripIds })
         return null
       }),
+      /** Spec 321: a NF-e com canhoto retido aberto só se entrega com a foto do canhoto. */
+      loadCanhotoRetainedNfeDocumentIds(this.database, {
+        companyId: input.companyId,
+        nfeDocumentIds,
+      }),
     ])
     const documentsByStop = groupBy(
       documentRows.map((row) => ({
         ...row,
         hasDeliveryPhoto: photoPresenceByDocument.get(row.id) ?? false,
+        isCanhotoRetained: retainedNfeDocumentIds.has(row.nfeDocumentId ?? ''),
         ...(productsByNfeDocument === null
           ? {}
           : { products: productsByNfeDocument.get(row.nfeDocumentId ?? '') ?? [] }),
@@ -1146,6 +1159,8 @@ type DocumentRow = {
   readonly deliveredAt: Date | null
   readonly hasDeliveryPhoto: boolean
   readonly id: string
+  /** Spec 321: a NF-e tem canhoto retido aberto — a foto passa a ser obrigatória. */
+  readonly isCanhotoRetained?: boolean
   readonly number: string | null
   /** Spec 247 (T4.6): ausente quando a leitura dos produtos falhou nesta chamada. */
   readonly products?: readonly DriverDocumentProduct[]
@@ -1202,11 +1217,14 @@ function toDriverDocument(
   // Spec 082 (revisão) / spec 218 (RF-C3): resolvido pelo CNPJ do destinatário e pelo contratante
   // (emitente) DESTE documento — a mesma regra da escrita do comprovante, via
   // `resolveProofSettingsForRecipient`. Destinatário vence contratante quando os dois se aplicam.
-  const deliveryProof = resolveProofSettingsForRecipient({
-    contractorId: row.contractorId,
-    lookup: proofSettings,
-    recipientTaxId: row.recipientTaxId ?? '',
-  })
+  const deliveryProof = requirePhotoForRetainedCanhoto(
+    resolveProofSettingsForRecipient({
+      contractorId: row.contractorId,
+      lookup: proofSettings,
+      recipientTaxId: row.recipientTaxId ?? '',
+    }),
+    row.isCanhotoRetained === true,
+  )
   // Spec 218 RF-B2 (follow-up): mesma resolução de 3 camadas, agora para o `attachmentMode` dos
   // tipos de ocorrência de nota. Os de parada (`flow: 'stop'`) ficam fora — sem contratante nem
   // destinatário únicos, continuam pela rota de catálogo sem exceção. `null` quando a carga de

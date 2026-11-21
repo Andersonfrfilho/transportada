@@ -24,7 +24,9 @@ import {
 import {
   canhotoPickupOnlyDocument,
   createPendingCanhotoPickup,
+  isDocumentCanhotoRetainedByNote,
   listMovableCanhotoRetainedLinks,
+  loadCanhotoRetainedNfeDocumentIds,
 } from '../../src/trips/infrastructure/canhoto-pickup.query.js'
 import { DrizzleDriverFieldReportTransaction } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleNfeDocumentRepository } from '../../src/nfe-documents/infrastructure/drizzle-nfe-document.repository.js'
@@ -514,6 +516,49 @@ describe('a nota com canhoto retido fica livre para outra viagem (spec 321, emen
 
       expect((await readPickup(world, retained.pickupId))?.status).toBe('pending')
       expect((await readPickup(world, other.pickupId))?.status).toBe('collected')
+    },
+    TEST_TIMEOUT_MS,
+  )
+})
+
+describe('canhoto retido exige a foto na entrega da nota (21/11/2026)', () => {
+  testWithPostgres(
+    'a nota (e a NF-e) com coleta aberta é retida; coletada ou cancelada deixa de ser',
+    async () => {
+      const world = await seedOnRoadTrip(db())
+      const retained = await seedRetainedNote(world)
+      const companyId = world.trip.companyId
+
+      expect(
+        await isDocumentCanhotoRetainedByNote(world.database.db, {
+          companyId,
+          documentId: retained.originDocumentId,
+        }),
+      ).toBe(true)
+      const ids = await loadCanhotoRetainedNfeDocumentIds(world.database.db, {
+        companyId,
+        nfeDocumentIds: [retained.nfeDocumentId, crypto.randomUUID()],
+      })
+      expect([...ids]).toEqual([retained.nfeDocumentId])
+
+      await world.database.db
+        .update(tripCanhotoPickups)
+        .set({ collectedAt: new Date(), status: 'collected' })
+        .where(eq(tripCanhotoPickups.id, retained.pickupId))
+      expect(
+        await isDocumentCanhotoRetainedByNote(world.database.db, {
+          companyId,
+          documentId: retained.originDocumentId,
+        }),
+      ).toBe(false)
+      expect(
+        (
+          await loadCanhotoRetainedNfeDocumentIds(world.database.db, {
+            companyId,
+            nfeDocumentIds: [retained.nfeDocumentId],
+          })
+        ).size,
+      ).toBe(0)
     },
     TEST_TIMEOUT_MS,
   )

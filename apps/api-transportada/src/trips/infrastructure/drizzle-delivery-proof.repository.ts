@@ -39,6 +39,7 @@ import { DeliveryProofEventVanishedError } from '../domain/delivery-proof-event.
 import { DELIVERED_EVENT_KIND } from '../domain/delivery-event.constant.js'
 import {
   DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+  requirePhotoForRetainedCanhoto,
   resolveProofSettingsForRecipient,
   type DeliveryProofFieldSettings,
   type DeliveryProofPunctualitySettings,
@@ -46,6 +47,7 @@ import {
 import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
 import { DRIVER_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { CanhotoDuplicateError } from '../application/canhoto-duplicate.error.js'
+import { isDocumentCanhotoRetainedByNote } from './canhoto-pickup.query.js'
 import { findCanhotoByHash } from './canhoto-duplicate.query.js'
 import { findDocumentOccurrenceSubject } from './document-occurrence-subject.query.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
@@ -161,7 +163,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     ])
 
     /** Spec 082 (revisão) / 218: a mesma regra do snapshot do motorista — um único lugar decide. */
-    return resolveProofSettingsForRecipient({
+    const resolved = resolveProofSettingsForRecipient({
       contractorId,
       lookup: {
         general: general ?? null,
@@ -176,6 +178,11 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
       },
       recipientTaxId,
     })
+    /** Spec 321: nota com canhoto retido aberto só se entrega com a foto do canhoto, em qualquer canal. */
+    return requirePhotoForRetainedCanhoto(
+      resolved,
+      await isDocumentCanhotoRetainedByNote(this.database, input),
+    )
   }
 
   /**

@@ -1592,3 +1592,12 @@ O painel passa a permitir ao escritório **substituir a foto do comprovante que 
 - Merge `7e567220` na `main` (merge commit do PR #914, que incluiu o #912). O run `Deploy push` 44616707941 terminou com sucesso: gate completo e deploy de api, frontend, driver, client, landing, worker e cron.
 - **Nenhuma migration, variável de ambiente ou comando de produção** nesta promoção. Não há nada a rodar depois do deploy.
 - Não foi testado com um comprovante real em produção: a conferência fica para o primeiro caso de comprovante errado de um motorista (abrir a viagem → comprovante da entrega → "Substituir comprovante").
+
+## Entrega da Única sem comprovante em staging (21/11/2026)
+
+Leitura somente leitura em staging com `tmp/ops/staging-unica-comprovante-diagnostico-v2.sh` (`railway ssh -s api -e staging`, `bun` com
+`DATABASE_URL`, saída em `tmp/ops/saidas/`). Achado: a NF 170572 foi baixada como entrega comum na viagem 934e853f com a foto
+"opcional" (configuração geral, sem exceção da Única), e `settleCanhotoPickupOnDelivery` resolveu a ocorrência de canhoto retido sem
+canhoto nenhum. Correção em código: nota com canhoto retido aberto exige a foto (`requirePhotoForRetainedCanhoto`). Configuração da Única
+em staging: `tmp/ops/staging-unica-so-canhoto.sh [--confirm]` (exceção da contratante `26344834000108`, foto obrigatória e o resto
+desligado; sem `--confirm` só simula e desfaz).

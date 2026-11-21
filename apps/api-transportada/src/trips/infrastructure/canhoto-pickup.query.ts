@@ -402,3 +402,67 @@ export async function loadCanhotoPickupOnlyDocumentIds(
     )
   return new Set(rows.map((row) => row.id))
 }
+
+/**
+ * A nota (pela NF-e, como a entrega que fecha a coleta) tem canhoto retido aberto (`pending | scheduled`, ocorrência não
+ * cancelada)? Quem baixa essa nota entrega o canhoto que o cliente segurou: a foto passa a ser exigida, qualquer que seja
+ * a configuração do comprovante (a baixa sem foto resolvia a ocorrência sem canhoto nenhum). Só lê.
+ */
+export async function isDocumentCanhotoRetainedByNote(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly documentId: string },
+): Promise<boolean> {
+  const rows = await queryable
+    .select({ id: tripCanhotoPickups.id })
+    .from(tripCanhotoPickups)
+    .innerJoin(
+      tripDocumentOccurrences,
+      and(
+        eq(tripDocumentOccurrences.companyId, tripCanhotoPickups.companyId),
+        eq(tripDocumentOccurrences.id, tripCanhotoPickups.occurrenceId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        inArray(tripCanhotoPickups.status, [...CANHOTO_PICKUP_OPEN_STATUSES]),
+        isNull(tripDocumentOccurrences.cancelledAt),
+        or(
+          eq(tripCanhotoPickups.originTripDocumentId, input.documentId),
+          sql`${tripCanhotoPickups.nfeDocumentId} = (
+            select ${tripDocuments.nfeDocumentId} from ${tripDocuments}
+            where ${tripDocuments.companyId} = ${input.companyId} and ${tripDocuments.id} = ${input.documentId}
+          )`,
+        ),
+      ),
+    )
+    .limit(1)
+  return rows.length > 0
+}
+
+/** A versão em lote, por NF-e, para o snapshot do motorista: as NF-e com canhoto retido aberto. */
+export async function loadCanhotoRetainedNfeDocumentIds(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly nfeDocumentIds: readonly string[] },
+): Promise<ReadonlySet<string>> {
+  if (input.nfeDocumentIds.length === 0) return new Set()
+  const rows = await queryable
+    .select({ nfeDocumentId: tripCanhotoPickups.nfeDocumentId })
+    .from(tripCanhotoPickups)
+    .innerJoin(
+      tripDocumentOccurrences,
+      and(
+        eq(tripDocumentOccurrences.companyId, tripCanhotoPickups.companyId),
+        eq(tripDocumentOccurrences.id, tripCanhotoPickups.occurrenceId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        inArray(tripCanhotoPickups.status, [...CANHOTO_PICKUP_OPEN_STATUSES]),
+        isNull(tripDocumentOccurrences.cancelledAt),
+        inArray(tripCanhotoPickups.nfeDocumentId, [...input.nfeDocumentIds]),
+      ),
+    )
+  return new Set(rows.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId])))
+}
