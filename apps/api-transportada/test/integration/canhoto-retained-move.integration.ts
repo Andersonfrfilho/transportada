@@ -8,7 +8,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 import type { DrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { tripOccurrenceResolutionEvents } from '../../src/database/occurrence-conversation.schema.js'
 import { deliveryClients } from '../../src/database/database.schema.js'
@@ -327,11 +327,27 @@ describe('a nota com canhoto retido fica livre para outra viagem (spec 321, emen
       const live = await liveLinkOf(world, targetTripId, retained.nfeDocumentId)
       expect(await onlyPickupIds()).toContain(live?.id ?? '')
 
+      /** A negação do predicado é o que as leituras de carga usam: nota entregue sem coleta segue contada. */
+      const cargoIds = async (): Promise<readonly string[]> =>
+        (
+          await world.database.db
+            .select({ id: tripDocuments.id })
+            .from(tripDocuments)
+            .where(
+              and(
+                eq(tripDocuments.companyId, world.trip.companyId),
+                sql`not ${canhotoPickupOnlyDocument()}`,
+              ),
+            )
+        ).map((row) => row.id)
+      expect(await cargoIds()).not.toContain(live?.id ?? '')
+
       await world.database.db
         .update(tripDocuments)
         .set({ deliveredAt: new Date() })
         .where(eq(tripDocuments.id, live?.id ?? ''))
       expect(await onlyPickupIds()).not.toContain(live?.id ?? '')
+      expect(await cargoIds()).toContain(live?.id ?? '')
     },
     TEST_TIMEOUT_MS,
   )

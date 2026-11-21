@@ -377,5 +377,5 @@ export function canhotoPickupOnlyDocument(): SQL {
     CANHOTO_PICKUP_OPEN_STATUSES.map((status) => sql`${status}`),
     sql`, `,
   )
-  return sql`exists (select 1 from ${tripCanhotoPickups} inner join ${tripDocumentOccurrences} on ${tripDocumentOccurrences.companyId} = ${tripCanhotoPickups.companyId} and ${tripDocumentOccurrences.id} = ${tripCanhotoPickups.occurrenceId} where ${tripCanhotoPickups.companyId} = ${tripDocuments.companyId} and ${tripCanhotoPickups.originTripDocumentId} = ${tripDocuments.id} and ${tripCanhotoPickups.status} in (${openStatuses}) and ${tripDocumentOccurrences.cancelledAt} is null) and ${tripDocuments.deliveredAt} is null`
+  return sql`(exists (select 1 from ${tripCanhotoPickups} inner join ${tripDocumentOccurrences} on ${tripDocumentOccurrences.companyId} = ${tripCanhotoPickups.companyId} and ${tripDocumentOccurrences.id} = ${tripCanhotoPickups.occurrenceId} where ${tripCanhotoPickups.companyId} = ${tripDocuments.companyId} and ${tripCanhotoPickups.originTripDocumentId} = ${tripDocuments.id} and ${tripCanhotoPickups.status} in (${openStatuses}) and ${tripDocumentOccurrences.cancelledAt} is null) and ${tripDocuments.deliveredAt} is null)`
 }
