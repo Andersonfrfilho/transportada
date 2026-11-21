@@ -54,6 +54,7 @@ import type {
 } from '../application/trip.port.js'
 import {
   TripDocumentAlreadyLinkedError,
+  TripDocumentCanhotoPickupOnlyError,
   TripDocumentNotFoundError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
@@ -113,6 +114,7 @@ import { readTripStopHolidayWarnings } from './trip-holiday-warning.support.js'
 import { loadTripDocumentIdsWithOpenOccurrenceCase } from './occurrence-case-marker.query.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import {
+  hasOpenCanhotoPickupOnDeliveredLink,
   listMovableCanhotoRetainedLinks,
   loadCanhotoRetainedDocumentIds,
   repointPendingCanhotoPickups,
@@ -823,6 +825,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   }
 
   public async linkDocument(input: {
+    readonly actorUserId?: string
     readonly companyId: string
     readonly freightCalculationId: string | null
     readonly nfeDocumentId: string | null
@@ -843,6 +846,31 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       const blockReason = checkTripAcceptsLinkage(tripRow.status)
       if (blockReason !== null) throw new TripStateTransitionNotAllowedError(blockReason)
 
+      /**
+       * Spec 321 (emenda): a nota não entregue com canhoto retido aberto sai da viagem de origem e entra aqui (a coleta a
+       * acompanha). A já entregue não se move (D3): quem entra é a coleta, e a recusa diz isso em vez de "já vinculada".
+       */
+      let movedFromDocumentId: string | undefined
+      if (input.nfeDocumentId !== null) {
+        if (input.actorUserId !== undefined) {
+          const moved = await this.moveCanhotoRetainedLinks(transaction, {
+            actorUserId: input.actorUserId,
+            companyId: input.companyId,
+            nfeDocumentIds: [input.nfeDocumentId],
+            tripId: input.tripId,
+          })
+          movedFromDocumentId = moved.get(input.nfeDocumentId)
+        }
+        if (
+          await hasOpenCanhotoPickupOnDeliveredLink(transaction, {
+            companyId: input.companyId,
+            nfeDocumentId: input.nfeDocumentId,
+          })
+        ) {
+          throw new TripDocumentCanhotoPickupOnlyError()
+        }
+      }
+
       const record = await runGuarded(async () => {
         const [created] = await transaction
           .insert(tripDocuments)
@@ -856,6 +884,13 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         return created
       })
       if (record === undefined) throw new Error('TRIP_DOCUMENT_LINK_FAILED')
+      if (movedFromDocumentId !== undefined) {
+        await repointPendingCanhotoPickups(transaction, {
+          companyId: input.companyId,
+          fromTripDocumentId: movedFromDocumentId,
+          toTripDocumentId: record.id,
+        })
+      }
 
       const { destinationOrigin, stopId } = await reconcileLinkedDocumentStop(transaction, {
         companyId: input.companyId,

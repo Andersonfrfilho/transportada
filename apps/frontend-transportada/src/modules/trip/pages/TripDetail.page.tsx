@@ -64,12 +64,22 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
   })
   const linkForm = useTripDocumentLinkForm({
     availableDocuments: availableDocumentsQuery.data ?? [],
-    linkScannedDocument: ({ documentId }) =>
-      workspace.linkDocumentMutation.mutateAsync({
-        freightCalculationId: null,
-        nfeDocumentId: documentId,
-        tripId,
-      }),
+    linkScannedDocument: async ({ documentId }) => {
+      try {
+        return await workspace.linkDocumentMutation.mutateAsync({
+          freightCalculationId: null,
+          nfeDocumentId: documentId,
+          tripId,
+        })
+      } catch (error) {
+        /**
+         * A recusa da nota lida já aparece na linha dela em "Notas lidas". Deixar o erro na mutation o repetia
+         * no alerta de cima da tela, junto dos botões da conferência, como se fosse da viagem.
+         */
+        workspace.linkDocumentMutation.reset()
+        throw error
+      }
+    },
   })
 
   const financials = useTripFinancials({ permissions, tripId })

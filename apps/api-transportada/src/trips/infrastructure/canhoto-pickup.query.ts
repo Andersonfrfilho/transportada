@@ -334,3 +334,34 @@ export async function repointPendingCanhotoPickupsToLiveLinks(
     })
   }
 }
+
+/**
+ * Spec 321: a nota **entregue** (D3) com coleta de canhoto aberta (`pending` ou `scheduled`) — ela não volta como nota
+ * em outra viagem; o caminho é encaixar a coleta. As não entregues são as `listMovableCanhotoRetainedLinks`.
+ */
+export async function hasOpenCanhotoPickupOnDeliveredLink(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly nfeDocumentId: string },
+): Promise<boolean> {
+  const [row] = await queryable
+    .select({ id: tripCanhotoPickups.id })
+    .from(tripCanhotoPickups)
+    .innerJoin(
+      tripDocuments,
+      and(
+        eq(tripDocuments.companyId, tripCanhotoPickups.companyId),
+        eq(tripDocuments.id, tripCanhotoPickups.originTripDocumentId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        eq(tripCanhotoPickups.nfeDocumentId, input.nfeDocumentId),
+        inArray(tripCanhotoPickups.status, ['pending', 'scheduled']),
+        isNull(tripDocuments.releasedAt),
+        sql`${tripDocuments.deliveredAt} is not null`,
+      ),
+    )
+    .limit(1)
+  return row !== undefined
+}
