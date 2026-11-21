@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { deliveryCharges } from '../../database/delivery-client.schema.js'
-import { tripDocuments, tripStopOccurrences, tripStops } from '../../database/trip.schema.js'
+import { tripDocuments, tripStops } from '../../database/trip.schema.js'
 import { logStopRemindersRemovedWithStop } from '../../driver-stop-reminders/infrastructure/log-stop-reminders-removed-with-stop.persistence.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import type { TripStopReconciliationPort } from '../application/reconcile-trip-stops.use-case.js'
@@ -41,17 +41,10 @@ export function createTripStopReconciliationPort(
       const [charge] = await transaction
         .select({ id: deliveryCharges.id })
         .from(deliveryCharges)
-        .innerJoin(
-          tripStopOccurrences,
-          and(
-            eq(tripStopOccurrences.companyId, deliveryCharges.companyId),
-            eq(tripStopOccurrences.id, deliveryCharges.stopOccurrenceId),
-          ),
-        )
         .where(
           and(
             eq(deliveryCharges.companyId, input.companyId),
-            eq(tripStopOccurrences.stopId, input.stopId),
+            sql`${deliveryCharges.stopOccurrenceId} in (select id from trip_stop_occurrences where company_id = ${input.companyId} and stop_id = ${input.stopId})`,
           ),
         )
         .limit(1)
