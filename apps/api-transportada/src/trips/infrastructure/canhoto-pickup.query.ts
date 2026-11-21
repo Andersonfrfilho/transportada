@@ -466,3 +466,22 @@ export async function loadCanhotoRetainedNfeDocumentIds(
     )
   return new Set(rows.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId])))
 }
+
+/**
+ * A versão em SQL de `loadCanhotoRetainedNfeDocumentIds`, para os filtros que não carregam linhas (o `proofPendingEq` da
+ * lista de viagens): existe coleta aberta, de ocorrência não cancelada, para a NF-e da nota?
+ */
+export function openCanhotoPickupForNfeCondition(input: {
+  readonly companyId: SQL
+  readonly nfeDocumentId: SQL
+}): SQL {
+  return sql`exists (select 1 from ${tripCanhotoPickups} inner join ${tripDocumentOccurrences} on ${and(
+    eq(tripDocumentOccurrences.companyId, tripCanhotoPickups.companyId),
+    eq(tripDocumentOccurrences.id, tripCanhotoPickups.occurrenceId),
+  )} where ${and(
+    sql`${tripCanhotoPickups.companyId} = ${input.companyId}`,
+    sql`${tripCanhotoPickups.nfeDocumentId} = ${input.nfeDocumentId}`,
+    inArray(tripCanhotoPickups.status, [...CANHOTO_PICKUP_OPEN_STATUSES]),
+    isNull(tripDocumentOccurrences.cancelledAt),
+  )})`
+}

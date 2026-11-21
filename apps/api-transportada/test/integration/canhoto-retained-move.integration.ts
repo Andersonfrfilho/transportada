@@ -32,6 +32,11 @@ import {
   loadCanhotoRetainedNfeDocumentIds,
 } from '../../src/trips/infrastructure/canhoto-pickup.query.js'
 import { settleCanhotoPickupOnProofSaved } from '../../src/trips/infrastructure/canhoto-pickup-settle.support.js'
+import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
+import {
+  loadProofPendingDocumentIds,
+  tripHasProofPendingDocumentCondition,
+} from '../../src/trips/infrastructure/proof-pending.query.js'
 import { DrizzleDriverFieldReportTransaction } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleNfeDocumentRepository } from '../../src/nfe-documents/infrastructure/drizzle-nfe-document.repository.js'
 import type { NfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
@@ -643,6 +648,66 @@ describe('canhoto retido exige a foto na entrega da nota (21/11/2026)', () => {
       expect(await readResolutionEvents(world, retained.pickupId)).toEqual([
         { actorKind: 'system', kind: 'resolved' },
       ])
+    },
+    TEST_TIMEOUT_MS,
+  )
+  testWithPostgres(
+    'a baixa sem foto é pendência mesmo com a foto opcional; o anexo pelo repositório fecha a coleta',
+    async () => {
+      const world = await seedOnRoadTrip(db())
+      const retained = await seedRetainedNote(world)
+      const companyId = world.trip.companyId
+      const eventId = await recordDeliveredEvent(world, retained.originDocumentId)
+      await deliver(world, retained.originDocumentId)
+
+      // Sem configuração nenhuma a foto é opcional; a retenção a exige e a baixa sem ela vira pendência.
+      expect([
+        ...(await loadProofPendingDocumentIds(world.database.db, {
+          companyId,
+          tripDocumentIds: [retained.originDocumentId],
+        })),
+      ]).toEqual([retained.originDocumentId])
+      const pendingTrips = await world.database.db
+        .select({ id: trips.id })
+        .from(trips)
+        .where(and(eq(trips.id, world.trip.tripId), tripHasProofPendingDocumentCondition()))
+      expect(pendingTrips).toHaveLength(1)
+
+      const objectId = crypto.randomUUID()
+      await new DrizzleDeliveryProofRepository(world.database.db, 'test-bucket').saveProof({
+        accuracyMeters: null,
+        actorUserId: world.trip.userId,
+        attachmentKey: crypto.randomUUID(),
+        authorship: { channel: 'driver_app', onBehalfOfDriverId: null },
+        capturedAt: null,
+        companyId,
+        eventId,
+        id: crypto.randomUUID(),
+        kind: 'photo',
+        lateRegistration: false,
+        latitude: null,
+        longitude: null,
+        mimeType: 'image/jpeg',
+        objectId,
+        objectKey: `tenants/test/${objectId}`,
+        punctuality: 'not_required',
+        receivedBy: null,
+        receivedByDetail: null,
+        receiverDocumentEnvelope: null,
+        receiverDocumentMasked: '',
+        receiverName: '',
+        settlesRetainedCanhoto: true,
+        sha256: objectId.replaceAll('-', '').padEnd(64, '0'),
+        sizeBytes: 10,
+      })
+
+      expect((await readPickup(world, retained.pickupId))?.status).toBe('collected')
+      expect(
+        await loadProofPendingDocumentIds(world.database.db, {
+          companyId,
+          tripDocumentIds: [retained.originDocumentId],
+        }),
+      ).toEqual(new Set())
     },
     TEST_TIMEOUT_MS,
   )

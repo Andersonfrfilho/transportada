@@ -444,6 +444,13 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       this.readProofSettings({ companyId: input.companyId }),
       this.readScoreEffectiveSince({ companyId: input.companyId }),
     ])
+    // 21/11/2026: nota com canhoto retido aberto exige a foto, e a baixa sem ela é pendência.
+    const retainedNfeDocumentIds = await loadCanhotoRetainedNfeDocumentIds(this.database, {
+      companyId: input.companyId,
+      nfeDocumentIds: rows.flatMap((row) =>
+        row.nfeDocumentId === null ? [] : [row.nfeDocumentId],
+      ),
+    })
 
     return rows.flatMap((row) => {
       const { deliveredAt } = row
@@ -466,11 +473,14 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       )
         return []
 
-      const deliveryProof = resolveProofSettingsForRecipient({
-        contractorId: row.contractorId,
-        lookup: proofSettings,
-        recipientTaxId: row.recipientTaxId ?? '',
-      })
+      const deliveryProof = requirePhotoForRetainedCanhoto(
+        resolveProofSettingsForRecipient({
+          contractorId: row.contractorId,
+          lookup: proofSettings,
+          recipientTaxId: row.recipientTaxId ?? '',
+        }),
+        retainedNfeDocumentIds.has(row.nfeDocumentId ?? ''),
+      )
       if (deliveryProof.photo !== REQUIRED_PROOF_FIELD_MODE) return []
 
       const rejection = resolveCanhotoRejection(recapture)
@@ -553,6 +563,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
         documentNumber: nfeDocuments.number,
         documentSeries: nfeDocuments.series,
         hasPhoto: sql<boolean>`${tripDeliveryProofs.id} is not null`,
+        nfeDocumentId: tripDocuments.nfeDocumentId,
         recipientName: nfeParticipants.legalName,
         recipientTaxId: nfeParticipants.taxId,
         recipientTradeName: nfeParticipants.tradeName,
