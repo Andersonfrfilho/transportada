@@ -373,9 +373,32 @@ export async function hasOpenCanhotoPickupOnDeliveredLink(
  * lê `trip_documents` direto; use `not ${...}` para ficar só com a carga de verdade.
  */
 export function canhotoPickupOnlyDocument(): SQL {
+  /** Coleta concluída (`collected`) com a nota ainda não entregue segue sendo só coleta: a foto e a conclusão não a tornam carga. */
   const openStatuses = sql.join(
-    CANHOTO_PICKUP_OPEN_STATUSES.map((status) => sql`${status}`),
+    [...CANHOTO_PICKUP_OPEN_STATUSES, 'collected'].map((status) => sql`${status}`),
     sql`, `,
   )
   return sql`(exists (select 1 from ${tripCanhotoPickups} inner join ${tripDocumentOccurrences} on ${tripDocumentOccurrences.companyId} = ${tripCanhotoPickups.companyId} and ${tripDocumentOccurrences.id} = ${tripCanhotoPickups.occurrenceId} where ${tripCanhotoPickups.companyId} = ${tripDocuments.companyId} and ${tripCanhotoPickups.originTripDocumentId} = ${tripDocuments.id} and ${tripCanhotoPickups.status} in (${openStatuses}) and ${tripDocumentOccurrences.cancelledAt} is null) and ${tripDocuments.deliveredAt} is null)`
+}
+
+/**
+ * Spec 321: ids dos vínculos "só coleta" entre os pedidos — a mesma definição de `canhotoPickupOnlyDocument`, lida em
+ * lote para a viagem inteira (peso e planta do detalhe saem da mesma fonte que as demais leituras).
+ */
+export async function loadCanhotoPickupOnlyDocumentIds(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly tripDocumentIds: readonly string[] },
+): Promise<ReadonlySet<string>> {
+  if (input.tripDocumentIds.length === 0) return new Set()
+  const rows = await queryable
+    .select({ id: tripDocuments.id })
+    .from(tripDocuments)
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.id, [...input.tripDocumentIds]),
+        canhotoPickupOnlyDocument(),
+      ),
+    )
+  return new Set(rows.map((row) => row.id))
 }
