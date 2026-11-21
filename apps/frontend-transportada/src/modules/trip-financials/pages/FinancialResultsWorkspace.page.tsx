@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { currentMonthPeriod } from '@/modules/expenses/shared/expensesResultView.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { formatMargin, isNegative } from '../shared/financialView.service'
@@ -26,8 +27,10 @@ export function FinancialResultsWorkspacePage() {
   const authQuery = useAuthMeQuery()
   const canRead = (authQuery.data?.data.permissions ?? []).includes(FINANCIALS_PERMISSION)
   const [groupBy, setGroupBy] = useState<FinancialSummaryGroup>('period')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+  // O acumulado abre no mês corrente: quem entra na tela já vê o número, e troca o período se quiser.
+  const [initialPeriod] = useState(() => currentMonthPeriod())
+  const [from, setFrom] = useState(initialPeriod.from)
+  const [to, setTo] = useState(initialPeriod.to)
 
   const summary = useQuery({
     enabled: canRead && from !== '' && to !== '',
