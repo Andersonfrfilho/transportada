@@ -14,6 +14,7 @@ import {
   tripCanhotoPickups,
   tripDocumentOccurrences,
   tripDocuments,
+  tripStopEvents,
   tripStops,
   trips,
 } from '../../database/trip.schema.js'
@@ -21,6 +22,7 @@ import {
   CANHOTO_PICKUP_OPEN_STATUSES,
   type CanhotoPickupStatus,
 } from '../../shared/canhoto-pickup.constant.js'
+import { DELIVERED_EVENT_KIND, PHOTO_PROOF_KIND } from '../domain/delivery-event.constant.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 /** O que a conferência fez com a coleta, para quem quiser contar (log, teste). */
@@ -288,13 +290,58 @@ export async function collectOpenPickup(
   return { kind: 'collected', pickupId: pickup.id, resolved: true }
 }
 
+/** A nota tem foto de canhoto gravada no evento de entrega (`delivered`) dela? Só lê. */
+async function hasDeliveredPhotoProof(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly documentId: string },
+): Promise<boolean> {
+  const rows = await queryable.execute<{ found: number }>(sql`
+    select 1 as found
+    from trip_delivery_proofs p
+    join trip_stop_events e on e.company_id = p.company_id and e.id = p.stop_event_id
+    where p.company_id = ${input.companyId}
+      and p.kind = ${PHOTO_PROOF_KIND}
+      and e.trip_document_id = ${input.documentId}
+      and e.kind = ${DELIVERED_EVENT_KIND}
+    limit 1
+  `)
+  return rows.length > 0
+}
+
 /**
  * A nota foi entregue (qualquer motorista, qualquer canal): a coleta de canhoto aberta dela fecha e a ocorrência resolve
- * pelo `system`. Chamado na transação da baixa, logo depois de gravar `delivered`.
+ * pelo `system`, na transação da baixa — **mas só com a foto do canhoto já gravada** (21/11/2026): baixar a nota retida
+ * sem foto fechava a coleta e resolvia a ocorrência sem canhoto nenhum. Sem a foto, a coleta segue aberta (e a nota
+ * segue exigindo a foto) até `settleCanhotoPickupOnProofSaved`.
  */
 export async function settleCanhotoPickupOnDelivery(
   queryable: TripQueryable,
   input: { readonly at: Date; readonly companyId: string; readonly documentId: string },
 ): Promise<CanhotoPickupSettlement> {
+  if (!(await hasDeliveredPhotoProof(queryable, input))) return { kind: 'none' }
   return collectOpenPickup(queryable, { ...input, matchByNote: true })
+}
+
+/**
+ * A foto do canhoto da entrega acabou de ser gravada no evento `eventId` (app, WhatsApp ou escritório): se é o evento de
+ * entrega de uma nota com coleta aberta, a coleta fecha e a ocorrência resolve. A foto da coleta (viagem da coleta)
+ * **não** passa por aqui: ela espera a conferência.
+ */
+export async function settleCanhotoPickupOnProofSaved(
+  queryable: TripQueryable,
+  input: { readonly at: Date; readonly companyId: string; readonly eventId: string },
+): Promise<CanhotoPickupSettlement> {
+  const [event] = await queryable
+    .select({ documentId: tripStopEvents.tripDocumentId, kind: tripStopEvents.kind })
+    .from(tripStopEvents)
+    .where(and(eq(tripStopEvents.companyId, input.companyId), eq(tripStopEvents.id, input.eventId)))
+    .limit(1)
+  if (event === undefined || event.documentId === null || event.kind !== DELIVERED_EVENT_KIND) {
+    return { kind: 'none' }
+  }
+  return settleCanhotoPickupOnDelivery(queryable, {
+    at: input.at,
+    companyId: input.companyId,
+    documentId: event.documentId,
+  })
 }

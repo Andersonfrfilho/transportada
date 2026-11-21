@@ -1598,6 +1598,6 @@ O painel passa a permitir ao escritório **substituir a foto do comprovante que 
 Leitura somente leitura em staging com `tmp/ops/staging-unica-comprovante-diagnostico-v2.sh` (`railway ssh -s api -e staging`, `bun` com
 `DATABASE_URL`, saída em `tmp/ops/saidas/`). Achado: a NF 170572 foi baixada como entrega comum na viagem 934e853f com a foto
 "opcional" (configuração geral, sem exceção da Única), e `settleCanhotoPickupOnDelivery` resolveu a ocorrência de canhoto retido sem
-canhoto nenhum. Correção em código: nota com canhoto retido aberto exige a foto (`requirePhotoForRetainedCanhoto`). Configuração da Única
+canhoto nenhum. Correção em código: nota com canhoto retido aberto exige a foto (`requirePhotoForRetainedCanhoto`) e a coleta/ocorrência só fecham quando a foto do canhoto existe (baixa sem foto deixa tudo aberto até ela chegar). Configuração da Única
 em staging: `tmp/ops/staging-unica-so-canhoto.sh [--confirm]` (exceção da contratante `26344834000108`, foto obrigatória e o resto
 desligado; sem `--confirm` só simula e desfaz).
