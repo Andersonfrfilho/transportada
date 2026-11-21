@@ -20,7 +20,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm'
 
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
-import { tripDocuments, tripStops } from '../../database/trip.schema.js'
+import { tripCanhotoPickups, tripDocuments, tripStops } from '../../database/trip.schema.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -28,9 +28,14 @@ import type { TripQueryable } from './trip-queryable.type.js'
  * Parada sem nota viva (todas liberadas, ou nenhuma) não é parada: ninguém vai descarregar ali, e o
  * seu endereço sem coordenada derrubava o roteiro inteiro. A liberação normal já apaga a parada que
  * esvazia (`reconcileStopOnUnlink`); isto cobre a que sobrou por outro caminho.
+ *
+ * Spec 321: a parada com **coleta de canhoto encaixada** (`scheduled`) é parada de verdade, mesmo sem nota
+ * viva: o motorista vai até lá. Sem isto a viagem só com coleta ficava sem coordenada nenhuma e o
+ * roteiro nunca congelava ("liberar para separação" e despacho recusados).
  */
 export function stopHasLiveDocument() {
-  return sql`exists (select 1 from ${tripDocuments} where ${tripDocuments.companyId} = ${tripStops.companyId} and ${tripDocuments.stopId} = ${tripStops.id} and ${tripDocuments.releasedAt} is null)`
+  return sql`(exists (select 1 from ${tripDocuments} where ${tripDocuments.companyId} = ${tripStops.companyId} and ${tripDocuments.stopId} = ${tripStops.id} and ${tripDocuments.releasedAt} is null)
+    or exists (select 1 from ${tripCanhotoPickups} where ${tripCanhotoPickups.companyId} = ${tripStops.companyId} and ${tripCanhotoPickups.pickupStopId} = ${tripStops.id} and ${tripCanhotoPickups.status} = 'scheduled'))`
 }
 
 export async function listTripStopCoordinates(

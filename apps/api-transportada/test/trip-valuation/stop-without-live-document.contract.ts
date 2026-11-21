@@ -20,6 +20,12 @@ describe('a parada sem nota viva fica fora das coordenadas do roteiro', () => {
     expect(text).toContain('"trip_documents"."company_id" = "trip_stops"."company_id"')
   })
 
+  it('spec 321: a parada com coleta de canhoto encaixada também é parada de verdade', () => {
+    expect(text).toContain('"trip_canhoto_pickups"."pickup_stop_id" = "trip_stops"."id"')
+    expect(text).toContain('"trip_canhoto_pickups"."company_id" = "trip_stops"."company_id"')
+    expect(text).toContain('"trip_canhoto_pickups"."status" = \'scheduled\'')
+  })
+
   it('a consulta de coordenadas aplica o filtro', () => {
     const source = readFileSync(
       new URL('../../src/trips/infrastructure/trip-stop-coordinates.support.ts', import.meta.url),
