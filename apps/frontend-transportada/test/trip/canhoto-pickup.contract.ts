@@ -129,9 +129,9 @@ describe('a coleta de canhoto (spec 321 RF4, D6)', () => {
     expect(hasCanhotoRetainedMarker({ canhotoRetained: true })).toBe(true)
   })
 
-  it('o tooltip da coleta diz que peso e dimensão não entram na carga, nos dois idiomas', () => {
+  it('o tooltip da coleta diz que não ocupa baú, peso nem CT-e, nos dois idiomas', () => {
     expect(tripPt.canhotoPickup.flag.pickup.hint).toBe(
-      'Esta nota volta só para buscar o canhoto; peso e dimensão não entram na carga desta viagem.',
+      'Esta nota está nesta viagem só para buscar o canhoto: não ocupa o baú, não entra no peso nem exige CT-e.',
     )
     expect(tripEn.canhotoPickup.flag.pickup.hint).toBeString()
     expect(Object.keys(tripPt.canhotoPickup.errors)).toEqual(

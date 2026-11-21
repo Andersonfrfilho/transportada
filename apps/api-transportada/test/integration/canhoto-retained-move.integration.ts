@@ -8,7 +8,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 import type { DrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { tripOccurrenceResolutionEvents } from '../../src/database/occurrence-conversation.schema.js'
 import { deliveryClients } from '../../src/database/database.schema.js'
@@ -22,6 +22,7 @@ import {
   trips,
 } from '../../src/database/trip.schema.js'
 import {
+  canhotoPickupOnlyDocument,
   createPendingCanhotoPickup,
   listMovableCanhotoRetainedLinks,
 } from '../../src/trips/infrastructure/canhoto-pickup.query.js'
@@ -297,6 +298,56 @@ describe('a nota com canhoto retido fica livre para outra viagem (spec 321, emen
       const pickup = await readPickup(world, retained.pickupId)
       expect(pickup?.status).toBe('pending')
       expect(pickup?.originTripDocumentId).toBe(live?.id)
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'a nota na viagem nova só pelo canhoto é "só coleta"; a entregue na origem segue carga',
+    async () => {
+      const world = await seedOnRoadTrip(db())
+      const retained = await seedRetainedNote(world)
+      const targetTripId = await seedTargetTrip(world, 'draft')
+      const onlyPickupIds = async (): Promise<readonly string[]> =>
+        (
+          await world.database.db
+            .select({ id: tripDocuments.id })
+            .from(tripDocuments)
+            .where(
+              and(eq(tripDocuments.companyId, world.trip.companyId), canhotoPickupOnlyDocument()),
+            )
+        ).map((row) => row.id)
+
+      await world.repository.linkDocumentsBatch({
+        actorUserId: world.trip.userId,
+        companyId: world.trip.companyId,
+        nfeDocumentIds: [retained.nfeDocumentId],
+        tripId: targetTripId,
+      })
+      const live = await liveLinkOf(world, targetTripId, retained.nfeDocumentId)
+      expect(await onlyPickupIds()).toContain(live?.id ?? '')
+
+      /** A negação do predicado é o que as leituras de carga usam: nota entregue sem coleta segue contada. */
+      const cargoIds = async (): Promise<readonly string[]> =>
+        (
+          await world.database.db
+            .select({ id: tripDocuments.id })
+            .from(tripDocuments)
+            .where(
+              and(
+                eq(tripDocuments.companyId, world.trip.companyId),
+                sql`not ${canhotoPickupOnlyDocument()}`,
+              ),
+            )
+        ).map((row) => row.id)
+      expect(await cargoIds()).not.toContain(live?.id ?? '')
+
+      await world.database.db
+        .update(tripDocuments)
+        .set({ deliveredAt: new Date() })
+        .where(eq(tripDocuments.id, live?.id ?? ''))
+      expect(await onlyPickupIds()).not.toContain(live?.id ?? '')
+      expect(await cargoIds()).toContain(live?.id ?? '')
     },
     TEST_TIMEOUT_MS,
   )

@@ -116,6 +116,7 @@ import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import {
   hasOpenCanhotoPickupOnDeliveredLink,
   listMovableCanhotoRetainedLinks,
+  loadCanhotoPickupOnlyDocumentIds,
   loadCanhotoRetainedDocumentIds,
   repointPendingCanhotoPickups,
   repointPendingCanhotoPickupsToLiveLinks,
@@ -1868,6 +1869,11 @@ async function readTripDetail(
       row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
     ),
   })
+  /** Spec 321 (D4c): a mesma definição SQL das demais leituras de carga (aberta ou já concluída, nunca entregue). */
+  const pickupOnlyDocumentIds = await loadCanhotoPickupOnlyDocumentIds(queryable, {
+    companyId: input.companyId,
+    tripDocumentIds: documentRecords.map((row) => row.document.id),
+  })
   /**
    * O peso da carga, uma vez só: por nota (cada linha do resumo) e o total da viagem saem da mesma
    * leitura, então a soma das notas nunca diverge do total. Em série, como as demais.
@@ -1876,7 +1882,10 @@ async function readTripDetail(
     companyId: input.companyId,
     /** Nota solta (`released_at`) mostra o próprio peso na linha, mas não soma no total (spec 187). */
     countedNfeDocumentIds: documentRecords.flatMap((row) =>
-      row.document.nfeDocumentId === null || row.document.releasedAt !== null
+      row.document.nfeDocumentId === null ||
+      row.document.releasedAt !== null ||
+      /** Spec 321 (D4c): a nota que está na viagem só pelo canhoto não soma no peso da carga. */
+      pickupOnlyDocumentIds.has(row.document.id)
         ? []
         : [row.document.nfeDocumentId],
     ),
@@ -1985,7 +1994,9 @@ async function readTripDetail(
     else bucket.push(document)
   }
 
-  const nfeDocumentIds = documents.flatMap((document) =>
+  /** Spec 321 (D4c): só a carga de verdade — a nota que está aqui só pelo canhoto não ocupa baú nem entra no mapa. */
+  const cargoDocuments = documents.filter((document) => !pickupOnlyDocumentIds.has(document.id))
+  const nfeDocumentIds = cargoDocuments.flatMap((document) =>
     document.nfeDocumentId === null || document.releasedAt !== null ? [] : [document.nfeDocumentId],
   )
   // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
@@ -2050,11 +2061,18 @@ async function readTripDetail(
   }
 
   /** A mesma montagem da parada que o gatilho eager usa — é ela que faz os dois hashes baterem. */
+  const cargoDocumentsByStopId = new Map<string, TripDocumentDetail[]>()
+  for (const document of cargoDocuments) {
+    if (document.stopId === null) continue
+    const bucket = cargoDocumentsByStopId.get(document.stopId)
+    if (bucket === undefined) cargoDocumentsByStopId.set(document.stopId, [document])
+    else bucket.push(document)
+  }
   const layoutStops = stopRecords.map((row) =>
     buildLayoutStop({
       addresses: stopAddresses,
       cargo,
-      documents: documentsByStopId.get(row.stop.id) ?? [],
+      documents: cargoDocumentsByStopId.get(row.stop.id) ?? [],
       stop: row.stop,
     }),
   )

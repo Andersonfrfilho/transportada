@@ -1427,7 +1427,7 @@
     "flag": {
       "pickup": {
         "badge": "Receipt pickup",
-        "hint": "This invoice comes back only to collect the receipt; its weight and size do not count in this trip's load."
+        "hint": "This invoice is on this trip only to collect the receipt: it takes no space in the trailer, adds no weight and needs no CT-e."
       },
       "retained": {
         "badge": "Receipt retained",

@@ -632,7 +632,9 @@ function TripStopDocumentRow({
             </Tooltip>
           ) : null}
           {/* Spec 321 D4d: o cliente reteve o canhoto; a entrega vale e outro motorista o busca. */}
-          {hasCanhotoRetainedMarker(document) ? <CanhotoPickupFlag variant="retained" /> : null}
+          {hasCanhotoRetainedMarker(document) ? (
+            <CanhotoPickupFlag variant={document.deliveredAt === null ? 'pickup' : 'retained'} />
+          ) : null}
           {/*
            * Spec 174 RF1/RF2/RF6: o estado fiscal é **da nota** — ícone e texto na linha dela,
            * nunca só a cor, com a explicação pelo tooltip do design system. Nota pronta ou que não
