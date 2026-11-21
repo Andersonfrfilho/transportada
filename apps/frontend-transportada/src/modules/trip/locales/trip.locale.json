@@ -1427,7 +1427,7 @@
     "flag": {
       "pickup": {
         "badge": "Coleta de canhoto",
-        "hint": "Esta nota volta só para buscar o canhoto; peso e dimensão não entram na carga desta viagem."
+        "hint": "Esta nota está nesta viagem só para buscar o canhoto: não ocupa o baú, não entra no peso nem exige CT-e."
       },
       "retained": {
         "badge": "Canhoto retido",

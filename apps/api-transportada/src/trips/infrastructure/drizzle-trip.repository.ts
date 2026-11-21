@@ -1876,7 +1876,10 @@ async function readTripDetail(
     companyId: input.companyId,
     /** Nota solta (`released_at`) mostra o próprio peso na linha, mas não soma no total (spec 187). */
     countedNfeDocumentIds: documentRecords.flatMap((row) =>
-      row.document.nfeDocumentId === null || row.document.releasedAt !== null
+      row.document.nfeDocumentId === null ||
+      row.document.releasedAt !== null ||
+      /** Spec 321 (D4c): a nota que está na viagem só pelo canhoto não soma no peso da carga. */
+      (canhotoRetainedDocumentIds.has(row.document.id) && row.document.deliveredAt === null)
         ? []
         : [row.document.nfeDocumentId],
     ),
@@ -1985,7 +1988,11 @@ async function readTripDetail(
     else bucket.push(document)
   }
 
-  const nfeDocumentIds = documents.flatMap((document) =>
+  /** Spec 321 (D4c): só a carga de verdade — a nota que está aqui só pelo canhoto não ocupa baú nem entra no mapa. */
+  const cargoDocuments = documents.filter(
+    (document) => document.canhotoRetained !== true || document.deliveredAt !== null,
+  )
+  const nfeDocumentIds = cargoDocuments.flatMap((document) =>
     document.nfeDocumentId === null || document.releasedAt !== null ? [] : [document.nfeDocumentId],
   )
   // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
@@ -2050,11 +2057,18 @@ async function readTripDetail(
   }
 
   /** A mesma montagem da parada que o gatilho eager usa — é ela que faz os dois hashes baterem. */
+  const cargoDocumentsByStopId = new Map<string, TripDocumentDetail[]>()
+  for (const document of cargoDocuments) {
+    if (document.stopId === null) continue
+    const bucket = cargoDocumentsByStopId.get(document.stopId)
+    if (bucket === undefined) cargoDocumentsByStopId.set(document.stopId, [document])
+    else bucket.push(document)
+  }
   const layoutStops = stopRecords.map((row) =>
     buildLayoutStop({
       addresses: stopAddresses,
       cargo,
-      documents: documentsByStopId.get(row.stop.id) ?? [],
+      documents: cargoDocumentsByStopId.get(row.stop.id) ?? [],
       stop: row.stop,
     }),
   )

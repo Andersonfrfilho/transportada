@@ -365,3 +365,17 @@ export async function hasOpenCanhotoPickupOnDeliveredLink(
     .limit(1)
   return row !== undefined
 }
+
+/**
+ * Spec 321 (D4c): a nota **não entregue** que está na viagem **só pelo canhoto** (a entregue segue como carga da própria viagem, D3) — coleta de canhoto aberta (`CANHOTO_PICKUP_OPEN_STATUSES`)
+ * apontando para este vínculo, com a ocorrência não cancelada. O peso, o volume e as caixas dela não entram na carga da
+ * viagem (ocupação, mapa 3D, peso). A mesma definição de `loadCanhotoRetainedDocumentIds`, como condição SQL para quem
+ * lê `trip_documents` direto; use `not ${...}` para ficar só com a carga de verdade.
+ */
+export function canhotoPickupOnlyDocument(): SQL {
+  const openStatuses = sql.join(
+    CANHOTO_PICKUP_OPEN_STATUSES.map((status) => sql`${status}`),
+    sql`, `,
+  )
+  return sql`exists (select 1 from ${tripCanhotoPickups} inner join ${tripDocumentOccurrences} on ${tripDocumentOccurrences.companyId} = ${tripCanhotoPickups.companyId} and ${tripDocumentOccurrences.id} = ${tripCanhotoPickups.occurrenceId} where ${tripCanhotoPickups.companyId} = ${tripDocuments.companyId} and ${tripCanhotoPickups.originTripDocumentId} = ${tripDocuments.id} and ${tripCanhotoPickups.status} in (${openStatuses}) and ${tripDocumentOccurrences.cancelledAt} is null) and ${tripDocuments.deliveredAt} is null`
+}

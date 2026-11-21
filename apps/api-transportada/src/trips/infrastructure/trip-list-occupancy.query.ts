@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 
 import { fleetVehicles } from '../../database/fleet.schema.js'
 import { tripDocuments, trips } from '../../database/trip.schema.js'
@@ -22,6 +22,7 @@ import {
   type OccupancyVehicleFacts,
   type TripOccupancyFacts,
 } from './trip-occupancy.support.js'
+import { canhotoPickupOnlyDocument } from './canhoto-pickup.query.js'
 import { loadDocumentCargoWeights } from './trip-cargo-weight.support.js'
 import type { DocumentCargoWeight } from './trip-cargo-weight.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -207,6 +208,8 @@ async function readNfeDocumentIdsByTrip(
         inArray(tripDocuments.tripId, [...input.tripIds]),
         isNotNull(tripDocuments.nfeDocumentId),
         isNull(tripDocuments.releasedAt),
+        /** Spec 321 (D4c): a nota só de canhoto não ocupa baú. */
+        sql`not ${canhotoPickupOnlyDocument()}`,
       ),
     )
     .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))

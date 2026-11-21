@@ -21,6 +21,7 @@ import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.ty
 import { CARGO_DELIVERY_REACH_M } from '../domain/cargo-delivery-reach.constant.js'
 import { resolveCargoSecuring } from '../domain/cargo-securing.policy.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
+import { canhotoPickupOnlyDocument } from './canhoto-pickup.query.js'
 import { listStopAddresses, type NfeDestinationAddress } from './nfe-destination-address.support.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
@@ -117,7 +118,12 @@ async function readStopDocuments(
       ),
     )
     .where(
-      and(eq(tripDocuments.companyId, params.companyId), eq(tripDocuments.tripId, params.tripId)),
+      and(
+        eq(tripDocuments.companyId, params.companyId),
+        eq(tripDocuments.tripId, params.tripId),
+        /** Spec 321 (D4c): a nota que está aqui só pelo canhoto não ocupa baú nem entra no mapa. */
+        sql`not ${canhotoPickupOnlyDocument()}`,
+      ),
     )
     .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
 }
