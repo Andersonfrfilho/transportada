@@ -51,7 +51,10 @@ import type {
   OpenedStopReminder,
 } from '../../driver-stop-reminders/application/driver-stop-reminder.port.js'
 import type { DriverStopReminderRuntime } from '../../driver-stop-reminders/infrastructure/driver-stop-reminder.runtime.js'
-import { settleCanhotoPickupOnDelivery } from './canhoto-pickup-settle.support.js'
+import {
+  settleCanhotoPickupOnDelivery,
+  settleCanhotoPickupOnProofSaved,
+} from './canhoto-pickup-settle.support.js'
 import { correctAddressFromArrival } from './arrival-address-correction.support.js'
 import { saveTripOccurrence } from './delivery-proof-read.support.js'
 import { findDriverLockingOccurrence } from './occurrence-driver-lock.query.js'
@@ -64,6 +67,7 @@ import {
   DELIVERED_DOCUMENT_STATUS,
   DELIVERED_EVENT_KIND,
   DRIVER_RECEIVER_PROOF_KINDS,
+  PHOTO_PROOF_KIND,
   RECIPIENT_PARTICIPANT_ROLE,
   RETURNED_DOCUMENT_STATUS,
 } from '../domain/delivery-event.constant.js'
@@ -1028,6 +1032,15 @@ export class DrizzleDriverFieldReportTransaction implements DriverFieldReportTra
       .returning({ id: tripDeliveryProofs.id })
 
     if (proof === undefined) throw new Error('TRIP_DELIVERY_PROOF_NOT_SAVED')
+
+    /** Spec 321: o canhoto do escritório também fecha a coleta aberta da nota, agora que a foto existe. */
+    if (input.kind === PHOTO_PROOF_KIND) {
+      await settleCanhotoPickupOnProofSaved(this.transaction, {
+        at: new Date(),
+        companyId: input.companyId,
+        eventId: input.eventId,
+      })
+    }
 
     return proof
   }

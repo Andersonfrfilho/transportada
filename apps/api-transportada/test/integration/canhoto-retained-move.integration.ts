@@ -12,11 +12,14 @@ import { and, eq, sql } from 'drizzle-orm'
 
 import { tripOccurrenceResolutionEvents } from '../../src/database/occurrence-conversation.schema.js'
 import { deliveryClients } from '../../src/database/database.schema.js'
+import { storedObjects } from '../../src/database/storage.schema.js'
 import { deliveryCharges } from '../../src/database/delivery-client.schema.js'
 import {
   tripCanhotoPickups,
   tripDocumentOccurrences,
+  tripDeliveryProofs,
   tripDocuments,
+  tripStopEvents,
   tripStopOccurrences,
   tripStops,
   trips,
@@ -24,8 +27,16 @@ import {
 import {
   canhotoPickupOnlyDocument,
   createPendingCanhotoPickup,
+  isDocumentCanhotoRetainedByNote,
   listMovableCanhotoRetainedLinks,
+  loadCanhotoRetainedNfeDocumentIds,
 } from '../../src/trips/infrastructure/canhoto-pickup.query.js'
+import { settleCanhotoPickupOnProofSaved } from '../../src/trips/infrastructure/canhoto-pickup-settle.support.js'
+import { DrizzleDeliveryProofRepository } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
+import {
+  loadProofPendingDocumentIds,
+  tripHasProofPendingDocumentCondition,
+} from '../../src/trips/infrastructure/proof-pending.query.js'
 import { DrizzleDriverFieldReportTransaction } from '../../src/trips/infrastructure/drizzle-driver-field-report.repository.js'
 import { DrizzleNfeDocumentRepository } from '../../src/nfe-documents/infrastructure/drizzle-nfe-document.repository.js'
 import type { NfeStorageGateway } from '../../src/storage/infrastructure/nfe-storage-gateway.js'
@@ -137,6 +148,58 @@ async function readPickup(world: CrewTransferWorld, id: string) {
     .from(tripCanhotoPickups)
     .where(eq(tripCanhotoPickups.id, id))
   return row
+}
+
+/** O evento de entrega da nota (como o da baixa do campo), sem foto ainda. */
+async function recordDeliveredEvent(world: CrewTransferWorld, documentId: string): Promise<string> {
+  const [link] = await world.database.db
+    .select({ stopId: tripDocuments.stopId })
+    .from(tripDocuments)
+    .where(eq(tripDocuments.id, documentId))
+  if (link?.stopId === null || link === undefined) throw new Error('EXPECTED_STOP')
+  const [event] = await world.database.db
+    .insert(tripStopEvents)
+    .values({
+      actorUserId: world.trip.userId,
+      companyId: world.trip.companyId,
+      kind: 'delivered',
+      stopId: link.stopId,
+      tripDocumentId: documentId,
+    })
+    .returning({ id: tripStopEvents.id })
+  if (event === undefined) throw new Error('EXPECTED_EVENT')
+  return event.id
+}
+
+/** A foto do canhoto gravada no evento de entrega (o que o app, o bot ou o escritório fazem depois da baixa). */
+async function addPhotoProof(world: CrewTransferWorld, eventId: string): Promise<void> {
+  const objectId = crypto.randomUUID()
+  await world.database.db.insert(storedObjects).values({
+    bucket: 'test-bucket',
+    companyId: world.trip.companyId,
+    id: objectId,
+    mimeType: 'image/jpeg',
+    objectKey: `tenants/test/${objectId}`,
+    provider: 's3',
+    purpose: 'delivery_proof',
+    sha256: objectId.replaceAll('-', '').padEnd(64, '0'),
+    sizeBytes: 10n,
+    status: 'final',
+  })
+  await world.database.db.insert(tripDeliveryProofs).values({
+    actorUserId: world.trip.userId,
+    companyId: world.trip.companyId,
+    kind: 'photo',
+    objectId,
+    stopEventId: eventId,
+  })
+}
+
+/** A baixa com a foto do canhoto já gravada: é o que fecha a coleta (sem a foto ela segue aberta). */
+async function deliverWithPhoto(world: CrewTransferWorld, documentId: string): Promise<void> {
+  const eventId = await recordDeliveredEvent(world, documentId)
+  await addPhotoProof(world, eventId)
+  await deliver(world, documentId)
 }
 
 async function deliver(world: CrewTransferWorld, documentId: string): Promise<void> {
@@ -456,7 +519,7 @@ describe('a nota com canhoto retido fica livre para outra viagem (spec 321, emen
       const world = await seedOnRoadTrip(db())
       const retained = await seedRetainedNote(world)
 
-      await deliver(world, retained.originDocumentId)
+      await deliverWithPhoto(world, retained.originDocumentId)
 
       const pickup = await readPickup(world, retained.pickupId)
       expect(pickup?.status).toBe('collected')
@@ -493,7 +556,7 @@ describe('a nota com canhoto retido fica livre para outra viagem (spec 321, emen
       const live = await liveLinkOf(world, targetTripId, retained.nfeDocumentId)
       if (live === undefined) throw new Error('EXPECTED_LIVE_LINK')
 
-      await deliver(world, live.id)
+      await deliverWithPhoto(world, live.id)
 
       expect((await readPickup(world, retained.pickupId))?.status).toBe('collected')
       expect(await readResolutionEvents(world, retained.pickupId)).toEqual([
@@ -510,10 +573,141 @@ describe('a nota com canhoto retido fica livre para outra viagem (spec 321, emen
       const retained = await seedRetainedNote(world)
       const other = await seedRetainedNote(world)
 
-      await deliver(world, other.originDocumentId)
+      await deliverWithPhoto(world, other.originDocumentId)
 
       expect((await readPickup(world, retained.pickupId))?.status).toBe('pending')
       expect((await readPickup(world, other.pickupId))?.status).toBe('collected')
+    },
+    TEST_TIMEOUT_MS,
+  )
+})
+
+describe('canhoto retido exige a foto na entrega da nota (21/11/2026)', () => {
+  testWithPostgres(
+    'a nota (e a NF-e) com coleta aberta é retida; coletada ou cancelada deixa de ser',
+    async () => {
+      const world = await seedOnRoadTrip(db())
+      const retained = await seedRetainedNote(world)
+      const companyId = world.trip.companyId
+
+      expect(
+        await isDocumentCanhotoRetainedByNote(world.database.db, {
+          companyId,
+          documentId: retained.originDocumentId,
+        }),
+      ).toBe(true)
+      const ids = await loadCanhotoRetainedNfeDocumentIds(world.database.db, {
+        companyId,
+        nfeDocumentIds: [retained.nfeDocumentId, crypto.randomUUID()],
+      })
+      expect([...ids]).toEqual([retained.nfeDocumentId])
+
+      await world.database.db
+        .update(tripCanhotoPickups)
+        .set({ collectedAt: new Date(), status: 'collected' })
+        .where(eq(tripCanhotoPickups.id, retained.pickupId))
+      expect(
+        await isDocumentCanhotoRetainedByNote(world.database.db, {
+          companyId,
+          documentId: retained.originDocumentId,
+        }),
+      ).toBe(false)
+      expect(
+        (
+          await loadCanhotoRetainedNfeDocumentIds(world.database.db, {
+            companyId,
+            nfeDocumentIds: [retained.nfeDocumentId],
+          })
+        ).size,
+      ).toBe(0)
+    },
+    TEST_TIMEOUT_MS,
+  )
+  testWithPostgres(
+    'a baixa sem foto deixa a coleta e a ocorrência abertas; a foto gravada depois as fecha',
+    async () => {
+      const world = await seedOnRoadTrip(db())
+      const retained = await seedRetainedNote(world)
+
+      const eventId = await recordDeliveredEvent(world, retained.originDocumentId)
+      await deliver(world, retained.originDocumentId)
+
+      expect((await readPickup(world, retained.pickupId))?.status).toBe('pending')
+      expect(await readResolutionEvents(world, retained.pickupId)).toEqual([])
+
+      await addPhotoProof(world, eventId)
+      await world.database.db.transaction((transaction) =>
+        settleCanhotoPickupOnProofSaved(transaction, {
+          at: new Date(),
+          companyId: world.trip.companyId,
+          eventId,
+        }),
+      )
+
+      expect((await readPickup(world, retained.pickupId))?.status).toBe('collected')
+      expect(await readResolutionEvents(world, retained.pickupId)).toEqual([
+        { actorKind: 'system', kind: 'resolved' },
+      ])
+    },
+    TEST_TIMEOUT_MS,
+  )
+  testWithPostgres(
+    'a baixa sem foto é pendência mesmo com a foto opcional; o anexo pelo repositório fecha a coleta',
+    async () => {
+      const world = await seedOnRoadTrip(db())
+      const retained = await seedRetainedNote(world)
+      const companyId = world.trip.companyId
+      const eventId = await recordDeliveredEvent(world, retained.originDocumentId)
+      await deliver(world, retained.originDocumentId)
+
+      // Sem configuração nenhuma a foto é opcional; a retenção a exige e a baixa sem ela vira pendência.
+      expect([
+        ...(await loadProofPendingDocumentIds(world.database.db, {
+          companyId,
+          tripDocumentIds: [retained.originDocumentId],
+        })),
+      ]).toEqual([retained.originDocumentId])
+      const pendingTrips = await world.database.db
+        .select({ id: trips.id })
+        .from(trips)
+        .where(and(eq(trips.id, world.trip.tripId), tripHasProofPendingDocumentCondition()))
+      expect(pendingTrips).toHaveLength(1)
+
+      const objectId = crypto.randomUUID()
+      await new DrizzleDeliveryProofRepository(world.database.db, 'test-bucket').saveProof({
+        accuracyMeters: null,
+        actorUserId: world.trip.userId,
+        attachmentKey: crypto.randomUUID(),
+        authorship: { channel: 'driver_app', onBehalfOfDriverId: null },
+        capturedAt: null,
+        companyId,
+        eventId,
+        id: crypto.randomUUID(),
+        kind: 'photo',
+        lateRegistration: false,
+        latitude: null,
+        longitude: null,
+        mimeType: 'image/jpeg',
+        objectId,
+        objectKey: `tenants/test/${objectId}`,
+        punctuality: 'not_required',
+        receivedBy: null,
+        receivedByDetail: null,
+        receiverDocumentEnvelope: null,
+        receiverDocumentMasked: '',
+        receiverName: '',
+        settlesRetainedCanhoto: true,
+        sha256: objectId.replaceAll('-', '').padEnd(64, '0'),
+        sizeBytes: 10,
+      })
+
+      expect((await readPickup(world, retained.pickupId))?.status).toBe('collected')
+      expect(
+        await loadProofPendingDocumentIds(world.database.db, {
+          companyId,
+          tripDocumentIds: [retained.originDocumentId],
+        }),
+      ).toEqual(new Set())
     },
     TEST_TIMEOUT_MS,
   )

@@ -7,7 +7,7 @@
  * calcula na escrita. Na leitura do detalhe a regra roda em TypeScript (uma função só); no filtro
  * da lista ela precisa existir em SQL, e o teste de paridade da integração prende as duas.
  */
-import { and, eq, inArray, ne, sql, type SQL } from 'drizzle-orm'
+import { and, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
@@ -34,9 +34,14 @@ import {
 } from '../domain/delivery-event.constant.js'
 import {
   isProofRequiredBySettings,
+  requirePhotoForRetainedCanhoto,
   resolveProofSettingsForRecipient,
   type DeliveryProofFieldSettings,
 } from '../domain/delivery-proof-settings.policy.js'
+import {
+  loadCanhotoRetainedNfeDocumentIds,
+  openCanhotoPickupForNfeCondition,
+} from './canhoto-pickup.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 /** Spec 218 RF-C3: o contratante da nota é o emitente cadastrado — o mesmo join da tela do motorista. */
@@ -94,6 +99,7 @@ export async function loadProofPendingDocumentIds(
     .select({
       contractorId: contractors.id,
       id: tripDocuments.id,
+      nfeDocumentId: tripDocuments.nfeDocumentId,
       recipientTaxId: nfeParticipants.taxId,
     })
     .from(tripDocuments)
@@ -166,15 +172,26 @@ export async function loadProofPendingDocumentIds(
   )
   const lookup = { general: generalRows[0] ?? null, overridesByContractorId, overridesByTaxId }
 
+  // 21/11/2026: a nota com canhoto retido aberto exige a foto qualquer que seja a configuração.
+  const retainedNfeDocumentIds = await loadCanhotoRetainedNfeDocumentIds(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds: candidates.flatMap((candidate) =>
+      candidate.nfeDocumentId === null ? [] : [candidate.nfeDocumentId],
+    ),
+  })
+
   return new Set(
     candidates
       .filter((candidate) =>
         isProofRequiredBySettings(
-          resolveProofSettingsForRecipient({
-            contractorId: candidate.contractorId,
-            lookup,
-            recipientTaxId: candidate.recipientTaxId ?? '',
-          }),
+          requirePhotoForRetainedCanhoto(
+            resolveProofSettingsForRecipient({
+              contractorId: candidate.contractorId,
+              lookup,
+              recipientTaxId: candidate.recipientTaxId ?? '',
+            }),
+            retainedNfeDocumentIds.has(candidate.nfeDocumentId ?? ''),
+          ),
         ),
       )
       .map((candidate) => candidate.id),
@@ -221,7 +238,13 @@ export function tripHasProofPendingDocumentCondition(): SQL {
     eq(tripDocuments.tripId, trips.id),
     eq(tripDocuments.separationStatus, DELIVERED_DOCUMENT_STATUS),
     deliveredDocumentWithoutPhoto(),
-    sql`coalesce(${overrideRequired}, ${contractorOverrideRequired}, ${generalRequired}, false)`,
+    or(
+      sql`coalesce(${overrideRequired}, ${contractorOverrideRequired}, ${generalRequired}, false)`,
+      openCanhotoPickupForNfeCondition({
+        companyId: sql`${tripDocuments.companyId}`,
+        nfeDocumentId: sql`${tripDocuments.nfeDocumentId}`,
+      }),
+    ),
   )}`
 
   return sql`exists (${pendingDocument})`

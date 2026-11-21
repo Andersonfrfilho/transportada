@@ -32,8 +32,9 @@ const ETA = new Date('2026-10-21T15:00:00.000Z')
  * Spec 218 RF-C3 (2026-11-06): +1 fixa — a nota do motorista lê a exceção da contratante.
  * Spec 321 T6 (2026-11-11): +1 fixa — as coletas de canhoto das viagens dele, uma consulta para todas as paradas.
  * Spec 317 (2026-11-16): +1 fixa — a chave PIX cadastrada do motorista, para pré-preencher a cobrança no recebimento.
+ * Spec 321 (2026-11-21): +1 fixa — as NF-e com canhoto retido aberto das notas dele, uma consulta para todas (a foto vira obrigatória).
  */
-const DRIVER_READ_BASELINE_QUERIES = 28
+const DRIVER_READ_BASELINE_QUERIES = 29
 
 function countingDatabase(db: TestDatabase['db']) {
   let count = 0
