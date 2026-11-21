@@ -2484,6 +2484,22 @@
     },
     "closeBlockedByDraft": "Save the settlement before closing — there is a typed item that has not been saved."
   },
+  "occurrenceBulk": {
+    "region": "Resolve occurrences in bulk",
+    "selected_one": "{{count}} occurrence selected",
+    "selected_other": "{{count}} occurrences selected",
+    "selectAll": "Select all listed",
+    "selectOne": "Select occurrence {{type}}",
+    "action": "Resolve selected",
+    "clear": "Clear selection",
+    "noteLabel": "Resolution note (applies to all)",
+    "noteHelp_one": "The note will be applied to the selected occurrence, and the driver will read it.",
+    "noteHelp_other": "The same note will be applied to the {{count}} selected occurrences, and the driver will read it.",
+    "confirm_one": "Resolve {{count}} occurrence",
+    "confirm_other": "Resolve {{count}} occurrences",
+    "overLimit": "Select at most {{limit}} occurrences at a time.",
+    "outcome": "Resolved: {{resolved}}. Already resolved: {{alreadyResolved}}. Could not resolve: {{failed}}."
+  },
   "occurrenceResolution": {
     "action": "Resolve with a note",
     "noteLabel": "Resolution note",
