@@ -30,6 +30,7 @@ export function TripOccurrenceBulkBar({
     setIsComposing,
     setNote,
     clear: (): void => {
+      mutation.reset()
       selection.clear()
       setIsComposing(false)
       setNote('')
@@ -71,7 +72,14 @@ export function TripOccurrenceBulkBar({
         <strong>{t('occurrenceBulk.selected', { count: bulk.selectedCount })}</strong>
         {bulk.isComposing ? null : (
           <div className={styles.occurrenceFormActions}>
-            <Button onClick={() => bulk.setIsComposing(true)} size="sm" type="button">
+            <Button
+              onClick={() => {
+                mutation.reset()
+                bulk.setIsComposing(true)
+              }}
+              size="sm"
+              type="button"
+            >
               <Icon name="check" />
               {t('occurrenceBulk.action')}
             </Button>
@@ -89,8 +97,8 @@ export function TripOccurrenceBulkBar({
       ) : null}
       {bulk.isComposing ? (
         <div className={styles.occurrenceForm}>
-          <label>
-            {t('occurrenceBulk.noteLabel')}
+          <label className={styles.occurrenceBulkNote}>
+            <span>{t('occurrenceBulk.noteLabel')}</span>
             <textarea
               aria-label={t('occurrenceBulk.noteLabel')}
               maxLength={2000}
@@ -119,7 +127,7 @@ export function TripOccurrenceBulkBar({
               variant="ghost"
             >
               <Icon name="close" />
-              {t('occurrenceResolution.dismiss')}
+              {t('occurrenceBulk.dismiss')}
             </Button>
           </div>
         </div>

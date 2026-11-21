@@ -2492,6 +2492,7 @@
     "selectOne": "Selecionar a ocorrência {{type}}",
     "action": "Resolver marcadas",
     "clear": "Limpar seleção",
+    "dismiss": "Cancelar",
     "noteLabel": "Observação da resolução (vale para todas)",
     "noteHelp_one": "A observação será aplicada à ocorrência marcada, e o motorista vai lê-la.",
     "noteHelp_other": "A mesma observação será aplicada às {{count}} ocorrências marcadas, e o motorista vai lê-la.",

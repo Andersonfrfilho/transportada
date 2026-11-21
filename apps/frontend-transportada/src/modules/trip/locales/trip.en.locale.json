@@ -2492,6 +2492,7 @@
     "selectOne": "Select occurrence {{type}}",
     "action": "Resolve selected",
     "clear": "Clear selection",
+    "dismiss": "Cancel",
     "noteLabel": "Resolution note (applies to all)",
     "noteHelp_one": "The note will be applied to the selected occurrence, and the driver will read it.",
     "noteHelp_other": "The same note will be applied to the {{count}} selected occurrences, and the driver will read it.",

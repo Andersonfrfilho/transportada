@@ -6850,3 +6850,8 @@ button.occurrenceCaseBadge {
 .occurrenceCardSelect {
   margin-block-end: var(--space-1);
 }
+
+.occurrenceBulkNote {
+  display: grid;
+  gap: var(--space-1);
+}

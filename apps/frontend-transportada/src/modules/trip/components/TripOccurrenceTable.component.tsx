@@ -570,7 +570,7 @@ export function TripOccurrenceTable({
           <Checkbox
             ariaLabel={t('occurrenceBulk.selectAll')}
             checked={bulk.isAllSelected}
-            indeterminate={bulk.selectedCount > 0}
+            indeterminate={bulk.selectedCount > 0 && !bulk.isAllSelected}
             label={t('occurrenceBulk.selectAll')}
             onChange={bulk.toggleAll}
           />
@@ -599,7 +599,7 @@ export function TripOccurrenceTable({
                   <Checkbox
                     ariaLabel={t('occurrenceBulk.selectAll')}
                     checked={bulk.isAllSelected}
-                    indeterminate={bulk.selectedCount > 0}
+                    indeterminate={bulk.selectedCount > 0 && !bulk.isAllSelected}
                     onChange={bulk.toggleAll}
                   />
                 </th>
