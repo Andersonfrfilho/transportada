@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -36,6 +37,9 @@ import {
   formatResolutionDuration,
   resolveOccurrenceResolvedInSeconds,
 } from '../shared/tripOccurrenceResolutionSummary.service'
+import { useOccurrenceBulkSelection } from '../hooks/useOccurrenceBulkSelection.hook'
+import { isOccurrenceBulkResolvable } from '../shared/occurrenceBulkResolution.service'
+import { TripOccurrenceBulkBar } from './TripOccurrenceBulkBar.component'
 import { OccurrenceAttachmentGrid } from './OccurrenceAttachmentGrid.component'
 import { OccurrenceCancellationMark } from './OccurrenceCancellationMark.component'
 import { OccurrenceMissingTemplateMark } from './OccurrenceMissingTemplateMark.component'
@@ -216,6 +220,11 @@ function OccurrenceCargoCell({ item }: Readonly<{ item: TripOccurrenceFeedItem }
       )}
     </td>
   )
+}
+
+function resolveBulkTypeLabel(item: TripOccurrenceFeedItem, t: (key: string) => string): string {
+  const label = resolveOccurrenceTypeLabel(item)
+  return label.labelKey === null ? label.value : t(label.labelKey)
 }
 
 /** Sem router: a troca de página é `pushState`, sem recarregar o app (spec 183 P1). */
@@ -421,7 +430,15 @@ export function TripOccurrenceTableSkeleton() {
  * contratante, valor, endereço e motorista, além do tipo, da etapa e da conversa. O cartão inteiro
  * é o link do detalhe (o mesmo da linha da tabela).
  */
-function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
+function OccurrenceCard({
+  isSelected,
+  item,
+  onToggle,
+}: Readonly<{
+  isSelected: boolean
+  item: TripOccurrenceFeedItem
+  onToggle: null | (() => void)
+}>) {
   const { t } = useTranslation('trip')
   const formatMoment = useMomentFormatter()
   const cells = describeOccurrenceDocumentCells(item.document)
@@ -430,6 +447,17 @@ function OccurrenceCard({ item }: Readonly<{ item: TripOccurrenceFeedItem }>) {
 
   return (
     <li>
+      {onToggle === null || !isOccurrenceBulkResolvable(item) ? null : (
+        <div className={styles.occurrenceCardSelect}>
+          <Checkbox
+            ariaLabel={t('occurrenceBulk.selectOne', {
+              type: label.labelKey === null ? label.value : t(label.labelKey),
+            })}
+            checked={isSelected}
+            onChange={onToggle}
+          />
+        </div>
+      )}
       <a
         className={styles.occurrenceCard}
         href={buildTripOccurrenceRoute(item.id)}
@@ -519,13 +547,17 @@ export function TripOccurrenceTable({
 }: TripOccurrenceTableProps) {
   const { t } = useTranslation('trip')
 
+  const bulk = useOccurrenceBulkSelection(table.items)
+
   if (table.isLoading) return <TripOccurrenceTableSkeleton />
 
-  const columnCount = table.visibleColumns.length + 1
+  const canBulk = canResolveOccurrenceCases && bulk.resolvableCount > 0
+  const columnCount = table.visibleColumns.length + 1 + (canBulk ? 1 : 0)
   const groups = groupTripOccurrencesByResolution(table.items)
 
   return (
     <>
+      {canResolveOccurrenceCases ? <TripOccurrenceBulkBar selection={bulk} /> : null}
       {/** Spec 183 T801: o celular vê cartões; a partir de 40rem, a tabela (só CSS, sem JS). */}
       <div className={styles.occurrenceCardsFrame}>
         <Button onClick={table.toggleOrder} size="sm" type="button" variant="ghost">
@@ -534,12 +566,26 @@ export function TripOccurrenceTable({
             ? t('occurrenceFeed.card.newestFirst')
             : t('occurrenceFeed.card.oldestFirst')}
         </Button>
+        {canBulk ? (
+          <Checkbox
+            ariaLabel={t('occurrenceBulk.selectAll')}
+            checked={bulk.isAllSelected}
+            indeterminate={bulk.selectedCount > 0 && !bulk.isAllSelected}
+            label={t('occurrenceBulk.selectAll')}
+            onChange={bulk.toggleAll}
+          />
+        ) : null}
         {table.items.length === 0 ? (
           <p className={styles.occurrenceCellNote}>{t('occurrenceFeed.empty')}</p>
         ) : (
           <ul aria-label={t('occurrenceFeed.card.list')} className={styles.occurrenceCards}>
             {table.items.map((item) => (
-              <OccurrenceCard item={item} key={item.id} />
+              <OccurrenceCard
+                isSelected={bulk.selectedIds.has(item.id)}
+                item={item}
+                key={item.id}
+                onToggle={canBulk ? () => bulk.toggle(item.id) : null}
+              />
             ))}
           </ul>
         )}
@@ -548,6 +594,16 @@ export function TripOccurrenceTable({
         <table className={`${styles.dataTable} ${styles.occurrenceZebraTable}`}>
           <thead>
             <tr>
+              {canBulk ? (
+                <th className={styles.occurrenceSelectCell} scope="col">
+                  <Checkbox
+                    ariaLabel={t('occurrenceBulk.selectAll')}
+                    checked={bulk.isAllSelected}
+                    indeterminate={bulk.selectedCount > 0 && !bulk.isAllSelected}
+                    onChange={bulk.toggleAll}
+                  />
+                </th>
+              ) : null}
               {table.visibleColumns.map((column) =>
                 column === 'createdAt' ? (
                   <th
@@ -607,12 +663,25 @@ export function TripOccurrenceTable({
                         /** A linha inteira abre o detalhe; botão e link dentro dela fazem só o deles. */
                         if (
                           event.target instanceof Element &&
-                          event.target.closest('a, button') !== null
+                          event.target.closest('a, button, [data-row-control]') !== null
                         )
                           return
                         openOccurrence(item.id)
                       }}
                     >
+                      {canBulk ? (
+                        <td className={styles.occurrenceSelectCell} data-row-control>
+                          {isOccurrenceBulkResolvable(item) ? (
+                            <Checkbox
+                              ariaLabel={t('occurrenceBulk.selectOne', {
+                                type: resolveBulkTypeLabel(item, t),
+                              })}
+                              checked={bulk.selectedIds.has(item.id)}
+                              onChange={() => bulk.toggle(item.id)}
+                            />
+                          ) : null}
+                        </td>
+                      ) : null}
                       {table.visibleColumns.map((column) => (
                         <OccurrenceCell column={column} item={item} key={column} />
                       ))}

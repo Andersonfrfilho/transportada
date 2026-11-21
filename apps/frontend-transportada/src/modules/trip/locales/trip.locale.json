@@ -2485,6 +2485,23 @@
     },
     "closeBlockedByDraft": "Salve o acerto antes de encerrar — há item digitado que ainda não foi gravado."
   },
+  "occurrenceBulk": {
+    "region": "Resolver ocorrências em massa",
+    "selected_one": "{{count}} ocorrência marcada",
+    "selected_other": "{{count}} ocorrências marcadas",
+    "selectAll": "Selecionar todas as listadas",
+    "selectOne": "Selecionar a ocorrência {{type}}",
+    "action": "Resolver marcadas",
+    "clear": "Limpar seleção",
+    "dismiss": "Cancelar",
+    "noteLabel": "Observação da resolução (vale para todas)",
+    "noteHelp_one": "A observação será aplicada à ocorrência marcada, e o motorista vai lê-la.",
+    "noteHelp_other": "A mesma observação será aplicada às {{count}} ocorrências marcadas, e o motorista vai lê-la.",
+    "confirm_one": "Resolver {{count}} ocorrência",
+    "confirm_other": "Resolver {{count}} ocorrências",
+    "overLimit": "Marque no máximo {{limit}} ocorrências por vez.",
+    "outcome": "Resolvidas: {{resolved}}. Já estavam resolvidas: {{alreadyResolved}}. Não foi possível resolver: {{failed}}."
+  },
   "occurrenceResolution": {
     "action": "Resolver com observação",
     "noteLabel": "Observação da resolução",
