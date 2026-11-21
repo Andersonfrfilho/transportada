@@ -159,3 +159,21 @@ describe('ocorrência esconde os comprovantes da entrega (pedido do usuário, 18
     expect(driverTripEnglish.occurrenceRegistration.backToProofs).toBeString()
   })
 })
+
+describe('o tipo já aberto na nota é bloqueado com o motivo na dica (spec 321)', () => {
+  it('o chip usa aria-disabled, recusa o clique e leva o motivo na dica e escondido para o leitor de tela', () => {
+    const picker = source('components/OccurrenceTypePicker.component.tsx')
+    expect(picker).toInclude('aria-disabled={isReasonInTooltip ? true : undefined}')
+    expect(picker).toInclude(
+      'onClick={isReasonInTooltip ? undefined : () => handleSelect(type.id)}',
+    )
+    expect(picker).toInclude('label={block} showOnPress')
+    expect(picker).toInclude('styles.visuallyHidden')
+    expect(source('components/DriverStopCard.component.tsx')).toInclude('listNoteEntries({')
+  })
+
+  it('o motivo existe nos dois idiomas', () => {
+    expect(driverTrip.occurrenceRegistration.availability.alreadyOpenOnNote).toBeString()
+    expect(driverTripEnglish.occurrenceRegistration.availability.alreadyOpenOnNote).toBeString()
+  })
+})

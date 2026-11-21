@@ -115,6 +115,10 @@ async function stubKeycloakAndLogin(page: Page): Promise<void> {
   })
 }
 
+const REASON = 'Já registrada nesta nota. Aguarde o escritório resolver'
+
+test.use({ hasTouch: true })
+
 const THEMES = ['light', 'dark'] as const
 
 const OPEN_OCCURRENCE = {
@@ -157,13 +161,18 @@ for (const [viewportName, viewport] of Object.entries(VIEWPORTS)) {
       await page.getByRole('button', { exact: true, name: 'Ocorrência' }).first().click()
       const group = page.getByRole('radiogroup', { name: 'Qual ocorrência?' })
       const blocked = group.getByRole('radio', { name: /Avaria na carga/u })
-      await expect(blocked).toBeDisabled({ timeout: 20_000 })
-      await expect(blocked).toContainText('Já registrada nesta nota. Aguarde o escritório resolver')
+      await expect(blocked).toHaveAttribute('aria-disabled', 'true')
       await expect(group.getByRole('radio', { name: /Cliente ausente/u })).toBeEnabled()
-      await page.mouse.move(0, 0)
-      await page.waitForTimeout(800)
-      await expect(blocked).toBeVisible()
       await blocked.scrollIntoViewIfNeeded()
+      await page.waitForTimeout(800)
+      /** Tocar (mobile) ou apontar (desktop) abre a dica; tocar no bloqueado nunca seleciona o tipo. */
+      if (viewport.width < 600) await blocked.tap({ force: true })
+      else await blocked.hover({ force: true })
+      const tip = page.locator('div[id]').filter({ hasText: new RegExp(`^${REASON}$`, 'u') })
+      await expect(tip.first()).toBeVisible({ timeout: 5_000 })
+      await expect(blocked).toHaveAttribute('aria-checked', 'false')
+      await page.waitForTimeout(600)
+      await expect(tip.first()).toBeVisible()
       await page.screenshot({
         animations: 'disabled',
         path: resolve(
