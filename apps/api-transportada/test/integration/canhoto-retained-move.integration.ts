@@ -11,10 +11,14 @@ import type { DrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
 import { tripOccurrenceResolutionEvents } from '../../src/database/occurrence-conversation.schema.js'
+import { deliveryClients } from '../../src/database/database.schema.js'
+import { deliveryCharges } from '../../src/database/delivery-client.schema.js'
 import {
   tripCanhotoPickups,
   tripDocumentOccurrences,
   tripDocuments,
+  tripStopOccurrences,
+  tripStops,
   trips,
 } from '../../src/database/trip.schema.js'
 import {
@@ -186,6 +190,86 @@ describe('a nota com canhoto retido fica livre para outra viagem (spec 321, emen
         .set({ deliveredAt: new Date() })
         .where(eq(tripDocuments.id, retained.originDocumentId))
       expect(await listMovableCanhotoRetainedLinks(world.database.db, query)).toHaveLength(0)
+    },
+    TEST_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'avulso: a nota sai da parada que já tem cobrança no recebimento (FK restrict) e entra na viagem nova',
+    async () => {
+      const world = await seedOnRoadTrip(db())
+      const retained = await seedRetainedNote(world)
+      const targetTripId = await seedTargetTrip(world, 'draft')
+      const companyId = world.trip.companyId
+      const origin = await readLink(world, retained.originDocumentId)
+      if (origin?.stopId === null || origin?.stopId === undefined) throw new Error('EXPECTED_STOP')
+      /** A nota sozinha na parada: sem outra nota viva, sair dela esvazia a parada (o caminho que apagava). */
+      const [soloStop] = await world.database.db
+        .insert(tripStops)
+        .values({
+          addressKey: `solo-${crypto.randomUUID()}`,
+          companyId,
+          label: 'Parada só da nota retida',
+          sequence: 99n,
+          tripId: world.trip.tripId,
+        })
+        .returning({ id: tripStops.id })
+      if (soloStop === undefined) throw new Error('EXPECTED_SOLO_STOP')
+      await world.database.db
+        .update(tripDocuments)
+        .set({ stopId: soloStop.id })
+        .where(eq(tripDocuments.id, retained.originDocumentId))
+      const soloStopId = soloStop.id
+
+      /** O que o staging tinha: parada com ocorrência de parada e a cobrança que ela gerou. */
+      const stopOccurrenceId = crypto.randomUUID()
+      await world.database.db.insert(tripStopOccurrences).values({
+        actorUserId: world.trip.userId,
+        companyId,
+        description: 'Cobrança no recebimento',
+        id: stopOccurrenceId,
+        kind: 'unexpected_charge',
+        stopId: soloStopId,
+        tripDocumentId: retained.originDocumentId,
+      })
+      const deliveryClientId = crypto.randomUUID()
+      await world.database.db.insert(deliveryClients).values({
+        companyId,
+        displayName: 'Cliente da cobrança',
+        id: deliveryClientId,
+        taxId: '12345678000199',
+      })
+      await world.database.db.insert(deliveryCharges).values({
+        amount: '10.0000',
+        chargeType: 'receiving_charge',
+        chargedOn: '2026-11-21',
+        companyId,
+        deliveryClientId,
+        origin: 'occurrence',
+        status: 'recorded',
+        stopOccurrenceId,
+        tripDocumentId: retained.originDocumentId,
+        tripId: world.trip.tripId,
+      })
+
+      const linked = await world.repository.linkDocument({
+        actorUserId: world.trip.userId,
+        companyId,
+        freightCalculationId: null,
+        nfeDocumentId: retained.nfeDocumentId,
+        tripId: targetTripId,
+      })
+
+      expect(linked.tripId).toBe(targetTripId)
+      expect((await readLink(world, retained.originDocumentId))?.releasedAt).not.toBeNull()
+      const pickup = await readPickup(world, retained.pickupId)
+      expect(pickup?.originTripDocumentId).toBe(linked.id)
+      /** A parada fica na origem, sem nota, como evidência da cobrança. */
+      const [stopAfter] = await world.database.db
+        .select({ id: tripStops.id })
+        .from(tripStops)
+        .where(eq(tripStops.id, soloStopId))
+      expect(stopAfter?.id).toBe(soloStopId)
     },
     TEST_TIMEOUT_MS,
   )
