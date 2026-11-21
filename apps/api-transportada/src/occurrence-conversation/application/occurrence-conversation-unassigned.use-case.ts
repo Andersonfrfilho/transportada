@@ -12,6 +12,7 @@ import {
 } from '../domain/occurrence-conversation.error.js'
 import type {
   UnassignedAssignmentUnitOfWorkPort,
+  UnassignedDismissPort,
   UnassignedMessageView,
   UnassignedReaderPort,
 } from './occurrence-conversation-unassigned.port.js'
@@ -28,6 +29,34 @@ export type AssignUnassignedMessageUseCase = Readonly<{
     readonly userId: string
   }) => Promise<{ readonly conversationId: string; readonly messageId: string }>
 }>
+
+export type DismissUnassignedMessagesUseCase = Readonly<{
+  /** Devolve quantas saíram da fila; o que já foi atribuído ou descartado não conta. */
+  dismiss: (input: {
+    readonly companyId: string
+    readonly ids: readonly string[]
+    readonly userId: string
+  }) => Promise<{ readonly dismissed: number }>
+}>
+
+export function createDismissUnassignedMessagesUseCase(dependencies: {
+  readonly clock: () => Date
+  readonly dismisser: UnassignedDismissPort
+}): DismissUnassignedMessagesUseCase {
+  return {
+    async dismiss(input) {
+      const ids = [...new Set(input.ids)]
+      if (ids.length === 0) return { dismissed: 0 }
+      const dismissed = await dependencies.dismisser.dismiss({
+        at: dependencies.clock(),
+        companyId: input.companyId,
+        ids,
+        userId: input.userId,
+      })
+      return { dismissed }
+    },
+  }
+}
 
 export function createListUnassignedMessagesUseCase(dependencies: {
   readonly reader: UnassignedReaderPort

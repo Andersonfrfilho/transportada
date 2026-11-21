@@ -69,6 +69,12 @@ function createFixture(params: {
           return { conversationId: CONVERSATION_ID, messageId: 'message-1' }
         },
       },
+      dismiss: {
+        dismiss: async (input) => {
+          calls.push({ input, name: 'dismiss' })
+          return { dismissed: input.ids.length }
+        },
+      },
       list: {
         list: async (input) => {
           calls.push({ input, name: 'list' })
@@ -157,5 +163,44 @@ describe('a fila de mensagens sem conversa (spec 183 T505)', () => {
     const response = await fixture.handle(assignRequest({ conversationId: CONVERSATION_ID }))
     expect(response.status).toBe(409)
     expect((await responseApiError(response)).code).toBe('OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED')
+  })
+
+  test('descartar é de occurrences.resolve, em lote, com o usuário do contexto', async () => {
+    const fixture = createFixture({})
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { ids: [UNASSIGNED_ID, CONVERSATION_ID] },
+        method: 'POST',
+        path: '/occurrence-conversations/unassigned/dismiss',
+      }),
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { dismissed: 2 } })
+    expect(fixture.calls).toEqual([
+      {
+        input: {
+          companyId: COMPANY_CONTEXT.companyId,
+          ids: [UNASSIGNED_ID, CONVERSATION_ID],
+          userId: COMPANY_CONTEXT.userId,
+        },
+        name: 'dismiss',
+      },
+    ])
+  })
+
+  test('descartar sem occurrences.resolve é 403; lista vazia, passa de 100 ou não-UUID é 400', async () => {
+    const dismiss = (fixture: ReturnType<typeof createFixture>, body: unknown) =>
+      fixture.handle(
+        jsonRequest({ body, method: 'POST', path: '/occurrence-conversations/unassigned/dismiss' }),
+      )
+    const reader = createFixture({ permissions: new Set(['fleet.read'] as const) })
+    expect((await dismiss(reader, { ids: [UNASSIGNED_ID] })).status).toBe(403)
+    const fixture = createFixture({})
+    expect((await dismiss(fixture, { ids: [] })).status).toBe(400)
+    expect((await dismiss(fixture, { ids: ['x'] })).status).toBe(400)
+    expect((await dismiss(fixture, { ids: Array(101).fill(UNASSIGNED_ID) })).status).toBe(400)
+    expect((await dismiss(fixture, { ids: [UNASSIGNED_ID], other: 1 })).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+    expect(reader.calls).toEqual([])
   })
 })

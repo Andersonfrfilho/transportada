@@ -13,11 +13,15 @@ import { parseBody, parseUuidPathIdentifier } from '../../http/request-parsing.s
 import { defineRoute } from '../../http/router.service.js'
 import type {
   AssignUnassignedMessageUseCase,
+  DismissUnassignedMessagesUseCase,
   ListUnassignedMessagesUseCase,
 } from '../application/occurrence-conversation-unassigned.use-case.js'
 
 const READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const WRITE_POLICY = { permission: 'occurrences.resolve', scope: 'company' } as const
+
+/** Um lote de descarte cabe numa página da fila (100). */
+const dismissSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(100) }).strict()
 
 const assignSchema = z.object({ conversationId: z.string().uuid() }).strict()
 
@@ -30,6 +34,7 @@ function jsonResponse(body: object): Response {
 
 export function createOccurrenceConversationUnassignedRoutes(dependencies: {
   readonly assign: AssignUnassignedMessageUseCase
+  readonly dismiss: DismissUnassignedMessagesUseCase
   readonly list: ListUnassignedMessagesUseCase
 }): readonly ReturnType<typeof defineRoute>[] {
   return [
@@ -62,6 +67,23 @@ export function createOccurrenceConversationUnassignedRoutes(dependencies: {
         }
       },
       pathname: '/occurrence-conversations/unassigned/:id/assign',
+      policy: WRITE_POLICY,
+    }),
+    defineRoute<{ readonly ids: readonly string[] }>({
+      async handle({ context, input }): Promise<Response> {
+        const data = await dependencies.dismiss.dismiss({
+          companyId: context.scope.companyId,
+          ids: input.ids,
+          userId: context.scope.userId,
+        })
+        return jsonResponse({ data })
+      },
+      method: 'POST',
+      async parse({ request }) {
+        const body = await parseBody(dismissSchema, request)
+        return { ids: body.ids }
+      },
+      pathname: '/occurrence-conversations/unassigned/dismiss',
       policy: WRITE_POLICY,
     }),
   ]

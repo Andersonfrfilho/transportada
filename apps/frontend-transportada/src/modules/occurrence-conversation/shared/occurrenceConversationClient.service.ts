@@ -115,6 +115,7 @@ export type OccurrenceConversationClient = Readonly<{
     occurrenceId: string
   }) => Promise<WhatsAppSendOutcome>
   assignUnassigned: (input: { conversationId: string; unassignedId: string }) => Promise<void>
+  dismissUnassigned: (input: { ids: readonly string[] }) => Promise<void>
   listUnassigned: () => Promise<readonly UnassignedMessage[]>
   listConversations: (input: { occurrenceId: string }) => Promise<OccurrenceConversationsView>
   markConversationRead: (input: { conversationId: string }) => Promise<void>
@@ -720,6 +721,12 @@ export function createOccurrenceConversationClient(
         `/occurrence-conversations/unassigned/${encodeURIComponent(unassignedId)}/assign`,
         { body: { conversationId }, method: 'POST' },
       )
+    },
+    async dismissUnassigned({ ids }) {
+      await requestJson(dependencies, '/occurrence-conversations/unassigned/dismiss', {
+        body: { ids },
+        method: 'POST',
+      })
     },
     async listUnassigned() {
       const payload = await requestJson(dependencies, '/occurrence-conversations/unassigned')

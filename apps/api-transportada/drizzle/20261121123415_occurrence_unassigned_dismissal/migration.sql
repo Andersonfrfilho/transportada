@@ -1,0 +1,6 @@
+ALTER TABLE "occurrence_conversation_unassigned" ADD COLUMN "dismissed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "occurrence_conversation_unassigned" ADD COLUMN "dismissed_by_user_id" uuid;--> statement-breakpoint
+DROP INDEX "occurrence_conversation_unassigned_open_idx";--> statement-breakpoint
+CREATE INDEX "occurrence_conversation_unassigned_open_idx" ON "occurrence_conversation_unassigned" ("company_id","received_at") WHERE "assigned_message_id" is null and "dismissed_at" is null;--> statement-breakpoint
+ALTER TABLE "occurrence_conversation_unassigned" ADD CONSTRAINT "occurrence_conversation_unassigned_dismissed_by_user_fk" FOREIGN KEY ("dismissed_by_user_id") REFERENCES "identity_users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;--> statement-breakpoint
+ALTER TABLE "occurrence_conversation_unassigned" ADD CONSTRAINT "occurrence_conversation_unassigned_dismissal_check" CHECK (num_nonnulls("dismissed_at", "dismissed_by_user_id") in (0, 2) and ("dismissed_at" is null or "assigned_at" is null));
