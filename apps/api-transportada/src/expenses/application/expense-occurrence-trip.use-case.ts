@@ -6,6 +6,7 @@
  * dias, 143), copiada, e o previsto da ocorrência vira a soma delas. Nada aqui recalcula ou soma o custo da viagem de
  * novo: a conta é a da valoração, e a viagem continua dona do custo (ADR-0115).
  */
+import { canTransitionOccurrence } from '@adatechnology/expense-contracts'
 import { formatCents, parseMoneyToCents } from '../domain/expense-money.policy.js'
 import {
   formatParcelAmount,
@@ -96,8 +97,9 @@ async function loadPaymentOccurrence(
 }
 
 function assertOpen(occurrence: CompanyExpenseOccurrence): void {
+  if (canTransitionOccurrence(occurrence.status, 'settle')) return
   if (occurrence.status === 'paid') throw new ExpenseOccurrenceAlreadyPaidError()
-  if (occurrence.status === 'canceled') throw new ExpenseOccurrenceCanceledError()
+  throw new ExpenseOccurrenceCanceledError()
 }
 
 function sumTrips(items: readonly ExpenseOccurrenceTrip[]): string {
