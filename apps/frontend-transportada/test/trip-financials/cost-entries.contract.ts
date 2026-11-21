@@ -284,6 +284,16 @@ describe('a permissão de leitura também mora num lugar só', () => {
   })
 })
 
+describe('a página dos resultados', () => {
+  test('abre no mês corrente, sem pedir o período', async () => {
+    const page = await readSource(RESULTS_PAGE)
+
+    expect(page).toContain('currentMonthPeriod()')
+    expect(page).toContain('useState(initialPeriod.from)')
+    expect(page).not.toMatch(/useState\(''\)/u)
+  })
+})
+
 describe('o hook dos lançamentos', () => {
   test('não pergunta a quem não tem trip.financials', async () => {
     const [hook, constant] = await Promise.all([
