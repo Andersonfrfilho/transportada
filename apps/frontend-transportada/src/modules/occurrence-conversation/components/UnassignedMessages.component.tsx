@@ -9,6 +9,7 @@ import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import {
   useAssignUnassignedMutation,
+  useDismissUnassignedMutation,
   useUnassignedMessagesQuery,
 } from '../queries/occurrenceConversation.query'
 import { OccurrenceConversationRequestError } from '../shared/occurrenceConversationClient.service'
@@ -35,6 +36,7 @@ function UnassignedItem({
   const { t } = useTranslation('occurrenceConversation')
   const formatDateTime = useMomentFormatter()
   const assign = useAssignUnassignedMutation()
+  const dismiss = useDismissUnassignedMutation()
   const [chosen, setChosen] = useState(message.candidates[0]?.conversationId ?? '')
   const error = assign.error
   const errorKey =
@@ -92,21 +94,32 @@ function UnassignedItem({
         </fieldset>
       )}
 
-      {assign.isError ? (
+      {assign.isError || dismiss.isError ? (
         <p className={styles.error} role="alert">
-          {t(errorKey)}
+          {t(assign.isError ? errorKey : 'unassigned.error.dismiss')}
         </p>
       ) : null}
-      {canAssign && message.candidates.length > 0 ? (
+      {canAssign ? (
         <div className={styles.footer}>
           <Button
-            disabled={chosen === '' || assign.isPending}
-            onClick={() => assign.mutate({ conversationId: chosen, unassignedId: message.id })}
+            disabled={assign.isPending || dismiss.isPending}
+            onClick={() => dismiss.mutate({ ids: [message.id] })}
             size="sm"
             type="button"
+            variant="secondary"
           >
-            {t('unassigned.assign')}
+            {dismiss.isPending ? t('unassigned.dismissing') : t('unassigned.dismiss')}
           </Button>
+          {message.candidates.length > 0 ? (
+            <Button
+              disabled={chosen === '' || assign.isPending || dismiss.isPending}
+              onClick={() => assign.mutate({ conversationId: chosen, unassignedId: message.id })}
+              size="sm"
+              type="button"
+            >
+              {t('unassigned.assign')}
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </li>
@@ -127,6 +140,8 @@ export function UnassignedMessages({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: true,
   })
+  const dismissAll = useDismissUnassignedMutation()
+  const [confirming, setConfirming] = useState(false)
   const items = query.data ?? []
   if (items.length === 0) return null
 
@@ -134,7 +149,46 @@ export function UnassignedMessages({
     <section aria-labelledby="occurrence-unassigned-title" className={styles.unassigned}>
       <div className={styles.panelHead}>
         <h2 id="occurrence-unassigned-title">{t('unassigned.title', { count: items.length })}</h2>
+        {canAssign && items.length > 1 && !confirming ? (
+          <Button onClick={() => setConfirming(true)} size="sm" type="button" variant="secondary">
+            {t('unassigned.dismissAll')}
+          </Button>
+        ) : null}
       </div>
+      {confirming ? (
+        <div aria-label={t('unassigned.dismissAll')} className={styles.footer} role="group">
+          <p className={styles.hint}>
+            {t('unassigned.dismissAllConfirm', { count: items.length })}
+          </p>
+          <Button
+            disabled={dismissAll.isPending}
+            onClick={() => {
+              dismissAll.mutate(
+                { ids: items.map((item) => item.id) },
+                { onSettled: () => setConfirming(false) },
+              )
+            }}
+            size="sm"
+            type="button"
+          >
+            {dismissAll.isPending ? t('unassigned.dismissing') : t('unassigned.dismissAllYes')}
+          </Button>
+          <Button
+            disabled={dismissAll.isPending}
+            onClick={() => setConfirming(false)}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            {t('unassigned.dismissAllNo')}
+          </Button>
+        </div>
+      ) : null}
+      {dismissAll.isError ? (
+        <p className={styles.error} role="alert">
+          {t('unassigned.error.dismiss')}
+        </p>
+      ) : null}
       <p className={styles.hint}>{t('unassigned.hint')}</p>
       <ul className={styles.unassignedList}>
         {items.map((message) => (

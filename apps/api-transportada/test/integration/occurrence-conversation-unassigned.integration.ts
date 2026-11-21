@@ -16,8 +16,12 @@ import {
   occurrenceConversationUnassigned,
   tripOccurrenceCases,
 } from '../../src/database/database.schema.js'
-import { createAssignUnassignedMessageUseCase } from '../../src/occurrence-conversation/application/occurrence-conversation-unassigned.use-case.js'
 import {
+  createAssignUnassignedMessageUseCase,
+  createDismissUnassignedMessagesUseCase,
+} from '../../src/occurrence-conversation/application/occurrence-conversation-unassigned.use-case.js'
+import {
+  createDrizzleOccurrenceConversationUnassignedDismisser,
   createDrizzleOccurrenceConversationUnassignedReader,
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
 } from '../../src/occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
@@ -139,6 +143,67 @@ describe('a fila de mensagens sem conversa contra Postgres (spec 183 T505)', () 
           },
         ])
         expect(await reader.listPending({ companyId })).toEqual([])
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'descartar tira da fila, não toca em outra empresa e a descartada não se atribui',
+    async () => {
+      await withConversationDatabase(async (database) => {
+        const seeded = await seedMailScenario(database)
+        const other = await seedCompany(database)
+        const { companyId, userId } = seeded.company
+        const rows = await database.db
+          .insert(occurrenceConversationUnassigned)
+          .values(
+            ['wamid.d1', 'wamid.d2', 'wamid.d3'].map((providerMessageId, index) => ({
+              bodyText: '',
+              channel: 'whatsapp' as const,
+              companyId,
+              providerMessageId,
+              receivedAt: new Date(`2026-09-2${index + 1}T15:00:00.000Z`),
+              senderAddress: PHONE,
+            })),
+          )
+          .returning({ id: occurrenceConversationUnassigned.id })
+        const ids = rows.map((row) => row.id)
+        const dismiss = createDismissUnassignedMessagesUseCase({
+          clock: () => new Date('2026-09-30T10:00:00.000Z'),
+          dismisser: createDrizzleOccurrenceConversationUnassignedDismisser(database.db),
+        })
+        const reader = createDrizzleOccurrenceConversationUnassignedReader(database.db)
+
+        expect(await dismiss.dismiss({ companyId: other.companyId, ids, userId })).toEqual({
+          dismissed: 0,
+        })
+        expect(await reader.listPending({ companyId })).toHaveLength(3)
+
+        expect(await dismiss.dismiss({ companyId, ids: ids.slice(0, 2), userId })).toEqual({
+          dismissed: 2,
+        })
+        expect(await dismiss.dismiss({ companyId, ids: ids.slice(0, 2), userId })).toEqual({
+          dismissed: 0,
+        })
+        expect((await reader.listPending({ companyId })).map((item) => item.id)).toEqual([
+          ids[2] ?? '',
+        ])
+
+        const assign = createAssignUnassignedMessageUseCase({
+          clock: () => new Date(),
+          unitOfWork: createDrizzleOccurrenceConversationUnassignedUnitOfWork(database.db),
+        })
+        expect(
+          await failure(() =>
+            assign.assign({
+              companyId,
+              conversationId: crypto.randomUUID(),
+              unassignedId: ids[0] ?? '',
+              userId,
+            }),
+          ),
+        ).toMatchObject({ code: 'OCCURRENCE_CONVERSATION_UNASSIGNED_NOT_FOUND' })
       })
     },
     30_000,

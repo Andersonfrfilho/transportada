@@ -265,6 +265,18 @@ export function useAssignUnassignedMutation() {
   })
 }
 
+/** Descartar tira da fila sem gravar em conversa: só a fila volta a ser lida. */
+export function useDismissUnassignedMutation() {
+  const queryClient = useQueryClient()
+  const client = getOccurrenceConversationClient()
+  return useMutation({
+    mutationFn: (input: Readonly<{ ids: readonly string[] }>) => client.dismissUnassigned(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [OCCURRENCE_UNASSIGNED_QUERY_KEY] })
+    },
+  })
+}
+
 export function useSendDriverAppMessageMutation(occurrenceId: string) {
   const queryClient = useQueryClient()
   const client = getOccurrenceConversationClient()

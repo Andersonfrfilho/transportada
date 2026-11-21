@@ -113,14 +113,21 @@
       "whatsapp": "WhatsApp",
       "email": "E-mail"
     },
-    "noText": "(mensagem sem texto)",
+    "noText": "Sem texto: pode ser foto, áudio, figurinha ou reação.",
     "noCandidates": "Nenhuma conversa aberta para este número. Abra a conversa pela ocorrência e volte aqui.",
     "choose": "Em qual conversa ela entra?",
     "lastOutbound": "Nossa última mensagem ({{at}}): {{preview}}",
     "openOccurrence": "Abrir a ocorrência",
     "assign": "Atribuir",
+    "dismiss": "Descartar",
+    "dismissing": "Descartando…",
+    "dismissAll": "Descartar todas",
+    "dismissAllConfirm": "Descartar as {{count}} mensagens? Elas saem da fila e não entram em nenhuma conversa.",
+    "dismissAllYes": "Sim, descartar todas",
+    "dismissAllNo": "Cancelar",
     "error": {
       "generic": "Não foi possível atribuir. Tente de novo em instantes.",
+      "dismiss": "Não foi possível descartar. Tente de novo em instantes.",
       "OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED": "Outra pessoa já atribuiu esta mensagem.",
       "OCCURRENCE_CONVERSATION_ASSIGNMENT_INVALID": "Esta conversa não é mais uma escolha válida. Atualize a página.",
       "OCCURRENCE_CONVERSATION_UNASSIGNED_NOT_FOUND": "A mensagem não está mais na fila."

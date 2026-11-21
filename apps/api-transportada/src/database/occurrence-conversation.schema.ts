@@ -589,6 +589,9 @@ export const occurrenceConversationUnassigned = pgTable(
     assignedMessageId: uuid('assigned_message_id'),
     assignedAt: timestamp('assigned_at', { withTimezone: true }),
     assignedByUserId: uuid('assigned_by_user_id'),
+    /** Descartada pelo escritório: sem conversa a que pertença (figurinha, reação, número alheio). Some da fila, a linha fica. */
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+    dismissedByUserId: uuid('dismissed_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -642,9 +645,21 @@ export const occurrenceConversationUnassigned = pgTable(
       'occurrence_conversation_unassigned_assignment_check',
       sql`num_nonnulls(${table.assignedMessageId}, ${table.assignedAt}, ${table.assignedByUserId}) in (0, 3)`,
     ),
+    /** Descartada tem os dois juntos e nunca é também atribuída. */
+    check(
+      'occurrence_conversation_unassigned_dismissal_check',
+      sql`num_nonnulls(${table.dismissedAt}, ${table.dismissedByUserId}) in (0, 2) and (${table.dismissedAt} is null or ${table.assignedAt} is null)`,
+    ),
+    foreignKey({
+      columns: [table.dismissedByUserId],
+      foreignColumns: [identityUsers.id],
+      name: 'occurrence_conversation_unassigned_dismissed_by_user_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     index('occurrence_conversation_unassigned_open_idx')
       .on(table.companyId, table.receivedAt)
-      .where(sql`${table.assignedMessageId} is null`),
+      .where(sql`${table.assignedMessageId} is null and ${table.dismissedAt} is null`),
   ],
 )
 

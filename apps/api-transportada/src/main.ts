@@ -930,6 +930,7 @@ import { createOccurrenceConversationWhatsAppHook } from './occurrence-conversat
 import { createOccurrenceConversationWhatsAppStatusHook } from './occurrence-conversation/application/whatsapp-conversation-status.service.js'
 import {
   createAssignUnassignedMessageUseCase,
+  createDismissUnassignedMessagesUseCase,
   createListUnassignedMessagesUseCase,
 } from './occurrence-conversation/application/occurrence-conversation-unassigned.use-case.js'
 import {
@@ -968,6 +969,7 @@ import { createContractorOccurrenceChannelUseCase } from './occurrence-conversat
 import { DrizzleContractorOccurrenceChannelRepository } from './occurrence-conversation/infrastructure/drizzle-contractor-occurrence-channel.repository.js'
 import { createContractorOccurrenceChannelRoutes } from './occurrence-conversation/presentation/contractor-occurrence-channel.routes.js'
 import {
+  createDrizzleOccurrenceConversationUnassignedDismisser,
   createDrizzleOccurrenceConversationUnassignedReader,
   createDrizzleOccurrenceConversationUnassignedUnitOfWork,
 } from './occurrence-conversation/infrastructure/drizzle-occurrence-conversation-unassigned.repository.js'
@@ -5825,6 +5827,10 @@ function createApplicationRoutes({
       assign: createAssignUnassignedMessageUseCase({
         clock: () => new Date(),
         unitOfWork: createDrizzleOccurrenceConversationUnassignedUnitOfWork(database),
+      }),
+      dismiss: createDismissUnassignedMessagesUseCase({
+        clock: () => new Date(),
+        dismisser: createDrizzleOccurrenceConversationUnassignedDismisser(database),
       }),
       list: createListUnassignedMessagesUseCase({
         reader: createDrizzleOccurrenceConversationUnassignedReader(database),

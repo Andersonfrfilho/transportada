@@ -75,3 +75,13 @@ export type UnassignedAssignmentUnitOfWorkPort = {
     operation: (transaction: UnassignedAssignmentTransactionPort) => Promise<TResult>,
   ): Promise<TResult>
 }
+
+/** Descartar tira da fila sem gravar em conversa nenhuma; só entra o que ainda está aberto na fila da empresa. */
+export type UnassignedDismissPort = {
+  dismiss(input: {
+    readonly at: Date
+    readonly companyId: string
+    readonly ids: readonly string[]
+    readonly userId: string
+  }): Promise<number>
+}
