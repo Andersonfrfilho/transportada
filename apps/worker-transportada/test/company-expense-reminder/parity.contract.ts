@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 325 T7.4: a rotina é cópia por valor da regra da API (as apps não importam código uma da outra). Se a API mudar
- * uma regra e a cópia não, o aviso sai no dia errado ou para a pessoa errada.
+ * Spec 325 T7.4: a regra de aviso vem do SDK nas duas apps (as apps não importam código uma da outra). O que ainda é
+ * cópia por valor (valores e HTML do e-mail, SQL) segue cobrado abaixo.
  */
 import { readFile } from 'node:fs/promises'
 
@@ -22,27 +22,48 @@ function body(source: string): string {
 }
 
 describe('paridade dos lembretes com a API (spec 325 T7.4)', () => {
-  test('a regra de quando, quem e por qual canal é a mesma', async () => {
+  test('a regra de quando, quem e por qual canal vem do mesmo pacote do SDK nas duas apps', async () => {
     const [worker, api] = await Promise.all([
       read(`${W}domain/expense-reminder.policy.ts`),
       read(`${A}domain/expense-reminder.policy.ts`),
     ])
-    for (const marker of [
-      "if (daysUntilDue === 0) return 'due_today'",
-      'input.settings.daysBefore > 0 && daysUntilDue === input.settings.daysBefore',
-      'return -daysUntilDue <= input.settings.maxOverdueNotices ? ',
-      'return input.hourInSaoPaulo >= input.settings.dailySummaryHour',
-      'return facts.whatsappOptIn && facts.hasVerifiedWhatsapp',
-      "reason: input.responsible === null ? 'no_responsible' : 'responsible_unreachable'",
-      "const CHANNEL_ORDER: readonly ReminderChannel[] = ['email', 'whatsapp', 'push']",
-      "export const EXPENSE_REMINDER_DRIVING_ROLES = ['driver', 'aggregate', 'helper'] as const",
-      'facts.drivesInFleet ||',
-      "export const EXPENSE_REMINDER_NEUTRAL_ROLES = ['viewer'] as const",
-      'return isCrew && !hasOfficeRole',
-    ]) {
-      expect(api).toContain(marker)
-      expect(worker).toContain(marker)
+    for (const source of [worker, api]) {
+      expect(source).toContain("from '@adatechnology/expense-contracts'")
+      for (const name of [
+        'belongsToDailySummary',
+        'chooseReminderRecipients',
+        'civilDaysBetween',
+        'daysUntilDue',
+        'effectiveReminderChannels',
+        'personalReminderChannels',
+        'reminderKindOn',
+      ]) {
+        expect(source).toContain(`  ${name},`)
+      }
+      expect(source).not.toContain('function reminderKindOn')
+      expect(source).not.toContain('function chooseReminderRecipients')
+      // Os papéis da tripulação são da transportada e iguais nas duas apps.
+      for (const marker of [
+        "export const EXPENSE_REMINDER_DRIVING_ROLES = ['driver', 'aggregate', 'helper'] as const",
+        "export const EXPENSE_REMINDER_NEUTRAL_ROLES = ['viewer'] as const",
+        'isBarredFromReminders({',
+      ]) {
+        expect(source).toContain(marker)
+      }
     }
+  })
+
+  test('a versão do pacote é a mesma, fixa, nas duas apps', async () => {
+    const [worker, api] = await Promise.all([
+      read('../../package.json'),
+      read('../../../api-transportada/package.json'),
+    ])
+    const versionOf = (manifest: string): unknown =>
+      (JSON.parse(manifest) as { dependencies?: Record<string, string> }).dependencies?.[
+        '@adatechnology/expense-contracts'
+      ]
+    expect(versionOf(worker)).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(versionOf(worker)).toBe(versionOf(api))
   })
 
   test('os valores e o HTML do e-mail são os mesmos', async () => {
