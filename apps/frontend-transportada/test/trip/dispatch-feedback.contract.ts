@@ -246,4 +246,10 @@ describe('resolveTripFeedbackKey: viagem sem parada', () => {
     }) as TripRequestError
     expect(resolveTripFeedbackKey(error)).toBe('stateTransitionNotAllowed')
   })
+
+  test('nota entregue com canhoto retido manda encaixar a coleta, não procurar a nota', () => {
+    expect(resolveTripFeedbackKey(new Error('TRIP_DOCUMENT_CANHOTO_PICKUP_ONLY'))).toBe(
+      'documentCanhotoPickupOnly',
+    )
+  })
 })
