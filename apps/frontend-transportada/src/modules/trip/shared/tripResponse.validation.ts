@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { TripDeliveryProof } from './canhotoBatchSelection.service'
 import type { DeliveryProof } from './deliveryProof.service'
+import { isCanhotoMismatch, withoutMalformedCanhotoMismatch } from './canhotoMismatch.validation'
 import { readTripListOccupancy } from './tripListOccupancy.validation'
 import {
   OCCURRENCE_ATTACHMENT_MODES,
@@ -1015,7 +1016,12 @@ export function createTripResponseAdapters() {
     deliveryProofsFromApi(input: unknown): readonly DeliveryProof[] {
       if (!Array.isArray(input)) throw invalid()
       /** Spec 193 T3.1: o item estranho sai sozinho — derrubar a lista apagava o comprovante todo. */
-      return input.filter(isDeliveryProof)
+      return input.flatMap((item: unknown): readonly DeliveryProof[] => {
+        if (!isRecord(item)) return []
+        /** Spec 344 RF5: o alerta malformado sai sozinho, o comprovante fica. */
+        const proof = withoutMalformedCanhotoMismatch(item)
+        return isDeliveryProof(proof) ? [proof] : []
+      })
     },
     /**
      * Spec 222 RF-A1: o item da rota da viagem é o comprovante de uma nota **mais** o `documentId`.
@@ -1026,7 +1032,8 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input)) throw invalid()
       return input.flatMap((item: unknown): readonly TripDeliveryProof[] => {
         if (!isRecord(item) || !isString(item.documentId) || item.documentId === '') return []
-        const { documentId, ...proof } = item
+        const { documentId, ...rest } = item
+        const proof = withoutMalformedCanhotoMismatch(rest)
         return isDeliveryProof(proof) ? [{ ...proof, documentId }] : []
       })
     },
@@ -1461,6 +1468,7 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
     (value.receivedByDetail === undefined || isNullableString(value.receivedByDetail)) &&
     (value.lateRegistration === undefined || isBoolean(value.lateRegistration)) &&
     (value.capturedAt === undefined || isString(value.capturedAt)) &&
+    (value.canhotoMismatch === undefined || isCanhotoMismatch(value.canhotoMismatch)) &&
     (value.canhotoReadNumber === undefined || isString(value.canhotoReadNumber)) &&
     (value.canhotoReadSeries === undefined || isString(value.canhotoReadSeries)) &&
     (value.canhotoReadSource === undefined ||
