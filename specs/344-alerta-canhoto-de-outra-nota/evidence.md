@@ -22,3 +22,19 @@ Achados que ajustam a spec:
 5. Ainda a conferir na T0 restante (leitura de código, não de fotos): onde a série mora em `nfe_documents`, o que a rota do robô aceita e os pontos de paridade. Ficam como primeiro passo da T1/T2 (contrato primeiro).
 
 Limite honesto: n = 4 fotos. A medição prova que a abordagem é viável, não a taxa de produção; a taxa real vem da T6 em staging sobre as ~470 provas pendentes.
+
+## T1 — `extractCanhotoIdentity` (22/11/2026)
+
+Política de domínio pura no worker: `apps/worker-transportada/src/canhoto-read/domain/canhoto-identity.policy.ts` (tipo em `canhoto-identity.types.ts`, limites em `canhoto-identity.constant.ts`). Contrato primeiro: `test/canhoto-read/canhoto-identity.contract.ts`, ligado em `test/canhoto-read.contract.test.ts` (já na lista do `package.json`).
+
+Régua implementada (D3):
+
+- Número só com rótulo. "NF-e"/"NOTA FISCAL" é âncora forte; "Nº" solto é fraca (no DANFE inteiro pode ser o número da rua). Havendo forte, só a forte decide; dois números diferentes no mesmo nível ⇒ nada.
+- "Nº" logo depois de rótulo de outro documento (pedido, ordem de compra, CT-e, fatura, CEP, CNPJ...) não conta.
+- Número exato: 3 a 9 dígitos impressos (`nNF` tem no máximo 9), aceita `000.172.195`, `000,172,195` e `000172195`, sem zeros à esquerda na saída; nenhuma distância de edição no número. Rótulos tolerados: `Nº`, `N°`, `No`, `N.º`, `Nro`, `Num`, `Número`, `N`.
+- Série: rótulo "SÉRIE" com até 1 erro (`SER1E`, `5ÉRIE`, `SERE`), 1 a 3 dígitos, `000` vira `0`. Duas séries diferentes ⇒ série `null`, o número fica. Série sem número ⇒ nada.
+- Saída `{ number, series }` congelada, só dígitos; o texto reconhecido nunca sai da função.
+
+CA02, linhas sintéticas (nenhuma foto de cliente no repositório): `bun test ./test/canhoto-read/canhoto-identity.contract.ts` → **42 pass, 0 fail** (Bun 1.4.4 no contêiner da sessão). Casos: rótulos em várias ordens e linhas, ruído de OCR do rótulo, número colado à série, sem âncora, número curto/zerado/longo, dois rótulos (pedido, CT-e, fatura, rua), ambiguidade, e o resultado nunca contém texto. `bun run typecheck` e `eslint` da app limpos.
+
+Observação: na mesma sessão, 5 testes **já existentes** de `canhoto-read` que sobem `worker_thread` (decodificador de código de barras) falham com "thread exited with 13" também em `origin/staging` sem esta mudança: é o Bun 1.4.4 do contêiner, não o Bun 1.3.14 do projeto. A CI é a prova.
