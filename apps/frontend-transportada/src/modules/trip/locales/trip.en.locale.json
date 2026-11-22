@@ -618,9 +618,13 @@
       "confirm": "Move the photo",
       "description": "The photo leaves this invoice, which goes back to having no receipt, and moves to invoice {{number}} (series {{series}}). Moving does not approve: the photo arrives awaiting review.",
       "error": {
+        "notFlaggedForTarget": "This photo's reading no longer points to invoice {{number}}. Refresh the screen.",
         "requestFailed": "Could not move the photo. Try again.",
+        "sourceNotPending": "This photo has already been reviewed and can no longer be moved.",
+        "targetAlreadyApproved": "Invoice {{number}} already has an approved receipt.",
         "targetHasProof": "Invoice {{number}} already has a receipt photo. Resolve that photo before moving this one.",
-        "targetNotDelivered": "Invoice {{number}} has no recorded delivery yet. Record the delivery before moving the photo."
+        "targetNotDelivered": "Invoice {{number}} has no recorded delivery yet. Record the delivery before moving the photo.",
+        "targetNotInTrip": "Invoice {{number}} is no longer on this trip."
       },
       "moved": "Photo moved to invoice {{number}}.",
       "reason": {

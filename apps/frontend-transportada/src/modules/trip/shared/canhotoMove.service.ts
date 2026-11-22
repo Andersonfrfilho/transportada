@@ -34,7 +34,11 @@ export type CanhotoMoveResult = Readonly<{
 
 /** Os códigos que a rota devolve e que têm frase própria; o resto cai em "não foi possível mover". */
 export const CANHOTO_MOVE_ERROR_KEYS: Readonly<Record<string, string>> = {
+  CANHOTO_MOVE_NOT_FLAGGED_FOR_TARGET: 'notFlaggedForTarget',
+  CANHOTO_MOVE_SOURCE_NOT_PENDING: 'sourceNotPending',
+  CANHOTO_MOVE_TARGET_ALREADY_APPROVED: 'targetAlreadyApproved',
   CANHOTO_MOVE_TARGET_HAS_PROOF: 'targetHasProof',
+  CANHOTO_MOVE_TARGET_NOT_IN_TRIP: 'targetNotInTrip',
   CANHOTO_MOVE_TARGET_NOT_DELIVERED: 'targetNotDelivered',
 }
 export const CANHOTO_MOVE_FALLBACK_ERROR_KEY = 'requestFailed'

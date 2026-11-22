@@ -12,6 +12,8 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 import {
   createPendingItemsClient,
   type AddressSuggestionDecision,
+  type CanhotoOtherDocumentDecision,
+  type CanhotoOtherDocumentPendingItem,
   flattenPendingItemPages,
   lastPendingItemsCursor,
   type PendingItemPage,
@@ -102,10 +104,39 @@ export function usePendingItems(
     onSettled: () => queryClient.invalidateQueries({ queryKey }),
   })
 
+  /** Spec 344 T5d: Aplicar/Descartar da foto de outra nota; mesma saída otimista da sugestão. */
+  const canhotoDecisionMutation = useMutation({
+    mutationFn: (decision: {
+      decision: CanhotoOtherDocumentDecision
+      item: CanhotoOtherDocumentPendingItem
+    }) => client.decideCanhotoOtherDocument(decision),
+    onError: (_error, _decision, previous) => {
+      if (previous !== undefined) queryClient.setQueryData(queryKey, previous)
+    },
+    onMutate: async (decision) => {
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<Pages>(queryKey)
+      if (previous !== undefined) {
+        queryClient.setQueryData<Pages>(queryKey, {
+          ...previous,
+          pages: [
+            ...removePendingItemFromPages({
+              entityId: decision.item.entityId,
+              pages: previous.pages,
+            }),
+          ],
+        })
+      }
+      return previous
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
+  })
+
   const items = flattenPendingItemPages(pageQuery.data?.pages ?? [])
   const nextCursor = lastPendingItemsCursor(pageQuery.data?.pages ?? [])
 
   return {
+    canhotoDecisionMutation,
     controller,
     decisionMutation,
     goToNextPage: () => void pageQuery.fetchNextPage(),
