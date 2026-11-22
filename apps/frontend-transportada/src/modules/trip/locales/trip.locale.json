@@ -612,6 +612,25 @@
       "unknownWithSeries": "Parece ser de outra nota (lida: {{number}}, série {{series}})",
       "unknownWithoutSeries": "Parece ser de outra nota (lida: {{number}}, série não lida)"
     },
+    "canhotoMove": {
+      "action": "Mover para a NF {{number}}",
+      "cancel": "Cancelar",
+      "confirm": "Mover a foto",
+      "description": "A foto sai desta nota, que volta a ficar sem canhoto, e vai para a NF {{number}} (série {{series}}). Mover não aprova: a foto chega aguardando conferência.",
+      "error": {
+        "requestFailed": "Não foi possível mover a foto. Tente de novo.",
+        "targetHasProof": "A NF {{number}} já tem uma foto de canhoto. Resolva essa foto antes de mover esta.",
+        "targetNotDelivered": "A NF {{number}} ainda não tem entrega registrada. Registre a entrega antes de mover a foto."
+      },
+      "moved": "Foto movida para a NF {{number}}.",
+      "reason": {
+        "driver_mistake": "O motorista anexou na nota errada",
+        "office_mistake": "O escritório anexou na nota errada",
+        "wrong_document": "A foto é de outra nota"
+      },
+      "reasonLabel": "Motivo",
+      "title": "Mover para a NF {{number}}"
+    },
     "canhotoReview": {
       "alreadyResolved": "Outra pessoa já conferiu este canhoto. Atualizamos a tela com o veredito que valeu.",
       "approve": "Aprovar canhoto",

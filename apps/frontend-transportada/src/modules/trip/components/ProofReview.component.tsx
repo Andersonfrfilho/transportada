@@ -48,6 +48,8 @@ export type CanhotoReviewActions = Readonly<{
   /** Vem de `workspace.controller.canManageTrips`; sem ele os botões nem entram no DOM. */
   canReview: boolean
   onApprove: () => void
+  /** Spec 344 T5c: ausente quando a tela não oferece o "Mover para a NF X". */
+  onMove?: () => void
   onReject: () => void
 }>
 
