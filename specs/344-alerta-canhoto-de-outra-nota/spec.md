@@ -26,7 +26,7 @@ Hoje um canhoto trocado só é descoberto por quem abre a foto e confere o núme
 ## Decisões propostas
 
 - **D1 — OCR só sugere.** O veredito da prova continua `pending`; `resolveAutomaticVerdict` já devolve `pending` para `readSource = 'ocr'`, e esta spec **não toca esse arquivo**, só ganha contrato que prende isso (CA01). Sem origem e sem instante de revisão, como a CHECK exige. Prova já `approved` ou com veredito humano não é relida nem alterada.
-- **D2 — Segunda passada da mesma rotina, não rotina nova.** Dentro de `trip.canhoto.read`: código de barras primeiro (não muda); se não leu código, **OCR do Nº/Série**. O worker reaproveita o motor PP-OCRv4 de `canhoto-ocr` (decisão do dono de 05/11: sem modelo pago, só local). Quatro rotações no máximo, parando na primeira que lê um "Nº" ancorado (a tira rasgada é a razão de o código de barras falhar; a rotação é a razão de o OCR de foto de celular falhar).
+- **D2 — Segunda passada da mesma rotina, não rotina nova.** Dentro de `trip.canhoto.read`: código de barras primeiro (não muda); se não leu código, **OCR do Nº/Série**. O worker reaproveita o motor PP-OCRv4 de `canhoto-ocr` (decisão do dono de 05/11: sem modelo pago, só local). **Uma passada** por foto (o motor já endireita orientação, inclinação e 180°; a T0 mediu que 4 rotações não mudaram nenhum resultado, `evidence.md`), com rotações só como reserva se a primeira não ancora um "Nº".
 - **D3 — Ler "o que está impresso", não "casar com o que já conheço".** Nova política de domínio `extractCanhotoIdentity(lines)`: acha o número e a série pelos rótulos do canhoto ("Nº", "NF-e", "SÉRIE"), tolerando o ruído que o `canhoto-ocr` já tolera (`normalizeOcrText`, distância 1). Devolve `{ number, series | null }` ou **nada** — número solto sem rótulo ("17234" no meio do texto) não vale: sem âncora, não alerta (falso alerta custa mais confiança do que um alerta perdido). O texto reconhecido **nunca** sai da thread (ADR-0113 §5.3); só `number`/`series`.
 - **D4 — O que é "outra nota".** Com `expected` = número/série da NF a que a prova está anexada:
   | Leitura | Marca |
@@ -76,7 +76,7 @@ Hoje um canhoto trocado só é descoberto por quem abre a foto e confere o núme
 ## Requisitos funcionais
 
 - **RF1** — Política `extractCanhotoIdentity` (worker, domínio puro): número e série por rótulo; devolve nada sem âncora; ignora zeros à esquerda; nunca devolve o texto.
-- **RF2** — Segunda passada OCR em `trip.canhoto.read`, atrás de `CANHOTO_NUMBER_OCR_ENABLED`, só para prova sem código de barras lido, com o motor de `canhoto-ocr`, até quatro rotações, lote e orçamento próprios.
+- **RF2** — Segunda passada OCR em `trip.canhoto.read`, atrás de `CANHOTO_NUMBER_OCR_ENABLED`, só para prova sem código de barras lido, com o motor de `canhoto-ocr`, uma passada (rotações só de reserva), lote e orçamento próprios.
 - **RF3** — Rota do robô aceita `readSource: 'ocr'` (número obrigatório, série opcional, `readDocumentId` proibido); `resolveAutomaticVerdict` fica intacto; teste de contrato de que `ocr` ⇒ `pending`, e de que sobre veredito humano é `unchanged`.
 - **RF4** — Migration `canhoto_ocr_attempted_at` + índice parcial da fila OCR + rollback (`make migration-test`), e atualização do contrato `canhoto-read-queue.assertion.ts`.
 - **RF5** — A API deriva e devolve no detalhe da prova `canhotoMismatch`: `{ kind: 'other_document' | 'other_series', readNumber, readSeries | null, matchedDocument | null }`; `matchedDocument` só da **mesma empresa** (preferindo a mesma viagem). Prova `approved`, `rejected` ou sem leitura → ausente.
