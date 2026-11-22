@@ -247,6 +247,8 @@ export default defineRailway((ctx) => {
       BOT_AUDIO_TRANSCRIPTION_PROMPT: preserve(),
       /** Spec 294 T4.8: liga/desliga o OCR do canhoto do bot; vazio = ligado fora de produção, desligado em produção. */
       CANHOTO_OCR_ENABLED: preserve(),
+      /** Spec 344 D6: a passada OCR do Nº/Série na rotina `trip.canhoto.read`; vazio = desligada em todo ambiente. */
+      CANHOTO_NUMBER_OCR_ENABLED: preserve(),
       WORKER_HOSTNAME: preserve(),
       WORKER_PORT: preserve(),
       WORKER_PREFETCH: preserve(),

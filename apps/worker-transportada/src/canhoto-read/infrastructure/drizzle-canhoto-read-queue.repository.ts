@@ -6,6 +6,10 @@ import { sql, type SQL } from 'drizzle-orm'
 
 import type { CanhotoTripDocument } from '../domain/canhoto-barcode.policy.js'
 import type {
+  CanhotoNumberOcrQueuePort,
+  ListPendingCanhotoNumberOcrProofsParams,
+} from '../application/canhoto-number-ocr-queue.port.js'
+import type {
   CanhotoReadQueuePort,
   ListPendingCanhotoProofsParams,
 } from '../application/canhoto-read-queue.port.js'
@@ -22,6 +26,15 @@ export type CanhotoReadDatabase = ReturnType<typeof createDrizzleProvider>['db']
 const QUEUE_PREDICATE = sql`p."canhoto_review" = 'pending'
   and p."canhoto_read_source" is null
   and p."canhoto_read_attempted_at" is null`
+
+/**
+ * Spec 344 D7: os três predicados da fila do OCR, **literais** e idênticos aos do índice parcial
+ * `trip_delivery_proofs_canhoto_ocr_pending_idx` (migration `20261122182415_trip_canhoto_ocr_attempt` da API), pelo mesmo
+ * motivo da fila do código de barras: com parâmetro o Postgres ignora o índice em silêncio.
+ */
+const OCR_QUEUE_PREDICATE = sql`p."canhoto_review" = 'pending'
+  and p."canhoto_read_source" is null
+  and p."canhoto_ocr_attempted_at" is null`
 
 /**
  * Spec 265 T008: o comprovante enviado sem redução (`received`/`processing`) é do trilho
@@ -67,6 +80,55 @@ export function buildPendingCanhotoProofsQuery(params: ListPendingCanhotoProofsP
       on o."id" = coalesce(p."original_object_id", p."object_id") and o."company_id" = p."company_id"
     where p."kind" = 'photo'
       and ${QUEUE_PREDICATE}
+      and ${PROCESSING_SETTLED_PREDICATE}
+      and c."status" = 'active'
+      and t."status" <> 'cancelled'
+      and d."released_at" is null
+      and o."status" = 'final'
+      ${exclusion}
+    order by p."created_at"
+    limit ${params.limit}
+  `
+}
+
+/**
+ * Spec 344 D2/D7: a fila da segunda passada. Mesmos cortes da fila do código de barras (ADR-0092 §5) e mais um: só
+ * entra prova que o código de barras **já tentou** (`canhoto_read_attempted_at` preenchido). Sem ele o OCR poderia
+ * chegar antes do código de barras, gravar `readSource = 'ocr'` e tirar a prova da fila que aprova sozinha.
+ */
+export function buildPendingCanhotoNumberOcrProofsQuery(
+  params: ListPendingCanhotoNumberOcrProofsParams,
+): SQL {
+  const exclusion =
+    params.excludeProofIds.length === 0
+      ? sql``
+      : sql`and p."id" not in (${sql.join(
+          params.excludeProofIds.map((proofId) => sql`${proofId}::uuid`),
+          sql`, `,
+        )})`
+
+  return sql`
+    select
+      p."id" as proof_id,
+      p."company_id" as company_id,
+      d."id" as document_id,
+      d."trip_id" as trip_id,
+      n."number" as document_number,
+      o."bucket" as bucket,
+      o."object_key" as object_key,
+      o."mime_type" as mime_type,
+      o."size_bytes" as size_bytes
+    from trip_delivery_proofs p
+    join trip_stop_events e on e."id" = p."stop_event_id" and e."company_id" = p."company_id"
+    join trip_documents d on d."id" = e."trip_document_id" and d."company_id" = e."company_id"
+    left join nfe_documents n on n."id" = d."nfe_document_id" and n."company_id" = d."company_id"
+    join trips t on t."id" = d."trip_id" and t."company_id" = d."company_id"
+    join companies c on c."id" = p."company_id"
+    join stored_objects o
+      on o."id" = coalesce(p."original_object_id", p."object_id") and o."company_id" = p."company_id"
+    where p."kind" = 'photo'
+      and ${OCR_QUEUE_PREDICATE}
+      and p."canhoto_read_attempted_at" is not null
       and ${PROCESSING_SETTLED_PREDICATE}
       and c."status" = 'active'
       and t."status" <> 'cancelled'
@@ -150,5 +212,44 @@ function toTripDocument(row: TripDocumentRow): CanhotoTripDocument {
     nfeNumber: row.number,
     nfeSeries: row.series,
     releasedAt: row.released_at === null ? null : new Date(row.released_at),
+  }
+}
+
+type PendingNumberOcrRow = PendingRow & Readonly<{ document_number: null | string }>
+
+export function createDrizzleCanhotoNumberOcrQueue(
+  database: CanhotoReadDatabase,
+): CanhotoNumberOcrQueuePort {
+  return {
+    async listPending(params) {
+      const rows = (await database.execute(
+        buildPendingCanhotoNumberOcrProofsQuery(params),
+      )) as unknown as readonly PendingNumberOcrRow[]
+
+      return rows.map((row) => ({
+        bucket: row.bucket,
+        companyId: row.company_id,
+        documentId: row.document_id,
+        documentNumber: row.document_number,
+        mimeType: row.mime_type,
+        objectKey: row.object_key,
+        proofId: row.proof_id,
+        sizeBytes: Number(row.size_bytes),
+        tripId: row.trip_id,
+      }))
+    },
+
+    async markAttempted(params) {
+      const rows = (await database.execute(sql`
+        update trip_delivery_proofs p
+        set "canhoto_ocr_attempted_at" = ${params.attemptedAt.toISOString()}::timestamptz
+        where p."id" = ${params.proofId}::uuid
+          and p."company_id" = ${params.companyId}::uuid
+          and ${OCR_QUEUE_PREDICATE}
+        returning p."id"
+      `)) as unknown as readonly unknown[]
+
+      return rows.length > 0
+    },
   }
 }
