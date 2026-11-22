@@ -19,6 +19,11 @@ import {
   type CanhotoReadFailureOutcome,
 } from '../domain/canhoto-read.constant.js'
 import type { CanhotoImageReaderPort } from './canhoto-image-reader.service.js'
+import {
+  type CanhotoNumberOcrPassDependencies,
+  createNumberOcrCounters,
+  runNumberOcrPass,
+} from './canhoto-number-ocr.pass.js'
 import type { CanhotoReadQueuePort, PendingCanhotoProof } from './canhoto-read-queue.port.js'
 import { CanhotoReviewApiError } from './canhoto-review-api.error.js'
 import type { CanhotoReviewApiPort } from './canhoto-review-api.port.js'
@@ -43,6 +48,11 @@ export type CanhotoReadRoutineDependencies = {
   readonly imageReader: CanhotoImageReaderPort
   readonly logger: WorkerLogger
   readonly now: () => Date
+  /**
+   * Spec 344 (T4): a segunda passada, OCR do Nº/Série. Ausente (`CANHOTO_NUMBER_OCR_ENABLED` desligada), a rotina é
+   * idêntica à de antes — nem os contadores da passada aparecem.
+   */
+  readonly numberOcr?: CanhotoNumberOcrPassDependencies
   readonly queue: CanhotoReadQueuePort
   readonly reviewApi: CanhotoReviewApiPort
 }
@@ -146,18 +156,34 @@ async function runCycle(input: {
     if (batch.length < limit) break
   }
 
+  // Spec 344 D2: depois do código de barras, e só com a flag. A falha de uma prova é contada lá dentro; a da fila
+  // (banco) sobe como a da passada do código de barras.
+  const ocrCounters = dependencies.numberOcr === undefined ? undefined : createNumberOcrCounters()
+  if (dependencies.numberOcr !== undefined && ocrCounters !== undefined) {
+    await runNumberOcrPass({
+      context,
+      counters: ocrCounters,
+      errorTracker: dependencies.errorTracker,
+      logger: dependencies.logger,
+      now: dependencies.now,
+      ocr: dependencies.numberOcr,
+      reviewApi: dependencies.reviewApi,
+    })
+  }
+  const allCounters = { ...counters, ...ocrCounters }
+
   safeLogInfo({
     logger: dependencies.logger,
     message: 'canhoto_read_cycle_finished',
     metadata: {
-      ...counters,
+      ...allCounters,
       correlationId: context.correlationId,
       executionId: context.executionId,
       exhausted: seenProofIds.length >= CANHOTO_READ_MAX_PROOFS_PER_CYCLE,
     },
   })
 
-  return { counters, outcome: 'succeeded' }
+  return { counters: allCounters, outcome: 'succeeded' }
 }
 
 async function processProof(input: ProofInput): Promise<void> {

@@ -13,7 +13,10 @@ import {
 import { evaluateCanhotoText } from '../src/canhoto-ocr/domain/canhoto-ocr-match.policy.js'
 import { CANHOTO_OCR_MAX_INPUT_PIXELS } from '../src/canhoto-ocr/domain/canhoto-ocr.constant.js'
 import { openCanhotoImage } from '../src/canhoto-ocr/infrastructure/canhoto-image.decoder.js'
-import { createThreadedCanhotoOcrReader } from '../src/canhoto-ocr/infrastructure/threaded-canhoto-ocr.reader.js'
+import {
+  createThreadedCanhotoOcrReader,
+  type ThreadedCanhotoOcrReader,
+} from '../src/canhoto-ocr/infrastructure/threaded-canhoto-ocr.reader.js'
 import { parseWorkerEnvironment } from '../src/config/environment.schema.js'
 import {
   BOT_CANHOTO_READ_PATH,
@@ -89,7 +92,7 @@ describe('canhoto text evaluation', () => {
 })
 
 describe('threaded canhoto reader', () => {
-  const readers: CanhotoOcrReaderPort[] = []
+  const readers: ThreadedCanhotoOcrReader[] = []
   const workerUrl = new URL('./fixtures/canhoto-ocr-fake.worker.ts', import.meta.url)
   const create = (
     options: {
@@ -181,6 +184,45 @@ describe('threaded canhoto reader', () => {
     expect(Date.now() - startedAt).toBeLessThan(100)
     await reader.close()
     await Promise.all(stuck)
+  })
+
+  test('spec 344: readIdentity goes to the same thread and brings back only number and series', async () => {
+    const reader = await started()
+    expect(
+      await reader.readIdentity({ bytes: new Uint8Array([1, 1]), queueKey: 'trip.canhoto.read' }),
+    ).toEqual({ identity: { number: '172195', series: '1' }, kind: 'read' })
+    expect(
+      await reader.readIdentity({ bytes: new Uint8Array([1, 4]), queueKey: 'trip.canhoto.read' }),
+    ).toEqual({ identity: null, kind: 'read' })
+    expect(
+      await reader.readIdentity({ bytes: new Uint8Array([1, 5]), queueKey: 'trip.canhoto.read' }),
+    ).toEqual({ kind: 'unreadable' })
+    // O bot continua lendo na mesma thread, com o protocolo dele.
+    expect((await reader.read({ bytes: new Uint8Array([1, 8]), candidates })).markers).toBe(8)
+  })
+
+  test('spec 344: the routine and the bot share the two places — the routine never takes both', async () => {
+    const reader = await started({ timeoutMilliseconds: 400 })
+    const stuck = reasonOf(
+      reader.readIdentity({ bytes: new Uint8Array([2]), queueKey: 'trip.canhoto.read' }),
+    )
+    expect(
+      await reasonOf(
+        reader.readIdentity({ bytes: new Uint8Array([1]), queueKey: 'trip.canhoto.read' }),
+      ),
+    ).toBe('busy')
+    // O lugar que sobra é do bot: a foto dele entra na espera em vez de ser recusada na hora (a da rotina estoura o
+    // prazo, a thread recomeça e só então a do bot volta `busy`, como qualquer foto atrás de uma leitura presa).
+    let botSettled = false
+    const bot = reasonOf(
+      reader.read({ bytes: new Uint8Array([1]), candidates, queueKey: 'C1' }),
+    ).finally(() => {
+      botSettled = true
+    })
+    await Bun.sleep(50)
+    expect(botSettled).toBe(false)
+    expect(await stuck).toBe('timeout')
+    expect(await bot).toBe('busy')
   })
 
   test('S7: a company waits behind its own photo — the second one of the same company is busy', async () => {
@@ -384,5 +426,37 @@ describe('canhoto ocr environment', () => {
       parseWorkerEnvironment({ ...base, CANHOTO_OCR_MODEL_DIR: '' }).canhotoOcr,
     ).toBeUndefined()
     expect(() => parseWorkerEnvironment({ ...base, CANHOTO_OCR_ENABLED: 'yes' })).toThrow()
+  })
+
+  test('spec 344: the number pass has its own flag, off in every environment until asked', () => {
+    expect(parseWorkerEnvironment(base).canhotoNumberOcr).toBeUndefined()
+    expect(
+      parseWorkerEnvironment({ ...base, APP_ENV: 'production' }).canhotoNumberOcr,
+    ).toBeUndefined()
+    expect(
+      parseWorkerEnvironment({ ...base, CANHOTO_NUMBER_OCR_ENABLED: '' }).canhotoNumberOcr,
+    ).toBeUndefined()
+    expect(
+      parseWorkerEnvironment({ ...base, CANHOTO_NUMBER_OCR_ENABLED: 'true' }).canhotoNumberOcr,
+    ).toEqual({ modelDirectory: '/models/canhoto-ocr', timeoutMilliseconds: 30_000 })
+    // Independente da flag do bot: a passada liga com o bot desligado.
+    expect(
+      parseWorkerEnvironment({
+        ...base,
+        CANHOTO_NUMBER_OCR_ENABLED: 'true',
+        CANHOTO_OCR_ENABLED: 'false',
+      }).canhotoNumberOcr,
+    ).toBeDefined()
+  })
+
+  test('spec 344: the number pass asked without the models, or with a typo, fails the boot', () => {
+    expect(() =>
+      parseWorkerEnvironment({
+        ...base,
+        CANHOTO_NUMBER_OCR_ENABLED: 'true',
+        CANHOTO_OCR_MODEL_DIR: '',
+      }),
+    ).toThrow()
+    expect(() => parseWorkerEnvironment({ ...base, CANHOTO_NUMBER_OCR_ENABLED: 'yes' })).toThrow()
   })
 })

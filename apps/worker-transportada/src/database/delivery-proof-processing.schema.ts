@@ -30,6 +30,8 @@ export const deliveryProofProcessingProofs = pgTable('trip_delivery_proofs', {
   canhotoReview: varchar('canhoto_review', { length: 16 }).notNull(),
   canhotoReadSource: varchar('canhoto_read_source', { length: 16 }),
   canhotoReadAttemptedAt: timestamp('canhoto_read_attempted_at', { withTimezone: true }),
+  /** Spec 344 D7: a tentativa da passada OCR (migration `20261122182415_trip_canhoto_ocr_attempt` da API). */
+  canhotoOcrAttemptedAt: timestamp('canhoto_ocr_attempted_at', { withTimezone: true }),
   processingState: varchar('processing_state', {
     length: 16,
   }).$type<DeliveryProofProcessingState>(),
