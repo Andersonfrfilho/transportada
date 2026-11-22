@@ -475,6 +475,7 @@ describe('Drizzle migrations', () => {
       '20261118210000_occurrence_type_icons_address_closed',
       '20261121123415_occurrence_unassigned_dismissal',
       '20261122182415_trip_canhoto_ocr_attempt',
+      '20261122195101_trip_canhoto_mismatch_dismissal',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -2197,6 +2198,30 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(restoredChecks).toContain('"job_executions_job_check"')
     expect(restoredChecks.split('DO $$')[0]).not.toContain(`'trip.canhoto.read'`)
 
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /** Spec 344 T5d: o descarte do alerta é uma coluna anulável, sem default nem backfill. */
+  test('adds the canhoto mismatch dismissal as a nullable column with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_trip_canhoto_mismatch_dismissal'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const statements = migrationSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n')
+
+    expect(statements.trim()).toBe(
+      'ALTER TABLE "trip_delivery_proofs" ADD COLUMN "canhoto_mismatch_dismissed_at" timestamp with time zone;',
+    )
+    expect(rollbackSql).toContain('DROP COLUMN "canhoto_mismatch_dismissed_at"')
     expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)

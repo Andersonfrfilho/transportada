@@ -17,6 +17,8 @@ export type LockedCanhotoMoveSource = {
   readonly expectedNfeDocumentId: null | string
   readonly expectedNumber: null | string
   readonly expectedSeries: null | string
+  /** Spec 344 T5d: o escritório já descartou o alerta desta foto. */
+  readonly mismatchDismissed: boolean
   readonly proofId: string
   readonly readNumber: null | string
   readonly readSeries: null | string

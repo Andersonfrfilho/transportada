@@ -639,6 +639,7 @@ import {
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
 import { formatOccurrenceMoment } from './trips/domain/occurrence-mail-values.policy.js'
 import { correctOccurrenceItems } from './trips/application/correct-occurrence-items.use-case.js'
+import { dismissCanhotoMismatch } from './trips/application/dismiss-canhoto-mismatch.use-case.js'
 import { moveCanhotoProof } from './trips/application/move-canhoto-proof.use-case.js'
 import { reviewCanhotoProof } from './trips/application/review-canhoto-proof.use-case.js'
 import { cancelOccurrence } from './trips/application/cancel-occurrence.use-case.js'
@@ -753,6 +754,7 @@ import { createListPendingItemsUseCase } from './pending-items/application/list-
 import { createAddressSuggestionPendingItemSource } from './pending-items/infrastructure/drizzle-address-correction-suggestion-pending-item.source.js'
 import { createAddressCorrectionSuggestionRoutes } from './address-correction-suggestions/presentation/address-correction-suggestion.routes.js'
 import { createDrizzleAddressCorrectionSuggestionDecisions } from './address-correction-suggestions/infrastructure/drizzle-address-correction-suggestion.repository.js'
+import { createCanhotoOtherDocumentPendingItemSource } from './pending-items/infrastructure/drizzle-canhoto-other-document-pending-item.source.js'
 import { createFleetBodyTypePendingItemSource } from './pending-items/infrastructure/drizzle-fleet-body-type-pending-item.source.js'
 import { createPendingItemsRoutes } from './pending-items/presentation/pending-items.routes.js'
 import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
@@ -848,6 +850,7 @@ import {
 } from './whatsapp/application/whatsapp-group-boleto-resend.service.js'
 import { createGroupBoletoResendPorts } from './whatsapp/infrastructure/whatsapp-group-boleto-resend.adapter.js'
 import { createOccurrenceContractorReplyRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
+import { createCanhotoDismissRoutes } from './trips/presentation/canhoto-dismiss.routes.js'
 import { createCanhotoMoveRoutes } from './trips/presentation/canhoto-move.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
@@ -1003,6 +1006,7 @@ import { createReimburseOccurrenceSettlementUseCase } from './trips/application/
 import { createFindOccurrenceSettlementUseCase } from './trips/application/find-occurrence-settlement.use-case.js'
 import { DrizzleOccurrenceSettlementRepository } from './trips/infrastructure/drizzle-occurrence-settlement.repository.js'
 import { DrizzleOccurrenceSettlementChargeRepository } from './trips/infrastructure/drizzle-occurrence-settlement-charge.repository.js'
+import { DrizzleCanhotoDismissUnitOfWork } from './trips/infrastructure/drizzle-canhoto-dismiss.repository.js'
 import { DrizzleCanhotoMoveUnitOfWork } from './trips/infrastructure/drizzle-canhoto-move.repository.js'
 import { DrizzleCanhotoReviewUnitOfWork } from './trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
@@ -3829,6 +3833,7 @@ function createApplicationRoutes({
     sources: [
       createFleetBodyTypePendingItemSource({ database }),
       createAddressSuggestionPendingItemSource({ database }),
+      createCanhotoOtherDocumentPendingItemSource({ database }),
     ],
   })
   const freightRegionRepository = new DrizzleFreightRegionRepository(database)
@@ -4016,6 +4021,7 @@ function createApplicationRoutes({
   /** Spec 220 T6.8: a conferência do canhoto escreve veredito e trilha na mesma transação. */
   const canhotoReviewUnitOfWork = new DrizzleCanhotoReviewUnitOfWork(database)
   const canhotoMoveUnitOfWork = new DrizzleCanhotoMoveUnitOfWork(database)
+  const canhotoDismissUnitOfWork = new DrizzleCanhotoDismissUnitOfWork(database)
   /** RF12/D6: a fila de revisão (`move`/`swap`, spec 148) recalcula com o mesmo congelador (T206). */
   const tripDocumentReviewRepository = new DrizzleTripDocumentReviewRepository(
     database,
@@ -5363,6 +5369,14 @@ function createApplicationRoutes({
     ...createCanhotoMoveRoutes({
       canhotoMove: {
         move: (input) => moveCanhotoProof({ ...input, unitOfWork: canhotoMoveUnitOfWork }),
+      },
+      resolveClientIp,
+    }),
+    /** Spec 344 T5d: "Descartar" o alerta de canhoto de outra nota, sob `trip.manage`. */
+    ...createCanhotoDismissRoutes({
+      canhotoDismiss: {
+        dismiss: (input) =>
+          dismissCanhotoMismatch({ ...input, unitOfWork: canhotoDismissUnitOfWork }),
       },
       resolveClientIp,
     }),

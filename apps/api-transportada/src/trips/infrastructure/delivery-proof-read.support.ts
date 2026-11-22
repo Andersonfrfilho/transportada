@@ -223,6 +223,7 @@ async function selectDeliveryProofs(
   const rows = await queryable
     .select({
       bucket: storedObjects.bucket,
+      canhotoMismatchDismissedAt: tripDeliveryProofs.canhotoMismatchDismissedAt,
       canhotoReadNumber: tripDeliveryProofs.canhotoReadNumber,
       canhotoReadSeries: tripDeliveryProofs.canhotoReadSeries,
       canhotoReadSource: tripDeliveryProofs.canhotoReadSource,
@@ -326,6 +327,7 @@ async function selectDeliveryProofs(
   const mismatches = await deriveCanhotoMismatches(queryable, {
     companyId: input.companyId,
     subjects: rows.map((row) => ({
+      dismissed: row.canhotoMismatchDismissedAt !== null,
       expectedAccessKey: row.expectedAccessKey,
       expectedNfeDocumentId: row.expectedNfeDocumentId,
       expectedNumber: row.expectedNumber,

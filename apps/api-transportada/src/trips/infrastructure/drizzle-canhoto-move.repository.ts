@@ -49,26 +49,35 @@ export class DrizzleCanhotoMoveUnitOfWork implements CanhotoMoveUnitOfWork {
   }
 }
 
+export async function deriveMoveSourceMismatch(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly source: LockedCanhotoMoveSource
+    readonly tripId: string
+  },
+) {
+  const [mismatch] = await deriveCanhotoMismatches(queryable, {
+    companyId: input.companyId,
+    subjects: [
+      {
+        expectedAccessKey: input.source.expectedAccessKey,
+        expectedNfeDocumentId: input.source.expectedNfeDocumentId,
+        expectedNumber: input.source.expectedNumber,
+        expectedSeries: input.source.expectedSeries,
+        readNumber: input.source.readNumber,
+        readSeries: input.source.readSeries,
+        review: input.source.review,
+      },
+    ],
+    tripId: input.tripId,
+  })
+  return mismatch ?? null
+}
+
 function createCanhotoMoveTransaction(queryable: TripQueryable): CanhotoMoveTransaction {
   return {
-    deriveMismatch: async (input) => {
-      const [mismatch] = await deriveCanhotoMismatches(queryable, {
-        companyId: input.companyId,
-        subjects: [
-          {
-            expectedAccessKey: input.source.expectedAccessKey,
-            expectedNfeDocumentId: input.source.expectedNfeDocumentId,
-            expectedNumber: input.source.expectedNumber,
-            expectedSeries: input.source.expectedSeries,
-            readNumber: input.source.readNumber,
-            readSeries: input.source.readSeries,
-            review: input.source.review,
-          },
-        ],
-        tripId: input.tripId,
-      })
-      return mismatch ?? null
-    },
+    deriveMismatch: (input) => deriveMoveSourceMismatch(queryable, input),
     findAlreadyMovedProof: (input) => findAlreadyMovedProof(queryable, input),
     findTarget: (input) => findMoveTarget(queryable, input),
     insertAudit: (entry) => insertMoveAudit(queryable, entry),
@@ -82,7 +91,7 @@ function createCanhotoMoveTransaction(queryable: TripQueryable): CanhotoMoveTran
  * Duas consultas de propósito (mesmo molde de `lockCanhotoProof`): a junção localiza, e o
  * `FOR NO KEY UPDATE` trava só a linha do comprovante, sem derrubar a FK composta.
  */
-async function lockMoveSource(
+export async function lockMoveSource(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly documentId: string; readonly tripId: string },
 ): Promise<LockedCanhotoMoveSource | null> {
@@ -131,6 +140,7 @@ async function lockMoveSource(
 
   const [row] = await queryable
     .select({
+      dismissedAt: tripDeliveryProofs.canhotoMismatchDismissedAt,
       id: tripDeliveryProofs.id,
       readNumber: tripDeliveryProofs.canhotoReadNumber,
       readSeries: tripDeliveryProofs.canhotoReadSeries,
@@ -150,6 +160,7 @@ async function lockMoveSource(
     expectedNfeDocumentId: located.expectedNfeDocumentId ?? null,
     expectedNumber: located.expectedNumber ?? null,
     expectedSeries: located.expectedSeries ?? null,
+    mismatchDismissed: row.dismissedAt !== null,
     proofId: row.id,
     readNumber: row.readNumber ?? null,
     readSeries: row.readSeries ?? null,
@@ -219,6 +230,7 @@ async function moveProof(
   await queryable
     .update(tripDeliveryProofs)
     .set({
+      canhotoMismatchDismissedAt: null,
       canhotoReadDocumentId: null,
       canhotoReview: 'pending',
       canhotoReviewAt: null,

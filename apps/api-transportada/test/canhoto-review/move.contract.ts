@@ -154,6 +154,7 @@ const SOURCE: LockedCanhotoMoveSource = {
   expectedNfeDocumentId: null,
   expectedNumber: '931988',
   expectedSeries: '1',
+  mismatchDismissed: false,
   proofId: PROOF_ID,
   readNumber: '172195',
   readSeries: '1',

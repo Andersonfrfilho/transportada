@@ -35,6 +35,7 @@ const CANHOTO_REVIEW_MENTION = /canhotoReview|canhoto_review/u
 const CONFERENCE_MODULE = [
   'database/trip.schema.ts',
   'main.ts',
+  'pending-items/infrastructure/drizzle-canhoto-other-document-pending-item.source.ts',
   'trips/application/canhoto-review.port.ts',
   'trips/application/read-delivery-proof.use-case.ts',
   'trips/application/review-canhoto-proof.use-case.ts',

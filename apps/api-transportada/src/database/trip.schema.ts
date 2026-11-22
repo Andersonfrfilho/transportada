@@ -2354,6 +2354,12 @@ export const tripDeliveryProofs = pgTable(
      */
     canhotoOcrAttemptedAt: timestamp('canhoto_ocr_attempted_at', { withTimezone: true }),
     /**
+     * Spec 344 T5d (D9, "Descartar"): quando o escritório decidiu manter a foto nesta nota e some o
+     * alerta "parece ser de outra nota". Nulo é "alerta vale". O alerta continua **derivado**: esta
+     * coluna só o apaga daquela foto, e a recaptura a zera (a foto nova é outra decisão). Sem backfill.
+     */
+    canhotoMismatchDismissedAt: timestamp('canhoto_mismatch_dismissed_at', { withTimezone: true }),
+    /**
      * Spec 265 RF6: o estado do tratamento do arquivo. Nulo é o comprovante que sobe já leve (a
      * redução aconteceu no aparelho) e todo o histórico — a leitura o publica como `ready`. Só o
      * envio `original` grava `received`; o worker leva a `processing` e a `ready` ou

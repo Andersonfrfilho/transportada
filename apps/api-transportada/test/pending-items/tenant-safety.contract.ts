@@ -6,6 +6,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
 
 import { buildAddressSuggestionPendingItemFilters } from '../../src/pending-items/infrastructure/drizzle-address-correction-suggestion-pending-item.source.js'
+import { buildCanhotoOtherDocumentFilters } from '../../src/pending-items/infrastructure/drizzle-canhoto-other-document-pending-item.source.js'
 import { buildFleetBodyTypePendingItemFilters } from '../../src/pending-items/infrastructure/drizzle-fleet-body-type-pending-item.source.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000811'
@@ -62,5 +63,27 @@ describe('pending items address suggestion query tenant safety (spec 294 T3.2)',
       expect(query.sql).toContain('"address_correction_suggestions"."status" = $')
       expect(query.params.slice(0, 2)).toEqual([COMPANY_ID, 'pending'])
     }
+  })
+})
+
+describe('pending items canhoto other document query tenant safety (spec 344 T5d)', () => {
+  test('scopes the page by company, with or without a cursor', () => {
+    for (const cursor of [null, CURSOR]) {
+      const query = toSql(buildCanhotoOtherDocumentFilters({ companyId: COMPANY_ID, cursor }))
+
+      expect(query.sql).toContain('"trip_delivery_proofs"."company_id" = $')
+      expect(query.params[0]).toBe(COMPANY_ID)
+    }
+  })
+
+  test('only pending, read, undismissed proofs of live documents', () => {
+    const { sql: text } = toSql(
+      buildCanhotoOtherDocumentFilters({ companyId: COMPANY_ID, cursor: null }),
+    )
+
+    expect(text).toContain(`"canhoto_review" = 'pending'`)
+    expect(text).toContain('"canhoto_read_number" is not null')
+    expect(text).toContain('"canhoto_mismatch_dismissed_at" is null')
+    expect(text).toContain('"trip_documents"."released_at" is null')
   })
 })
