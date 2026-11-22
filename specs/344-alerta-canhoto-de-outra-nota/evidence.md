@@ -167,3 +167,10 @@ Contrato primeiro (`test/canhoto-review/dismiss.contract.ts`, `test/pending-item
 | Lint, typecheck, prettier                                                                   | `bun run lint`, `bun run typecheck`, `bunx prettier --check`                  | limpos                      |
 
 Limite honesto: `movable` não olha se a nota citada já tem entrega ou foto (a rota devolve 409 `CANHOTO_MOVE_TARGET_NOT_DELIVERED`/`_HAS_PROOF` e o painel trata).
+
+## T5 / T5c — painel (PRs #951, #952, #954)
+
+- **Faixa e maço (#951):** faixa "Parece ser da NF X (série S)" / "Parece ser de outra nota (lida: …)" com selo Experimental no comprovante e no maço; "aprovar todos" deixa de fora a prova sinalizada, que só se aprova por "Aprovar mesmo assim" (com a foto carregada, sem fechar o maço). Contratos `canhoto-mismatch-presentation` e `canhoto-batch-dialog-flagged` (DOM).
+- **Mover (#952):** botão "Mover para a NF X" só com `sameTrip`, `!canhotoApproved` e `tripDocumentId`; diálogo com motivo da lista fechada; `POST .../proof/move`; frases para os 409. Contrato `canhoto-move`.
+- **/pendencias (#954):** linha `canhotoOtherDocument` com Aplicar (só `movable` e com destino) e Descartar. Contrato `pending-items/canhoto-other-document`.
+- Prints claro/escuro × 1440/375 em `prints/` (`maco-*`, `comprovante-*`, `mover-*`, `pendencias-*`), gerados por `spec-344-prints.smoke.spec.ts` e `spec-344-pendencias-prints.smoke.spec.ts` (fora da CI, fotos sintéticas). Revisor independente aprovou os três PRs; CI verde em todos.
