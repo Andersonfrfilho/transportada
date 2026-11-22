@@ -22,6 +22,7 @@ export function resolveInitialCanhotoReview(
 }
 
 type CanhotoReviewReset = {
+  readonly canhotoMismatchDismissedAt: null
   readonly canhotoOcrAttemptedAt: null
   readonly canhotoReadAttemptedAt: null
   readonly canhotoReadDocumentId: null
@@ -47,6 +48,7 @@ type CanhotoReviewReset = {
  */
 export function buildCanhotoReviewReset(kind: TripDeliveryProofKind): CanhotoReviewReset {
   return {
+    canhotoMismatchDismissedAt: null,
     canhotoOcrAttemptedAt: null,
     canhotoReadAttemptedAt: null,
     canhotoReadDocumentId: null,

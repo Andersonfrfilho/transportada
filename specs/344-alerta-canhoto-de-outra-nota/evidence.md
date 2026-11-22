@@ -148,3 +148,22 @@ Painel (botão, `/pendencias`, prints, revisor) é a T5c, em outra thread. Publi
 | Lint, typecheck, prettier                                                                                                                                                                                                                                                                                    | `bun run lint`, `bun run typecheck`, `bunx prettier --check .` (raiz)                                                                                               | limpos            |
 
 Limites honestos: o motor real (PP-OCRv4) não rodou no contêiner da sessão (o `huggingface.co` dos modelos é bloqueado aqui); o caminho `identity` da thread real é provado só por tipo e pelo dublê com o mesmo protocolo. A leitura real, a taxa e o pico de memória com a flag ligada são a T6 em staging. Com o Bun 1.4.4 do contêiner, os 5 testes de `worker_thread` do código de barras falham como já registrado na T1; com o 1.3.14 do projeto, 0 falhas.
+
+## T5d — "Descartar" o alerta e a linha `canhotoOtherDocument` em `/pendencias` (22/11/2026)
+
+Contrato primeiro (`test/canhoto-review/dismiss.contract.ts`, `test/pending-items/tenant-safety.contract.ts`), depois o código.
+
+**Migration aditiva** `20261122195101_trip_canhoto_mismatch_dismissal`: `trip_delivery_proofs.canhoto_mismatch_dismissed_at` anulável, sem default nem backfill, com `rollback.sql`. O alerta continua **derivado**; a coluna só o apaga **daquela foto**. A recaptura zera (entrou em `buildCanhotoReviewReset`, que o contrato exige completo) e mover a foto (T5b) também zera.
+
+**Descartar** `POST /trips/:id/documents/:documentId/proof/mismatch/dismiss` (`trip.manage`, corpo vazio `.strict()`): trava a prova, confere que ela é `pending` (senão 409 `CANHOTO_DISMISS_NOT_PENDING`) e que o alerta derivado existe (senão 409 `CANHOTO_DISMISS_NOT_FLAGGED`), carimba e grava a trilha `trip.canhoto-mismatch.dismissed` (ator, prova, viagem, IP; **sem número, série nem texto**) na mesma transação. Repetir devolve `alreadyDismissed: true` sem escrever. Prova de outra empresa é 404. Não aprova, não recusa e não move. A derivação do alerta (`compareCanhotoReading`) devolve `null` com a prova descartada, então o detalhe e o maço já a escondem.
+
+**Linha em `/pendencias`**: `kind: 'canhotoOtherDocument'`, `entityType: 'canhotoProof'`, `entityId` = id da prova, `label` = número da nota da prova, fonte com `requiredPermission: 'trip.manage'` (quem não a tem não vê a linha). `details`: `tripId`, `documentId` (a nota A, o `:documentId` das duas rotas), `kind` (`other_document|other_series`), `readNumber`, `readSeries`, e da nota citada `targetDocumentId`, `targetNumber`, `targetSeries`, `targetSameTrip`, `targetCanhotoApproved`, mais `movable` (`'true'` quando cita nota da mesma viagem sem canhoto aprovado: é quando o "Aplicar" vale). Aplicar = rota `proof/move` da T5b; Descartar = rota acima. O SQL da fila é uma segunda implementação de `compareCanhotoReading`; a nota citada sai de `deriveCanhotoMismatches`, o mesmo código do detalhe, uma derivação por viagem.
+
+| Prova                                                                                       | Comando                                                                       | Resultado                   |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------- |
+| Contrato (descartar, fila, tenant-safety, reset, migration estática)                        | `bun run test` (api)                                                          | 15797 pass, 35 skip, 0 fail |
+| Integração Postgres 16: descartar, idempotência, outra empresa, **paridade SQL × política** | `bun test --timeout 120000 ./test/integration/canhoto-dismiss.integration.ts` | 3 pass, 0 fail              |
+| Migration + rollback                                                                        | `bun run db:test`                                                             | 297 pass, 0 fail            |
+| Lint, typecheck, prettier                                                                   | `bun run lint`, `bun run typecheck`, `bunx prettier --check`                  | limpos                      |
+
+Limite honesto: `movable` não olha se a nota citada já tem entrega ou foto (a rota devolve 409 `CANHOTO_MOVE_TARGET_NOT_DELIVERED`/`_HAS_PROOF` e o painel trata).

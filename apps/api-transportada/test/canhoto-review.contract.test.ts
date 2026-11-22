@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import './canhoto-review/decision.contract.js'
+import './canhoto-review/dismiss.contract.js'
 import './canhoto-review/move.contract.js'
 import './canhoto-review/no-gate.contract.js'
 import './canhoto-review/recapture.contract.js'

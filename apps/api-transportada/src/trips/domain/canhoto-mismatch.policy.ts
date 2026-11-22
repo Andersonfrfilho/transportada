@@ -40,6 +40,8 @@ export type CanhotoMismatch = {
 
 /** O que a comparação precisa saber da prova e da nota dela. */
 export type CanhotoReadingComparisonInput = {
+  /** Spec 344 T5d: o escritório descartou o alerta desta foto ("Descartar"). */
+  readonly dismissed?: boolean
   readonly expectedNumber: null | string
   readonly expectedSeries: null | string
   readonly readNumber: null | string | undefined
@@ -67,6 +69,7 @@ export function compareCanhotoReading(
   input: CanhotoReadingComparisonInput,
 ): CanhotoReadingDivergence | null {
   if (input.review !== 'pending') return null
+  if (input.dismissed === true) return null
   if (input.readNumber === null || input.readNumber === undefined || input.readNumber === '') {
     return null
   }
