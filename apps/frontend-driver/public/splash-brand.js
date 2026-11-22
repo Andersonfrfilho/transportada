@@ -8,6 +8,14 @@ try {
   var raw = window.localStorage.getItem('transportada.installation-brand.v1')
   var brand = raw === null ? null : JSON.parse(raw)
   var logoUrl = brand !== null && typeof brand.logoUrl === 'string' ? brand.logoUrl : ''
+  /* Sem marca guardada (primeira abertura do aparelho): tenta o logo público da instalação. O ícone */
+  /* do produto fica à vista até a imagem carregar, e continua se não houver logo ou a rede falhar. */
+  var isFirstOpen = logoUrl === ''
+  if (isFirstOpen) {
+    var apiMeta = document.querySelector('meta[name="splash-api-url"]')
+    var apiUrl = apiMeta === null ? '' : (apiMeta.getAttribute('content') || '').replace(/\/$/, '')
+    logoUrl = /^https?:\/\//.test(apiUrl) ? apiUrl + '/public/landing-logo' : ''
+  }
   if (splash !== null && /^(https?:)?\//.test(logoUrl)) {
     var storedTheme = document.documentElement.getAttribute('data-theme')
     var isDark =
@@ -18,6 +26,7 @@ try {
     image.className = 'splash-company'
     image.onload = function () {
       splash.classList.add('has-company')
+      if (isFirstOpen) splash.classList.add('has-brand')
     }
     image.onerror = function () {
       image.remove()
@@ -27,7 +36,7 @@ try {
       ? logoUrl + (logoUrl.indexOf('?') === -1 ? '?' : '&') + 'variant=white'
       : logoUrl
     /* Com marca guardada o ícone do produto já sai: o logo da transportadora é quem entra, sem piscada. */
-    splash.classList.add('has-brand')
+    if (!isFirstOpen) splash.classList.add('has-brand')
     splash.appendChild(image)
   }
 } catch (error) {

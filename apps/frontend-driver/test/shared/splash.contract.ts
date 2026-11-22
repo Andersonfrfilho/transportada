@@ -120,6 +120,20 @@ describe('splash do motorista', () => {
     expect(script).toContain(`'${whiteQuery}'`)
   })
 
+  test('sem marca guardada, o splash-brand.js busca o logo público da API pela meta do index.html', async () => {
+    const script = await readApplicationFile('public/splash-brand.js')
+    const html = await readApplicationFile('index.html')
+    const logoPath = /PUBLIC_LOGO_PATH = '([^']+)'/u.exec(
+      await readApplicationFile('src/modules/identity/shared/installationBrand.service.ts'),
+    )?.[1]
+    expect(logoPath).toBeDefined()
+    expect(html).toContain('<meta name="splash-api-url" content="%VITE_API_URL%" />')
+    expect(script).toContain('meta[name="splash-api-url"]')
+    expect(script).toContain(`'${logoPath}'`)
+    /* O ícone do produto só sai quando a imagem carrega: sem logo ou sem rede ele continua à vista. */
+    expect(script).toContain("if (isFirstOpen) splash.classList.add('has-brand')")
+  })
+
   test('o splash-brand.js roda depois do #splash e antes do app', async () => {
     const html = await readApplicationFile('index.html')
     expect(html.indexOf('id="splash"')).toBeLessThan(html.indexOf('/splash-brand.js'))
