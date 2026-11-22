@@ -10,6 +10,7 @@ import {
   isDeliveryProofAwaitingProcessing,
   type DeliveryProof,
 } from '../shared/deliveryProof.service'
+import { isCanhotoFlagged } from '../shared/canhotoMismatchPresentation.service'
 import { formatDeliveryProofTime } from '../shared/deliveryProofCard.service'
 
 import type { CanhotoReviewActions } from './ProofReview.component'
@@ -46,7 +47,11 @@ export function ProofReviewActions({
       </Button>
       <Button disabled={isAwaiting} onClick={onApprove} size="sm" type="button">
         <Icon name="check" />
-        {t('deliveryProof.canhotoReview.approve')}
+        {t(
+          isCanhotoFlagged(proof)
+            ? 'deliveryProof.canhotoReview.approveAnyway'
+            : 'deliveryProof.canhotoReview.approve',
+        )}
       </Button>
     </>
   )

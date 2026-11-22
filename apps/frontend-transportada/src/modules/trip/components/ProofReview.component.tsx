@@ -9,6 +9,7 @@ import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
+import { CanhotoMismatchNotice } from './CanhotoMismatchNotice.component'
 import { useMomentFormatter } from '@/modules/shared/useMomentFormatter.hook'
 
 import {
@@ -16,6 +17,7 @@ import {
   type CanhotoReviewMessageKey,
   type CanhotoReviewPresentation,
 } from '../shared/canhotoReviewPresentation.service'
+import { isCanhotoFlagged } from '../shared/canhotoMismatchPresentation.service'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import styles from '../styles/trip.module.css'
 
@@ -58,11 +60,14 @@ export function ProofReview({ proof }: ProofReviewProps) {
   if (presentation === undefined) return null
 
   const { isExperimental, messageKey, note, reason } = presentation
-  const hasMessage = !MESSAGES_ALREADY_IN_HEADER_BADGE.has(messageKey)
+  /** A faixa do alerta já diz o número lido: repetir "número lido X" ao lado dela é ruído. */
+  const isFlagged = isCanhotoFlagged(proof)
+  const hasMessage = !MESSAGES_ALREADY_IN_HEADER_BADGE.has(messageKey) && !isFlagged
 
   return (
     <div className={styles.proofReviewText}>
-      {hasMessage || isExperimental ? (
+      <CanhotoMismatchNotice proof={proof} />
+      {hasMessage || (isExperimental && !isFlagged) ? (
         <p className={styles.hint}>
           {hasMessage ? describeReview(presentation, t, formatMoment) : null}
           {isExperimental ? (

@@ -586,6 +586,7 @@
       "checkedCount": "{{checked}} de {{total}} marcados",
       "close": "Fechar a conferência de canhotos",
       "empty": "Nenhum canhoto desta seleção está aguardando conferência.",
+      "flaggedHint": "Sinalizado como possível troca: fica fora de \"aprovar todos\". Confira a foto e aprove só se estiver certo.",
       "imageFailed": "A foto não abriu. Este canhoto não pode ser aprovado sem ser visto.",
       "keyboardHint": "Setas andam entre as notas · Espaço marca ou desmarca · Enter abre a foto",
       "loadFailed": "Não foi possível carregar os canhotos. Tente de novo.",
@@ -598,9 +599,23 @@
       "title": "Conferir canhotos",
       "waitingImages": "Aguarde as fotos carregarem para aprovar."
     },
+    "canhotoMismatch": {
+      "detail": {
+        "alreadyApproved": "A NF {{number}} já tem canhoto aprovado.",
+        "otherTrip": "A NF {{number}} está em outra viagem.",
+        "sameTrip": "A NF {{number}} está nesta mesma viagem.",
+        "statusCancelled": "A NF {{number}} está cancelada.",
+        "statusDenied": "A NF {{number}} foi denegada.",
+        "statusUnsigned": "A NF {{number}} ainda não foi autorizada."
+      },
+      "matched": "Parece ser da NF {{number}} (série {{series}})",
+      "unknownWithSeries": "Parece ser de outra nota (lida: {{number}}, série {{series}})",
+      "unknownWithoutSeries": "Parece ser de outra nota (lida: {{number}}, série não lida)"
+    },
     "canhotoReview": {
       "alreadyResolved": "Outra pessoa já conferiu este canhoto. Atualizamos a tela com o veredito que valeu.",
       "approve": "Aprovar canhoto",
+      "approveAnyway": "Aprovar mesmo assim",
       "approvedAutomatic": "Conferido automaticamente",
       "approvedManual": "Aprovado por {{name}} em {{moment}}",
       "approvedManualUnknown": "Aprovado manualmente em {{moment}}",
