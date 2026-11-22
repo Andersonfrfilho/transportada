@@ -1622,3 +1622,13 @@ O #939 foi mergeado em 22/11/2026 (merge `66cb191`), com os checks do PR verdes.
 - **Conferir (somente leitura):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-pos-promocao-939-confere.sh`
   (cópia em `/mnt/project-files/promocao-939/`). Esperado: 2 colunas novas, 3 itens entre índice e constraints, rotinas de Contas no estado
   anterior. A saída vai para `tmp/ops/saidas/`.
+
+- **Conferência feita (22/11/2026, 12:33 de Brasília):** 2 colunas novas, índice e 2 constraints presentes, 11 mensagens sem conversa abertas e
+  nenhuma descartada, rotinas de Contas como estavam. A primeira tentativa falhou por timeout do `railway ssh` na rede do Anderson e passou ao
+  repetir; entre as duas, a saúde da API de produção foi confirmada pelo deploy `SUCCESS` e pelo `/health/ready` (Railway MCP).
+- **Tipo "Canhoto retido pelo cliente" cadastrado em produção (22/11/2026, 12:34 de Brasília, aval do Anderson):** id
+  `83e07840-079a-47aa-943a-231a9df0c40a`, criado por `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-canhoto-retido-tipo.sh --confirm`
+  (cópia em `scripts/ops/producao-canhoto-retido-tipo.sh`; sem `--confirm` só simula; usa o `canhoto-retido-type-publish.ts` da imagem da API, que só
+  cria e nunca reescreve). Marcas: etapa entrega, momentos documento e escritório, foto, observação e localização obrigatórias, não avisa a
+  contratante, cria coleta de canhoto, repetição até resolver. Isto vale a partir de agora para o motorista em produção. Para desligar, inative o
+  tipo na aba Tipos de `/ocorrencias`.
