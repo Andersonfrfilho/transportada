@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { createPendingItemPageAdapter } from './pendingItemsResponse.validation'
 
-export type PendingItemKind = 'addressSuggestedByDriver' | 'vehicleBodyTypeMissing'
+export type PendingItemKind =
+  | 'addressSuggestedByDriver'
+  | 'canhotoOtherDocument'
+  | 'vehicleBodyTypeMissing'
 
 export type GeoPoint = Readonly<{ latitude: number; longitude: number }>
 
@@ -29,7 +32,42 @@ export type AddressSuggestionPendingItem = Readonly<{
   label: string
 }>
 
-export type PendingItem = AddressSuggestionPendingItem | VehiclePendingItem
+/**
+ * Spec 344 T5d (D9): a foto de uma nota que parece ser de outra. `Aplicar` move a foto
+ * (`proof/move`), `Descartar` mantém e some o alerta (`proof/mismatch/dismiss`); ambos pedem
+ * `trip.manage` e agem na prova, nunca por texto. `movable` só vale quando a nota certa é desta
+ * mesma viagem e ainda aceita a foto — senão só há "Descartar".
+ */
+export type CanhotoOtherDocumentDetails = Readonly<{
+  /** A nota da prova: é o `:documentId` das duas rotas. */
+  documentId: string
+  kind: 'other_document' | 'other_series'
+  movable: boolean
+  readNumber: string
+  readSeries: null | string
+  targetCanhotoApproved: boolean | null
+  targetDocumentId: null | string
+  targetNumber: null | string
+  targetSameTrip: boolean | null
+  targetSeries: null | string
+  tripId: string
+}>
+
+export type CanhotoOtherDocumentPendingItem = Readonly<{
+  details: CanhotoOtherDocumentDetails
+  entityId: string
+  entityType: 'canhotoProof'
+  kind: 'canhotoOtherDocument'
+  /** O número da nota a que a prova está anexada. */
+  label: string
+}>
+
+export type PendingItem =
+  | AddressSuggestionPendingItem
+  | CanhotoOtherDocumentPendingItem
+  | VehiclePendingItem
+
+export type CanhotoOtherDocumentDecision = 'apply' | 'dismiss'
 
 export type AddressSuggestionDecision = 'apply' | 'dismiss'
 
@@ -51,7 +89,17 @@ export type PendingItemsClient = Readonly<{
   decideAddressSuggestion: (
     input: Readonly<{ decision: AddressSuggestionDecision; suggestionId: string }>,
   ) => Promise<void>
+  /** Spec 344 T5d: Aplicar move a foto para a NF certa; Descartar mantém e some o alerta. */
+  decideCanhotoOtherDocument: (
+    input: Readonly<{
+      decision: CanhotoOtherDocumentDecision
+      item: CanhotoOtherDocumentPendingItem
+    }>,
+  ) => Promise<void>
 }>
+
+/** "Aplicar" da linha: a foto é de outra nota — o motivo da lista fechada que diz isso. */
+const CANHOTO_OTHER_DOCUMENT_MOVE_REASON = 'wrong_document'
 
 function requestError(code: string): Error {
   return new Error(code)
@@ -69,6 +117,7 @@ function createSearch(input: Record<string, string | number | null | undefined>)
 async function authorizedRequest(
   input: Readonly<{
     dependencies: ClientDependencies
+    body?: string
     method: 'GET' | 'POST'
     path: string
   }>,
@@ -78,8 +127,12 @@ async function authorizedRequest(
   try {
     response = await input.dependencies.fetch(
       new Request(`${input.dependencies.apiUrl}${input.path}`, {
+        ...(input.body === undefined ? {} : { body: input.body }),
         cache: 'no-store',
-        headers: { authorization: `Bearer ${accessToken}` },
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          ...(input.body === undefined ? {} : { 'content-type': 'application/json' }),
+        },
         method: input.method,
       }),
     )
@@ -126,6 +179,28 @@ export function createPendingItemsClient(dependencies: ClientDependencies): Pend
         dependencies,
         method: 'POST',
         path: `/address-correction-suggestions/${encodeURIComponent(input.suggestionId)}/${input.decision}`,
+      })
+    },
+    async decideCanhotoOtherDocument(input) {
+      const { details } = input.item
+      const documentPath = `/trips/${encodeURIComponent(details.tripId)}/documents/${encodeURIComponent(details.documentId)}`
+      if (input.decision === 'dismiss') {
+        await authorizedRequest({
+          dependencies,
+          method: 'POST',
+          path: `${documentPath}/proof/mismatch/dismiss`,
+        })
+        return
+      }
+      if (details.targetDocumentId === null) throw requestError('PENDING_ITEMS_REQUEST_FAILED')
+      await authorizedRequest({
+        body: JSON.stringify({
+          reason: CANHOTO_OTHER_DOCUMENT_MOVE_REASON,
+          targetDocumentId: details.targetDocumentId,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${documentPath}/proof/move`,
       })
     },
     async listPendingItems(input) {

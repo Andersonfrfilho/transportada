@@ -618,9 +618,13 @@
       "confirm": "Mover a foto",
       "description": "A foto sai desta nota, que volta a ficar sem canhoto, e vai para a NF {{number}} (série {{series}}). Mover não aprova: a foto chega aguardando conferência.",
       "error": {
+        "notFlaggedForTarget": "A leitura desta foto não aponta mais para a NF {{number}}. Atualize a tela.",
         "requestFailed": "Não foi possível mover a foto. Tente de novo.",
+        "sourceNotPending": "Esta foto já foi conferida e não pode mais ser movida.",
+        "targetAlreadyApproved": "A NF {{number}} já tem canhoto aprovado.",
         "targetHasProof": "A NF {{number}} já tem uma foto de canhoto. Resolva essa foto antes de mover esta.",
-        "targetNotDelivered": "A NF {{number}} ainda não tem entrega registrada. Registre a entrega antes de mover a foto."
+        "targetNotDelivered": "A NF {{number}} ainda não tem entrega registrada. Registre a entrega antes de mover a foto.",
+        "targetNotInTrip": "A NF {{number}} não está mais nesta viagem."
       },
       "moved": "Foto movida para a NF {{number}}.",
       "reason": {

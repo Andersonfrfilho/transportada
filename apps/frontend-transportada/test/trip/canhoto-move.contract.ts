@@ -146,5 +146,13 @@ describe('contrato da rota proof/move (spec 344 T5b)', () => {
     expect(() => canhotoMoveResultFromApi({ alreadyMoved: 'sim' })).toThrow()
     expect(CANHOTO_MOVE_ERROR_KEYS.CANHOTO_MOVE_TARGET_HAS_PROOF).toBe('targetHasProof')
     expect(CANHOTO_MOVE_ERROR_KEYS.CANHOTO_MOVE_TARGET_NOT_DELIVERED).toBe('targetNotDelivered')
+    expect(Object.keys(CANHOTO_MOVE_ERROR_KEYS).sort()).toEqual([
+      'CANHOTO_MOVE_NOT_FLAGGED_FOR_TARGET',
+      'CANHOTO_MOVE_SOURCE_NOT_PENDING',
+      'CANHOTO_MOVE_TARGET_ALREADY_APPROVED',
+      'CANHOTO_MOVE_TARGET_HAS_PROOF',
+      'CANHOTO_MOVE_TARGET_NOT_DELIVERED',
+      'CANHOTO_MOVE_TARGET_NOT_IN_TRIP',
+    ])
   })
 })
