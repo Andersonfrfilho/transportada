@@ -27,6 +27,9 @@ const CANHOTO_REVIEW_MENTION = /canhotoReview|canhoto_review/u
  * E o próprio caso de uso da conferência (spec 321 T4), que lê o veredito que acabou de gravar para fechar ou
  * reabrir a coleta de canhoto da nota — o canhoto chegou ou não, nada é barrado.
  *
+ * E o alerta de canhoto de outra nota (spec 344 T3), que lê se a "NF X" citada já tem canhoto aprovado
+ * para **mostrar** a duplicidade (Q4) no comprovante — informação na tela, nada é barrado.
+ *
  * Arquivo novo nesta lista é decisão de projeto, não descuido — por isso ela é exata.
  */
 const CONFERENCE_MODULE = [
@@ -37,6 +40,7 @@ const CONFERENCE_MODULE = [
   'trips/application/review-canhoto-proof.use-case.ts',
   'trips/domain/canhoto-review-decision.policy.ts',
   'trips/domain/canhoto-review.policy.ts',
+  'trips/infrastructure/canhoto-mismatch.query.ts',
   'trips/infrastructure/drizzle-canhoto-review.repository.ts',
   'trips/infrastructure/delivery-proof-read.support.ts',
   'trips/infrastructure/drizzle-current-driver-trip.repository.ts',
