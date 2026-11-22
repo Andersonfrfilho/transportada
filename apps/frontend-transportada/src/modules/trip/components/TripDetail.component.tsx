@@ -1555,7 +1555,9 @@ export function TripDetail({
         <TripCanhotoBatchDialog
           items={canhotoBatchReview.dialog.items}
           onClose={canhotoBatchReview.close}
-          onConfirm={(documentIds) => void canhotoBatchReview.confirm(documentIds)}
+          onConfirm={(documentIds, options) =>
+            void canhotoBatchReview.confirm(documentIds, options)
+          }
           overflowCount={canhotoBatchReview.dialog.overflowCount}
           status={canhotoBatchReview.dialog.status}
         />

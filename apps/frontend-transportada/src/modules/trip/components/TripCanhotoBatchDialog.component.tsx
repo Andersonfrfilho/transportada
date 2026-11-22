@@ -20,6 +20,7 @@ import {
   resolveRovingDocumentId,
 } from '../shared/canhotoBatchRovingFocus.service'
 import type { CanhotoBatchItem } from '../shared/canhotoBatchSelection.service'
+import { isCanhotoFlagged } from '../shared/canhotoMismatchPresentation.service'
 import {
   isDeliveryProofAwaitingProcessing,
   resolveDeliveryProofImageSource,
@@ -36,7 +37,8 @@ export type CanhotoBatchDialogStatus = 'failed' | 'loading' | 'ready' | 'submitt
 type TripCanhotoBatchDialogProps = Readonly<{
   items: readonly CanhotoBatchItem[]
   onClose: () => void
-  onConfirm: (documentIds: readonly string[]) => void
+  /** `keepOpen`: a aprovação individual da prova sinalizada não fecha o maço das outras. */
+  onConfirm: (documentIds: readonly string[], options?: Readonly<{ keepOpen: boolean }>) => void
   /** Canhotos pendentes que passaram do teto de itens — ficam para a rodada seguinte. */
   overflowCount: number
   status: CanhotoBatchDialogStatus
@@ -72,8 +74,9 @@ export function TripCanhotoBatchDialog({
   /** Spec 265 RF11: foto ainda em processamento não entra no maço — a conferência espera `ready`. */
   const isHeld = (item: CanhotoBatchItem): boolean =>
     hasImageFailed(item) || isDeliveryProofAwaitingProcessing(item.proof)
+  /** Spec 344 D8.2: prova sinalizada nunca entra no "aprovar todos"; só o clique próprio a aprova. */
   const isChecked = (item: CanhotoBatchItem): boolean =>
-    !uncheckedIds.has(item.documentId) && !isHeld(item)
+    !uncheckedIds.has(item.documentId) && !isHeld(item) && !isCanhotoFlagged(item.proof)
   /** Foto quebrada não entra na navegação: não há o que conferir, e a caixa dela é desabilitada. */
   const eligibleIds = items.filter((item) => !isHeld(item)).map((item) => item.documentId)
   const rovingId = resolveRovingDocumentId({ eligibleIds, requestedId: requestedFocusId })
@@ -103,7 +106,9 @@ export function TripCanhotoBatchDialog({
    */
   function focusNote(documentId: string): void {
     gridRef.current
-      ?.querySelector<HTMLInputElement>(`[data-document-id="${documentId}"] input`)
+      ?.querySelector<HTMLElement>(
+        `[data-document-id="${documentId}"] :is(input, [data-flagged-approve])`,
+      )
       ?.focus()
   }
 
@@ -121,6 +126,10 @@ export function TripCanhotoBatchDialog({
     event.preventDefault()
     setRequestedFocusId(next)
     focusNote(next)
+  }
+
+  function handleApproveFlagged(documentId: string): void {
+    onConfirm([documentId], { keepOpen: true })
   }
 
   function handleConfirm(): void {
@@ -183,13 +192,16 @@ export function TripCanhotoBatchDialog({
               {items.map((item) => (
                 <TripCanhotoBatchItem
                   actions={{
+                    onApproveFlagged: handleApproveFlagged,
                     onCheckedChange: handleCheckedChange,
                     onImageSettled: handleImageSettled,
                     onOpenImage: handleOpenImage,
                   }}
                   hasImageFailed={hasImageFailed(item)}
                   isChecked={isChecked(item)}
+                  isBusy={isSubmitting}
                   isFocusTarget={item.documentId === rovingId}
+                  isImageLoaded={loadedIds.has(item.documentId)}
                   item={item}
                   key={item.documentId}
                 />
