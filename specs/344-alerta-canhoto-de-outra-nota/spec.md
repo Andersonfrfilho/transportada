@@ -17,7 +17,7 @@ Hoje um canhoto trocado só é descoberto por quem abre a foto e confere o núme
 
 ## Fora do escopo
 
-- Aprovar, recusar ou mover a foto para a outra nota sozinho (nada de "corrigir" o vínculo): só alerta. Mover a foto de nota é outra spec.
+- Aprovar, recusar ou mover a foto **sozinho**: a máquina só alerta. A correção do vínculo existe (D9), mas é sempre decisão e clique de gente.
 - Mudar a leitura por código de barras, a política de veredito ou a rota de gente.
 - Mensagem automática ao motorista, ao cliente ou à contratante sobre o alerta **[NEEDS CLARIFICATION: Q3]**.
 - Ler outros campos do canhoto (data, assinatura, nome de quem recebeu).
@@ -45,6 +45,8 @@ Hoje um canhoto trocado só é descoberto por quem abre a foto e confere o núme
   3. **Aba/contagem de pendências de canhoto** ganha o filtro "parece de outra nota" **[NEEDS CLARIFICATION: Q2 — filtro só no maço ou também na lista de pendências?]**.
      Sem texto livre, sem foto reescrita; textos em pt-BR/en nos `.locale.json`, paridade nas três apps que mostram o estado do canhoto (painel, app do motorista **só leitura se mostrar**, portal do contratante **não mostra**) com contrato de paridade.
 
+- **D9 — Ação para corrigir o vínculo, aprovada por gente (pedido do Anderson, 22/11/2026).** Hoje só existe "Substituir comprovante" (`ProofReplaceDialog`, `office-delivery-proof.service`): sobe **foto nova** na **mesma** nota; não há como mover uma foto para outra nota. Esta spec adiciona **"Mover para a NF X"**: o mesmo objeto da foto passa da prova da NF errada (A) para a NF certa (B), com `trip.manage`, motivo fixo da lista (sem texto livre), trilha `trip.canhoto-proof.moved` (de A para B, ator, sem PII) e idempotência. Regras: (a) **só na mesma viagem** na primeira versão, e só quando B **não tem** prova de canhoto aprovada (B com prova pendente exige o mesmo "aprovar mesmo assim" da D8); (b) A volta a "sem canhoto" e entra na pendência de recaptura que a recusa já gera (RF29 da 220); (c) a prova movida entra em B como `pending` com a leitura OCR (conferência humana continua: mover **não** aprova); (d) se X é de outra viagem ou não está no sistema, o painel só mostra o alerta e o link, sem botão de mover. Superfícies: botão no alerta do comprovante e do maço, e uma **linha em `/pendencias`** (`GET /pending-items`, mesmo molde da `addressSuggestedByDriver`: "Aplicar" move, "Descartar" mantém e some o alerta daquela prova) para o escritório tratar vários sem abrir viagem por viagem.
+
 ## Histórias priorizadas
 
 ### P1 — O escritório vê que a foto é de outra nota
@@ -63,6 +65,10 @@ Hoje um canhoto trocado só é descoberto por quem abre a foto e confere o núme
 
 **Given** foto sem Nº ancorado (tira rasgada, foto escura), **When** o OCR termina sem leitura, **Then** não há alerta, a tentativa é carimbada e a prova não volta à fila.
 
+### P2 — O escritório corrige o vínculo com um clique
+
+**Given** o alerta "Parece ser da NF 172195" e a NF 172195 na mesma viagem sem canhoto aprovado, **When** a pessoa com `trip.manage` confirma "Mover para a NF 172195", **Then** a foto passa para a prova da 172195 (`pending`), a 931988 volta a "sem canhoto" com pendência de recaptura, e a trilha registra A→B.
+
 ### P3 — Passado entra sem trabalho manual
 
 **Given** as ~470 provas já pendentes com `canhoto_read_attempted_at`, **When** a flag é ligada, **Then** a fila do OCR as lê aos poucos (lote por ciclo), sem script de backfill.
@@ -77,6 +83,8 @@ Hoje um canhoto trocado só é descoberto por quem abre a foto e confere o núme
 - **RF6** — Painel: faixa de alerta no comprovante e no maço; "aprovar todas" exclui as sinalizadas; aprovação individual com o alerta à vista. Só componentes padrão do design system.
 - **RF7** — Trilha `trip.canhoto-review.automatic` por prova também para a leitura OCR (ator = serviço, sem número de nota, sem texto lido).
 - **RF8** — Observabilidade: contadores do ciclo (`ocrRead`, `ocrNoAnchor`, `ocrMismatch`, `ocrBusy`) no resultado do job; nunca o texto.
+- **RF10** — Rota `POST /trips/:id/documents/:documentId/proof/move` (`trip.manage`, corpo estrito `{ targetDocumentId, reason }`, idempotente): valida mesma viagem e mesma empresa, B sem canhoto aprovado, A com leitura OCR divergente sinalizando B; move o objeto numa transação; 409 nos demais casos. Contrato primeiro.
+- **RF11** — Painel: botão "Mover para a NF X" com confirmação (design system) no comprovante e no maço; linha `canhotoOtherDocument` em `/pendencias` com Aplicar/Descartar; sem botão quando X é de outra viagem ou inexistente.
 - **RF9** — Documentação: ADR novo (revisa o §3 da ADR-0092 "OCR fica no navegador" — a regra de que OCR não aprova **permanece**; muda só quem lê), `apps/worker-transportada/CLAUDE.md`, `apps/api-transportada/CLAUDE.md`, runbook de produção (flag, medição de memória, como desligar).
 
 ## Requisitos não funcionais
@@ -108,9 +116,12 @@ Hoje um canhoto trocado só é descoberto por quem abre a foto e confere o núme
 - **CA03** — Integração (worker): prova da NF A com canhoto sintético da NF B ⇒ `pending`, leitura B gravada, tentativa OCR carimbada; canhoto sem número ⇒ tentativa carimbada, sem alerta; falha de infra ⇒ não carimba.
 - **CA04** — Detalhe da prova devolve `canhotoMismatch` correto para os cinco casos da D4, sempre dentro da empresa.
 - **CA05** — Painel: alerta no comprovante e no maço; "aprovar todas" não inclui a sinalizada; tema claro/escuro e desktop/celular conferidos contra outra tela; aprovado pelo revisor independente.
+- **CA05b** — Mover: contrato da rota (mesma viagem, B sem aprovada, idempotência, trilha sem PII, A volta a recaptura, mover não aprova) e painel com prints; revisor independente.
 - **CA06** — Staging: as 4 fotos reais de teste (que ficam na máquina do Anderson) e o caso da NF 931988/172195 reproduzidos, com taxa de leitura medida e memória do worker registradas em `evidence.md`; **só então** a flag é proposta para produção.
 
 ## Dúvidas
+
+- **Q6 [NEEDS CLARIFICATION]** — Mover só dentro da mesma viagem (recomendo, é o caso 931988/172195 se ambas estão na mesma viagem; a outra viagem exige olhar o lado dela) ou também entre viagens? Cruzar viagens muda o comprovante de uma entrega que pode já estar baixada.
 
 - **Q1 [NEEDS CLARIFICATION]** — O OCR lê bem a tira? O spike da 294 foi sobre canhoto **inteiro** e casamento com número conhecido; ler o número livre da tira rasgada em 4 rotações **não foi medido**. T0 mede nas 4 fotos reais e o resultado pode derrubar a abordagem (plano B: pedir o recorte/foto melhor ao motorista pelo bot, fora desta spec). **Recomendo aprovar a spec já com a T0 como portão**: se a leitura for menor que o mínimo combinado (proposta: ≥ 3 das 4 fotos com Nº correto), paro e volto com o relato antes de gastar T1–T5.
 - **Q2 [NEEDS CLARIFICATION]** — Filtro "parece de outra nota" também na lista de pendências de canhoto, ou só no maço e no comprovante (recomendo: só nos dois primeiros; o filtro vem depois se houver uso).
