@@ -8,6 +8,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { buildFleetVehicleRoute } from '@/modules/fleet/shared/fleetRoute.service'
 
 import { usePendingItems } from '../hooks/usePendingItems.hook'
+import { CanhotoProofPreview } from '../components/CanhotoProofPreview.component'
 import { FieldReportHoldList } from '../components/FieldReportHoldList.component'
 import { AddressSuggestionMap } from '../components/AddressSuggestionMap.component'
 import type {
@@ -248,6 +249,11 @@ function CanhotoOtherDocumentRow({
               : null}
         </span>
       </div>
+      <CanhotoProofPreview
+        documentId={details.documentId}
+        proofId={item.entityId}
+        tripId={details.tripId}
+      />
       {canDecide ? (
         <div className={styles.suggestionActions}>
           {details.movable ? (

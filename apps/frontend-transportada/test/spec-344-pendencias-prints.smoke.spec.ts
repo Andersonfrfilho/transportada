@@ -11,7 +11,9 @@ import { expect, test } from '@playwright/test'
 
 import { loginAsLocalUser } from './authenticated-smoke.helper'
 import { mockFleetWorkspaceApi } from './fleet-smoke.helper'
+import { getApiBaseUrl } from './smoke-api-url.helper'
 
+const IMAGE_ORIGIN = `${getApiBaseUrl()}/spec-344-prints`
 const PRINTS_DIRECTORY = resolve(
   process.cwd(),
   '../../specs/344-alerta-canhoto-de-outra-nota/prints',
@@ -87,6 +89,35 @@ for (const theme of THEMES) {
           headers: { 'access-control-allow-origin': '*' },
         })
       })
+      await page.route(`${IMAGE_ORIGIN}/**`, (route) =>
+        route.fulfill({
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="#8b8379"/></svg>',
+          contentType: 'image/svg+xml',
+          status: 200,
+        }),
+      )
+      await page.route(/\/trips\/[^/]+\/documents\/[^/]+\/proof$/u, async (route) => {
+        const documentId = new URL(route.request().url()).pathname.split('/').at(-2) ?? ''
+        const index = documentId.slice(-1)
+        await route.fulfill({
+          body: JSON.stringify({
+            data: [
+              {
+                canhotoReview: 'pending',
+                createdAt: '2026-11-22T10:00:10.000Z',
+                downloadUrl: `${IMAGE_ORIGIN}/canhoto-${index}.svg`,
+                expiresAt: '2030-01-01T00:00:00.000Z',
+                id: `00000000-0000-4000-8000-00000000095${index}`,
+                kind: 'photo',
+                receiverName: 'Maria',
+                thumbnailUrl: `${IMAGE_ORIGIN}/canhoto-${index}.svg`,
+              },
+            ],
+          }),
+          contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+        })
+      })
       await loginAsLocalUser(page)
 
       const list = page.locator('main ul').first()
@@ -101,6 +132,15 @@ for (const theme of THEMES) {
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
       ).toBeLessThanOrEqual(0)
+
+      await expect(list.getByTestId('canhoto-preview')).toHaveCount(3)
+      await list.getByTestId('canhoto-preview').first().getByRole('button').click()
+      await expect(page.getByRole('dialog')).toBeVisible()
+      await page.mouse.move(0, 0)
+      await page.screenshot({
+        animations: 'disabled',
+        path: resolve(PRINTS_DIRECTORY, `pendencias-foto-aberta-${theme}-${viewport.label}.png`),
+      })
     })
   }
 }
