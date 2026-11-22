@@ -16,17 +16,14 @@
  * Ordem das travas (ADR-0068 §2, a mesma da T3): viagem da coleta `FOR NO KEY UPDATE`, depois a coleta `FOR UPDATE`,
  * depois a ocorrência `FOR NO KEY UPDATE` (a ordem da 266). Nada aqui toca `trip_documents` (D3, CA03).
  */
-import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, ne, notInArray, or } from 'drizzle-orm'
 
-import { tripOccurrenceResolutionEvents } from '../../database/occurrence-conversation.schema.js'
 import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import {
   tripCanhotoPickups,
-  tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
   TRIP_TERMINAL_STATUSES,
-  tripStops,
   trips,
   type TripDeliveryProofCanhotoReview,
   type TripStatus,
@@ -36,255 +33,18 @@ import {
   type CanhotoPickupStatus,
 } from '../../shared/canhoto-pickup.constant.js'
 import { isTripOpenForCanhotoPickup } from '../domain/canhoto-pickup.policy.js'
+import {
+  closePickupOnlyStop,
+  collectOpenPickup,
+  insertSystemResolutionEvent,
+  lockOccurrence,
+  lockPickupInOrder,
+  readLatestResolutionKind,
+  type CanhotoPickupSettlement,
+} from './canhoto-pickup-settle.support.js'
 import type { FieldAuthorship } from '../application/field-trip-target.types.js'
 import { DrizzleDriverFieldReportTransaction } from './drizzle-driver-field-report.repository.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
-
-/** O que a conferência fez com a coleta, para quem quiser contar (log, teste). */
-export type CanhotoPickupSettlement =
-  | { readonly kind: 'collected'; readonly pickupId: string; readonly resolved: boolean }
-  | {
-      readonly kind: 'reopened'
-      readonly pickupId: string
-      readonly reopenedOccurrence: boolean
-      readonly status: CanhotoPickupStatus
-    }
-  | { readonly kind: 'none' }
-
-type LockedPickup = {
-  readonly id: string
-  readonly occurrenceId: string
-  readonly photoSentAt: Date | null
-  readonly pickupStopId: null | string
-  readonly pickupTripId: null | string
-  readonly status: CanhotoPickupStatus
-}
-
-const pickupColumns = {
-  id: tripCanhotoPickups.id,
-  occurrenceId: tripCanhotoPickups.occurrenceId,
-  photoSentAt: tripCanhotoPickups.photoSentAt,
-  pickupStopId: tripCanhotoPickups.pickupStopId,
-  pickupTripId: tripCanhotoPickups.pickupTripId,
-  status: tripCanhotoPickups.status,
-}
-
-/** Trava a viagem (se há) e depois a coleta, e relê a coleta depois das travas. */
-async function lockPickupInOrder(
-  queryable: TripQueryable,
-  input: { readonly companyId: string; readonly pickupId: string },
-): Promise<LockedPickup | null> {
-  const [unlocked] = await queryable
-    .select({ pickupTripId: tripCanhotoPickups.pickupTripId })
-    .from(tripCanhotoPickups)
-    .where(
-      and(
-        eq(tripCanhotoPickups.companyId, input.companyId),
-        eq(tripCanhotoPickups.id, input.pickupId),
-      ),
-    )
-    .limit(1)
-  if (unlocked === undefined) return null
-  if (unlocked.pickupTripId !== null) {
-    await queryable
-      .select({ id: trips.id })
-      .from(trips)
-      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, unlocked.pickupTripId)))
-      .for('no key update')
-  }
-  const [locked] = await queryable
-    .select(pickupColumns)
-    .from(tripCanhotoPickups)
-    .where(
-      and(
-        eq(tripCanhotoPickups.companyId, input.companyId),
-        eq(tripCanhotoPickups.id, input.pickupId),
-      ),
-    )
-    .for('update')
-    .limit(1)
-  return locked ?? null
-}
-
-/** A ocorrência travada (266): `undefined` se não existe; `cancelled` vence o histórico. */
-async function lockOccurrence(
-  queryable: TripQueryable,
-  input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<{ readonly cancelled: boolean } | undefined> {
-  const [row] = await queryable
-    .select({ cancelledAt: tripDocumentOccurrences.cancelledAt })
-    .from(tripDocumentOccurrences)
-    .where(
-      and(
-        eq(tripDocumentOccurrences.companyId, input.companyId),
-        eq(tripDocumentOccurrences.id, input.occurrenceId),
-      ),
-    )
-    .for('no key update')
-    .limit(1)
-  return row === undefined ? undefined : { cancelled: row.cancelledAt !== null }
-}
-
-/** O último evento do andamento (por `seq`, nunca por `created_at`), lido **depois** da trava da ocorrência. */
-async function readLatestResolutionKind(
-  queryable: TripQueryable,
-  input: { readonly companyId: string; readonly occurrenceId: string },
-): Promise<'reopened' | 'resolved' | undefined> {
-  const [row] = await queryable
-    .select({ kind: tripOccurrenceResolutionEvents.kind })
-    .from(tripOccurrenceResolutionEvents)
-    .where(
-      and(
-        eq(tripOccurrenceResolutionEvents.companyId, input.companyId),
-        eq(tripOccurrenceResolutionEvents.documentOccurrenceId, input.occurrenceId),
-      ),
-    )
-    .orderBy(desc(tripOccurrenceResolutionEvents.sequence))
-    .limit(1)
-  return row?.kind
-}
-
-async function insertSystemResolutionEvent(
-  queryable: TripQueryable,
-  input: {
-    readonly companyId: string
-    readonly kind: 'reopened' | 'resolved'
-    readonly occurrenceId: string
-    readonly pickupId: string
-  },
-): Promise<void> {
-  await queryable.insert(tripOccurrenceResolutionEvents).values({
-    actorKind: 'system',
-    actorUserId: null,
-    canhotoPickupId: input.pickupId,
-    companyId: input.companyId,
-    documentOccurrenceId: input.occurrenceId,
-    kind: input.kind,
-  })
-}
-
-/**
- * A parada só de coleta (sem nota viva e sem outra coleta encaixada ainda aberta) fecha com o canhoto: chegada que
- * ninguém tocou vira a hora do fechamento (o CHECK exige chegada antes do fim). Parada com nota fecha pelas notas, como
- * sempre. Devolve `true` quando fechou agora.
- */
-async function closePickupOnlyStop(
-  queryable: TripQueryable,
-  input: {
-    readonly at: Date
-    readonly companyId: string
-    readonly pickupId: string
-    readonly stopId: string
-  },
-): Promise<boolean> {
-  const liveDocuments = queryable
-    .select({ id: tripDocuments.id })
-    .from(tripDocuments)
-    .where(
-      and(
-        eq(tripDocuments.companyId, input.companyId),
-        eq(tripDocuments.stopId, input.stopId),
-        isNull(tripDocuments.releasedAt),
-      ),
-    )
-  const otherWaitingPickups = queryable
-    .select({ id: tripCanhotoPickups.id })
-    .from(tripCanhotoPickups)
-    .where(
-      and(
-        eq(tripCanhotoPickups.companyId, input.companyId),
-        eq(tripCanhotoPickups.pickupStopId, input.stopId),
-        ne(tripCanhotoPickups.id, input.pickupId),
-        eq(tripCanhotoPickups.status, 'scheduled'),
-        isNull(tripCanhotoPickups.photoSentAt),
-      ),
-    )
-  const closed = await queryable
-    .update(tripStops)
-    .set({
-      arrivedAt: sql`coalesce(${tripStops.arrivedAt}, ${input.at.toISOString()}::timestamptz)`,
-      completedAt: input.at,
-      enRouteSince: null,
-      enRouteTappedAt: null,
-      updatedAt: input.at,
-    })
-    .where(
-      and(
-        eq(tripStops.companyId, input.companyId),
-        eq(tripStops.id, input.stopId),
-        isNull(tripStops.completedAt),
-        sql`not exists ${liveDocuments}`,
-        sql`not exists ${otherWaitingPickups}`,
-      ),
-    )
-    .returning({ id: tripStops.id })
-  return closed.length > 0
-}
-
-/** Aprovado: a coleta aberta da nota vira `collected` e a ocorrência resolve (se ainda não estava resolvida). */
-async function collectOpenPickup(
-  queryable: TripQueryable,
-  input: { readonly at: Date; readonly companyId: string; readonly documentId: string },
-): Promise<CanhotoPickupSettlement> {
-  const [candidate] = await queryable
-    .select({ id: tripCanhotoPickups.id })
-    .from(tripCanhotoPickups)
-    .where(
-      and(
-        eq(tripCanhotoPickups.companyId, input.companyId),
-        eq(tripCanhotoPickups.originTripDocumentId, input.documentId),
-        inArray(tripCanhotoPickups.status, [...CANHOTO_PICKUP_OPEN_STATUSES]),
-      ),
-    )
-    .limit(1)
-  if (candidate === undefined) return { kind: 'none' }
-
-  const pickup = await lockPickupInOrder(queryable, {
-    companyId: input.companyId,
-    pickupId: candidate.id,
-  })
-  if (
-    pickup === null ||
-    !(CANHOTO_PICKUP_OPEN_STATUSES as readonly string[]).includes(pickup.status)
-  ) {
-    return { kind: 'none' }
-  }
-
-  await queryable
-    .update(tripCanhotoPickups)
-    .set({ collectedAt: input.at, status: 'collected', updatedAt: input.at })
-    .where(
-      and(eq(tripCanhotoPickups.companyId, input.companyId), eq(tripCanhotoPickups.id, pickup.id)),
-    )
-  if (pickup.pickupStopId !== null) {
-    await closePickupOnlyStop(queryable, {
-      at: input.at,
-      companyId: input.companyId,
-      pickupId: pickup.id,
-      stopId: pickup.pickupStopId,
-    })
-  }
-
-  const occurrence = await lockOccurrence(queryable, {
-    companyId: input.companyId,
-    occurrenceId: pickup.occurrenceId,
-  })
-  if (occurrence === undefined || occurrence.cancelled) {
-    return { kind: 'collected', pickupId: pickup.id, resolved: false }
-  }
-  const latest = await readLatestResolutionKind(queryable, {
-    companyId: input.companyId,
-    occurrenceId: pickup.occurrenceId,
-  })
-  if (latest === 'resolved') return { kind: 'collected', pickupId: pickup.id, resolved: false }
-  await insertSystemResolutionEvent(queryable, {
-    companyId: input.companyId,
-    kind: 'resolved',
-    occurrenceId: pickup.occurrenceId,
-    pickupId: pickup.id,
-  })
-  return { kind: 'collected', pickupId: pickup.id, resolved: true }
-}
 
 async function readTripStatus(
   queryable: TripQueryable,
@@ -414,6 +174,8 @@ export async function settleCanhotoPickupOnReview(
 }
 
 /** A coleta encaixada numa viagem do motorista, do jeito que a foto dela precisa. */
+export type { CanhotoPickupSettlement }
+
 export type DriverCanhotoPickup = {
   readonly id: string
   readonly originTripDocumentId: string

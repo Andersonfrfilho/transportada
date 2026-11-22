@@ -187,6 +187,18 @@ export function resolveProofSettingsForRecipient(
 }
 
 /**
+ * Canhoto retido pelo cliente (spec 321): a nota que o cliente ficou devendo o canhoto só se entrega com a foto dele,
+ * qualquer que seja a configuração do comprovante — senão a baixa resolve a ocorrência sem canhoto nenhum.
+ * Regra única do snapshot do motorista e da escrita.
+ */
+export function requirePhotoForRetainedCanhoto<T extends Pick<DeliveryProofFieldSettings, 'photo'>>(
+  settings: T,
+  isRetained: boolean,
+): T {
+  return isRetained && settings.photo !== 'required' ? { ...settings, photo: 'required' } : settings
+}
+
+/**
  * ADR-0057 §3: toda leitura devolve o documento assim — visíveis só os dígitos 4 a 9 do CPF
  * (`***.938.570-**`) ou o miolo do CNPJ. Valor fora de forma sai todo mascarado, nunca em claro.
  */

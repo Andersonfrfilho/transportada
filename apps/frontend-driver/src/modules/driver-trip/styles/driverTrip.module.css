@@ -614,6 +614,20 @@
 }
 
 /*
+ * Spec 321: o chip bloqueado (desabilitado, ou `aria-disabled` quando o motivo vem na dica) fica opaco, numa
+ * cor que passa de 4,5:1 nos dois temas — a opacidade do botão desabilitado derrubava o texto para ~2,8:1
+ * no tema claro. O estado é dito pelo tracejado e pelo cursor, e o motivo, pela dica.
+ */
+.occurrenceChip.occurrenceChip:disabled,
+.occurrenceChip.occurrenceChip[aria-disabled='true'] {
+  cursor: not-allowed;
+  transform: none;
+  border-style: dashed;
+  color: var(--color-slate);
+  opacity: 1;
+}
+
+/*
  * A lista de tipos agrupada: busca, "Mais usados" e um grupo por onde acontece. A cor do grupo vem
  * dos tokens que o app já tem (cobre na parada, névoa/ardósia na nota, verde nos mais usados) e só
  * ajuda a achar — o nome e a exigência de foto seguem em todo chip.
@@ -1586,6 +1600,11 @@
   display: grid;
   gap: var(--space-1);
   padding: var(--space-3);
+}
+
+/* Aviso de ocorrência repetida: o botão ganha respiro do texto (no desktop ele encostava). */
+.occurrenceAlreadyOpenNotice {
+  gap: var(--space-3);
 }
 
 .proofPendingWarningTitle {
@@ -2667,4 +2686,16 @@
 .stopViewModeChoices {
   display: grid;
   gap: var(--space-3);
+}
+
+/* Texto só para leitor de tela: o motivo do chip bloqueado, que na tela vem na dica. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

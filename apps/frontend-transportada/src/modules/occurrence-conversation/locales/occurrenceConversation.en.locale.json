@@ -113,14 +113,21 @@
       "whatsapp": "WhatsApp",
       "email": "Email"
     },
-    "noText": "(message without text)",
+    "noText": "No text: it may be a photo, audio, sticker or reaction.",
     "noCandidates": "No open conversation for this number. Open the conversation from the occurrence and come back.",
     "choose": "Which conversation does it go to?",
     "lastOutbound": "Our last message ({{at}}): {{preview}}",
     "openOccurrence": "Open the occurrence",
     "assign": "Assign",
+    "dismiss": "Dismiss",
+    "dismissing": "Dismissing…",
+    "dismissAll": "Dismiss all",
+    "dismissAllConfirm": "Dismiss all {{count}} messages? They leave the queue and go into no conversation.",
+    "dismissAllYes": "Yes, dismiss all",
+    "dismissAllNo": "Cancel",
     "error": {
       "generic": "Could not assign. Try again shortly.",
+      "dismiss": "Could not dismiss. Try again shortly.",
       "OCCURRENCE_CONVERSATION_ALREADY_ASSIGNED": "Someone else already assigned this message.",
       "OCCURRENCE_CONVERSATION_ASSIGNMENT_INVALID": "This conversation is no longer a valid choice. Refresh the page.",
       "OCCURRENCE_CONVERSATION_UNASSIGNED_NOT_FOUND": "The message is no longer in the queue."

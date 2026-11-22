@@ -8,17 +8,24 @@ import type {
 
 /** O aviso que a tela mostra depois de a API aceitar um toque de campo (spec 294 RF5). */
 export type FieldReportNotice = Readonly<{
+  /** Ocorrência que o servidor não criou de novo: já existia uma aberta do mesmo tipo nesta nota. */
+  alreadyOpen?: true
   /** Spec 294 RF14: só `applied`/`suggested` dizem algo ao motorista (falha e "ignorado" ficam calados). */
   addressCorrection?: 'applied' | 'suggested'
   /** A chave de idempotência do toque: é a identidade do aviso. */
   key: string
-  kind: 'arrive' | 'deliver' | 'return'
+  kind: 'arrive' | 'deliver' | 'documentOccurrence' | 'return'
   /** Spec 294 RF11: a próxima parada, com "Iniciar rota" em destaque. */
   nextStop?: NextStopOffer
   recordedTogether: readonly StopEventStep[]
 }>
 
-const NOTICE_KINDS: ReadonlySet<string> = new Set(['arrive', 'deliver', 'return'])
+const NOTICE_KINDS: ReadonlySet<string> = new Set([
+  'arrive',
+  'deliver',
+  'documentOccurrence',
+  'return',
+])
 
 /** Sem nada a dizer (nem etapa junto, nem próxima parada, nem correção de endereço), não há aviso. */
 export function toFieldReportNotice(input: {
@@ -28,15 +35,21 @@ export function toFieldReportNotice(input: {
 }): FieldReportNotice | undefined {
   const { key, kind, response } = input
   if (response === undefined || !NOTICE_KINDS.has(kind)) return undefined
-  const { addressCorrection, nextStop, recordedTogether } = response
+  const { addressCorrection, alreadyOpen, nextStop, recordedTogether } = response
   const notableCorrection =
     addressCorrection === 'applied' || addressCorrection === 'suggested'
       ? addressCorrection
       : undefined
-  if (recordedTogether.length === 0 && nextStop === undefined && notableCorrection === undefined) {
+  if (
+    recordedTogether.length === 0 &&
+    nextStop === undefined &&
+    notableCorrection === undefined &&
+    alreadyOpen !== true
+  ) {
     return undefined
   }
   return {
+    ...(alreadyOpen === true ? { alreadyOpen: true as const } : {}),
     ...(notableCorrection === undefined ? {} : { addressCorrection: notableCorrection }),
     key,
     kind: kind as FieldReportNotice['kind'],

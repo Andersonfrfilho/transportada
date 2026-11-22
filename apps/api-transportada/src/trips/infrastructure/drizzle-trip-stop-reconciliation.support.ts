@@ -1,8 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
+import { deliveryCharges } from '../../database/delivery-client.schema.js'
 import { tripDocuments, tripStops } from '../../database/trip.schema.js'
 import { logStopRemindersRemovedWithStop } from '../../driver-stop-reminders/infrastructure/log-stop-reminders-removed-with-stop.persistence.js'
 import type { ApiLogger } from '../../shared/api.types.js'
@@ -32,7 +33,22 @@ export function createTripStopReconciliationPort(
         companyId: input.companyId,
         stopIds: [input.stopId],
       })
-      return rows.length + (withPickup.has(input.stopId) ? 1 : 0)
+      /**
+       * A cobrança lançada por uma ocorrência **da parada** (ex.: "cobrança no recebimento") também a ocupa: a FK
+       * `delivery_charges_company_stop_occurrence_fk` é `restrict`, e apagar a parada que o motorista já tocou levava a
+       * 500 ao mover a nota para outra viagem (spec 321, staging 21/11/2026). A parada fica, sem nota, como evidência.
+       */
+      const [charge] = await transaction
+        .select({ id: deliveryCharges.id })
+        .from(deliveryCharges)
+        .where(
+          and(
+            eq(deliveryCharges.companyId, input.companyId),
+            sql`${deliveryCharges.stopOccurrenceId} in (select id from trip_stop_occurrences where company_id = ${input.companyId} and stop_id = ${input.stopId})`,
+          ),
+        )
+        .limit(1)
+      return rows.length + (withPickup.has(input.stopId) ? 1 : 0) + (charge === undefined ? 0 : 1)
     },
     async createStop(input) {
       const [created] = await transaction

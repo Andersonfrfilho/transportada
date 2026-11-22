@@ -861,7 +861,7 @@
     "trailerLockedHint": "A carreta não pode mais ser trocada — a viagem já foi despachada.",
     "trailerPlaceholder": "Sem carreta atrelada",
     "vehicle": "Veículo: {{vehicle}}",
-    "linkAvailableHint": "Só aparecem notas desta empresa que ainda não estão em nenhuma viagem.",
+    "linkAvailableHint": "Só aparecem notas desta empresa que ainda não estão em nenhuma viagem, ou que estão só com o canhoto retido pelo cliente.",
     "linkSelected": "Vincular {{count}} nota",
     "linkSelected_other": "Vincular {{count}} notas",
     "linkSelectedEmpty": "Marque ao menos uma nota",
@@ -1074,6 +1074,7 @@
     "closed": "Esta viagem já está encerrada.",
     "documentAlreadyDelivered": "Esta nota já foi marcada como entregue.",
     "documentAlreadyLinked": "Esta nota já está vinculada a uma viagem.",
+    "documentCanhotoPickupOnly": "Esta nota já foi entregue; o cliente reteve o canhoto. Não vincule a nota: use \"Encaixar nesta viagem\" em \"Coletas de canhoto\".",
     "documentAlreadyReleased": "Esta nota já foi desvinculada desta viagem. Atualize a tela.",
     "documentNotFound": "Nota não encontrada nesta viagem.",
     "documentReferenceInvalid": "Informe uma nota fiscal ou um cálculo de frete válido.",
@@ -1085,7 +1086,8 @@
     "driverNotOnTrip": "Este motorista não está na tripulação desta viagem.",
     "hasUnloadedDocuments": "Há notas ainda não carregadas nesta viagem.",
     "hasUnscheduledStops": "A viagem não saiu: {{stops}} aguardando agendamento.",
-    "hasNoRoute": "A viagem não saiu: há nota sem parada — confira as notas sem parada.",
+    "hasNoRoute": "A viagem não saiu: o roteiro ainda não foi liberado ou há nota sem parada — confira as paradas.",
+    "planRouteNoStops": "A viagem ainda não tem parada: vincule uma nota ou encaixe uma coleta de canhoto antes de liberar para separação.",
     "autoDispatched": "Viagem despachada.",
     "autoDispatchFailed": "A viagem não saiu sozinha — use Despachar.",
     "hasNoCargoToDispatch": "Nenhuma nota vai na viagem: todas têm ocorrência que as deixa para trás.",
@@ -1425,7 +1427,7 @@
     "flag": {
       "pickup": {
         "badge": "Coleta de canhoto",
-        "hint": "Esta nota volta só para buscar o canhoto; peso e dimensão não entram na carga desta viagem."
+        "hint": "Esta nota está nesta viagem só para buscar o canhoto: não ocupa o baú, não entra no peso nem exige CT-e."
       },
       "retained": {
         "badge": "Canhoto retido",
@@ -1808,7 +1810,7 @@
     "foundNotes": "Notas encontradas",
     "hiddenBySelection_one": "{{count}} nota marcada está fora do filtro atual e não entra na viagem.",
     "hiddenBySelection_other": "{{count}} notas marcadas estão fora do filtro atual e não entram na viagem.",
-    "intro": "Bipe com o leitor, leia pela câmera ou busque as notas que saem juntas. Elas aparecem em Notas encontradas e só entram na viagem com Acrescentar. Só entram notas que ainda não estão em nenhuma viagem.",
+    "intro": "Bipe com o leitor, leia pela câmera ou busque as notas que saem juntas. Elas aparecem em Notas encontradas e só entram na viagem com Acrescentar. Só entram notas que ainda não estão em nenhuma viagem, ou que estão só com o canhoto retido pelo cliente.",
     "issue": {
       "dailyAllowanceDaysInvalid": "Diárias: informe um número inteiro de dias, a partir de 1.",
       "driverRequired": "Selecione ao menos um motorista.",
@@ -2483,6 +2485,23 @@
       "cancel": "Cancelar tratativa"
     },
     "closeBlockedByDraft": "Salve o acerto antes de encerrar — há item digitado que ainda não foi gravado."
+  },
+  "occurrenceBulk": {
+    "region": "Resolver ocorrências em massa",
+    "selected_one": "{{count}} ocorrência marcada",
+    "selected_other": "{{count}} ocorrências marcadas",
+    "selectAll": "Selecionar todas as listadas",
+    "selectOne": "Selecionar a ocorrência {{type}}",
+    "action": "Resolver marcadas",
+    "clear": "Limpar seleção",
+    "dismiss": "Cancelar",
+    "noteLabel": "Observação da resolução (vale para todas)",
+    "noteHelp_one": "A observação será aplicada à ocorrência marcada, e o motorista vai lê-la.",
+    "noteHelp_other": "A mesma observação será aplicada às {{count}} ocorrências marcadas, e o motorista vai lê-la.",
+    "confirm_one": "Resolver {{count}} ocorrência",
+    "confirm_other": "Resolver {{count}} ocorrências",
+    "overLimit": "Marque no máximo {{limit}} ocorrências por vez.",
+    "outcome": "Resolvidas: {{resolved}}. Já estavam resolvidas: {{alreadyResolved}}. Não foi possível resolver: {{failed}}."
   },
   "occurrenceResolution": {
     "action": "Resolver com observação",

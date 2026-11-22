@@ -26,6 +26,7 @@ import { attributableContractorConversation } from './attributable-conversation.
 import type {
   UnassignedAssignmentTransactionPort,
   UnassignedAssignmentUnitOfWorkPort,
+  UnassignedDismissPort,
   UnassignedCandidateView,
   UnassignedMessageRecord,
   UnassignedMessageView,
@@ -246,6 +247,7 @@ export function createDrizzleOccurrenceConversationUnassignedReader(
           and(
             eq(occurrenceConversationUnassigned.companyId, companyId),
             isNull(occurrenceConversationUnassigned.assignedAt),
+            isNull(occurrenceConversationUnassigned.dismissedAt),
           ),
         )
         .orderBy(desc(occurrenceConversationUnassigned.receivedAt))
@@ -377,6 +379,8 @@ function createTransactionPort(
           and(
             eq(occurrenceConversationUnassigned.companyId, companyId),
             eq(occurrenceConversationUnassigned.id, unassignedId),
+            /** Descartada não é mais da fila: atribuir devolve "não encontrada". */
+            isNull(occurrenceConversationUnassigned.dismissedAt),
           ),
         )
         .for('update')
@@ -421,5 +425,27 @@ export function createDrizzleOccurrenceConversationUnassignedUnitOfWork(
   return {
     execute: (operation) =>
       database.transaction((transaction) => operation(createTransactionPort(transaction))),
+  }
+}
+
+export function createDrizzleOccurrenceConversationUnassignedDismisser(
+  database: Database,
+): UnassignedDismissPort {
+  return {
+    async dismiss({ at, companyId, ids, userId }) {
+      const rows = await database
+        .update(occurrenceConversationUnassigned)
+        .set({ dismissedAt: at, dismissedByUserId: userId })
+        .where(
+          and(
+            eq(occurrenceConversationUnassigned.companyId, companyId),
+            inArray(occurrenceConversationUnassigned.id, [...ids]),
+            isNull(occurrenceConversationUnassigned.assignedAt),
+            isNull(occurrenceConversationUnassigned.dismissedAt),
+          ),
+        )
+        .returning({ id: occurrenceConversationUnassigned.id })
+      return rows.length
+    },
   }
 }

@@ -9,6 +9,10 @@
     "keep": "Manter o que já tem",
     "title": "Trocar o canhoto?"
   },
+  "occurrenceAlreadyOpen": {
+    "dismiss": "Entendi",
+    "notice": "Esta nota já tem uma ocorrência desse tipo registrada. Não criamos outra."
+  },
   "addressCorrection": {
     "applied": "Endereço atualizado com a sua localização. Obrigado!",
     "suggested": "Enviamos a sua localização para o escritório conferir o endereço."
@@ -904,6 +908,7 @@
     },
     "availability": {
       "alreadyOpen": "Já registrada nesta parada",
+      "alreadyOpenOnNote": "Já registrada nesta nota. Aguarde o escritório resolver",
       "arrivalSyncing": "Aguardando a chegada sincronizar",
       "needsArrival": "Marque \"Cheguei\" primeiro",
       "waiting_one": "Disponível às {{time}} · falta {{count}} min",

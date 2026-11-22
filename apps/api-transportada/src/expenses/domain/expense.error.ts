@@ -3,6 +3,7 @@
  *
  * Spec 325: erros do módulo Contas, com código estável. Só existe o contrato; a T1.4 usa nos casos de uso.
  */
+import { EXPENSE_ERROR } from '@adatechnology/expense-contracts'
 import { ApiError } from '../../shared/api.error.js'
 
 /** RF1b: a categoria de motorista exige o motorista. */
@@ -41,9 +42,9 @@ export class ExpenseDriverNotFoundError extends ApiError {
 export class ExpenseCategoryNotFoundError extends ApiError {
   public constructor() {
     super({
-      code: 'EXPENSE_CATEGORY_NOT_FOUND',
+      code: EXPENSE_ERROR.CATEGORY_NOT_FOUND.code,
       message: 'The category is not registered in this company.',
-      status: 404,
+      status: EXPENSE_ERROR.CATEGORY_NOT_FOUND.status,
     })
   }
 }
@@ -63,9 +64,9 @@ export class ExpenseCategoryCostGroupInvalidError extends ApiError {
 export class ExpenseOccurrenceNotFoundError extends ApiError {
   public constructor() {
     super({
-      code: 'EXPENSE_OCCURRENCE_NOT_FOUND',
+      code: EXPENSE_ERROR.OCCURRENCE_NOT_FOUND.code,
       message: 'The occurrence is not registered in this company.',
-      status: 404,
+      status: EXPENSE_ERROR.OCCURRENCE_NOT_FOUND.status,
     })
   }
 }
@@ -113,9 +114,9 @@ export class ExpenseInvalidScheduleError extends ApiError {
 export class ExpenseNotFoundError extends ApiError {
   public constructor() {
     super({
-      code: 'EXPENSE_NOT_FOUND',
+      code: EXPENSE_ERROR.EXPENSE_NOT_FOUND.code,
       message: 'The expense is not registered in this company.',
-      status: 404,
+      status: EXPENSE_ERROR.EXPENSE_NOT_FOUND.status,
     })
   }
 }

@@ -49,7 +49,8 @@ function decideEntry(input: {
   readonly accessKey: string
   readonly document: ScannedNfeDocument
 }): TripQuickCreateEntry {
-  if (input.document.tripId !== null) {
+  /** Spec 321 (emenda): a nota com canhoto retido aberto é livre; ela sai da origem ao entrar. */
+  if (input.document.tripId !== null && input.document.canhotoRetained !== true) {
     return {
       accessKey: input.accessKey,
       document: input.document,

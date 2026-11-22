@@ -5,7 +5,7 @@
  * (registro, trava de repetido, cancelamento): a coleta nunca existe sem a ocorrência, nem a ocorrência do tipo com
  * coleta sem a coleta. Nenhuma função daqui escreve em `trip_documents` (D3, CA03).
  */
-import { and, desc, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
 
 import {
   CANHOTO_PICKUP_OPEN_STATUSES,
@@ -15,6 +15,7 @@ import {
   tripCanhotoPickups,
   tripDocumentOccurrences,
   tripDocuments,
+  trips,
 } from '../../database/trip.schema.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -201,4 +202,286 @@ export async function loadCanhotoRetainedDocumentIds(
       ),
     )
   return new Set(rows.map((row) => row.tripDocumentId))
+}
+
+/**
+ * Spec 321 (emenda de 19/11/2026): a nota **não entregue** com canhoto retido aberto (coleta `pending`, ocorrência não
+ * cancelada) pode sair da viagem de origem e entrar noutra. Devolve os vínculos vivos dessas notas em viagens
+ * **diferentes** de `excludeTripId`. Nota entregue nunca entra aqui (D3 segue valendo para ela) e a coleta já encaixada
+ * (`scheduled`) também não: o encaixe do escritório (T3) cuida dela.
+ */
+export async function listMovableCanhotoRetainedLinks(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    /** Ausente: toda viagem (a listagem de notas só quer saber quais estão com a flag). */
+    readonly excludeTripId?: string
+    readonly nfeDocumentIds: readonly string[]
+  },
+): Promise<
+  readonly {
+    readonly nfeDocumentId: string
+    readonly tripDocumentId: string
+    readonly tripId: string
+    readonly tripStatus: string
+  }[]
+> {
+  if (input.nfeDocumentIds.length === 0) return []
+  const rows = await queryable
+    .select({
+      nfeDocumentId: tripDocuments.nfeDocumentId,
+      tripDocumentId: tripDocuments.id,
+      tripId: tripDocuments.tripId,
+      tripStatus: trips.status,
+    })
+    .from(tripDocuments)
+    .innerJoin(
+      trips,
+      and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+    )
+    .innerJoin(
+      tripCanhotoPickups,
+      and(
+        eq(tripCanhotoPickups.companyId, tripDocuments.companyId),
+        eq(tripCanhotoPickups.originTripDocumentId, tripDocuments.id),
+        eq(tripCanhotoPickups.status, 'pending'),
+      ),
+    )
+    .innerJoin(
+      tripDocumentOccurrences,
+      and(
+        eq(tripDocumentOccurrences.companyId, tripCanhotoPickups.companyId),
+        eq(tripDocumentOccurrences.id, tripCanhotoPickups.occurrenceId),
+        isNull(tripDocumentOccurrences.cancelledAt),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+        ...(input.excludeTripId === undefined
+          ? []
+          : [ne(tripDocuments.tripId, input.excludeTripId)]),
+        isNull(tripDocuments.releasedAt),
+        isNull(tripDocuments.deliveredAt),
+      ),
+    )
+  return rows.flatMap((row) =>
+    row.nfeDocumentId === null ? [] : [{ ...row, nfeDocumentId: row.nfeDocumentId }],
+  )
+}
+
+/**
+ * A nota movida ganha um vínculo novo; a coleta aberta segue a nota (a flag "canhoto retido" acompanha), apontando para
+ * o vínculo vivo em vez do liberado.
+ */
+export async function repointPendingCanhotoPickups(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly fromTripDocumentId: string
+    readonly toTripDocumentId: string
+  },
+): Promise<void> {
+  await queryable
+    .update(tripCanhotoPickups)
+    .set({ originTripDocumentId: input.toTripDocumentId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        eq(tripCanhotoPickups.originTripDocumentId, input.fromTripDocumentId),
+        eq(tripCanhotoPickups.status, 'pending'),
+      ),
+    )
+}
+
+/**
+ * Depois que a nota com canhoto retido ganhou vínculo novo (acréscimo à viagem que já saiu), a coleta aberta passa a
+ * apontar para o vínculo **vivo**: o liberado só existe como histórico. Idempotente.
+ */
+export async function repointPendingCanhotoPickupsToLiveLinks(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly nfeDocumentIds: readonly string[] },
+): Promise<void> {
+  if (input.nfeDocumentIds.length === 0) return
+  const rows = await queryable
+    .select({
+      nfeDocumentId: tripDocuments.nfeDocumentId,
+      releasedAt: tripDocuments.releasedAt,
+      tripDocumentId: tripDocuments.id,
+    })
+    .from(tripDocuments)
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+      ),
+    )
+  const liveByNfe = new Map<string, string>()
+  for (const row of rows) {
+    if (row.releasedAt === null && row.nfeDocumentId !== null) {
+      liveByNfe.set(row.nfeDocumentId, row.tripDocumentId)
+    }
+  }
+  for (const row of rows) {
+    if (row.releasedAt === null || row.nfeDocumentId === null) continue
+    const live = liveByNfe.get(row.nfeDocumentId)
+    if (live === undefined) continue
+    await repointPendingCanhotoPickups(queryable, {
+      companyId: input.companyId,
+      fromTripDocumentId: row.tripDocumentId,
+      toTripDocumentId: live,
+    })
+  }
+}
+
+/**
+ * Spec 321: a nota **entregue** (D3) com coleta de canhoto aberta (`pending` ou `scheduled`) — ela não volta como nota
+ * em outra viagem; o caminho é encaixar a coleta. As não entregues são as `listMovableCanhotoRetainedLinks`.
+ */
+export async function hasOpenCanhotoPickupOnDeliveredLink(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly nfeDocumentId: string },
+): Promise<boolean> {
+  const [row] = await queryable
+    .select({ id: tripCanhotoPickups.id })
+    .from(tripCanhotoPickups)
+    .innerJoin(
+      tripDocuments,
+      and(
+        eq(tripDocuments.companyId, tripCanhotoPickups.companyId),
+        eq(tripDocuments.id, tripCanhotoPickups.originTripDocumentId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        eq(tripCanhotoPickups.nfeDocumentId, input.nfeDocumentId),
+        inArray(tripCanhotoPickups.status, ['pending', 'scheduled']),
+        isNull(tripDocuments.releasedAt),
+        sql`${tripDocuments.deliveredAt} is not null`,
+      ),
+    )
+    .limit(1)
+  return row !== undefined
+}
+
+/**
+ * Spec 321 (D4c): a nota **não entregue** que está na viagem **só pelo canhoto** (a entregue segue como carga da própria viagem, D3) — coleta de canhoto aberta (`CANHOTO_PICKUP_OPEN_STATUSES`)
+ * apontando para este vínculo, com a ocorrência não cancelada. O peso, o volume e as caixas dela não entram na carga da
+ * viagem (ocupação, mapa 3D, peso). A mesma definição de `loadCanhotoRetainedDocumentIds`, como condição SQL para quem
+ * lê `trip_documents` direto; use `not ${...}` para ficar só com a carga de verdade.
+ */
+export function canhotoPickupOnlyDocument(): SQL {
+  /** Coleta concluída (`collected`) com a nota ainda não entregue segue sendo só coleta: a foto e a conclusão não a tornam carga. */
+  const openStatuses = sql.join(
+    [...CANHOTO_PICKUP_OPEN_STATUSES, 'collected'].map((status) => sql`${status}`),
+    sql`, `,
+  )
+  return sql`(exists (select 1 from ${tripCanhotoPickups} inner join ${tripDocumentOccurrences} on ${tripDocumentOccurrences.companyId} = ${tripCanhotoPickups.companyId} and ${tripDocumentOccurrences.id} = ${tripCanhotoPickups.occurrenceId} where ${tripCanhotoPickups.companyId} = ${tripDocuments.companyId} and ${tripCanhotoPickups.originTripDocumentId} = ${tripDocuments.id} and ${tripCanhotoPickups.status} in (${openStatuses}) and ${tripDocumentOccurrences.cancelledAt} is null) and ${tripDocuments.deliveredAt} is null)`
+}
+
+/**
+ * Spec 321: ids dos vínculos "só coleta" entre os pedidos — a mesma definição de `canhotoPickupOnlyDocument`, lida em
+ * lote para a viagem inteira (peso e planta do detalhe saem da mesma fonte que as demais leituras).
+ */
+export async function loadCanhotoPickupOnlyDocumentIds(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly tripDocumentIds: readonly string[] },
+): Promise<ReadonlySet<string>> {
+  if (input.tripDocumentIds.length === 0) return new Set()
+  const rows = await queryable
+    .select({ id: tripDocuments.id })
+    .from(tripDocuments)
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.id, [...input.tripDocumentIds]),
+        canhotoPickupOnlyDocument(),
+      ),
+    )
+  return new Set(rows.map((row) => row.id))
+}
+
+/**
+ * A nota (pela NF-e, como a entrega que fecha a coleta) tem canhoto retido aberto (`pending | scheduled`, ocorrência não
+ * cancelada)? Quem baixa essa nota entrega o canhoto que o cliente segurou: a foto passa a ser exigida, qualquer que seja
+ * a configuração do comprovante (a baixa sem foto resolvia a ocorrência sem canhoto nenhum). Só lê.
+ */
+export async function isDocumentCanhotoRetainedByNote(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly documentId: string },
+): Promise<boolean> {
+  const rows = await queryable
+    .select({ id: tripCanhotoPickups.id })
+    .from(tripCanhotoPickups)
+    .innerJoin(
+      tripDocumentOccurrences,
+      and(
+        eq(tripDocumentOccurrences.companyId, tripCanhotoPickups.companyId),
+        eq(tripDocumentOccurrences.id, tripCanhotoPickups.occurrenceId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        inArray(tripCanhotoPickups.status, [...CANHOTO_PICKUP_OPEN_STATUSES]),
+        isNull(tripDocumentOccurrences.cancelledAt),
+        or(
+          eq(tripCanhotoPickups.originTripDocumentId, input.documentId),
+          sql`${tripCanhotoPickups.nfeDocumentId} = (
+            select ${tripDocuments.nfeDocumentId} from ${tripDocuments}
+            where ${tripDocuments.companyId} = ${input.companyId} and ${tripDocuments.id} = ${input.documentId}
+          )`,
+        ),
+      ),
+    )
+    .limit(1)
+  return rows.length > 0
+}
+
+/** A versão em lote, por NF-e, para o snapshot do motorista: as NF-e com canhoto retido aberto. */
+export async function loadCanhotoRetainedNfeDocumentIds(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly nfeDocumentIds: readonly string[] },
+): Promise<ReadonlySet<string>> {
+  if (input.nfeDocumentIds.length === 0) return new Set()
+  const rows = await queryable
+    .select({ nfeDocumentId: tripCanhotoPickups.nfeDocumentId })
+    .from(tripCanhotoPickups)
+    .innerJoin(
+      tripDocumentOccurrences,
+      and(
+        eq(tripDocumentOccurrences.companyId, tripCanhotoPickups.companyId),
+        eq(tripDocumentOccurrences.id, tripCanhotoPickups.occurrenceId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripCanhotoPickups.companyId, input.companyId),
+        inArray(tripCanhotoPickups.status, [...CANHOTO_PICKUP_OPEN_STATUSES]),
+        isNull(tripDocumentOccurrences.cancelledAt),
+        inArray(tripCanhotoPickups.nfeDocumentId, [...input.nfeDocumentIds]),
+      ),
+    )
+  return new Set(rows.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId])))
+}
+
+/**
+ * A versão em SQL de `loadCanhotoRetainedNfeDocumentIds`, para os filtros que não carregam linhas (o `proofPendingEq` da
+ * lista de viagens): existe coleta aberta, de ocorrência não cancelada, para a NF-e da nota?
+ */
+export function openCanhotoPickupForNfeCondition(input: {
+  readonly companyId: SQL
+  readonly nfeDocumentId: SQL
+}): SQL {
+  return sql`exists (select 1 from ${tripCanhotoPickups} inner join ${tripDocumentOccurrences} on ${and(
+    eq(tripDocumentOccurrences.companyId, tripCanhotoPickups.companyId),
+    eq(tripDocumentOccurrences.id, tripCanhotoPickups.occurrenceId),
+  )} where ${and(
+    sql`${tripCanhotoPickups.companyId} = ${input.companyId}`,
+    sql`${tripCanhotoPickups.nfeDocumentId} = ${input.nfeDocumentId}`,
+    inArray(tripCanhotoPickups.status, [...CANHOTO_PICKUP_OPEN_STATUSES]),
+    isNull(tripDocumentOccurrences.cancelledAt),
+  )})`
 }

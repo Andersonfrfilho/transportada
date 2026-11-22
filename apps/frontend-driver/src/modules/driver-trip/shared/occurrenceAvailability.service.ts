@@ -13,6 +13,8 @@ export type OccurrenceAvailability =
   | Readonly<{ status: 'available' }>
   /** Já existe ocorrência aberta (do escritório ou deste app) do mesmo tipo nesta parada — não abre outra. */
   | Readonly<{ status: 'alreadyOpen' }>
+  /** A nota já tem ocorrência aberta (ou na fila) deste tipo — qualquer tipo, não só o de espera mínima. */
+  | Readonly<{ status: 'alreadyOpenOnNote' }>
   /** Sem "Cheguei": a espera conta da chegada, e a hora digitada na ocorrência nunca a substitui. */
   | Readonly<{ status: 'needsArrival' }>
   /** Chegada tocada, mas ainda sem horário vindo do servidor (fila): não dá para contar. */
@@ -39,10 +41,15 @@ export function resolveOccurrenceAvailability(input: {
   readonly isArrivalRecorded: boolean
   /** As ocorrências já registradas na parada (nível da parada), do servidor e da fila. */
   readonly openEntries: readonly RouteOccurrenceEntry[]
+  /** As ocorrências já registradas na nota que o motorista está abrindo (servidor e fila). */
+  readonly noteEntries?: readonly RouteOccurrenceEntry[]
   readonly nowMs: number
   readonly type: DriverOccurrenceType
 }): OccurrenceAvailability {
   const { type } = input
+  if (isOccurrenceOpenForType({ entries: input.noteEntries ?? [], typeId: type.id })) {
+    return { status: 'alreadyOpenOnNote' }
+  }
   if (!hasMinWait(type)) return { status: 'available' }
   if (isOccurrenceOpenForType({ entries: input.openEntries, typeId: type.id })) {
     return { status: 'alreadyOpen' }
@@ -59,4 +66,15 @@ export function resolveOccurrenceAvailability(input: {
     remainingMinutes: Math.max(1, Math.ceil((availableAtMs - input.nowMs) / MS_PER_MINUTE)),
     status: 'waiting',
   }
+}
+
+/** As ocorrências da nota `documentId` dentro do grupo da parada — outra nota da mesma parada nunca entra. */
+export function listNoteEntries(input: {
+  readonly documentId: string
+  readonly noteGroups: readonly Readonly<{
+    documentId: string
+    entries: readonly RouteOccurrenceEntry[]
+  }>[]
+}): readonly RouteOccurrenceEntry[] {
+  return input.noteGroups.find((group) => group.documentId === input.documentId)?.entries ?? []
 }

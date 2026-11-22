@@ -482,6 +482,8 @@ export type TripRepositoryPort = {
   }): Promise<boolean>
   /** Lança `TripDocumentAlreadyLinkedError` quando a nota/frete já está vivo em outra viagem. */
   linkDocument(input: {
+    /** Spec 321 (emenda): quem move a nota não entregue com canhoto retido; sem ele ela segue "já vinculada". */
+    readonly actorUserId?: string
     readonly companyId: string
     readonly freightCalculationId: string | null
     readonly nfeDocumentId: string | null

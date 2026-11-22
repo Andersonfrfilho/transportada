@@ -861,7 +861,7 @@
     "trailerLockedHint": "The trailer can no longer be changed — the trip has already dispatched.",
     "trailerPlaceholder": "No trailer attached",
     "vehicle": "Vehicle: {{vehicle}}",
-    "linkAvailableHint": "Only this company's notes that are not on any trip yet appear here.",
+    "linkAvailableHint": "Only this company's notes that are not on any trip yet, or that are only waiting for a retained stub, appear here.",
     "linkSelected": "Link {{count}} note",
     "linkSelected_other": "Link {{count}} notes",
     "linkSelectedEmpty": "Select at least one note",
@@ -1074,6 +1074,7 @@
     "closed": "This trip is already closed.",
     "documentAlreadyDelivered": "This document was already marked as delivered.",
     "documentAlreadyLinked": "This document is already linked to a trip.",
+    "documentCanhotoPickupOnly": "This note was already delivered and the customer kept the receipt. Do not link the note: use \"Fit into this trip\" under \"Receipt pickups\".",
     "documentAlreadyReleased": "This document was already unlinked from this trip. Refresh the page.",
     "documentNotFound": "Document not found on this trip.",
     "documentReferenceInvalid": "Provide a valid fiscal note or freight calculation.",
@@ -1085,7 +1086,8 @@
     "driverNotOnTrip": "This driver is not part of this trip's crew.",
     "hasUnloadedDocuments": "This trip has documents that were never loaded.",
     "hasUnscheduledStops": "The trip did not dispatch: {{stops}} waiting on scheduling.",
-    "hasNoRoute": "The trip did not dispatch: there is a document without a stop — check the documents without a stop.",
+    "hasNoRoute": "The trip did not leave: the route was not released yet, or a note has no stop — check the stops.",
+    "planRouteNoStops": "The trip has no stop yet: link a note or fit a receipt pickup before releasing it for separation.",
     "autoDispatched": "Trip dispatched.",
     "autoDispatchFailed": "The trip didn't dispatch on its own — use Dispatch.",
     "hasNoCargoToDispatch": "No document will go on this trip: they all have an open case that leaves them behind.",
@@ -1425,7 +1427,7 @@
     "flag": {
       "pickup": {
         "badge": "Receipt pickup",
-        "hint": "This invoice comes back only to collect the receipt; its weight and size do not count in this trip's load."
+        "hint": "This invoice is on this trip only to collect the receipt: it takes no space in the trailer, adds no weight and needs no CT-e."
       },
       "retained": {
         "badge": "Receipt retained",
@@ -1808,7 +1810,7 @@
     "foundNotes": "Found invoices",
     "hiddenBySelection_one": "{{count}} selected invoice is outside the current filter and will not be included.",
     "hiddenBySelection_other": "{{count}} selected invoices are outside the current filter and will not be included.",
-    "intro": "Scan with the reader, use the camera or search the invoices that leave together. They appear under Found invoices and only join the trip with Add. Only invoices that are not on any trip yet are accepted.",
+    "intro": "Scan with the reader, use the camera or search the invoices that leave together. They appear under Found invoices and only join the trip with Add. Only invoices that are not on any trip yet, or that are only waiting for a retained stub, are accepted.",
     "issue": {
       "dailyAllowanceDaysInvalid": "Daily allowance: enter a whole number of days, starting at 1.",
       "driverRequired": "Select at least one driver.",
@@ -2483,6 +2485,23 @@
       "cancel": "Cancel case"
     },
     "closeBlockedByDraft": "Save the settlement before closing — there is a typed item that has not been saved."
+  },
+  "occurrenceBulk": {
+    "region": "Resolve occurrences in bulk",
+    "selected_one": "{{count}} occurrence selected",
+    "selected_other": "{{count}} occurrences selected",
+    "selectAll": "Select all listed",
+    "selectOne": "Select occurrence {{type}}",
+    "action": "Resolve selected",
+    "clear": "Clear selection",
+    "dismiss": "Cancel",
+    "noteLabel": "Resolution note (applies to all)",
+    "noteHelp_one": "The note will be applied to the selected occurrence, and the driver will read it.",
+    "noteHelp_other": "The same note will be applied to the {{count}} selected occurrences, and the driver will read it.",
+    "confirm_one": "Resolve {{count}} occurrence",
+    "confirm_other": "Resolve {{count}} occurrences",
+    "overLimit": "Select at most {{limit}} occurrences at a time.",
+    "outcome": "Resolved: {{resolved}}. Already resolved: {{alreadyResolved}}. Could not resolve: {{failed}}."
   },
   "occurrenceResolution": {
     "action": "Resolve with a note",

@@ -39,6 +39,7 @@ import { DeliveryProofEventVanishedError } from '../domain/delivery-proof-event.
 import { DELIVERED_EVENT_KIND } from '../domain/delivery-event.constant.js'
 import {
   DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+  requirePhotoForRetainedCanhoto,
   resolveProofSettingsForRecipient,
   type DeliveryProofFieldSettings,
   type DeliveryProofPunctualitySettings,
@@ -46,6 +47,8 @@ import {
 import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
 import { DRIVER_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { CanhotoDuplicateError } from '../application/canhoto-duplicate.error.js'
+import { isDocumentCanhotoRetainedByNote } from './canhoto-pickup.query.js'
+import { settleCanhotoPickupOnProofSaved } from './canhoto-pickup-settle.support.js'
 import { findCanhotoByHash } from './canhoto-duplicate.query.js'
 import { findDocumentOccurrenceSubject } from './document-occurrence-subject.query.js'
 import { fieldTripTargetCondition } from './field-trip-target.query.js'
@@ -161,7 +164,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     ])
 
     /** Spec 082 (revisão) / 218: a mesma regra do snapshot do motorista — um único lugar decide. */
-    return resolveProofSettingsForRecipient({
+    const resolved = resolveProofSettingsForRecipient({
       contractorId,
       lookup: {
         general: general ?? null,
@@ -176,6 +179,11 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
       },
       recipientTaxId,
     })
+    /** Spec 321: nota com canhoto retido aberto só se entrega com a foto do canhoto, em qualquer canal. */
+    return requirePhotoForRetainedCanhoto(
+      resolved,
+      await isDocumentCanhotoRetainedByNote(this.database, input),
+    )
   }
 
   /**
@@ -391,6 +399,15 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
 
       if (proof === undefined) throw new Error('TRIP_DELIVERY_PROOF_NOT_SAVED')
 
+      /** Spec 321: a foto do canhoto da entrega fecha a coleta aberta da nota (a da viagem da coleta espera a conferência). */
+      if (input.settlesRetainedCanhoto === true) {
+        await settleCanhotoPickupOnProofSaved(transaction, {
+          at: new Date(),
+          companyId: input.companyId,
+          eventId: input.eventId,
+        })
+      }
+
       /**
        * Spec 265 RF4: o pedido ao worker na **mesma transação** do objeto e da linha (ADR-0053) — sem
        * ele o `201` prometeria um tratamento que nunca acontece, e sem a linha o worker leria um
@@ -459,6 +476,8 @@ async function assertCanhotoNotStored(
 
 type SaveProofInput = {
   readonly canhotoSha256?: string
+  /** Spec 321: a foto da entrega fecha a coleta de canhoto aberta da nota, na mesma transação. */
+  readonly settlesRetainedCanhoto?: boolean
   /** Foto da mercadoria: o teto conferido dentro da transação, depois da trava do evento. */
   readonly cargoLimit?: number
   /** ADR-0070 §4: precisão declarada pelo aparelho, já em texto decimal (coluna `numeric`). */

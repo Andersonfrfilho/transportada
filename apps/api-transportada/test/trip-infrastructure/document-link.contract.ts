@@ -32,6 +32,8 @@ function createRepository(error: Error): DrizzleTripRepository {
     }),
     select: () => ({
       from: () => ({
+        /** Spec 321: a conferência de coleta de canhoto aberta (`innerJoin → where → limit`) não acha nada. */
+        innerJoin: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }),
         where: () => ({
           for: () => ({
             limit: () => Promise.resolve([{ status: 'draft' }]),

@@ -26,6 +26,7 @@ import type {
 import { deriveTripStatus, tallyTripDocuments } from '../domain/trip-state.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
 import { TripActorNotAMemberError } from '../domain/trip.error.js'
+import { settleCanhotoPickupOnDelivery } from './canhoto-pickup-settle.support.js'
 import { mapTripDocument } from './trip.mapper.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
@@ -178,6 +179,14 @@ async function applyTransition(
   }
 
   await insertEvent(transaction, input)
+  if (input.toStatus === 'delivered') {
+    /** Spec 321 (emenda): entregue, a marca "Canhoto retido" sai sozinha. */
+    await settleCanhotoPickupOnDelivery(transaction, {
+      at: new Date(),
+      companyId: input.companyId,
+      documentId: input.documentId,
+    })
+  }
 
   const nextTripStatus = await recalculateTripStatus(transaction, {
     actorUserId: input.actorUserId,

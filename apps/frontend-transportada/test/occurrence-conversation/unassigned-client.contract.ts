@@ -72,4 +72,15 @@ describe('cliente da fila sem conversa (spec 183 T505)', () => {
     )
     expect(await requests[0]?.json()).toEqual({ conversationId: 'conversation-a' })
   })
+
+  test('descartar manda os ids da fila numa chamada só', async () => {
+    const requests: Request[] = []
+    const client = createClient(Response.json({ data: { dismissed: 2 } }), requests)
+
+    await client.dismissUnassigned({ ids: ['unassigned-1', 'unassigned-2'] })
+
+    expect(requests[0]?.method).toBe('POST')
+    expect(requests[0]?.url).toBe(`${API_URL}/occurrence-conversations/unassigned/dismiss`)
+    expect(await requests[0]?.json()).toEqual({ ids: ['unassigned-1', 'unassigned-2'] })
+  })
 })

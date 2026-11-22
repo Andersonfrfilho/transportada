@@ -292,6 +292,7 @@ export function createTripUseCase(dependencies: {
       }
       const knownStopIds = await snapshotStopIdsGracefully(stopOrderScope)
       const linked = await repository.linkDocument({
+        actorUserId: context.userId,
         companyId,
         freightCalculationId,
         nfeDocumentId,

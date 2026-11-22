@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Tooltip } from '@/components/ui/tooltip'
 
 import type { DriverOccurrenceType } from '../shared/driverTrip.types'
 import type { OccurrenceAvailability } from '../shared/occurrenceAvailability.service'
@@ -72,6 +73,8 @@ export function OccurrenceTypePicker({
         return undefined
       case 'alreadyOpen':
         return t('occurrenceRegistration.availability.alreadyOpen')
+      case 'alreadyOpenOnNote':
+        return t('occurrenceRegistration.availability.alreadyOpenOnNote')
       case 'needsArrival':
         return t('occurrenceRegistration.availability.needsArrival')
       case 'arrivalSyncing':
@@ -89,14 +92,23 @@ export function OccurrenceTypePicker({
 
   function renderChip(type: DriverOccurrenceType, keyPrefix: string) {
     const isSelected = type.id === selectedTypeId
-    const block = describeBlock(getAvailability?.(type) ?? { status: 'available' })
-    return (
+    const availability = getAvailability?.(type) ?? { status: 'available' }
+    const block = describeBlock(availability)
+    /**
+     * Spec 321: "já registrada" bloqueia sem escrever o motivo no botão — o motivo é a dica (toque, mouse ou
+     * foco). O botão usa `aria-disabled`, não `disabled`: o desabilitado de verdade não recebe foco nem toque,
+     * e a dica nunca abriria. O clique é recusado aqui; o leitor de tela lê o motivo escondido dentro do botão.
+     */
+    const isReasonInTooltip =
+      availability.status === 'alreadyOpenOnNote' || availability.status === 'alreadyOpen'
+    const chip = (
       <Button
         aria-checked={isSelected}
+        aria-disabled={isReasonInTooltip ? true : undefined}
         className={styles.occurrenceChip}
-        disabled={block !== undefined}
+        disabled={block !== undefined && !isReasonInTooltip}
         key={`${keyPrefix}:${type.id}`}
-        onClick={() => handleSelect(type.id)}
+        onClick={isReasonInTooltip ? undefined : () => handleSelect(type.id)}
         role="radio"
         type="button"
         variant={isSelected ? 'default' : 'ghost'}
@@ -104,9 +116,19 @@ export function OccurrenceTypePicker({
         <OccurrenceTypeIcon iconName={type.iconName} />
         <span className={styles.occurrenceChipLabel}>
           <span>{type.name}</span>
-          <span className={styles.occurrenceChipMode}>{block ?? describeAttachment(type)}</span>
+          <span className={styles.occurrenceChipMode}>
+            {isReasonInTooltip || block === undefined ? describeAttachment(type) : block}
+          </span>
+          {isReasonInTooltip ? <span className={styles.visuallyHidden}>{block}</span> : null}
         </span>
       </Button>
+    )
+    return isReasonInTooltip && block !== undefined ? (
+      <Tooltip key={`${keyPrefix}:${type.id}`} label={block} showOnPress>
+        {chip}
+      </Tooltip>
+    ) : (
+      chip
     )
   }
 

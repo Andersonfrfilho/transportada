@@ -14,6 +14,7 @@ import type {
   TripDocumentReadinessReason,
   TripFiscalReadinessPort,
 } from '../application/read-trip-fiscal-readiness.use-case.js'
+import { canhotoPickupOnlyDocument } from './canhoto-pickup.query.js'
 import type { DocumentOutputClassification } from '../../cte-profiles/domain/document-output.policy.js'
 import type { NfeDocumentOutputClassifierPort } from '../../nfe-documents/application/nfe-document.types.js'
 
@@ -105,6 +106,8 @@ export class DrizzleTripFiscalReadinessQuery implements TripFiscalReadinessPort 
           eq(tripDocuments.companyId, input.companyId),
           eq(tripDocuments.tripId, input.tripId),
           isNull(tripDocuments.releasedAt),
+          /** Spec 321 (D4c): a nota que está na viagem só pelo canhoto não exige CT-e nem MDF-e. */
+          sql`not ${canhotoPickupOnlyDocument()}`,
         ),
       )
       .orderBy(desc(cteFiscalDocuments.authorizedAt))

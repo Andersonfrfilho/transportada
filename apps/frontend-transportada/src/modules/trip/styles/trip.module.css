@@ -1033,6 +1033,11 @@ button.occurrenceCaseBadge {
   font-variant-numeric: tabular-nums;
 }
 
+/* Spec 321 (emenda): a flag "Canhoto retido" fica abaixo do número da nota. */
+.searchRetainedFlag {
+  margin-top: var(--space-1);
+}
+
 /*
  * A marca do peso estimado. Ela é discreta de propósito — o número continua sendo o dado —, mas
  * nunca opcional: sem ela um palpite de quilos lê igual à massa que o emitente declarou.
@@ -6813,4 +6818,40 @@ button.occurrenceCaseBadge {
   flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
+}
+
+/* Seleção em massa das ocorrências: a barra segue o `.bulkBar` de NFS-e/CT-e; a coluna do checkbox é só do controle. */
+.occurrenceBulkBar {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+  margin-block-end: var(--space-3);
+}
+
+.occurrenceBulkHead {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.occurrenceBulkHead .occurrenceFormActions {
+  margin-block: 0;
+}
+
+.occurrenceSelectCell {
+  inline-size: 1%;
+  white-space: nowrap;
+}
+
+.occurrenceCardSelect {
+  margin-block-end: var(--space-1);
+}
+
+.occurrenceBulkNote {
+  display: grid;
+  gap: var(--space-1);
 }

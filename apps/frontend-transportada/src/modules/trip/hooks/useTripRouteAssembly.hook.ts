@@ -227,8 +227,12 @@ export function useTripRouteAssembly(
    * listagem de notas já tinha. Duas buscas divergiriam no primeiro filtro novo.
    */
   const selection = {
-    alreadyOnTrip: pool.filter((document) => document.tripId !== null),
-    eligible: pool.filter((document) => document.tripId === null),
+    alreadyOnTrip: pool.filter(
+      (document) => document.tripId !== null && document.canhotoRetained !== true,
+    ),
+    eligible: pool.filter(
+      (document) => document.tripId === null || document.canhotoRetained === true,
+    ),
   }
   const issues = validateRouteAssembly({
     draft: { ...draft, vehicleIds: effectiveVehicleIds },

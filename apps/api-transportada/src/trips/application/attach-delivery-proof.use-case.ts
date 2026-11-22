@@ -219,6 +219,8 @@ export type DeliveryProofPort = {
     readonly authorship: FieldAuthorship
     /** Foto da mercadoria: a contagem contra este teto roda na transação que grava, sob trava do evento. */
     readonly cargoLimit?: number
+    /** Spec 321: a foto da entrega (não a da coleta) fecha a coleta de canhoto aberta da nota, na mesma transação. */
+    readonly settlesRetainedCanhoto?: boolean
     readonly capturedAt: Date | null
     /**
      * Spec 234 D4 (risco 5 da T1.5): o desvio com que a foto foi julgada — `null` quando a correção
@@ -526,6 +528,9 @@ async function attachDeliveryProofUnlogged(
     attachmentKey: input.upload.attachmentKey,
     authorship,
     ...(isCargo ? { cargoLimit: TRIP_DELIVERY_PROOF_CARGO_LIMIT } : {}),
+    ...(input.upload.kind === PHOTO_PROOF_KIND && input.canhotoPickup === undefined
+      ? { settlesRetainedCanhoto: true }
+      : {}),
     capturedAt: input.upload.capturedAt ?? null,
     clockOffsetMs: classified.clockOffsetMs,
     companyId: input.companyId,

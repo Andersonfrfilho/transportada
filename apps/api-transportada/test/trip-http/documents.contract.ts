@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   TripDocumentAlreadyDeliveredError,
   TripDocumentAlreadyLinkedError,
+  TripDocumentCanhotoPickupOnlyError,
   TripDocumentReferenceInvalidError,
 } from '../../src/trips/domain/trip.error.js'
 import {
@@ -97,6 +98,19 @@ describe('trip documents http contract', () => {
 
     expect(response.status).toBe(409)
     expect((await responseApiError(response)).code).toBe('TRIP_DOCUMENT_ALREADY_LINKED')
+  })
+
+  test('spec 321: nota entregue com canhoto retido responde com código próprio, não "já vinculada"', async () => {
+    const fixture = await createTripHttpFixture({
+      linkTripDocumentError: new TripDocumentCanhotoPickupOnlyError(),
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({ body: LINK_NFE_DOCUMENT_BODY, method: 'POST', path: TRIP_DOCUMENTS_PATH }),
+    )
+
+    expect(response.status).toBe(409)
+    expect((await responseApiError(response)).code).toBe('TRIP_DOCUMENT_CANHOTO_PICKUP_ONLY')
   })
 
   /**

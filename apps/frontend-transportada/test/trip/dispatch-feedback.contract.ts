@@ -10,6 +10,7 @@ import {
   resolveDispatchConfirmMessage,
   resolveDispatchErrorFeedback,
 } from '@/modules/trip/shared/tripDispatchFeedback.service'
+import { resolveTripFeedbackKey } from '@/modules/trip/shared/tripFeedback.service'
 import type { TripStopDetail } from '@/modules/trip/shared/trip.types'
 import type { TripRequestError } from '@/modules/trip/shared/tripClient.service'
 
@@ -227,5 +228,28 @@ describe('resolveAutoDispatchFeedback (RF3 — carregar/ocorrência tentam o gat
         stops: STOPS,
       }),
     ).toEqual({ key: 'autoDispatchFailed' })
+  })
+})
+
+/** Liberar para separação numa viagem sem parada (só a coleta de canhoto, ainda não encaixada). */
+describe('resolveTripFeedbackKey: viagem sem parada', () => {
+  test('STATE_TRANSITION_NOT_ALLOWED com o motivo "sem rota" diz o que falta', () => {
+    const error = Object.assign(new Error('STATE_TRANSITION_NOT_ALLOWED'), {
+      details: [{ field: 'status', message: 'The trip has no planned route.' }],
+    }) as TripRequestError
+    expect(resolveTripFeedbackKey(error)).toBe('planRouteNoStops')
+  })
+
+  test('outro motivo de transição segue no texto genérico', () => {
+    const error = Object.assign(new Error('STATE_TRANSITION_NOT_ALLOWED'), {
+      details: [{ field: 'status', message: 'A cancelled trip no longer accepts changes.' }],
+    }) as TripRequestError
+    expect(resolveTripFeedbackKey(error)).toBe('stateTransitionNotAllowed')
+  })
+
+  test('nota entregue com canhoto retido manda encaixar a coleta, não procurar a nota', () => {
+    expect(resolveTripFeedbackKey(new Error('TRIP_DOCUMENT_CANHOTO_PICKUP_ONLY'))).toBe(
+      'documentCanhotoPickupOnly',
+    )
   })
 })

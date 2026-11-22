@@ -29,9 +29,11 @@ import {
 } from '../../database/trip.schema.js'
 import {
   DEFAULT_DELIVERY_PROOF_PUNCTUALITY_SETTINGS,
+  requirePhotoForRetainedCanhoto,
   resolveProofSettingsForRecipient,
   type ProofSettingsLookup,
 } from '../../trips/domain/delivery-proof-settings.policy.js'
+import { loadCanhotoRetainedNfeDocumentIds } from '../../trips/infrastructure/canhoto-pickup.query.js'
 import type { DriverScorePort } from '../application/driver-score.port.js'
 import { MILLISECONDS_PER_DAY } from '../../shared/time.constant.js'
 import {
@@ -63,6 +65,7 @@ type DeliveryRow = {
   readonly deliveredAt: Date
   readonly documentNumber: string | null
   readonly driverId: string
+  readonly nfeDocumentId: string | null
   readonly punctuality: DriverScoreDelivery['photoPunctuality'] | null
   readonly recipientTaxId: string | null
   readonly recordedAt: Date
@@ -106,7 +109,18 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
       this.listDeliveries(input),
       this.readSettings(input.companyId),
     ])
-    const deliveriesByDriver = groupDeliveriesByDriver({ lookup: settings.lookup, rows })
+    // 21/11/2026: nota com canhoto retido aberto exige a foto (o `photoMode` da nota sai `required`).
+    const retainedNfeDocumentIds = await loadCanhotoRetainedNfeDocumentIds(this.database, {
+      companyId: input.companyId,
+      nfeDocumentIds: rows.flatMap((row) =>
+        row.nfeDocumentId === null ? [] : [row.nfeDocumentId],
+      ),
+    })
+    const deliveriesByDriver = groupDeliveriesByDriver({
+      lookup: settings.lookup,
+      retainedNfeDocumentIds,
+      rows,
+    })
 
     return new Map(
       input.driverIds.map((driverId) => [
@@ -140,6 +154,7 @@ export class DrizzleDriverScoreRepository implements DriverScorePort {
         deliveredAt: lastDelivery.deliveredAt,
         documentNumber: nfeDocuments.number,
         driverId,
+        nfeDocumentId: tripDocuments.nfeDocumentId,
         punctuality: tripDeliveryProofs.punctuality,
         recipientTaxId: nfeParticipants.taxId,
         recordedAt: lastDelivery.recordedAt,
@@ -339,16 +354,20 @@ function buildTenantJoinConditions(input: {
 
 function groupDeliveriesByDriver(input: {
   readonly lookup: ProofSettingsLookup
+  readonly retainedNfeDocumentIds: ReadonlySet<string>
   readonly rows: readonly DeliveryRow[]
 }): Map<string, DriverScoreDelivery[]> {
   const deliveriesByDriver = new Map<string, DriverScoreDelivery[]>()
 
   for (const row of input.rows) {
-    const settings = resolveProofSettingsForRecipient({
-      contractorId: row.contractorId,
-      lookup: input.lookup,
-      recipientTaxId: row.recipientTaxId ?? '',
-    })
+    const settings = requirePhotoForRetainedCanhoto(
+      resolveProofSettingsForRecipient({
+        contractorId: row.contractorId,
+        lookup: input.lookup,
+        recipientTaxId: row.recipientTaxId ?? '',
+      }),
+      input.retainedNfeDocumentIds.has(row.nfeDocumentId ?? ''),
+    )
     const delivery: DriverScoreDelivery = {
       deliveredAt: row.deliveredAt,
       deliveryReceivedAt: row.recordedAt,

@@ -33,7 +33,8 @@ export type {
  */
 export const DRAFT_DOCUMENTS_UNREACHABLE = 'documents-unreachable' as const
 
-type RestorableDocument = StopOrderDocument & Readonly<{ tripId: null | string }>
+type RestorableDocument = StopOrderDocument &
+  Readonly<{ canhotoRetained?: boolean; tripId: null | string }>
 
 type SelectableInput = Readonly<{
   selectableDriverIds: readonly string[]
@@ -80,7 +81,7 @@ async function restoreDocuments<TDocument extends RestorableDocument>(
   }
   const byId = new Map(
     available
-      .filter((document) => document.tripId === null)
+      .filter((document) => document.tripId === null || document.canhotoRetained === true)
       .map((document) => [document.id, document]),
   )
   const documents = input.documentIds.flatMap((id) => {

@@ -1463,6 +1463,8 @@ export type ScannedNfeDocument = Readonly<{
   recipientState: null | string
   series: string
   status: ScannedNfeStatus
+  /** Spec 321 (emenda): canhoto retido aberto — a nota pode sair da viagem de origem e entrar noutra. */
+  canhotoRetained?: boolean
   /** Spec 153 D10: sem `trip.financials` a API não manda a chave — a tela some a linha, nunca zero. */
   totalAmount?: null | string
   /**

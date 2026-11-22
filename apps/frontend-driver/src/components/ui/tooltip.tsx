@@ -19,7 +19,15 @@ type TooltipProps = Readonly<{
   children: ReactNode
   /** O texto da dica. Vazio desliga o tooltip, e o gatilho segue renderizando normalmente. */
   label: string
+  /**
+   * Spec 321: no celular não há mouse nem foco — a dica de um botão bloqueado só existe se o **toque** a abrir.
+   * Com isto o toque (ou o Enter) abre a dica e a mantém por `PRESS_OPEN_MS`, ignorando o `mouseleave`/`blur`
+   * que o navegador emula logo depois; tocar fora ou rolar a fecha como sempre. Acréscimo desta app: o painel não o usa.
+   */
+  showOnPress?: boolean
 }>
+
+export const TOOLTIP_PRESS_OPEN_MS = 4000
 
 /**
  * A dica que aparece ao lado do que se aponta.
@@ -31,13 +39,18 @@ type TooltipProps = Readonly<{
  * O teclado abre a dica no `focus`, e não só no `hover`: uma dica que só existe para quem tem mouse
  * é informação que some para quem navega por Tab.
  */
-export function Tooltip({ children, label }: TooltipProps): JSX.Element {
+export function Tooltip({ children, label, showOnPress = false }: TooltipProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isPinnedRef = useRef(false)
   const describedById = useId()
   const { anchorRef, layerRef, layerStyle } = useFloatingLayer<HTMLDivElement>({
     isOpen,
-    onDismiss: () => setIsOpen(false),
+    onDismiss: () => {
+      unpin()
+      setIsOpen(false)
+    },
   })
 
   function cancelPendingOpen(): void {
@@ -47,7 +60,30 @@ export function Tooltip({ children, label }: TooltipProps): JSX.Element {
   }
 
   /** Sair da tela com o temporizador armado abriria a dica de um gatilho que já não existe. */
-  useEffect(() => cancelPendingOpen, [])
+  useEffect(
+    () => () => {
+      cancelPendingOpen()
+      if (pinTimerRef.current !== null) clearTimeout(pinTimerRef.current)
+    },
+    [],
+  )
+
+  function unpin(): void {
+    isPinnedRef.current = false
+    if (pinTimerRef.current !== null) clearTimeout(pinTimerRef.current)
+    pinTimerRef.current = null
+  }
+
+  function pinOpen(): void {
+    cancelPendingOpen()
+    unpin()
+    isPinnedRef.current = true
+    setIsOpen(true)
+    pinTimerRef.current = setTimeout(() => {
+      isPinnedRef.current = false
+      setIsOpen(false)
+    }, TOOLTIP_PRESS_OPEN_MS)
+  }
 
   function open(): void {
     cancelPendingOpen()
@@ -56,6 +92,7 @@ export function Tooltip({ children, label }: TooltipProps): JSX.Element {
 
   function close(): void {
     cancelPendingOpen()
+    if (isPinnedRef.current) return
     setIsOpen(false)
   }
 
@@ -67,6 +104,7 @@ export function Tooltip({ children, label }: TooltipProps): JSX.Element {
         aria-describedby={isOpen ? describedById : undefined}
         className={styles.trigger}
         onBlur={close}
+        onClick={showOnPress ? pinOpen : undefined}
         /** Foco de teclado abre **na hora**: quem chegou por Tab escolheu parar aqui. */
         onFocus={() => setIsOpen(true)}
         onMouseEnter={open}

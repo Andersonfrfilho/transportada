@@ -49,6 +49,7 @@ import {
 } from '../../cte-profiles/domain/document-output.policy.js'
 import { resolveCargoWeight } from '../domain/cargo-weight.policy.js'
 import { resolveNfseDocumentBlock } from '../domain/nfse-document-block.policy.js'
+import { listMovableCanhotoRetainedLinks } from '../../trips/infrastructure/canhoto-pickup.query.js'
 import { findTripLinks } from '../../cte-batches/infrastructure/cte-batch-selection.query.js'
 import type { TripDocumentLink } from '../../cte-batches/application/cte-batch-preview.port.js'
 import { storedObjects } from '../../database/storage.schema.js'
@@ -202,6 +203,8 @@ type DocumentBlockContext = {
   readonly nfseInvoiceByDocumentId: ReadonlyMap<string, NfseInvoiceLink>
   /** Spec 065 D4b: sinal de "esta nota já saiu numa viagem". Nenhum bloqueio o lê. */
   readonly tripByDocumentId: ReadonlyMap<string, TripDocumentLink>
+  /** Spec 321 (emenda): notas não entregues com canhoto retido aberto — livres para outra viagem. */
+  readonly canhotoRetainedDocumentIds: ReadonlySet<string>
 }
 
 const EMPTY_BLOCK_CONTEXT: DocumentBlockContext = {
@@ -212,6 +215,7 @@ const EMPTY_BLOCK_CONTEXT: DocumentBlockContext = {
   volumeTotalsByDocumentId: new Map(),
   nfseInvoiceByDocumentId: new Map(),
   tripByDocumentId: new Map(),
+  canhotoRetainedDocumentIds: new Set(),
 }
 
 export function buildDocumentGrossWeightFilters({
@@ -499,8 +503,8 @@ export class DrizzleNfeDocumentRepository
 
   private async loadBlockContext(scope: DocumentScope): Promise<DocumentBlockContext> {
     if (scope.documentIds.length === 0) return EMPTY_BLOCK_CONTEXT
-    const [volumeRows, defaultWeightRows, linkRows, nfseLinkRows, tripLinkRows] = await Promise.all(
-      [
+    const [volumeRows, defaultWeightRows, linkRows, nfseLinkRows, tripLinkRows, retainedRows] =
+      await Promise.all([
         this.database
           .select({
             documentId: nfeVolumes.documentId,
@@ -548,8 +552,11 @@ export class DrizzleNfeDocumentRepository
           .orderBy(nfseServiceInvoiceDocuments.nfeDocumentId),
         // A mesma consulta que a composição do lote usa: um sinal só, num lugar só (spec 065 D4b).
         findTripLinks(this.database, scope),
-      ],
-    )
+        listMovableCanhotoRetainedLinks(this.database, {
+          companyId: scope.companyId,
+          nfeDocumentIds: scope.documentIds,
+        }),
+      ])
 
     return {
       batchIdByDocumentId: new Map(linkRows.map((row) => [row.documentId, row.batchId])),
@@ -569,6 +576,7 @@ export class DrizzleNfeDocumentRepository
       emissionProfiles: await this.loadActiveEmissionProfiles(scope.companyId),
       freightRules: await this.loadActiveFreightRules(scope.companyId),
       tripByDocumentId: new Map(tripLinkRows.map((row) => [row.documentId, row])),
+      canhotoRetainedDocumentIds: new Set(retainedRows.map((row) => row.nfeDocumentId)),
     }
   }
 
@@ -934,6 +942,7 @@ function describeDocument(
      */
     freightAmount: freight?.amount ?? null,
     freightRuleName: freight?.freightRuleName ?? null,
+    canhotoRetained: blockContext.canhotoRetainedDocumentIds.has(document.id),
     cargoGrossWeight: cargoWeight?.grossWeight ?? null,
     cargoWeightSource: cargoWeight?.source ?? null,
     recipientPhone: recipient.phone,

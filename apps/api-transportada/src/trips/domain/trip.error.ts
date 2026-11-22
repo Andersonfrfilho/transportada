@@ -316,6 +316,22 @@ export class TripDocumentAlreadyLinkedError extends ApiError {
   }
 }
 
+/**
+ * Spec 321: a nota **já entregue** cujo cliente reteve o canhoto não volta para outra viagem como nota (D3): quem
+ * entra na viagem nova é a coleta do canhoto, encaixada pelo escritório. "Já está vinculada" mandava procurar a
+ * nota numa viagem que ela só deixa para trás.
+ */
+export class TripDocumentCanhotoPickupOnlyError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DOCUMENT_CANHOTO_PICKUP_ONLY',
+      message:
+        'The delivered document only comes back for its receipt pickup: fit the pickup into the trip.',
+      status: 409,
+    })
+  }
+}
+
 /** Uma vez entregue, o vínculo trava — a nota nunca mais migra para outra viagem (spec 027 § Dúvidas). */
 export class TripDocumentAlreadyDeliveredError extends ApiError {
   public constructor() {
