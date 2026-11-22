@@ -11,6 +11,8 @@
 import { z } from 'zod'
 
 import {
+  TRIP_DELIVERY_PROOF_CANHOTO_BARCODE_READ_SOURCE,
+  TRIP_DELIVERY_PROOF_CANHOTO_OCR_READ_SOURCE,
   TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES,
   TRIP_DELIVERY_PROOF_CANHOTO_REVIEW_REASONS,
 } from '../../database/trip.schema.js'
@@ -79,15 +81,32 @@ const REVIEW_BODY_SCHEMA = z
  * obrigatórios e `nullable()`: `null` é "li e não achei", ausente é corpo malformado; com
  * `exactOptionalPropertyTypes` um `optional()` chegaria `undefined` e passaria batido pela
  * comparação contra `null` da política.
+ *
+ * Spec 344 D5: são duas formas. A do código de barras (ou a leitura vazia) segue como era. A do OCR
+ * (`readSource: 'ocr'`) exige o número lido e **proíbe** `readDocumentId` (`null` obrigatório): o OCR
+ * lê o Nº/Série impresso, e a nota X a que ele parece pertencer é achada pelo servidor, na empresa
+ * da prova (T3), nunca pelo que o robô diz ter casado. As duas são `.strict()`.
  */
-const AUTOMATIC_REVIEW_BODY_SCHEMA = z
+const AUTOMATIC_REVIEW_BARCODE_BODY_SCHEMA = z
   .object({
     readDocumentId: z.string().uuid().nullable(),
     readNumber: z.string().min(1).max(CANHOTO_READ_NUMBER_MAX_LENGTH).nullable(),
     readSeries: z.string().min(1).max(CANHOTO_READ_SERIES_MAX_LENGTH).nullable(),
-    readSource: z.enum(TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES).nullable(),
+    readSource: z.literal(TRIP_DELIVERY_PROOF_CANHOTO_BARCODE_READ_SOURCE).nullable(),
   })
   .strict()
+
+const AUTOMATIC_REVIEW_OCR_BODY_SCHEMA = z
+  .object({
+    readDocumentId: z.null(),
+    readNumber: z.string().min(1).max(CANHOTO_READ_NUMBER_MAX_LENGTH),
+    readSeries: z.string().min(1).max(CANHOTO_READ_SERIES_MAX_LENGTH).nullable(),
+    readSource: z.literal(TRIP_DELIVERY_PROOF_CANHOTO_OCR_READ_SOURCE),
+  })
+  .strict()
+
+const AUTOMATIC_REVIEW_BODY_SCHEMA = z
+  .union([AUTOMATIC_REVIEW_BARCODE_BODY_SCHEMA, AUTOMATIC_REVIEW_OCR_BODY_SCHEMA])
   .readonly()
 
 export type CanhotoReviewRoutesDependencies = {

@@ -22,6 +22,7 @@ export function resolveInitialCanhotoReview(
 }
 
 type CanhotoReviewReset = {
+  readonly canhotoOcrAttemptedAt: null
   readonly canhotoReadAttemptedAt: null
   readonly canhotoReadDocumentId: null
   readonly canhotoReadNumber: null
@@ -42,10 +43,11 @@ type CanhotoReviewReset = {
  *
  * ⚠️ O `DO UPDATE SET` desta tabela é denotativo — coluna ausente do objeto fica com o valor antigo,
  * como `receiver_document_envelope` e `late_registration` querem. A conferência é a primeira em que
- * o padrão correto é **apagar**, e por isso as onze colunas entram juntas, de um lugar só.
+ * o padrão correto é **apagar**, e por isso as doze colunas entram juntas, de um lugar só.
  */
 export function buildCanhotoReviewReset(kind: TripDeliveryProofKind): CanhotoReviewReset {
   return {
+    canhotoOcrAttemptedAt: null,
     canhotoReadAttemptedAt: null,
     canhotoReadDocumentId: null,
     canhotoReadNumber: null,

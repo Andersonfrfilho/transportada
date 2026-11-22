@@ -318,3 +318,66 @@ describe('o painel não pode pedir o que o banco recusaria', () => {
     ).toBe('apply')
   })
 })
+
+/**
+ * Spec 344 D1/D5 (CA01): o OCR do robô lê o Nº/Série impresso. Conferindo ou divergindo, a prova
+ * fica `pending`, sem origem e sem instante — o alerta de "outra nota" é derivado na leitura (T3),
+ * nunca um veredito. Sobre decisão humana, nada entra.
+ */
+describe('a leitura OCR do robô nunca decide (spec 344 CA01)', () => {
+  const OCR = { readDocumentId: null, readSource: 'ocr' as const }
+
+  test.each([
+    { label: 'número igual ao da nota', reading: { readNumber: DOCUMENT_NUMBER } },
+    { label: 'número de outra nota', reading: { readNumber: OTHER_NUMBER } },
+    { label: 'mesmo número, série diferente', reading: { readSeries: '2' } },
+    { label: 'série não lida', reading: { readSeries: null } },
+  ])('$label: grava a leitura e segue `pending`', ({ reading }) => {
+    const decision = automatic({ ...OCR, ...reading, state: PENDING })
+    expect(decision).toMatchObject({
+      kind: 'apply',
+      update: {
+        canhotoReadDocumentId: null,
+        canhotoReadSource: 'ocr',
+        canhotoReview: 'pending',
+        canhotoReviewAt: null,
+        canhotoReviewByUserId: null,
+        canhotoReviewOrigin: null,
+      },
+    })
+  })
+
+  test('mesmo apontando a nota da rota (corpo adulterado), OCR não aprova', () => {
+    const decision = automatic({ readDocumentId: DOCUMENT_ID, readSource: 'ocr', state: PENDING })
+    expect(decision.kind === 'apply' && decision.update.canhotoReview).toBe('pending')
+  })
+
+  test('nenhuma leitura OCR produz `approved` nem `rejected`', () => {
+    for (const readNumber of [DOCUMENT_NUMBER, OTHER_NUMBER, '000012345']) {
+      for (const readSeries of [DOCUMENT_SERIES, '9', null]) {
+        for (const documentNumber of [DOCUMENT_NUMBER, null]) {
+          const decision = automatic({
+            ...OCR,
+            documentNumber,
+            readNumber,
+            readSeries,
+            state: PENDING,
+          })
+          expect(decision.kind === 'apply' && decision.update.canhotoReview).toBe('pending')
+        }
+      }
+    }
+  })
+
+  test('sobre veredito humano é `unchanged`: nem a leitura OCR entra', () => {
+    for (const state of [MANUALLY_APPROVED, MANUALLY_REJECTED]) {
+      expect(automatic({ ...OCR, readNumber: OTHER_NUMBER, state })).toEqual({ kind: 'unchanged' })
+    }
+  })
+
+  test('OCR sem número é forma que o banco recusaria', () => {
+    expect(() => automatic({ ...OCR, readNumber: null, readSeries: null, state: PENDING })).toThrow(
+      CanhotoAutomaticReviewInvalidError,
+    )
+  })
+})
