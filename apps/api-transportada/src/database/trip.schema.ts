@@ -2161,6 +2161,8 @@ export const TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES = ['barcode', 'ocr'] as co
 export type TripDeliveryProofCanhotoReadSource =
   (typeof TRIP_DELIVERY_PROOF_CANHOTO_READ_SOURCES)[number]
 export const TRIP_DELIVERY_PROOF_CANHOTO_BARCODE_READ_SOURCE = 'barcode'
+/** Spec 344 D5: o Nº/Série impresso lido por OCR — pelo robô, só sugere (nunca aprova). */
+export const TRIP_DELIVERY_PROOF_CANHOTO_OCR_READ_SOURCE = 'ocr'
 export const TRIP_DELIVERY_PROOF_CANHOTO_MANUAL_REVIEW_ORIGIN = 'manual'
 
 /**
@@ -2344,6 +2346,13 @@ export const tripDeliveryProofs = pgTable(
      * Falha de infraestrutura não grava: ela merece o próximo ciclo.
      */
     canhotoReadAttemptedAt: timestamp('canhoto_read_attempted_at', { withTimezone: true }),
+    /**
+     * Spec 344 D7: quando a passada de OCR do Nº/Série **terminou** sem número ancorado. Coluna
+     * própria, e não `canhoto_read_attempted_at`: as provas já carimbadas pela passada do código de
+     * barras nunca seriam lidas pelo OCR. Nulo é "o OCR ainda não tentou", sem backfill; falha de
+     * infraestrutura (objeto ausente, teto, timeout, `busy`, API fora) não grava. Recaptura zera.
+     */
+    canhotoOcrAttemptedAt: timestamp('canhoto_ocr_attempted_at', { withTimezone: true }),
     /**
      * Spec 265 RF6: o estado do tratamento do arquivo. Nulo é o comprovante que sobe já leve (a
      * redução aconteceu no aparelho) e todo o histórico — a leitura o publica como `ready`. Só o
@@ -2611,6 +2620,17 @@ export const tripDeliveryProofs = pgTable(
       .on(table.createdAt)
       .where(
         sql`${table.canhotoReview} = 'pending' and ${table.canhotoReadSource} is null and ${table.canhotoReadAttemptedAt} is null`,
+      ),
+    /**
+     * Spec 344 D7: a fila da segunda passada (OCR do Nº/Série) — pendente, sem leitura e sem
+     * tentativa de OCR, **independente** de `canhoto_read_attempted_at` (é exatamente o canhoto que
+     * o código de barras já tentou e não leu que o OCR precisa achar). Mesmas três decisões do
+     * índice acima: sem `kind`, chave `(created_at)`, literais que a consulta do worker repete.
+     */
+    index('trip_delivery_proofs_canhoto_ocr_pending_idx')
+      .on(table.createdAt)
+      .where(
+        sql`${table.canhotoReview} = 'pending' and ${table.canhotoReadSource} is null and ${table.canhotoOcrAttemptedAt} is null`,
       ),
   ],
 )

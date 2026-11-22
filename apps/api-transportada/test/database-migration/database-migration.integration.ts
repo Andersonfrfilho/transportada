@@ -5,7 +5,7 @@ import { describe, expect } from 'bun:test'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import { assertContractorMailBodyHtml } from './contractor-mail-body-html.assertion.js'
 import { assertBusinessCalendar } from './business-calendar.assertion.js'
-import { assertCanhotoReadQueue } from './canhoto-read-queue.assertion.js'
+import { assertCanhotoOcrQueue, assertCanhotoReadQueue } from './canhoto-read-queue.assertion.js'
 import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
 import { assertDeliveryProofCargoSumsAndGuardsRollback } from './delivery-proof-cargo.assertion.js'
 import { assertDeliveryProofContractorOverridesBackfill } from './delivery-proof-contractor-overrides.assertion.js'
@@ -469,6 +469,11 @@ describe('Drizzle migration integration', () => {
           directories: migrationDirectories,
         })
         await assertCanhotoReadQueue({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+        })
+        await assertCanhotoOcrQueue({
           connectionString,
           database,
           directories: migrationDirectories,

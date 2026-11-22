@@ -129,3 +129,85 @@ async function readQueuePlan(database: SQL): Promise<string> {
     return rows.map((row) => row['QUERY PLAN']).join('\n')
   })
 }
+
+const CANHOTO_OCR_MIGRATION_SUFFIX = '_trip_canhoto_ocr_attempt'
+const OCR_INDEX_NAME = 'trip_delivery_proofs_canhoto_ocr_pending_idx'
+const OCR_INDEX_DEFINITION = `CREATE INDEX ${OCR_INDEX_NAME} ON public.trip_delivery_proofs USING btree (created_at) WHERE (((canhoto_review)::text = 'pending'::text) AND (canhoto_read_source IS NULL) AND (canhoto_ocr_attempted_at IS NULL))`
+
+type OcrQueueState = Readonly<{
+  attemptedAtColumn: { readonly dataType: string; readonly isNullable: string } | undefined
+  indexDefinition: string | null
+}>
+
+/**
+ * Spec 344 D7 (RF4): a fila do OCR do Nº/Série tem carimbo e índice próprios. O teste prova o plano
+ * da consulta do worker (que **não** cita `canhoto_read_attempted_at`), o carimbo anulável sem
+ * backfill, e que o rollback desfaz os dois sem tocar a fila do código de barras — e a migration volta.
+ */
+export async function assertCanhotoOcrQueue(probe: CanhotoReadQueueProbe): Promise<void> {
+  const { database } = probe
+  const directory = probe.directories.find((name) => name.endsWith(CANHOTO_OCR_MIGRATION_SUFFIX))
+  if (directory === undefined) throw new Error('Canhoto OCR queue migration is required')
+
+  expectOcrAppliedState(await readOcrQueueState(database))
+  expect(await readOcrQueuePlan(database)).toContain(`Index Scan using ${OCR_INDEX_NAME}`)
+
+  const rollback = await Bun.file(
+    join(migrationsDirectory.pathname, directory, 'rollback.sql'),
+  ).text()
+  await database.unsafe(rollback)
+  expect(await readOcrQueueState(database)).toEqual({
+    attemptedAtColumn: undefined,
+    indexDefinition: null,
+  })
+  expectAppliedState(await readQueueState(database))
+  const journal = await database<Array<{ readonly name: string }>>`
+    select name from drizzle.__drizzle_migrations where name = ${directory}
+  `
+  expect(journal).toEqual([])
+
+  await runDatabaseMigrations({ connectionString: probe.connectionString })
+  expectOcrAppliedState(await readOcrQueueState(database))
+}
+
+function expectOcrAppliedState(state: OcrQueueState): void {
+  expect(state).toEqual({
+    attemptedAtColumn: { dataType: 'timestamp with time zone', isNullable: 'YES' },
+    indexDefinition: OCR_INDEX_DEFINITION,
+  })
+}
+
+async function readOcrQueueState(database: SQL): Promise<OcrQueueState> {
+  const [column] = await database<
+    Array<{ readonly data_type: string; readonly is_nullable: string }>
+  >`
+    select data_type, is_nullable from information_schema.columns
+    where table_name = 'trip_delivery_proofs' and column_name = 'canhoto_ocr_attempted_at'
+  `
+  const [index] = await database<Array<{ readonly indexdef: string }>>`
+    select indexdef from pg_indexes where indexname = ${OCR_INDEX_NAME}
+  `
+  return {
+    attemptedAtColumn:
+      column === undefined
+        ? undefined
+        : { dataType: column.data_type, isNullable: column.is_nullable },
+    indexDefinition: index?.indexdef ?? null,
+  }
+}
+
+async function readOcrQueuePlan(database: SQL): Promise<string> {
+  return database.begin(async (transaction) => {
+    await transaction`set local enable_seqscan = off`
+    const rows = await transaction<Array<{ readonly 'QUERY PLAN': string }>>`
+      explain
+      select id from trip_delivery_proofs
+      where canhoto_review = 'pending'
+        and canhoto_read_source is null
+        and canhoto_ocr_attempted_at is null
+      order by created_at
+      limit 5
+    `
+    return rows.map((row) => row['QUERY PLAN']).join('\n')
+  })
+}
