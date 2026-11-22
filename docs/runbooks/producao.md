@@ -1605,3 +1605,20 @@ desligado; sem `--confirm` só simula e desfaz).
 **Aplicado em staging em 21/11/2026 (19:06, horário de Brasília)** com `--confirm`: a Única não tinha exceção (`antes` vazio) e ficou com
 foto obrigatória e o resto desligado (linha `1214905e…`; saída em
 `tmp/ops/saidas/staging-unica-so-canhoto-20261121T220639Z.json`). Produção não foi tocada.
+
+## 5.49 Promoção #939 staging → main (22/11/2026): o que foi para produção e como conferir
+
+O #939 foi mergeado em 22/11/2026 (merge `66cb191`), com os checks do PR verdes. O gate e o deploy da `main` ficaram verdes
+(`deploy-api`, `deploy-services`, `deploy-frontend`, `deploy-driver`, `deploy-client`, `deploy-landing` e `mark-deployed`).
+
+- **45 commits desde a promoção de 19/11:** canhoto retido (spec 321: nota livre para outra viagem, marca sai ao entregar, tipo já aberto
+  bloqueado no app, coleta só de canhoto libera e despacha, coleta fora da carga/mapa 3D/CT-e, foto exigida na entrega, #916 a #937),
+  correção do 500 ao mover nota com cobrança no recebimento (#935), descartar mensagens sem conversa e resolver ocorrências em massa
+  (#932, #933), Resultados no mês corrente, logo do login no tema escuro e as Contas passando a usar `@adatechnology/expense-contracts`
+  0.1.0 (#921, #923 a #928, sem mudança de comportamento).
+- **1 migration, aditiva, com rollback:** `20261121123415_occurrence_unassigned_dismissal` (colunas `dismissed_at` e `dismissed_by_user_id`,
+  índice parcial recriado, 1 FK e 1 CHECK em `occurrence_conversation_unassigned`). Roda no `preDeployCommand` da API. Sem variável nova.
+- **Não religa nada:** o aviso de Contas por e-mail segue como estava.
+- **Conferir (somente leitura):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-pos-promocao-939-confere.sh`
+  (cópia em `/mnt/project-files/promocao-939/`). Esperado: 2 colunas novas, 3 itens entre índice e constraints, rotinas de Contas no estado
+  anterior. A saída vai para `tmp/ops/saidas/`.
