@@ -18,6 +18,7 @@ import type {
   DELIVERY_PROOF_PUNCTUALITY_OPTIONS,
   DELIVERY_PROOF_RECEIVED_BY_OPTIONS,
 } from './trip.constant'
+import type { CanhotoMismatch } from './canhotoMismatch.validation'
 
 export type DeliveryProofKind = 'photo' | 'signature' | 'cargo'
 
@@ -40,6 +41,8 @@ export type DeliveryProofCanhotoReviewReason =
   (typeof DELIVERY_PROOF_CANHOTO_REVIEW_REASON_OPTIONS)[number]
 
 export type DeliveryProof = Readonly<{
+  /** Spec 344 RF5: "parece ser da NF X"; ausente quando não há alerta (só em prova pendente). */
+  canhotoMismatch?: CanhotoMismatch
   /** Spec 220 RF24: todas as `canhoto*` ausentes (nunca `null`) quando não há o que dizer. */
   canhotoReadNumber?: string
   canhotoReadSeries?: string
