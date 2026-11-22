@@ -1601,3 +1601,7 @@ Leitura somente leitura em staging com `tmp/ops/staging-unica-comprovante-diagno
 canhoto nenhum. Correção em código: nota com canhoto retido aberto exige a foto (`requirePhotoForRetainedCanhoto`) e a coleta/ocorrência só fecham quando a foto do canhoto existe (baixa sem foto deixa tudo aberto até ela chegar). Configuração da Única
 em staging: `tmp/ops/staging-unica-so-canhoto.sh [--confirm]` (exceção da contratante `26344834000108`, foto obrigatória e o resto
 desligado; sem `--confirm` só simula e desfaz).
+
+**Aplicado em staging em 21/11/2026 (19:06, horário de Brasília)** com `--confirm`: a Única não tinha exceção (`antes` vazio) e ficou com
+foto obrigatória e o resto desligado (linha `1214905e…`; saída em
+`tmp/ops/saidas/staging-unica-so-canhoto-20261121T220639Z.json`). Produção não foi tocada.
