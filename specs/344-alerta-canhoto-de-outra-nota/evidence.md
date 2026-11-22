@@ -54,3 +54,47 @@ Contrato primeiro: os casos CA01 entraram vermelhos (3 falhas na rota: `readDocu
 | Migration + rollback + plano do índice contra Postgres 16   | `bun run db:test` (= `make migration-test`)                                                                            | 296 pass, 0 fail            |
 | Integração do canhoto contra Postgres (2 casos OCR novos)   | `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/delivery-proof-canhoto-review.integration.ts` | 15 pass, 0 fail             |
 | Lint, typecheck, prettier                                   | `bun run lint`, `bun run typecheck` (api), `bunx prettier --check .` (raiz)                                            | limpos                      |
+
+## T3 — `canhotoMismatch` derivado no comprovante (22/11/2026)
+
+Duas partes, em dois PRs, na ordem da ADR-0081 §9: o painel tolerante primeiro (PR #947), depois a API.
+
+**Contrato (RF5).** `GET /trips/:id/documents/:documentId/proof` e `GET /trips/:id/delivery-proofs` levam, só na prova `pending` com leitura que diverge da própria nota:
+
+```ts
+canhotoMismatch?: {
+  kind: 'other_document' | 'other_series'
+  readNumber: string // normalizado, sem zero à esquerda
+  readSeries: string | null
+  matchedDocument: null | {
+    nfeDocumentId: string
+    number: string
+    series: string
+    status: 'authorized' | 'cancelled' | 'denied' | 'unsigned'
+    sameTrip: boolean
+    tripId: string | null // vínculo vivo da NF X (o desta viagem, se houver)
+    tripDocumentId: string | null // alvo do "Mover para a NF X" (T5b)
+    canhotoApproved: boolean // Q4 (aprovada pelo Anderson): a NF X já tem canhoto aprovado
+  }
+}
+```
+
+Ausente (nunca `null`) quando não há alerta. Nada é gravado: o alerta é derivado na leitura (`canhoto-mismatch.query.ts` + `canhoto-mismatch.policy.ts`).
+
+**Decisões tomadas na implementação.**
+
+- Compara por número **exato** sem zero à esquerda ("000172195" = 172195); a série só alerta quando lida e diferente (`other_series`).
+- Vale para qualquer origem da leitura (`ocr` ou `barcode`): o alerta diz "o número lido não é o desta nota", o que é verdade nas duas.
+- **Qual NF X citar**: o número de NF-e se repete entre emitentes, então a ordem é mesma viagem → mesmo emitente da nota da prova (posições 7–20 da chave de acesso) → candidata única. Empate que sobra é `matchedDocument: null` ("parece ser de outra nota", com o número lido): citar a nota errada custa mais do que não citar.
+- Busca sempre pelo `companyId` da prova, nas três tabelas da subconsulta de duplicidade também.
+- Custo: +0 consultas quando nenhuma prova da leitura diverge; +1 (todas as provas juntas) quando alguma diverge. A busca por `ltrim(number,'0')` não tem índice próprio; só roda com divergência. Medir em staging (T6) antes de propor índice.
+
+**Testes.**
+
+- Contrato API `test/trip-delivery-proof/canhoto-mismatch.contract.ts`: os cinco casos da D4 (CA04), a escolha da nota (mesma viagem, emitente, única, empate, série, duplicidade) e a publicação (só pendente, ausente nunca `null`). `bun test` da API: 15733 pass, 0 fail (35 skip, os de Postgres).
+- Integração `test/integration/canhoto-mismatch.integration.ts` contra Postgres 16 local (7 casos, 7 pass): o caso 931988/172195 na mesma viagem, NF de outra empresa nunca citada, mesma viagem vence outra viagem, citação fora da viagem com o vínculo vivo, duplicidade (Q4), sem alerta quando confere/sem leitura/aprovada, e `other_series`. **Mutação medida**: sem `eq(nfeDocuments.companyId, ...)` o caso de outra empresa reprova. Vizinhos re-rodados no mesmo banco: `delivery-proofs-by-trip`, `driver-delivery-proof-read`, `delivery-proof-canhoto-review`, `trip-proof-pdf-end-to-end` (33 pass no total).
+- Isolamento por texto: `test/trip-schema/tenant-safety.contract.ts` § "canhoto mismatch query tenant safety".
+- `test/canhoto-review/no-gate.contract.ts`: `canhoto-mismatch.query.ts` entra na lista de quem lê o veredito, só para **mostrar** a duplicidade (nada é barrado).
+- Painel: `test/trip/delivery-proof-canhoto-mismatch.contract.ts` (guarda tolerante nas duas leituras, malformado sai sozinho, paridade de tipos e chaves com a política da API). `bun run test` do painel: 8987 + 1497 pass, 0 fail.
+
+⚠️ **Publicação em produção (T7):** a promoção `staging → main` leva painel e API no mesmo run, e o `deploy.yml` sobe a API antes do painel. Na janela, o painel antigo descartaria só o comprovante pendente com alerta. Para não ter janela, o painel vai num PR à frente, ou a janela é aceita.

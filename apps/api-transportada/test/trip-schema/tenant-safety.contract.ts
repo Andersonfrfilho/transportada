@@ -330,6 +330,36 @@ describe('delivery proof query tenant safety (spec 079 T004)', () => {
 })
 
 /**
+ * Spec 344 T3: a "NF X" do alerta de canhoto trocado é procurada pelo número lido, e números de NF-e
+ * se repetem entre transportadoras. Uma junção ou subconsulta sem tenant citaria a nota de outra
+ * empresa no comprovante desta. A prova viva está em `test/integration/canhoto-mismatch.integration.ts`
+ * (mutação medida: sem o filtro de empresa ela reprova); esta prende o texto para a edição futura.
+ */
+describe('canhoto mismatch query tenant safety (spec 344 T3)', () => {
+  const source = readFileSync(
+    new URL('../../src/trips/infrastructure/canhoto-mismatch.query.ts', import.meta.url),
+    'utf8',
+  )
+
+  test('filters the cited document by the proof company', () => {
+    const where = source.slice(source.indexOf('.where('))
+    expect(where).toInclude('eq(nfeDocuments.companyId, input.companyId)')
+  })
+
+  test('carries the company through the live link join', () => {
+    const join = source.slice(source.indexOf('.leftJoin('), source.indexOf('.where('))
+    expect(join).toInclude('eq(tripDocuments.companyId, nfeDocuments.companyId)')
+  })
+
+  test('the approved-canhoto subquery joins and filters by company at every step', () => {
+    const subquery = source.slice(source.indexOf('exists ('), source.indexOf(')`,'))
+    expect(subquery).toInclude('approved_event.company_id = approved_proof.company_id')
+    expect(subquery).toInclude('approved_link.company_id = approved_event.company_id')
+    expect(subquery).toInclude('approved_proof.company_id = ${input.companyId}')
+  })
+})
+
+/**
  * Spec 161 T3: a leitura do anexo da ocorrência de galpão junta duas tabelas de objeto (original e
  * miniatura) e cai para a coluna antiga por outra junção — mesmo risco do comprovante acima, um
  * degrau que perde `companyId` é o caminho para o anexo de uma empresa aparecer na de outra. Prova

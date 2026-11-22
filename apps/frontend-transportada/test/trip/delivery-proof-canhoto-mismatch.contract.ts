@@ -6,7 +6,13 @@
  * leituras (a da nota e a do maço). Alerta malformado sai sozinho; o comprovante fica.
  */
 import { describe, expect, it } from 'bun:test'
+import { readFileSync } from 'node:fs'
 
+import {
+  CANHOTO_MISMATCH_KEYS,
+  CANHOTO_MISMATCH_KINDS,
+  CANHOTO_MISMATCH_MATCHED_DOCUMENT_KEYS,
+} from '../../src/modules/trip/shared/canhotoMismatch.validation'
 import { createTripResponseAdapters } from '../../src/modules/trip/shared/tripResponse.validation'
 
 const PENDING_PROOF = {
@@ -104,5 +110,37 @@ describe('o comprovante aceita o alerta de canhoto de outra nota (spec 344 RF5)'
 
   it('chave desconhecida fora do alerta continua derrubando o comprovante', () => {
     expect(adapters.deliveryProofsFromApi([{ ...PENDING_PROOF, readText: 'x' }])).toEqual([])
+  })
+})
+
+/**
+ * Paridade com a API: o vocabulário e as chaves da nota citada são os de
+ * `canhoto-mismatch.policy.ts`. Tipo novo lá sem esta cópia faria o painel descartar o alerta calado.
+ */
+describe('paridade do alerta com a API (spec 344 RF5)', () => {
+  const apiSource = readFileSync(
+    new URL(
+      '../../../api-transportada/src/trips/domain/canhoto-mismatch.policy.ts',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+
+  it('os tipos do alerta são os mesmos', () => {
+    const match = /CANHOTO_MISMATCH_KINDS = \[([^\]]*)\]/u.exec(apiSource)
+    const apiKinds = [...(match?.[1] ?? '').matchAll(/'([a-z_]+)'/gu)].map((item) => item[1])
+    expect(apiKinds).toEqual([...CANHOTO_MISMATCH_KINDS])
+  })
+
+  it('as chaves da nota citada são as do tipo da API', () => {
+    const block = /export type CanhotoMismatchMatchedDocument = \{([^}]*)\}/u.exec(apiSource)
+    const apiKeys = [...(block?.[1] ?? '').matchAll(/readonly (\w+):/gu)].map((item) => item[1])
+    expect(apiKeys.sort()).toEqual([...CANHOTO_MISMATCH_MATCHED_DOCUMENT_KEYS].sort())
+  })
+
+  it('as chaves do alerta são as do tipo da API', () => {
+    const block = /export type CanhotoMismatch = \{([^}]*)\}/u.exec(apiSource)
+    const apiKeys = [...(block?.[1] ?? '').matchAll(/readonly (\w+):/gu)].map((item) => item[1])
+    expect(apiKeys.sort()).toEqual([...CANHOTO_MISMATCH_KEYS].sort())
   })
 })

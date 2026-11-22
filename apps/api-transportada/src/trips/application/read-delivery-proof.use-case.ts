@@ -18,6 +18,7 @@ import type {
   TripDeliveryProofProcessingState,
   TripDeliveryProofPunctuality,
 } from '../../database/trip.schema.js'
+import type { CanhotoMismatch } from '../domain/canhoto-mismatch.policy.js'
 import { resolveDeliveryProofProcessingState } from '../domain/delivery-proof.policy.js'
 
 import type { TripRouteFreezeLogger } from './freeze-trip-route-gracefully.js'
@@ -28,6 +29,11 @@ import type { TripRouteFreezeLogger } from './freeze-trip-route-gracefully.js'
  * leitura veio entram aqui — a tela só precisa do nome.
  */
 export type CanhotoReviewRecord = {
+  /**
+   * Spec 344 RF5: derivado na leitura (`canhoto-mismatch.query.ts`), nunca coluna. `null`/ausente
+   * quando a prova não está pendente, não tem leitura ou a leitura confere com a nota.
+   */
+  readonly canhotoMismatch?: CanhotoMismatch | null
   readonly canhotoReadNumber?: string | null
   readonly canhotoReadSeries?: string | null
   readonly canhotoReadSource?: TripDeliveryProofCanhotoReadSource | null
@@ -116,6 +122,12 @@ export type DeliveryProofDownloadPort = {
 
 /** Spec 220 RF24: cada chave ausente (nunca `null`) quando não há o que dizer. */
 export type CanhotoReviewView = {
+  /**
+   * Spec 344 RF5/D4: "parece ser da NF X". Ausente (nunca `null`) quando não há alerta. ⚠️ O painel
+   * publicado antes da T5 da 344 recusa chave desconhecida no comprovante (`isDeliveryProof`): a
+   * guarda tolerante vai junto com esta chave, e o painel sobe antes da API.
+   */
+  readonly canhotoMismatch?: CanhotoMismatch
   readonly canhotoReadNumber?: string
   readonly canhotoReadSeries?: string
   readonly canhotoReadSource?: TripDeliveryProofCanhotoReadSource
@@ -350,6 +362,9 @@ function buildCanhotoReviewView(record: CanhotoReviewRecord): CanhotoReviewView 
 
   return {
     canhotoReview: record.canhotoReview,
+    ...(record.canhotoReview === 'pending' && record.canhotoMismatch
+      ? { canhotoMismatch: record.canhotoMismatch }
+      : {}),
     ...(record.canhotoReadNumber ? { canhotoReadNumber: record.canhotoReadNumber } : {}),
     ...(record.canhotoReadSeries ? { canhotoReadSeries: record.canhotoReadSeries } : {}),
     ...(record.canhotoReadSource ? { canhotoReadSource: record.canhotoReadSource } : {}),
