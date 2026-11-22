@@ -612,6 +612,25 @@
       "unknownWithSeries": "Looks like another invoice (read: {{number}}, series {{series}})",
       "unknownWithoutSeries": "Looks like another invoice (read: {{number}}, series not read)"
     },
+    "canhotoMove": {
+      "action": "Move to invoice {{number}}",
+      "cancel": "Cancel",
+      "confirm": "Move the photo",
+      "description": "The photo leaves this invoice, which goes back to having no receipt, and moves to invoice {{number}} (series {{series}}). Moving does not approve: the photo arrives awaiting review.",
+      "error": {
+        "requestFailed": "Could not move the photo. Try again.",
+        "targetHasProof": "Invoice {{number}} already has a receipt photo. Resolve that photo before moving this one.",
+        "targetNotDelivered": "Invoice {{number}} has no recorded delivery yet. Record the delivery before moving the photo."
+      },
+      "moved": "Photo moved to invoice {{number}}.",
+      "reason": {
+        "driver_mistake": "The driver attached it to the wrong invoice",
+        "office_mistake": "The office attached it to the wrong invoice",
+        "wrong_document": "The photo belongs to another invoice"
+      },
+      "reasonLabel": "Reason",
+      "title": "Move to invoice {{number}}"
+    },
     "canhotoReview": {
       "alreadyResolved": "Someone else has already reviewed this receipt. The screen now shows the verdict that stood.",
       "approve": "Approve delivery receipt",

@@ -12,6 +12,7 @@ import { Icon } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
 
 import { isDeliveryProofAwaitingProcessing } from '../shared/deliveryProof.service'
+import { resolveCanhotoMoveTarget } from '../shared/canhotoMove.service'
 import { isCanhotoFlagged } from '../shared/canhotoMismatchPresentation.service'
 import type { CanhotoBatchItem } from '../shared/canhotoBatchSelection.service'
 import type { ProofImageOutcome } from './ProofImage.component'
@@ -23,6 +24,8 @@ import styles from '../styles/trip.module.css'
 export type TripCanhotoBatchItemActions = Readonly<{
   /** Spec 344 D8.2: a prova sinalizada só é aprovada por clique próprio, na própria prova. */
   onApproveFlagged: (documentId: string) => void
+  /** Spec 344 T5c: ausente quando o maço não oferece o "Mover para a NF X". */
+  onMove?: (documentId: string) => void
   onCheckedChange: (documentId: string, isChecked: boolean) => void
   onImageSettled: (documentId: string, outcome: ProofImageOutcome) => void
   onOpenImage: (proofId: string) => void
@@ -55,6 +58,7 @@ export function TripCanhotoBatchItem({
   /** RF11: o original aparece, mas a conferência espera a foto ficar pronta. */
   const isAwaiting = isDeliveryProofAwaitingProcessing(proof)
   const isFlagged = isCanhotoFlagged(proof)
+  const moveTarget = actions.onMove === undefined ? undefined : resolveCanhotoMoveTarget(proof)
 
   return (
     <li
@@ -84,6 +88,18 @@ export function TripCanhotoBatchItem({
       {isFlagged ? (
         <>
           <p className={styles.hint}>{t('deliveryProof.canhotoBatch.flaggedHint')}</p>
+          {moveTarget === undefined ? null : (
+            <Button
+              disabled={hasImageFailed || isAwaiting || isBusy}
+              onClick={() => actions.onMove?.(documentId)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="send" />
+              {t('deliveryProof.canhotoMove.action', { number: moveTarget.number })}
+            </Button>
+          )}
           <Button
             data-flagged-approve=""
             disabled={hasImageFailed || isAwaiting || !isImageLoaded || isBusy}

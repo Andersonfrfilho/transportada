@@ -26,6 +26,8 @@ import {
   resolveDeliveryProofImageSource,
 } from '../shared/deliveryProof.service'
 import styles from '../styles/trip.module.css'
+import { CanhotoMoveDialog } from './CanhotoMoveDialog.component'
+import { resolveCanhotoMoveTarget, type CanhotoMoveReason } from '../shared/canhotoMove.service'
 import type { ProofImageOutcome } from './ProofImage.component'
 import { ProofGalleryDialog } from './ProofGalleryDialog.component'
 import { TripCanhotoBatchItem } from './TripCanhotoBatchItem.component'
@@ -35,6 +37,10 @@ const TITLE_ID = 'trip-canhoto-batch-dialog-title'
 export type CanhotoBatchDialogStatus = 'failed' | 'loading' | 'ready' | 'submitting'
 
 type TripCanhotoBatchDialogProps = Readonly<{
+  /** Spec 344 T5c (D9): move a foto da nota errada para a certa; some quando a tela não oferece. */
+  onMoveProof?: (
+    input: Readonly<{ documentId: string; reason: CanhotoMoveReason; targetDocumentId: string }>,
+  ) => Promise<void>
   items: readonly CanhotoBatchItem[]
   onClose: () => void
   /** `keepOpen`: a aprovação individual da prova sinalizada não fecha o maço das outras. */
@@ -56,6 +62,7 @@ export function TripCanhotoBatchDialog({
   items,
   onClose,
   onConfirm,
+  onMoveProof,
   overflowCount,
   status,
 }: TripCanhotoBatchDialogProps) {
@@ -65,6 +72,9 @@ export function TripCanhotoBatchDialog({
   const [loadedIds, setLoadedIds] = useState<ReadonlySet<string>>(new Set())
   const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set())
   const [openedItem, setOpenedItem] = useState<CanhotoBatchItem | undefined>(undefined)
+  const [movingItem, setMovingItem] = useState<CanhotoBatchItem | undefined>(undefined)
+  const [isMoving, setIsMoving] = useState(false)
+  const [moveErrorCode, setMoveErrorCode] = useState<string | undefined>(undefined)
   const [requestedFocusId, setRequestedFocusId] = useState<string | undefined>(undefined)
   const gridRef = useRef<HTMLUListElement>(null)
 
@@ -126,6 +136,30 @@ export function TripCanhotoBatchDialog({
     event.preventDefault()
     setRequestedFocusId(next)
     focusNote(next)
+  }
+
+  function handleOpenMove(documentId: string): void {
+    setMoveErrorCode(undefined)
+    setMovingItem(items.find((item) => item.documentId === documentId))
+  }
+
+  async function handleMoveSubmit(reason: CanhotoMoveReason): Promise<void> {
+    const target = movingItem === undefined ? undefined : resolveCanhotoMoveTarget(movingItem.proof)
+    if (movingItem === undefined || target === undefined || onMoveProof === undefined) return
+    setIsMoving(true)
+    setMoveErrorCode(undefined)
+    try {
+      await onMoveProof({
+        documentId: movingItem.documentId,
+        reason,
+        targetDocumentId: target.targetDocumentId,
+      })
+      setMovingItem(undefined)
+    } catch (error) {
+      setMoveErrorCode(error instanceof Error ? error.message : 'REQUEST_FAILED')
+    } finally {
+      setIsMoving(false)
+    }
   }
 
   function handleApproveFlagged(documentId: string): void {
@@ -193,6 +227,7 @@ export function TripCanhotoBatchDialog({
                 <TripCanhotoBatchItem
                   actions={{
                     onApproveFlagged: handleApproveFlagged,
+                    ...(onMoveProof === undefined ? {} : { onMove: handleOpenMove }),
                     onCheckedChange: handleCheckedChange,
                     onImageSettled: handleImageSettled,
                     onOpenImage: handleOpenImage,
@@ -242,6 +277,21 @@ export function TripCanhotoBatchDialog({
           </footer>
         </div>
       </div>
+      {movingItem === undefined || onMoveProof === undefined ? null : (
+        <CanhotoMoveDialog
+          isSubmitting={isMoving}
+          onClose={() => setMovingItem(undefined)}
+          onSubmit={(reason) => void handleMoveSubmit(reason)}
+          target={
+            resolveCanhotoMoveTarget(movingItem.proof) ?? {
+              number: '',
+              series: '',
+              targetDocumentId: '',
+            }
+          }
+          {...(moveErrorCode === undefined ? {} : { serverErrorCode: moveErrorCode })}
+        />
+      )}
       {openedItem === undefined ? null : (
         <ProofGalleryDialog
           gallery={[openedItem.proof]}

@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
+import type { CanhotoMoveProofInput, CanhotoMoveResult } from '../shared/canhotoMove.service'
 import type {
   CanhotoReviewProofInput,
   CanhotoReviewResult,
@@ -160,6 +161,7 @@ export type TripController = Readonly<{
   fieldReturnDocument: (input: FieldReturnDocumentInput) => Promise<FieldSettlementResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   canhotoReviewProof: (input: CanhotoReviewProofInput) => Promise<CanhotoReviewResult>
+  canhotoMoveProof: (input: CanhotoMoveProofInput) => Promise<CanhotoMoveResult>
   readTripAllowedActions: (
     input: Readonly<{ documentIds: readonly string[]; stopIds: readonly string[]; tripId: string }>,
   ) => ReturnType<TripClient['readTripAllowedActions']>
@@ -309,6 +311,8 @@ export function createTripController(
       canReportOnBehalf ? input.client.fieldReturnDocument(body) : forbidden(),
     canhotoReviewProof: (body) =>
       canManageTrips ? input.client.canhotoReviewProof(body) : forbidden(),
+    canhotoMoveProof: (body) =>
+      canManageTrips ? input.client.canhotoMoveProof(body) : forbidden(),
     readDeliveryProofs: (body) =>
       canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
     readTripAllowedActions: (body) =>
@@ -1015,6 +1019,11 @@ export function useTripWorkspace(
       approveCanhotoBatch({ ...body, review: controller.canhotoReviewProof }),
     onSuccess: invalidate,
   })
+  /** Spec 344 T5c (D9): mover a foto para a NF certa; a viagem inteira relê (origem, destino, maço). */
+  const moveCanhotoMutation = useMutation({
+    mutationFn: controller.canhotoMoveProof,
+    onSuccess: invalidate,
+  })
   const releaseDocumentMutation = useMutation({
     mutationFn: controller.releaseTripDocument,
     onSuccess: invalidateDocumentLink,
@@ -1132,6 +1141,7 @@ export function useTripWorkspace(
 
   return {
     approveCanhotoBatchMutation,
+    moveCanhotoMutation,
     autoDispatchOutcome,
     batchFieldDeliverMutation,
     batchFieldReturnMutation,

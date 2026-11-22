@@ -10,6 +10,7 @@ import {
   isDeliveryProofAwaitingProcessing,
   type DeliveryProof,
 } from '../shared/deliveryProof.service'
+import { resolveCanhotoMoveTarget } from '../shared/canhotoMove.service'
 import { isCanhotoFlagged } from '../shared/canhotoMismatchPresentation.service'
 import { formatDeliveryProofTime } from '../shared/deliveryProofCard.service'
 
@@ -29,6 +30,7 @@ export function ProofReviewDeadline({ proof }: Readonly<{ proof: DeliveryProof }
 export function ProofReviewActions({
   canReview,
   onApprove,
+  onMove,
   onReject,
   proof,
 }: CanhotoReviewActions & Readonly<{ proof: DeliveryProof }>) {
@@ -37,10 +39,17 @@ export function ProofReviewActions({
 
   /** Spec 265 RF11: com a foto em processamento o original aparece, mas a conferência manual espera. */
   const isAwaiting = isDeliveryProofAwaitingProcessing(proof)
+  const moveTarget = onMove === undefined ? undefined : resolveCanhotoMoveTarget(proof)
 
   return (
     <>
       {isAwaiting ? <span>{t('deliveryProof.processing.waitingReview')}</span> : null}
+      {moveTarget === undefined ? null : (
+        <Button disabled={isAwaiting} onClick={onMove} size="sm" type="button" variant="secondary">
+          <Icon name="send" />
+          {t('deliveryProof.canhotoMove.action', { number: moveTarget.number })}
+        </Button>
+      )}
       <Button disabled={isAwaiting} onClick={onReject} size="sm" type="button" variant="secondary">
         <Icon name="close" />
         {t('deliveryProof.canhotoReview.reject')}

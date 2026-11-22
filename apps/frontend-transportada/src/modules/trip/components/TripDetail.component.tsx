@@ -25,6 +25,7 @@ import {
   useTripProofBadgesQuery,
   useTripProofRadiusQuery,
 } from '../queries/useTripProofBadges.query'
+import { resolveCanhotoMoveTarget, type CanhotoMoveReason } from '../shared/canhotoMove.service'
 import { useCanhotoBatchReview } from '../hooks/useCanhotoBatchReview.hook'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
@@ -96,6 +97,7 @@ import { TripCloseDialog } from './TripCloseDialog.component'
 import { CanhotoRejectDialog, type CanhotoRejectSubmission } from './CanhotoRejectDialog.component'
 import { ProofReplaceDialog, type ProofReplaceSubmission } from './ProofReplaceDialog.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
+import { CanhotoMoveDialog } from './CanhotoMoveDialog.component'
 import { TripCanhotoBatchDialog } from './TripCanhotoBatchDialog.component'
 import { TripReturnReasonDialog } from './TripReturnReasonDialog.component'
 import { TripConferenceAction } from './TripConferenceAction.component'
@@ -1558,6 +1560,11 @@ export function TripDetail({
           onConfirm={(documentIds, options) =>
             void canhotoBatchReview.confirm(documentIds, options)
           }
+          onMoveProof={(move) =>
+            workspace.moveCanhotoMutation
+              .mutateAsync({ ...move, tripId: workspace.trip?.id ?? '' })
+              .then(() => undefined)
+          }
           overflowCount={canhotoBatchReview.dialog.overflowCount}
           status={canhotoBatchReview.dialog.status}
         />
@@ -1695,6 +1702,9 @@ export function TripDeliveryProofLoader({
   const [isRejectOpen, setIsRejectOpen] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
   const [rejectErrorCode, setRejectErrorCode] = useState<string | undefined>()
+  const [isMoveOpen, setIsMoveOpen] = useState(false)
+  const [isMoving, setIsMoving] = useState(false)
+  const [moveErrorCode, setMoveErrorCode] = useState<string | undefined>()
   const [isReplaceOpen, setIsReplaceOpen] = useState(false)
   const [isReplacing, setIsReplacing] = useState(false)
   const [replaceErrorCode, setReplaceErrorCode] = useState<string | undefined>()
@@ -1747,6 +1757,25 @@ export function TripDeliveryProofLoader({
     }
   }
 
+  async function handleMoveSubmit(reason: CanhotoMoveReason) {
+    if (document === undefined || moveTarget === undefined) return
+    setIsMoving(true)
+    setMoveErrorCode(undefined)
+    try {
+      await workspace.moveCanhotoMutation.mutateAsync({
+        documentId,
+        reason,
+        targetDocumentId: moveTarget.targetDocumentId,
+        tripId: document.tripId,
+      })
+      setIsMoveOpen(false)
+    } catch (error) {
+      setMoveErrorCode(error instanceof Error ? error.message : 'REQUEST_FAILED')
+    } finally {
+      setIsMoving(false)
+    }
+  }
+
   async function handleApprove() {
     if (document === undefined) return
     setReviewNotice(undefined)
@@ -1770,6 +1799,11 @@ export function TripDeliveryProofLoader({
   }
 
   if (workspace.deliveryProofsQuery.isLoading) return <Skeleton variant="text" width="60%" />
+
+  /** Spec 344 T5c: o canhoto pendente que o alerta aponta para uma nota desta mesma viagem. */
+  const moveTarget = workspace.deliveryProofsQuery.data
+    ?.map(resolveCanhotoMoveTarget)
+    .find((target) => target !== undefined)
 
   const canhotoAwaitingReview = workspace.deliveryProofsQuery.data?.find(
     (proof) =>
@@ -1800,6 +1834,17 @@ export function TripDeliveryProofLoader({
         }}
         {...(rejectErrorCode === undefined ? {} : { serverErrorCode: rejectErrorCode })}
       />
+      {isMoveOpen && moveTarget !== undefined ? (
+        <CanhotoMoveDialog
+          isSubmitting={isMoving}
+          onClose={() => setIsMoveOpen(false)}
+          onSubmit={(reason) => {
+            void handleMoveSubmit(reason)
+          }}
+          target={moveTarget}
+          {...(moveErrorCode === undefined ? {} : { serverErrorCode: moveErrorCode })}
+        />
+      ) : null}
       <ProofReplaceDialog
         current={resolveReplaceDialogCurrent(workspace.deliveryProofsQuery.data ?? [])}
         isOpen={isReplaceOpen}
@@ -1832,6 +1877,10 @@ export function TripDeliveryProofLoader({
           canReview: workspace.controller.canManageTrips,
           onApprove: () => {
             void handleApprove()
+          },
+          onMove: () => {
+            setMoveErrorCode(undefined)
+            setIsMoveOpen(true)
           },
           onReject: () => {
             setRejectErrorCode(undefined)

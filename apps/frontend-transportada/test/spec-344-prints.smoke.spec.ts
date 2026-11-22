@@ -176,5 +176,21 @@ for (const theme of THEMES) {
         path: resolve(PRINTS_DIRECTORY, `comprovante-${suffix}.png`),
       })
     })
+
+    test(`print do diálogo Mover para a NF X — ${suffix}`, async ({ page }) => {
+      await open(page, theme, viewport)
+      const toggle = page.getByRole('button', { name: /^000124\/1/u })
+      await toggle.click()
+      const row = page.locator('li[id^="trip-timeline-document-"]').filter({ has: toggle })
+      await row.getByRole('button', { name: /^Comprovante da entrega/u }).click()
+      await row.getByRole('button', { name: 'Mover para a NF 000123' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Mover para a NF 000123' })
+      await expect(dialog).toBeVisible()
+      await page.mouse.move(0, 0)
+      await dialog.screenshot({
+        animations: 'disabled',
+        path: resolve(PRINTS_DIRECTORY, `mover-${suffix}.png`),
+      })
+    })
   }
 }
