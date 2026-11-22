@@ -41,6 +41,7 @@ const CONFERENCE_MODULE = [
   'trips/domain/canhoto-review-decision.policy.ts',
   'trips/domain/canhoto-review.policy.ts',
   'trips/infrastructure/canhoto-mismatch.query.ts',
+  'trips/infrastructure/drizzle-canhoto-move.repository.ts',
   'trips/infrastructure/drizzle-canhoto-review.repository.ts',
   'trips/infrastructure/delivery-proof-read.support.ts',
   'trips/infrastructure/drizzle-current-driver-trip.repository.ts',

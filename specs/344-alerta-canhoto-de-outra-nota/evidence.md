@@ -99,6 +99,33 @@ Ausente (nunca `null`) quando não há alerta. Nada é gravado: o alerta é deri
 
 ⚠️ **Publicação em produção (T7):** a promoção `staging → main` leva painel e API no mesmo run, e o `deploy.yml` sobe a API antes do painel. Na janela, o painel antigo descartaria só o comprovante pendente com alerta. Para não ter janela, o painel vai num PR à frente, ou a janela é aceita.
 
+## T5b — mover o comprovante para a NF certa (22/11/2026)
+
+Contrato primeiro: política, caso de uso e rota em `test/canhoto-review/move.contract.ts` (ligado em `canhoto-review.contract.test.ts`), depois o código.
+
+**Rota** `POST /trips/:id/documents/:documentId/proof/move` (`trip.manage`), corpo `.strict()` `{ targetDocumentId, reason }`, `reason` da lista fechada `wrong_document | driver_mistake | office_mistake` (sem texto livre). `companyId`, ator e IP vêm do contexto. Resposta `{ data: { alreadyMoved, review, sourceDocumentId, targetDocumentId } }`.
+
+**Régua** (`canhoto-move.policy.ts`, pura; todos os impedimentos são 409): a prova de A tem de estar `pending`; o alerta derivado (`deriveCanhotoMismatches`, o mesmo que o painel mostra) tem de citar exatamente B; B tem de ser do vínculo vivo desta viagem (Q6: só mesma viagem); B sem canhoto aprovado; B **sem nenhuma** foto de canhoto; B com evento de entrega. Prova de outra empresa ou inexistente é 404 (nunca 403).
+
+**Efeito** (uma transação, `drizzle-canhoto-move.repository.ts`): trava a prova de A (`FOR NO KEY UPDATE`), leva a **mesma linha e o mesmo objeto** ao evento de entrega de B, zera o veredito (`pending`, sem origem/instante/motivo/nota, `canhoto_read_document_id` nulo) e **mantém a leitura** (Nº/Série/origem) que motivou o alerta — que em B já confere, então o alerta some. Mover **não aprova**. A fica sem linha de canhoto, e a pendência de recaptura sai da mesma regra de "nota sem foto" (RF29 da 220), sem estado novo.
+
+**Trilha** `trip.canhoto-proof.moved` (`audit_logs`, `trip.manage`): ator, prova, viagem, IP, motivo e os ids dos dois vínculos em `metadata` — **nenhum número, série, nome ou texto lido** (conferido por teste). **Idempotência**: repetir o pedido depois de feito acha a trilha (A→B com a prova hoje em B) e devolve `alreadyMoved: true` sem escrever nada.
+
+**Decisões tomadas na implementação (a confirmar):**
+
+1. **B precisa ter evento de entrega**, porque a foto mora no evento (`trip_delivery_proofs.stop_event_id`). B não entregue ⇒ 409 `CANHOTO_MOVE_TARGET_NOT_DELIVERED`; o painel (T5c) deve esconder o botão nesse caso.
+2. **B com foto de canhoto, pendente ou recusada, é 409** (`CANHOTO_MOVE_TARGET_HAS_PROOF`): a D9 fala de "aprovar mesmo assim" para B pendente, mas substituir a foto de B apagaria uma linha de evidência. Trocar é o "Substituir comprovante" que já existe. Se o Anderson quiser mover por cima de B pendente, é decisão nova.
+3. Vale para leitura `ocr` e `barcode`: o alerta (T3) já é derivado das duas.
+
+| Prova                                                                              | Comando                                                                                          | Resultado                   |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------- |
+| Contrato da conferência + mover (política, caso de uso, rota)                      | `bun --env-file=../../.env.test test ./test/canhoto-review.contract.test.ts`                     | 155 pass, 0 fail            |
+| Suíte de contrato da API inteira                                                   | `bun run test` (api)                                                                             | 15785 pass, 35 skip, 0 fail |
+| Integração contra Postgres 16 (mover, idempotência, 409, outra empresa) + vizinhos | `bun test --timeout 120000 ./test/integration/canhoto-move.integration.ts` (+ mismatch e review) | 25 pass, 0 fail             |
+| Lint, typecheck, prettier                                                          | `bun run lint`, `bun run typecheck` (api), `bunx prettier --check apps/api-transportada`         | limpos                      |
+
+Painel (botão, `/pendencias`, prints, revisor) é a T5c, em outra thread. Publicação: rota nova e aditiva, sem migration; entra com a API.
+
 ## T4 — segunda passada OCR na rotina `trip.canhoto.read` (22/11/2026)
 
 **Flag** `CANHOTO_NUMBER_OCR_ENABLED` (worker): **desligada em todo ambiente** (vazio = `false`), `true` exige `CANHOTO_OCR_MODEL_DIR` (senão o boot falha). Entrou no schema de env, no `.env.example` e no `.railway/railway.ts` (`preserve()`). Desligada, a rotina é a de antes: nem a fila do OCR é consultada, nem os contadores `ocr*` aparecem.
