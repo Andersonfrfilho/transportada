@@ -157,6 +157,11 @@ export type WorkerEnvironment = {
   readonly botAudioTranscriptionPrompt?: string
   /** Spec 294 T4.8: o OCR local do canhoto do bot; ausente, a rota interna não existe. */
   readonly canhotoOcr?: { readonly modelDirectory: string; readonly timeoutMilliseconds: number }
+  /** Spec 344 D6: a segunda passada (OCR do Nº/Série) da rotina `trip.canhoto.read`; ausente, a passada não roda. */
+  readonly canhotoNumberOcr?: {
+    readonly modelDirectory: string
+    readonly timeoutMilliseconds: number
+  }
   /** Spec 301: domínios extras em que `notas@` também é a caixa de XML de NF-e. */
   readonly nfeXmlMailboxDomains: readonly string[]
   readonly hostname: string

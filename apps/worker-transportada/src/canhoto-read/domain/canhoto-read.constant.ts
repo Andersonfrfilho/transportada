@@ -2,8 +2,24 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 
-/** O código de barras é o único leitor: o único `readSource` que a máquina pode reportar (ADR-0092 §1). */
+/** O código de barras é o único leitor que aprova sozinho (ADR-0092 §1). */
 export const CANHOTO_BARCODE_READ_SOURCE = 'barcode'
+
+/** Spec 344 D5: a passada OCR reporta com esta origem, e o servidor nunca aprova por ela (fica `pending`). */
+export const CANHOTO_OCR_READ_SOURCE = 'ocr'
+
+/**
+ * Spec 344 D6: leituras do motor OCR por ciclo. A T0 mediu 1,2–3,0 s por foto (o reserva de 90° dobra no pior caso):
+ * cinco cabem com folga na batida de 300 s. Só leitura que chega ao motor conta; recusa barata (teto, formato, objeto
+ * ausente) não gasta o orçamento.
+ */
+export const CANHOTO_NUMBER_OCR_MAX_READS_PER_CYCLE = 5
+
+/** Teto de provas **vistas** pela passada OCR num ciclo: as recusas baratas não carimbam e voltariam sempre. */
+export const CANHOTO_NUMBER_OCR_MAX_PROOFS_PER_CYCLE = 20
+
+/** A chave de fila da passada no leitor compartilhado com o bot: a rotina ocupa no máximo um dos dois lugares. */
+export const CANHOTO_NUMBER_OCR_QUEUE_KEY = 'trip.canhoto.read'
 
 /**
  * A fila anda em lotes de consulta pequenos porque cada item custa um download e uma decodificação

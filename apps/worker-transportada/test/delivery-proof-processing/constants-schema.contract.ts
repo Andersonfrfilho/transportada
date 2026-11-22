@@ -110,5 +110,8 @@ describe('schema Drizzle copiado da API (spec 265)', () => {
     }
     expect(byName.get('object_id')?.notNull).toBe(true)
     expect(byName.get('thumbnail_object_id')?.notNull).toBe(false)
+    // Spec 344 D7 (T2): a tentativa da passada OCR, anulável, com fuso, como na API.
+    expect(byName.get('canhoto_ocr_attempted_at')?.getSQLType()).toBe('timestamp with time zone')
+    expect(byName.get('canhoto_ocr_attempted_at')?.notNull).toBe(false)
   })
 })

@@ -9,10 +9,13 @@
  */
 import { Worker } from 'node:worker_threads'
 
+import type {
+  CanhotoNumberOcrReaderPort,
+  CanhotoNumberOcrResult,
+} from '../../canhoto-read/application/canhoto-number-ocr-reader.port.js'
 import {
   CanhotoOcrError,
   type CanhotoOcrReaderPort,
-  type ReadCanhotoParams,
 } from '../application/canhoto-ocr-reader.port.js'
 import {
   CANHOTO_OCR_DEFAULT_TIMEOUT_MILLISECONDS,
@@ -20,7 +23,25 @@ import {
   CANHOTO_OCR_READY_TIMEOUT_MILLISECONDS,
 } from '../domain/canhoto-ocr.constant.js'
 import type { CanhotoOcrResult } from '../domain/canhoto-ocr.types.js'
-import type { CanhotoOcrThreadReady, CanhotoOcrThreadResponse } from './canhoto-ocr.worker.js'
+import type {
+  CanhotoOcrThreadReady,
+  CanhotoOcrThreadRequest,
+  CanhotoOcrThreadResponse,
+} from './canhoto-ocr.worker.js'
+
+/** O pedido sem o `id`, que é deste dono; cada pedido tem o resultado do seu tipo. */
+type ThreadJob =
+  | Readonly<{
+      kind: 'identity'
+      request: Omit<Extract<CanhotoOcrThreadRequest, { kind: 'identity' }>, 'id'>
+    }>
+  | Readonly<{
+      kind: 'match'
+      request: Omit<Exclude<CanhotoOcrThreadRequest, { kind: 'identity' }>, 'id'>
+    }>
+
+/** Spec 344: o mesmo dono serve o bot (`read`) e a passada OCR da rotina (`readIdentity`) — um motor só na memória. */
+export type ThreadedCanhotoOcrReader = CanhotoOcrReaderPort & CanhotoNumberOcrReaderPort
 
 export const CANHOTO_OCR_WORKER_URL = import.meta.url.endsWith('.ts')
   ? new URL('./canhoto-ocr.worker.ts', import.meta.url)
@@ -44,7 +65,7 @@ export function createThreadedCanhotoOcrReader(
     workerData?: Record<string, unknown>
     workerUrl?: URL
   }>,
-): CanhotoOcrReaderPort {
+): ThreadedCanhotoOcrReader {
   const timeoutMilliseconds =
     options.timeoutMilliseconds ?? CANHOTO_OCR_DEFAULT_TIMEOUT_MILLISECONDS
   const readyTimeoutMilliseconds =
@@ -97,7 +118,7 @@ export function createThreadedCanhotoOcrReader(
 
   const ensureThread = (): ThreadState => (current ??= spawn())
 
-  function run(params: ReadCanhotoParams): Promise<CanhotoOcrResult> {
+  function run(job: ThreadJob): Promise<CanhotoOcrResult | CanhotoNumberOcrResult> {
     return new Promise((resolve, reject) => {
       const state = current
       // A thread caiu enquanto a foto esperava: a nova ainda vai carregar.
@@ -131,7 +152,7 @@ export function createThreadedCanhotoOcrReader(
       active.on('message', onMessage)
       active.once('error', onError)
       active.once('exit', onExit)
-      active.postMessage({ bytes: params.bytes, candidates: params.candidates, id })
+      active.postMessage({ ...job.request, id } satisfies CanhotoOcrThreadRequest)
     })
   }
 
@@ -143,6 +164,22 @@ export function createThreadedCanhotoOcrReader(
     else pendingByKey.set(key, left)
   }
 
+  /** Spec 294 S7: uma lendo e uma esperando, e uma por chave; o resto é `busy` na hora. */
+  function enqueue(
+    queueKey: string | undefined,
+    job: ThreadJob,
+  ): Promise<CanhotoOcrResult | CanhotoNumberOcrResult> {
+    const isKeyBusy = queueKey !== undefined && pendingByKey.has(queueKey)
+    if (!ensureThread().isReady || pending >= CANHOTO_OCR_MAX_PENDING || isKeyBusy) {
+      return Promise.reject(new CanhotoOcrError('busy'))
+    }
+    pending += 1
+    if (queueKey !== undefined) pendingByKey.set(queueKey, 1)
+    const result = tail.then(() => run(job))
+    tail = result.catch(() => undefined)
+    return result.finally(() => release(queueKey))
+  }
+
   return {
     async close() {
       const closing = current
@@ -150,16 +187,16 @@ export function createThreadedCanhotoOcrReader(
       await closing?.worker.terminate()
     },
     read(params) {
-      const { queueKey } = params
-      const isKeyBusy = queueKey !== undefined && pendingByKey.has(queueKey)
-      if (!ensureThread().isReady || pending >= CANHOTO_OCR_MAX_PENDING || isKeyBusy) {
-        return Promise.reject(new CanhotoOcrError('busy'))
-      }
-      pending += 1
-      if (queueKey !== undefined) pendingByKey.set(queueKey, 1)
-      const result = tail.then(() => run(params))
-      tail = result.catch(() => undefined)
-      return result.finally(() => release(queueKey))
+      return enqueue(params.queueKey, {
+        kind: 'match',
+        request: { bytes: params.bytes, candidates: params.candidates },
+      }) as Promise<CanhotoOcrResult>
+    },
+    readIdentity(params) {
+      return enqueue(params.queueKey, {
+        kind: 'identity',
+        request: { bytes: params.bytes, kind: 'identity' },
+      }) as Promise<CanhotoNumberOcrResult>
     },
     start() {
       return ensureThread().ready

@@ -146,7 +146,14 @@ import { createDrizzleOccurrenceContractorReplyAlertStore } from './occurrence-c
 import { createOccurrenceAutomaticMailSweepRoutine } from './occurrence-automatic-mail-sweep/application/occurrence-automatic-mail-sweep.routine.js'
 import { createDrizzleOccurrenceAutomaticMailQueue } from './occurrence-automatic-mail-sweep/infrastructure/drizzle-occurrence-automatic-mail-queue.repository.js'
 import { createOccurrenceAutomaticMailApiGateway } from './occurrence-automatic-mail-sweep/infrastructure/occurrence-automatic-mail-api.gateway.js'
-import { createDrizzleCanhotoReadQueue } from './canhoto-read/infrastructure/drizzle-canhoto-read-queue.repository.js'
+import {
+  createDrizzleCanhotoNumberOcrQueue,
+  createDrizzleCanhotoReadQueue,
+} from './canhoto-read/infrastructure/drizzle-canhoto-read-queue.repository.js'
+import {
+  createThreadedCanhotoOcrReader,
+  type ThreadedCanhotoOcrReader,
+} from './canhoto-ocr/infrastructure/threaded-canhoto-ocr.reader.js'
 import { createThreadedCanhotoBarcodeDecoder } from './canhoto-read/infrastructure/threaded-canhoto-barcode.decoder.js'
 import { createTesseractOcrClient } from '@adatechnology/document-intake'
 
@@ -427,6 +434,8 @@ type RuntimeRabbitMqProviderFactory = (input: {
 }) => Promise<RabbitMqProvider>
 
 type RuntimeHealthServerFactory = (input: {
+  /** Spec 344: a thread do OCR do canhoto, a mesma da passada da rotina (um motor só na memória). */
+  readonly canhotoOcrReader?: ThreadedCanhotoOcrReader
   readonly config: ReturnType<typeof parseWorkerEnvironment>
   readonly healthService: WorkerHealthService
   readonly logger: WorkerLogger
@@ -611,6 +620,22 @@ export async function startWorkerRuntime(
   const environment = params.environment ?? process.env
   const dependencies = params.dependencies ?? {}
   const config = parseWorkerEnvironment(environment)
+  /**
+   * Spec 344: uma thread do OCR do canhoto para o bot (spec 294) **e** a passada da rotina `trip.canhoto.read` — dois
+   * motores dobrariam o pico de memória (~577–740 MB cada). Só nasce se um dos dois vai usá-la; a passada exige o
+   * crachá do worker, como a rotina.
+   */
+  const isBotCanhotoOn =
+    config.botAudioTranscriptionToken !== undefined && config.canhotoOcr !== undefined
+  const isNumberOcrOn = config.canhotoNumberOcr !== undefined && config.mdfeAutoIssue !== undefined
+  const canhotoOcrSettings = config.canhotoOcr ?? config.canhotoNumberOcr
+  const canhotoOcrReader: ThreadedCanhotoOcrReader | undefined =
+    (isBotCanhotoOn || isNumberOcrOn) && canhotoOcrSettings !== undefined
+      ? createThreadedCanhotoOcrReader({
+          modelDirectory: canhotoOcrSettings.modelDirectory,
+          timeoutMilliseconds: canhotoOcrSettings.timeoutMilliseconds,
+        })
+      : undefined
   const cryptography = parseWorkerCryptographicConfiguration(environment)
   const loggerFactory = dependencies.createLogger ?? createLogger
   const databaseFactory = dependencies.createDatabase ?? createDrizzleProvider
@@ -668,6 +693,13 @@ export async function startWorkerRuntime(
   // processo sem drenar o que está em voo.
   const runtimeShutdown = createDeferredShutdown()
   registerWorkerShutdownSignals({ logger, resolveShutdown: () => runtimeShutdown.promise })
+  // Spec 344: com o bot ligado, quem carrega os modelos no boot é a rota dele; só a passada, carrega aqui. Até ficar
+  // pronta, a passada conta `ocrBusy` e não carimba nada.
+  if (canhotoOcrReader !== undefined && isNumberOcrOn && !isBotCanhotoOn) {
+    void canhotoOcrReader.start?.().then((ready) => {
+      safeLogInfo({ logger, message: 'canhoto_number_ocr.engine', metadata: { ready } })
+    })
+  }
   const errorTracker = createErrorTracker({
     configuration: {
       dsn: config.sentryDsn,
@@ -892,6 +924,7 @@ export async function startWorkerRuntime(
       storage: storageGateway,
     })
     healthServer = healthServerStarter({
+      ...(canhotoOcrReader === undefined ? {} : { canhotoOcrReader }),
       config,
       healthService,
       logger,
@@ -1920,6 +1953,20 @@ export async function startWorkerRuntime(
                   }),
                   logger,
                   now: () => new Date(),
+                  /** Spec 344 T4: a passada OCR só com `CANHOTO_NUMBER_OCR_ENABLED=true` (padrão desligada). */
+                  ...(config.canhotoNumberOcr === undefined || canhotoOcrReader === undefined
+                    ? {}
+                    : {
+                        numberOcr: {
+                          objectReader: createStorageAttachmentReaderGateway({
+                            storage: storageGateway,
+                          }),
+                          queue: createDrizzleCanhotoNumberOcrQueue(
+                            database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                          ),
+                          reader: canhotoOcrReader,
+                        },
+                      }),
                   queue: createDrizzleCanhotoReadQueue(
                     database.db as ReturnType<typeof createDrizzleProvider>['db'],
                   ),
@@ -2505,6 +2552,7 @@ export async function startWorkerRuntime(
     await passwordResetDeliveryRelayLoop?.close().catch(() => undefined)
     await nfeXmlReceiptLoop?.close().catch(() => undefined)
     await jobRunConsumer?.cancel().catch(() => undefined)
+    await canhotoOcrReader?.close().catch(() => undefined)
     await audioTranscriptionRuntime?.runner.close().catch(() => undefined)
     await relayLoop?.close().catch(() => undefined)
     await cteRelayLoop?.close().catch(() => undefined)
