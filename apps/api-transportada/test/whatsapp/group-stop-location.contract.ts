@@ -38,6 +38,7 @@ function request(step: string, state: Record<string, unknown> = {}): GroupReques
 function setup(options: {
   readonly hasLocation: boolean
   readonly isAddressReliable?: boolean
+  readonly notDispatched?: boolean
   readonly stopCount?: number
 }) {
   const recorded: Parameters<GroupStopFlowPorts['record']>[0][] = []
@@ -50,6 +51,7 @@ function setup(options: {
     stop: createGroupStopFlow({
       enRouteMessage: async () => 'a caminho',
       hasLocation: () => options.hasLocation,
+      isStopTripNotDispatched: async () => options.notDispatched === true,
       listStops: async () =>
         Array.from({ length: options.stopCount ?? 1 }, (_, index) => ({
           arrivedAt: null,
@@ -90,6 +92,41 @@ function setup(options: {
     step: () => current.step,
   }
 }
+
+describe('grupo: viagem ainda não despachada e link do Maps no lugar da localização', () => {
+  test.each(['saí', 'cheguei'])(
+    '"%s" em viagem não despachada avisa na hora, sem pedir localização nem registrar',
+    async (command) => {
+      const t = setup({ hasLocation: false, notDispatched: true })
+      const outcome = await t.start(command)
+      expect(outcome).toMatchObject({ kind: 'done', withoutFarewell: true })
+      expect(outcome.kind === 'done' ? outcome.replies[0] : '').toContain(
+        'ainda não foi despachada',
+      )
+      expect(t.recorded).toEqual([])
+    },
+  )
+
+  test('o link do Maps com coordenadas registra com o ponto do link', async () => {
+    const t = setup({ hasLocation: false })
+    await t.start('saí')
+    const done = await t.answer(
+      'https://maps.google.com/maps/search/Loja/@-20.99093648,-47.65712384,17z?hl=pt-BR\nR. Mal. Deodoro, 200',
+    )
+    expect(done).toEqual({ kind: 'done', replies: ['Saída registrada.'], withoutFarewell: true })
+    expect(t.recorded).toMatchObject([
+      { event: 'depart', location: { latitude: -20.99093648, longitude: -47.65712384 } },
+    ])
+  })
+
+  test('link sem coordenadas repete o pedido da localização', async () => {
+    const t = setup({ hasLocation: false })
+    await t.start('saí')
+    const again = await t.answer('https://maps.app.goo.gl/AbCdEf123')
+    expect(again.kind).toBe('not_understood')
+    expect(t.recorded).toEqual([])
+  })
+})
 
 describe('grupo: o pedido de localização do "saí" e do "cheguei" (RF24)', () => {
   test.each([
