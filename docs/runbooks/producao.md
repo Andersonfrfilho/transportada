@@ -1632,3 +1632,18 @@ O #939 foi mergeado em 22/11/2026 (merge `66cb191`), com os checks do PR verdes.
   cria e nunca reescreve). Marcas: etapa entrega, momentos documento e escritório, foto, observação e localização obrigatórias, não avisa a
   contratante, cria coleta de canhoto, repetição até resolver. Isto vale a partir de agora para o motorista em produção. Para desligar, inative o
   tipo na aba Tipos de `/ocorrencias`.
+
+## 5.50 Resposta do bot a "cheguei/saí" em viagem não despachada (23/11/2026)
+
+- **Sintoma:** o bot pediu a localização, o motorista a mandou e a resposta foi "Essa parada não está mais disponível na viagem", sem registrar nada.
+  Causa medida em produção: a viagem estava `route_planned` (nunca despachada). A lista do bot inclui viagem planejada
+  (`CURRENT_DRIVER_TRIP_STATUSES`), mas `findStopForDriver` só alcança viagem na rua (`TRIP_ON_ROAD_STATUSES`), e a recusa vira `stop_not_reachable`.
+- **Como diagnosticar (somente leitura, `railway ssh -s api -e production`, `bun -e` com o `DATABASE_URL` do serviço):** o transcript do pedido fica em
+  `whatsapp_group_requests.state.transcript` (cada fala do motorista e do bot); a viagem e as paradas em `trips`/`trip_stops`. Scripts
+  (cópias em `scripts/ops/`, saídas em `tmp/ops/saidas/`): `producao-bot-link-maps-confere.sh`, `producao-bot-parada-indisponivel-confere.sh`,
+  `producao-viagem-rogerio-pronta-para-despachar.sh`. Nos logs da API, `whatsapp_group_request.answered` mostra o passo e o desfecho; mensagem sem
+  `answered` nem `not_addressed` próprio costuma ser a resposta do bot ou uma localização.
+- **Despachar viagem planejada em produção:** só pelo botão "Despachar" do painel. O `dispatch` congela o roteiro, desloca os ETAs e grava o evento de
+  status, e a imagem da API não traz `src/trips` (só `dist` e poucas pastas de `src`): `UPDATE` à mão deixaria a viagem sem snapshot.
+- **Correção (staging, branch `fix/bot-viagem-nao-despachada-e-link-maps`):** o bot avisa antes de pedir a localização que a viagem não foi despachada,
+  e o link do Google Maps com coordenadas na URL vale como o ponto (`whatsapp-maps-location.policy.ts`; link curto ou só com nome de lugar não vale).

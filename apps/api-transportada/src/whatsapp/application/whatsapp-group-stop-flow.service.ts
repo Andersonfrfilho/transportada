@@ -60,6 +60,7 @@ import {
   type JourneyAction,
   type StopCardView,
 } from '../../whatsapp-commands/domain/whatsapp-driver-journey.policy.js'
+import { parseMapsLocation } from '../../whatsapp-commands/domain/whatsapp-maps-location.policy.js'
 import type { RouteOfferStop } from '../../whatsapp-commands/domain/whatsapp-driver-route-offer.policy.js'
 import {
   describeStopListHint,
@@ -138,6 +139,15 @@ export type GroupStopFlowPorts = {
     readonly stopId: string
   }): Promise<void>
   /**
+   * A viagem da parada ainda não saiu (planejada, não despachada)? Saída e chegada só valem com a viagem na rua, então
+   * o bot avisa antes de pedir a localização. Ausente, o bot segue como antes.
+   */
+  isStopTripNotDispatched?(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly stopId: string
+  }): Promise<boolean>
+  /**
    * Spec 294 RF24: há ponto compartilhado recente (não o consome)? Ausente, o bot não pede a localização
    * antes do "saí"/"cheguei" (como antes da 294).
    */
@@ -175,6 +185,8 @@ export type GroupStopFlowPorts = {
 export const GROUP_STOP_TEXT = {
   noStopArrive:
     'Não encontrei parada para registrar a chegada na viagem do motorista deste grupo.\n➡️ _Próximo passo:_ confira a viagem com o escritório.',
+  tripNotDispatched:
+    'Esta viagem ainda não foi despachada, então não consigo registrar a saída nem a chegada.\n➡️ _Próximo passo:_ fale com o escritório para despachar a viagem.',
   noStopDepart:
     'Não encontrei parada para registrar a saída na viagem do motorista deste grupo.\n➡️ _Próximo passo:_ confira a viagem com o escritório.',
 } as const
@@ -412,6 +424,10 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     const { companyId, driverId } = turn.request
     const { documentNumber, event, isAddressReliable, stopId } = target
     const confirm = target.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}
+    // Viagem planejada e não despachada: o registro seria recusado depois da pergunta da localização; avisa já.
+    if ((await ports.isStopTripNotDispatched?.({ companyId, driverId, stopId })) === true) {
+      return { kind: 'done', replies: [GROUP_STOP_TEXT.tripNotDispatched], withoutFarewell: true }
+    }
     // O escritório não manda ponto: o atendente registra direto, sem a pergunta da localização. A mensagem tardia
     // (spec 294: além do prazo da foto atrasada) também não pede: ela não corrige endereço.
     const receivedAt = (ports.clock ?? (() => new Date()))()
@@ -642,6 +658,9 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     if (choice === DRIVER_CHOICE.skip || choice === DRIVER_CHOICE.second) {
       return record(turn, role, target)
     }
+    // O link do Maps com as coordenadas na própria URL vale como o ponto (o bot nunca abre o link).
+    const mapsLocation = parseMapsLocation(turn.text)
+    if (mapsLocation !== null) return record(turn, role, { ...target, location: mapsLocation })
     return {
       kind: 'not_understood',
       prompt: LOCATION_PROMPT_TEXT.askAgainHint,

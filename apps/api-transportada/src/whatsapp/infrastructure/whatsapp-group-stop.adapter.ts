@@ -4,6 +4,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
+import { TRIP_ON_ROAD_STATUSES } from '../../trips/domain/trip-state.policy.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { DriverTrip } from '../../trips/application/find-current-driver-trip.use-case.js'
 import { flattenTripStopsWithUniqueSequence } from '../../trips/domain/driver-stops-numbering.policy.js'
@@ -116,6 +117,7 @@ export function createGroupStopPorts(dependencies: {
   readonly stopCards?: WhatsAppStopCardReader
 }): GroupStopFlowPorts {
   const terminal = new Set<string>(TRIP_TERMINAL_STATUSES)
+  const onRoad = new Set<string>(TRIP_ON_ROAD_STATUSES)
   const speech = dependencies.speech ?? CATALOG_BOT_SPEECH
   const clock = dependencies.clock ?? (() => new Date())
   const say = (companyId: string, line: BotSpeechLine) =>
@@ -189,6 +191,14 @@ export function createGroupStopPorts(dependencies: {
       ),
 
     listStops: (input) => listOpenStops(input),
+
+    async isStopTripNotDispatched(input) {
+      const trips = await dependencies.listActiveTrips(input)
+      const trip = trips.find((candidate) =>
+        candidate.stops.some((stop) => stop.id === input.stopId),
+      )
+      return trip !== undefined && !onRoad.has(trip.status)
+    },
 
     ...(dependencies.cancelDeparture === undefined
       ? {}
