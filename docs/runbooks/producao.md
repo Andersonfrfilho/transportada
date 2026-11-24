@@ -1663,3 +1663,12 @@ O #939 foi mergeado em 22/11/2026 (merge `66cb191`), com os checks do PR verdes.
 - **Limites conhecidos:** a localização compartilhada pelo motorista não acompanha o evento guardado (entra como indisponível); o responsável que também é motorista e tem pedido aberto
   tem as mensagens curtas do 1:1 lidas como resposta nos 10 minutos do pedido; só o canal Evolution foi tratado (Meta não).
 - **Promoção para produção:** vai com a próxima promoção `staging → main` (não é correção crítica). A migration é aditiva; conferir depois que `trip_dispatch_requests` existe.
+
+## 5.49 XML "não é uma NF-e válida" pelo WhatsApp (24/11/2026) — somente leitura, nada alterado em produção
+
+- **Sintoma:** o bot respondeu "Importei 0 notas… 1 caso: o arquivo não é uma NF-e válida" para a NF 2109 da SPSUL (chave `35261161544313000103550010000021091615443137`), duas vezes (10:15 e 10:19 BRT).
+- **Causa (medida):** o XML está certo (`nfeProc` 4.00, UTF-8 sem BOM, 53 KB; o `importarNfeXml` do pacote fiscal 0.4.0 lê sem erro). O item ficou `rejected` com `NFE_IMPORT_UNRELATED_CNPJ`: o emitente (CNPJ 61544313000103) **não é contratante** cadastrado e o CNPJ da empresa não aparece no XML (transportadora da nota: 22844546000161). O texto do bot usava a frase genérica para qualquer código que não conhecia, escondendo o motivo. A nota não existia em `nfe_documents`.
+- **Correção de texto:** `receipt-messages.policy.ts` agora diz o motivo de `NFE_IMPORT_UNRELATED_CNPJ` e `NFE_IMPORT_ISSUER_NOT_CONTRACTOR` (só staging; vai à `main` na próxima promoção, não é bug crítico).
+- **Para a nota entrar:** cadastrar o emitente como contratante (painel) e reprocessar a recusada (§ "Entrada de XML por e-mail e WhatsApp": botão "Reprocessar" ou `producao-reprocessa-recusadas.sh`), ou reenviar o XML.
+- **Diagnóstico (somente leitura):** `scripts/ops/producao-xml-rejeitado-diagnostico.sh` — recibos, importações, itens com `error.code`, nota cadastrada e contratantes das últimas 24 h. Saída em `tmp/ops/saidas/`.
+- **Armadilhas do script:** `interval` não aceita parâmetro no `Bun.SQL` (use literal); aspas simples dentro de `bun -e '…'` quebram o shell — passar o JS em base64 (padrão da § 2). O `limit 10` dos itens cortou os itens do WhatsApp; filtre por `import_id` dos recibos se houver muitas importações.
