@@ -421,6 +421,15 @@ import {
 } from './whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { createWhatsAppOfficeStopEvents } from './whatsapp-commands/infrastructure/whatsapp-office-stop-events.adapter.js'
 import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
+import {
+  createTripDispatchApproval,
+  type TripDispatchBridge,
+} from './whatsapp/application/whatsapp-trip-dispatch-approval.service.js'
+import {
+  DrizzleTripDispatchRequestRepository,
+  findDriverFirstName,
+  findTripPlannerWithPhone,
+} from './whatsapp/infrastructure/drizzle-trip-dispatch-request.repository.js'
 import { createWhatsAppRouteClosingReader } from './whatsapp-commands/infrastructure/whatsapp-route-closing.reader.js'
 import { createGroupReturnPorts } from './whatsapp/infrastructure/whatsapp-group-return.adapter.js'
 import {
@@ -2057,8 +2066,11 @@ export function bootstrap(): Bun.Server<undefined> {
     resolveSenderRole: whatsappSenderRole,
     speech: whatsappBotSpeech,
   })
+  /** "Saí"/"cheguei" em viagem não despachada pede o despacho ao escritório; o serviço nasce com o envio do webhook. */
+  const whatsappTripDispatchBridge: TripDispatchBridge = {}
   /** Spec 293 T12: "saí" e "cheguei" no grupo, pelas mesmas portas do app. */
   const whatsappGroupStop = createGroupStopPorts({
+    tripDispatchBridge: whatsappTripDispatchBridge,
     cancelDeparture: (input) =>
       cancelStopDeparture({
         ...input,
@@ -2918,6 +2930,77 @@ function createEvolutionWebhook(input: {
     },
   })
   const groupRequests = createDrizzleWhatsAppGroupRequestRepository(database)
+  /**
+   * "Saí"/"cheguei" em viagem planejada: o bot pergunta ao responsável do escritório (quem planejou) se pode despachar,
+   * despacha pelo caso de uso do painel e lança o que o motorista mandou. A resposta chega pelo 1:1 do responsável.
+   */
+  const tripDispatchRouteRepository = new DrizzleTripRouteRepository(database)
+  const tripDispatchApproval =
+    input.groupStop?.tripDispatchBridge === undefined || input.resolveActor === undefined
+      ? undefined
+      : createTripDispatchApproval({
+          dispatch: async ({ actorUserId, companyId, tripId }) => {
+            await dispatchTrip({
+              actorUserId,
+              channel: TRIP_FIELD_CHANNELS.whatsapp,
+              companyId,
+              repository: tripDispatchRouteRepository,
+              tripId,
+            })
+          },
+          findDispatcher: async ({ companyId, phone }) => {
+            const resolved = await input.resolveActor?.({
+              companyId,
+              fromPhone: phone,
+              now: new Date(),
+            })
+            if (resolved?.status !== 'authorized') return null
+            const { scope } = resolved.context
+            return scope.kind === 'company' && scope.permissions.has('trip.manage')
+              ? { userId: scope.userId }
+              : null
+          },
+          findResponder: (lookup) => findTripPlannerWithPhone(database, lookup),
+          isCargoClosed: async (lookup) => {
+            const state = await tripDispatchRouteRepository.readPreconditions(lookup)
+            return (
+              state !== null &&
+              state.isCargoClosed === true &&
+              state.unloadedDocumentIds.length === 0 &&
+              state.unscheduledStopIds.length === 0
+            )
+          },
+          readDriverName: (lookup) => findDriverFirstName(database, lookup),
+          replay: async ({ companyId, driverId, event, requestId }) => {
+            const registration = await input.groupStop?.record({
+              companyId,
+              ...(event.documentNumber === undefined
+                ? {}
+                : { documentNumber: event.documentNumber }),
+              driverId,
+              event: event.event,
+              idempotencyKey: `dispatch-approval:${requestId}:${event.event}:${event.stopId}`,
+              sentAt: new Date(event.sentAt),
+              stopId: event.stopId,
+            })
+            return registration?.message ?? ''
+          },
+          repository: new DrizzleTripDispatchRequestRepository(database),
+          send: (reply) => groupReplies.send(reply),
+        })
+  if (tripDispatchApproval !== undefined && input.groupStop?.tripDispatchBridge !== undefined) {
+    input.groupStop.tripDispatchBridge.current = tripDispatchApproval
+    if (input.groupOccurrence !== undefined) {
+      const timer = setInterval(() => {
+        tripDispatchApproval.tick().catch((error: unknown) =>
+          logger.warn('whatsapp_trip_dispatch_approval.tick_failed', {
+            errorName: error instanceof Error ? error.name : typeof error,
+          }),
+        )
+      }, 30_000)
+      timer.unref()
+    }
+  }
   /** Spec 292 regra 5: o pedido que vence sem resposta é avisado (antes) e encerrado com aviso no grupo. */
   if (input.groupOccurrence !== undefined) {
     startGroupRequestExpiryWatcher({
@@ -3013,6 +3096,7 @@ function createEvolutionWebhook(input: {
     apiPublicUrl: input.apiPublicUrl,
     chatTakeover,
     ...(directAssistant === undefined ? {} : { directAssistant }),
+    ...(tripDispatchApproval === undefined ? {} : { dispatchApproval: tripDispatchApproval }),
     gateway,
     // Spec 292 T3: o grupo do motorista chega ao bot; T4/T5: a sessão do pedido e o fluxo.
     groupInbound: createEvolutionGroupInbound({

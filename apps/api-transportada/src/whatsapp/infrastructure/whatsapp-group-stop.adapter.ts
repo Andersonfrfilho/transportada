@@ -34,6 +34,7 @@ import {
   toOrderStopLabel,
 } from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { WHATSAPP_DRIVER_STOP_COMMAND } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
+import type { TripDispatchBridge } from '../application/whatsapp-trip-dispatch-approval.service.js'
 import type { GroupStopFlowPorts } from '../application/whatsapp-group-stop-flow.service.js'
 import {
   describeArrivalReply,
@@ -88,6 +89,8 @@ export function createGroupStopPorts(dependencies: {
     readonly driverId: string
   }) => null | ReportedLocation
   readonly database: Database
+  /** A ponte do pedido de despacho ao escritório; ausente ou vazia, o bot só avisa que a viagem não foi despachada. */
+  readonly tripDispatchBridge?: TripDispatchBridge
   /** Spec 294 RF24: há ponto compartilhado recente? Ausente, o bot não pede a localização. */
   readonly hasLocation?: (input: {
     readonly companyId: string
@@ -199,6 +202,32 @@ export function createGroupStopPorts(dependencies: {
       )
       return trip !== undefined && !onRoad.has(trip.status)
     },
+
+    ...(dependencies.tripDispatchBridge === undefined
+      ? {}
+      : {
+          tripDispatchBridge: dependencies.tripDispatchBridge,
+          async requestTripDispatch(input) {
+            const approval = dependencies.tripDispatchBridge?.current
+            const tripId = await findTripIdOfStop(input)
+            if (approval === undefined || tripId === undefined) return null
+            const outcome = await approval.request({
+              companyId: input.companyId,
+              driverId: input.driverId,
+              event: {
+                ...(input.documentNumber === undefined
+                  ? {}
+                  : { documentNumber: input.documentNumber }),
+                event: input.event,
+                sentAt: input.sentAt.toISOString(),
+                stopId: input.stopId,
+              },
+              groupJid: input.groupJid,
+              tripId,
+            })
+            return outcome.replies
+          },
+        }),
 
     ...(dependencies.cancelDeparture === undefined
       ? {}
