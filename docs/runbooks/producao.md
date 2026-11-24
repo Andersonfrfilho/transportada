@@ -1647,3 +1647,19 @@ O #939 foi mergeado em 22/11/2026 (merge `66cb191`), com os checks do PR verdes.
   status, e a imagem da API não traz `src/trips` (só `dist` e poucas pastas de `src`): `UPDATE` à mão deixaria a viagem sem snapshot.
 - **Correção (staging, branch `fix/bot-viagem-nao-despachada-e-link-maps`):** o bot avisa antes de pedir a localização que a viagem não foi despachada,
   e o link do Google Maps com coordenadas na URL vale como o ponto (`whatsapp-maps-location.policy.ts`; link curto ou só com nome de lugar não vale).
+
+## 5.51 O bot pede ao escritório para despachar a viagem planejada (24/11/2026) — staging; ainda não está em produção
+
+- **O que muda:** quando o motorista (tripulação) manda "saí"/"cheguei" numa viagem `route_planned`, o bot guarda o evento com a hora da mensagem e
+  **pergunta no 1:1 ao responsável** (quem levou a viagem a `route_planned`, com telefone verificado em `user_whatsapp_phones`) se pode despachar.
+  "Sim" despacha pelo mesmo caso de uso do painel (`dispatchTrip`, canal `whatsapp`, sem `loadRemaining` nem `force`) e lança os eventos na ordem da hora em que o motorista mandou;
+  "não" avisa o motorista. Só responde quem tem `trip.manage`; pelo WhatsApp só despacha com a **carga fechada** (senão o bot manda o escritório despachar pelo painel).
+  Prazo de 10 minutos com reaviso aos 5; vencido, nada é despachado sozinho e o motorista é avisado.
+- **Dado novo:** tabela `trip_dispatch_requests` (migration `20261124034805_trip_dispatch_requests`, aditiva; rollback manual em `rollback.sql`). Um pedido aberto por viagem
+  (índice parcial); `pending_events` guarda os eventos do motorista; `status` = `open | approved | declined | expired | failed`; `resolution_note` diz o porquê de `failed`
+  (`not_allowed`, `dispatch_failed`).
+- **Como diagnosticar (somente leitura):** `select status, resolution_note, created_at, resolved_at, reminded_at, pending_events from trip_dispatch_requests where trip_id = '<id>' order by created_at;`
+  e, na viagem, `trip_status_events` (o despacho vem com `channel = 'whatsapp'`). Log do vigia: `whatsapp_trip_dispatch_approval.tick_failed`.
+- **Limites conhecidos:** a localização compartilhada pelo motorista não acompanha o evento guardado (entra como indisponível); o responsável que também é motorista e tem pedido aberto
+  tem as mensagens curtas do 1:1 lidas como resposta nos 10 minutos do pedido; só o canal Evolution foi tratado (Meta não).
+- **Promoção para produção:** vai com a próxima promoção `staging → main` (não é correção crítica). A migration é aditiva; conferir depois que `trip_dispatch_requests` existe.

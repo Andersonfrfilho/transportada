@@ -476,6 +476,7 @@ describe('Drizzle migrations', () => {
       '20261121123415_occurrence_unassigned_dismissal',
       '20261122182415_trip_canhoto_ocr_attempt',
       '20261122195101_trip_canhoto_mismatch_dismissal',
+      '20261124034805_trip_dispatch_requests',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -2222,6 +2223,28 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
       'ALTER TABLE "trip_delivery_proofs" ADD COLUMN "canhoto_mismatch_dismissed_at" timestamp with time zone;',
     )
     expect(rollbackSql).toContain('DROP COLUMN "canhoto_mismatch_dismissed_at"')
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /** O pedido de despacho do bot ao escritório é uma tabela nova, aditiva, com um pedido aberto por viagem. */
+  test('creates the trip dispatch requests table additively with one open request per trip', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_trip_dispatch_requests'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+
+    expect(migrationSql).toContain('CREATE TABLE "trip_dispatch_requests"')
+    expect(migrationSql).toContain(
+      `CREATE UNIQUE INDEX "trip_dispatch_requests_company_trip_open_unique" ON "trip_dispatch_requests" ("company_id","trip_id") WHERE "status" = 'open'`,
+    )
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    expect(rollbackSql).toContain('DROP TABLE "trip_dispatch_requests"')
     expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)

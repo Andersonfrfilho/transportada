@@ -70,6 +70,7 @@ import {
   type StopListTravelView,
 } from '../../whatsapp-commands/domain/whatsapp-stop-list.policy.js'
 import type { GroupFlowOutcome, GroupFlowTurn } from './whatsapp-group-request.port.js'
+import type { TripDispatchBridge } from './whatsapp-trip-dispatch-approval.service.js'
 import {
   SENDER_NOT_ALLOWED_TEXT,
   type ResolveWhatsAppSenderRole,
@@ -147,6 +148,21 @@ export type GroupStopFlowPorts = {
     readonly driverId: string
     readonly stopId: string
   }): Promise<boolean>
+  /** A ponte do pedido de despacho: a composição do webhook a preenche; o adaptador só a repassa. */
+  readonly tripDispatchBridge?: TripDispatchBridge
+  /**
+   * A tripulação mandou "saí"/"cheguei" numa viagem não despachada: pede ao escritório para despachar e guarda o evento
+   * (com a hora da mensagem) para lançar quando aprovarem. Devolve as frases ao motorista; ausente, o bot só avisa.
+   */
+  requestTripDispatch?(input: {
+    readonly companyId: string
+    readonly documentNumber?: string
+    readonly driverId: string
+    readonly event: WhatsAppDriverStopCommandEvent
+    readonly groupJid: string
+    readonly sentAt: Date
+    readonly stopId: string
+  }): Promise<null | readonly string[]>
   /**
    * Spec 294 RF24: há ponto compartilhado recente (não o consome)? Ausente, o bot não pede a localização
    * antes do "saí"/"cheguei" (como antes da 294).
@@ -426,7 +442,24 @@ export function createGroupStopFlow(ports: GroupStopFlowPorts) {
     const confirm = target.confirmOutOfOrder === true ? { confirmOutOfOrder: true } : {}
     // Viagem planejada e não despachada: o registro seria recusado depois da pergunta da localização; avisa já.
     if ((await ports.isStopTripNotDispatched?.({ companyId, driverId, stopId })) === true) {
-      return { kind: 'done', replies: [GROUP_STOP_TEXT.tripNotDispatched], withoutFarewell: true }
+      // A tripulação pede o despacho ao escritório (o evento fica guardado com a hora que ela mandou); o resto só é avisado.
+      const asked =
+        role.kind === 'crew'
+          ? await ports.requestTripDispatch?.({
+              companyId,
+              ...(documentNumber === undefined ? {} : { documentNumber }),
+              driverId,
+              event,
+              groupJid: turn.request.groupJid,
+              sentAt: turn.sentAt ?? (ports.clock ?? (() => new Date()))(),
+              stopId,
+            })
+          : undefined
+      return {
+        kind: 'done',
+        replies: asked ?? [GROUP_STOP_TEXT.tripNotDispatched],
+        withoutFarewell: true,
+      }
     }
     // O escritório não manda ponto: o atendente registra direto, sem a pergunta da localização. A mensagem tardia
     // (spec 294: além do prazo da foto atrasada) também não pede: ela não corrige endereço.
