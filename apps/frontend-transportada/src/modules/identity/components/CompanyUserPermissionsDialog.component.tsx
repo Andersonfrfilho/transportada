@@ -194,6 +194,7 @@ export function CompanyUserPermissionsDialog({
                   <Button
                     aria-label={t('users.permissions.revoke')}
                     disabled={isPending}
+                    className={styles.pillRemove}
                     onClick={() => onRevoke(permission)}
                     size="sm"
                     title={t('users.permissions.revoke')}
@@ -230,7 +231,12 @@ export function CompanyUserPermissionsDialog({
                 summaryLabel={(count) => t('users.groups.permissionsSummary', { count })}
                 values={chosen}
               />
-              <Button disabled={chosen.length === 0 || isPending} onClick={grant} type="button">
+              <Button
+                disabled={chosen.length === 0 || isPending}
+                onClick={grant}
+                size="sm"
+                type="button"
+              >
                 <Icon name="check" />
                 {t('users.permissions.grant')}
               </Button>

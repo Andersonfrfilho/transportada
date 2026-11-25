@@ -136,6 +136,13 @@
   font-size: var(--field-font-size-compact);
 }
 
+.pillRemove {
+  inline-size: var(--control-height-compact);
+  padding: 0;
+  border-block: none;
+  border-inline-end: none;
+}
+
 .revealCell {
   display: inline-flex;
   align-items: center;
