@@ -36,6 +36,7 @@ import {
   type ExpenseExportFormat,
   type ExpenseForecast,
   type ExpenseResult,
+  type ExpenseResultFilters,
   type ExpenseResultQuery,
   type ExpenseUnitCosts,
 } from './expensesResult.types'
@@ -206,12 +207,12 @@ export function createExpensesClient(dependencies: ClientDependencies): Expenses
         }),
       )
     },
-    async getUnitCosts({ from, to }) {
+    async getUnitCosts({ filters, from, to }) {
       return toExpenseUnitCosts(
         await request({
           dependencies,
           method: 'GET',
-          path: `${EXPENSE_UNIT_COSTS_PATH}?${serializeResultQuery({ from, to })}`,
+          path: `${EXPENSE_UNIT_COSTS_PATH}?${serializeResultQuery({ from, to, ...(filters === undefined ? {} : { filters: unitCostFilters(filters) }) })}`,
         }),
       )
     },
@@ -350,6 +351,18 @@ export function serializeFilters(filters: ExpenseOccurrenceFilters): string {
 }
 
 /** Período obrigatório; só vão os filtros preenchidos (a API recusa chave desconhecida e id mal formado). */
+/** O custo por km segue só os dois interruptores de custo (veículo e fatura); os demais filtros não valem para ele. */
+function unitCostFilters(filters: ExpenseResultFilters): ExpenseResultFilters {
+  return {
+    ...(filters.excludeVehicleExpenses === undefined
+      ? {}
+      : { excludeVehicleExpenses: filters.excludeVehicleExpenses }),
+    ...(filters.excludeCardInvoice === undefined
+      ? {}
+      : { excludeCardInvoice: filters.excludeCardInvoice }),
+  }
+}
+
 export function serializeResultQuery(
   query: ExpenseResultQuery,
   extra: Readonly<Record<string, string>> = {},

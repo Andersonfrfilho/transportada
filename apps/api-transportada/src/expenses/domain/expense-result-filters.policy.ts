@@ -23,6 +23,10 @@ export type ExpenseResultFilters = {
   readonly categoryId?: string
   /** Contratante, ou `sem-cliente`. */
   readonly customerId?: string
+  /** `'true'` tira do cálculo a fatura do cartão de crédito (o valor volta em `excluded.category`); sem ele ela conta. */
+  readonly excludeCardInvoice?: 'true'
+  /** `'true'` tira do cálculo as contas ligadas aos veículos da frota (o valor volta em `excluded.vehicles`). */
+  readonly excludeVehicleExpenses?: 'true'
   /** Motorista, agregado ou ajudante favorecido da conta. */
   readonly payeeDriverId?: string
   /** Veículo, ou `sem-veiculo`. */
@@ -32,13 +36,21 @@ export type ExpenseResultFilters = {
 export const EXPENSE_RESULT_FILTER_KEYS = [
   'categoryId',
   'customerId',
+  'excludeVehicleExpenses',
+  'excludeCardInvoice',
   'payeeDriverId',
   'vehicleId',
 ] as const
 
+/** Os interruptores de custo não são filtro de linha: ligá-los não faz o resultado ecoar `filters`. */
+const COST_SWITCH_KEYS: readonly string[] = ['excludeVehicleExpenses', 'excludeCardInvoice']
+
 export function hasResultFilters(filters: ExpenseResultFilters | undefined): boolean {
   return (
-    filters !== undefined && EXPENSE_RESULT_FILTER_KEYS.some((key) => filters[key] !== undefined)
+    filters !== undefined &&
+    EXPENSE_RESULT_FILTER_KEYS.some(
+      (key) => !COST_SWITCH_KEYS.includes(key) && filters[key] !== undefined,
+    )
   )
 }
 

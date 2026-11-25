@@ -320,3 +320,105 @@ describe('detalhes da viagem no resultado (T5.2, aditivo)', () => {
     expect(sumCents(result.byTrip.map((line) => line.revenue))).toBe(cents(result.totals.revenue))
   })
 })
+
+describe('o que não é custo da frota própria fica fora do cálculo e à vista (pedido de 25/11/2026)', () => {
+  const CARD_CATEGORY = 'category-card'
+
+  function seedWithAggregateAndCard() {
+    const ports = seed()
+    ports.occurrenceRows.push(
+      anOccurrence({
+        costGroup: 'vehicle_fixed',
+        expectedAmount: '250.00',
+        occurrenceId: 'aggregate-insurance',
+        vehicleId: VEHICLE_1,
+        vehicleOwnership: 'aggregate',
+      }),
+      anOccurrence({
+        costGroup: 'vehicle_fixed',
+        expectedAmount: '90.00',
+        occurrenceId: 'third-party-tax',
+        vehicleId: VEHICLE_1,
+        vehicleOwnership: 'third_party',
+      }),
+      anOccurrence({
+        categoryId: CARD_CATEGORY,
+        categoryName: 'Cartão de crédito',
+        expectedAmount: '600.00',
+        occurrenceId: 'card-invoice',
+      }),
+    )
+    return ports
+  }
+
+  it('conta de veículo agregado ou de terceiro não entra no total nem no rateio, e o valor aparece à parte', async () => {
+    const result = await createGetExpenseResultUseCase(seedWithAggregateAndCard()).execute({
+      companyId: RESULT_COMPANY_A,
+      filters: { excludeCardInvoice: 'true' },
+      ...PERIOD,
+    })
+
+    expect(result.totals.expensesTotal).toBe('1400.01')
+    expect(result.excluded).toEqual({
+      aggregateVehicles: '340.00',
+      category: '600.00',
+      vehicles: '0.00',
+    })
+    expect(sumCents(result.byTrip.map((l) => l.margin))).toBe(cents(result.totals.profit))
+  })
+
+  it('sem excludeCardInvoice a fatura do cartão conta como conta da empresa', async () => {
+    const result = await createGetExpenseResultUseCase(seedWithAggregateAndCard()).execute({
+      companyId: RESULT_COMPANY_A,
+      ...PERIOD,
+    })
+
+    expect(result.totals.expensesTotal).toBe('2000.01')
+    expect(result.excluded).toEqual({
+      aggregateVehicles: '340.00',
+      category: '0.00',
+      vehicles: '0.00',
+    })
+  })
+
+  it('ligar os interruptores de custo não faz o resultado ecoar filtros', async () => {
+    const result = await createGetExpenseResultUseCase(seed()).execute({
+      companyId: RESULT_COMPANY_A,
+      filters: { excludeVehicleExpenses: 'true', excludeCardInvoice: 'true' },
+      ...PERIOD,
+    })
+
+    expect(result.filters).toBeUndefined()
+  })
+
+  it('com excludeVehicleExpenses as contas dos veículos da frota saem, à vista, e a margem segue fechando', async () => {
+    const result = await createGetExpenseResultUseCase(seedWithAggregateAndCard()).execute({
+      companyId: RESULT_COMPANY_A,
+      filters: { excludeVehicleExpenses: 'true' },
+      ...PERIOD,
+    })
+
+    // seguro do veículo 2 (400,00) sai; o aluguel (1000,01) fica; a fatura do cartão (600,00) conta por padrão e o agregado já estava fora.
+    expect(result.totals.expensesTotal).toBe('1600.01')
+    expect(result.excluded).toEqual({
+      aggregateVehicles: '340.00',
+      category: '0.00',
+      vehicles: '400.00',
+    })
+    expect(sumCents(result.byTrip.map((l) => l.margin))).toBe(cents(result.totals.profit))
+  })
+
+  it('veículo próprio e conta sem veículo seguem iguais (sem dono na ficha vale como próprio)', async () => {
+    const result = await createGetExpenseResultUseCase(seed()).execute({
+      companyId: RESULT_COMPANY_A,
+      ...PERIOD,
+    })
+
+    expect(result.totals.expensesTotal).toBe('1400.01')
+    expect(result.excluded).toEqual({
+      aggregateVehicles: '0.00',
+      category: '0.00',
+      vehicles: '0.00',
+    })
+  })
+})

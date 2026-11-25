@@ -100,6 +100,25 @@ describe('expenses result — guard', () => {
     expect(minimal.calculatedAt).toBeNull()
   })
 
+  it('lê o que ficou fora do cálculo e, em API anterior, vale zero', () => {
+    const result = toExpenseResult({
+      data: {
+        ...RESULT.data,
+        excluded: { aggregateVehicles: '340.00', category: '600.00', vehicles: '0.00' },
+      },
+    })
+    expect(result.excluded).toEqual({
+      aggregateVehicles: '340.00',
+      category: '600.00',
+      vehicles: '0.00',
+    })
+    expect(toExpenseResult(RESULT).excluded).toEqual({
+      aggregateVehicles: '0.00',
+      category: '0.00',
+      vehicles: '0.00',
+    })
+  })
+
   it('devolve os filtros aplicados que a API ecoa', () => {
     const result = toExpenseResult({
       data: { ...RESULT.data, filters: { vehicleId: 'sem-veiculo' } },

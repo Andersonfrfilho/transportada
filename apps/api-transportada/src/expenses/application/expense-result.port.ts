@@ -13,6 +13,8 @@ import type { ExpenseOccurrenceStatus } from './expense.port.js'
 
 export type ResultOccurrence = {
   readonly categoryId: string
+  /** Nome da categoria: a da fatura do cartão de crédito fica fora do cálculo por padrão. */
+  readonly categoryName?: string
   readonly costGroup: ExpenseCostGroup
   readonly expectedAmount: string
   readonly expenseId: string
@@ -24,6 +26,8 @@ export type ResultOccurrence = {
   readonly payeeDriverId: string | null
   readonly status: ExpenseOccurrenceStatus
   readonly vehicleId: string | null
+  /** Dono do veículo da conta (`own`, `aggregate`, `third_party`); ausente ou sem veículo vale como próprio. */
+  readonly vehicleOwnership?: string | null
 }
 
 export type ExpenseResultPorts = {

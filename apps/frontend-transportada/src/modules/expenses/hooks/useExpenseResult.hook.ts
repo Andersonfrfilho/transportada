@@ -26,12 +26,18 @@ export function useExpenseResult(
 export function useExpenseUnitCosts(
   input: Readonly<{ enabled?: boolean; query: ExpenseResultQuery }>,
 ) {
-  /** O custo por km não tem filtro (RF17): só o período entra na chave e na chamada. */
+  /** O custo por km (RF17) só segue o período e os dois interruptores de custo (veículo e fatura do cartão). */
   const { from, to } = input.query
+  const excludeCardInvoice = input.query.filters?.excludeCardInvoice
+  const excludeVehicleExpenses = input.query.filters?.excludeVehicleExpenses
+  const filters = {
+    ...(excludeCardInvoice === undefined ? {} : { excludeCardInvoice }),
+    ...(excludeVehicleExpenses === undefined ? {} : { excludeVehicleExpenses }),
+  }
   return useQuery({
     enabled: input.enabled ?? true,
-    queryFn: () => getExpensesClient().getUnitCosts({ from, to }),
-    queryKey: [EXPENSES_QUERY_KEY, 'unit-costs', from, to],
+    queryFn: () => getExpensesClient().getUnitCosts({ filters, from, to }),
+    queryKey: [EXPENSES_QUERY_KEY, 'unit-costs', from, to, filters],
   })
 }
 

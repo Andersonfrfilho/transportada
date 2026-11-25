@@ -15,6 +15,7 @@ const EMPTY_RESULT = {
   byCustomer: [],
   byTrip: [],
   byVehicle: [],
+  excluded: { aggregateVehicles: '0.00', category: '0.00', vehicles: '0.00' },
   totals: { expensesTotal: '0.00', profit: '0.00', revenue: '0.00', tripCost: '0.00' },
   unallocatedTotal: '0.00',
 }
@@ -127,13 +128,18 @@ describe('filtros e exportação nas rotas (spec 325 T4.6)', () => {
   it('os filtros chegam ao caso de uso; sem filtro a chamada não muda', async () => {
     const { calls } = await call(
       '/expense-result',
-      `from=2026-10-01&to=2026-10-31&vehicleId=${VEHICLE}&customerId=sem-cliente&categoryId=&payeeDriverId=`,
+      `from=2026-10-01&to=2026-10-31&vehicleId=${VEHICLE}&customerId=sem-cliente&categoryId=&payeeDriverId=&excludeCardInvoice=true&excludeVehicleExpenses=true`,
     )
 
     expect(calls).toEqual([
       {
         companyId: RESULT_COMPANY_A,
-        filters: { customerId: 'sem-cliente', vehicleId: VEHICLE },
+        filters: {
+          customerId: 'sem-cliente',
+          excludeVehicleExpenses: 'true',
+          excludeCardInvoice: 'true',
+          vehicleId: VEHICLE,
+        },
         from: '2026-10-01',
         to: '2026-10-31',
       },
@@ -144,6 +150,8 @@ describe('filtros e exportação nas rotas (spec 325 T4.6)', () => {
     for (const query of [
       'vehicleId=abc',
       'categoryId=sem-veiculo',
+      'excludeCardInvoice=false',
+      'excludeVehicleExpenses=1',
       'payeeDriverId=x',
       'driver=1',
     ]) {

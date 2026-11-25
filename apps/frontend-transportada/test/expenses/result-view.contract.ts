@@ -13,6 +13,8 @@ import {
   formatKilometersTotal,
   formatVehicleAggregate,
   formatVehicleDescription,
+  hasAmount,
+  isCardInvoiceCategoryName,
   formatMarginPercent,
   formatVariationPercent,
   listTrendCompetences,
@@ -95,5 +97,18 @@ describe('expensesResultView.service', () => {
   it('formatKilometersTotal tira a casa decimal e separa o milhar', () => {
     expect(formatKilometersTotal('43536.308', 'pt-BR')).toBe('43.536')
     expect(formatKilometersTotal('0.000', 'pt-BR')).toBe('0')
+  })
+
+  it('isCardInvoiceCategoryName reconhece "Cartão de crédito" com ou sem acento e caixa, e só ela', () => {
+    expect(isCardInvoiceCategoryName('Cartão de crédito')).toBe(true)
+    expect(isCardInvoiceCategoryName(' CARTAO DE CREDITO ')).toBe(true)
+    expect(isCardInvoiceCategoryName('Cartão de crédito Mercado Pago')).toBe(false)
+    expect(isCardInvoiceCategoryName('Combustível')).toBe(false)
+  })
+
+  it('hasAmount separa dinheiro zerado de dinheiro com valor', () => {
+    expect(hasAmount('0.00')).toBe(false)
+    expect(hasAmount('-0.00')).toBe(false)
+    expect(hasAmount('600.00')).toBe(true)
   })
 })
