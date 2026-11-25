@@ -76,6 +76,15 @@ describe('matriz de papel e permissão', () => {
     }
   })
 
+  /** O resultado da empresa é só do administrador: a tela de grupos oferece `financial-results.read` e só o company-admin a tem por papel. */
+  test('oferece financial-results.read no catálogo e a mostra só no company-admin', () => {
+    expect(matrix.permissions).toContain('financial-results.read')
+    const holders = matrix.roles
+      .filter((entry) => entry.permissions.includes('financial-results.read'))
+      .map((entry) => entry.role)
+    expect(holders).toEqual(['company-admin'])
+  })
+
   test('não oferece permissão de serviço, e o papel automation segue mostrando todas', () => {
     for (const permission of SERVICE_ONLY_PERMISSIONS) {
       expect(matrix.permissions).not.toContain(permission)

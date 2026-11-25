@@ -100,6 +100,8 @@ describe('authorization contract', () => {
       // Spec 325 RF7: as contas da empresa são dinheiro da empresa inteira — só o company-admin
       'expenses.read',
       'expenses.manage',
+      // O resultado da empresa inteira é só do company-admin; trip.financials (finance, operator) não basta
+      'financial-results.read',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
@@ -139,6 +141,7 @@ describe('authorization contract', () => {
         'holiday-import.configure',
         'expenses.read',
         'expenses.manage',
+        'financial-results.read',
       ],
       finance: [
         'cte.read',
@@ -303,6 +306,29 @@ describe('authorization contract', () => {
       expect(isGrantablePermission(permission)).toBe(true)
       expect(SERVICE_ONLY_PERMISSIONS).not.toContain(permission)
     }
+  })
+
+  /** O acumulado de resultados da empresa: só o company-admin por papel, concedível por grupo — nem finance nem operator, que têm trip.financials. */
+  test('grants financial-results.read only to the company-admin, and keeps it grantable by group', () => {
+    const permission = 'financial-results.read'
+    expect(resolveCompanyPermissions(['company-admin']).has(permission)).toBe(true)
+    for (const role of [
+      'finance',
+      'fiscal',
+      'operator',
+      'viewer',
+      'driver',
+      'aggregate',
+      'separator',
+      'helper',
+      'contractor',
+      'automation',
+    ] as const) {
+      expect(resolveCompanyPermissions([role]).has(permission)).toBe(false)
+    }
+    expect(isCompanyPermission(permission)).toBe(true)
+    expect(isGrantablePermission(permission)).toBe(true)
+    expect(SERVICE_ONLY_PERMISSIONS).not.toContain(permission)
   })
 
   // Os dois papéis de campo são o menor conjunto do sistema — nota, CT-e, faturamento e frota

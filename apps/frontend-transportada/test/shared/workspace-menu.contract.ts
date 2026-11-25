@@ -17,6 +17,7 @@ import {
  */
 const COMPANY_ADMIN_PERMISSIONS = [
   'expenses.read',
+  'financial-results.read',
   'freight.simulate',
   'users.manage',
   'users.reveal',

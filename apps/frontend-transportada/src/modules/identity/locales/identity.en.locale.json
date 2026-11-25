@@ -493,6 +493,10 @@
         "label": "Record and settle bills",
         "where": "Create fixed or variable bills and categories, settle and cancel them."
       },
+      "financial-results.read": {
+        "label": "View company results",
+        "where": "Results screen: accumulated margin by period, vehicle, customer and aggregate."
+      },
       "addresses.read": {
         "label": "Consultar CEP",
         "where": "O preenchimento de endereço nos formulários de motorista, empresa e manifesto."
@@ -567,7 +571,8 @@
         "pickup": "Pickup and delivery requests",
         "other": "Other",
         "occurrences": "Occurrences",
-        "expenses": "Bills"
+        "expenses": "Bills",
+        "financialResults": "Results"
       }
     },
     "fleet": {

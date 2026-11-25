@@ -53,8 +53,8 @@ export const WORKSPACE_PERMISSIONS = {
   'extra-charges': ['billing.create', 'trip.financials'],
   // useOccurrenceReimbursements.hook.ts:54
   reimbursements: ['trip.financials'],
-  // FinancialResultsWorkspace.page.tsx:27
-  'trip-financials': ['trip.financials'],
+  // FinancialResultsWorkspace.page.tsx: o resultado da empresa inteira é só do administrador (a API exige o mesmo)
+  'trip-financials': ['financial-results.read'],
   // useExpensesWorkspace.hook.ts (spec 325): a API lê com expenses.read; só o administrador a tem
   expenses: ['expenses.read'],
   // me-trip.routes.ts:109 (API) — a página do motorista não tem parede
