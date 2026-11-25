@@ -132,7 +132,9 @@ export function ExpenseResultPage() {
 
   /** Placa e, abaixo, marca, modelo e ano (quando a ficha tem). */
   function renderVehicle(vehicleId: string) {
-    if (vehicleId === EXPENSE_NO_VEHICLE_ID) return t('resultPage.filters.noVehicle')
+    if (vehicleId === EXPENSE_NO_VEHICLE_ID) {
+      return <strong>{t('resultPage.filters.noVehicle')}</strong>
+    }
     const description = page.descriptionOf.vehicle(vehicleId)
     return (
       <div>
