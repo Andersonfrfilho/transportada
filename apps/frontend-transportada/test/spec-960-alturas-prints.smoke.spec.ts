@@ -85,7 +85,6 @@ for (const theme of ['dark', 'light'] as const) {
       await page.goto('/usuarios')
       await page.getByText('Deisy Diniz Campos').first().waitFor()
       await page.screenshot({
-        clip: undefined,
         path: resolve(PRINTS_DIRECTORY, `barra-usuario-${theme}-${viewport.label}.png`),
       })
       await page
