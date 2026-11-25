@@ -10,6 +10,9 @@ import {
   amountPerKm,
   currentMonthPeriod,
   formatKilometers,
+  formatKilometersTotal,
+  formatVehicleAggregate,
+  formatVehicleDescription,
   formatMarginPercent,
   formatVariationPercent,
   listTrendCompetences,
@@ -69,5 +72,28 @@ describe('expensesResultView.service', () => {
     expect(formatKilometers(620_000)).toBe('620')
     expect(formatKilometers(150_499)).toBe('150')
     expect(formatKilometers(0)).toBe('0')
+  })
+
+  it('formatVehicleDescription junta marca, modelo e ano e omite o que a ficha não tem', () => {
+    expect(formatVehicleDescription({ brand: 'Volvo', model: 'FH 540', modelYear: 2021 })).toBe(
+      'Volvo FH 540 · 2021',
+    )
+    expect(formatVehicleDescription({ brand: 'Fiat', model: '', modelYear: 0 })).toBe('Fiat')
+    expect(formatVehicleDescription({ brand: '', model: '', modelYear: 2019 })).toBe('2019')
+    expect(formatVehicleDescription({ brand: ' ', model: '', modelYear: 0 })).toBeNull()
+  })
+
+  it('formatVehicleAggregate só aparece para agregado e usa o nome do proprietário', () => {
+    expect(
+      formatVehicleAggregate({ owner: { name: ' José da Silva ' }, ownership: 'aggregate' }),
+    ).toBe('Agregado: José da Silva')
+    expect(formatVehicleAggregate({ owner: null, ownership: 'aggregate' })).toBe('Agregado')
+    expect(formatVehicleAggregate({ owner: { name: 'X' }, ownership: 'own' })).toBeNull()
+    expect(formatVehicleAggregate({ owner: { name: 'X' }, ownership: 'third_party' })).toBeNull()
+  })
+
+  it('formatKilometersTotal tira a casa decimal e separa o milhar', () => {
+    expect(formatKilometersTotal('43536.308', 'pt-BR')).toBe('43.536')
+    expect(formatKilometersTotal('0.000', 'pt-BR')).toBe('0')
   })
 })

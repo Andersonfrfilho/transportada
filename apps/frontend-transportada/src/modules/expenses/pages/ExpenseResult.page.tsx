@@ -28,6 +28,7 @@ import {
   forecastMarginPercent,
   formatCompetenceLabel,
   formatKilometers,
+  formatKilometersTotal,
   formatMarginPercent,
   formatVariationPercent,
   isNegativeAmount,
@@ -130,11 +131,24 @@ export function ExpenseResultPage() {
     )
   }
 
+  /** Placa e, abaixo, marca, modelo e ano (quando a ficha tem). */
+  function renderVehicle(vehicleId: string) {
+    if (vehicleId === EXPENSE_NO_VEHICLE_ID) {
+      return <strong>{t('resultPage.filters.noVehicle')}</strong>
+    }
+    const { aggregate, description } = page.descriptionOf.vehicle(vehicleId)
+    return (
+      <div>
+        <strong>{page.labelOf.vehicle(vehicleId)}</strong>
+        {description === null ? null : <span className={styles.rowDetail}>{description}</span>}
+        {aggregate === null ? null : <span className={styles.rowDetail}>{aggregate}</span>}
+      </div>
+    )
+  }
+
   function renderTripVehicle(line: ExpenseResultTripLine) {
     if (line.trip === undefined) return '—'
-    return line.trip.vehicleId === EXPENSE_NO_VEHICLE_ID
-      ? t('resultPage.filters.noVehicle')
-      : page.labelOf.vehicle(line.trip.vehicleId)
+    return renderVehicle(line.trip.vehicleId)
   }
 
   function renderTripKilometers(line: ExpenseResultTripLine) {
@@ -205,7 +219,7 @@ export function ExpenseResultPage() {
             {kilometers === null
               ? null
               : t('resultPage.indicators.costPerKmHint', {
-                  km: kilometers.replace(/\.0+$/, ''),
+                  km: formatKilometersTotal(kilometers, i18n.language),
                   trips: result.byTrip.length,
                 })}
           </small>
@@ -443,9 +457,13 @@ export function ExpenseResultPage() {
             {lines.map((line) => (
               <tr key={line.id}>
                 <td data-column={nameHeader}>
-                  <strong className={kind === 'trip' ? styles.tripCode : undefined}>
-                    {lineLabel(kind, line)}
-                  </strong>
+                  {kind === 'vehicle' ? (
+                    renderVehicle(line.id)
+                  ) : (
+                    <strong className={kind === 'trip' ? styles.tripCode : undefined}>
+                      {lineLabel(kind, line)}
+                    </strong>
+                  )}
                   {kind === 'trip' ? renderTripDetail(line as ExpenseResultTripLine) : null}
                 </td>
                 {kind === 'trip' ? (
