@@ -493,6 +493,10 @@
         "label": "Lançar e baixar contas",
         "where": "Cadastrar conta fixa ou variável, categorias, dar baixa e cancelar."
       },
+      "financial-results.read": {
+        "label": "Ver o resultado da empresa",
+        "where": "Tela Resultados: margem acumulada por período, veículo, cliente e agregado."
+      },
       "addresses.read": {
         "label": "Consultar CEP",
         "where": "O preenchimento de endereço nos formulários de motorista, empresa e manifesto."
@@ -567,7 +571,8 @@
         "pickup": "Pedidos de coleta e entrega",
         "other": "Outras",
         "occurrences": "Ocorrências",
-        "expenses": "Contas"
+        "expenses": "Contas",
+        "financialResults": "Resultados"
       }
     },
     "fleet": {

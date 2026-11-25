@@ -47,6 +47,7 @@ export const PERMISSION_GROUPS = [
   { key: 'operations', permissions: ['operations.read', 'operations.run', 'audit.read'] },
   { key: 'occurrences', permissions: ['occurrences.resolve'] },
   { key: 'expenses', permissions: ['expenses.read', 'expenses.manage'] },
+  { key: 'financialResults', permissions: ['financial-results.read'] },
   {
     key: 'portal',
     permissions: ['deliveries.track', 'pickup.request', 'charges.decide', 'occurrences.decide'],

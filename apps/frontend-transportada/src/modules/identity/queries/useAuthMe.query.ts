@@ -111,6 +111,8 @@ export const COMPANY_PERMISSIONS = [
   /** Spec 325 RF7: as contas da empresa são dinheiro da empresa inteira — só o `company-admin` recebe. */
   'expenses.read',
   'expenses.manage',
+  /** O resultado da empresa inteira é só do `company-admin` (não sai de carona com `trip.financials`). */
+  'financial-results.read',
 ] as const
 
 const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const

@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * ADR-0049 §6: o acumulado mostra margem e o que se paga a cada agregado — é `trip.financials`, de
- * `company-admin` e `finance`.
+ * ADR-0049 §6: o acumulado mostra margem e o que se paga a cada agregado — é resultado da empresa inteira,
+ * só do administrador (`financial-results.read`); `trip.financials` (finance, operator) não basta.
  */
 import { z } from 'zod'
 
@@ -15,7 +15,7 @@ import {
   type FinancialSummaryGroup,
 } from '../domain/financial-summary.policy.js'
 
-const FINANCIALS_POLICY = { permission: 'trip.financials', scope: 'company' } as const
+const FINANCIALS_POLICY = { permission: 'financial-results.read', scope: 'company' } as const
 const DATE_PATTERN = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/u
 
 export type FinancialSummaryRoutesDependencies = {

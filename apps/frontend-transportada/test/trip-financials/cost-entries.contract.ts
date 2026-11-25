@@ -279,8 +279,10 @@ describe('a permissão de leitura também mora num lugar só', () => {
     expect(constant).toContain("FINANCIALS_PERMISSION = 'trip.financials'")
     expect(preview).toContain('FINANCIALS_PERMISSION')
     expect(preview).not.toMatch(/const FINANCIALS_PERMISSION = /u)
-    expect(page).toContain('FINANCIALS_PERMISSION')
+    expect(constant).toContain("FINANCIAL_RESULTS_PERMISSION = 'financial-results.read'")
+    expect(page).toContain('FINANCIAL_RESULTS_PERMISSION')
     expect(page).not.toContain("'trip.financials'")
+    expect(page).not.toContain("'financial-results.read'")
   })
 })
 
