@@ -582,7 +582,7 @@ export function ExpenseResultPage() {
             value={filters.payeeDriverId}
           />
         </div>
-        <div className={styles.field}>
+        <div aria-label={t('resultPage.costOptions.title')} className={styles.field} role="group">
           <span>{t('resultPage.costOptions.title')}</span>
           <Checkbox
             ariaLabel={t('resultPage.costOptions.vehicles')}

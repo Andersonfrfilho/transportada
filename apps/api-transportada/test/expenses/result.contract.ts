@@ -381,6 +381,16 @@ describe('o que não é custo da frota própria fica fora do cálculo e à vista
     })
   })
 
+  it('ligar os interruptores de custo não faz o resultado ecoar filtros', async () => {
+    const result = await createGetExpenseResultUseCase(seed()).execute({
+      companyId: RESULT_COMPANY_A,
+      filters: { excludeVehicleExpenses: 'true', includeCardInvoice: 'true' },
+      ...PERIOD,
+    })
+
+    expect(result.filters).toBeUndefined()
+  })
+
   it('com excludeVehicleExpenses as contas dos veículos da frota saem, à vista, e a margem segue fechando', async () => {
     const result = await createGetExpenseResultUseCase(seedWithAggregateAndCard()).execute({
       companyId: RESULT_COMPANY_A,

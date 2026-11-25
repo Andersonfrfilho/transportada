@@ -42,9 +42,15 @@ export const EXPENSE_RESULT_FILTER_KEYS = [
   'vehicleId',
 ] as const
 
+/** Os interruptores de custo não são filtro de linha: ligá-los não faz o resultado ecoar `filters`. */
+const COST_SWITCH_KEYS: readonly string[] = ['excludeVehicleExpenses', 'includeCardInvoice']
+
 export function hasResultFilters(filters: ExpenseResultFilters | undefined): boolean {
   return (
-    filters !== undefined && EXPENSE_RESULT_FILTER_KEYS.some((key) => filters[key] !== undefined)
+    filters !== undefined &&
+    EXPENSE_RESULT_FILTER_KEYS.some(
+      (key) => !COST_SWITCH_KEYS.includes(key) && filters[key] !== undefined,
+    )
   )
 }
 
