@@ -28,6 +28,7 @@ import {
   forecastMarginPercent,
   formatCompetenceLabel,
   formatKilometers,
+  formatKilometersTotal,
   formatMarginPercent,
   formatVariationPercent,
   isNegativeAmount,
@@ -218,7 +219,7 @@ export function ExpenseResultPage() {
             {kilometers === null
               ? null
               : t('resultPage.indicators.costPerKmHint', {
-                  km: kilometers.replace(/\.0+$/, ''),
+                  km: formatKilometersTotal(kilometers, i18n.language),
                   trips: result.byTrip.length,
                 })}
           </small>

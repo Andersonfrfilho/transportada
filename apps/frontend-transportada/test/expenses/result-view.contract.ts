@@ -10,6 +10,7 @@ import {
   amountPerKm,
   currentMonthPeriod,
   formatKilometers,
+  formatKilometersTotal,
   formatVehicleAggregate,
   formatVehicleDescription,
   formatMarginPercent,
@@ -89,5 +90,10 @@ describe('expensesResultView.service', () => {
     expect(formatVehicleAggregate({ owner: null, ownership: 'aggregate' })).toBe('Agregado')
     expect(formatVehicleAggregate({ owner: { name: 'X' }, ownership: 'own' })).toBeNull()
     expect(formatVehicleAggregate({ owner: { name: 'X' }, ownership: 'third_party' })).toBeNull()
+  })
+
+  it('formatKilometersTotal tira a casa decimal e separa o milhar', () => {
+    expect(formatKilometersTotal('43536.308', 'pt-BR')).toBe('43.536')
+    expect(formatKilometersTotal('0.000', 'pt-BR')).toBe('0')
   })
 })

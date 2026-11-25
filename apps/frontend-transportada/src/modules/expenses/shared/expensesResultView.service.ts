@@ -159,3 +159,10 @@ export function formatVehicleAggregate(
   const name = vehicle.owner?.name.trim() ?? ''
   return name === '' ? 'Agregado' : `Agregado: ${name}`
 }
+
+/** Quilômetros do indicador ("43536.308" → "43.536" em pt-BR): sem casa decimal e com separador de milhar, como o resto da tela. */
+export function formatKilometersTotal(kilometers: string, locale: string): string {
+  const value = Number(kilometers)
+  if (!Number.isFinite(value)) return kilometers
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)
+}
