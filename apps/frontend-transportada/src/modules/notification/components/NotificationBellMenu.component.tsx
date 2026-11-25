@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { NotificationBell, NotificationList } from '@adatechnology/notification-ui'
+import { NotificationBell } from '@adatechnology/notification-ui'
 import { useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { useFloatingLayer } from '@/components/ui/useFloatingLayer.hook'
 
+import { NotificationInboxList } from './NotificationInboxList.component'
 import { openNotificationTarget } from '../shared/notificationNavigation.service'
 import type { NotificationTargetSource } from '../shared/notificationTarget.service'
 import { NOTIFICATION_THEME_CLASS } from '../shared/notificationTheme.constant'
@@ -62,10 +63,7 @@ export function NotificationBellMenu({ onViewAll }: NotificationBellMenuProps): 
                 </Button>
               </header>
               <div className={styles.notificationPopoverBody}>
-                <NotificationList
-                  onSelect={selectNotification}
-                  renderEmpty={() => <p>{t('empty')}</p>}
-                />
+                <NotificationInboxList onSelect={selectNotification} />
               </div>
             </section>,
             document.body,
