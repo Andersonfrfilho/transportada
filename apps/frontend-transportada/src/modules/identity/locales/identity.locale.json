@@ -494,7 +494,7 @@
         "where": "Cadastrar conta fixa ou variável, categorias, dar baixa e cancelar."
       },
       "financial-results.read": {
-        "label": "Ver o resultado da empresa",
+        "label": "Ver resultados da empresa",
         "where": "Tela Resultados: margem acumulada por período, veículo, cliente e agregado."
       },
       "addresses.read": {
