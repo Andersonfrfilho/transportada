@@ -351,6 +351,16 @@
       "variation": "{{value}} sobre o período anterior",
       "previousMargin": "período anterior: {{value}}"
     },
+    "costOptions": {
+      "title": "Custos contados",
+      "vehicles": "Contar os gastos das nossas vans",
+      "cardInvoice": "Contar a fatura do cartão de crédito"
+    },
+    "excluded": {
+      "vehicles": "Gastos das nossas vans: {{amount}}, fora do cálculo (interruptor acima).",
+      "cardInvoice": "Fatura do cartão de crédito: {{amount}}, fora do cálculo. Ela repete gastos já lançados nos custos do veículo; marque \"Contar a fatura do cartão de crédito\" para somar.",
+      "aggregateVehicles": "Contas de veículos agregados ou de terceiros: {{amount}}, fora do cálculo. Quem paga esse custo é o agregado, não a empresa."
+    },
     "notice": "Os números são recalculados toda vez que a tela abre, com as contas e o critério de hoje. O mês fechado não é congelado.",
     "unallocated": "Contas sem viagem para ratear: {{amount}}. Elas entram no total das contas, mas não em nenhuma viagem.",
     "trend": {

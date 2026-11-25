@@ -144,9 +144,21 @@ function toFilters(value: unknown): ExpenseResultFilters {
   const filters: { -readonly [K in keyof ExpenseResultFilters]: ExpenseResultFilters[K] } = {}
   if (row.categoryId !== undefined) filters.categoryId = readString(row.categoryId)
   if (row.customerId !== undefined) filters.customerId = readString(row.customerId)
+  if (row.excludeVehicleExpenses === 'true') filters.excludeVehicleExpenses = 'true'
+  if (row.includeCardInvoice === 'true') filters.includeCardInvoice = 'true'
   if (row.payeeDriverId !== undefined) filters.payeeDriverId = readString(row.payeeDriverId)
   if (row.vehicleId !== undefined) filters.vehicleId = readString(row.vehicleId)
   return filters
+}
+
+function toExcluded(value: unknown): ExpenseResult['excluded'] {
+  if (value === undefined) return { aggregateVehicles: '0.00', category: '0.00', vehicles: '0.00' }
+  const row = readRecord(value)
+  return {
+    aggregateVehicles: readMoney(row.aggregateVehicles),
+    category: readMoney(row.category),
+    vehicles: readMoney(row.vehicles),
+  }
 }
 
 function toCalculatedAt(body: Record<string, unknown>): string | null {
@@ -162,6 +174,7 @@ export function toExpenseResult(payload: unknown): ExpenseResult {
     byTrip: readArray(data.byTrip).map(toTripLine),
     byVehicle: readArray(data.byVehicle).map(toLine),
     calculatedAt: toCalculatedAt(body),
+    excluded: toExcluded(data.excluded),
     excesses: readOptionalArray(data.excesses).map(toPayment),
     filters: toFilters(data.filters),
     paymentsWithoutTrips: readOptionalArray(data.paymentsWithoutTrips).map(toPayment),

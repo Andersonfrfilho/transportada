@@ -106,14 +106,19 @@ const UUID = z.string().uuid()
 const FILTER_SCHEMAS: Record<(typeof EXPENSE_RESULT_FILTER_KEYS)[number], z.ZodType<string>> = {
   categoryId: UUID,
   customerId: z.union([UUID, z.literal(NO_CUSTOMER_ID)]),
+  excludeVehicleExpenses: z.literal('true'),
+  includeCardInvoice: z.literal('true'),
   payeeDriverId: UUID,
   vehicleId: z.union([UUID, z.literal(NO_VEHICLE_ID)]),
 }
 
 /** Filtros do painel (RF18): chave desconhecida ou valor que não é id é 400; vazio é "sem filtro". */
-function parseFilters(url: URL): ExpenseResultFilters {
+function parseFilters(
+  url: URL,
+  keys: readonly (typeof EXPENSE_RESULT_FILTER_KEYS)[number][] = EXPENSE_RESULT_FILTER_KEYS,
+): ExpenseResultFilters {
   const filters: Record<string, string> = {}
-  for (const key of EXPENSE_RESULT_FILTER_KEYS) {
+  for (const key of keys) {
     const value = url.searchParams.get(key)
     if (value === null || value === '') continue
     if (!FILTER_SCHEMAS[key].safeParse(value).success) throw invalidRequest()
@@ -190,7 +195,11 @@ export function createExpenseResultRoutes(
       pathname: API_EXPENSE_RESULT_EXPORT_PATH,
       policy: READ_POLICY,
     }),
-    defineRoute<{ readonly from: string; readonly to: string }>({
+    defineRoute<{
+      readonly filters: ExpenseResultFilters
+      readonly from: string
+      readonly to: string
+    }>({
       async handle({ context, input }): Promise<Response> {
         const data = await dependencies.getUnitCosts.execute({
           companyId: context.scope.companyId,
@@ -199,7 +208,11 @@ export function createExpenseResultRoutes(
         return jsonResponse({ calculatedAt: now().toISOString(), data })
       },
       method: 'GET',
-      parse: ({ request }) => parsePeriod(new URL(request.url)),
+      parse: ({ request }) => {
+        const url = new URL(request.url)
+        const filters = parseFilters(url, ['excludeVehicleExpenses', 'includeCardInvoice'])
+        return { ...parsePeriod(url, ['excludeVehicleExpenses', 'includeCardInvoice']), filters }
+      },
       pathname: API_EXPENSE_UNIT_COSTS_PATH,
       policy: READ_POLICY,
     }),

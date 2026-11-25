@@ -23,6 +23,10 @@ export type ExpenseResultFilters = {
   readonly categoryId?: string
   /** Contratante, ou `sem-cliente`. */
   readonly customerId?: string
+  /** `'true'` conta a fatura do cartão de crédito; sem ele ela fica fora (ver `expense-card-invoice.policy.ts`). */
+  readonly includeCardInvoice?: 'true'
+  /** `'true'` tira do cálculo as contas ligadas aos veículos da frota (o valor volta em `excluded.vehicles`). */
+  readonly excludeVehicleExpenses?: 'true'
   /** Motorista, agregado ou ajudante favorecido da conta. */
   readonly payeeDriverId?: string
   /** Veículo, ou `sem-veiculo`. */
@@ -32,6 +36,8 @@ export type ExpenseResultFilters = {
 export const EXPENSE_RESULT_FILTER_KEYS = [
   'categoryId',
   'customerId',
+  'excludeVehicleExpenses',
+  'includeCardInvoice',
   'payeeDriverId',
   'vehicleId',
 ] as const

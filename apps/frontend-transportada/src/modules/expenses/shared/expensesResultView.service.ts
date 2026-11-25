@@ -166,3 +166,18 @@ export function formatKilometersTotal(kilometers: string, locale: string): strin
   if (!Number.isFinite(value)) return kilometers
   return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)
 }
+
+/** A categoria da fatura do cartão ("Cartão de crédito", com ou sem acento e caixa): só ela tem a opção de contar ou não. */
+export function isCardInvoiceCategoryName(name: string): boolean {
+  const plain = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+  return plain === 'cartao de credito'
+}
+
+/** Dinheiro em texto que não é zero (`"0.00"` e `"-0.00"` não têm algarismo diferente de zero). */
+export function hasAmount(value: string): boolean {
+  return /[1-9]/.test(value)
+}

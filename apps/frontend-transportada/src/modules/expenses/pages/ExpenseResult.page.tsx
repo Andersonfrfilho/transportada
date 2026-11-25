@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
@@ -29,6 +30,7 @@ import {
   formatCompetenceLabel,
   formatKilometers,
   formatKilometersTotal,
+  hasAmount,
   formatMarginPercent,
   formatVariationPercent,
   isNegativeAmount,
@@ -580,6 +582,23 @@ export function ExpenseResultPage() {
             value={filters.payeeDriverId}
           />
         </div>
+        <div className={styles.field}>
+          <span>{t('resultPage.costOptions.title')}</span>
+          <Checkbox
+            ariaLabel={t('resultPage.costOptions.vehicles')}
+            checked={page.vehicleExpenses.included}
+            label={t('resultPage.costOptions.vehicles')}
+            onChange={page.vehicleExpenses.setIncluded}
+          />
+          {page.cardInvoice.available ? (
+            <Checkbox
+              ariaLabel={t('resultPage.costOptions.cardInvoice')}
+              checked={page.cardInvoice.included}
+              label={t('resultPage.costOptions.cardInvoice')}
+              onChange={page.cardInvoice.setIncluded}
+            />
+          ) : null}
+        </div>
       </section>
 
       <div className={styles.exportBar}>
@@ -625,6 +644,27 @@ export function ExpenseResultPage() {
           {result === undefined || result.unallocatedItems.length === 0 ? null : (
             <p className={styles.notice}>
               {t('resultPage.unallocated', { amount: formatAmount(result.unallocatedTotal) })}
+            </p>
+          )}
+          {result === undefined || !hasAmount(result.excluded.category) ? null : (
+            <p className={styles.notice}>
+              {t('resultPage.excluded.cardInvoice', {
+                amount: formatAmount(result.excluded.category),
+              })}
+            </p>
+          )}
+          {result === undefined || !hasAmount(result.excluded.vehicles) ? null : (
+            <p className={styles.notice}>
+              {t('resultPage.excluded.vehicles', {
+                amount: formatAmount(result.excluded.vehicles),
+              })}
+            </p>
+          )}
+          {result === undefined || !hasAmount(result.excluded.aggregateVehicles) ? null : (
+            <p className={styles.notice}>
+              {t('resultPage.excluded.aggregateVehicles', {
+                amount: formatAmount(result.excluded.aggregateVehicles),
+              })}
             </p>
           )}
           <p className={styles.hint}>{t('resultPage.notice')}</p>
