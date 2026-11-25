@@ -5,7 +5,7 @@ import {
   flattenNotificationPages,
   useNotifications,
 } from '@adatechnology/notification-ui'
-import type { JSX, ReactNode } from 'react'
+import { useEffect, type JSX, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { isNotificationVisible } from '../shared/notificationVisibility.service'
@@ -17,7 +17,11 @@ type NotificationInboxListProps = Readonly<{
 
 /** A linha do pacote, escondida quando já foi lida em outro dia. */
 const VisibleNotificationItem: typeof NotificationItem = (props) =>
-  isNotificationVisible(props.notification) ? <NotificationItem {...props} /> : (null as never)
+  isNotificationVisible(props.notification) ? (
+    <NotificationItem {...props} />
+  ) : (
+    (null as never)
+  ) /* o pacote só faz <Item/> dentro de <ul>; null é válido */
 
 /**
  * A lista de notificações do painel: lidas só aparecem no dia em que foram lidas. O filtro é na
@@ -33,6 +37,10 @@ export function NotificationInboxList({ onSelect }: NotificationInboxListProps):
     !query.isError &&
     notifications.length > 0 &&
     !notifications.some((notification) => isNotificationVisible(notification))
+  /* Só lidas antigas na página carregada e ainda há mais: busca a próxima em vez de deixar só "carregar mais". */
+  useEffect(() => {
+    if (hiddenOnly && query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage()
+  }, [hiddenOnly, query])
   const renderEmpty = (): ReactNode => <p>{t('empty')}</p>
 
   return (

@@ -16,7 +16,7 @@ export function toNotificationDay(value: Date | string): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : dayFormatter.format(date)
 }
 
-export type NotificationVisibilityInput = Readonly<{ readAt?: string | undefined }>
+export type NotificationVisibilityInput = Readonly<{ readAt?: string | null | undefined }>
 
 /**
  * Notificação lida só aparece se foi lida hoje; a não lida sempre aparece. `readAt` ilegível
@@ -26,7 +26,7 @@ export function isNotificationVisible(
   notification: NotificationVisibilityInput,
   now: Date = new Date(),
 ): boolean {
-  if (notification.readAt === undefined) return true
+  if (notification.readAt === undefined || notification.readAt === null) return true
   const readDay = toNotificationDay(notification.readAt)
   return readDay !== undefined && readDay === toNotificationDay(now)
 }

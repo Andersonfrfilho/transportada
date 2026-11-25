@@ -12,6 +12,7 @@ const NOW = new Date('2026-11-26T02:30:00Z')
 describe('notificações lidas só do dia', () => {
   test('não lida sempre aparece', () => {
     expect(isNotificationVisible({}, NOW)).toBe(true)
+    expect(isNotificationVisible({ readAt: null }, NOW)).toBe(true)
   })
 
   test('lida hoje aparece, lida ontem some', () => {
