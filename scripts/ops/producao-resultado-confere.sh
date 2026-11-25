@@ -4,7 +4,7 @@
 # Lista as contas do periodo (a mesma regra da API: competencia entre os meses, cancelada fora), soma por grupo de custo,
 # acha contas duplicadas e parcelas repetidas, e conta as viagens concluidas (mesma data de conclusao da API).
 set -euo pipefail
-REPO="${REPO:-$(git rev-parse --show-toplevel 2>/dev/null || echo /home/miyazaki/Documents/personal/transportada)}"
+REPO="${REPO:-/home/miyazaki/Documents/personal/transportada}"  # roda de qualquer pasta; o cwd não conta
 [ -f "$REPO/.github/scripts/railway-deploy.sh" ] || { echo "REPO invalido: $REPO" >&2; exit 1; }
 command -v railway >/dev/null || { echo "railway CLI nao encontrado" >&2; exit 1; }
 FROM="${1:-$(TZ=America/Sao_Paulo date +%Y-%m-01)}"
