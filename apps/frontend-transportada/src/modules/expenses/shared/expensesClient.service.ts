@@ -357,9 +357,9 @@ function unitCostFilters(filters: ExpenseResultFilters): ExpenseResultFilters {
     ...(filters.excludeVehicleExpenses === undefined
       ? {}
       : { excludeVehicleExpenses: filters.excludeVehicleExpenses }),
-    ...(filters.includeCardInvoice === undefined
+    ...(filters.excludeCardInvoice === undefined
       ? {}
-      : { includeCardInvoice: filters.includeCardInvoice }),
+      : { excludeCardInvoice: filters.excludeCardInvoice }),
   }
 }
 

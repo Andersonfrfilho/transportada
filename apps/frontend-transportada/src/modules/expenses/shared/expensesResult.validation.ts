@@ -145,7 +145,7 @@ function toFilters(value: unknown): ExpenseResultFilters {
   if (row.categoryId !== undefined) filters.categoryId = readString(row.categoryId)
   if (row.customerId !== undefined) filters.customerId = readString(row.customerId)
   if (row.excludeVehicleExpenses === 'true') filters.excludeVehicleExpenses = 'true'
-  if (row.includeCardInvoice === 'true') filters.includeCardInvoice = 'true'
+  if (row.excludeCardInvoice === 'true') filters.excludeCardInvoice = 'true'
   if (row.payeeDriverId !== undefined) filters.payeeDriverId = readString(row.payeeDriverId)
   if (row.vehicleId !== undefined) filters.vehicleId = readString(row.vehicleId)
   return filters

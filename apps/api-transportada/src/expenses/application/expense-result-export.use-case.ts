@@ -91,9 +91,7 @@ export function createExportExpenseResultUseCase(dependencies: {
       if (filters?.categoryId !== undefined) {
         filterTexts.push(`Categoria: ${labels.categoryName ?? filters.categoryId.slice(0, 8)}`)
       }
-      if (filters?.includeCardInvoice === 'true') {
-        filterTexts.push('Fatura do cartão de crédito contada no cálculo')
-      } else if (result.excluded.category !== '0.00') {
+      if (filters?.excludeCardInvoice === 'true') {
         filterTexts.push(`Fatura do cartão fora do cálculo: R$ ${result.excluded.category}`)
       }
       if (filters?.payeeDriverId !== undefined) {

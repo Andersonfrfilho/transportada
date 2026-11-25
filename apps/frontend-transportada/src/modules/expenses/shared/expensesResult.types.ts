@@ -42,8 +42,8 @@ export type ExpenseResultFilters = Readonly<{
   customerId?: string
   /** `'true'` tira do cálculo as contas ligadas aos veículos da frota (valor em `excluded.vehicles`). */
   excludeVehicleExpenses?: 'true'
-  /** `'true'` conta a fatura do cartão de crédito, que a API deixa fora por padrão (valor em `excluded.category`). */
-  includeCardInvoice?: 'true'
+  /** `'true'` tira do cálculo a fatura do cartão de crédito, que conta por padrão (valor em `excluded.category`). */
+  excludeCardInvoice?: 'true'
   payeeDriverId?: string
   vehicleId?: string
 }>

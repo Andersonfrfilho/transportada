@@ -67,7 +67,7 @@ export type ExpenseResult = {
   readonly byVehicle: readonly ExpenseResultLine[]
   /**
    * O que ficou fora do cálculo, sempre à vista: contas de veículo agregado ou de terceiro (quem paga é o agregado) e a
-   * categoria que o painel desligou (a fatura do cartão de crédito, salvo `filters.includeCardInvoice`). Valor considerado, duas casas.
+   * categoria que o painel desligou (a fatura do cartão de crédito, quando `filters.excludeCardInvoice`). Valor considerado, duas casas.
    */
   readonly excluded: {
     readonly aggregateVehicles: string
@@ -158,7 +158,7 @@ export async function computeExpenseResult(
   // rateio das demais contas não depende dela). O que saiu volta somado em `excluded`, nunca some.
   const dropVehicleExpenses = input.filters?.excludeVehicleExpenses === 'true'
   let excludedVehicles = ZERO
-  const countCardInvoice = input.filters?.includeCardInvoice === 'true'
+  const dropCardInvoice = input.filters?.excludeCardInvoice === 'true'
   let excludedAggregate = ZERO
   let excludedCategory = ZERO
   const active = notCanceled.filter((occurrence) => {
@@ -173,7 +173,7 @@ export async function computeExpenseResult(
       excludedVehicles += cents(considered(occurrence))
       return false
     }
-    if (!countCardInvoice && isCardInvoiceCategoryName(occurrence.categoryName)) {
+    if (dropCardInvoice && isCardInvoiceCategoryName(occurrence.categoryName)) {
       excludedCategory += cents(considered(occurrence))
       return false
     }

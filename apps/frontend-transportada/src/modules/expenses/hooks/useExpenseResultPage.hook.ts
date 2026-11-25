@@ -43,12 +43,12 @@ export type ExpenseResultFilterState = Readonly<{
 export function toResultFilters(
   state: ExpenseResultFilterState,
   costs: Readonly<{ includeCardInvoice: boolean; includeVehicleExpenses: boolean }> = {
-    includeCardInvoice: false,
+    includeCardInvoice: true,
     includeVehicleExpenses: true,
   },
 ): ExpenseResultFilters {
   return {
-    ...(costs.includeCardInvoice ? { includeCardInvoice: 'true' as const } : {}),
+    ...(costs.includeCardInvoice ? {} : { excludeCardInvoice: 'true' as const }),
     ...(costs.includeVehicleExpenses ? {} : { excludeVehicleExpenses: 'true' as const }),
     ...(state.categoryId === '' ? {} : { categoryId: state.categoryId }),
     ...(state.customerId === '' ? {} : { customerId: state.customerId }),
@@ -74,8 +74,8 @@ export function useExpenseResultPage() {
   }))
 
   const categories = useExpenseCategories({ enabled: canRead })
-  // Dois interruptores de custo: a fatura do cartão (a API a deixa fora por padrão) e as contas dos veículos da frota.
-  const [includeCardInvoice, setIncludeCardInvoice] = useState(false)
+  // Dois interruptores de custo: a fatura do cartão (conta por padrão) e as contas dos veículos da frota.
+  const [includeCardInvoice, setIncludeCardInvoice] = useState(true)
   const [includeVehicleExpenses, setIncludeVehicleExpenses] = useState(true)
   const cardCategory = (categories.data ?? []).find((category) =>
     isCardInvoiceCategoryName(category.name),

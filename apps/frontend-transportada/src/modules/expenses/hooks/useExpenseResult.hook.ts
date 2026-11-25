@@ -28,10 +28,10 @@ export function useExpenseUnitCosts(
 ) {
   /** O custo por km (RF17) só segue o período e os dois interruptores de custo (veículo e fatura do cartão). */
   const { from, to } = input.query
-  const includeCardInvoice = input.query.filters?.includeCardInvoice
+  const excludeCardInvoice = input.query.filters?.excludeCardInvoice
   const excludeVehicleExpenses = input.query.filters?.excludeVehicleExpenses
   const filters = {
-    ...(includeCardInvoice === undefined ? {} : { includeCardInvoice }),
+    ...(excludeCardInvoice === undefined ? {} : { excludeCardInvoice }),
     ...(excludeVehicleExpenses === undefined ? {} : { excludeVehicleExpenses }),
   }
   return useQuery({

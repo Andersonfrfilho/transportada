@@ -158,9 +158,17 @@ for (const theme of THEMES) {
           },
         }),
       )
-      await page.route(/\/expense-result(?:\?.*)?$/, (route) =>
-        fulfill(route, { calculatedAt: new Date().toISOString(), ...RESULT }),
-      )
+      // A API dublada segue a regra: a fatura só sai (e volta em `excluded.category`) com `excludeCardInvoice=true`.
+      await page.route(/\/expense-result(?:\?.*)?$/, (route) => {
+        const dropped = route.request().url().includes('excludeCardInvoice=true')
+        return fulfill(route, {
+          calculatedAt: new Date().toISOString(),
+          data: {
+            ...RESULT.data,
+            excluded: { ...RESULT.data.excluded, category: dropped ? '600.00' : '0.00' },
+          },
+        })
+      })
       await page.route(/\/expense-categories(?:\?.*)?$/, (route) =>
         fulfill(route, {
           data: [
@@ -175,19 +183,24 @@ for (const theme of THEMES) {
       page.on('request', (request) => {
         if (/\/expense-result\?/.test(request.url())) urls.push(request.url())
       })
-      await expect(page.getByText(/Fatura do cartão de crédito: R\$\s600,00/)).toBeVisible()
       await expect(
         page.getByText(/Contas de veículos agregados ou de terceiros: R\$\s340,00/),
       ).toBeVisible()
+      await expect(page.getByText(/Fatura do cartão de crédito: R\$/)).toHaveCount(0)
       await page.screenshot({
         fullPage: true,
         path: resolve(PRINTS_DIRECTORY, `resultado-custos-${theme}-${viewport}.png`),
       })
 
-      await page.getByRole('checkbox', { name: 'Contar a fatura do cartão de crédito' }).check()
+      await page.getByRole('checkbox', { name: 'Contar a fatura do cartão de crédito' }).uncheck()
+      await expect(page.getByText(/Fatura do cartão de crédito: R\$\s600,00/)).toBeVisible()
       await expect
-        .poll(() => urls.some((url) => url.includes('includeCardInvoice=true')))
+        .poll(() => urls.some((url) => url.includes('excludeCardInvoice=true')))
         .toBe(true)
+      await page.screenshot({
+        fullPage: true,
+        path: resolve(PRINTS_DIRECTORY, `resultado-custos-sem-fatura-${theme}-${viewport}.png`),
+      })
       await page.getByRole('checkbox', { name: 'Contar os gastos das nossas vans' }).uncheck()
       await expect
         .poll(() => urls.some((url) => url.includes('excludeVehicleExpenses=true')))

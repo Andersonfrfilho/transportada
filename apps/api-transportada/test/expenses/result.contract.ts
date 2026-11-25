@@ -354,6 +354,7 @@ describe('o que não é custo da frota própria fica fora do cálculo e à vista
   it('conta de veículo agregado ou de terceiro não entra no total nem no rateio, e o valor aparece à parte', async () => {
     const result = await createGetExpenseResultUseCase(seedWithAggregateAndCard()).execute({
       companyId: RESULT_COMPANY_A,
+      filters: { excludeCardInvoice: 'true' },
       ...PERIOD,
     })
 
@@ -366,10 +367,9 @@ describe('o que não é custo da frota própria fica fora do cálculo e à vista
     expect(sumCents(result.byTrip.map((l) => l.margin))).toBe(cents(result.totals.profit))
   })
 
-  it('com includeCardInvoice a fatura do cartão conta como conta da empresa', async () => {
+  it('sem excludeCardInvoice a fatura do cartão conta como conta da empresa', async () => {
     const result = await createGetExpenseResultUseCase(seedWithAggregateAndCard()).execute({
       companyId: RESULT_COMPANY_A,
-      filters: { includeCardInvoice: 'true' },
       ...PERIOD,
     })
 
@@ -384,7 +384,7 @@ describe('o que não é custo da frota própria fica fora do cálculo e à vista
   it('ligar os interruptores de custo não faz o resultado ecoar filtros', async () => {
     const result = await createGetExpenseResultUseCase(seed()).execute({
       companyId: RESULT_COMPANY_A,
-      filters: { excludeVehicleExpenses: 'true', includeCardInvoice: 'true' },
+      filters: { excludeVehicleExpenses: 'true', excludeCardInvoice: 'true' },
       ...PERIOD,
     })
 
@@ -398,11 +398,11 @@ describe('o que não é custo da frota própria fica fora do cálculo e à vista
       ...PERIOD,
     })
 
-    // seguro do veículo 2 (400,00) sai; o aluguel (1000,01) fica; agregado e fatura já estavam fora.
-    expect(result.totals.expensesTotal).toBe('1000.01')
+    // seguro do veículo 2 (400,00) sai; o aluguel (1000,01) fica; a fatura do cartão (600,00) conta por padrão e o agregado já estava fora.
+    expect(result.totals.expensesTotal).toBe('1600.01')
     expect(result.excluded).toEqual({
       aggregateVehicles: '340.00',
-      category: '600.00',
+      category: '0.00',
       vehicles: '400.00',
     })
     expect(sumCents(result.byTrip.map((l) => l.margin))).toBe(cents(result.totals.profit))
