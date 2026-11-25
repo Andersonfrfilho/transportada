@@ -19,6 +19,7 @@ import {
 } from '../shared/expensesResult.types'
 import {
   currentMonthPeriod,
+  formatVehicleDescription,
   listTrendCompetences,
   monthPeriod,
   previousPeriod,
@@ -100,6 +101,12 @@ export function useExpenseResultPage() {
     label: vehicle.plate,
     value: vehicle.id,
   }))
+  const vehicleDescriptions = new Map(
+    (vehiclesQuery.data?.items ?? []).map((vehicle) => [
+      vehicle.id,
+      formatVehicleDescription(vehicle),
+    ]),
+  )
   const customers: readonly SelectOption[] = (contractors.data ?? []).map((contractor) => ({
     label: contractor.displayName === '' ? contractor.taxId : contractor.displayName,
     value: contractor.id,
@@ -119,6 +126,9 @@ export function useExpenseResultPage() {
     forecastError: forecast.error,
     isAuthLoading: authQuery.isPending,
     isLoading: result.isPending && canRead,
+    descriptionOf: {
+      vehicle: (id: string): null | string => vehicleDescriptions.get(id) ?? null,
+    },
     labelOf: {
       customer: (id: string) => customers.find((option) => option.value === id)?.label ?? id,
       vehicle: (id: string) => vehicles.find((option) => option.value === id)?.label ?? id,

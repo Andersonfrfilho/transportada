@@ -140,3 +140,13 @@ export function forecastMarginPercent(forecast: ExpenseForecastValues): null | s
 export function formatKilometers(distanceMeters: number): string {
   return String(Math.round(distanceMeters / 1000))
 }
+
+/** Marca, modelo e ano do veículo numa linha só ("Volvo FH 540 · 2021"); campo vazio (ano 0) some e tudo vazio é `null`. */
+export function formatVehicleDescription(
+  vehicle: Readonly<{ brand: string; model: string; modelYear: number }>,
+): null | string {
+  const name = [vehicle.brand.trim(), vehicle.model.trim()].filter((part) => part !== '').join(' ')
+  const year = vehicle.modelYear > 0 ? String(vehicle.modelYear) : ''
+  const text = [name, year].filter((part) => part !== '').join(' · ')
+  return text === '' ? null : text
+}
