@@ -135,11 +135,12 @@ export function ExpenseResultPage() {
     if (vehicleId === EXPENSE_NO_VEHICLE_ID) {
       return <strong>{t('resultPage.filters.noVehicle')}</strong>
     }
-    const description = page.descriptionOf.vehicle(vehicleId)
+    const { aggregate, description } = page.descriptionOf.vehicle(vehicleId)
     return (
       <div>
         <strong>{page.labelOf.vehicle(vehicleId)}</strong>
         {description === null ? null : <span className={styles.rowDetail}>{description}</span>}
+        {aggregate === null ? null : <span className={styles.rowDetail}>{aggregate}</span>}
       </div>
     )
   }

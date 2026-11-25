@@ -150,3 +150,12 @@ export function formatVehicleDescription(
   const text = [name, year].filter((part) => part !== '').join(' · ')
   return text === '' ? null : text
 }
+
+/** Só veículo agregado mostra o proprietário ("Agregado: José da Silva"); sem nome na ficha, só "Agregado". */
+export function formatVehicleAggregate(
+  vehicle: Readonly<{ ownership: string; owner: Readonly<{ name: string }> | null }>,
+): null | string {
+  if (vehicle.ownership !== 'aggregate') return null
+  const name = vehicle.owner?.name.trim() ?? ''
+  return name === '' ? 'Agregado' : `Agregado: ${name}`
+}

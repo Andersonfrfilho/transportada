@@ -19,6 +19,7 @@ import {
 } from '../shared/expensesResult.types'
 import {
   currentMonthPeriod,
+  formatVehicleAggregate,
   formatVehicleDescription,
   listTrendCompetences,
   monthPeriod,
@@ -104,7 +105,10 @@ export function useExpenseResultPage() {
   const vehicleDescriptions = new Map(
     (vehiclesQuery.data?.items ?? []).map((vehicle) => [
       vehicle.id,
-      formatVehicleDescription(vehicle),
+      {
+        aggregate: formatVehicleAggregate(vehicle),
+        description: formatVehicleDescription(vehicle),
+      },
     ]),
   )
   const customers: readonly SelectOption[] = (contractors.data ?? []).map((contractor) => ({
@@ -127,7 +131,8 @@ export function useExpenseResultPage() {
     isAuthLoading: authQuery.isPending,
     isLoading: result.isPending && canRead,
     descriptionOf: {
-      vehicle: (id: string): null | string => vehicleDescriptions.get(id) ?? null,
+      vehicle: (id: string): Readonly<{ aggregate: null | string; description: null | string }> =>
+        vehicleDescriptions.get(id) ?? { aggregate: null, description: null },
     },
     labelOf: {
       customer: (id: string) => customers.find((option) => option.value === id)?.label ?? id,

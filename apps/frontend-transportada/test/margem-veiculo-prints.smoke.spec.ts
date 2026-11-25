@@ -111,6 +111,17 @@ for (const theme of THEMES) {
             id,
             model,
             modelYear,
+            ownership: id === 'v-2' ? 'aggregate' : 'own',
+            owner:
+              id === 'v-2'
+                ? {
+                    name: 'José da Silva',
+                    rntrc: '12345678',
+                    state: 'SP',
+                    taxId: '12345678000195',
+                    taxRegime: '1',
+                  }
+                : null,
             plate,
           })),
           page: { nextCursor: null },
@@ -158,6 +169,7 @@ for (const theme of THEMES) {
       await expect(panel.getByText('QNF0I62')).toBeVisible()
       await expect(panel.getByText('Volvo FH 540 · 2021')).toBeVisible()
       await expect(panel.getByText('Fiat Fiorino')).toBeVisible()
+      await expect(panel.getByText('Agregado: José da Silva')).toBeVisible()
       await panel.screenshot({
         path: resolve(PRINTS_DIRECTORY, `por-veiculo-${theme}-${viewport}.png`),
       })

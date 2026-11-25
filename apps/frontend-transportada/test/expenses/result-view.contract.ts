@@ -10,6 +10,7 @@ import {
   amountPerKm,
   currentMonthPeriod,
   formatKilometers,
+  formatVehicleAggregate,
   formatVehicleDescription,
   formatMarginPercent,
   formatVariationPercent,
@@ -79,5 +80,14 @@ describe('expensesResultView.service', () => {
     expect(formatVehicleDescription({ brand: 'Fiat', model: '', modelYear: 0 })).toBe('Fiat')
     expect(formatVehicleDescription({ brand: '', model: '', modelYear: 2019 })).toBe('2019')
     expect(formatVehicleDescription({ brand: ' ', model: '', modelYear: 0 })).toBeNull()
+  })
+
+  it('formatVehicleAggregate só aparece para agregado e usa o nome do proprietário', () => {
+    expect(
+      formatVehicleAggregate({ owner: { name: ' José da Silva ' }, ownership: 'aggregate' }),
+    ).toBe('Agregado: José da Silva')
+    expect(formatVehicleAggregate({ owner: null, ownership: 'aggregate' })).toBe('Agregado')
+    expect(formatVehicleAggregate({ owner: { name: 'X' }, ownership: 'own' })).toBeNull()
+    expect(formatVehicleAggregate({ owner: { name: 'X' }, ownership: 'third_party' })).toBeNull()
   })
 })
