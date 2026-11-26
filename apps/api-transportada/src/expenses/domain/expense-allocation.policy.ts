@@ -54,6 +54,8 @@ export type AllocationTrip = {
   readonly route?: ExpenseTripRoute | null
   readonly tripId: string
   readonly vehicleId: string
+  /** Dono do veículo (`own`, `aggregate`, `third_party`); só informa a origem do custo, nunca entra no rateio. */
+  readonly vehicleOwnership?: string | null
 }
 
 /** Conta do período com o valor já considerado (pago, senão previsto); cancelada nunca chega aqui. */

@@ -184,10 +184,18 @@ export function toExpenseResult(payload: unknown): ExpenseResult {
       profit: readMoney(totals.profit),
       revenue: readMoney(totals.revenue),
       tripCost: readMoney(totals.tripCost),
+      tripCostBreakdown: toTripCostBreakdown(totals.tripCostBreakdown),
     },
     unallocatedItems: readOptionalArray(data.unallocatedItems).map(toUnallocated),
     unallocatedTotal: readMoney(data.unallocatedTotal),
   }
+}
+
+function toTripCostBreakdown(value: unknown): { aggregates: string; ownVans: string } {
+  // Painel tolerante: API antiga não manda o detalhamento.
+  if (value === undefined) return { aggregates: '0.00', ownVans: '0.00' }
+  const row = readRecord(value)
+  return { aggregates: readMoney(row.aggregates), ownVans: readMoney(row.ownVans) }
 }
 
 function toUnitLine(value: unknown): ExpenseUnitCostLine {

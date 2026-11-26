@@ -192,6 +192,12 @@ export function ExpenseResultPage() {
           <dt>{t('resultPage.indicators.tripCost')}</dt>
           <dd>{formatAmount(totals.tripCost)}</dd>
           <small>{t('resultPage.indicators.tripCostHint')}</small>
+          <small>
+            {t('resultPage.indicators.tripCostBreakdown', {
+              aggregates: formatAmount(totals.tripCostBreakdown.aggregates),
+              ownVans: formatAmount(totals.tripCostBreakdown.ownVans),
+            })}
+          </small>
         </div>
         <div>
           <dt>{t('resultPage.indicators.expenses')}</dt>

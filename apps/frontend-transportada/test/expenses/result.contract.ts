@@ -43,7 +43,13 @@ const RESULT = {
     excesses: [{ amount: '50.00', occurrenceId: 'o1', payeeDriverId: null }],
     paymentsWithoutTrips: [],
     settings: { administrative: 'per_revenue', per_km: 'per_km', vehicle_fixed: 'equal' },
-    totals: { expensesTotal: '10.00', profit: '-5.50', revenue: '104.50', tripCost: '100.00' },
+    totals: {
+      expensesTotal: '10.00',
+      profit: '-5.50',
+      revenue: '104.50',
+      tripCost: '100.00',
+      tripCostBreakdown: { aggregates: '60.00', ownVans: '40.00' },
+    },
     unallocatedItems: [
       {
         amount: '3.00',
@@ -81,6 +87,7 @@ describe('expenses result — guard', () => {
   it('lê o resultado com dinheiro em texto, margem negativa e listas opcionais', () => {
     const result = toExpenseResult(RESULT)
     expect(result.totals.profit).toBe('-5.50')
+    expect(result.totals.tripCostBreakdown).toEqual({ aggregates: '60.00', ownVans: '40.00' })
     expect(result.byTrip[0]?.margin).toBe('-5.50')
     expect(result.unallocatedItems[0]?.reason).toBe('vehicle_without_trips')
     expect(result.settings?.vehicle_fixed).toBe('equal')
@@ -96,6 +103,10 @@ describe('expenses result — guard', () => {
       },
     })
     expect(minimal.excesses).toEqual([])
+    const oldApi = toExpenseResult({
+      data: { ...RESULT.data, totals: { ...RESULT.data.totals, tripCostBreakdown: undefined } },
+    })
+    expect(oldApi.totals.tripCostBreakdown).toEqual({ aggregates: '0.00', ownVans: '0.00' })
     expect(minimal.settings).toBeNull()
     expect(minimal.calculatedAt).toBeNull()
   })
