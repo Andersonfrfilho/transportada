@@ -5,6 +5,7 @@
  * (T4.6) e o custo por km (RF17): lucro = faturamento − custo das viagens − contas, e a soma das margens por viagem, por
  * veículo e por cliente fecha com ele, centavo a centavo, com o não rateado sempre à vista.
  */
+import { isCardInvoiceCategoryName } from '../domain/expense-card-invoice.policy.js'
 import { formatCents, parseMoneyToCents } from '../domain/expense-money.policy.js'
 import type { ExpenseTripRoute } from '../domain/expense-trip-route.policy.js'
 import {
@@ -64,6 +65,15 @@ export type ExpenseResult = {
   readonly byCustomer: readonly ExpenseResultLine[]
   readonly byTrip: readonly ExpenseResultTripLine[]
   readonly byVehicle: readonly ExpenseResultLine[]
+  /**
+   * O que ficou fora do cálculo, sempre à vista: contas de veículo agregado ou de terceiro (quem paga é o agregado) e a
+   * categoria que o painel desligou (a fatura do cartão de crédito, quando `filters.excludeCardInvoice`). Valor considerado, duas casas.
+   */
+  readonly excluded: {
+    readonly aggregateVehicles: string
+    readonly category: string
+    readonly vehicles: string
+  }
   /** Pagamento que passou das viagens incluídas, rateado como conta da empresa (ADR-0116 §5). */
   /** Os filtros aplicados, só quando houve algum. */
   readonly filters?: ExpenseResultFilters
@@ -143,7 +153,32 @@ export async function computeExpenseResult(
   ])
   const settings: AllocationSettings = { ...DEFAULT_ALLOCATION_SETTINGS, ...configured }
 
-  const active = occurrences.filter((occurrence) => occurrence.status !== 'canceled')
+  const notCanceled = occurrences.filter((occurrence) => occurrence.status !== 'canceled')
+  // Custo de veículo é da frota própria: a conta ligada a agregado ou terceiro nem entra no rateio (ADR-0116 §4 segue: o
+  // rateio das demais contas não depende dela). O que saiu volta somado em `excluded`, nunca some.
+  const dropVehicleExpenses = input.filters?.excludeVehicleExpenses === 'true'
+  let excludedVehicles = ZERO
+  const dropCardInvoice = input.filters?.excludeCardInvoice === 'true'
+  let excludedAggregate = ZERO
+  let excludedCategory = ZERO
+  const active = notCanceled.filter((occurrence) => {
+    if (
+      occurrence.vehicleOwnership === 'aggregate' ||
+      occurrence.vehicleOwnership === 'third_party'
+    ) {
+      excludedAggregate += cents(considered(occurrence))
+      return false
+    }
+    if (dropVehicleExpenses && occurrence.vehicleId !== null) {
+      excludedVehicles += cents(considered(occurrence))
+      return false
+    }
+    if (dropCardInvoice && isCardInvoiceCategoryName(occurrence.categoryName)) {
+      excludedCategory += cents(considered(occurrence))
+      return false
+    }
+    return true
+  })
   const expenses: AllocationExpense[] = active.map((occurrence) => ({
     amount: considered(occurrence),
     costGroup: occurrence.costGroup,
@@ -251,6 +286,11 @@ export async function computeExpenseResult(
       }
     }),
     byVehicle: lines(byVehicle),
+    excluded: {
+      aggregateVehicles: formatCents(excludedAggregate),
+      category: formatCents(excludedCategory),
+      vehicles: formatCents(excludedVehicles),
+    },
     excesses: keptExcesses.map((excess) => ({
       amount: excess.amount,
       occurrenceId: excess.occurrenceId,

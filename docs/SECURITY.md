@@ -2986,3 +2986,21 @@ outra: `trip.financials` (margem da viagem) e `billing.*` (o que a empresa cobra
 catálogo de papéis mudar ou quando um papel financeiro precisar só da leitura.
 
 **Origem:** spec 325, T1.3. Registrado em 2026-11-13.
+
+### 2026-11-25 — permissão `financial-results.read`: o resultado da empresa é do administrador
+
+**Onde:** `api-transportada`, `identity/domain/authorization.policy.ts` e `trips/presentation/financial-summary.routes.ts`
+(`GET /financial-results`); painel em `frontend-transportada` (menu e página Resultados, catálogo do `/auth/me`, matriz
+de grupos).
+
+**O que é:** o acumulado de resultados (margem por período, veículo, cliente e agregado, e o que se paga a cada agregado)
+usava `trip.financials`, que `finance` e `operator` também têm para ver custo e receita de **uma** viagem. Isso abria o
+resultado da empresa inteira a quem não é administrador, tanto no menu quanto na API. A permissão nova **não herda** de
+nenhuma outra; só o `company-admin` a recebe por papel, concedível por grupo, e a rota e o menu exigem a mesma.
+`trip.financials` segue valendo para o financeiro da viagem, repasses e ressarcimentos.
+
+**Contratos:** `test/authorization.contract.test.ts` (catálogo, matriz e nenhum outro papel),
+`test/trip-financial/summary.contract.ts` (política da rota), `test/user-administration-application/role-permissions.contract.ts`
+(a tela de grupos a oferece) e, no painel, `test/shared/workspace-access.contract.ts`.
+
+**Origem:** pedido do Anderson em 2026-11-25. Quem precisar ver Resultados fora do administrador recebe a permissão por grupo.

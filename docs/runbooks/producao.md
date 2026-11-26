@@ -113,6 +113,7 @@ Regras que já custaram tempo:
 | `scripts/ops/producao-lembrete-viagens-despachadas.sh`                  | viagens `dispatched`/`in_transit` sem "Iniciar rota" que passam a receber o lembrete "sem evento" (spec 299, emenda D10 de 10/11/2026), interruptor da empresa e `DRIVER_REMINDERS_ENABLED` (só true/false); rodar antes de promover a emenda à `main`                                                                                                                                                                                          | leitura                         |
 | `scripts/ops/producao-tipos-ocorrencia.sh`                              | tipos de ocorrência de produção com os modos da promoção #678 e a contagem de ocorrências (§ 5.29)                                                                                                                                                                                                                                                                                                                                              | leitura                         |
 | `scripts/ops/producao-pos-promocao-678.sh`                              | conferência pós-deploy da promoção #678 de 11/11/2026: tabelas novas, rotina `whatsapp-inbox.chat.expire` pausada, trava e coleta de canhoto desligadas, lembrete do motorista (§ 5.29)                                                                                                                                                                                                                                                         | leitura                         |
+| `scripts/ops/producao-resultado-confere.sh [de] [ate]`                  | contas do período (mesma regra da API), soma por grupo de custo, contas duplicadas e parcelas fora do total, viagens concluídas e veículos não próprios; confere a tela Resultados (25/11/2026)                                                                                                                                                                                                                                                 | leitura                         |
 
 Quando uma consulta nova for útil mais de uma vez, copie-a para `scripts/ops/` neste repositório.
 
@@ -1605,3 +1606,70 @@ desligado; sem `--confirm` só simula e desfaz).
 **Aplicado em staging em 21/11/2026 (19:06, horário de Brasília)** com `--confirm`: a Única não tinha exceção (`antes` vazio) e ficou com
 foto obrigatória e o resto desligado (linha `1214905e…`; saída em
 `tmp/ops/saidas/staging-unica-so-canhoto-20261121T220639Z.json`). Produção não foi tocada.
+
+## 5.49 Promoção #939 staging → main (22/11/2026): o que foi para produção e como conferir
+
+O #939 foi mergeado em 22/11/2026 (merge `66cb191`), com os checks do PR verdes. O gate e o deploy da `main` ficaram verdes
+(`deploy-api`, `deploy-services`, `deploy-frontend`, `deploy-driver`, `deploy-client`, `deploy-landing` e `mark-deployed`).
+
+- **45 commits desde a promoção de 19/11:** canhoto retido (spec 321: nota livre para outra viagem, marca sai ao entregar, tipo já aberto
+  bloqueado no app, coleta só de canhoto libera e despacha, coleta fora da carga/mapa 3D/CT-e, foto exigida na entrega, #916 a #937),
+  correção do 500 ao mover nota com cobrança no recebimento (#935), descartar mensagens sem conversa e resolver ocorrências em massa
+  (#932, #933), Resultados no mês corrente, logo do login no tema escuro e as Contas passando a usar `@adatechnology/expense-contracts`
+  0.1.0 (#921, #923 a #928, sem mudança de comportamento).
+- **1 migration, aditiva, com rollback:** `20261121123415_occurrence_unassigned_dismissal` (colunas `dismissed_at` e `dismissed_by_user_id`,
+  índice parcial recriado, 1 FK e 1 CHECK em `occurrence_conversation_unassigned`). Roda no `preDeployCommand` da API. Sem variável nova.
+- **Não religa nada:** o aviso de Contas por e-mail segue como estava.
+- **Conferir (somente leitura):** `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-pos-promocao-939-confere.sh`
+  (cópia em `/mnt/project-files/promocao-939/`). Esperado: 2 colunas novas, 3 itens entre índice e constraints, rotinas de Contas no estado
+  anterior. A saída vai para `tmp/ops/saidas/`.
+
+- **Conferência feita (22/11/2026, 12:33 de Brasília):** 2 colunas novas, índice e 2 constraints presentes, 11 mensagens sem conversa abertas e
+  nenhuma descartada, rotinas de Contas como estavam. A primeira tentativa falhou por timeout do `railway ssh` na rede do Anderson e passou ao
+  repetir; entre as duas, a saúde da API de produção foi confirmada pelo deploy `SUCCESS` e pelo `/health/ready` (Railway MCP).
+- **Tipo "Canhoto retido pelo cliente" cadastrado em produção (22/11/2026, 12:34 de Brasília, aval do Anderson):** id
+  `83e07840-079a-47aa-943a-231a9df0c40a`, criado por `bash /home/miyazaki/Documents/personal/transportada/tmp/ops/producao-canhoto-retido-tipo.sh --confirm`
+  (cópia em `scripts/ops/producao-canhoto-retido-tipo.sh`; sem `--confirm` só simula; usa o `canhoto-retido-type-publish.ts` da imagem da API, que só
+  cria e nunca reescreve). Marcas: etapa entrega, momentos documento e escritório, foto, observação e localização obrigatórias, não avisa a
+  contratante, cria coleta de canhoto, repetição até resolver. Isto vale a partir de agora para o motorista em produção. Para desligar, inative o
+  tipo na aba Tipos de `/ocorrencias`.
+
+## 5.50 Resposta do bot a "cheguei/saí" em viagem não despachada (23/11/2026)
+
+- **Sintoma:** o bot pediu a localização, o motorista a mandou e a resposta foi "Essa parada não está mais disponível na viagem", sem registrar nada.
+  Causa medida em produção: a viagem estava `route_planned` (nunca despachada). A lista do bot inclui viagem planejada
+  (`CURRENT_DRIVER_TRIP_STATUSES`), mas `findStopForDriver` só alcança viagem na rua (`TRIP_ON_ROAD_STATUSES`), e a recusa vira `stop_not_reachable`.
+- **Como diagnosticar (somente leitura, `railway ssh -s api -e production`, `bun -e` com o `DATABASE_URL` do serviço):** o transcript do pedido fica em
+  `whatsapp_group_requests.state.transcript` (cada fala do motorista e do bot); a viagem e as paradas em `trips`/`trip_stops`. Scripts
+  (cópias em `scripts/ops/`, saídas em `tmp/ops/saidas/`): `producao-bot-link-maps-confere.sh`, `producao-bot-parada-indisponivel-confere.sh`,
+  `producao-viagem-rogerio-pronta-para-despachar.sh`. Nos logs da API, `whatsapp_group_request.answered` mostra o passo e o desfecho; mensagem sem
+  `answered` nem `not_addressed` próprio costuma ser a resposta do bot ou uma localização.
+- **Despachar viagem planejada em produção:** só pelo botão "Despachar" do painel. O `dispatch` congela o roteiro, desloca os ETAs e grava o evento de
+  status, e a imagem da API não traz `src/trips` (só `dist` e poucas pastas de `src`): `UPDATE` à mão deixaria a viagem sem snapshot.
+- **Correção (staging, branch `fix/bot-viagem-nao-despachada-e-link-maps`):** o bot avisa antes de pedir a localização que a viagem não foi despachada,
+  e o link do Google Maps com coordenadas na URL vale como o ponto (`whatsapp-maps-location.policy.ts`; link curto ou só com nome de lugar não vale).
+
+## 5.51 O bot pede ao escritório para despachar a viagem planejada (24/11/2026) — staging; ainda não está em produção
+
+- **O que muda:** quando o motorista (tripulação) manda "saí"/"cheguei" numa viagem `route_planned`, o bot guarda o evento com a hora da mensagem e
+  **pergunta no 1:1 ao responsável** (quem levou a viagem a `route_planned`, com telefone verificado em `user_whatsapp_phones`) se pode despachar.
+  "Sim" despacha pelo mesmo caso de uso do painel (`dispatchTrip`, canal `whatsapp`, sem `loadRemaining` nem `force`) e lança os eventos na ordem da hora em que o motorista mandou;
+  "não" avisa o motorista. Só responde quem tem `trip.manage`; pelo WhatsApp só despacha com a **carga fechada** (senão o bot manda o escritório despachar pelo painel).
+  Prazo de 10 minutos com reaviso aos 5; vencido, nada é despachado sozinho e o motorista é avisado.
+- **Dado novo:** tabela `trip_dispatch_requests` (migration `20261124034805_trip_dispatch_requests`, aditiva; rollback manual em `rollback.sql`). Um pedido aberto por viagem
+  (índice parcial); `pending_events` guarda os eventos do motorista; `status` = `open | approved | declined | expired | failed`; `resolution_note` diz o porquê de `failed`
+  (`not_allowed`, `dispatch_failed`).
+- **Como diagnosticar (somente leitura):** `select status, resolution_note, created_at, resolved_at, reminded_at, pending_events from trip_dispatch_requests where trip_id = '<id>' order by created_at;`
+  e, na viagem, `trip_status_events` (o despacho vem com `channel = 'whatsapp'`). Log do vigia: `whatsapp_trip_dispatch_approval.tick_failed`.
+- **Limites conhecidos:** a localização compartilhada pelo motorista não acompanha o evento guardado (entra como indisponível); o responsável que também é motorista e tem pedido aberto
+  tem as mensagens curtas do 1:1 lidas como resposta nos 10 minutos do pedido; só o canal Evolution foi tratado (Meta não).
+- **Promoção para produção:** vai com a próxima promoção `staging → main` (não é correção crítica). A migration é aditiva; conferir depois que `trip_dispatch_requests` existe.
+
+## 5.49 XML "não é uma NF-e válida" pelo WhatsApp (24/11/2026) — somente leitura, nada alterado em produção
+
+- **Sintoma:** o bot respondeu "Importei 0 notas… 1 caso: o arquivo não é uma NF-e válida" para a NF 2109 da SPSUL (chave `35261161544313000103550010000021091615443137`), duas vezes (10:15 e 10:19 BRT).
+- **Causa (medida):** o XML está certo (`nfeProc` 4.00, UTF-8 sem BOM, 53 KB; o `importarNfeXml` do pacote fiscal 0.4.0 lê sem erro). O item ficou `rejected` com `NFE_IMPORT_UNRELATED_CNPJ`: o emitente (CNPJ 61544313000103) **não é contratante** cadastrado e o CNPJ da empresa não aparece no XML (transportadora da nota: 22844546000161). O texto do bot usava a frase genérica para qualquer código que não conhecia, escondendo o motivo. A nota não existia em `nfe_documents`.
+- **Correção de texto:** `receipt-messages.policy.ts` agora diz o motivo de `NFE_IMPORT_UNRELATED_CNPJ` e `NFE_IMPORT_ISSUER_NOT_CONTRACTOR` (só staging; vai à `main` na próxima promoção, não é bug crítico).
+- **Para a nota entrar:** cadastrar o emitente como contratante (painel) e reprocessar a recusada (§ "Entrada de XML por e-mail e WhatsApp": botão "Reprocessar" ou `producao-reprocessa-recusadas.sh`), ou reenviar o XML.
+- **Diagnóstico (somente leitura):** `scripts/ops/producao-xml-rejeitado-diagnostico.sh` — recibos, importações, itens com `error.code`, nota cadastrada e contratantes das últimas 24 h. Saída em `tmp/ops/saidas/`.
+- **Armadilhas do script:** `interval` não aceita parâmetro no `Bun.SQL` (use literal); aspas simples dentro de `bun -e '…'` quebram o shell — passar o JS em base64 (padrão da § 2). O `limit 10` dos itens cortou os itens do WhatsApp; filtre por `import_id` dos recibos se houver muitas importações.

@@ -632,3 +632,77 @@ describe('o robô de canhoto contra o Postgres (spec 222 CA10, CA12, CA19)', () 
     120_000,
   )
 })
+
+/**
+ * Spec 344 CA01 contra o Postgres: a leitura OCR do robô grava Nº/Série com `readSource = 'ocr'` e
+ * a prova segue `pending` — as CHECK de forma aceitam (número e origem juntos, sem nota apontada),
+ * e a trilha é a do robô, sem número.
+ */
+describe('a leitura OCR do robô contra o Postgres (spec 344 CA01)', () => {
+  testWithPostgres(
+    'o número de outra nota grava a leitura, segue pendente e deixa a trilha sem número',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        const proof = await attachProof(database, world, CANHOTO_KIND)
+
+        const view = await reviewAs({
+          channel: 'service',
+          command: {
+            action: 'automatic',
+            readDocumentId: null,
+            readNumber: '172195',
+            readSeries: '1',
+            readSource: 'ocr',
+          },
+          database,
+          world,
+        })
+
+        expect(view).toMatchObject({ canhotoReview: 'pending', canhotoReviewOrigin: null })
+        expect(await readReview(database, proof.id)).toMatchObject({
+          canhotoReadDocumentId: null,
+          canhotoReadNumber: '172195',
+          canhotoReadSeries: '1',
+          canhotoReadSource: 'ocr',
+          canhotoReview: 'pending',
+          canhotoReviewAt: null,
+          canhotoReviewByUserId: null,
+          canhotoReviewOrigin: null,
+        })
+        const audits = await readCanhotoAudits(database, world.company.companyId)
+        expect(audits).toHaveLength(1)
+        expect(audits[0]).toMatchObject({ action: AUTOMATIC_AUDIT_ACTION, entityId: proof.id })
+        expect(JSON.stringify(audits[0])).not.toContain('172195')
+      })
+    },
+    120_000,
+  )
+
+  testWithPostgres(
+    'mesmo com o número da própria nota, OCR do robô não aprova',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const world = await seedDeliveredWorld(database)
+        const proof = await attachProof(database, world, CANHOTO_KIND)
+        const documentNumber = await readDocumentNumber(database, world)
+
+        await reviewAs({
+          channel: 'service',
+          command: {
+            action: 'automatic',
+            readDocumentId: null,
+            readNumber: documentNumber,
+            readSeries: null,
+            readSource: 'ocr',
+          },
+          database,
+          world,
+        })
+
+        expect((await readReview(database, proof.id))?.canhotoReview).toBe('pending')
+      })
+    },
+    120_000,
+  )
+})

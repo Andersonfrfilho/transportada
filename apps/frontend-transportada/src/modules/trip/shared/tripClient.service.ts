@@ -16,6 +16,12 @@ import {
   type FieldDeliveryOcrDocument,
 } from './fieldDeliveryOcrDocuments.service'
 import {
+  canhotoMoveBody,
+  canhotoMoveResultFromApi,
+  type CanhotoMoveProofInput,
+  type CanhotoMoveResult,
+} from './canhotoMove.service'
+import {
   canhotoReviewResultFromApi,
   type CanhotoReviewProofInput,
   type CanhotoReviewResult,
@@ -230,6 +236,8 @@ export type TripClient = Readonly<{
   ) => Promise<readonly TripDeliveryProof[]>
   /** Spec 220 T7.9: `PATCH .../proof/review`, `trip.manage`. Idempotente por desenho: sem chave. */
   canhotoReviewProof: (input: CanhotoReviewProofInput) => Promise<CanhotoReviewResult>
+  /** Spec 344 T5c (D9): `POST .../proof/move`, `trip.manage` — a foto passa para a NF certa. */
+  canhotoMoveProof: (input: CanhotoMoveProofInput) => Promise<CanhotoMoveResult>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   /** A carga antes de a viagem existir: notas, veículo e a ordem que o operador montou no mapa. */
   previewCargo: (
@@ -1455,6 +1463,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/proof/review`,
       })
       return canhotoReviewResultFromApi(readEnvelopeData(response))
+    },
+    async canhotoMoveProof(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify(canhotoMoveBody(input)),
+        dependencies,
+        method: 'POST',
+        path: `${documentPath(input)}/proof/move`,
+      })
+      return canhotoMoveResultFromApi(readEnvelopeData(response))
     },
     /**
      * Consulta **própria**, fora do detalhe: a chamada ao OSRM custou 63 ms medidos, e o detalhe é

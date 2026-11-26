@@ -6855,3 +6855,23 @@ button.occurrenceCaseBadge {
   display: grid;
   gap: var(--space-1);
 }
+
+/* Spec 344 T5: faixa "Parece ser da NF X" — mesmo cobre do `.alert`, com a borda e o fundo do aviso. */
+.canhotoMismatchNotice {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  background: color-mix(in srgb, var(--color-copper) 10%, transparent);
+}
+
+.canhotoMismatchHeadline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-copper-ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+}

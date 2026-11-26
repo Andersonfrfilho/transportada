@@ -197,6 +197,7 @@ import {
   whatsappGroupRequestMessages,
   whatsappGroupRequests,
 } from './whatsapp-group-request.schema.js'
+import { tripDispatchRequests } from './trip-dispatch-request.schema.js'
 import { whatsappCanhotoQuestions } from './whatsapp-canhoto-question.schema.js'
 import { whatsappDeliveryPreparations } from './whatsapp-delivery-preparation.schema.js'
 import { whatsappOccurrenceDrafts } from './whatsapp-occurrence-draft.schema.js'
@@ -314,6 +315,7 @@ export * from './contractor-occurrence-channel.schema.js'
 export * from './whatsapp-channel.schema.js'
 export * from './whatsapp-evolution.schema.js'
 export * from './whatsapp-chat.schema.js'
+export * from './trip-dispatch-request.schema.js'
 export * from './whatsapp-group-request.schema.js'
 export * from './whatsapp-canhoto-question.schema.js'
 export * from './whatsapp-delivery-preparation.schema.js'
@@ -495,6 +497,7 @@ export const databaseSchema = {
   whatsappChatMessages,
   whatsappGroupRequestMessages,
   whatsappGroupRequests,
+  tripDispatchRequests,
   whatsappCanhotoQuestions,
   whatsappDeliveryPreparations,
   whatsappOccurrenceDrafts,

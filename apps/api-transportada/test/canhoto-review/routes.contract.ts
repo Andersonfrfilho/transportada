@@ -402,3 +402,63 @@ describe('o corpo do robô não aceita ação nem veredito (CA16)', () => {
     expect((await patch(fixture, { ...AUTOMATIC_READING, channel: 'service' })).status).toBe(400)
   })
 })
+
+/**
+ * Spec 344 D5/RF3 (CA01): a rota do robô passa a receber o Nº/Série que o OCR leu da tira. O que
+ * muda é só a forma aceita: `ocr` exige número (o OCR que não ancorou nada manda a leitura vazia) e
+ * **proíbe** `readDocumentId` — a nota X é achada pelo servidor, na empresa da prova, e nunca pelo
+ * que o robô diz ter casado. O `.strict()` continua: `action` e veredito seguem 400.
+ */
+describe('a leitura OCR do robô (spec 344 CA01)', () => {
+  const OCR_READING = {
+    readDocumentId: null,
+    readNumber: '172195',
+    readSeries: '1',
+    readSource: 'ocr',
+  } as const
+
+  test('número e série lidos por OCR chegam à porta como foram lidos, sem nota apontada', async () => {
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
+    const response = await patchAutomatic(fixture, OCR_READING)
+    expect(response.status).toBe(200)
+    expect(fixture.calls[0]).toMatchObject({
+      channel: 'service',
+      command: { action: 'automatic', ...OCR_READING },
+    })
+  })
+
+  test('série não lida é legítima: o alerta por número não depende dela', async () => {
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
+    expect((await patchAutomatic(fixture, { ...OCR_READING, readSeries: null })).status).toBe(200)
+    expect(fixture.calls[0]).toMatchObject({ command: { readSeries: null, readSource: 'ocr' } })
+  })
+
+  test.each([
+    { extra: { readDocumentId: DOCUMENT_ID }, label: '`readDocumentId` com `ocr` (proibido)' },
+    { extra: { readNumber: null }, label: '`ocr` sem número' },
+    { extra: { readNumber: null, readSeries: null }, label: '`ocr` sem número nem série' },
+    { extra: { action: 'automatic' }, label: '`action` no corpo do OCR' },
+    { extra: { action: 'approve' }, label: 'aprovar pelo OCR' },
+    { extra: { review: 'approved' }, label: 'veredito no corpo do OCR' },
+    { extra: { readNumber: '1'.repeat(44) }, label: 'chave disfarçada de número no OCR (RNF03)' },
+    { extra: { readSource: 'texto' }, label: 'origem fora da lista' },
+  ])('$label é 400 e não chega à porta', async ({ extra }) => {
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
+    expect((await patchAutomatic(fixture, { ...OCR_READING, ...extra })).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('`readDocumentId` ausente no OCR é 400: os quatro campos seguem obrigatórios', async () => {
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
+    const rest = Object.fromEntries(
+      Object.entries(OCR_READING).filter(([key]) => key !== 'readDocumentId'),
+    )
+    expect((await patchAutomatic(fixture, rest)).status).toBe(400)
+    expect(fixture.calls).toEqual([])
+  })
+
+  test('o código de barras continua apontando a nota que leu (o OCR não muda a leitura de hoje)', async () => {
+    const fixture = createFixture({ permissions: SERVICE_PERMISSIONS, serviceAccount: true })
+    expect((await patchAutomatic(fixture, ROBOT_READING)).status).toBe(200)
+  })
+})

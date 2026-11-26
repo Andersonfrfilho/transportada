@@ -91,6 +91,19 @@ describe('receipt messages policy', () => {
     expect(many.split('\n').filter((line) => line.startsWith('   -'))).toHaveLength(5)
   })
 
+  test('nota recusada por cadastro diz o motivo em vez de "não é uma NF-e válida"', () => {
+    const text = buildSummary({
+      counts: { duplicated: 0, failed: 0, imported: 0, invalid: 0, received: 2, rejected: 2 },
+      problems: [
+        { code: 'NFE_IMPORT_UNRELATED_CNPJ', count: 1 },
+        { code: 'NFE_IMPORT_ISSUER_NOT_CONTRACTOR', count: 1 },
+      ],
+    })
+    expect(text).not.toContain('não é uma NF-e válida')
+    expect(text).toContain('1 caso: o emitente da nota não está cadastrado como contratante')
+    expect(text).toContain('1 caso: a nota não foi emitida pelo contratante ligado ao seu e-mail')
+  })
+
   test('o resumo ao contratante cumprimenta, agradece, diz quantas notas entraram e não expõe o sistema', () => {
     const text = buildSummary({
       counts: { duplicated: 10, failed: 0, imported: 0, invalid: 0, received: 10, rejected: 0 },

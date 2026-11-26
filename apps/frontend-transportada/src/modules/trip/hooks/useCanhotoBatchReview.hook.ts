@@ -81,7 +81,10 @@ export function useCanhotoBatchReview(input: UseCanhotoBatchReviewInput) {
     setIsOpen(false)
   }
 
-  async function confirm(documentIds: readonly string[]): Promise<void> {
+  async function confirm(
+    documentIds: readonly string[],
+    options?: Readonly<{ keepOpen: boolean }>,
+  ): Promise<void> {
     setIsSubmitting(true)
     try {
       const result = await input.approveBatch({ documentIds, tripId })
@@ -91,7 +94,7 @@ export function useCanhotoBatchReview(input: UseCanhotoBatchReviewInput) {
           ? null
           : { failedCount: result.failed.length, totalCount: documentIds.length, tripId },
       )
-      setIsOpen(false)
+      if (options?.keepOpen !== true) setIsOpen(false)
     } finally {
       setIsSubmitting(false)
     }

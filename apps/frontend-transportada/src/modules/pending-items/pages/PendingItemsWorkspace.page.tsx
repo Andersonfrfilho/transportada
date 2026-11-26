@@ -8,11 +8,14 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { buildFleetVehicleRoute } from '@/modules/fleet/shared/fleetRoute.service'
 
 import { usePendingItems } from '../hooks/usePendingItems.hook'
+import { CanhotoProofPreview } from '../components/CanhotoProofPreview.component'
 import { FieldReportHoldList } from '../components/FieldReportHoldList.component'
 import { AddressSuggestionMap } from '../components/AddressSuggestionMap.component'
 import type {
   AddressSuggestionDecision,
   AddressSuggestionPendingItem,
+  CanhotoOtherDocumentDecision,
+  CanhotoOtherDocumentPendingItem,
   PendingItem,
 } from '../shared/pendingItemsClient.service'
 import styles from '../styles/pendingItems.module.css'
@@ -72,15 +75,26 @@ export function PendingItemsWorkspacePage() {
             {workspace.items.map((item) => (
               <PendingItemRow
                 canDecide={workspace.controller.canDecideAddressSuggestions}
-                isDeciding={workspace.decisionMutation.isPending}
+                isDeciding={
+                  workspace.decisionMutation.isPending ||
+                  workspace.canhotoDecisionMutation.isPending
+                }
                 item={item}
                 key={`${item.kind}-${item.entityId}`}
                 onDecide={(decision) =>
                   workspace.decisionMutation.mutate({ decision, suggestionId: item.entityId })
                 }
+                onDecideCanhoto={(decision, canhotoItem) =>
+                  workspace.canhotoDecisionMutation.mutate({ decision, item: canhotoItem })
+                }
               />
             ))}
           </ul>
+          {workspace.canhotoDecisionMutation.isError ? (
+            <p className={styles.boundary} role="alert">
+              {t('status.canhoto.failed')}
+            </p>
+          ) : null}
           {workspace.decisionMutation.isError ? (
             <p className={styles.boundary} role="alert">
               {t('status.decisionError')}
@@ -107,9 +121,19 @@ type PendingItemRowProps = Readonly<{
   isDeciding: boolean
   item: PendingItem
   onDecide: (decision: AddressSuggestionDecision) => void
+  onDecideCanhoto: (
+    decision: CanhotoOtherDocumentDecision,
+    item: CanhotoOtherDocumentPendingItem,
+  ) => void
 }>
 
-function PendingItemRow({ canDecide, isDeciding, item, onDecide }: PendingItemRowProps) {
+function PendingItemRow({
+  canDecide,
+  isDeciding,
+  item,
+  onDecide,
+  onDecideCanhoto,
+}: PendingItemRowProps) {
   const { t } = useTranslation('pendingItems')
 
   if (item.kind === 'addressSuggestedByDriver') {
@@ -119,6 +143,17 @@ function PendingItemRow({ canDecide, isDeciding, item, onDecide }: PendingItemRo
         isDeciding={isDeciding}
         item={item}
         onDecide={onDecide}
+      />
+    )
+  }
+
+  if (item.kind === 'canhotoOtherDocument') {
+    return (
+      <CanhotoOtherDocumentRow
+        canDecide={canDecide}
+        isDeciding={isDeciding}
+        item={item}
+        onDecide={onDecideCanhoto}
       />
     )
   }
@@ -138,7 +173,8 @@ function AddressSuggestionRow({
   isDeciding,
   item,
   onDecide,
-}: Omit<PendingItemRowProps, 'item'> & Readonly<{ item: AddressSuggestionPendingItem }>) {
+}: Omit<PendingItemRowProps, 'item' | 'onDecideCanhoto'> &
+  Readonly<{ item: AddressSuggestionPendingItem }>) {
   const { t } = useTranslation('pendingItems')
   const { distanceMeters } = item.details
 
@@ -161,6 +197,73 @@ function AddressSuggestionRow({
           <Button
             disabled={isDeciding}
             onClick={() => onDecide('dismiss')}
+            type="button"
+            variant="ghost"
+          >
+            {t('actions.dismiss')}
+          </Button>
+        </div>
+      ) : null}
+    </li>
+  )
+}
+
+type CanhotoOtherDocumentRowProps = Readonly<{
+  canDecide: boolean
+  isDeciding: boolean
+  item: CanhotoOtherDocumentPendingItem
+  onDecide: (decision: CanhotoOtherDocumentDecision, item: CanhotoOtherDocumentPendingItem) => void
+}>
+
+/** Spec 344 T5d: "a foto da NF X parece ser da NF Y" — Aplicar move, Descartar mantém. */
+function CanhotoOtherDocumentRow({
+  canDecide,
+  isDeciding,
+  item,
+  onDecide,
+}: CanhotoOtherDocumentRowProps) {
+  const { t } = useTranslation('pendingItems')
+  const { details } = item
+  const target = details.targetNumber === null ? undefined : details
+
+  return (
+    <li className={styles.suggestion}>
+      <div className={styles.suggestionHeader}>
+        <span>
+          {target === undefined
+            ? t('items.canhotoOtherDocument.unknown', {
+                number: item.label,
+                read: details.readNumber,
+              })
+            : t('items.canhotoOtherDocument.matched', {
+                number: item.label,
+                target: target.targetNumber,
+                targetSeries: target.targetSeries ?? '',
+              })}
+        </span>
+        <span>
+          {details.targetSameTrip === false
+            ? t('canhoto.otherTrip')
+            : details.targetCanhotoApproved === true
+              ? t('canhoto.alreadyApproved')
+              : null}
+        </span>
+      </div>
+      <CanhotoProofPreview
+        documentId={details.documentId}
+        proofId={item.entityId}
+        tripId={details.tripId}
+      />
+      {canDecide ? (
+        <div className={styles.suggestionActions}>
+          {details.movable ? (
+            <Button disabled={isDeciding} onClick={() => onDecide('apply', item)} type="button">
+              {t('actions.apply')}
+            </Button>
+          ) : null}
+          <Button
+            disabled={isDeciding}
+            onClick={() => onDecide('dismiss', item)}
             type="button"
             variant="ghost"
           >

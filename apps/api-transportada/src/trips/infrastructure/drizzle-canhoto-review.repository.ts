@@ -177,7 +177,7 @@ async function insertCanhotoReviewAudit(
   })
 }
 
-async function readCanhotoReviewView(
+export async function readCanhotoReviewView(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly proofId: string },
 ): Promise<CanhotoReviewView> {

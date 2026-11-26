@@ -140,3 +140,44 @@ export function forecastMarginPercent(forecast: ExpenseForecastValues): null | s
 export function formatKilometers(distanceMeters: number): string {
   return String(Math.round(distanceMeters / 1000))
 }
+
+/** Marca, modelo e ano do veículo numa linha só ("Volvo FH 540 · 2021"); campo vazio (ano 0) some e tudo vazio é `null`. */
+export function formatVehicleDescription(
+  vehicle: Readonly<{ brand: string; model: string; modelYear: number }>,
+): null | string {
+  const name = [vehicle.brand.trim(), vehicle.model.trim()].filter((part) => part !== '').join(' ')
+  const year = vehicle.modelYear > 0 ? String(vehicle.modelYear) : ''
+  const text = [name, year].filter((part) => part !== '').join(' · ')
+  return text === '' ? null : text
+}
+
+/** Só veículo agregado mostra o proprietário ("Agregado: José da Silva"); sem nome na ficha, só "Agregado". */
+export function formatVehicleAggregate(
+  vehicle: Readonly<{ ownership: string; owner: Readonly<{ name: string }> | null }>,
+): null | string {
+  if (vehicle.ownership !== 'aggregate') return null
+  const name = vehicle.owner?.name.trim() ?? ''
+  return name === '' ? 'Agregado' : `Agregado: ${name}`
+}
+
+/** Quilômetros do indicador ("43536.308" → "43.536" em pt-BR): sem casa decimal e com separador de milhar, como o resto da tela. */
+export function formatKilometersTotal(kilometers: string, locale: string): string {
+  const value = Number(kilometers)
+  if (!Number.isFinite(value)) return kilometers
+  return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)
+}
+
+/** A categoria da fatura do cartão ("Cartão de crédito", com ou sem acento e caixa): só ela tem a opção de contar ou não. */
+export function isCardInvoiceCategoryName(name: string): boolean {
+  const plain = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+  return plain === 'cartao de credito'
+}
+
+/** Dinheiro em texto que não é zero (`"0.00"` e `"-0.00"` não têm algarismo diferente de zero). */
+export function hasAmount(value: string): boolean {
+  return /[1-9]/.test(value)
+}

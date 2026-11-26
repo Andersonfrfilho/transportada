@@ -40,6 +40,10 @@ export type ExpenseResultPeriod = Readonly<{ from: string; to: string }>
 export type ExpenseResultFilters = Readonly<{
   categoryId?: string
   customerId?: string
+  /** `'true'` tira do cálculo as contas ligadas aos veículos da frota (valor em `excluded.vehicles`). */
+  excludeVehicleExpenses?: 'true'
+  /** `'true'` tira do cálculo a fatura do cartão de crédito, que conta por padrão (valor em `excluded.category`). */
+  excludeCardInvoice?: 'true'
   payeeDriverId?: string
   vehicleId?: string
 }>
@@ -88,6 +92,8 @@ export type ExpenseResult = Readonly<{
   byTrip: readonly ExpenseResultTripLine[]
   byVehicle: readonly ExpenseResultLine[]
   calculatedAt: string | null
+  /** O que ficou fora do cálculo, à vista: contas de veículo agregado/terceiro e a categoria desligada (API anterior: zeros). */
+  excluded: Readonly<{ aggregateVehicles: string; category: string; vehicles: string }>
   excesses: readonly ExpenseResultPayment[]
   filters: ExpenseResultFilters
   paymentsWithoutTrips: readonly ExpenseResultPayment[]

@@ -474,6 +474,9 @@ describe('Drizzle migrations', () => {
       '20261117112851_occurrence_manual_notice_kind',
       '20261118210000_occurrence_type_icons_address_closed',
       '20261121123415_occurrence_unassigned_dismissal',
+      '20261122182415_trip_canhoto_ocr_attempt',
+      '20261122195101_trip_canhoto_mismatch_dismissal',
+      '20261124034805_trip_dispatch_requests',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -2201,6 +2204,99 @@ describe('o estado do ponto entra aditivo e o histórico sem coordenada fica NUL
     expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
     expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
     expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /** Spec 344 T5d: o descarte do alerta é uma coluna anulável, sem default nem backfill. */
+  test('adds the canhoto mismatch dismissal as a nullable column with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_trip_canhoto_mismatch_dismissal'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const statements = migrationSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n')
+
+    expect(statements.trim()).toBe(
+      'ALTER TABLE "trip_delivery_proofs" ADD COLUMN "canhoto_mismatch_dismissed_at" timestamp with time zone;',
+    )
+    expect(rollbackSql).toContain('DROP COLUMN "canhoto_mismatch_dismissed_at"')
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /** O pedido de despacho do bot ao escritório é uma tabela nova, aditiva, com um pedido aberto por viagem. */
+  test('creates the trip dispatch requests table additively with one open request per trip', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_trip_dispatch_requests'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+
+    expect(migrationSql).toContain('CREATE TABLE "trip_dispatch_requests"')
+    expect(migrationSql).toContain(
+      `CREATE UNIQUE INDEX "trip_dispatch_requests_company_trip_open_unique" ON "trip_dispatch_requests" ("company_id","trip_id") WHERE "status" = 'open'`,
+    )
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    expect(rollbackSql).toContain('DROP TABLE "trip_dispatch_requests"')
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Spec 344 D7: a fila do OCR do Nº/Série tem carimbo próprio. As mesmas três decisões do índice
+   * da 222 (literal, sem `kind`, só `created_at`), e o predicado **não** cita
+   * `canhoto_read_attempted_at` — é o canhoto que o código de barras já tentou que o OCR precisa ler.
+   */
+  test('creates the canhoto OCR queue with its own nullable stamp and a literal predicate', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_trip_canhoto_ocr_attempt'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const statements = migrationSql
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('--'))
+      .join('\n')
+
+    expect(statements).toContain(
+      'ALTER TABLE "trip_delivery_proofs" ADD COLUMN "canhoto_ocr_attempted_at" timestamp with time zone;',
+    )
+    for (const forbidden of ['NOT NULL', 'DEFAULT', 'UPDATE ', 'DELETE ', 'DROP ']) {
+      expect(statements).not.toContain(forbidden)
+    }
+    const indexStatement = statements.match(
+      /CREATE INDEX "trip_delivery_proofs_canhoto_ocr_pending_idx"[^;]*;/u,
+    )
+    expect(indexStatement?.[0]).toContain('("created_at")')
+    expect(indexStatement?.[0]).toContain(
+      `WHERE "canhoto_review" = 'pending' and "canhoto_read_source" is null and "canhoto_ocr_attempted_at" is null`,
+    )
+    expect(indexStatement?.[0]).not.toContain('"kind"')
+    expect(indexStatement?.[0]).not.toContain('canhoto_read_attempted_at')
+
+    expect(rollbackSql.indexOf('DROP COLUMN "canhoto_ocr_attempted_at"')).toBeGreaterThan(
+      rollbackSql.indexOf('DROP INDEX "trip_delivery_proofs_canhoto_ocr_pending_idx"'),
+    )
+    expect(
+      rollbackSql.indexOf('DROP INDEX "trip_delivery_proofs_canhoto_ocr_pending_idx"'),
+    ).toBeGreaterThan(-1)
+    expect(rollbackSql).toContain(`"name" = '${directory ?? ''}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+    expect(rollbackSql).not.toContain('canhoto_read_attempted_at')
   })
 
   /**

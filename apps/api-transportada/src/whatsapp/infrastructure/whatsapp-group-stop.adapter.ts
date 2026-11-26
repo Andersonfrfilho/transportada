@@ -4,6 +4,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
+import { TRIP_ON_ROAD_STATUSES } from '../../trips/domain/trip-state.policy.js'
 import type { ReportedLocation } from '../../trips/application/driver-field-report.port.js'
 import type { DriverTrip } from '../../trips/application/find-current-driver-trip.use-case.js'
 import { flattenTripStopsWithUniqueSequence } from '../../trips/domain/driver-stops-numbering.policy.js'
@@ -33,6 +34,7 @@ import {
   toOrderStopLabel,
 } from '../../whatsapp-commands/domain/whatsapp-driver-order.policy.js'
 import { WHATSAPP_DRIVER_STOP_COMMAND } from '../../whatsapp-commands/domain/whatsapp-driver-command.policy.js'
+import type { TripDispatchBridge } from '../application/whatsapp-trip-dispatch-approval.service.js'
 import type { GroupStopFlowPorts } from '../application/whatsapp-group-stop-flow.service.js'
 import {
   describeArrivalReply,
@@ -87,6 +89,8 @@ export function createGroupStopPorts(dependencies: {
     readonly driverId: string
   }) => null | ReportedLocation
   readonly database: Database
+  /** A ponte do pedido de despacho ao escritório; ausente ou vazia, o bot só avisa que a viagem não foi despachada. */
+  readonly tripDispatchBridge?: TripDispatchBridge
   /** Spec 294 RF24: há ponto compartilhado recente? Ausente, o bot não pede a localização. */
   readonly hasLocation?: (input: {
     readonly companyId: string
@@ -116,6 +120,7 @@ export function createGroupStopPorts(dependencies: {
   readonly stopCards?: WhatsAppStopCardReader
 }): GroupStopFlowPorts {
   const terminal = new Set<string>(TRIP_TERMINAL_STATUSES)
+  const onRoad = new Set<string>(TRIP_ON_ROAD_STATUSES)
   const speech = dependencies.speech ?? CATALOG_BOT_SPEECH
   const clock = dependencies.clock ?? (() => new Date())
   const say = (companyId: string, line: BotSpeechLine) =>
@@ -189,6 +194,40 @@ export function createGroupStopPorts(dependencies: {
       ),
 
     listStops: (input) => listOpenStops(input),
+
+    async isStopTripNotDispatched(input) {
+      const trips = await dependencies.listActiveTrips(input)
+      const trip = trips.find((candidate) =>
+        candidate.stops.some((stop) => stop.id === input.stopId),
+      )
+      return trip !== undefined && !onRoad.has(trip.status)
+    },
+
+    ...(dependencies.tripDispatchBridge === undefined
+      ? {}
+      : {
+          tripDispatchBridge: dependencies.tripDispatchBridge,
+          async requestTripDispatch(input) {
+            const approval = dependencies.tripDispatchBridge?.current
+            const tripId = await findTripIdOfStop(input)
+            if (approval === undefined || tripId === undefined) return null
+            const outcome = await approval.request({
+              companyId: input.companyId,
+              driverId: input.driverId,
+              event: {
+                ...(input.documentNumber === undefined
+                  ? {}
+                  : { documentNumber: input.documentNumber }),
+                event: input.event,
+                sentAt: input.sentAt.toISOString(),
+                stopId: input.stopId,
+              },
+              groupJid: input.groupJid,
+              tripId,
+            })
+            return outcome.replies
+          },
+        }),
 
     ...(dependencies.cancelDeparture === undefined
       ? {}

@@ -122,6 +122,7 @@ export function createDrizzleExpenseResultPorts(
         const rows = await database
           .select({
             categoryId: companyExpenses.categoryId,
+            categoryName: companyExpenseCategories.name,
             costGroup: companyExpenseCategories.costGroup,
             expectedAmount: companyExpenseOccurrences.expectedAmount,
             expenseId: companyExpenses.id,
@@ -132,6 +133,7 @@ export function createDrizzleExpenseResultPorts(
             payeeDriverId: companyExpenses.payeeDriverId,
             status: companyExpenseOccurrences.status,
             vehicleId: companyExpenses.vehicleId,
+            vehicleOwnership: fleetVehicles.ownership,
           })
           .from(companyExpenseOccurrences)
           .innerJoin(
@@ -148,6 +150,13 @@ export function createDrizzleExpenseResultPorts(
               eq(companyExpenseCategories.id, companyExpenses.categoryId),
             ),
           )
+          .leftJoin(
+            fleetVehicles,
+            and(
+              eq(fleetVehicles.companyId, companyExpenses.companyId),
+              eq(fleetVehicles.id, companyExpenses.vehicleId),
+            ),
+          )
           .where(
             and(
               eq(companyExpenseOccurrences.companyId, companyId),
@@ -158,6 +167,7 @@ export function createDrizzleExpenseResultPorts(
           .orderBy(companyExpenseOccurrences.dueDate, companyExpenseOccurrences.id)
         return rows.map((row) => ({
           categoryId: row.categoryId,
+          categoryName: row.categoryName,
           costGroup: toCostGroup(row.costGroup),
           expectedAmount: row.expectedAmount,
           expenseId: row.expenseId,
@@ -168,6 +178,7 @@ export function createDrizzleExpenseResultPorts(
           payeeDriverId: row.payeeDriverId,
           status: row.status,
           vehicleId: row.vehicleId,
+          vehicleOwnership: row.vehicleOwnership,
         }))
       },
     },

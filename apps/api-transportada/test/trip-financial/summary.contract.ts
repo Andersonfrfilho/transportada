@@ -97,3 +97,18 @@ describe('o acumulado do período (spec 061 T007)', () => {
     })
   })
 })
+
+/** O acumulado da empresa é do administrador: a rota exige `financial-results.read`, não `trip.financials`. */
+describe('GET /financial-results — permissão', () => {
+  test('exige financial-results.read, de escopo da empresa', async () => {
+    const { createFinancialSummaryRoutes } = await import(
+      '../../src/trips/presentation/financial-summary.routes.js'
+    )
+    const routes = createFinancialSummaryRoutes({
+      readSummary: { execute: async () => ({}) as never },
+    })
+
+    expect(routes).toHaveLength(1)
+    expect(routes[0]?.policy).toEqual({ permission: 'financial-results.read', scope: 'company' })
+  })
+})

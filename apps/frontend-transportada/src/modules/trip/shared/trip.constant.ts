@@ -777,6 +777,8 @@ export const DELIVERY_PROOF_KEYS = [
  * máscara) já saía da API desde a spec 082 e a chave exata recusava a lista inteira por ele.
  */
 export const DELIVERY_PROOF_OPTIONAL_KEYS = [
+  /** Spec 344 RF5: aceito antes de a API publicá-lo (ADR-0081 §9); forma em `canhotoMismatch.validation.ts`. */
+  'canhotoMismatch',
   'canhotoReadNumber',
   'canhotoReadSeries',
   'canhotoReadSource',

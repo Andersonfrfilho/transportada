@@ -157,6 +157,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    */
   'expenses.read',
   'expenses.manage',
+  /**
+   * O acumulado de resultados da empresa (margem por veículo, cliente e agregado — `GET /financial-results`) é do
+   * administrador. `trip.financials` não basta: ela segue com `finance` e `operator` para ver custo e receita de UMA
+   * viagem, mas o resultado da empresa inteira não sai de carona com ela. Só o `company-admin` recebe; concedível por grupo.
+   */
+  'financial-results.read',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -203,6 +209,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'holiday-import.configure',
     'expenses.read',
     'expenses.manage',
+    'financial-results.read',
   ]),
   finance: Object.freeze([
     'cte.read',

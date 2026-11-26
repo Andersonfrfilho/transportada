@@ -217,6 +217,18 @@ const workerEnvironmentSchema = z
     /** Onde a imagem grava os modelos do PP-OCRv4 (Dockerfile). Ausente, o OCR não existe, ligado ou não. */
     CANHOTO_OCR_MODEL_DIR: optionalText(),
     /**
+     * Spec 344 D6: a segunda passada da rotina `trip.canhoto.read` (OCR do Nº/Série impresso no canhoto). Flag própria,
+     * **desligada em todo ambiente** até ser pedida com `true` (memória medida em staging antes de produção). Usa os mesmos
+     * modelos (`CANHOTO_OCR_MODEL_DIR`) e a mesma thread do OCR do bot quando os dois estão ligados.
+     */
+    CANHOTO_NUMBER_OCR_ENABLED: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      z
+        .enum(['true', 'false'], { message: 'CANHOTO_NUMBER_OCR_ENABLED must be true or false' })
+        .default('false')
+        .transform((value) => value === 'true'),
+    ),
+    /**
      * Spec 301: domínios EXTRAS em que `notas@<domínio>` também é a caixa de XML de NF-e (além do domínio de resposta da empresa),
      * separados por vírgula. Serve ao apelido curto que o e-mail comum da empresa encaminha para a caixa de entrada.
      */
@@ -239,6 +251,15 @@ const workerEnvironmentSchema = z
     WORKER_PREFETCH: z.coerce.number().int().min(1).max(100).default(1),
   })
   .superRefine((environment, context) => {
+    // Spec 344 D6: a passada pedida sem modelos na imagem não pode virar silêncio.
+    if (environment.CANHOTO_NUMBER_OCR_ENABLED && environment.CANHOTO_OCR_MODEL_DIR === undefined) {
+      context.addIssue({
+        code: 'custom',
+        message: 'CANHOTO_NUMBER_OCR_ENABLED=true requires CANHOTO_OCR_MODEL_DIR',
+        path: ['CANHOTO_NUMBER_OCR_ENABLED', 'CANHOTO_OCR_MODEL_DIR'],
+      })
+    }
+
     const declared = TECHNICAL_RESPONSIBLE_KEYS.filter(
       (key) => environment[key] !== undefined,
     ).length
@@ -442,6 +463,7 @@ export function parseWorkerEnvironment(
       ? {}
       : { botAudioTranscriptionPrompt: result.data.BOT_AUDIO_TRANSCRIPTION_PROMPT }),
     ...toCanhotoOcrEnvironment(result.data),
+    ...toCanhotoNumberOcrEnvironment(result.data),
     nfeXmlMailboxDomains: (result.data.NFE_XML_MAILBOX_DOMAINS ?? '')
       .split(',')
       .map((domain) => domain.trim().toLowerCase())
@@ -686,6 +708,28 @@ function parseAllowedRecipients(raw: string | undefined): readonly string[] | un
     .map((entry) => entry.trim().toLowerCase())
     .filter((entry) => entry !== '')
   return entries.length === 0 ? undefined : entries
+}
+
+/**
+ * Spec 344 D6: só existe com a flag ligada **e** os modelos na imagem. Ligada sem `CANHOTO_OCR_MODEL_DIR` já foi
+ * recusada no `superRefine` (derruba o boot).
+ */
+function toCanhotoNumberOcrEnvironment(
+  environment: Readonly<{
+    CANHOTO_NUMBER_OCR_ENABLED: boolean
+    CANHOTO_OCR_MODEL_DIR: string | undefined
+    CANHOTO_OCR_TIMEOUT_MS: number
+  }>,
+): { readonly canhotoNumberOcr?: NonNullable<WorkerEnvironment['canhotoNumberOcr']> } {
+  if (!environment.CANHOTO_NUMBER_OCR_ENABLED || environment.CANHOTO_OCR_MODEL_DIR === undefined) {
+    return {}
+  }
+  return {
+    canhotoNumberOcr: {
+      modelDirectory: environment.CANHOTO_OCR_MODEL_DIR,
+      timeoutMilliseconds: environment.CANHOTO_OCR_TIMEOUT_MS,
+    },
+  }
 }
 
 /** Spec 294 T4.8: ligado fora de produção, desligado em produção; sem o diretório dos modelos, não existe. */

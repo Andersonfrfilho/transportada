@@ -58,7 +58,7 @@ const EXPECTED_WORKSPACE_PERMISSIONS: Readonly<Record<string, readonly string[]>
   // useOccurrenceReimbursements.hook.ts:54
   reimbursements: ['trip.financials'],
   // FinancialResultsWorkspace.page.tsx:27
-  'trip-financials': ['trip.financials'],
+  'trip-financials': ['financial-results.read'],
   // useExpensesWorkspace.hook.ts (spec 325): a API lê com expenses.read; só o administrador a tem
   expenses: ['expenses.read'],
   // me-trip.routes.ts:109 (API) — a página do motorista não tem parede; spec 221 RF-E6

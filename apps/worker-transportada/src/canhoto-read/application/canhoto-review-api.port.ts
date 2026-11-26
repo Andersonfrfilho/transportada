@@ -10,7 +10,8 @@ export type CanhotoReadingReport = Readonly<{
   readDocumentId: string | null
   readNumber: string | null
   readSeries: string | null
-  readSource: 'barcode' | null
+  /** Spec 344 D5: `ocr` leva número e nunca `readDocumentId` (a rota recusa); o servidor deixa `pending`. */
+  readSource: 'barcode' | 'ocr' | null
 }>
 
 export type ReportCanhotoReadingParams = Readonly<{

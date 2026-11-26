@@ -421,6 +421,15 @@ import {
 } from './whatsapp/application/whatsapp-group-stop-flow.service.js'
 import { createWhatsAppOfficeStopEvents } from './whatsapp-commands/infrastructure/whatsapp-office-stop-events.adapter.js'
 import { createGroupStopPorts } from './whatsapp/infrastructure/whatsapp-group-stop.adapter.js'
+import {
+  createTripDispatchApproval,
+  type TripDispatchBridge,
+} from './whatsapp/application/whatsapp-trip-dispatch-approval.service.js'
+import {
+  DrizzleTripDispatchRequestRepository,
+  findDriverFirstName,
+  findTripPlannerWithPhone,
+} from './whatsapp/infrastructure/drizzle-trip-dispatch-request.repository.js'
 import { createWhatsAppRouteClosingReader } from './whatsapp-commands/infrastructure/whatsapp-route-closing.reader.js'
 import { createGroupReturnPorts } from './whatsapp/infrastructure/whatsapp-group-return.adapter.js'
 import {
@@ -639,6 +648,8 @@ import {
 import { TRIP_FIELD_CHANNELS } from './trips/domain/trip-field-channel.constant.js'
 import { formatOccurrenceMoment } from './trips/domain/occurrence-mail-values.policy.js'
 import { correctOccurrenceItems } from './trips/application/correct-occurrence-items.use-case.js'
+import { dismissCanhotoMismatch } from './trips/application/dismiss-canhoto-mismatch.use-case.js'
+import { moveCanhotoProof } from './trips/application/move-canhoto-proof.use-case.js'
 import { reviewCanhotoProof } from './trips/application/review-canhoto-proof.use-case.js'
 import { cancelOccurrence } from './trips/application/cancel-occurrence.use-case.js'
 import {
@@ -752,6 +763,7 @@ import { createListPendingItemsUseCase } from './pending-items/application/list-
 import { createAddressSuggestionPendingItemSource } from './pending-items/infrastructure/drizzle-address-correction-suggestion-pending-item.source.js'
 import { createAddressCorrectionSuggestionRoutes } from './address-correction-suggestions/presentation/address-correction-suggestion.routes.js'
 import { createDrizzleAddressCorrectionSuggestionDecisions } from './address-correction-suggestions/infrastructure/drizzle-address-correction-suggestion.repository.js'
+import { createCanhotoOtherDocumentPendingItemSource } from './pending-items/infrastructure/drizzle-canhoto-other-document-pending-item.source.js'
 import { createFleetBodyTypePendingItemSource } from './pending-items/infrastructure/drizzle-fleet-body-type-pending-item.source.js'
 import { createPendingItemsRoutes } from './pending-items/presentation/pending-items.routes.js'
 import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
@@ -847,6 +859,8 @@ import {
 } from './whatsapp/application/whatsapp-group-boleto-resend.service.js'
 import { createGroupBoletoResendPorts } from './whatsapp/infrastructure/whatsapp-group-boleto-resend.adapter.js'
 import { createOccurrenceContractorReplyRoutes } from './occurrence-conversation/presentation/occurrence-contractor-reply.routes.js'
+import { createCanhotoDismissRoutes } from './trips/presentation/canhoto-dismiss.routes.js'
+import { createCanhotoMoveRoutes } from './trips/presentation/canhoto-move.routes.js'
 import { createCanhotoReviewRoutes } from './trips/presentation/canhoto-review.routes.js'
 import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
 import { createOccurrenceCaseRoutes } from './trips/presentation/occurrence-case.routes.js'
@@ -1001,6 +1015,8 @@ import { createReimburseOccurrenceSettlementUseCase } from './trips/application/
 import { createFindOccurrenceSettlementUseCase } from './trips/application/find-occurrence-settlement.use-case.js'
 import { DrizzleOccurrenceSettlementRepository } from './trips/infrastructure/drizzle-occurrence-settlement.repository.js'
 import { DrizzleOccurrenceSettlementChargeRepository } from './trips/infrastructure/drizzle-occurrence-settlement-charge.repository.js'
+import { DrizzleCanhotoDismissUnitOfWork } from './trips/infrastructure/drizzle-canhoto-dismiss.repository.js'
+import { DrizzleCanhotoMoveUnitOfWork } from './trips/infrastructure/drizzle-canhoto-move.repository.js'
 import { DrizzleCanhotoReviewUnitOfWork } from './trips/infrastructure/drizzle-canhoto-review.repository.js'
 import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
@@ -2050,8 +2066,11 @@ export function bootstrap(): Bun.Server<undefined> {
     resolveSenderRole: whatsappSenderRole,
     speech: whatsappBotSpeech,
   })
+  /** "Saí"/"cheguei" em viagem não despachada pede o despacho ao escritório; o serviço nasce com o envio do webhook. */
+  const whatsappTripDispatchBridge: TripDispatchBridge = {}
   /** Spec 293 T12: "saí" e "cheguei" no grupo, pelas mesmas portas do app. */
   const whatsappGroupStop = createGroupStopPorts({
+    tripDispatchBridge: whatsappTripDispatchBridge,
     cancelDeparture: (input) =>
       cancelStopDeparture({
         ...input,
@@ -2911,6 +2930,77 @@ function createEvolutionWebhook(input: {
     },
   })
   const groupRequests = createDrizzleWhatsAppGroupRequestRepository(database)
+  /**
+   * "Saí"/"cheguei" em viagem planejada: o bot pergunta ao responsável do escritório (quem planejou) se pode despachar,
+   * despacha pelo caso de uso do painel e lança o que o motorista mandou. A resposta chega pelo 1:1 do responsável.
+   */
+  const tripDispatchRouteRepository = new DrizzleTripRouteRepository(database)
+  const tripDispatchApproval =
+    input.groupStop?.tripDispatchBridge === undefined || input.resolveActor === undefined
+      ? undefined
+      : createTripDispatchApproval({
+          dispatch: async ({ actorUserId, companyId, tripId }) => {
+            await dispatchTrip({
+              actorUserId,
+              channel: TRIP_FIELD_CHANNELS.whatsapp,
+              companyId,
+              repository: tripDispatchRouteRepository,
+              tripId,
+            })
+          },
+          findDispatcher: async ({ companyId, phone }) => {
+            const resolved = await input.resolveActor?.({
+              companyId,
+              fromPhone: phone,
+              now: new Date(),
+            })
+            if (resolved?.status !== 'authorized') return null
+            const { scope } = resolved.context
+            return scope.kind === 'company' && scope.permissions.has('trip.manage')
+              ? { userId: scope.userId }
+              : null
+          },
+          findResponder: (lookup) => findTripPlannerWithPhone(database, lookup),
+          isCargoClosed: async (lookup) => {
+            const state = await tripDispatchRouteRepository.readPreconditions(lookup)
+            return (
+              state !== null &&
+              state.isCargoClosed === true &&
+              state.unloadedDocumentIds.length === 0 &&
+              state.unscheduledStopIds.length === 0
+            )
+          },
+          readDriverName: (lookup) => findDriverFirstName(database, lookup),
+          replay: async ({ companyId, driverId, event, requestId }) => {
+            const registration = await input.groupStop?.record({
+              companyId,
+              ...(event.documentNumber === undefined
+                ? {}
+                : { documentNumber: event.documentNumber }),
+              driverId,
+              event: event.event,
+              idempotencyKey: `dispatch-approval:${requestId}:${event.event}:${event.stopId}`,
+              sentAt: new Date(event.sentAt),
+              stopId: event.stopId,
+            })
+            return registration?.message ?? ''
+          },
+          repository: new DrizzleTripDispatchRequestRepository(database),
+          send: (reply) => groupReplies.send(reply),
+        })
+  if (tripDispatchApproval !== undefined && input.groupStop?.tripDispatchBridge !== undefined) {
+    input.groupStop.tripDispatchBridge.current = tripDispatchApproval
+    if (input.groupOccurrence !== undefined) {
+      const timer = setInterval(() => {
+        tripDispatchApproval.tick().catch((error: unknown) =>
+          logger.warn('whatsapp_trip_dispatch_approval.tick_failed', {
+            errorName: error instanceof Error ? error.name : typeof error,
+          }),
+        )
+      }, 30_000)
+      timer.unref()
+    }
+  }
   /** Spec 292 regra 5: o pedido que vence sem resposta é avisado (antes) e encerrado com aviso no grupo. */
   if (input.groupOccurrence !== undefined) {
     startGroupRequestExpiryWatcher({
@@ -3006,6 +3096,7 @@ function createEvolutionWebhook(input: {
     apiPublicUrl: input.apiPublicUrl,
     chatTakeover,
     ...(directAssistant === undefined ? {} : { directAssistant }),
+    ...(tripDispatchApproval === undefined ? {} : { dispatchApproval: tripDispatchApproval }),
     gateway,
     // Spec 292 T3: o grupo do motorista chega ao bot; T4/T5: a sessão do pedido e o fluxo.
     groupInbound: createEvolutionGroupInbound({
@@ -3826,6 +3917,7 @@ function createApplicationRoutes({
     sources: [
       createFleetBodyTypePendingItemSource({ database }),
       createAddressSuggestionPendingItemSource({ database }),
+      createCanhotoOtherDocumentPendingItemSource({ database }),
     ],
   })
   const freightRegionRepository = new DrizzleFreightRegionRepository(database)
@@ -4012,6 +4104,8 @@ function createApplicationRoutes({
   }
   /** Spec 220 T6.8: a conferência do canhoto escreve veredito e trilha na mesma transação. */
   const canhotoReviewUnitOfWork = new DrizzleCanhotoReviewUnitOfWork(database)
+  const canhotoMoveUnitOfWork = new DrizzleCanhotoMoveUnitOfWork(database)
+  const canhotoDismissUnitOfWork = new DrizzleCanhotoDismissUnitOfWork(database)
   /** RF12/D6: a fila de revisão (`move`/`swap`, spec 148) recalcula com o mesmo congelador (T206). */
   const tripDocumentReviewRepository = new DrizzleTripDocumentReviewRepository(
     database,
@@ -5352,6 +5446,21 @@ function createApplicationRoutes({
     ...createCanhotoReviewRoutes({
       canhotoReview: {
         review: (input) => reviewCanhotoProof({ ...input, unitOfWork: canhotoReviewUnitOfWork }),
+      },
+      resolveClientIp,
+    }),
+    /** Spec 344 D9/RF10: mover o canhoto para a NF certa, sob `trip.manage`. */
+    ...createCanhotoMoveRoutes({
+      canhotoMove: {
+        move: (input) => moveCanhotoProof({ ...input, unitOfWork: canhotoMoveUnitOfWork }),
+      },
+      resolveClientIp,
+    }),
+    /** Spec 344 T5d: "Descartar" o alerta de canhoto de outra nota, sob `trip.manage`. */
+    ...createCanhotoDismissRoutes({
+      canhotoDismiss: {
+        dismiss: (input) =>
+          dismissCanhotoMismatch({ ...input, unitOfWork: canhotoDismissUnitOfWork }),
       },
       resolveClientIp,
     }),

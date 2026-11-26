@@ -91,6 +91,9 @@ export function createExportExpenseResultUseCase(dependencies: {
       if (filters?.categoryId !== undefined) {
         filterTexts.push(`Categoria: ${labels.categoryName ?? filters.categoryId.slice(0, 8)}`)
       }
+      if (filters?.excludeCardInvoice === 'true') {
+        filterTexts.push(`Fatura do cartão fora do cálculo: R$ ${result.excluded.category}`)
+      }
       if (filters?.payeeDriverId !== undefined) {
         filterTexts.push(
           `Motorista, agregado ou ajudante: ${labels.payeeName ?? filters.payeeDriverId.slice(0, 8)}`,

@@ -61,6 +61,7 @@ import type {
   WhatsAppEvolutionWebhookRepositoryPort,
 } from './whatsapp-evolution-webhook.port.js'
 import type { WhatsAppEvolutionWebhookSecretService } from './whatsapp-evolution-webhook-secret.service.js'
+import type { TripDispatchApproval } from './whatsapp-trip-dispatch-approval.service.js'
 
 /** O cabeçalho que o Evolution repete em toda entrega; o valor é o segredo da empresa. */
 export const EVOLUTION_WEBHOOK_TOKEN_HEADER = 'x-transportada-webhook-token'
@@ -129,6 +130,11 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
    * está no meio de uma) é atendido por ele; o resto do 1:1 segue o fluxo do motorista. Ausente, o desvio não existe.
    */
   readonly directAssistant?: WhatsAppDirectAssistantPort
+  /**
+   * O responsável do escritório responde "sim"/"não" ao pedido de despacho do bot no 1:1. Só quem tem um pedido aberto é
+   * atendido; ausente, o desvio não existe.
+   */
+  readonly dispatchApproval?: Pick<TripDispatchApproval, 'answer'>
   readonly gateway: WhatsAppEvolutionWebhookGatewayPort
   /** Spec 292 T3: a mensagem de grupo (lista de permissão, marcação do bot, dono do pedido). */
   readonly groupInbound: EvolutionGroupInbound
@@ -297,6 +303,20 @@ export function createWhatsAppEvolutionWebhookUseCase(dependencies: {
        */
       async function routeDirect(event: EvolutionMessageEvent): Promise<null | string> {
         const { groupInbound, inbound } = dependencies
+        if (
+          !event.fromMe &&
+          event.chat === 'user' &&
+          event.text !== null &&
+          dependencies.dispatchApproval !== undefined &&
+          (await dependencies.dispatchApproval.answer({
+            companyId,
+            phone: event.from,
+            text: event.text,
+          }))
+        ) {
+          counts.direct += 1
+          return 'dispatch_approval'
+        }
         if (
           groupInbound.findDirectDriver === undefined ||
           groupInbound.receiveDirect === undefined

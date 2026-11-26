@@ -296,6 +296,7 @@ insert into refresh_work.policy (table_key, mode, date_column) values
   ('trip_occurrence_resolution_events', 'keep', null),
   ('trip_occurrence_uploads', 'empty', null),
   ('trip_revenue_entries', 'keep', null),
+  ('trip_dispatch_requests', 'empty', null),
   ('trip_status_events', 'keep', null),
   ('trip_stop_events', 'keep', null),
   ('trip_stop_occurrence_photos', 'keep', null),

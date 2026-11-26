@@ -13,6 +13,8 @@ export const COMPANY_ENTRY_KINDS_QUERY_KEY = 'company-entry-kinds'
 
 /** Ler a conta da viagem — margem e o que se paga ao agregado (spec 061 D4). */
 export const FINANCIALS_PERMISSION = 'trip.financials'
+/** O acumulado da empresa inteira (`/resultados`): só o administrador, não `trip.financials`. */
+export const FINANCIAL_RESULTS_PERMISSION = 'financial-results.read'
 /** Mexer na viagem: é ela que abre o formulário de lançamento, não a de leitura. */
 export const TRIP_MANAGE_PERMISSION = 'trip.manage'
 /** Spec 169 RF7: o cadastro de espécie exige a mesma permissão dos demais cadastros da empresa. */

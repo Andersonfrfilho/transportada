@@ -19,6 +19,9 @@ import {
 } from '../shared/expensesResult.types'
 import {
   currentMonthPeriod,
+  formatVehicleAggregate,
+  formatVehicleDescription,
+  isCardInvoiceCategoryName,
   listTrendCompetences,
   monthPeriod,
   previousPeriod,
@@ -37,8 +40,16 @@ export type ExpenseResultFilterState = Readonly<{
   vehicleId: string
 }>
 
-export function toResultFilters(state: ExpenseResultFilterState): ExpenseResultFilters {
+export function toResultFilters(
+  state: ExpenseResultFilterState,
+  costs: Readonly<{ includeCardInvoice: boolean; includeVehicleExpenses: boolean }> = {
+    includeCardInvoice: true,
+    includeVehicleExpenses: true,
+  },
+): ExpenseResultFilters {
   return {
+    ...(costs.includeCardInvoice ? {} : { excludeCardInvoice: 'true' as const }),
+    ...(costs.includeVehicleExpenses ? {} : { excludeVehicleExpenses: 'true' as const }),
     ...(state.categoryId === '' ? {} : { categoryId: state.categoryId }),
     ...(state.customerId === '' ? {} : { customerId: state.customerId }),
     ...(state.payeeDriverId === '' ? {} : { payeeDriverId: state.payeeDriverId }),
@@ -62,7 +73,18 @@ export function useExpenseResultPage() {
     ...currentMonthPeriod(),
   }))
 
-  const query = { filters: toResultFilters(filters), from: filters.from, to: filters.to }
+  const categories = useExpenseCategories({ enabled: canRead })
+  // Dois interruptores de custo: a fatura do cartão (conta por padrão) e as contas dos veículos da frota.
+  const [includeCardInvoice, setIncludeCardInvoice] = useState(true)
+  const [includeVehicleExpenses, setIncludeVehicleExpenses] = useState(true)
+  const cardCategory = (categories.data ?? []).find((category) =>
+    isCardInvoiceCategoryName(category.name),
+  )
+  const query = {
+    filters: toResultFilters(filters, { includeCardInvoice, includeVehicleExpenses }),
+    from: filters.from,
+    to: filters.to,
+  }
   const previous = previousPeriod(filters)
   const result = useExpenseResult({ enabled: canRead, query })
   const previousResult = useExpenseResult({
@@ -87,7 +109,6 @@ export function useExpenseResultPage() {
     result: trend[index]?.data,
   }))
 
-  const categories = useExpenseCategories({ enabled: canRead })
   const driverOptions = useDriverOptions({ enabled: canRead, permissions })
   const contractors = useContractorsQuery({ enabled: canRead })
   const fleetController = createFleetController({ client: getFleetClient(), permissions })
@@ -100,6 +121,15 @@ export function useExpenseResultPage() {
     label: vehicle.plate,
     value: vehicle.id,
   }))
+  const vehicleDescriptions = new Map(
+    (vehiclesQuery.data?.items ?? []).map((vehicle) => [
+      vehicle.id,
+      {
+        aggregate: formatVehicleAggregate(vehicle),
+        description: formatVehicleDescription(vehicle),
+      },
+    ]),
+  )
   const customers: readonly SelectOption[] = (contractors.data ?? []).map((contractor) => ({
     label: contractor.displayName === '' ? contractor.taxId : contractor.displayName,
     value: contractor.id,
@@ -107,6 +137,12 @@ export function useExpenseResultPage() {
 
   return {
     canRead,
+    cardInvoice: {
+      available: cardCategory !== undefined,
+      included: includeCardInvoice,
+      setIncluded: setIncludeCardInvoice,
+    },
+    vehicleExpenses: { included: includeVehicleExpenses, setIncluded: setIncludeVehicleExpenses },
     categories: categories.data ?? [],
     customers,
     driverOptions: driverOptions.drivers.map((driver) => ({
@@ -119,6 +155,10 @@ export function useExpenseResultPage() {
     forecastError: forecast.error,
     isAuthLoading: authQuery.isPending,
     isLoading: result.isPending && canRead,
+    descriptionOf: {
+      vehicle: (id: string): Readonly<{ aggregate: null | string; description: null | string }> =>
+        vehicleDescriptions.get(id) ?? { aggregate: null, description: null },
+    },
     labelOf: {
       customer: (id: string) => customers.find((option) => option.value === id)?.label ?? id,
       vehicle: (id: string) => vehicles.find((option) => option.value === id)?.label ?? id,

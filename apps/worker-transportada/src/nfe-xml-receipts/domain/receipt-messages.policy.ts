@@ -37,6 +37,9 @@ export type ReceiptEmailReport = {
 }
 
 const PROBLEM_TEXT: Readonly<Record<string, string>> = {
+  NFE_IMPORT_ISSUER_NOT_CONTRACTOR: 'a nota não foi emitida pelo contratante ligado ao seu e-mail',
+  NFE_IMPORT_UNRELATED_CNPJ:
+    'o emitente da nota não está cadastrado como contratante e a nota não cita a transportadora (a equipe vai conferir o cadastro)',
   ZIP_ENTRY_TOO_LARGE: 'um arquivo dentro do zip é grande demais',
   ZIP_EXPANSION_LIMIT: 'o zip descompactado passa do limite (mande em mais de um zip)',
   ZIP_EMPTY_ENTRY: 'o zip tem arquivo vazio',

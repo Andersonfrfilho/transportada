@@ -124,6 +124,8 @@
 .pillList {
   display: flex;
   flex-wrap: wrap;
+  /* O contêiner pode ser esticado pelo grid do diálogo; sem isto o chip esticava junto. */
+  align-items: flex-start;
   gap: var(--space-2);
 }
 
@@ -134,6 +136,13 @@
   padding-inline-start: var(--space-3);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
   font-size: var(--field-font-size-compact);
+}
+
+.pillRemove {
+  inline-size: var(--control-height-compact);
+  padding: 0;
+  border-block: none;
+  border-inline-end: none;
 }
 
 .revealCell {

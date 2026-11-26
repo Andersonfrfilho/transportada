@@ -128,6 +128,7 @@ import {
   listOccurrenceTypeItemsShapesOrEmpty,
 } from './occurrence-type-items-read.query.js'
 import type { TripQueryable } from './trip-queryable.type.js'
+import { deriveCanhotoMismatches } from './canhoto-mismatch.query.js'
 import { buildTemplateSelectedAtChange } from './template-selected-at.support.js'
 import {
   hasOccurrenceTypeMailChange,
@@ -222,6 +223,7 @@ async function selectDeliveryProofs(
   const rows = await queryable
     .select({
       bucket: storedObjects.bucket,
+      canhotoMismatchDismissedAt: tripDeliveryProofs.canhotoMismatchDismissedAt,
       canhotoReadNumber: tripDeliveryProofs.canhotoReadNumber,
       canhotoReadSeries: tripDeliveryProofs.canhotoReadSeries,
       canhotoReadSource: tripDeliveryProofs.canhotoReadSource,
@@ -235,6 +237,11 @@ async function selectDeliveryProofs(
       createdAt: tripDeliveryProofs.createdAt,
       documentId: tripDocuments.id,
       eventLatitude: tripStopEvents.latitude,
+      /** Spec 344 RF5: a nota a que a prova está anexada, para o alerta de "outra nota". */
+      expectedAccessKey: nfeDocuments.accessKey,
+      expectedNfeDocumentId: nfeDocuments.id,
+      expectedNumber: nfeDocuments.number,
+      expectedSeries: nfeDocuments.series,
       eventLongitude: tripStopEvents.longitude,
       id: tripDeliveryProofs.id,
       kind: tripDeliveryProofs.kind,
@@ -279,6 +286,13 @@ async function selectDeliveryProofs(
       ),
     )
     .leftJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.companyId, tripDocuments.companyId),
+        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+      ),
+    )
+    .leftJoin(
       deliveryProofThumbnails,
       and(
         eq(deliveryProofThumbnails.companyId, tripDeliveryProofs.companyId),
@@ -310,10 +324,26 @@ async function selectDeliveryProofs(
     )
     .orderBy(asc(tripDeliveryProofs.createdAt))
 
-  return rows.map((row) => ({
+  const mismatches = await deriveCanhotoMismatches(queryable, {
+    companyId: input.companyId,
+    subjects: rows.map((row) => ({
+      dismissed: row.canhotoMismatchDismissedAt !== null,
+      expectedAccessKey: row.expectedAccessKey,
+      expectedNfeDocumentId: row.expectedNfeDocumentId,
+      expectedNumber: row.expectedNumber,
+      expectedSeries: row.expectedSeries,
+      readNumber: row.canhotoReadNumber,
+      readSeries: row.canhotoReadSeries,
+      review: row.canhotoReview,
+    })),
+    tripId: input.tripId,
+  })
+
+  return rows.map((row, index) => ({
     documentId: row.documentId,
     record: {
       bucket: row.bucket,
+      canhotoMismatch: mismatches[index] ?? null,
       canhotoReadNumber: row.canhotoReadNumber,
       canhotoReadSeries: row.canhotoReadSeries,
       canhotoReadSource: row.canhotoReadSource,

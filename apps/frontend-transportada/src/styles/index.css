@@ -935,18 +935,13 @@ a {
 }
 
 /* O e-mail encolhe e o botão não: sem `flex-shrink`, o alvo de toque some antes do texto. */
-.application-user-copy-email {
-  flex-shrink: 0;
-  width: var(--control-height-compact);
-  min-width: var(--control-height-compact);
-  height: var(--control-height-compact);
-  padding: 0;
-}
-
 /* Base é o celular (mobile-first, `web.md` §10): alvo de toque de 44px. Acima de `min-width:64rem`
-   o desktop tem mouse e sobra de fileira, e o bloco daquele breakpoint encolhe para 2rem. */
+   o desktop tem mouse e sobra de fileira, e o bloco daquele breakpoint volta à altura compacta
+   do design system. Todos os botões de ícone da barra do usuário dividem esta medida. */
 .application-logout-button,
-.application-theme-toggle {
+.application-theme-toggle,
+.application-whatsapp-phone-button,
+.application-user-copy-email {
   flex-shrink: 0;
   width: var(--touch-target);
   min-width: var(--touch-target);
@@ -1477,13 +1472,15 @@ h2 {
     max-width: 12rem;
   }
 
-  /* Desktop tem mouse: volta ao tamanho compacto original, sem o respiro de alvo de toque. */
+  /* Desktop tem mouse: altura compacta do design system, sem o respiro de alvo de toque. */
   .application-logout-button,
-  .application-theme-toggle {
-    width: 2rem;
-    min-width: 2rem;
-    min-height: 2rem;
-    height: 2rem;
+  .application-theme-toggle,
+  .application-whatsapp-phone-button,
+  .application-user-copy-email {
+    width: var(--control-height-compact);
+    min-width: var(--control-height-compact);
+    min-height: var(--control-height-compact);
+    height: var(--control-height-compact);
   }
 
   .application-nav {

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { Icon } from '@/components/ui/icon'
@@ -28,6 +29,8 @@ import {
   forecastMarginPercent,
   formatCompetenceLabel,
   formatKilometers,
+  formatKilometersTotal,
+  hasAmount,
   formatMarginPercent,
   formatVariationPercent,
   isNegativeAmount,
@@ -130,11 +133,24 @@ export function ExpenseResultPage() {
     )
   }
 
+  /** Placa e, abaixo, marca, modelo e ano (quando a ficha tem). */
+  function renderVehicle(vehicleId: string) {
+    if (vehicleId === EXPENSE_NO_VEHICLE_ID) {
+      return <strong>{t('resultPage.filters.noVehicle')}</strong>
+    }
+    const { aggregate, description } = page.descriptionOf.vehicle(vehicleId)
+    return (
+      <div>
+        <strong>{page.labelOf.vehicle(vehicleId)}</strong>
+        {description === null ? null : <span className={styles.rowDetail}>{description}</span>}
+        {aggregate === null ? null : <span className={styles.rowDetail}>{aggregate}</span>}
+      </div>
+    )
+  }
+
   function renderTripVehicle(line: ExpenseResultTripLine) {
     if (line.trip === undefined) return '—'
-    return line.trip.vehicleId === EXPENSE_NO_VEHICLE_ID
-      ? t('resultPage.filters.noVehicle')
-      : page.labelOf.vehicle(line.trip.vehicleId)
+    return renderVehicle(line.trip.vehicleId)
   }
 
   function renderTripKilometers(line: ExpenseResultTripLine) {
@@ -205,7 +221,7 @@ export function ExpenseResultPage() {
             {kilometers === null
               ? null
               : t('resultPage.indicators.costPerKmHint', {
-                  km: kilometers.replace(/\.0+$/, ''),
+                  km: formatKilometersTotal(kilometers, i18n.language),
                   trips: result.byTrip.length,
                 })}
           </small>
@@ -443,9 +459,13 @@ export function ExpenseResultPage() {
             {lines.map((line) => (
               <tr key={line.id}>
                 <td data-column={nameHeader}>
-                  <strong className={kind === 'trip' ? styles.tripCode : undefined}>
-                    {lineLabel(kind, line)}
-                  </strong>
+                  {kind === 'vehicle' ? (
+                    renderVehicle(line.id)
+                  ) : (
+                    <strong className={kind === 'trip' ? styles.tripCode : undefined}>
+                      {lineLabel(kind, line)}
+                    </strong>
+                  )}
                   {kind === 'trip' ? renderTripDetail(line as ExpenseResultTripLine) : null}
                 </td>
                 {kind === 'trip' ? (
@@ -562,6 +582,23 @@ export function ExpenseResultPage() {
             value={filters.payeeDriverId}
           />
         </div>
+        <div aria-label={t('resultPage.costOptions.title')} className={styles.field} role="group">
+          <span>{t('resultPage.costOptions.title')}</span>
+          <Checkbox
+            ariaLabel={t('resultPage.costOptions.vehicles')}
+            checked={page.vehicleExpenses.included}
+            label={t('resultPage.costOptions.vehicles')}
+            onChange={page.vehicleExpenses.setIncluded}
+          />
+          {page.cardInvoice.available ? (
+            <Checkbox
+              ariaLabel={t('resultPage.costOptions.cardInvoice')}
+              checked={page.cardInvoice.included}
+              label={t('resultPage.costOptions.cardInvoice')}
+              onChange={page.cardInvoice.setIncluded}
+            />
+          ) : null}
+        </div>
       </section>
 
       <div className={styles.exportBar}>
@@ -607,6 +644,27 @@ export function ExpenseResultPage() {
           {result === undefined || result.unallocatedItems.length === 0 ? null : (
             <p className={styles.notice}>
               {t('resultPage.unallocated', { amount: formatAmount(result.unallocatedTotal) })}
+            </p>
+          )}
+          {result === undefined || !hasAmount(result.excluded.category) ? null : (
+            <p className={styles.notice}>
+              {t('resultPage.excluded.cardInvoice', {
+                amount: formatAmount(result.excluded.category),
+              })}
+            </p>
+          )}
+          {result === undefined || !hasAmount(result.excluded.vehicles) ? null : (
+            <p className={styles.notice}>
+              {t('resultPage.excluded.vehicles', {
+                amount: formatAmount(result.excluded.vehicles),
+              })}
+            </p>
+          )}
+          {result === undefined || !hasAmount(result.excluded.aggregateVehicles) ? null : (
+            <p className={styles.notice}>
+              {t('resultPage.excluded.aggregateVehicles', {
+                amount: formatAmount(result.excluded.aggregateVehicles),
+              })}
             </p>
           )}
           <p className={styles.hint}>{t('resultPage.notice')}</p>

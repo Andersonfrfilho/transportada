@@ -20,11 +20,14 @@ import {
   resolveRovingDocumentId,
 } from '../shared/canhotoBatchRovingFocus.service'
 import type { CanhotoBatchItem } from '../shared/canhotoBatchSelection.service'
+import { isCanhotoFlagged } from '../shared/canhotoMismatchPresentation.service'
 import {
   isDeliveryProofAwaitingProcessing,
   resolveDeliveryProofImageSource,
 } from '../shared/deliveryProof.service'
 import styles from '../styles/trip.module.css'
+import { CanhotoMoveDialog } from './CanhotoMoveDialog.component'
+import { resolveCanhotoMoveTarget, type CanhotoMoveReason } from '../shared/canhotoMove.service'
 import type { ProofImageOutcome } from './ProofImage.component'
 import { ProofGalleryDialog } from './ProofGalleryDialog.component'
 import { TripCanhotoBatchItem } from './TripCanhotoBatchItem.component'
@@ -34,9 +37,14 @@ const TITLE_ID = 'trip-canhoto-batch-dialog-title'
 export type CanhotoBatchDialogStatus = 'failed' | 'loading' | 'ready' | 'submitting'
 
 type TripCanhotoBatchDialogProps = Readonly<{
+  /** Spec 344 T5c (D9): move a foto da nota errada para a certa; some quando a tela não oferece. */
+  onMoveProof?: (
+    input: Readonly<{ documentId: string; reason: CanhotoMoveReason; targetDocumentId: string }>,
+  ) => Promise<void>
   items: readonly CanhotoBatchItem[]
   onClose: () => void
-  onConfirm: (documentIds: readonly string[]) => void
+  /** `keepOpen`: a aprovação individual da prova sinalizada não fecha o maço das outras. */
+  onConfirm: (documentIds: readonly string[], options?: Readonly<{ keepOpen: boolean }>) => void
   /** Canhotos pendentes que passaram do teto de itens — ficam para a rodada seguinte. */
   overflowCount: number
   status: CanhotoBatchDialogStatus
@@ -54,6 +62,7 @@ export function TripCanhotoBatchDialog({
   items,
   onClose,
   onConfirm,
+  onMoveProof,
   overflowCount,
   status,
 }: TripCanhotoBatchDialogProps) {
@@ -63,6 +72,9 @@ export function TripCanhotoBatchDialog({
   const [loadedIds, setLoadedIds] = useState<ReadonlySet<string>>(new Set())
   const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set())
   const [openedItem, setOpenedItem] = useState<CanhotoBatchItem | undefined>(undefined)
+  const [movingItem, setMovingItem] = useState<CanhotoBatchItem | undefined>(undefined)
+  const [isMoving, setIsMoving] = useState(false)
+  const [moveErrorCode, setMoveErrorCode] = useState<string | undefined>(undefined)
   const [requestedFocusId, setRequestedFocusId] = useState<string | undefined>(undefined)
   const gridRef = useRef<HTMLUListElement>(null)
 
@@ -72,8 +84,9 @@ export function TripCanhotoBatchDialog({
   /** Spec 265 RF11: foto ainda em processamento não entra no maço — a conferência espera `ready`. */
   const isHeld = (item: CanhotoBatchItem): boolean =>
     hasImageFailed(item) || isDeliveryProofAwaitingProcessing(item.proof)
+  /** Spec 344 D8.2: prova sinalizada nunca entra no "aprovar todos"; só o clique próprio a aprova. */
   const isChecked = (item: CanhotoBatchItem): boolean =>
-    !uncheckedIds.has(item.documentId) && !isHeld(item)
+    !uncheckedIds.has(item.documentId) && !isHeld(item) && !isCanhotoFlagged(item.proof)
   /** Foto quebrada não entra na navegação: não há o que conferir, e a caixa dela é desabilitada. */
   const eligibleIds = items.filter((item) => !isHeld(item)).map((item) => item.documentId)
   const rovingId = resolveRovingDocumentId({ eligibleIds, requestedId: requestedFocusId })
@@ -103,7 +116,9 @@ export function TripCanhotoBatchDialog({
    */
   function focusNote(documentId: string): void {
     gridRef.current
-      ?.querySelector<HTMLInputElement>(`[data-document-id="${documentId}"] input`)
+      ?.querySelector<HTMLElement>(
+        `[data-document-id="${documentId}"] :is(input, [data-flagged-approve])`,
+      )
       ?.focus()
   }
 
@@ -121,6 +136,34 @@ export function TripCanhotoBatchDialog({
     event.preventDefault()
     setRequestedFocusId(next)
     focusNote(next)
+  }
+
+  function handleOpenMove(documentId: string): void {
+    setMoveErrorCode(undefined)
+    setMovingItem(items.find((item) => item.documentId === documentId))
+  }
+
+  async function handleMoveSubmit(reason: CanhotoMoveReason): Promise<void> {
+    const target = movingItem === undefined ? undefined : resolveCanhotoMoveTarget(movingItem.proof)
+    if (movingItem === undefined || target === undefined || onMoveProof === undefined) return
+    setIsMoving(true)
+    setMoveErrorCode(undefined)
+    try {
+      await onMoveProof({
+        documentId: movingItem.documentId,
+        reason,
+        targetDocumentId: target.targetDocumentId,
+      })
+      setMovingItem(undefined)
+    } catch (error) {
+      setMoveErrorCode(error instanceof Error ? error.message : 'REQUEST_FAILED')
+    } finally {
+      setIsMoving(false)
+    }
+  }
+
+  function handleApproveFlagged(documentId: string): void {
+    onConfirm([documentId], { keepOpen: true })
   }
 
   function handleConfirm(): void {
@@ -183,13 +226,17 @@ export function TripCanhotoBatchDialog({
               {items.map((item) => (
                 <TripCanhotoBatchItem
                   actions={{
+                    onApproveFlagged: handleApproveFlagged,
+                    ...(onMoveProof === undefined ? {} : { onMove: handleOpenMove }),
                     onCheckedChange: handleCheckedChange,
                     onImageSettled: handleImageSettled,
                     onOpenImage: handleOpenImage,
                   }}
                   hasImageFailed={hasImageFailed(item)}
                   isChecked={isChecked(item)}
+                  isBusy={isSubmitting}
                   isFocusTarget={item.documentId === rovingId}
+                  isImageLoaded={loadedIds.has(item.documentId)}
                   item={item}
                   key={item.documentId}
                 />
@@ -230,6 +277,21 @@ export function TripCanhotoBatchDialog({
           </footer>
         </div>
       </div>
+      {movingItem === undefined || onMoveProof === undefined ? null : (
+        <CanhotoMoveDialog
+          isSubmitting={isMoving}
+          onClose={() => setMovingItem(undefined)}
+          onSubmit={(reason) => void handleMoveSubmit(reason)}
+          target={
+            resolveCanhotoMoveTarget(movingItem.proof) ?? {
+              number: '',
+              series: '',
+              targetDocumentId: '',
+            }
+          }
+          {...(moveErrorCode === undefined ? {} : { serverErrorCode: moveErrorCode })}
+        />
+      )}
       {openedItem === undefined ? null : (
         <ProofGalleryDialog
           gallery={[openedItem.proof]}

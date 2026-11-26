@@ -337,3 +337,56 @@ describe('o veredito do canhoto fecha ou reabre a coleta (spec 321 T4)', () => {
     expect(repeated.settled).toEqual([])
   })
 })
+
+/**
+ * Spec 344 RF7 (CA01): a leitura OCR do robô deixa a mesma trilha por prova que a do código de
+ * barras — ator do serviço, permissão do robô — e nenhum número de nota, série ou texto lido.
+ */
+describe('a trilha da leitura OCR do robô (spec 344 RF7)', () => {
+  const OCR_READING: CanhotoReviewCommand = {
+    action: 'automatic',
+    readDocumentId: null,
+    readNumber: '172195',
+    readSeries: '1',
+    readSource: 'ocr',
+  }
+
+  test('grava a leitura pendente e uma linha de trilha sem número, série nem origem', async () => {
+    const fixture = createFixture()
+    await run(fixture, OCR_READING, 'service')
+    expect(fixture.applied[0]).toMatchObject({
+      update: { canhotoReadNumber: '172195', canhotoReadSource: 'ocr', canhotoReview: 'pending' },
+    })
+    expect(fixture.audits).toEqual([
+      {
+        action: 'trip.canhoto-review.automatic',
+        actorUserId: ACTOR_USER_ID,
+        companyId: COMPANY_ID,
+        correlationId: CORRELATION_ID,
+        ipAddress: CLIENT_IP,
+        permission: 'trip.canhoto-auto-review',
+        proofId: PROOF_ID,
+        reason: null,
+        tripId: TRIP_ID,
+      },
+    ])
+    const serialized = JSON.stringify(fixture.audits)
+    expect(serialized).not.toContain('172195')
+    expect(serialized).not.toContain('ocr')
+  })
+
+  test('OCR pendente não mexe na coleta de canhoto', async () => {
+    const fixture = createFixture()
+    await run(fixture, OCR_READING, 'service')
+    expect(fixture.settled).toEqual([])
+  })
+
+  test('sobre veredito humano o OCR não escreve nem deixa trilha', async () => {
+    for (const review of ['approved', 'rejected'] as const) {
+      const fixture = createFixture({ ...PENDING_PROOF, review, reviewOrigin: 'manual' })
+      await run(fixture, OCR_READING, 'service')
+      expect(fixture.applied).toEqual([])
+      expect(fixture.audits).toEqual([])
+    }
+  })
+})

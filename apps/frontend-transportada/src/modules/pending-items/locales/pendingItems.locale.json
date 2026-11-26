@@ -8,11 +8,22 @@
   "status": {
     "loading": "Carregando pendências",
     "error": "Falha ao carregar as pendências",
+    "canhoto": {
+      "failed": "Não foi possível aplicar a decisão. A pendência voltou para a lista."
+    },
     "decisionError": "Não foi possível registrar a decisão. A sugestão voltou para a lista."
+  },
+  "canhoto": {
+    "alreadyApproved": "A NF certa já tem canhoto aprovado.",
+    "otherTrip": "A NF certa está em outra viagem."
   },
   "empty": "Nenhuma pendência.",
   "items": {
     "vehicleBodyTypeMissing": "Veículo {{plate}} sem carroceria informada",
+    "canhotoOtherDocument": {
+      "matched": "A foto da NF {{number}} parece ser da NF {{target}} (série {{targetSeries}})",
+      "unknown": "A foto da NF {{number}} parece ser de outra nota (lida: {{read}})"
+    },
     "addressSuggestedByDriver": "Endereço sugerido pelo motorista: {{address}}"
   },
   "actions": {

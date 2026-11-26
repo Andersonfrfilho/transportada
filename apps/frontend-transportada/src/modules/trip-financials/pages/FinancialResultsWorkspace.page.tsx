@@ -11,7 +11,7 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { formatMargin, isNegative } from '../shared/financialView.service'
 import { getTripFinancialsClient } from '../shared/tripFinancialsClient.service'
-import { FINANCIALS_PERMISSION } from '../shared/tripFinancialsQueryKey.constant'
+import { FINANCIAL_RESULTS_PERMISSION } from '../shared/tripFinancialsQueryKey.constant'
 import {
   FINANCIAL_SUMMARY_GROUPS,
   type FinancialSummaryGroup,
@@ -25,7 +25,7 @@ import styles from '../styles/tripFinancials.module.css'
 export function FinancialResultsWorkspacePage() {
   const { t } = useTranslation('tripFinancials')
   const authQuery = useAuthMeQuery()
-  const canRead = (authQuery.data?.data.permissions ?? []).includes(FINANCIALS_PERMISSION)
+  const canRead = (authQuery.data?.data.permissions ?? []).includes(FINANCIAL_RESULTS_PERMISSION)
   const [groupBy, setGroupBy] = useState<FinancialSummaryGroup>('period')
   // O acumulado abre no mês corrente: quem entra na tela já vê o número, e troca o período se quiser.
   const [initialPeriod] = useState(() => currentMonthPeriod())

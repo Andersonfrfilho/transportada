@@ -586,6 +586,7 @@
       "checkedCount": "{{checked}} of {{total}} checked",
       "close": "Close the receipt review",
       "empty": "None of the selected receipts is awaiting review.",
+      "flaggedHint": "Flagged as a possible mix-up: left out of \"approve all\". Check the photo and approve only if it is right.",
       "imageFailed": "The photo did not open. This receipt cannot be approved without being seen.",
       "keyboardHint": "Arrow keys move between invoices · Space checks or unchecks · Enter opens the photo",
       "loadFailed": "Could not load the receipts. Try again.",
@@ -598,9 +599,46 @@
       "title": "Review receipts",
       "waitingImages": "Wait for the photos to load before approving."
     },
+    "canhotoMismatch": {
+      "detail": {
+        "alreadyApproved": "Invoice {{number}} already has an approved delivery receipt.",
+        "otherTrip": "Invoice {{number}} is on another trip.",
+        "sameTrip": "Invoice {{number}} is on this same trip.",
+        "statusCancelled": "Invoice {{number}} is cancelled.",
+        "statusDenied": "Invoice {{number}} was denied.",
+        "statusUnsigned": "Invoice {{number}} is not authorized yet."
+      },
+      "matched": "Looks like it belongs to invoice {{number}} (series {{series}})",
+      "unknownWithSeries": "Looks like another invoice (read: {{number}}, series {{series}})",
+      "unknownWithoutSeries": "Looks like another invoice (read: {{number}}, series not read)"
+    },
+    "canhotoMove": {
+      "action": "Move to invoice {{number}}",
+      "cancel": "Cancel",
+      "confirm": "Move the photo",
+      "description": "The photo leaves this invoice, which goes back to having no receipt, and moves to invoice {{number}} (series {{series}}). Moving does not approve: the photo arrives awaiting review.",
+      "error": {
+        "notFlaggedForTarget": "This photo's reading no longer points to invoice {{number}}. Refresh the screen.",
+        "requestFailed": "Could not move the photo. Try again.",
+        "sourceNotPending": "This photo has already been reviewed and can no longer be moved.",
+        "targetAlreadyApproved": "Invoice {{number}} already has an approved receipt.",
+        "targetHasProof": "Invoice {{number}} already has a receipt photo. Resolve that photo before moving this one.",
+        "targetNotDelivered": "Invoice {{number}} has no recorded delivery yet. Record the delivery before moving the photo.",
+        "targetNotInTrip": "Invoice {{number}} is no longer on this trip."
+      },
+      "moved": "Photo moved to invoice {{number}}.",
+      "reason": {
+        "driver_mistake": "The driver attached it to the wrong invoice",
+        "office_mistake": "The office attached it to the wrong invoice",
+        "wrong_document": "The photo belongs to another invoice"
+      },
+      "reasonLabel": "Reason",
+      "title": "Move to invoice {{number}}"
+    },
     "canhotoReview": {
       "alreadyResolved": "Someone else has already reviewed this receipt. The screen now shows the verdict that stood.",
       "approve": "Approve delivery receipt",
+      "approveAnyway": "Approve anyway",
       "approvedAutomatic": "Checked automatically",
       "approvedManual": "Approved by {{name}} on {{moment}}",
       "approvedManualUnknown": "Approved manually on {{moment}}",
