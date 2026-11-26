@@ -353,11 +353,11 @@
     },
     "costOptions": {
       "title": "Custos contados",
-      "vehicles": "Contar os gastos das nossas vans",
+      "tripCosts": "Contar os gastos lançados nas viagens",
       "cardInvoice": "Contar a fatura do cartão de crédito"
     },
     "excluded": {
-      "vehicles": "Gastos das nossas vans: {{amount}}, fora do cálculo (interruptor acima).",
+      "tripCosts": "Gastos lançados nas viagens: {{amount}}, fora do cálculo (interruptor acima).",
       "cardInvoice": "Fatura do cartão de crédito: {{amount}}, fora do cálculo. Ela repete gastos já lançados nos custos do veículo; marque \"Contar a fatura do cartão de crédito\" para somar.",
       "aggregateVehicles": "Contas de veículos agregados ou de terceiros: {{amount}}, fora do cálculo. Quem paga esse custo é o agregado, não a empresa."
     },

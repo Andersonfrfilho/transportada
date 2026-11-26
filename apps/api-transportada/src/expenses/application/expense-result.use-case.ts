@@ -72,7 +72,7 @@ export type ExpenseResult = {
   readonly excluded: {
     readonly aggregateVehicles: string
     readonly category: string
-    readonly vehicles: string
+    readonly tripCosts: string
   }
   /** Pagamento que passou das viagens incluídas, rateado como conta da empresa (ADR-0116 §5). */
   /** Os filtros aplicados, só quando houve algum. */
@@ -154,10 +154,11 @@ export async function computeExpenseResult(
   const settings: AllocationSettings = { ...DEFAULT_ALLOCATION_SETTINGS, ...configured }
 
   const notCanceled = occurrences.filter((occurrence) => occurrence.status !== 'canceled')
-  // Custo de veículo é da frota própria: a conta ligada a agregado ou terceiro nem entra no rateio (ADR-0116 §4 segue: o
+  // Gastos lançados nas viagens (diárias e despesas da viagem): com `excludeTripCosts` não entram no custo; o valor volta em `excluded.tripCosts`.
+  // A conta ligada a agregado ou terceiro nem entra no rateio (ADR-0116 §4 segue: o
   // rateio das demais contas não depende dela). O que saiu volta somado em `excluded`, nunca some.
-  const dropVehicleExpenses = input.filters?.excludeVehicleExpenses === 'true'
-  let excludedVehicles = ZERO
+  const dropTripCosts = input.filters?.excludeTripCosts === 'true'
+  let excludedTripCosts = ZERO
   const dropCardInvoice = input.filters?.excludeCardInvoice === 'true'
   let excludedAggregate = ZERO
   let excludedCategory = ZERO
@@ -167,10 +168,6 @@ export async function computeExpenseResult(
       occurrence.vehicleOwnership === 'third_party'
     ) {
       excludedAggregate += cents(considered(occurrence))
-      return false
-    }
-    if (dropVehicleExpenses && occurrence.vehicleId !== null) {
-      excludedVehicles += cents(considered(occurrence))
       return false
     }
     if (dropCardInvoice && isCardInvoiceCategoryName(occurrence.categoryName)) {
@@ -221,9 +218,10 @@ export async function computeExpenseResult(
   for (const trip of trips) {
     byTrip.set(trip.tripId, {
       ...emptyTotals(),
-      cost: cents(trip.cost),
+      cost: dropTripCosts ? ZERO : cents(trip.cost),
       revenue: cents(trip.revenue),
     })
+    if (dropTripCosts) excludedTripCosts += cents(trip.cost)
   }
   for (const share of keptShares) {
     const totals = byTrip.get(share.tripId)
@@ -289,7 +287,7 @@ export async function computeExpenseResult(
     excluded: {
       aggregateVehicles: formatCents(excludedAggregate),
       category: formatCents(excludedCategory),
-      vehicles: formatCents(excludedVehicles),
+      tripCosts: formatCents(excludedTripCosts),
     },
     excesses: keptExcesses.map((excess) => ({
       amount: excess.amount,

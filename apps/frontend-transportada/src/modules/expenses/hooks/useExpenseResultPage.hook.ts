@@ -42,14 +42,14 @@ export type ExpenseResultFilterState = Readonly<{
 
 export function toResultFilters(
   state: ExpenseResultFilterState,
-  costs: Readonly<{ includeCardInvoice: boolean; includeVehicleExpenses: boolean }> = {
+  costs: Readonly<{ includeCardInvoice: boolean; includeTripCosts: boolean }> = {
     includeCardInvoice: true,
-    includeVehicleExpenses: true,
+    includeTripCosts: true,
   },
 ): ExpenseResultFilters {
   return {
     ...(costs.includeCardInvoice ? {} : { excludeCardInvoice: 'true' as const }),
-    ...(costs.includeVehicleExpenses ? {} : { excludeVehicleExpenses: 'true' as const }),
+    ...(costs.includeTripCosts ? {} : { excludeTripCosts: 'true' as const }),
     ...(state.categoryId === '' ? {} : { categoryId: state.categoryId }),
     ...(state.customerId === '' ? {} : { customerId: state.customerId }),
     ...(state.payeeDriverId === '' ? {} : { payeeDriverId: state.payeeDriverId }),
@@ -76,12 +76,12 @@ export function useExpenseResultPage() {
   const categories = useExpenseCategories({ enabled: canRead })
   // Dois interruptores de custo: a fatura do cartão (conta por padrão) e as contas dos veículos da frota.
   const [includeCardInvoice, setIncludeCardInvoice] = useState(true)
-  const [includeVehicleExpenses, setIncludeVehicleExpenses] = useState(true)
+  const [includeTripCosts, setIncludeTripCosts] = useState(true)
   const cardCategory = (categories.data ?? []).find((category) =>
     isCardInvoiceCategoryName(category.name),
   )
   const query = {
-    filters: toResultFilters(filters, { includeCardInvoice, includeVehicleExpenses }),
+    filters: toResultFilters(filters, { includeCardInvoice, includeTripCosts }),
     from: filters.from,
     to: filters.to,
   }
@@ -142,7 +142,7 @@ export function useExpenseResultPage() {
       included: includeCardInvoice,
       setIncluded: setIncludeCardInvoice,
     },
-    vehicleExpenses: { included: includeVehicleExpenses, setIncluded: setIncludeVehicleExpenses },
+    tripCosts: { included: includeTripCosts, setIncluded: setIncludeTripCosts },
     categories: categories.data ?? [],
     customers,
     driverOptions: driverOptions.drivers.map((driver) => ({
