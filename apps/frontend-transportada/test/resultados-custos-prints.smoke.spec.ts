@@ -202,9 +202,7 @@ for (const theme of THEMES) {
         path: resolve(PRINTS_DIRECTORY, `resultado-custos-sem-fatura-${theme}-${viewport}.png`),
       })
       await page.getByRole('checkbox', { name: 'Contar os gastos lançados nas viagens' }).uncheck()
-      await expect
-        .poll(() => urls.some((url) => url.includes('excludeTripCosts=true')))
-        .toBe(true)
+      await expect.poll(() => urls.some((url) => url.includes('excludeTripCosts=true'))).toBe(true)
     })
   }
 }
