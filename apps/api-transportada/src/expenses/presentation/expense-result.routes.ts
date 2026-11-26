@@ -106,7 +106,7 @@ const UUID = z.string().uuid()
 const FILTER_SCHEMAS: Record<(typeof EXPENSE_RESULT_FILTER_KEYS)[number], z.ZodType<string>> = {
   categoryId: UUID,
   customerId: z.union([UUID, z.literal(NO_CUSTOMER_ID)]),
-  excludeVehicleExpenses: z.literal('true'),
+  excludeTripCosts: z.literal('true'),
   excludeCardInvoice: z.literal('true'),
   payeeDriverId: UUID,
   vehicleId: z.union([UUID, z.literal(NO_VEHICLE_ID)]),
@@ -210,8 +210,8 @@ export function createExpenseResultRoutes(
       method: 'GET',
       parse: ({ request }) => {
         const url = new URL(request.url)
-        const filters = parseFilters(url, ['excludeVehicleExpenses', 'excludeCardInvoice'])
-        return { ...parsePeriod(url, ['excludeVehicleExpenses', 'excludeCardInvoice']), filters }
+        const filters = parseFilters(url, ['excludeTripCosts', 'excludeCardInvoice'])
+        return { ...parsePeriod(url, ['excludeTripCosts', 'excludeCardInvoice']), filters }
       },
       pathname: API_EXPENSE_UNIT_COSTS_PATH,
       policy: READ_POLICY,

@@ -104,18 +104,18 @@ describe('expenses result — guard', () => {
     const result = toExpenseResult({
       data: {
         ...RESULT.data,
-        excluded: { aggregateVehicles: '340.00', category: '600.00', vehicles: '0.00' },
+        excluded: { aggregateVehicles: '340.00', category: '600.00', tripCosts: '0.00' },
       },
     })
     expect(result.excluded).toEqual({
       aggregateVehicles: '340.00',
       category: '600.00',
-      vehicles: '0.00',
+      tripCosts: '0.00',
     })
     expect(toExpenseResult(RESULT).excluded).toEqual({
       aggregateVehicles: '0.00',
       category: '0.00',
-      vehicles: '0.00',
+      tripCosts: '0.00',
     })
   })
 

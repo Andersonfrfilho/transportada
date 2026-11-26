@@ -354,9 +354,9 @@ export function serializeFilters(filters: ExpenseOccurrenceFilters): string {
 /** O custo por km segue só os dois interruptores de custo (veículo e fatura); os demais filtros não valem para ele. */
 function unitCostFilters(filters: ExpenseResultFilters): ExpenseResultFilters {
   return {
-    ...(filters.excludeVehicleExpenses === undefined
+    ...(filters.excludeTripCosts === undefined
       ? {}
-      : { excludeVehicleExpenses: filters.excludeVehicleExpenses }),
+      : { excludeTripCosts: filters.excludeTripCosts }),
     ...(filters.excludeCardInvoice === undefined
       ? {}
       : { excludeCardInvoice: filters.excludeCardInvoice }),
