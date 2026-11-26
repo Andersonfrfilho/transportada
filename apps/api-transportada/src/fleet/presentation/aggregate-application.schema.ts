@@ -84,6 +84,8 @@ const approveSchema = z
 export async function parseApproveAggregateApplicationRequest(
   request: Request,
 ): Promise<string | undefined> {
+  // POST sem corpo chega com `request.body === null`, e o leitor limitado recusa isso com 400.
+  if (request.body === null) return undefined
   const body = await readBoundedRequestBody(request)
   if (body.trim() === '') return undefined
   assertJsonContentType(request.headers.get('content-type'))
