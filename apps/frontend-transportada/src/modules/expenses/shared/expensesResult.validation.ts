@@ -144,7 +144,7 @@ function toFilters(value: unknown): ExpenseResultFilters {
   const filters: { -readonly [K in keyof ExpenseResultFilters]: ExpenseResultFilters[K] } = {}
   if (row.categoryId !== undefined) filters.categoryId = readString(row.categoryId)
   if (row.customerId !== undefined) filters.customerId = readString(row.customerId)
-  if (row.excludeVehicleExpenses === 'true') filters.excludeVehicleExpenses = 'true'
+  if (row.excludeTripCosts === 'true') filters.excludeTripCosts = 'true'
   if (row.excludeCardInvoice === 'true') filters.excludeCardInvoice = 'true'
   if (row.payeeDriverId !== undefined) filters.payeeDriverId = readString(row.payeeDriverId)
   if (row.vehicleId !== undefined) filters.vehicleId = readString(row.vehicleId)
@@ -152,12 +152,12 @@ function toFilters(value: unknown): ExpenseResultFilters {
 }
 
 function toExcluded(value: unknown): ExpenseResult['excluded'] {
-  if (value === undefined) return { aggregateVehicles: '0.00', category: '0.00', vehicles: '0.00' }
+  if (value === undefined) return { aggregateVehicles: '0.00', category: '0.00', tripCosts: '0.00' }
   const row = readRecord(value)
   return {
     aggregateVehicles: readMoney(row.aggregateVehicles),
     category: readMoney(row.category),
-    vehicles: readMoney(row.vehicles),
+    tripCosts: readMoney(row.tripCosts),
   }
 }
 

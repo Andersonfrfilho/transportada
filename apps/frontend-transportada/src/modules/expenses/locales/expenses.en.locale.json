@@ -353,11 +353,11 @@
     },
     "costOptions": {
       "title": "Costs counted",
-      "vehicles": "Count the expenses of our own vehicles",
+      "tripCosts": "Count the expenses logged on trips",
       "cardInvoice": "Count the credit card invoice"
     },
     "excluded": {
-      "vehicles": "Expenses of our own vehicles: {{amount}}, left out of the calculation (switch above).",
+      "tripCosts": "Expenses logged on trips: {{amount}}, left out of the calculation (switch above).",
       "cardInvoice": "Credit card invoice: {{amount}}, left out of the calculation. It repeats costs already entered on the vehicle; check \"Count the credit card invoice\" to add it.",
       "aggregateVehicles": "Bills of aggregate or third-party vehicles: {{amount}}, left out of the calculation. The aggregate pays that cost, not the company."
     },

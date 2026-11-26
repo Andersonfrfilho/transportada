@@ -74,7 +74,7 @@ const RESULT = {
       },
     })),
     byVehicle: LINES,
-    excluded: { aggregateVehicles: '340.00', category: '600.00', vehicles: '0.00' },
+    excluded: { aggregateVehicles: '340.00', category: '600.00', tripCosts: '0.00' },
     settings: { administrative: 'per_revenue', per_km: 'per_km', vehicle_fixed: 'per_km' },
     totals: { expensesTotal: '0.00', profit: '0.00', revenue: '22800.00', tripCost: '11189.31' },
     unallocatedItems: [],
@@ -201,10 +201,8 @@ for (const theme of THEMES) {
         fullPage: true,
         path: resolve(PRINTS_DIRECTORY, `resultado-custos-sem-fatura-${theme}-${viewport}.png`),
       })
-      await page.getByRole('checkbox', { name: 'Contar os gastos das nossas vans' }).uncheck()
-      await expect
-        .poll(() => urls.some((url) => url.includes('excludeVehicleExpenses=true')))
-        .toBe(true)
+      await page.getByRole('checkbox', { name: 'Contar os gastos lançados nas viagens' }).uncheck()
+      await expect.poll(() => urls.some((url) => url.includes('excludeTripCosts=true'))).toBe(true)
     })
   }
 }

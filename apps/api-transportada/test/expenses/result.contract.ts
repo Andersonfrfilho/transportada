@@ -362,7 +362,7 @@ describe('o que não é custo da frota própria fica fora do cálculo e à vista
     expect(result.excluded).toEqual({
       aggregateVehicles: '340.00',
       category: '600.00',
-      vehicles: '0.00',
+      tripCosts: '0.00',
     })
     expect(sumCents(result.byTrip.map((l) => l.margin))).toBe(cents(result.totals.profit))
   })
@@ -377,34 +377,38 @@ describe('o que não é custo da frota própria fica fora do cálculo e à vista
     expect(result.excluded).toEqual({
       aggregateVehicles: '340.00',
       category: '0.00',
-      vehicles: '0.00',
+      tripCosts: '0.00',
     })
   })
 
   it('ligar os interruptores de custo não faz o resultado ecoar filtros', async () => {
     const result = await createGetExpenseResultUseCase(seed()).execute({
       companyId: RESULT_COMPANY_A,
-      filters: { excludeVehicleExpenses: 'true', excludeCardInvoice: 'true' },
+      filters: { excludeTripCosts: 'true', excludeCardInvoice: 'true' },
       ...PERIOD,
     })
 
     expect(result.filters).toBeUndefined()
   })
 
-  it('com excludeVehicleExpenses as contas dos veículos da frota saem, à vista, e a margem segue fechando', async () => {
-    const result = await createGetExpenseResultUseCase(seedWithAggregateAndCard()).execute({
+  it('com excludeTripCosts os gastos lançados nas viagens saem do custo, à vista, e a margem segue fechando', async () => {
+    const ports = seedWithAggregateAndCard()
+    const counted = await createGetExpenseResultUseCase(ports).execute({
       companyId: RESULT_COMPANY_A,
-      filters: { excludeVehicleExpenses: 'true' },
+      ...PERIOD,
+    })
+    const result = await createGetExpenseResultUseCase(ports).execute({
+      companyId: RESULT_COMPANY_A,
+      filters: { excludeTripCosts: 'true' },
       ...PERIOD,
     })
 
-    // seguro do veículo 2 (400,00) sai; o aluguel (1000,01) fica; a fatura do cartão (600,00) conta por padrão e o agregado já estava fora.
-    expect(result.totals.expensesTotal).toBe('1600.01')
-    expect(result.excluded).toEqual({
-      aggregateVehicles: '340.00',
-      category: '0.00',
-      vehicles: '400.00',
-    })
+    expect(counted.totals.tripCost).toBe('900.00')
+    expect(counted.excluded.tripCosts).toBe('0.00')
+    expect(result.totals.tripCost).toBe('0.00')
+    expect(result.excluded.tripCosts).toBe('900.00')
+    expect(result.totals.expensesTotal).toBe(counted.totals.expensesTotal)
+    expect(result.byTrip.every((line) => line.cost === '0.00')).toBe(true)
     expect(sumCents(result.byTrip.map((l) => l.margin))).toBe(cents(result.totals.profit))
   })
 
@@ -418,7 +422,7 @@ describe('o que não é custo da frota própria fica fora do cálculo e à vista
     expect(result.excluded).toEqual({
       aggregateVehicles: '0.00',
       category: '0.00',
-      vehicles: '0.00',
+      tripCosts: '0.00',
     })
   })
 })

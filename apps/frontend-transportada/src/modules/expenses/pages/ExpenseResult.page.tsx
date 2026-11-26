@@ -585,10 +585,10 @@ export function ExpenseResultPage() {
         <div aria-label={t('resultPage.costOptions.title')} className={styles.field} role="group">
           <span>{t('resultPage.costOptions.title')}</span>
           <Checkbox
-            ariaLabel={t('resultPage.costOptions.vehicles')}
-            checked={page.vehicleExpenses.included}
-            label={t('resultPage.costOptions.vehicles')}
-            onChange={page.vehicleExpenses.setIncluded}
+            ariaLabel={t('resultPage.costOptions.tripCosts')}
+            checked={page.tripCosts.included}
+            label={t('resultPage.costOptions.tripCosts')}
+            onChange={page.tripCosts.setIncluded}
           />
           {page.cardInvoice.available ? (
             <Checkbox
@@ -653,10 +653,10 @@ export function ExpenseResultPage() {
               })}
             </p>
           )}
-          {result === undefined || !hasAmount(result.excluded.vehicles) ? null : (
+          {result === undefined || !hasAmount(result.excluded.tripCosts) ? null : (
             <p className={styles.notice}>
-              {t('resultPage.excluded.vehicles', {
-                amount: formatAmount(result.excluded.vehicles),
+              {t('resultPage.excluded.tripCosts', {
+                amount: formatAmount(result.excluded.tripCosts),
               })}
             </p>
           )}
