@@ -371,6 +371,8 @@ function isDriverLine(value: unknown): value is TripDriverLine {
   return (
     isAbsentOrNullableString(value.driverEmail) &&
     isAbsentOrNullableString(value.driverPhone) &&
+    /** Spec 327: dinheiro, só com `trip.financials` — ausente é "sem permissão", `null` é "não informado". */
+    isAbsentOrNullableString(value.paidAmount) &&
     isString(value.driverId) &&
     isString(value.driverName) &&
     /** Spec 156 D11: `null` para quem lê a viagem sem `fleet.read` — o nome continua. */

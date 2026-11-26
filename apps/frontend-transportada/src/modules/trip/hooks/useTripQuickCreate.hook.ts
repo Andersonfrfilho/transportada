@@ -18,6 +18,11 @@ import {
   type AssemblyCityOrder,
 } from '../shared/assemblyOrder.service'
 import { readDailyAllowanceDaysInput } from '../shared/dailyAllowanceDaysField.service'
+import {
+  buildPaidAmounts,
+  maskPaidAmount,
+  type PaidAmountInputs,
+} from '../shared/paidAmountField.service'
 import { runQuickCreateTrip } from '../shared/quickCreateTrip.service'
 import type { TripAssemblyDraftScope } from '../shared/tripAssemblyDraftStorage.service'
 import { useQuickCreateDraft } from './useQuickCreateDraft.hook'
@@ -64,6 +69,12 @@ export function useTripQuickCreate(
   const [driverIds, setDriverIds] = useState<readonly string[]>([])
   const [helperIds, setHelperIds] = useState<readonly string[]>([])
   const [vehicleId, setVehicleId] = useState('')
+  /** Spec 327: o valor digitado por pessoa; vazio é "não informado" e a viagem segue estimada. */
+  const [paidAmountInputs, setPaidAmountInputs] = useState<PaidAmountInputs>({})
+  const paidAmounts = buildPaidAmounts({
+    crewIds: [...driverIds, ...helperIds],
+    inputs: paidAmountInputs,
+  })
   /** `undefined` é "ninguém digitou ainda", e é o que deixa a sugestão da prévia aparecer no campo. */
   const [dailyAllowanceDaysInput, setDailyAllowanceDaysInput] = useState<string | undefined>(
     undefined,
@@ -134,6 +145,7 @@ export function useTripQuickCreate(
     setDriverIds([])
     setHelperIds([])
     setVehicleId('')
+    setPaidAmountInputs({})
     setDailyAllowanceDaysInput(undefined)
   }
 
@@ -263,6 +275,8 @@ export function useTripQuickCreate(
           driverIds,
           /** Spec 149: vazio fica fora do corpo — a viagem sem ajudante continua a de antes. */
           ...(helperIds.length === 0 ? {} : { helperIds }),
+          /** Spec 327: só com valor digitado — sem ele a viagem fica com as estimativas. */
+          ...(Object.keys(paidAmounts).length === 0 ? {} : { paidAmounts }),
           /** Spec 217 (RF1/RF2): vazio é o rascunho sem veículo — nunca uma string vazia no corpo. */
           ...(vehicleId === '' ? {} : { vehicleId }),
         },
@@ -314,6 +328,8 @@ export function useTripQuickCreate(
     isOpen,
     issues,
     open: () => setIsOpen(true),
+    paidAmountInputs,
+    paidAmounts,
     prefetchDocuments,
     queue,
     stageDocuments: (documents: readonly ScannedNfeDocument[]) => {
@@ -328,6 +344,10 @@ export function useTripQuickCreate(
     setDailyAllowanceDaysInput: (value: string) => {
       draftStore.markTouched()
       setDailyAllowanceDaysInput(value)
+    },
+    setPaidAmountInput: (driverId: string, value: string) => {
+      draftStore.markTouched()
+      setPaidAmountInputs((current) => ({ ...current, [driverId]: maskPaidAmount(value) }))
     },
     setDriverIds: (ids: readonly string[]) => {
       draftStore.markTouched()

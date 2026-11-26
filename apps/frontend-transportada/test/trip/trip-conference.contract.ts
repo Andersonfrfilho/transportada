@@ -224,6 +224,45 @@ describe('buildTripConferenceSheet', () => {
 
     expect(sheet.fields.map((field) => field.label)).not.toContain('conference.sheetCreatedBy')
   })
+
+  it('spec 327: o valor pago aparece junto do motorista que o recebe, e só se foi informado', () => {
+    const conference = buildTripConference({ documents: [], stops: [] })
+    const driver = {
+      driverId: 'd1',
+      driverName: 'Ana',
+      driverTaxId: null,
+      position: 1,
+      role: 'driver',
+    } as const
+    const withAmount = buildTripConferenceSheet({
+      ...base,
+      cargoWeight: null,
+      conference,
+      creatorName: undefined,
+      drivers: [{ ...driver, paidAmount: '250.00' }],
+      vehiclePlate: null,
+    })
+    const withoutAmount = buildTripConferenceSheet({
+      ...base,
+      cargoWeight: null,
+      conference,
+      creatorName: undefined,
+      drivers: [
+        { ...driver, paidAmount: null },
+        { ...driver, driverId: 'd2' },
+      ],
+      vehiclePlate: null,
+    })
+
+    expect(withAmount.fields.slice(0, 2).map((field) => field.label)).toEqual([
+      'conference.sheetDriver',
+      'conference.sheetPaidAmount',
+    ])
+    expect(withAmount.fields[1]?.value).toContain('250,00')
+    expect(withoutAmount.fields.map((field) => field.label)).not.toContain(
+      'conference.sheetPaidAmount',
+    )
+  })
 })
 
 describe('buildTripConferencePdf', () => {

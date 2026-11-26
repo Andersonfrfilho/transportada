@@ -45,6 +45,8 @@ export type TripDriverLine = {
   readonly driverId: string
   readonly driverName: string
   readonly driverTaxId: string
+  /** Spec 327: o valor combinado para esta pessoa nesta viagem; `null`/ausente é "não informado". */
+  readonly paidAmount?: null | string
   readonly position: number
   /** Spec 149 (ADR-0065): `driver` conduz e entra no MDF-e; `helper` é tripulação, não condutor. */
   readonly role: TripCrewRole

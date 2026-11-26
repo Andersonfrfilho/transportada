@@ -28,6 +28,11 @@ export type TripCrewMember = {
   readonly driverId: string
   /** Spec 123: a linha nomeia quem recebeu. Ausente é ausência explícita, nunca string vazia. */
   readonly driverName: null | string
+  /**
+   * Spec 327: o valor combinado para esta pessoa nesta viagem (`trip_drivers.paid_amount`). Quando
+   * existe, **vence** a diária × dias dela; `null`/ausente mantém a conta de sempre.
+   */
+  readonly paidAmount?: null | string
   readonly paymentModel: DriverPaymentModel
 }
 
@@ -70,13 +75,16 @@ export function buildTripDriverCost({
 }: BuildTripDriverCostParams): TripCostParcel {
   /** Sem condutor a pergunta dos dias nem se faz: não há a quem pagar, dure a viagem o que durar. */
   if (crew.length === 0) return missingParcel(VALUATION_GAPS.noTripDriver)
-  if (days.of === 'unknown') return missingParcel(VALUATION_GAPS.noPlannedDuration)
+  /** Spec 327: com o valor combinado para todos, a duração da viagem não entra na conta. */
+  const allInformed = crew.every((member) => hasPaidAmount(member))
+  if (days.of === 'unknown' && !allInformed) return missingParcel(VALUATION_GAPS.noPlannedDuration)
 
+  const dayCount = days.of === 'unknown' ? 1 : days.value
   /** D4 garante o mínimo de um dia na criação e na sugestão: menos que isso não chega aqui. */
-  if (days.value < MINIMUM_ALLOWANCE_DAYS) throw new Error(`${ERROR_CODE_PREFIX}_INVALID_DAYS`)
+  if (dayCount < MINIMUM_ALLOWANCE_DAYS) throw new Error(`${ERROR_CODE_PREFIX}_INVALID_DAYS`)
 
   const pricedCrew = crew.map((member) =>
-    priceCrewMember({ companyDailyAmount, days: BigInt(days.value), member }),
+    priceCrewMember({ companyDailyAmount, days: BigInt(dayCount), member }),
   )
   const total = pricedCrew.reduce((accumulated, priced) => accumulated + priced.subtotal, 0n)
 
@@ -84,14 +92,14 @@ export function buildTripDriverCost({
     amount: formatScaledDecimal(total, MONEY_SCALE),
     basis: {
       crew: pricedCrew.map((priced) => priced.line),
-      days: days.value,
-      daysOrigin: days.of,
+      days: dayCount,
+      daysOrigin: days.of === 'unknown' ? 'informed' : days.of,
       of: 'driver',
     },
     detail: null,
     gap: null,
     kind: 'driver',
-    source: days.of === 'informed' ? 'measured' : 'estimated',
+    source: allInformed || days.of === 'informed' ? 'measured' : 'estimated',
   }
 }
 
@@ -110,6 +118,24 @@ function priceCrewMember(input: {
   readonly member: TripCrewMember
 }): { readonly line: TripDriverCostCrewLine; readonly subtotal: bigint } {
   const { member } = input
+  if (hasPaidAmount(member)) {
+    const paid = parseScaledDecimal({
+      errorCodePrefix: ERROR_CODE_PREFIX,
+      scale: MONEY_SCALE,
+      value: member.paidAmount ?? ZERO,
+    })
+    return {
+      line: {
+        dailyAmount: formatScaledDecimal(paid, MONEY_SCALE),
+        driverId: member.driverId,
+        driverName: member.driverName,
+        paymentModel: member.paymentModel,
+        rateOrigin: 'informed',
+        subtotal: formatScaledDecimal(paid, MONEY_SCALE),
+      },
+      subtotal: paid,
+    }
+  }
   const { amount, rateOrigin } = resolveDailyAllowance({
     companyAmount: input.companyDailyAmount,
     driverAmount: member.driverAmount,
@@ -132,6 +158,11 @@ function priceCrewMember(input: {
     },
     subtotal,
   }
+}
+
+/** Zero é valor combinado (viagem sem pagamento); só `null`/ausente é "não informado". */
+function hasPaidAmount(member: TripCrewMember): boolean {
+  return member.paidAmount !== undefined && member.paidAmount !== null
 }
 
 const ZERO = '0.0000'

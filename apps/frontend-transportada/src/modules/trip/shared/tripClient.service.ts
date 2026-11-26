@@ -823,6 +823,10 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
           ...(input.helperIds === undefined || input.helperIds.length === 0
             ? {}
             : { helperIds: input.helperIds }),
+          /** Spec 327: só com valor informado — o corpo sem ele continua o de antes. */
+          ...(input.paidAmounts === undefined || Object.keys(input.paidAmounts).length === 0
+            ? {}
+            : { paidAmounts: input.paidAmounts }),
           vehicleId: input.vehicleId,
         }),
         dependencies,

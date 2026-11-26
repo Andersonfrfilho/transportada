@@ -916,6 +916,12 @@ export const tripDrivers = pgTable(
     position: bigint({ mode: 'bigint' }).notNull(),
     /** Spec 149 / ADR-0065: o default mantém toda linha anterior à coluna como condutor. */
     role: text().$type<TripCrewRole>().notNull().default('driver'),
+    /**
+     * Spec 327: o valor que a operação **combinou pagar** a esta pessoa por esta viagem, informado ao
+     * montar. `null` é "não informado" — e aí a valoração segue com a diária estimada de sempre; zero
+     * é um valor (viagem sem pagamento), nunca ausência.
+     */
+    paidAmount: numeric('paid_amount', { precision: 19, scale: 4 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -957,6 +963,10 @@ export const tripDrivers = pgTable(
     ),
     check('trip_drivers_tax_id_check', sql`${table.driverTaxId} ~ ${raw(`'${TAX_ID_PATTERN}'`)}`),
     check('trip_drivers_name_check', sql`length(${table.driverName}) > 0`),
+    check(
+      'trip_drivers_paid_amount_check',
+      sql`${table.paidAmount} is null or ${table.paidAmount} >= 0`,
+    ),
     check('trip_drivers_role_check', sql`${table.role} in (${raw(inList(TRIP_CREW_ROLES))})`),
     check('trip_drivers_lead_role_check', sql`${table.position} <> 1 or ${table.role} = 'driver'`),
   ],

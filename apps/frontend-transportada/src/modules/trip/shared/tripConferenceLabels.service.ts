@@ -18,6 +18,7 @@ export function buildTripConferenceSheetLabels(
     invoice: translate('conference.sheetInvoice'),
     issuedAt: translate('conference.sheetIssuedAt'),
     notes: translate('conference.sheetNotes'),
+    paidAmount: translate('conference.sheetPaidAmount'),
     printedAt: translate('conference.sheetPrintedAt'),
     quantity: translate('conference.sheetQuantity'),
     routeCities: translate('conference.routeCities'),

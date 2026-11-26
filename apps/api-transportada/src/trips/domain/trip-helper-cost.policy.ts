@@ -22,6 +22,8 @@ export type TripHelperCostMember = {
   readonly driverId: string
   /** `fleet_drivers.helper_daily_rate`. `null` é "sem valor próprio", nunca zero (D2). */
   readonly ownDailyRate: null | string
+  /** Spec 327: o valor combinado para este ajudante nesta viagem; vence diária × dias quando existe. */
+  readonly paidAmount?: null | string
 }
 
 export type BuildTripHelperCostParams = {
@@ -59,7 +61,11 @@ export function buildTripHelperCost(input: BuildTripHelperCostParams): TripCostP
     return { amount: ZERO, detail: null, gap: null, kind: 'helper', source: 'measured' }
   }
 
-  if (input.journeySeconds === null) {
+  /** Spec 327: quem tem valor combinado não depende da jornada nem da diária. */
+  const informed = helpers.filter((helper) => isInformed(helper))
+  const pending = helpers.filter((helper) => !isInformed(helper))
+
+  if (input.journeySeconds === null && pending.length > 0) {
     return {
       amount: ZERO,
       detail: null,
@@ -69,15 +75,15 @@ export function buildTripHelperCost(input: BuildTripHelperCostParams): TripCostP
     }
   }
 
-  const dayCount = resolveHelperDayCount(input.journeySeconds)
-  const resolved = helpers.map((helper) => ({
+  const dayCount = input.journeySeconds === null ? 1 : resolveHelperDayCount(input.journeySeconds)
+  const resolved = pending.map((helper) => ({
     helper,
     rate: helper.ownDailyRate ?? input.companyDailyRate,
   }))
   const known = resolved.filter((entry) => entry.rate !== null)
   const missingCount = resolved.length - known.length
 
-  if (known.length === 0) {
+  if (informed.length === 0 && known.length === 0) {
     return {
       amount: ZERO,
       detail: null,
@@ -88,22 +94,38 @@ export function buildTripHelperCost(input: BuildTripHelperCostParams): TripCostP
   }
 
   /**
-   * Spec 325 RF1e (T1.4c): uma linha por ajudante com diária, na ordem da tripulação. A parcela é a soma delas — o
+   * Spec 325 RF1e (T1.4c): uma linha por ajudante com valor, na ordem da tripulação. A parcela é a soma delas — o
    * pagamento do ajudante (Contas) copia a linha dele daqui, e nada fora desta função multiplica diária × dias.
+   * Spec 327: o ajudante com valor combinado entra com a linha `informed`, e o que ele recebe é esse valor.
    */
-  const crew = known.map((entry): TripHelperCostCrewLine => {
+  const lineByDriverId = new Map<string, TripHelperCostCrewLine>()
+  for (const helper of informed) {
+    const paid = parseScaledDecimal({
+      errorCodePrefix: ERROR_CODE_PREFIX,
+      scale: MONEY_SCALE,
+      value: helper.paidAmount ?? ZERO,
+    })
+    lineByDriverId.set(helper.driverId, {
+      dailyAmount: formatScaledDecimal(paid, MONEY_SCALE),
+      driverId: helper.driverId,
+      rateOrigin: 'informed',
+      subtotal: formatScaledDecimal(paid, MONEY_SCALE),
+    })
+  }
+  for (const entry of known) {
     const rate = parseScaledDecimal({
       errorCodePrefix: ERROR_CODE_PREFIX,
       scale: MONEY_SCALE,
       value: entry.rate ?? ZERO,
     })
-    return {
+    lineByDriverId.set(entry.helper.driverId, {
       dailyAmount: formatScaledDecimal(rate, MONEY_SCALE),
       driverId: entry.helper.driverId,
       rateOrigin: entry.helper.ownDailyRate === null ? 'company' : 'own',
       subtotal: formatScaledDecimal(rate * BigInt(dayCount), MONEY_SCALE),
-    }
-  })
+    })
+  }
+  const crew = helpers.flatMap((helper) => lineByDriverId.get(helper.driverId) ?? [])
   const total = crew.reduce(
     (accumulated, line) =>
       accumulated +
@@ -114,20 +136,23 @@ export function buildTripHelperCost(input: BuildTripHelperCostParams): TripCostP
       }),
     0n,
   )
+  const journeyEstimated = pending.length > 0 && input.journeyIncludesReturn === false
 
   return {
     amount: formatScaledDecimal(total, MONEY_SCALE),
     basis: { crew, days: dayCount, of: 'helper' },
     detail: missingCount === 0 ? null : `${missingCount}/${resolved.length}`,
-    gap: resolveGap({ includesReturn: input.journeyIncludesReturn, missingCount }),
+    gap: resolveGap({
+      includesReturn: pending.length > 0 ? input.journeyIncludesReturn : null,
+      missingCount,
+    }),
     kind: 'helper',
-    source:
-      missingCount > 0
-        ? 'measured'
-        : input.journeyIncludesReturn === false
-          ? 'estimated'
-          : 'measured',
+    source: missingCount > 0 ? 'measured' : journeyEstimated ? 'estimated' : 'measured',
   }
+}
+
+function isInformed(helper: TripHelperCostMember): boolean {
+  return helper.paidAmount !== undefined && helper.paidAmount !== null
 }
 
 /** `max(1, ceil(jornada / 24h))` — D7. Exportada para a mesma conta na sugestão (T7). */
