@@ -477,6 +477,7 @@ describe('Drizzle migrations', () => {
       '20261122182415_trip_canhoto_ocr_attempt',
       '20261122195101_trip_canhoto_mismatch_dismissal',
       '20261124034805_trip_dispatch_requests',
+      '20261126230047_trip_crew_paid_amount',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

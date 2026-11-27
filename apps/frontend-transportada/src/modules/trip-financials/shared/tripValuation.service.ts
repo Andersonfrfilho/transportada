@@ -16,7 +16,8 @@ import type { CostBasis, TimeBasis } from './tripValuation.constant'
 export type ValuationSource = 'estimated' | 'measured' | 'missing' | 'period'
 
 /** Spec 143 D3: de onde veio a diária — cópia por valor de `DailyAllowanceRateOrigin` da API. */
-export type DailyAllowanceRateOrigin = 'company' | 'default' | 'driver'
+/** Spec 327: `informed` é o valor combinado na montagem da viagem — não há diária × dias a mostrar. */
+export type DailyAllowanceRateOrigin = 'company' | 'default' | 'driver' | 'informed'
 
 /** Spec 143 D4: os dias vieram informados na operação, ou estimados da duração do roteiro. */
 export type DailyAllowanceDaysOrigin = 'estimated' | 'informed'

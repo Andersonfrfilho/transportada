@@ -105,10 +105,12 @@
   "ledger": {
     "driverBasis_one": "{{amount}} × {{days}} day · {{origin}}",
     "driverBasis_other": "{{amount}} × {{days}} days · {{origin}}",
+    "driverInformed": "{{amount}} · {{origin}}",
     "driverRateOrigin": {
       "company": "general rate",
       "default": "default rate",
-      "driver": "driver's rate"
+      "driver": "driver's rate",
+      "informed": "informed amount"
     },
     "expenses": "Expenses",
     "helperMissingRate_one": "{{missing}} of {{total}} helper without a daily rate",

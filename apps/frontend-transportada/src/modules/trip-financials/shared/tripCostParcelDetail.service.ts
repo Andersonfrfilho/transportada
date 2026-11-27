@@ -80,6 +80,13 @@ function composeDriverAllowanceLine({
   rateOrigin,
   t,
 }: ComposeDriverAllowanceLineInput): string {
+  /** Spec 327: valor combinado vale pela viagem inteira — dizer "× dias" afirmaria uma conta que não existe. */
+  if (rateOrigin === 'informed') {
+    return t('ledger.driverInformed', {
+      amount: formatRateAmount(dailyAmount),
+      origin: t('ledger.driverRateOrigin.informed'),
+    })
+  }
   return t('ledger.driverBasis', {
     amount: formatRateAmount(dailyAmount),
     count: days,

@@ -1,3 +1,4 @@
+import './trip/paid-amount-field.contract.js'
 import './trip/client-and-controller.contract.js'
 import './trip/timeline.contract.js'
 import './trip/timeline-view.contract.js'

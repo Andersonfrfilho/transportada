@@ -19,6 +19,8 @@ export type TripConferenceSheetLabels = Readonly<{
   invoice: string
   issuedAt: string
   notes: string
+  /** Spec 327: o valor combinado com a pessoa — só aparece quando foi informado. */
+  paidAmount: string
   printedAt: string
   quantity: string
   routeCities: string
@@ -127,7 +129,13 @@ function buildFields(input: BuildTripConferenceSheetInput): readonly TripConfere
   const { summary } = conference
   const crew = drivers.filter((driver) => driver.role !== 'helper')
   const fields: TripConferenceSheetField[] = [
-    ...crew.map((driver) => ({ label: labels.driver, value: describeDriver(driver) })),
+    ...crew.flatMap((driver) => [
+      { label: labels.driver, value: describeDriver(driver) },
+      /** Spec 327: sem valor informado (ou sem `trip.financials`) a linha não existe, nunca "R$ 0,00". */
+      ...(driver.paidAmount === undefined || driver.paidAmount === null
+        ? []
+        : [{ label: labels.paidAmount, value: formatMoney(driver.paidAmount) }]),
+    ]),
     { label: labels.vehicle, value: vehiclePlate ?? '' },
     { label: labels.trip, value: tripCode },
     {

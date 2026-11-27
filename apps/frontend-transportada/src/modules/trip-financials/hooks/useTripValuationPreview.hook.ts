@@ -40,6 +40,9 @@ export function useTripValuationPreview(
     /** Spec 143 D4: ausente é "sugere pela duração estimada" — nunca `0`, nunca `null`. */
     dailyAllowanceDays?: number
     driverIds: readonly string[]
+    /** Spec 327: ajudantes e o valor combinado por pessoa — a conta muda com eles, então a consulta também. */
+    helperIds?: readonly string[]
+    paidAmounts?: Readonly<Record<string, string>>
     /**
      * ⚠️ Pausa a consulta e segura o **último número medido** enquanto há rascunho aberto na tela
      * (specs 111/112): cada toque de seta ou movimento ia ao servidor, e o operador só queria ver o
@@ -59,6 +62,11 @@ export function useTripValuationPreview(
   const driverKey = [...input.driverIds].sort().join(',')
   /** ⚠️ **Sem `sort`**: aqui a ordem *é* o dado — ordenar a chave esconderia a reordenação. */
   const orderKey = input.stopOrder.join('>')
+  const helperKey = [...(input.helperIds ?? [])].sort().join(',')
+  const paidKey = Object.entries(input.paidAmounts ?? {})
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([driverId, amount]) => `${driverId}=${amount}`)
+    .join(',')
   const dailyAllowanceDaysKey = input.dailyAllowanceDays ?? ''
   const routeChoiceKey =
     input.routeChoice === undefined
@@ -79,7 +87,9 @@ export function useTripValuationPreview(
           ? {}
           : { dailyAllowanceDays: input.dailyAllowanceDays }),
         driverIds: input.driverIds,
+        ...(input.helperIds === undefined ? {} : { helperIds: input.helperIds }),
         nfeDocumentIds: input.nfeDocumentIds,
+        ...(input.paidAmounts === undefined ? {} : { paidAmounts: input.paidAmounts }),
         ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
         stopOrder: input.stopOrder,
         vehicleId: input.vehicleId,
@@ -90,7 +100,9 @@ export function useTripValuationPreview(
       dailyAllowanceDaysKey,
       documentKey,
       driverKey,
+      helperKey,
       orderKey,
+      paidKey,
       routeChoiceKey,
       input.vehicleId,
     ],

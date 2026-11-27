@@ -65,6 +65,8 @@ export type CreateTripInput = {
   readonly driverIds: readonly string[]
   /** Spec 149 (ADR-0065): ajudantes da tripulação — opcional, entram depois dos motoristas. */
   readonly helperIds?: readonly string[]
+  /** Spec 327: valor combinado por pessoa (`driverId` → decimal). Chave fora da tripulação é descartada. */
+  readonly paidAmounts?: Readonly<Record<string, string>> | undefined
   /** Spec 217 RF2: ausente é "sem veículo ainda" — a viagem nasce `awaiting_crew` (D1). */
   readonly vehicleId?: string | undefined
 }
@@ -242,7 +244,7 @@ export function createTripUseCase(dependencies: {
       return closed
     },
 
-    async create({ context, dailyAllowanceDays, driverIds, helperIds, vehicleId }) {
+    async create({ context, dailyAllowanceDays, driverIds, helperIds, paidAmounts, vehicleId }) {
       const companyId = context.companyId
       /**
        * Spec 217 RF2/RF3 (D1): `vehicleId` ausente é "sem veículo ainda" — `vehicle` sai `null` sem
@@ -251,11 +253,15 @@ export function createTripUseCase(dependencies: {
        * distinção é o que `resolveTripVehicleForCreation` resolve.
        */
       const vehicle = await resolveTripVehicleForCreation({ companyId, repository, vehicleId })
-      const crew = await resolveTripCrewForCreation({
+      const resolvedCrew = await resolveTripCrewForCreation({
         companyId,
         driverIds,
         ...(helperIds === undefined ? {} : { helperIds }),
         repository,
+      })
+      const crew = resolvedCrew.map((line) => {
+        const paidAmount = paidAmounts?.[line.driverId]
+        return paidAmount === undefined ? line : { ...line, paidAmount }
       })
       /**
        * Feature 147 T10: a carreta padrão só se aplica quando a viagem já nasce com veículo — sem

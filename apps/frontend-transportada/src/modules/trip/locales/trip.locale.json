@@ -401,6 +401,9 @@
   },
   "creation": {
     "dailyAllowanceDays": "Diárias",
+    "paidAmountDriver": "Valor pago ao motorista · {{name}} (opcional)",
+    "paidAmountHelper": "Valor pago ao ajudante · {{name}} (opcional)",
+    "paidAmountPlaceholder": "Sem valor: usa o estimado",
     "dailyAllowanceDaysPlaceholder": "Sugerido pela duração da viagem",
     "drivers": "Motoristas",
     "driversClearAll": "Retirar todos",
@@ -3124,6 +3127,7 @@
     "sheetValue": "Valor",
     "sheetTotal": "Total",
     "sheetDriverSignature": "Assinatura do motorista",
+    "sheetPaidAmount": "Valor pago ao motorista",
     "sheetCheckedBy": "Conferido por",
     "sheetDate": "Data",
     "sheetTitle": "Romaneio de conferência",

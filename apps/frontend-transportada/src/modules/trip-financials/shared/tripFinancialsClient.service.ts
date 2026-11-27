@@ -43,7 +43,11 @@ export type TripFinancialsClient = Readonly<{
       /** Spec 143 D4: ausente é "sugere pela duração estimada" — nunca `0`, nunca `null`. */
       dailyAllowanceDays?: number
       driverIds: readonly string[]
+      /** Spec 327: ajudantes escolhidos — só o que tem valor combinado entra na prévia. */
+      helperIds?: readonly string[]
       nfeDocumentIds: readonly string[]
+      /** Spec 327: valor combinado por pessoa (`driverId` → decimal). Ausente é "não informado". */
+      paidAmounts?: Readonly<Record<string, string>>
       /** D7/D2: a rota escolhida deste veículo — identificada por critério e assinatura. */
       routeChoice?: RouteChoice
       stopOrder: readonly string[]
@@ -113,7 +117,13 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
               ? {}
               : { dailyAllowanceDays: input.dailyAllowanceDays }),
             driverIds: input.driverIds,
+            ...(input.helperIds === undefined || input.helperIds.length === 0
+              ? {}
+              : { helperIds: input.helperIds }),
             nfeDocumentIds: input.nfeDocumentIds,
+            ...(input.paidAmounts === undefined || Object.keys(input.paidAmounts).length === 0
+              ? {}
+              : { paidAmounts: input.paidAmounts }),
             ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
             stopOrder: input.stopOrder,
             vehicleId: input.vehicleId,

@@ -60,6 +60,57 @@ describe('trip create http contract', () => {
     ])
   })
 
+  // Spec 327: valor pago é dinheiro — gravar exige `trip.financials`, não só `trip.manage`.
+  describe('paid amounts (spec 327)', () => {
+    const PAID_BODY = { ...CREATE_TRIP_BODY, paidAmounts: { [DRIVER_ID]: '250.00' } }
+
+    test('refuses paidAmounts without trip.financials', async () => {
+      const fixture = await createTripHttpFixture()
+
+      const response = await fixture.handle(
+        jsonRequest({ body: PAID_BODY, method: 'POST', path: TRIPS_PATH }),
+      )
+
+      expect(response.status).toBe(403)
+      expect((await responseApiError(response)).code).toBe('TRIP_PAID_AMOUNT_FORBIDDEN')
+      expect(fixture.createTripCalls).toEqual([])
+    })
+
+    test('forwards paidAmounts with trip.manage and trip.financials', async () => {
+      const fixture = await createTripHttpFixture({
+        permissions: new Set(['fleet.read', 'trip.manage', 'trip.financials']),
+      })
+
+      const response = await fixture.handle(
+        jsonRequest({ body: PAID_BODY, method: 'POST', path: TRIPS_PATH }),
+      )
+
+      expect(response.status).toBe(201)
+      expect(fixture.createTripCalls).toMatchObject([{ paidAmounts: { [DRIVER_ID]: '250.00' } }])
+    })
+
+    test.each([
+      ['a non-decimal value', { [DRIVER_ID]: '12,5' }],
+      ['a negative value', { [DRIVER_ID]: '-1' }],
+      ['a non-uuid key', { 'not-a-uuid': '10' }],
+    ])('refuses %s', async (_label, paidAmounts) => {
+      const fixture = await createTripHttpFixture({
+        permissions: new Set(['fleet.read', 'trip.manage', 'trip.financials']),
+      })
+
+      const response = await fixture.handle(
+        jsonRequest({
+          body: { ...CREATE_TRIP_BODY, paidAmounts },
+          method: 'POST',
+          path: TRIPS_PATH,
+        }),
+      )
+
+      expect(response.status).toBe(400)
+      expect(fixture.createTripCalls).toEqual([])
+    })
+  })
+
   // Evidence T1: o teto de 10 vale para a tripulação inteira (motoristas + ajudantes).
   test('refuses a crew over the maximum of ten people combining drivers and helpers', async () => {
     const fixture = await createTripHttpFixture()

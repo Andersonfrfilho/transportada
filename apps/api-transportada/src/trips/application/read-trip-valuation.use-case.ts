@@ -290,6 +290,13 @@ export type PreviewTripValuationInput = {
   readonly dailyAllowanceDays?: number | undefined
   readonly depot?: null | ReadRouteGeometryDepotPort
   readonly driverIds: readonly string[]
+  /**
+   * Spec 327: ajudantes escolhidos. A prévia só precifica o ajudante que tem valor combinado
+   * (`paidAmounts`); sem valor, segue como antes — a diária dele só é lida na viagem criada.
+   */
+  readonly helperIds?: readonly string[] | undefined
+  /** Spec 327: valor combinado por pessoa (`driverId` → decimal). Ausente é "não informado". */
+  readonly paidAmounts?: Readonly<Record<string, string>> | undefined
   /** A mesma porta da geometria avulsa do mapa (`/route-geometry`) — spec 090 D3. */
   readonly geometry: RouteGeometryPort
   readonly nfeDocumentIds: readonly string[]
@@ -373,6 +380,7 @@ export async function previewTripValuation(
     companyId: input.companyId,
     context: {
       ...context,
+      ...applyPaidAmountsToPreview({ context, input }),
       ...(input.dailyAllowanceDays === undefined
         ? {}
         : { dailyAllowanceDays: input.dailyAllowanceDays }),
@@ -382,6 +390,27 @@ export async function previewTripValuation(
     },
     repository: input.repository,
   })
+}
+
+/**
+ * Spec 327: o valor combinado entra na prévia pela mesma conta da viagem criada — só troca quem
+ * tem valor. Motorista sem valor mantém a diária; ajudante sem valor continua fora da prévia.
+ */
+function applyPaidAmountsToPreview(params: {
+  readonly context: TripValuationContext
+  readonly input: PreviewTripValuationInput
+}): Pick<TripValuationContext, 'crew' | 'helperCrew'> {
+  const paid = params.input.paidAmounts ?? {}
+  const crew = (params.context.crew ?? []).map((member) => ({
+    ...member,
+    paidAmount: paid[member.driverId] ?? null,
+  }))
+  const helperCrew = (params.input.helperIds ?? []).flatMap((driverId) => {
+    const paidAmount = paid[driverId]
+    return paidAmount === undefined ? [] : [{ driverId, ownDailyRate: null, paidAmount }]
+  })
+
+  return { crew, helperCrew }
 }
 
 /**

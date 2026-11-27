@@ -288,7 +288,8 @@ export type TripDriverCostCrewLine = Readonly<{
   driverId: string
   driverName: null | string
   paymentModel: string
-  rateOrigin: DailyAllowanceRateOrigin
+  /** Spec 327: `informed` é o valor combinado na montagem — não há diária × dias para mostrar. */
+  rateOrigin: DailyAllowanceRateOrigin | 'informed'
   subtotal: string
 }>
 
@@ -300,7 +301,7 @@ export type TripDriverCostCrewLine = Readonly<{
 export type TripHelperCostCrewLine = Readonly<{
   dailyAmount: string
   driverId: string
-  rateOrigin: 'company' | 'own'
+  rateOrigin: 'company' | 'informed' | 'own'
   subtotal: string
 }>
 

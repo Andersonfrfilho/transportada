@@ -65,6 +65,11 @@ export type TripDriverLine = Readonly<{
   driverName: string
   /** Spec 156 D11: `null` para quem lê a viagem sem `fleet.read` (e-mail e telefone também). */
   driverTaxId: string | null
+  /**
+   * Spec 327: o valor combinado com esta pessoa nesta viagem. Só vem com `trip.financials`;
+   * ausente ou `null` é "não informado" (a viagem usa a diária estimada).
+   */
+  paidAmount?: string | null
   position: number
   driverPhone?: string | null
   /**
@@ -1132,6 +1137,8 @@ export type CreateTripBody = Readonly<{
   driverIds: readonly string[]
   /** Spec 149: ajudantes, depois dos motoristas — ausente ou vazio é viagem sem ajudante. */
   helperIds?: readonly string[]
+  /** Spec 327: valor combinado por pessoa (`driverId` → decimal). Ausente é "não informado". */
+  paidAmounts?: Readonly<Record<string, string>>
   /** Spec 217 (RF1/RF2): ausente é o rascunho sem veículo — a viagem nasce `awaiting_crew`. */
   vehicleId?: string
 }>

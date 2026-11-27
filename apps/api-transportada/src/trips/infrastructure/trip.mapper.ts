@@ -149,6 +149,7 @@ export function mapTripDriver(
     driverId: record.driverId,
     driverName: record.driverName,
     driverTaxId: record.driverTaxId,
+    paidAmount: record.paidAmount,
     position: Number(record.position),
     role: record.role,
   }

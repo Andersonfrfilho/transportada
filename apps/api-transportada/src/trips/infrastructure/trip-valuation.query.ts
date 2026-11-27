@@ -705,6 +705,7 @@ export class DrizzleTripValuationQuery {
           driverAmount: fleetDrivers.dailyAllowanceAmount,
           driverId: fleetDrivers.id,
           driverName: fleetDrivers.name,
+          paidAmount: tripDrivers.paidAmount,
           paymentModel: fleetDrivers.paymentModel,
         })
         .from(tripDrivers)
@@ -741,7 +742,11 @@ export class DrizzleTripValuationQuery {
     readonly tripId: string
   }): Promise<readonly TripHelperCostMember[]> {
     const rows = await this.database
-      .select({ driverId: fleetDrivers.id, ownDailyRate: fleetDrivers.helperDailyRate })
+      .select({
+        driverId: fleetDrivers.id,
+        ownDailyRate: fleetDrivers.helperDailyRate,
+        paidAmount: tripDrivers.paidAmount,
+      })
       .from(tripDrivers)
       .innerJoin(
         fleetDrivers,

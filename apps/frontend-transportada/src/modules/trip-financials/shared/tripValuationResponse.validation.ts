@@ -25,6 +25,7 @@ const DAILY_ALLOWANCE_RATE_ORIGINS: readonly DailyAllowanceRateOrigin[] = [
   'company',
   'default',
   'driver',
+  'informed',
 ]
 
 function isRateOrigin(value: unknown): value is DailyAllowanceRateOrigin {
