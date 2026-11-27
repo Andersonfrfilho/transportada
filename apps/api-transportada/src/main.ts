@@ -819,6 +819,9 @@ import { setTripMdfeRequirement } from './trips/application/set-trip-mdfe-requir
 import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation.query'
 import { DrizzleTripFinancialResultRepository } from './trips/infrastructure/drizzle-trip-financial-result.repository.js'
 import { DrizzleFinancialSummaryQuery } from './trips/infrastructure/financial-summary.query.js'
+import { DrizzleCrewCostComparisonQuery } from './trips/infrastructure/crew-cost-comparison.query.js'
+import { createReadCrewCostComparison } from './trips/application/read-crew-cost-comparison.use-case.js'
+import { createCrewCostComparisonRoutes } from './trips/presentation/crew-cost-comparison.routes.js'
 import { buildFinancialSummary } from './trips/domain/financial-summary.policy.js'
 import type { RouteChoice } from './trips/domain/route-choice.policy.js'
 import {
@@ -4024,6 +4027,7 @@ function createApplicationRoutes({
   })
   const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
   const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
+  const crewCostComparisonQuery = new DrizzleCrewCostComparisonQuery(database)
   const tripCostRepository = new DrizzleTripCostRepository(database)
   const tripRevenueRepository = new DrizzleTripRevenueRepository(database)
   const companyEntryKindRepository = new DrizzleCompanyEntryKindRepository(database)
@@ -5422,6 +5426,13 @@ function createApplicationRoutes({
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },
+    }),
+    /** Spec 327: gasto × custo da viagem — antes das rotas `/trips/:id`, que de outro modo a engoliriam. */
+    ...createCrewCostComparisonRoutes({
+      readComparison: createReadCrewCostComparison({
+        listTripsWithPaidAmount: (query) => crewCostComparisonQuery.listTripsWithPaidAmount(query),
+        readValuationContexts: (query) => tripValuationQuery.readValuationContexts(query),
+      }),
     }),
     ...createFinancialSummaryRoutes({
       readSummary: {

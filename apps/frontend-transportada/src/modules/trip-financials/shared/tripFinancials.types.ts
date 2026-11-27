@@ -118,3 +118,23 @@ export type TripRevenueEntry = Readonly<{
   entryKind: Readonly<{ id: string; name: string }>
   id: string
 }>
+
+/** Spec 327: uma viagem da página gasto × custo — o informado contra a diária que a conta calcularia. */
+export type CrewCostComparison = Readonly<{
+  items: readonly CrewCostComparisonRow[]
+  /** Havia mais viagens no período do que a página mostra. */
+  truncated: boolean
+}>
+
+export type CrewCostComparisonRow = Readonly<{
+  calculatedAmount: string
+  calculatedHasGaps: boolean
+  createdAt: string
+  crewNames: readonly string[]
+  differenceAmount: string
+  informedAmount: string
+  informedHasGaps: boolean
+  informedPeople: number
+  status: string
+  tripId: string
+}>

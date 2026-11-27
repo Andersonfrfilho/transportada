@@ -195,5 +195,22 @@
     "title": "Resultados",
     "to": "Até",
     "trips": "Viagens"
+  },
+  "crewComparison": {
+    "title": "Gasto × custo da tripulação",
+    "subtitle": "Viagens do período com valor pago informado: o que combinamos pagar contra a diária que a conta calcularia sozinha.",
+    "caption": "Custo da tripulação por viagem: calculado, informado e a diferença",
+    "trip": "Viagem",
+    "crew": "Tripulação",
+    "calculated": "Calculado",
+    "informed": "Informado",
+    "difference": "Diferença",
+    "incomplete": "incompleto",
+    "noDifference": "sem diferença",
+    "empty": "Nenhuma viagem do período tem valor pago informado.",
+    "loading": "Carregando a comparação",
+    "error": "Não foi possível carregar a comparação.",
+    "truncated": "Há mais viagens no período do que as mostradas aqui: reduza o período para ver todas.",
+    "incompleteDifference": "incompleta: falta duração da viagem"
   }
 }

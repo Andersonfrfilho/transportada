@@ -584,3 +584,95 @@
 .column h3 {
   margin: 0;
 }
+
+/*
+ * Spec 327: gasto × custo por viagem. Mobile-first: abaixo de 40rem cada viagem vira um cartão com o rótulo da
+ * coluna (`data-label`) ao lado do valor — a tabela de cinco colunas escondia o informado e a diferença atrás da
+ * rolagem, e é justamente a diferença que o leitor veio ver. A partir de 40rem volta a ser tabela.
+ */
+.comparisonTable thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.comparisonTable,
+.comparisonTable tbody,
+.comparisonTable tr,
+.comparisonTable th,
+.comparisonTable td {
+  display: block;
+}
+
+.comparisonTable caption {
+  display: block;
+  text-align: left;
+}
+
+.comparisonTable tr {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-graphite);
+}
+
+.comparisonTable th,
+.comparisonTable td {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+  padding: 0;
+  border: 0;
+}
+
+.comparisonTable th::before,
+.comparisonTable td::before {
+  content: attr(data-label);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+@media (min-width: 40rem) {
+  .comparisonTable {
+    display: table;
+  }
+
+  .comparisonTable caption {
+    display: table-caption;
+  }
+
+  .comparisonTable thead {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .comparisonTable tbody {
+    display: table-row-group;
+  }
+
+  .comparisonTable tr {
+    display: table-row;
+    padding: 0;
+  }
+
+  .comparisonTable th,
+  .comparisonTable td {
+    display: table-cell;
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--color-graphite);
+  }
+
+  .comparisonTable th::before,
+  .comparisonTable td::before {
+    content: none;
+  }
+}
