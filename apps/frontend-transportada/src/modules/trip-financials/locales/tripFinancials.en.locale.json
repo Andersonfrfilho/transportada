@@ -193,5 +193,22 @@
     "title": "Results",
     "to": "To",
     "trips": "Trips"
+  },
+  "crewComparison": {
+    "title": "Crew spend × cost",
+    "subtitle": "Trips in the period with a paid amount: what we agreed to pay against the daily rate the calculation would use on its own.",
+    "caption": "Crew cost per trip: calculated, informed and the difference",
+    "trip": "Trip",
+    "crew": "Crew",
+    "calculated": "Calculated",
+    "informed": "Informed",
+    "difference": "Difference",
+    "incomplete": "incomplete",
+    "noDifference": "no difference",
+    "empty": "No trip in the period has a paid amount.",
+    "loading": "Loading the comparison",
+    "error": "Could not load the comparison.",
+    "truncated": "The period has more trips than shown here: narrow it to see them all.",
+    "incompleteDifference": "incomplete: trip duration is missing"
   }
 }

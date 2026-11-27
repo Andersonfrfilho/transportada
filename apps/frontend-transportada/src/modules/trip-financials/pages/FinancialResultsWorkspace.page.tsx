@@ -9,6 +9,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { currentMonthPeriod } from '@/modules/expenses/shared/expensesResultView.service'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
+import { CrewCostComparison } from '../components/CrewCostComparison.component'
 import { formatMargin, isNegative } from '../shared/financialView.service'
 import { getTripFinancialsClient } from '../shared/tripFinancialsClient.service'
 import { FINANCIAL_RESULTS_PERMISSION } from '../shared/tripFinancialsQueryKey.constant'
@@ -157,6 +158,13 @@ export function FinancialResultsWorkspacePage() {
           </table>
         </>
       )}
+
+      {/* Spec 327: o mesmo período do acumulado, agora viagem a viagem (só com `trip.financials`). */}
+      <CrewCostComparison
+        from={from}
+        permissions={authQuery.data?.data.permissions ?? []}
+        to={to}
+      />
     </main>
   )
 }

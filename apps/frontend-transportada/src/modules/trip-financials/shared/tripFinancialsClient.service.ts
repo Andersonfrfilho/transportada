@@ -7,6 +7,7 @@ import {
   FINANCIAL_RESULTS_PATH,
   type CompanyEntryKind,
   type CompanyEntryKindSide,
+  type CrewCostComparison,
   type FinancialSummary,
   type FinancialSummaryGroup,
   type TripCostEntry,
@@ -16,7 +17,11 @@ import {
 import { toTripCostEntries } from './tripCostEntryResponse.validation'
 import { toTripRevenueEntries } from './tripRevenueEntryResponse.validation'
 import { toCompanyEntryKind, toCompanyEntryKinds } from './companyEntryKindResponse.validation'
-import { toFinancialSummary, toTripFinancialResult } from './tripFinancialsResponse.validation'
+import {
+  toCrewCostComparison,
+  toFinancialSummary,
+  toTripFinancialResult,
+} from './tripFinancialsResponse.validation'
 import { toTripValuation } from './tripValuationResponse.validation'
 import type { TripValuation } from './tripValuation.service'
 
@@ -57,6 +62,10 @@ export type TripFinancialsClient = Readonly<{
   readSummary: (
     input: Readonly<{ from: string; groupBy: FinancialSummaryGroup; to: string }>,
   ) => Promise<FinancialSummary>
+  /** Spec 327: gasto × custo da tripulação, viagem a viagem — `trip.financials`. */
+  readCrewCostComparison: (
+    input: Readonly<{ from: string; to: string }>,
+  ) => Promise<CrewCostComparison>
   recalculate: (
     input: Readonly<{ reason: string; tripId: string }>,
   ) => Promise<TripFinancialResult | null>
@@ -137,6 +146,16 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
     async readValuation(tripId) {
       return toTripValuation(
         await request({ dependencies, method: 'GET', path: `/trips/${tripId}/valuation` }),
+      )
+    },
+    async readCrewCostComparison({ from, to }) {
+      const parameters = new URLSearchParams({ from, to })
+      return toCrewCostComparison(
+        await request({
+          dependencies,
+          method: 'GET',
+          path: `/trips/crew-cost-comparison?${parameters.toString()}`,
+        }),
       )
     },
     async readSummary({ from, groupBy, to }) {
