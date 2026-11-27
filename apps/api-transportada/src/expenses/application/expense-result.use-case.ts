@@ -98,6 +98,12 @@ export type ExpenseResult = {
     readonly profit: string
     readonly revenue: string
     readonly tripCost: string
+    /**
+     * Só informativo, nunca muda o lucro: de onde vem o custo das viagens do período filtrado, valendo igual com o
+     * interruptor ligado ou desligado. Agregado/terceiro = o que se paga a eles nas viagens; frota própria = gastos lançados
+     * nas viagens das nossas vans.
+     */
+    readonly tripCostBreakdown: { readonly aggregates: string; readonly ownVans: string }
   }
 }
 
@@ -256,6 +262,13 @@ export async function computeExpenseResult(
 
   let revenue = ZERO
   let tripCost = ZERO
+  let aggregatesCost = ZERO
+  let ownVansCost = ZERO
+  for (const trip of trips) {
+    if (trip.vehicleOwnership === 'aggregate' || trip.vehicleOwnership === 'third_party') {
+      aggregatesCost += cents(trip.cost)
+    } else ownVansCost += cents(trip.cost)
+  }
   for (const totals of byTrip.values()) {
     revenue += totals.revenue
     tripCost += totals.cost
@@ -315,6 +328,10 @@ export async function computeExpenseResult(
       profit: formatCents(revenue - tripCost - expensesTotal),
       revenue: formatCents(revenue),
       tripCost: formatCents(tripCost),
+      tripCostBreakdown: {
+        aggregates: formatCents(aggregatesCost),
+        ownVans: formatCents(ownVansCost),
+      },
     },
     unallocatedItems: keptUnallocated.map((item) => ({
       ...item,

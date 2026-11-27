@@ -412,6 +412,50 @@ describe('o que não é custo da frota própria fica fora do cálculo e à vista
     expect(sumCents(result.byTrip.map((l) => l.margin))).toBe(cents(result.totals.profit))
   })
 
+  it('o custo das viagens vem separado em agregados e nossas vans, só como informação, com o interruptor ligado ou não', async () => {
+    const ports = seed()
+    ports.tripRows[0] = aTrip({
+      ...ports.tripRows[0]!,
+      cost: '300.00',
+      tripId: 't1',
+      vehicleOwnership: 'aggregate',
+    })
+    ports.tripRows[1] = aTrip({
+      ...ports.tripRows[1]!,
+      cost: '500.00',
+      tripId: 't2',
+      vehicleOwnership: 'own',
+    })
+    ports.tripRows[2] = aTrip({
+      ...ports.tripRows[2]!,
+      cost: '100.00',
+      tripId: 't3',
+      vehicleOwnership: 'third_party',
+    })
+    const counted = await createGetExpenseResultUseCase(ports).execute({
+      companyId: RESULT_COMPANY_A,
+      ...PERIOD,
+    })
+    const dropped = await createGetExpenseResultUseCase(ports).execute({
+      companyId: RESULT_COMPANY_A,
+      filters: { excludeTripCosts: 'true' },
+      ...PERIOD,
+    })
+
+    expect(counted.totals.tripCostBreakdown).toEqual({ aggregates: '400.00', ownVans: '500.00' })
+    expect(dropped.totals.tripCostBreakdown).toEqual({ aggregates: '400.00', ownVans: '500.00' })
+    expect(dropped.totals.tripCost).toBe('0.00')
+    const sum =
+      cents(counted.totals.tripCostBreakdown.aggregates) +
+      cents(counted.totals.tripCostBreakdown.ownVans)
+    expect(sum).toBe(cents(counted.totals.tripCost))
+    expect(cents(counted.totals.profit)).toBe(
+      cents(counted.totals.revenue) -
+        cents(counted.totals.tripCost) -
+        cents(counted.totals.expensesTotal),
+    )
+  })
+
   it('veículo próprio e conta sem veículo seguem iguais (sem dono na ficha vale como próprio)', async () => {
     const result = await createGetExpenseResultUseCase(seed()).execute({
       companyId: RESULT_COMPANY_A,

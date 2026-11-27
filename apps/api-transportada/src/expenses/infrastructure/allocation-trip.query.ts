@@ -10,6 +10,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { contractors } from '../../database/delivery-client.schema.js'
+import { fleetVehicles } from '../../database/fleet.schema.js'
 import { trips } from '../../database/trip.schema.js'
 import { memoizeRule } from '../../trips/application/read-trip-revenue-totals.use-case.js'
 import { buildValuationFromContext } from '../../trips/application/read-trip-valuation.use-case.js'
@@ -102,6 +103,16 @@ export function createAllocationTripQuery(
         for (const contractor of found) customerByTaxId.set(contractor.taxId, contractor.id)
       }
 
+      const vehicleIds = [...new Set(rows.flatMap((row) => row.vehicleId ?? []))]
+      const ownershipByVehicle = new Map<string, string>()
+      if (vehicleIds.length > 0) {
+        const owners = await database
+          .select({ id: fleetVehicles.id, ownership: fleetVehicles.ownership })
+          .from(fleetVehicles)
+          .where(and(eq(fleetVehicles.companyId, companyId), inArray(fleetVehicles.id, vehicleIds)))
+        for (const owner of owners) ownershipByVehicle.set(owner.id, owner.ownership)
+      }
+
       const routes = await readTripRoutes(database, { companyId, tripIds })
 
       return rows.flatMap((row) => {
@@ -120,6 +131,8 @@ export function createAllocationTripQuery(
             route: routes.get(row.tripId) ?? null,
             tripId: row.tripId,
             vehicleId: row.vehicleId ?? NO_VEHICLE_ID,
+            vehicleOwnership:
+              row.vehicleId === null ? null : (ownershipByVehicle.get(row.vehicleId) ?? null),
           },
         ]
       })

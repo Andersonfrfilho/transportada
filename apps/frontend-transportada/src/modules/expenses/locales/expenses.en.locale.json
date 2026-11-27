@@ -340,6 +340,7 @@
       "revenue": "Freight revenue",
       "tripCost": "Trip costs",
       "tripCostHint": "allowances and expenses recorded on the trip",
+      "tripCostBreakdown": "Aggregate payments: {{aggregates}} · Our vans' expenses: {{ownVans}} (informational, does not change profit)",
       "expenses": "Company bills",
       "expensesHint": "fixed and variable, without driver pay",
       "profit": "Profit",

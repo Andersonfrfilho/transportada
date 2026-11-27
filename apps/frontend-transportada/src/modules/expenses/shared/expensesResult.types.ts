@@ -98,7 +98,14 @@ export type ExpenseResult = Readonly<{
   filters: ExpenseResultFilters
   paymentsWithoutTrips: readonly ExpenseResultPayment[]
   settings: ExpenseAllocationSettings | null
-  totals: Readonly<{ expensesTotal: string; profit: string; revenue: string; tripCost: string }>
+  totals: Readonly<{
+    expensesTotal: string
+    profit: string
+    revenue: string
+    tripCost: string
+    /** Só informativo (não muda o lucro): origem do custo das viagens, com o interruptor ligado ou não. */
+    tripCostBreakdown: Readonly<{ aggregates: string; ownVans: string }>
+  }>
   unallocatedItems: readonly ExpenseUnallocatedItem[]
   unallocatedTotal: string
 }>
