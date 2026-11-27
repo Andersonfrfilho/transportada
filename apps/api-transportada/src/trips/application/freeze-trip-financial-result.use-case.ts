@@ -129,7 +129,7 @@ function composeDriverAllowanceNote(basis: Extract<TripCostParcelBasis, { of: 'd
 type ComposeAllowanceLineParams = {
   readonly dailyAmount: string
   readonly days: number
-  readonly rateOrigin: DailyAllowanceRateOrigin
+  readonly rateOrigin: DailyAllowanceRateOrigin | 'informed'
 }
 
 function composeAllowanceLine({
@@ -137,6 +137,10 @@ function composeAllowanceLine({
   days,
   rateOrigin,
 }: ComposeAllowanceLineParams): string {
+  /** Spec 327: valor combinado não é diária × dias — a frase diz só o valor e a origem. */
+  if (rateOrigin === 'informed') {
+    return `R$${CURRENCY_SPACE}${formatRateText(dailyAmount)} · valor informado`
+  }
   const dayLabel = days === 1 ? 'dia' : 'dias'
   return `R$${CURRENCY_SPACE}${formatRateText(dailyAmount)} × ${days} ${dayLabel} · ${DAILY_ALLOWANCE_RATE_ORIGIN_LABEL[rateOrigin]}`
 }

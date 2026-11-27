@@ -7,6 +7,7 @@ import {
   FINANCIAL_RESULTS_PATH,
   type CompanyEntryKind,
   type CompanyEntryKindSide,
+  type CrewCostComparison,
   type FinancialSummary,
   type FinancialSummaryGroup,
   type TripCostEntry,
@@ -16,7 +17,11 @@ import {
 import { toTripCostEntries } from './tripCostEntryResponse.validation'
 import { toTripRevenueEntries } from './tripRevenueEntryResponse.validation'
 import { toCompanyEntryKind, toCompanyEntryKinds } from './companyEntryKindResponse.validation'
-import { toFinancialSummary, toTripFinancialResult } from './tripFinancialsResponse.validation'
+import {
+  toCrewCostComparison,
+  toFinancialSummary,
+  toTripFinancialResult,
+} from './tripFinancialsResponse.validation'
 import { toTripValuation } from './tripValuationResponse.validation'
 import type { TripValuation } from './tripValuation.service'
 
@@ -43,7 +48,11 @@ export type TripFinancialsClient = Readonly<{
       /** Spec 143 D4: ausente é "sugere pela duração estimada" — nunca `0`, nunca `null`. */
       dailyAllowanceDays?: number
       driverIds: readonly string[]
+      /** Spec 327: ajudantes escolhidos — só o que tem valor combinado entra na prévia. */
+      helperIds?: readonly string[]
       nfeDocumentIds: readonly string[]
+      /** Spec 327: valor combinado por pessoa (`driverId` → decimal). Ausente é "não informado". */
+      paidAmounts?: Readonly<Record<string, string>>
       /** D7/D2: a rota escolhida deste veículo — identificada por critério e assinatura. */
       routeChoice?: RouteChoice
       stopOrder: readonly string[]
@@ -53,6 +62,10 @@ export type TripFinancialsClient = Readonly<{
   readSummary: (
     input: Readonly<{ from: string; groupBy: FinancialSummaryGroup; to: string }>,
   ) => Promise<FinancialSummary>
+  /** Spec 327: gasto × custo da tripulação, viagem a viagem — `trip.financials`. */
+  readCrewCostComparison: (
+    input: Readonly<{ from: string; to: string }>,
+  ) => Promise<CrewCostComparison>
   recalculate: (
     input: Readonly<{ reason: string; tripId: string }>,
   ) => Promise<TripFinancialResult | null>
@@ -113,7 +126,13 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
               ? {}
               : { dailyAllowanceDays: input.dailyAllowanceDays }),
             driverIds: input.driverIds,
+            ...(input.helperIds === undefined || input.helperIds.length === 0
+              ? {}
+              : { helperIds: input.helperIds }),
             nfeDocumentIds: input.nfeDocumentIds,
+            ...(input.paidAmounts === undefined || Object.keys(input.paidAmounts).length === 0
+              ? {}
+              : { paidAmounts: input.paidAmounts }),
             ...(input.routeChoice === undefined ? {} : { routeChoice: input.routeChoice }),
             stopOrder: input.stopOrder,
             vehicleId: input.vehicleId,
@@ -127,6 +146,16 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
     async readValuation(tripId) {
       return toTripValuation(
         await request({ dependencies, method: 'GET', path: `/trips/${tripId}/valuation` }),
+      )
+    },
+    async readCrewCostComparison({ from, to }) {
+      const parameters = new URLSearchParams({ from, to })
+      return toCrewCostComparison(
+        await request({
+          dependencies,
+          method: 'GET',
+          path: `/trips/crew-cost-comparison?${parameters.toString()}`,
+        }),
       )
     },
     async readSummary({ from, groupBy, to }) {

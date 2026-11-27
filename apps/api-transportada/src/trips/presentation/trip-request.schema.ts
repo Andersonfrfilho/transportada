@@ -51,6 +51,15 @@ export const routeChoiceRequestSchema = z
   .strict()
 
 /**
+ * Spec 327: o valor combinado para cada pessoa da viagem (`driverId` → decimal em texto, até 4 casas).
+ * Opcional: ausente ou sem a chave de alguém é "não informado", e a valoração segue com a diária
+ * estimada. Zero é valor. Chave que não está na tripulação é descartada pelo caso de uso.
+ */
+export const paidAmountsSchema = z
+  .record(z.uuid(), z.string().regex(/^\d{1,15}(\.\d{1,4})?$/u))
+  .refine((value) => Object.keys(value).length <= MAX_TRIP_DRIVERS, 'too_many_paid_amounts')
+
+/**
  * Spec 149 (ADR-0065 / D5, D11): ajudantes entram na criação ao lado dos motoristas, escolhidos à
  * mão. O teto de `MAX_TRIP_DRIVERS` vale para a tripulação **inteira** (motoristas + ajudantes,
  * evidence.md T1) — o `superRefine` fecha isso na fronteira, o mesmo padrão de "erro já existente
@@ -66,6 +75,7 @@ export const createTripSchema = z
     /** Spec 217 RF2: ausente ou vazio nasce viagem `awaiting_crew` — não é mais 400. */
     driverIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
     helperIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
+    paidAmounts: paidAmountsSchema.optional(),
     /** Spec 217 RF2: ausência é "sem veículo ainda", nunca `TripVehicleNotFoundError`. */
     vehicleId: z.uuid().optional(),
   })
@@ -157,7 +167,9 @@ export const previewTripValuationSchema = z
     /** Mesma regra da criação (spec 143 D4) — a prévia vale o mesmo tanto que a viagem criada. */
     dailyAllowanceDays: z.number().int().min(1).optional(),
     driverIds: z.array(z.uuid()).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
+    helperIds: z.array(z.uuid()).max(MAX_TRIP_DRIVERS).default([]),
     nfeDocumentIds: z.array(z.uuid()).min(1).max(MAX_LINK_BATCH_DOCUMENTS),
+    paidAmounts: paidAmountsSchema.optional(),
     /** RF4 (spec 153): sem corpo, a prévia precifica a mais barata conhecida, igual ao congelamento. */
     routeChoice: routeChoiceRequestSchema.optional(),
     stopOrder: z.array(z.string().min(1)).max(MAX_LINK_BATCH_DOCUMENTS).default([]),

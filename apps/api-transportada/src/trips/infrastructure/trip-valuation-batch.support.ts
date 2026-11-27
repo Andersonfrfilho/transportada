@@ -59,6 +59,7 @@ export async function readCrewByTrip(
       driverAmount: fleetDrivers.dailyAllowanceAmount,
       driverId: fleetDrivers.id,
       driverName: fleetDrivers.name,
+      paidAmount: tripDrivers.paidAmount,
       paymentModel: fleetDrivers.paymentModel,
       tripId: tripDrivers.tripId,
     })
@@ -83,6 +84,7 @@ export async function readCrewByTrip(
     driverAmount: row.driverAmount,
     driverId: row.driverId,
     driverName: row.driverName,
+    paidAmount: row.paidAmount,
     paymentModel: row.paymentModel,
   }))
 }
@@ -96,6 +98,7 @@ export async function readHelperCrewByTrip(
     .select({
       driverId: fleetDrivers.id,
       ownDailyRate: fleetDrivers.helperDailyRate,
+      paidAmount: tripDrivers.paidAmount,
       tripId: tripDrivers.tripId,
     })
     .from(tripDrivers)
@@ -114,7 +117,11 @@ export async function readHelperCrewByTrip(
       ),
     )
 
-  return groupByTrip(rows, (row) => ({ driverId: row.driverId, ownDailyRate: row.ownDailyRate }))
+  return groupByTrip(rows, (row) => ({
+    driverId: row.driverId,
+    ownDailyRate: row.ownDailyRate,
+    paidAmount: row.paidAmount,
+  }))
 }
 
 /**

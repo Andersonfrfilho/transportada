@@ -401,6 +401,9 @@
   },
   "creation": {
     "dailyAllowanceDays": "Daily allowance days",
+    "paidAmountDriver": "Amount paid to driver · {{name}} (optional)",
+    "paidAmountHelper": "Amount paid to helper · {{name}} (optional)",
+    "paidAmountPlaceholder": "Empty: keeps the estimate",
     "dailyAllowanceDaysPlaceholder": "Suggested from the trip duration",
     "drivers": "Drivers",
     "driversClearAll": "Remove all",
@@ -3124,6 +3127,7 @@
     "sheetValue": "Value",
     "sheetTotal": "Total",
     "sheetDriverSignature": "Driver signature",
+    "sheetPaidAmount": "Amount paid to driver",
     "sheetCheckedBy": "Checked by",
     "sheetDate": "Date",
     "sheetTitle": "Conference manifest",

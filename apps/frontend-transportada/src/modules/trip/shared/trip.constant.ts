@@ -265,7 +265,12 @@ export const TRIP_DRIVER_KEYS = ['driverId', 'driverName', 'driverTaxId', 'posit
  * viagem virava `invalid()` na criação — 201 no servidor, "Não foi possível criar a viagem" na
  * tela (28/09/2026, staging).
  */
-export const TRIP_DRIVER_OPTIONAL_KEYS = ['driverEmail', 'driverPhone', 'role'] as const
+export const TRIP_DRIVER_OPTIONAL_KEYS = [
+  'driverEmail',
+  'driverPhone',
+  'paidAmount',
+  'role',
+] as const
 
 /** Cópia por valor de `TRIP_CREW_ROLES` — fonte: `api-transportada/src/shared/trip-crew-role.constant.ts`. */
 export const TRIP_CREW_ROLES = ['driver', 'helper'] as const

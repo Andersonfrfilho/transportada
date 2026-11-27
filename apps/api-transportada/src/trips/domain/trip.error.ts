@@ -1778,6 +1778,18 @@ export class MdfeAutoIssueDisabledError extends ApiError {
   }
 }
 
+/** Spec 327: gravar valor pago é dinheiro — exige `trip.financials`, como ler. */
+export class TripPaidAmountForbiddenError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_PAID_AMOUNT_FORBIDDEN',
+      message: 'Informing the paid amount requires the trip financials permission.',
+      status: 403,
+    })
+    this.name = 'TripPaidAmountForbiddenError'
+  }
+}
+
 /** Spec 320: a retenção não existe na empresa do contexto (ou nunca existiu). */
 export class FieldReportHoldNotFoundError extends ApiError {
   public constructor() {

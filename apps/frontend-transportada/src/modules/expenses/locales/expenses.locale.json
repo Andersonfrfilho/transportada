@@ -340,6 +340,7 @@
       "revenue": "Faturamento de fretes",
       "tripCost": "Custo das viagens",
       "tripCostHint": "diárias e gastos lançados na viagem",
+      "tripCostBreakdown": "Pagamento de agregados: {{aggregates}} · Gastos das nossas vans: {{ownVans}} (informativo, não muda o lucro)",
       "expenses": "Contas da empresa",
       "expensesHint": "fixas e variáveis, sem motorista",
       "profit": "Lucro",

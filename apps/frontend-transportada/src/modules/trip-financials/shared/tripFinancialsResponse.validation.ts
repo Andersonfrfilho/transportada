@@ -1,5 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { FinancialParcel, FinancialSummary, TripFinancialResult } from './tripFinancials.types'
+import type {
+  CrewCostComparison,
+  CrewCostComparisonRow,
+  FinancialParcel,
+  FinancialSummary,
+  TripFinancialResult,
+} from './tripFinancials.types'
 
 /** Resposta de API é entrada não confiável — e aqui ela vira o número que decide preço de frete. */
 export class TripFinancialResponseError extends Error {
@@ -105,4 +111,29 @@ export function toFinancialSummary(payload: unknown): FinancialSummary {
     taxTotal: readString(data.taxTotal),
     tripCount: readNumber(data.tripCount),
   }
+}
+
+export function toCrewCostComparison(payload: unknown): CrewCostComparison {
+  if (!isRecord(payload) || !isRecord(payload.data) || !Array.isArray(payload.data.items)) {
+    throw new TripFinancialResponseError()
+  }
+
+  const items = payload.data.items.map((item): CrewCostComparisonRow => {
+    if (!isRecord(item) || !Array.isArray(item.crewNames)) throw new TripFinancialResponseError()
+
+    return {
+      calculatedAmount: readString(item.calculatedAmount),
+      calculatedHasGaps: item.calculatedHasGaps === true,
+      createdAt: readString(item.createdAt),
+      crewNames: item.crewNames.map(readText),
+      differenceAmount: readString(item.differenceAmount),
+      informedAmount: readString(item.informedAmount),
+      informedHasGaps: item.informedHasGaps === true,
+      informedPeople: readNumber(item.informedPeople),
+      status: readText(item.status),
+      tripId: readString(item.tripId),
+    }
+  })
+
+  return { items, truncated: payload.data.truncated === true }
 }

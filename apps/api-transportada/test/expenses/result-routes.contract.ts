@@ -16,7 +16,13 @@ const EMPTY_RESULT = {
   byTrip: [],
   byVehicle: [],
   excluded: { aggregateVehicles: '0.00', category: '0.00', tripCosts: '0.00' },
-  totals: { expensesTotal: '0.00', profit: '0.00', revenue: '0.00', tripCost: '0.00' },
+  totals: {
+    expensesTotal: '0.00',
+    profit: '0.00',
+    revenue: '0.00',
+    tripCost: '0.00',
+    tripCostBreakdown: { aggregates: '0.00', ownVans: '0.00' },
+  },
   unallocatedTotal: '0.00',
 }
 

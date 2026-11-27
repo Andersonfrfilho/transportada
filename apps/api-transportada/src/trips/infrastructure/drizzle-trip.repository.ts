@@ -410,6 +410,17 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         throw new TripStateTransitionNotAllowedError(transition.reason)
       }
 
+      /** Spec 327: quem continua na tripulação mantém o valor combinado; o novo entra sem valor. */
+      const previousPaidAmounts = new Map(
+        (
+          await transaction
+            .select({ driverId: tripDrivers.driverId, paidAmount: tripDrivers.paidAmount })
+            .from(tripDrivers)
+            .where(
+              and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)),
+            )
+        ).map((row) => [row.driverId, row.paidAmount] as const),
+      )
       await transaction
         .delete(tripDrivers)
         .where(
@@ -422,6 +433,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
             driverId: driver.driverId,
             driverName: driver.driverName,
             driverTaxId: driver.driverTaxId,
+            paidAmount: driver.paidAmount ?? previousPaidAmounts.get(driver.driverId) ?? null,
             position: BigInt(driver.position),
             role: driver.role,
             tripId: input.tripId,
@@ -636,6 +648,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
             driverId: driver.driverId,
             driverName: driver.driverName,
             driverTaxId: driver.driverTaxId,
+            paidAmount: driver.paidAmount ?? null,
             position: BigInt(driver.position),
             role: driver.role,
             tripId: created.id,

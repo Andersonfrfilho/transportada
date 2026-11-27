@@ -183,7 +183,9 @@ export function TripQuickCreateDialog({
       ? {}
       : { dailyAllowanceDays: quickCreate.dailyAllowanceDays }),
     driverIds: quickCreate.driverIds,
+    helperIds: quickCreate.helperIds,
     nfeDocumentIds: stagedDocumentIds(quickCreate.queue),
+    paidAmounts: quickCreate.paidAmounts,
     permissions,
     stopOrder: quickCreate.cityOrder,
     vehicleId: quickCreate.vehicleId,
@@ -363,6 +365,39 @@ export function TripQuickCreateDialog({
               })}
             />
           </label>
+
+          {/*
+            Spec 327: o valor combinado com cada pessoa escolhida. Opcional: vazio mantém a diária
+            estimada. Dinheiro, então só com `trip.financials` — mesmo critério da prévia de custo.
+          */}
+          {permissions.includes(FINANCIALS_PERMISSION)
+            ? [...quickCreate.driverIds, ...quickCreate.helperIds].map((personId) => {
+                const person = activeDrivers.find((driver) => driver.id === personId)
+                const isHelper = quickCreate.helperIds.includes(personId)
+                const label = t(
+                  isHelper ? 'creation.paidAmountHelper' : 'creation.paidAmountDriver',
+                  {
+                    name: person?.name ?? '',
+                  },
+                )
+
+                return (
+                  <label key={personId}>
+                    {label}
+                    <input
+                      aria-label={label}
+                      inputMode="decimal"
+                      onChange={(event) =>
+                        quickCreate.setPaidAmountInput(personId, event.target.value)
+                      }
+                      placeholder={t('creation.paidAmountPlaceholder')}
+                      type="text"
+                      value={quickCreate.paidAmountInputs[personId] ?? ''}
+                    />
+                  </label>
+                )
+              })
+            : null}
         </div>
 
         {/*

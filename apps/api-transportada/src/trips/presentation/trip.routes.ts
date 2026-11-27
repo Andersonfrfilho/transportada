@@ -66,7 +66,7 @@ import type {
 import type { CompanyAnyPermissionPolicy } from '../../identity/domain/authorization.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { TRIP_REPORT_ON_BEHALF_PERMISSION } from '../domain/trip-permission.constant.js'
-import { MdfeAutoIssueDisabledError } from '../domain/trip.error.js'
+import { MdfeAutoIssueDisabledError, TripPaidAmountForbiddenError } from '../domain/trip.error.js'
 import { OFFICE_REPORT_POLICY } from './trip-field-office.support.js'
 import {
   resolveTripAllowedActions,
@@ -782,7 +782,9 @@ type Dependencies = {
       readonly companyId: string
       readonly dailyAllowanceDays?: number | undefined
       readonly driverIds: readonly string[]
+      readonly helperIds?: readonly string[]
       readonly nfeDocumentIds: readonly string[]
+      readonly paidAmounts?: Readonly<Record<string, string>>
       readonly routeChoice?: RouteChoice
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
@@ -1342,7 +1344,9 @@ export function createTripRoutes(
     defineRoute<{
       readonly dailyAllowanceDays?: number | undefined
       readonly driverIds: readonly string[]
+      readonly helperIds?: readonly string[]
       readonly nfeDocumentIds: readonly string[]
+      readonly paidAmounts?: Readonly<Record<string, string>>
       readonly routeChoice?: RouteChoice
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
@@ -1360,9 +1364,14 @@ export function createTripRoutes(
         const body = await parsePreviewTripValuationRequest(request)
         return {
           driverIds: body.driverIds,
+          helperIds: body.helperIds,
           nfeDocumentIds: body.nfeDocumentIds,
           stopOrder: body.stopOrder,
           vehicleId: body.vehicleId,
+          ...(body.dailyAllowanceDays === undefined
+            ? {}
+            : { dailyAllowanceDays: body.dailyAllowanceDays }),
+          ...(body.paidAmounts === undefined ? {} : { paidAmounts: body.paidAmounts }),
           ...(body.routeChoice === undefined ? {} : { routeChoice: body.routeChoice }),
         }
       },
@@ -1482,6 +1491,12 @@ export function createTripRoutes(
     }),
     defineRoute<Omit<CreateTripInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
+        if (
+          input.paidAmounts !== undefined &&
+          !context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission)
+        ) {
+          throw new TripPaidAmountForbiddenError()
+        }
         const trip = await dependencies.createTrip.execute({ context: context.scope, ...input })
         return jsonResponse({
           body: {
@@ -2545,6 +2560,8 @@ function serializeTripDetail(input: {
       driverName: driver.driverName,
       driverPhone: input.canReadDriverContact ? driver.driverPhone : null,
       driverTaxId: input.canReadDriverContact ? driver.driverTaxId : null,
+      /** Spec 327: dinheiro, então só com `trip.financials` — sem a permissão a chave nem existe. */
+      ...(input.canReadFinancials ? { paidAmount: driver.paidAmount ?? null } : {}),
       position: driver.position,
       role: driver.role,
     })),
