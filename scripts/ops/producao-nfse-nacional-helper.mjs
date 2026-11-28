@@ -4,7 +4,9 @@
 import { gzipSync, gunzipSync } from 'node:zlib'
 import { createRequire } from 'node:module'
 
-const baseRequire = createRequire(process.env.REQUIRE_FROM ?? '/app/apps/worker-transportada/package.json')
+const baseRequire = createRequire(
+  process.env.REQUIRE_FROM ?? '/app/apps/worker-transportada/package.json',
+)
 // node-forge e xml-crypto sao dependencias do fiscal-provider: resolve a partir dele quando nao estao hoisted
 function load(name) {
   try {
@@ -79,20 +81,26 @@ function signDps(xml, keyPem, certPem) {
       ? 'http://www.w3.org/2001/04/xmlenc#sha256'
       : 'http://www.w3.org/2000/09/xmldsig#sha1',
   })
-  sig.computeSignature(xml, { location: { reference: "//*[local-name(.)='infDPS']", action: 'after' } })
+  sig.computeSignature(xml, {
+    location: { reference: "//*[local-name(.)='infDPS']", action: 'after' },
+  })
   return sig.getSignedXml()
 }
 
 function extractPem(pfxBase64, password) {
   const der = forge.util.decode64(pfxBase64)
   const p12 = forge.pkcs12.pkcs12FromAsn1(forge.asn1.fromDer(der), false, password)
-  const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })[forge.pki.oids.pkcs8ShroudedKeyBag] ?? []
+  const keyBags =
+    p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })[
+      forge.pki.oids.pkcs8ShroudedKeyBag
+    ] ?? []
   const certBags = p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] ?? []
   const key = keyBags[0]?.key
   if (key === undefined || certBags.length === 0) throw new Error('PFX_SEM_CHAVE_OU_CERT')
   // cert folha = o que casa com a chave
   const pub = forge.pki.publicKeyToPem(key)
-  const leaf = certBags.find((b) => forge.pki.publicKeyToPem(b.cert.publicKey) === pub) ?? certBags[0]
+  const leaf =
+    certBags.find((b) => forge.pki.publicKeyToPem(b.cert.publicKey) === pub) ?? certBags[0]
   return {
     keyPem: forge.pki.privateKeyToPem(key),
     certPem: forge.pki.certificateToPem(leaf.cert),
@@ -105,7 +113,10 @@ export async function run({ pfxBase64, password, post }) {
   const { keyPem, certPem, cert } = extractPem(pfxBase64, password)
   const subject = cert.subject.getField('CN')?.value ?? ''
   out('certificado_cn', subject)
-  out('certificado_validade', `${cert.validity.notBefore.toISOString()} ate ${cert.validity.notAfter.toISOString()}`)
+  out(
+    'certificado_validade',
+    `${cert.validity.notBefore.toISOString()} ate ${cert.validity.notAfter.toISOString()}`,
+  )
   const now = new Date()
   const variants = (process.env.VARIANTS ?? 'A').split(',')
   let last
@@ -119,7 +130,9 @@ export async function run({ pfxBase64, password, post }) {
       out(`variante_${variant}`, `dry_run bytes=${Buffer.byteLength(signed)}`)
       continue
     }
-    const body = JSON.stringify({ dpsXmlGZipB64: gzipSync(Buffer.from(signed, 'utf8')).toString('base64') })
+    const body = JSON.stringify({
+      dpsXmlGZipB64: gzipSync(Buffer.from(signed, 'utf8')).toString('base64'),
+    })
     const res = await post({ url: `${SEFIN_RESTRITA}/nfse`, body, keyPem, certPem })
     out(`variante_${variant}_http`, res.status)
     let json
@@ -133,7 +146,10 @@ export async function run({ pfxBase64, password, post }) {
       out('chaveAcesso', json.chaveAcesso ?? '')
       out('idDps', json.idDps ?? '')
       out('alertas', trim(JSON.stringify(json.alertas ?? [])))
-      out('nfse_xml', trim(gunzipSync(Buffer.from(json.nfseXmlGZipB64, 'base64')).toString('utf8'), 8000))
+      out(
+        'nfse_xml',
+        trim(gunzipSync(Buffer.from(json.nfseXmlGZipB64, 'base64')).toString('utf8'), 8000),
+      )
       break
     }
     const { nfseXmlGZipB64: _omit, ...rest } = json
@@ -153,17 +169,34 @@ if (process.env.NFSE_SELFTEST !== '1') {
   const asRows = (r) => (Array.isArray(r) ? r : (r?.rows ?? []))
 
   const keys = Object.fromEntries(
-    Object.entries(JSON.parse(process.env.ENCRYPTION_KEYRING_JSON ?? '{}')).map(([k, v]) => [k, Uint8Array.from(Buffer.from(String(v), 'base64'))]),
+    Object.entries(JSON.parse(process.env.ENCRYPTION_KEYRING_JSON ?? '{}')).map(([k, v]) => [
+      k,
+      Uint8Array.from(Buffer.from(String(v), 'base64')),
+    ]),
   )
-  const envelopeProvider = createSecretEnvelopeProvider({ activeKeyId: process.env.ENCRYPTION_ACTIVE_KEY_ID, keys })
-  const database = createDrizzleProvider({ connection: { connection: { TimeZone: 'UTC' }, url: process.env.DATABASE_URL } })
+  const envelopeProvider = createSecretEnvelopeProvider({
+    activeKeyId: process.env.ENCRYPTION_ACTIVE_KEY_ID,
+    keys,
+  })
+  const database = createDrizzleProvider({
+    connection: { connection: { TimeZone: 'UTC' }, url: process.env.DATABASE_URL },
+  })
   let exitCode = 0
   try {
-    const profiles = asRows(await database.db.execute(sql`select company_id as "companyId", cnpj from company_fiscal_profiles`))
+    const profiles = asRows(
+      await database.db.execute(
+        sql`select company_id as "companyId", cnpj from company_fiscal_profiles`,
+      ),
+    )
     const wanted = process.env.COMPANY_ID
-    const mine = profiles.filter((p) => (wanted ? p.companyId === wanted : String(p.cnpj).replace(/\D/g, '') === PRESTADOR_CNPJ))
+    const mine = profiles.filter((p) =>
+      wanted ? p.companyId === wanted : String(p.cnpj).replace(/\D/g, '') === PRESTADOR_CNPJ,
+    )
     if (mine.length !== 1) {
-      out('erro', `empresa_ambigua perfis=${profiles.length} candidatas=${mine.length} (defina COMPANY_ID)`)
+      out(
+        'erro',
+        `empresa_ambigua perfis=${profiles.length} candidatas=${mine.length} (defina COMPANY_ID)`,
+      )
       process.exit(3)
     }
     const companyId = mine[0].companyId
@@ -187,7 +220,10 @@ if (process.env.NFSE_SELFTEST !== '1') {
     const cert = certs[0]
     out('certificado_cnpj_validado', String(cert.validatedCnpj))
     const aad = new TextEncoder().encode(`transportada:certificate:v1:${companyId}:${cert.id}:cte`)
-    const envelope = typeof cert.secretEnvelope === 'string' ? JSON.parse(cert.secretEnvelope) : cert.secretEnvelope
+    const envelope =
+      typeof cert.secretEnvelope === 'string'
+        ? JSON.parse(cert.secretEnvelope)
+        : cert.secretEnvelope
     const plaintext = await envelopeProvider.decrypt({ additionalAuthenticatedData: aad, envelope })
     const secret = JSON.parse(new TextDecoder().decode(plaintext))
     plaintext.fill(0)
@@ -203,7 +239,12 @@ if (process.env.NFSE_SELFTEST !== '1') {
     }
     await run({ pfxBase64: secret.certificateBase64, password: secret.password, post })
   } catch (error) {
-    out('lancou', String(error?.message ?? error).replace(/\s+/g, ' ').slice(0, 300))
+    out(
+      'lancou',
+      String(error?.message ?? error)
+        .replace(/\s+/g, ' ')
+        .slice(0, 300),
+    )
     exitCode = 1
   } finally {
     await database.close?.()
