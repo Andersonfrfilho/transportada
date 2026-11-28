@@ -1681,3 +1681,33 @@ O #939 foi mergeado em 22/11/2026 (merge `66cb191`), com os checks do PR verdes.
 - **Para a nota entrar:** cadastrar o emitente como contratante (painel) e reprocessar a recusada (§ "Entrada de XML por e-mail e WhatsApp": botão "Reprocessar" ou `producao-reprocessa-recusadas.sh`), ou reenviar o XML.
 - **Diagnóstico (somente leitura):** `scripts/ops/producao-xml-rejeitado-diagnostico.sh` — recibos, importações, itens com `error.code`, nota cadastrada e contratantes das últimas 24 h. Saída em `tmp/ops/saidas/`.
 - **Armadilhas do script:** `interval` não aceita parâmetro no `Bun.SQL` (use literal); aspas simples dentro de `bun -e '…'` quebram o shell — passar o JS em base64 (padrão da § 2). O `limit 10` dos itens cortou os itens do WhatsApp; filtre por `import_id` dos recibos se houver muitas importações.
+
+## 5.52 Teste de NFS-e no Sistema Nacional, produção restrita (28/11/2026) — certificado de produção, nota sem valor fiscal
+
+**O que foi feito:** emitida **uma** NFS-e de teste (R$ 1,00) no ambiente de **produção restrita** do Sistema Nacional
+(`https://sefin.producaorestrita.nfse.gov.br/SefinNacional/nfse`, `tpAmb=2`), com o certificado A1 do prestador
+(AFR Fernandes, CNPJ 61.156.864/0001-91) que o portal já guarda. Resultado: **HTTP 201**, `cStat 100`, sem alertas.
+Nada foi emitido no ambiente de produção real. Ribeirão Preto já está no padrão nacional (nota 7, 25/11/2026).
+
+**Como:** `scripts/ops/producao-nfse-nacional-teste-restrita.sh` (copiar com o helper para `tmp/ops/`). Entra no worker por
+`railway ssh`, lê `company_fiscal_profiles` e `digital_certificates` (purpose `cte`, ativo) por SQL cru, decifra o envelope
+**só em memória** (AAD `transportada:certificate:v1:<companyId>:<certId>:cte`), extrai chave e certificado do PFX
+(`node-forge`, resolvido a partir do `@adatechnology/fiscal-provider`), assina a DPS (XMLDSig, `xml-crypto`) e envia por mTLS.
+Imprime só linhas `__RESULT__`; nunca certificado, senha ou chave. Também baixa os XSDs oficiais para `tmp/ops/saidas/xsd-producao-restrita/`.
+Opções: `DRY_RUN=1` (assina e não envia), `SIG_ALGO=sha1`, `VALOR=1.00`, `COMPANY_ID=<uuid>`.
+
+**Armadilhas medidas:**
+
+- O container do worker só tem `dist/main.js` empacotado: nada de `import` de `dist/*`; use SQL cru e leia o chaveiro de `ENCRYPTION_KEYRING_JSON`.
+- `node-forge` e `xml-crypto` não estão no topo do `node_modules` do worker: resolver a partir de `@adatechnology/fiscal-provider`.
+- `device_commit_files` logo depois de editar pode gravar a versão **antiga**; confira o tamanho/`grep` do arquivo na máquina antes de pedir a rodada.
+
+**Leiaute da DPS v1.01 que a API aceitou** (validado contra `DPS_v1.01.xsd`; XML sem prefixo `ds:`, declaração `<?xml version="1.0" encoding="UTF-8"?>`, `versao="1.01"`, senão `E0854`/`E1229`):
+
+- `infDPS`: `tpAmb`, `dhEmi`, `verAplic`, `serie`, `nDPS`, `dCompet`, `tpEmit`, **`finNFSe`**, `cLocEmi`, `prest`, `toma`, **`indDest`**, `serv`, `valores`, `IBSCBS`.
+- `serv/cServ`: `cTribNac`, **`cNBS`**, `xDescServ` (a descrição vem **por último**).
+- `prest/regTrib`: `opSimpNac` 3, `regApTribSN` 1, `regEspTrib` 0. `valores/trib`: `tribMun` (`tribISSQN` 1, `tpRetISSQN` 1) e `totTrib/pTotTribSN` 4.50.
+- `IBSCBS`: `indFinal`, `cIndOp` (070101), `valores/trib/{CST, cClassTrib}` — **sem** o grupo `gIBSCBS` e **sem** `finNFSe` aqui.
+- `Id` = `DPS` + `cLocEmi`(7) + tipo de inscrição `2` + CNPJ(14) + série(5) + nDPS(15); série 1 foi aceita.
+
+**Pendente (decisão do Anderson):** integrar a emissão ao sistema (gateway no worker no lugar da Nota RP) e emitir a primeira nota real. A produção restrita calculou alíquotas de IBS/CBS diferentes das da nota 7 (CBS 11,20% contra 0,90%); confirmar o cálculo em produção antes de confiar nele.
